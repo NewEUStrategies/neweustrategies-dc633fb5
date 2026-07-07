@@ -325,6 +325,17 @@ export function WidgetProperties({
             </div>
           </div>
 
+          {/* ═══════════════ GROUP: Wygląd ═══════════════ */}
+          <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
+              <span className="h-1 w-1 rounded-full bg-brand" />
+              Wygląd
+              <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
+                typografia, kolory, obramowanie
+              </span>
+            </div>
+          </div>
+
           <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Typografia ({mode === "dark" ? "ciemny" : "jasny"})
@@ -493,24 +504,6 @@ export function WidgetProperties({
             </section>
           )}
 
-          <section className="space-y-2 pt-2 border-t border-border">
-            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Odstępy
-            </h4>
-            <SpacingControl style={widget.style} device={device} onChange={setStyle} />
-            <PropField label="Pozycja w komórce">
-              <PositionAnchor
-                justify={widget.style?.selfJustify}
-                align={widget.style?.selfAlign}
-                onChange={({ justify, align }) =>
-                  setStyle((s) => {
-                    s.selfJustify = justify;
-                    s.selfAlign = align;
-                  })
-                }
-              />
-            </PropField>
-          </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -582,6 +575,36 @@ export function WidgetProperties({
             </h4>
 
             <HoverControl value={hoverValue} onChange={onHoverChange} />
+          </section>
+
+          {/* ═══════════════ GROUP: Układ ═══════════════ */}
+          <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1 mt-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
+              <span className="h-1 w-1 rounded-full bg-brand" />
+              Układ
+              <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
+                odstępy, pozycja, wyrównanie
+              </span>
+            </div>
+          </div>
+
+          <section className="space-y-2">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Odstępy
+            </h4>
+            <SpacingControl style={widget.style} device={device} onChange={setStyle} />
+            <PropField label="Pozycja w komórce">
+              <PositionAnchor
+                justify={widget.style?.selfJustify}
+                align={widget.style?.selfAlign}
+                onChange={({ justify, align }) =>
+                  setStyle((s) => {
+                    s.selfJustify = justify;
+                    s.selfAlign = align;
+                  })
+                }
+              />
+            </PropField>
           </section>
         </TabsContent>
 
