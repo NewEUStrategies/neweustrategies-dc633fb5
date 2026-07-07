@@ -637,7 +637,10 @@ export function JoinUsForm({
 
       {showInterests && allItems.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p
+            className="mb-2 font-sans font-semibold uppercase tracking-wider text-muted-foreground"
+            style={{ fontSize: labelSize ? `${labelSize}px` : "12px" }}
+          >
             {iLabel}
             {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
