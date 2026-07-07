@@ -165,11 +165,19 @@ const NlSectionStyle = z.object({
   align: z.enum(["left", "center"]).optional(),
 });
 
+const NlSectionMediaSchema = z.object({
+  url: z.string().max(2048),
+  alt: z.string().max(300).optional(),
+  position: z.enum(["left", "right"]),
+  widthPct: z.number().int().min(10).max(70).optional(),
+});
+
 export const NlSectionSchema = z.object({
   id: z.string().min(1).max(64),
   widgets: z.array(NlWidgetSchema).max(64),
   style: NlSectionStyle.optional(),
   layout: z.enum(["single", "1-2", "1-1", "2-1"]).optional(),
+  media: NlSectionMediaSchema.nullish(),
 });
 
 export const NlDocSchema = z.object({
