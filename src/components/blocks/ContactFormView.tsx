@@ -654,7 +654,7 @@ function Field({
 }) {
   return (
     <label className={`block space-y-1 ${className ?? ""}`}>
-      <span className="text-xs font-semibold tracking-wide opacity-95">
+      <span className="cf-field-label text-xs font-semibold tracking-wide opacity-95">
         {label}
         {required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
       </span>
