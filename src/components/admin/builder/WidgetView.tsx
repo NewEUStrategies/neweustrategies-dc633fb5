@@ -202,6 +202,41 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   // are already scoped to `[data-w-id="<id>"]`, so concatenation is order-safe
   // and shrinks the per-widget DOM/style-node count on widget-heavy pages.
   const widgetCss = [hover, typographyCss, overrideCss, scopedCss].filter(Boolean).join("\n");
+  // Inner content shell — pozwala wycentrować treść i zmniejszyć jej szerokość
+  // wewnątrz widgetu (bez zmieniania szerokości samego widgetu), oraz sterować
+  // odstępem między dziećmi. Brak wartości = zachowanie legacy (pełna szerokość).
+  const advContentMaxWidth = node.advanced?.contentMaxWidth;
+  const advContentAlign = node.advanced?.contentAlign;
+  const advContentGap = node.advanced?.contentGap;
+  const toCssLen = (v: number | string | undefined): string | undefined =>
+    v === undefined ? undefined : typeof v === "number" ? `${v}px` : v;
+  const innerMaxWidth = toCssLen(advContentMaxWidth);
+  const innerGap = toCssLen(advContentGap);
+  const innerAlignItems =
+    advContentAlign === "center"
+      ? "center"
+      : advContentAlign === "end"
+        ? "flex-end"
+        : advContentAlign === "start"
+          ? "flex-start"
+          : undefined;
+  const hasInnerShell = Boolean(innerMaxWidth || innerGap || innerAlignItems);
+  const innerShellStyle: CSSProperties | undefined = hasInnerShell
+    ? {
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        maxWidth: innerMaxWidth ?? "100%",
+        marginInline: advContentAlign === "center" ? "auto" : undefined,
+        marginLeft: advContentAlign === "end" ? "auto" : undefined,
+        marginRight: advContentAlign === "start" ? "auto" : undefined,
+        alignItems: innerAlignItems,
+        gap: innerGap,
+        minWidth: 0,
+        boxSizing: "border-box",
+      }
+    : undefined;
+
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
@@ -229,10 +264,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         ...motionStyle,
       }}
     >
-      {children}
+      {innerShellStyle ? <div style={innerShellStyle}>{children}</div> : children}
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
     </div>
   );
+
 
   const c = node.content;
   const canEdit = editable && !!onContentChange;
