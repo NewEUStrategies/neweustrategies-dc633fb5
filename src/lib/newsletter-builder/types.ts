@@ -32,7 +32,9 @@ export type NlWidgetType =
   | "submit"
   | "success-message"
   | "social-proof"
-  | "countdown";
+  | "countdown"
+  | "cta-button"
+  | "coupon";
 
 export interface NlSelectOption {
   value: string;
