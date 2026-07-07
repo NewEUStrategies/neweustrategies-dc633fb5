@@ -2473,17 +2473,18 @@ textarea::placeholder {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
 ),
 :where(select) {
-  height: 2.5rem;
-  padding-inline: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  height: var(--form-input-height);
+  padding-inline: var(--form-input-padding-x);
+  font-size: var(--form-input-font-size);
+  line-height: var(--form-input-line-height);
 }
 :where(textarea) {
-  min-height: 5rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
+  min-height: var(--form-textarea-min-height);
+  padding: var(--form-textarea-padding-y) var(--form-input-padding-x);
+  font-size: var(--form-input-font-size);
   line-height: 1.35;
 }
+
 
 /* Neutralize the browser's default focus outline (blue glow) everywhere. */
 :where(input, textarea, select):focus {
