@@ -830,10 +830,18 @@ export function JoinUsForm({
 
   return (
     <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
-      <h3 id="joinus-heading" className="font-display text-2xl mb-2">
+      <h3
+        id="joinus-heading"
+        className={cn("font-display mb-2", !titleSize && "text-2xl")}
+        style={titleStyle}
+      >
         {heading}
       </h3>
-      {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
+      {description && (
+        <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+          {description}
+        </p>
+      )}
       {form}
     </section>
   );
