@@ -2603,12 +2603,13 @@ textarea::placeholder {
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="file"]) {
   height: auto;
-  min-height: 2.5rem;
+  min-height: var(--form-input-height);
   padding: 0.4rem 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--form-input-font-size);
+  line-height: var(--form-input-line-height);
   border: 1.5px dashed hsl(var(--border));
-  border-radius: var(--cf-radius, 8px);
+  border-radius: var(--form-input-radius);
+
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   cursor: pointer;
