@@ -11,7 +11,7 @@
 // inputs. All form widgets (Join Us, Contact Form, Newsletter, auth) can share
 // the same primitives to guarantee identical UX + validation.
 
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 export type CustomFieldType =
@@ -149,6 +149,8 @@ interface RendererProps {
   lang: "pl" | "en";
   className?: string;
   inputClassName?: string;
+  inputStyle?: CSSProperties;
+  inputEditTarget?: string;
 }
 
 /** Renders the configured custom inputs. Controlled: parent owns the value map
@@ -160,6 +162,8 @@ export function CustomFieldsRenderer({
   lang,
   className,
   inputClassName,
+  inputStyle,
+  inputEditTarget,
 }: RendererProps) {
   const stable = useMemo(() => fields, [fields]);
   if (!stable.length) return null;
@@ -195,6 +199,8 @@ export function CustomFieldsRenderer({
                 maxLength={f.maxLength ?? 2000}
                 rows={4}
                 className={cn(baseInput, "resize-y min-h-[80px]")}
+                style={inputStyle}
+                data-edit-target={inputEditTarget}
               />
             </label>
           );
@@ -213,6 +219,8 @@ export function CustomFieldsRenderer({
                 onChange={(e) => onChange(f.id, e.target.value)}
                 required={f.required}
                 className={baseInput}
+                style={inputStyle}
+                data-edit-target={inputEditTarget}
               >
                 <option value="">{placeholder || "-"}</option>
                 {(f.options ?? []).map((o) => {
@@ -235,6 +243,8 @@ export function CustomFieldsRenderer({
             <label
               key={f.id}
               className="sm:col-span-2 flex items-start gap-2 text-sm text-muted-foreground"
+              style={inputStyle}
+              data-edit-target={inputEditTarget}
             >
               <input
                 type="checkbox"
@@ -269,6 +279,8 @@ export function CustomFieldsRenderer({
             aria-label={label}
             maxLength={f.maxLength ?? 300}
             className={baseInput}
+            style={inputStyle}
+            data-edit-target={inputEditTarget}
           />
         );
       })}

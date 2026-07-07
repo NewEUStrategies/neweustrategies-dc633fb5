@@ -7,7 +7,7 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
@@ -438,8 +438,16 @@ export function JoinUsForm({
   }
 
   const inputCls =
-    "px-3 py-2 rounded border border-input bg-background font-sans w-full";
-  const inputStyle = placeholderSize ? { fontSize: `${placeholderSize}px` } : { fontSize: "14px" };
+    "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
+  const inputStyle = placeholderSize
+    ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
+    : ({ fontSize: "14px" } satisfies CSSProperties);
+  const droplistButtonStyle = placeholderSize
+    ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
+    : undefined;
+  const chipStyle = labelSize
+    ? ({ fontSize: `${labelSize}px` } satisfies CSSProperties)
+    : undefined;
   const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
 
   // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
@@ -459,6 +467,7 @@ export function JoinUsForm({
         maxLength={254}
         className={inputCls}
         style={inputStyle}
+        data-edit-target="placeholderSize"
         autoComplete="email"
       />,
     );
@@ -476,6 +485,7 @@ export function JoinUsForm({
         maxLength={200}
         className={inputCls}
         style={inputStyle}
+        data-edit-target="placeholderSize"
         autoComplete="organization-title"
       />,
     );
@@ -493,6 +503,7 @@ export function JoinUsForm({
         maxLength={300}
         className={inputCls}
         style={inputStyle}
+        data-edit-target="placeholderSize"
         autoComplete="url"
       />,
     );
@@ -510,6 +521,7 @@ export function JoinUsForm({
         maxLength={40}
         className={inputCls}
         style={inputStyle}
+        data-edit-target="placeholderSize"
         autoComplete="tel"
       />,
     );
@@ -527,6 +539,7 @@ export function JoinUsForm({
         maxLength={200}
         className={inputCls}
         style={inputStyle}
+        data-edit-target="placeholderSize"
         autoComplete="organization"
       />,
     );
@@ -544,13 +557,14 @@ export function JoinUsForm({
         maxLength={100}
         className={inputCls}
         style={inputStyle}
+        data-edit-target="placeholderSize"
         autoComplete="country-name"
       />,
     );
   }
 
   const form = (
-    <form onSubmit={submit} className="space-y-3" noValidate data-edit-target="placeholderSize">
+    <form onSubmit={submit} className="space-y-3" noValidate>
 
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -565,6 +579,7 @@ export function JoinUsForm({
               maxLength={100}
               className={inputCls}
               style={inputStyle}
+              data-edit-target="placeholderSize"
               autoComplete="given-name"
             />
           )}
@@ -579,6 +594,7 @@ export function JoinUsForm({
               maxLength={100}
               className={inputCls}
               style={inputStyle}
+              data-edit-target="placeholderSize"
               autoComplete="family-name"
             />
           )}
@@ -593,6 +609,7 @@ export function JoinUsForm({
             maxLength={120}
             className={inputCls}
             style={inputStyle}
+            data-edit-target="placeholderSize"
             autoComplete="name"
           />
           <input
@@ -605,6 +622,7 @@ export function JoinUsForm({
             maxLength={254}
             className={inputCls}
             style={inputStyle}
+            data-edit-target="placeholderSize"
             autoComplete="email"
           />
         </div>
@@ -633,6 +651,9 @@ export function JoinUsForm({
           values={customValues}
           onChange={setCustom}
           lang={lang}
+          inputClassName={inputCls}
+          inputStyle={inputStyle}
+          inputEditTarget="placeholderSize"
         />
       )}
 
@@ -684,6 +705,8 @@ export function JoinUsForm({
                   aria-haspopup="listbox"
                   aria-expanded={dropOpen}
                   className="flex w-full items-center justify-between rounded border border-input bg-background px-3 py-2 text-sm text-left"
+                  style={droplistButtonStyle}
+                  data-edit-target="placeholderSize"
                 >
                   <span className={picked.size ? "text-foreground" : "text-muted-foreground"}>
                     {picked.size
@@ -756,6 +779,7 @@ export function JoinUsForm({
                         ? "border-brand bg-brand text-brand-foreground"
                         : "border-border bg-background hover:border-brand/60",
                     )}
+                    style={chipStyle}
                   >
                     {it.label}
                   </button>
@@ -770,7 +794,7 @@ export function JoinUsForm({
       <button
         type="submit"
         disabled={state === "loading"}
-        className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 font-sans font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-brand px-4 py-0 font-sans font-semibold leading-none text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
         style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
         data-edit-target="buttonSize"
       >

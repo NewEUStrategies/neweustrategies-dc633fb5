@@ -228,7 +228,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   // Scoped CSS for per-instance font sizes. Empty (0) values are skipped so
   // Tailwind defaults still apply.
   const fontSizeCss = useMemo(() => {
-    const scope = `[data-cf-id="${formId}"]`;
+    const scope = `[data-cf-id="${formId}"].cf-inner`;
     const rules: string[] = [];
     // NOTE: `!important` is required so the per-instance font-size wins over
     // `.cms-builder-compact ... .text-xs / .text-sm` builder overrides and any
@@ -241,7 +241,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       rules.push(`${scope} .cf-field-label{font-size:${labelSize}px !important;}`);
     if (placeholderSize > 0)
       rules.push(
-        `${scope} .cf-input{font-size:${placeholderSize}px !important;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px !important;}`,
+        `${scope} :is(input.cf-input,select.cf-input){height:44px;font-size:${placeholderSize}px !important;line-height:1 !important;padding-top:0 !important;padding-bottom:0 !important;}${scope} textarea.cf-input{font-size:${placeholderSize}px !important;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px !important;}`,
       );
     if (buttonFontSize > 0)
       rules.push(`${scope} .cf-submit{font-size:${buttonFontSize}px !important;}`);
