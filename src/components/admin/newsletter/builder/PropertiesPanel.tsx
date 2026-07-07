@@ -8,6 +8,7 @@ import type {
   NlSection,
   NlSectionLayout,
   NlSectionStyle,
+  NlSectionMedia,
   NlHeadingWidget,
   NlParagraphWidget,
   NlImageWidget,
