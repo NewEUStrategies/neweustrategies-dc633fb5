@@ -97,6 +97,7 @@ type ExtraKey =
 export function JoinUsForm({
   variant = "card",
   showInterests = true,
+  interestsDisplay = "chips",
   className,
   source = "join-us",
   title,
