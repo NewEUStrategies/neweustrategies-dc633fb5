@@ -2653,46 +2653,68 @@ textarea::placeholder {
   justify-content: flex-start;
 }
 
-/* Center — cała lista jako blok jedzie do środka; li zwężone do content-width,
-   dzięki temu wielowierszowy tekst wewnątrz zawija się LEWOSTRONNIE, nie w słupku. */
+/* Center / Right — cała lista jako inline-block „shrink do treści" jedzie
+   do środka (lub w prawo) tak jak zwykły tekst wewnątrz wycentrowanego
+   kontenera. Wewnątrz listy zachowujemy text-align: left, więc wiersze
+   ✓ + tekst siedzą obok siebie, a wielowierszowy tekst zawija się
+   lewostronnie pod tekstem (hanging indent). Wariant A z prototypu. */
 [data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks),
 [data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks),
 [data-w-id].text-center :where(.join-us-perks, .widget-perks),
-[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) {
-  align-items: center;
-}
-[data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
-[data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li,
-[data-w-id].text-center :where(.join-us-perks, .widget-perks) > li,
-[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) > li,
-[data-w-id][style*="text-align: center"] .widget-align-row,
-[data-w-id][style*="text-align:center"] .widget-align-row,
-[data-w-id].text-center .widget-align-row,
-[data-w-id][data-align="center"] .widget-align-row {
-  justify-content: flex-start;
-  width: auto;
-  max-width: 100%;
-  text-align: left;
-}
-
-/* Right — analogicznie: lista dosunięta do prawej, wiersze wąskie na content. */
+[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks),
 [data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks),
 [data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks),
 [data-w-id].text-right :where(.join-us-perks, .widget-perks),
 [data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) {
-  align-items: flex-end;
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  text-align: left;
+  vertical-align: top;
 }
+
+/* Kiedy ul staje się inline-block, `gap` (flex property) przestaje działać.
+   Odtwarzamy odstępy pionowe przez margin-top na kolejnych li. */
+[data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id].text-center :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id].text-right :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) > li + li {
+  margin-top: 0.5rem;
+}
+
+/* li wraca do zwykłego flex-row, bez per-item justify — całość i tak jest
+   już przesunięta jako blok przez inline-block. */
+[data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id].text-center :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id].text-right :where(.join-us-perks, .widget-perks) > li,
-[data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) > li {
+  justify-content: flex-start;
+  text-align: left;
+  width: auto;
+}
+
+/* Widget-align-row (checkbox labels itp.) — nadal używa flex justify,
+   bo nie jest listą i nie potrzebuje inline-block hacku. */
+[data-w-id][style*="text-align: center"] .widget-align-row,
+[data-w-id][style*="text-align:center"] .widget-align-row,
+[data-w-id].text-center .widget-align-row,
+[data-w-id][data-align="center"] .widget-align-row {
+  justify-content: center;
+  text-align: left;
+}
 [data-w-id][style*="text-align: right"] .widget-align-row,
 [data-w-id][style*="text-align:right"] .widget-align-row,
 [data-w-id].text-right .widget-align-row,
 [data-w-id][data-align="right"] .widget-align-row {
-  justify-content: flex-start;
-  width: auto;
-  max-width: 100%;
+  justify-content: flex-end;
   text-align: left;
 }
 
