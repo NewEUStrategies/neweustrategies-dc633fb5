@@ -789,15 +789,25 @@ export function JoinUsForm({
   );
 
 
+  const titleStyle = titleSize ? { fontSize: `${titleSize}px` } : undefined;
+  const descStyle = { fontSize: descriptionSize ? `${descriptionSize}px` : "14px" } as const;
+  const perkStyle = { fontSize: perkSize ? `${perkSize}px` : "14px" } as const;
+
   if (variant === "split") {
     return (
       <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
         <div>
-          <h3 id="joinus-heading" className="font-display text-2xl mb-2">
+          <h3
+            id="joinus-heading"
+            className={cn("font-display mb-2", !titleSize && "text-2xl")}
+            style={titleStyle}
+          >
             {heading}
           </h3>
-          <p className="text-sm text-muted-foreground mb-4">{description}</p>
-          <ul className="join-us-perks flex flex-col gap-2 text-sm">
+          <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+            {description}
+          </p>
+          <ul className="join-us-perks flex flex-col gap-2 font-sans" style={perkStyle}>
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
               <span>{p1}</span>
@@ -816,6 +826,7 @@ export function JoinUsForm({
       </section>
     );
   }
+
 
   return (
     <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
