@@ -726,18 +726,18 @@ export function JoinUsForm({
             {heading}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">{description}</p>
-          <ul className="space-y-2 text-sm">
+          <ul className="join-us-perks flex flex-col gap-2 text-sm">
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand" />
-              {p1}
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <span>{p1}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand" />
-              {p2}
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <span>{p2}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand" />
-              {p3}
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <span>{p3}</span>
             </li>
           </ul>
         </div>
