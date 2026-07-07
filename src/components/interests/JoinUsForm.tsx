@@ -383,11 +383,12 @@ export function JoinUsForm({
   const phCountry = countryPlaceholder || (lang === "en" ? "Country" : "Kraj");
 
   const containerCls =
-    variant === "inline"
+    (variant === "inline"
       ? "border-t border-b border-border py-6"
       : variant === "split"
         ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
-        : "rounded-xl border border-border bg-card p-6 sm:p-8";
+        : "rounded-xl border border-border bg-card p-6 sm:p-8") +
+    ` join-us-shell join-us-shell--${variant}`;
 
   if (state === "ok") {
     return (
