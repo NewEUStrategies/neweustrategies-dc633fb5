@@ -234,10 +234,6 @@ function ImageUrlField({
   );
 }
 
-// The `folder` prop is intentionally unused inside the storage path now
-// (media library is flat/tenant-scoped; folder_path is set separately by the
-// media manager). Keeping the prop for API stability with call sites.
-void folder;
 
 // Kompaktowa paleta presetow - dopasowana do design tokens projektu.
 const COLOR_PRESETS: string[] = [
