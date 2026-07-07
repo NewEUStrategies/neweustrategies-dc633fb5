@@ -1115,6 +1115,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     { key: "countryPlaceholder", type: "i18nText", label: "Placeholder: Kraj" },
+
+    // ----- Rozmiary czcionek (px) -----
+    { key: "titleSize", type: "number", label: "Rozmiar tytułu (px)", min: 10, max: 96 },
+    { key: "descriptionSize", type: "number", label: "Rozmiar opisu (px)", min: 8, max: 48 },
+    { key: "perkSize", type: "number", label: "Rozmiar bulletpointów (px)", min: 8, max: 32 },
+    { key: "labelSize", type: "number", label: "Rozmiar etykiet (px)", min: 8, max: 24 },
+    { key: "placeholderSize", type: "number", label: "Rozmiar placeholderów / pól (px)", min: 8, max: 24 },
+    { key: "buttonSize", type: "number", label: "Rozmiar przycisku (px)", min: 8, max: 28 },
+    { key: "consentSize", type: "number", label: "Rozmiar zgód / stopki (px)", min: 8, max: 20 },
   ],
 
 

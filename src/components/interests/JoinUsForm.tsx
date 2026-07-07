@@ -7,7 +7,7 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
@@ -82,6 +82,15 @@ export interface JoinUsFormProps {
   /** Extra CMS-defined fields ("hybrid" mode). Values are forwarded to CRM
    *  under `aliases.custom.<id>` via the crm_upsert_from_form(_custom) RPC. */
   customFields?: CustomFieldDef[];
+
+  // Font-size overrides (px). undefined = fallback to Tailwind defaults.
+  titleSize?: number;
+  descriptionSize?: number;
+  perkSize?: number;
+  labelSize?: number;
+  placeholderSize?: number;
+  buttonSize?: number;
+  consentSize?: number;
 }
 
 
@@ -137,6 +146,13 @@ export function JoinUsForm({
   companyPlaceholder,
   countryPlaceholder,
   customFields,
+  titleSize,
+  descriptionSize,
+  perkSize,
+  labelSize,
+  placeholderSize,
+  buttonSize,
+  consentSize,
 }: JoinUsFormProps) {
 
   const { t, i18n } = useTranslation();
@@ -422,8 +438,116 @@ export function JoinUsForm({
   }
 
   const inputCls =
-    "px-3 py-2 rounded border border-input bg-background text-sm w-full";
+    "px-3 py-2 rounded border border-input bg-background font-sans w-full";
+  const inputStyle = placeholderSize ? { fontSize: `${placeholderSize}px` } : { fontSize: "14px" };
   const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
+
+  // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
+  // Rendered into a single 2-col grid; when the count is odd, the last item spans both columns
+  // so no empty cell remains.
+  const extraFields: ReactNode[] = [];
+  if (useSplitName) {
+    extraFields.push(
+      <input
+        key="email"
+        type="email"
+        required={requireEmail}
+        aria-required={requireEmail || undefined}
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder={withMark(phEmail, requireEmail)}
+        maxLength={254}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="email"
+      />,
+    );
+  }
+  if (showPosition) {
+    extraFields.push(
+      <input
+        key="position"
+        type="text"
+        value={extra.position}
+        onChange={(e) => updateExtra("position", e.target.value)}
+        placeholder={withMark(phPosition, requirePosition)}
+        aria-required={requirePosition || undefined}
+        required={requirePosition}
+        maxLength={200}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="organization-title"
+      />,
+    );
+  }
+  if (showLinkedin) {
+    extraFields.push(
+      <input
+        key="linkedin"
+        type="url"
+        value={extra.linkedin}
+        onChange={(e) => updateExtra("linkedin", e.target.value)}
+        placeholder={withMark(phLinkedin, requireLinkedin)}
+        aria-required={requireLinkedin || undefined}
+        required={requireLinkedin}
+        maxLength={300}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="url"
+      />,
+    );
+  }
+  if (showPhone) {
+    extraFields.push(
+      <input
+        key="phone"
+        type="tel"
+        value={extra.phone}
+        onChange={(e) => updateExtra("phone", e.target.value)}
+        placeholder={withMark(phPhone, requirePhone)}
+        aria-required={requirePhone || undefined}
+        required={requirePhone}
+        maxLength={40}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="tel"
+      />,
+    );
+  }
+  if (showCompany) {
+    extraFields.push(
+      <input
+        key="company"
+        type="text"
+        value={extra.company}
+        onChange={(e) => updateExtra("company", e.target.value)}
+        placeholder={withMark(phCompany, requireCompany)}
+        aria-required={requireCompany || undefined}
+        required={requireCompany}
+        maxLength={200}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="organization"
+      />,
+    );
+  }
+  if (showCountry) {
+    extraFields.push(
+      <input
+        key="country"
+        type="text"
+        value={extra.country}
+        onChange={(e) => updateExtra("country", e.target.value)}
+        placeholder={withMark(phCountry, requireCountry)}
+        aria-required={requireCountry || undefined}
+        required={requireCountry}
+        maxLength={100}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="country-name"
+      />,
+    );
+  }
 
   const form = (
     <form onSubmit={submit} className="space-y-3" noValidate>
@@ -439,6 +563,7 @@ export function JoinUsForm({
               required={requireFirstName}
               maxLength={100}
               className={inputCls}
+              style={inputStyle}
               autoComplete="given-name"
             />
           )}
@@ -452,6 +577,7 @@ export function JoinUsForm({
               required={requireLastName}
               maxLength={100}
               className={inputCls}
+              style={inputStyle}
               autoComplete="family-name"
             />
           )}
@@ -465,6 +591,7 @@ export function JoinUsForm({
             placeholder={phName}
             maxLength={120}
             className={inputCls}
+            style={inputStyle}
             autoComplete="name"
           />
           <input
@@ -476,96 +603,28 @@ export function JoinUsForm({
             placeholder={withMark(phEmail, requireEmail)}
             maxLength={254}
             className={inputCls}
+            style={inputStyle}
             autoComplete="email"
           />
         </div>
       )}
 
-      {useSplitName && (
+      {extraFields.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          <input
-            type="email"
-            required={requireEmail}
-            aria-required={requireEmail || undefined}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={withMark(phEmail, requireEmail)}
-            maxLength={254}
-            className={inputCls}
-            autoComplete="email"
-          />
+          {extraFields.map((el, i) => {
+            const isLastOdd =
+              i === extraFields.length - 1 && extraFields.length % 2 === 1;
+            return isLastOdd ? (
+              <div key={`wrap-${i}`} className="sm:col-span-2">
+                {el}
+              </div>
+            ) : (
+              el
+            );
+          })}
         </div>
       )}
 
-      {(showPosition || showLinkedin || showPhone || showCompany || showCountry) && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {showPosition && (
-            <input
-              type="text"
-              value={extra.position}
-              onChange={(e) => updateExtra("position", e.target.value)}
-              placeholder={withMark(phPosition, requirePosition)}
-              aria-required={requirePosition || undefined}
-              required={requirePosition}
-              maxLength={200}
-              className={inputCls}
-              autoComplete="organization-title"
-            />
-          )}
-          {showLinkedin && (
-            <input
-              type="url"
-              value={extra.linkedin}
-              onChange={(e) => updateExtra("linkedin", e.target.value)}
-              placeholder={withMark(phLinkedin, requireLinkedin)}
-              aria-required={requireLinkedin || undefined}
-              required={requireLinkedin}
-              maxLength={300}
-              className={inputCls}
-              autoComplete="url"
-            />
-          )}
-          {showPhone && (
-            <input
-              type="tel"
-              value={extra.phone}
-              onChange={(e) => updateExtra("phone", e.target.value)}
-              placeholder={withMark(phPhone, requirePhone)}
-              aria-required={requirePhone || undefined}
-              required={requirePhone}
-              maxLength={40}
-              className={inputCls}
-              autoComplete="tel"
-            />
-          )}
-          {showCompany && (
-            <input
-              type="text"
-              value={extra.company}
-              onChange={(e) => updateExtra("company", e.target.value)}
-              placeholder={withMark(phCompany, requireCompany)}
-              aria-required={requireCompany || undefined}
-              required={requireCompany}
-              maxLength={200}
-              className={inputCls}
-              autoComplete="organization"
-            />
-          )}
-          {showCountry && (
-            <input
-              type="text"
-              value={extra.country}
-              onChange={(e) => updateExtra("country", e.target.value)}
-              placeholder={withMark(phCountry, requireCountry)}
-              aria-required={requireCountry || undefined}
-              required={requireCountry}
-              maxLength={100}
-              className={inputCls}
-              autoComplete="country-name"
-            />
-          )}
-        </div>
-      )}
 
       {cfList.length > 0 && (
         <CustomFieldsRenderer
@@ -578,7 +637,10 @@ export function JoinUsForm({
 
       {showInterests && allItems.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p
+            className="mb-2 font-sans font-semibold uppercase tracking-wider text-muted-foreground"
+            style={{ fontSize: labelSize ? `${labelSize}px` : "12px" }}
+          >
             {iLabel}
             {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
@@ -705,7 +767,8 @@ export function JoinUsForm({
       <button
         type="submit"
         disabled={state === "loading"}
-        className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 font-sans font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
+        style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
       >
         {state === "loading" ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -716,19 +779,35 @@ export function JoinUsForm({
       </button>
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
-      <p className="text-[11px] leading-relaxed text-muted-foreground">{consent}</p>
+      <p
+        className="font-sans leading-relaxed text-muted-foreground"
+        style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
+      >
+        {consent}
+      </p>
     </form>
   );
+
+
+  const titleStyle = titleSize ? { fontSize: `${titleSize}px` } : undefined;
+  const descStyle = { fontSize: descriptionSize ? `${descriptionSize}px` : "14px" } as const;
+  const perkStyle = { fontSize: perkSize ? `${perkSize}px` : "14px" } as const;
 
   if (variant === "split") {
     return (
       <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
         <div>
-          <h3 id="joinus-heading" className="font-display text-2xl mb-2">
+          <h3
+            id="joinus-heading"
+            className={cn("font-display mb-2", !titleSize && "text-2xl")}
+            style={titleStyle}
+          >
             {heading}
           </h3>
-          <p className="text-sm text-muted-foreground mb-4">{description}</p>
-          <ul className="join-us-perks flex flex-col gap-2 text-sm">
+          <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+            {description}
+          </p>
+          <ul className="join-us-perks flex flex-col gap-2 font-sans" style={perkStyle}>
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
               <span>{p1}</span>
@@ -748,12 +827,21 @@ export function JoinUsForm({
     );
   }
 
+
   return (
     <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
-      <h3 id="joinus-heading" className="font-display text-2xl mb-2">
+      <h3
+        id="joinus-heading"
+        className={cn("font-display mb-2", !titleSize && "text-2xl")}
+        style={titleStyle}
+      >
         {heading}
       </h3>
-      {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
+      {description && (
+        <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+          {description}
+        </p>
+      )}
       {form}
     </section>
   );
