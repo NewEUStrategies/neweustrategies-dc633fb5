@@ -70,6 +70,20 @@
 
 :root {
   --radius: 0.5rem;
+
+  /* ---- Global form-field sizing tokens ----
+     Nadpisz per-widget ustawiając te zmienne na shellu widgetu
+     (np. .cf-shell{ --form-input-height: 3rem }) lub inline
+     style={{ ['--form-input-height' as string]: '3rem' }} */
+  --form-input-height: 2.5rem;
+  --form-input-padding-x: 0.75rem;
+  --form-input-font-size: 0.875rem;
+  --form-input-line-height: 1.25rem;
+  --form-input-radius: 8px;
+  --form-textarea-min-height: 5rem;
+  --form-textarea-padding-y: 0.5rem;
+  --form-control-size: 1.05rem; /* checkbox / radio */
+
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.18 0 0);
   --card: oklch(1 0 0);
@@ -2459,17 +2473,18 @@ textarea::placeholder {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
 ),
 :where(select) {
-  height: 2.5rem;
-  padding-inline: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  height: var(--form-input-height);
+  padding-inline: var(--form-input-padding-x);
+  font-size: var(--form-input-font-size);
+  line-height: var(--form-input-line-height);
 }
 :where(textarea) {
-  min-height: 5rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
+  min-height: var(--form-textarea-min-height);
+  padding: var(--form-textarea-padding-y) var(--form-input-padding-x);
+  font-size: var(--form-input-font-size);
   line-height: 1.35;
 }
+
 
 /* Neutralize the browser's default focus outline (blue glow) everywhere. */
 :where(input, textarea, select):focus {
@@ -2514,8 +2529,9 @@ textarea::placeholder {
   :where(input[type="checkbox"], input[type="radio"]) {
   appearance: none;
   -webkit-appearance: none;
-  width: 1.05rem;
-  height: 1.05rem;
+  width: var(--form-control-size);
+  height: var(--form-control-size);
+
   margin: 0;
   padding: 0;
   border: 1.5px solid hsl(var(--border));
@@ -2561,12 +2577,13 @@ textarea::placeholder {
     input[type="date"], input[type="datetime-local"],
     input[type="time"], input[type="month"], input[type="week"]
   ) {
-  height: 2.5rem;
-  padding-inline: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  height: var(--form-input-height);
+  padding-inline: var(--form-input-padding-x);
+  font-size: var(--form-input-font-size);
+  line-height: var(--form-input-line-height);
   border: 1.5px solid hsl(var(--border));
-  border-radius: var(--cf-radius, 8px);
+  border-radius: var(--form-input-radius);
+
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: inherit;
@@ -2586,12 +2603,13 @@ textarea::placeholder {
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="file"]) {
   height: auto;
-  min-height: 2.5rem;
+  min-height: var(--form-input-height);
   padding: 0.4rem 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--form-input-font-size);
+  line-height: var(--form-input-line-height);
   border: 1.5px dashed hsl(var(--border));
-  border-radius: var(--cf-radius, 8px);
+  border-radius: var(--form-input-radius);
+
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   cursor: pointer;
@@ -2619,7 +2637,8 @@ textarea::placeholder {
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(textarea) {
   border: 1.5px solid hsl(var(--border));
-  border-radius: var(--cf-radius, 8px);
+  border-radius: var(--form-input-radius);
+
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: inherit;
@@ -2630,7 +2649,8 @@ textarea::placeholder {
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(select) {
   border: 1.5px solid hsl(var(--border));
-  border-radius: var(--cf-radius, 8px);
+  border-radius: var(--form-input-radius);
+
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: inherit;
