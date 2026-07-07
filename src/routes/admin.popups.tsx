@@ -1,11 +1,35 @@
 // Popup manager: list of builder popups with status control; the editor lives
 // under /admin/popups/$id (child route rendered through the Outlet).
+//
+// Dialogi (nowy popup / potwierdzenie usuniecia) uzywaja naszych komponentow
+// z design systemu - nie natywnych window.prompt/window.confirm.
+import { useState } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Copy, Pencil, Plus, Trash2 } from "@/lib/lucide-shim";
 import { usePopupsAdmin, type BuilderPopup, type PopupSettings } from "@/lib/builder/popups";
 
@@ -42,18 +66,30 @@ function PopupsList() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const popups = usePopupsAdmin();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<BuilderPopup | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const createPopup = async () => {
-    const name = window.prompt(
-      t("admin.popups.newNamePrompt", { defaultValue: "Nazwa nowego popupu:" }),
-    );
-    if (!name?.trim()) return;
-    const id = await popups.create(name.trim());
-    if (!id) {
-      toast.error(t("admin.popups.createError", { defaultValue: "Nie udało się utworzyć popupu" }));
-      return;
+  const submitCreate = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const id = await popups.create(name);
+      if (!id) {
+        toast.error(
+          t("admin.popups.createError", { defaultValue: "Nie udało się utworzyć popupu" }),
+        );
+        return;
+      }
+      setCreateOpen(false);
+      setNewName("");
+      void navigate({ to: "/admin/popups/$id", params: { id } });
+    } finally {
+      setCreating(false);
     }
-    void navigate({ to: "/admin/popups/$id", params: { id } });
   };
 
   const duplicatePopup = async (p: BuilderPopup) => {
@@ -61,15 +97,16 @@ function PopupsList() {
     if (id) toast.success(t("admin.popups.duplicated", { defaultValue: "Zduplikowano popup" }));
   };
 
-  const removePopup = async (p: BuilderPopup) => {
-    if (
-      !window.confirm(
-        t("admin.popups.confirmDelete", { defaultValue: 'Usunąć popup "{{name}}"?', name: p.name }),
-      )
-    )
-      return;
-    await popups.remove(p.id);
-    toast.success(t("admin.popups.deleted", { defaultValue: "Usunięto popup" }));
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await popups.remove(pendingDelete.id);
+      toast.success(t("admin.popups.deleted", { defaultValue: "Usunięto popup" }));
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const dateLocale = (i18n.language ?? "pl").startsWith("pl") ? "pl-PL" : "en-GB";
@@ -88,7 +125,12 @@ function PopupsList() {
             })}
           </p>
         </div>
-        <Button onClick={() => void createPopup()}>
+        <Button
+          onClick={() => {
+            setNewName("");
+            setCreateOpen(true);
+          }}
+        >
           <Plus className="w-4 h-4 mr-2" /> {t("admin.popups.new", { defaultValue: "Nowy popup" })}
         </Button>
       </header>
@@ -178,7 +220,7 @@ function PopupsList() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void removePopup(p)}
+                        onClick={() => setPendingDelete(p)}
                         className="p-1.5 text-muted-foreground hover:text-destructive"
                         title={t("admin.popups.list.delete", { defaultValue: "Usuń" })}
                       >
@@ -192,6 +234,98 @@ function PopupsList() {
           </table>
         </div>
       )}
+
+      <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t("admin.popups.newDialog.title", { defaultValue: "Nowy popup" })}
+            </DialogTitle>
+            <DialogDescription>
+              {t("admin.popups.newDialog.desc", {
+                defaultValue:
+                  "Podaj nazwe roboczą - bedzie widoczna wylacznie w panelu admina.",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitCreate();
+            }}
+            className="space-y-3"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="popup-new-name">
+                {t("admin.popups.newDialog.name", { defaultValue: "Nazwa" })}
+              </Label>
+              <Input
+                id="popup-new-name"
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={t("admin.popups.newDialog.placeholder", {
+                  defaultValue: "np. Wiosenna promocja",
+                })}
+                maxLength={120}
+                disabled={creating}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+                disabled={creating}
+              >
+                {t("common.cancel", { defaultValue: "Anuluj" })}
+              </Button>
+              <Button type="submit" disabled={!newName.trim() || creating}>
+                {creating
+                  ? t("common.creating", { defaultValue: "Tworze…" })
+                  : t("admin.popups.newDialog.submit", { defaultValue: "Utwórz i edytuj" })}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => !deleting && !o && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("admin.popups.deleteDialog.title", { defaultValue: "Usunąć popup?" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.popups.deleteDialog.desc", {
+                defaultValue:
+                  'Popup "{{name}}" zostanie trwale usunięty. Tej operacji nie da się cofnąć.',
+                name: pendingDelete?.name ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              {t("common.cancel", { defaultValue: "Anuluj" })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelete();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting
+                ? t("common.deleting", { defaultValue: "Usuwam…" })
+                : t("common.delete", { defaultValue: "Usuń" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
