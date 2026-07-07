@@ -161,6 +161,23 @@ export function JoinUsForm({
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [dropOpen, setDropOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!dropOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDropOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [dropOpen]);
   const cfList = customFields ?? [];
   const setCustom = (id: string, v: string) =>
     setCustomValues((prev) => ({ ...prev, [id]: v }));
