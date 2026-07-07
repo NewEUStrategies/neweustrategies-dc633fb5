@@ -34,7 +34,8 @@ export type NlWidgetType =
   | "social-proof"
   | "countdown"
   | "cta-button"
-  | "coupon";
+  | "coupon"
+  | "close-button";
 
 export interface NlSelectOption {
   value: string;
@@ -176,6 +177,21 @@ export interface NlCouponWidget extends NlWidgetBase {
   accent?: string | null;
 }
 
+/**
+ * Close button - popup-only. Renderowany jako "X" (lub inna ikona/tekst)
+ * ktora zamyka popup. Pozycja `top-right` = absolute overlay w rogu, `inline`
+ * = renderowany w normalnym flowie sekcji.
+ */
+export interface NlCloseButtonWidget extends NlWidgetBase {
+  type: "close-button";
+  variant: "icon-x" | "icon-chevron" | "text";
+  position: "top-right" | "inline";
+  label?: NlI18n; // uzywane tylko dla variant="text"
+  size?: number; // px, np. 32
+  bg?: string | null;
+  fg?: string | null;
+}
+
 export type NlWidget =
   | NlHeadingWidget
   | NlParagraphWidget
@@ -192,7 +208,8 @@ export type NlWidget =
   | NlSocialProofWidget
   | NlCountdownWidget
   | NlCtaButtonWidget
-  | NlCouponWidget;
+  | NlCouponWidget
+  | NlCloseButtonWidget;
 
 export interface NlSectionStyle {
   bg?: string | null;

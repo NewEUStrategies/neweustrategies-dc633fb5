@@ -143,6 +143,16 @@ export const NlWidgetSchema = z.discriminatedUnion("type", [
     style: z.enum(["boxed", "dashed"]).optional(),
     accent: z.string().max(32).nullish(),
   }),
+  z.object({
+    ...BaseWidget,
+    type: z.literal("close-button"),
+    variant: z.enum(["icon-x", "icon-chevron", "text"]),
+    position: z.enum(["top-right", "inline"]),
+    label: NlI18n.optional(),
+    size: z.number().int().min(16).max(96).optional(),
+    bg: z.string().max(32).nullish(),
+    fg: z.string().max(32).nullish(),
+  }),
 ]);
 
 const NlSectionStyle = z.object({
