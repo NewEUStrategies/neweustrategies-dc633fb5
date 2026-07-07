@@ -232,7 +232,7 @@ function EditPage() {
   // wyłącznie po kliknięciu „Zapisz". `flush()` pozostaje wywoływane w
   // handlerze `save`, aby ręczny zapis nadal działał.
   const autosave = useAutosave({ value: form, enabled: false, save: saveFn });
-  const isDirty = history.canUndo;
+  const isDirty = form !== null && form !== savedFormRef.current;
   useUnsavedChangesGuard(isDirty || autosave.status === "saving");
 
   // Ciężkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
