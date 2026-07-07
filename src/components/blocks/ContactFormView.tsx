@@ -201,7 +201,15 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const bgImage = s(data, "bgImage");
   const bgImageMobile = s(data, "bgImageMobile");
   const bgOverlay = num(data, "bgOverlay", 0);
-  
+
+  // Font-size overrides (px). 0 = leave default.
+  const titleSize = num(data, "titleSize", 0);
+  const descriptionSize = num(data, "descriptionSize", 0);
+  const labelSize = num(data, "labelSize", 0);
+  const placeholderSize = num(data, "placeholderSize", 0);
+  const buttonFontSize = num(data, "buttonFontSize", 0);
+  const consentSize = num(data, "consentSize", 0);
+
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
@@ -214,6 +222,27 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (borderColor) css["--cf-border"] = borderColor;
     return css as CSSProperties;
   }, [bgLight, bgDark, textColor, borderColor, radiusPx, paddingPx]);
+
+  // Scoped CSS for per-instance font sizes. Empty (0) values are skipped so
+  // Tailwind defaults still apply.
+  const fontSizeCss = useMemo(() => {
+    const scope = `[data-cf-id="${formId}"]`;
+    const rules: string[] = [];
+    if (titleSize > 0) rules.push(`${scope} .cf-title{font-size:${titleSize}px;line-height:1.2;}`);
+    if (descriptionSize > 0)
+      rules.push(`${scope} .cf-subtitle{font-size:${descriptionSize}px;}`);
+    if (labelSize > 0)
+      rules.push(`${scope} .cf-field-label{font-size:${labelSize}px;}`);
+    if (placeholderSize > 0)
+      rules.push(
+        `${scope} .cf-input{font-size:${placeholderSize}px;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px;}`,
+      );
+    if (buttonFontSize > 0)
+      rules.push(`${scope} .cf-submit{font-size:${buttonFontSize}px;}`);
+    if (consentSize > 0)
+      rules.push(`${scope} .cf-consent{font-size:${consentSize}px;}`);
+    return rules.join("");
+  }, [formId, titleSize, descriptionSize, labelSize, placeholderSize, buttonFontSize, consentSize]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -351,13 +380,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   }
 
   const submitButton: ReactNode = (
-    <button type="submit" disabled={status === "sending"} className={buttonClasses}>
+    <button type="submit" disabled={status === "sending"} className={`cf-submit ${buttonClasses}`}>
       {status === "sending" ? t.sending : submitLabel}
     </button>
   );
 
   return (
     <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
+      {fontSizeCss && <style dangerouslySetInnerHTML={{ __html: fontSizeCss }} />}
       {/* Image background layer */}
       {(bgImage || bgImageMobile) && (
         <div
@@ -393,8 +423,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 className="rounded-md object-cover"
               />
             )}
-            {title && <h3 className="text-xl font-semibold leading-tight">{title}</h3>}
-            {subtitle && <p className="text-sm opacity-80">{subtitle}</p>}
+            {title && <h3 className="cf-title text-xl font-semibold leading-tight">{title}</h3>}
+            {subtitle && <p className="cf-subtitle text-sm opacity-80">{subtitle}</p>}
           </header>
         )}
 
@@ -584,7 +614,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         {(requireConsent || showNewsletter) && (
           <div className="mt-3 space-y-1.5">
             {requireConsent && (
-              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="consent" className="mt-0.5" />
                 <span>{renderConsentText(consentTextRaw)}</span>
                 {errors.consent && <span className="text-destructive ml-1">*</span>}
@@ -592,7 +622,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             )}
 
             {showNewsletter && (
-              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
                 <span>{newsletterLabel}</span>
               </label>
@@ -625,7 +655,7 @@ function Field({
 }) {
   return (
     <label className={`block space-y-1 ${className ?? ""}`}>
-      <span className="text-xs font-semibold tracking-wide opacity-95">
+      <span className="cf-field-label text-xs font-semibold tracking-wide opacity-95">
         {label}
         {required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
       </span>

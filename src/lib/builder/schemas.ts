@@ -1412,6 +1412,14 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "E-mail odbiorcy (override)",
       placeholder: "kontakt@firma.pl",
     },
+
+    // ----- Rozmiary czcionek (px, puste = domyślne) -----
+    { key: "titleSize", type: "number", label: "Rozmiar tytułu (px)", min: 10, max: 96 },
+    { key: "descriptionSize", type: "number", label: "Rozmiar opisu / podtytułu (px)", min: 8, max: 48 },
+    { key: "labelSize", type: "number", label: "Rozmiar etykiet pól (px)", min: 8, max: 24 },
+    { key: "placeholderSize", type: "number", label: "Rozmiar placeholderów / pól (px)", min: 8, max: 24 },
+    { key: "buttonFontSize", type: "number", label: "Rozmiar przycisku (px)", min: 8, max: 28 },
+    { key: "consentSize", type: "number", label: "Rozmiar zgód / newsletter (px)", min: 8, max: 20 },
   ],
 };
 
