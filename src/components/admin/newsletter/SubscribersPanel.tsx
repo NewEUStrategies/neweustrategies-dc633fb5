@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Download, Search, Trash2, Upload } from "lucide-react";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
+import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
 
 interface SubRow {
   id: string;
@@ -35,6 +36,7 @@ export function SubscribersPanel() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [lang, setLang] = useState<"all" | "pl" | "en">("all");
   const [importOpen, setImportOpen] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data: subs, isLoading } = useQuery({
     queryKey: ["newsletter-subscribers"],
@@ -178,7 +180,11 @@ export function SubscribersPanel() {
                 </tr>
               )}
               {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-border/60 hover:bg-muted/30">
+                <tr
+                  key={s.id}
+                  className="border-b border-border/60 hover:bg-muted/30 cursor-pointer"
+                  onClick={() => setDetailId(s.id)}
+                >
                   <td className="p-3 font-mono text-xs">{s.email}</td>
                   <td className="p-3">{s.display_name ?? "-"}</td>
                   <td className="p-3 uppercase text-xs">{s.language}</td>
@@ -191,7 +197,10 @@ export function SubscribersPanel() {
                   </td>
                   <td className="p-3 text-right">
                     <button
-                      onClick={() => remove(s.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        remove(s.id);
+                      }}
                       className="text-destructive hover:bg-destructive/10 p-1.5 rounded"
                       aria-label="Usun"
                     >
@@ -204,6 +213,10 @@ export function SubscribersPanel() {
           </table>
         </div>
       </div>
+      <SubscriberDetailDialog
+        subscriberId={detailId}
+        onOpenChange={(o) => !o && setDetailId(null)}
+      />
     </div>
   );
 }

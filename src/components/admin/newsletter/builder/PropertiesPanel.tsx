@@ -5,7 +5,9 @@ import type {
   NlWidget,
   NlDoc,
   NlLang,
+  NlSection,
   NlSectionLayout,
+  NlSectionStyle,
   NlHeadingWidget,
   NlParagraphWidget,
   NlImageWidget,
@@ -37,33 +39,206 @@ interface Props {
   variant: "inline" | "popup";
   doc: NlDoc;
   selected: NlWidget | null;
+  selectedSection: NlSection | null;
   onPatch: (patch: Partial<NlWidget>) => void;
   onPatchPopup: (patch: Partial<NonNullable<NlDoc["popup"]>>) => void;
+  onPatchSection: (patch: Partial<NlSectionStyle>) => void;
   onPatchLayout: (layout: NlSectionLayout) => void;
   lang: NlLang;
 }
 
-export function PropertiesPanel({ variant, doc, selected, onPatch, onPatchPopup, onPatchLayout, lang }: Props) {
+export function PropertiesPanel({
+  variant,
+  doc,
+  selected,
+  selectedSection,
+  onPatch,
+  onPatchPopup,
+  onPatchSection,
+  onPatchLayout,
+  lang,
+}: Props) {
+  const title = selected
+    ? lang === "pl"
+      ? "Wlasciwosci widgetu"
+      : "Widget properties"
+    : selectedSection
+      ? lang === "pl"
+        ? "Wlasciwosci sekcji"
+        : "Section properties"
+      : lang === "pl"
+        ? "Ustawienia dokumentu"
+        : "Document settings";
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <Settings2 className="w-3.5 h-3.5" />
-        {selected
-          ? lang === "pl"
-            ? "Wlasciwosci widgetu"
-            : "Widget properties"
-          : lang === "pl"
-            ? "Ustawienia dokumentu"
-            : "Document settings"}
+        {title}
       </div>
       {selected ? (
         <WidgetProps selected={selected} onPatch={onPatch} />
+      ) : selectedSection ? (
+        <SectionProps
+          section={selectedSection}
+          onPatchSection={onPatchSection}
+          onPatchLayout={onPatchLayout}
+          lang={lang}
+        />
       ) : (
-        <DocProps variant={variant} doc={doc} onPatchPopup={onPatchPopup} onPatchLayout={onPatchLayout} lang={lang} />
+        <DocProps
+          variant={variant}
+          doc={doc}
+          onPatchPopup={onPatchPopup}
+          onPatchLayout={onPatchLayout}
+          lang={lang}
+        />
       )}
     </div>
   );
 }
+
+function SectionProps({
+  section,
+  onPatchSection,
+  onPatchLayout,
+  lang,
+}: {
+  section: NlSection;
+  onPatchSection: (patch: Partial<NlSectionStyle>) => void;
+  onPatchLayout: (layout: NlSectionLayout) => void;
+  lang: NlLang;
+}) {
+  const st = section.style ?? {};
+  return (
+    <div className="space-y-4">
+      <LayoutPicker current={section.layout ?? "single"} onChange={onPatchLayout} lang={lang} />
+
+      <div className="space-y-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {lang === "pl" ? "Styl" : "Style"}
+        </div>
+        <ColorInput
+          label={lang === "pl" ? "Tlo" : "Background"}
+          value={st.bg}
+          onChange={(v) => onPatchSection({ bg: v })}
+        />
+        <ColorInput
+          label={lang === "pl" ? "Kolor tekstu" : "Text color"}
+          value={st.fg}
+          onChange={(v) => onPatchSection({ fg: v })}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label>{lang === "pl" ? "Padding X (px)" : "Padding X (px)"}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={240}
+              value={st.paddingX ?? 0}
+              onChange={(e) => onPatchSection({ paddingX: Number(e.target.value) || 0 })}
+            />
+          </div>
+          <div>
+            <Label>{lang === "pl" ? "Padding Y (px)" : "Padding Y (px)"}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={240}
+              value={st.paddingY ?? 0}
+              onChange={(e) => onPatchSection({ paddingY: Number(e.target.value) || 0 })}
+            />
+          </div>
+          <div>
+            <Label>{lang === "pl" ? "Odstep (px)" : "Gap (px)"}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={120}
+              value={st.gap ?? 12}
+              onChange={(e) => onPatchSection({ gap: Number(e.target.value) || 0 })}
+            />
+          </div>
+          <div>
+            <Label>{lang === "pl" ? "Zaokraglenie" : "Radius"}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={64}
+              value={st.radius ?? 0}
+              onChange={(e) => onPatchSection({ radius: Number(e.target.value) || 0 })}
+            />
+          </div>
+        </div>
+        <div>
+          <Label>{lang === "pl" ? "Wyrownanie" : "Alignment"}</Label>
+          <Select
+            value={st.align ?? "left"}
+            onValueChange={(v) => onPatchSection({ align: v as "left" | "center" })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left">{lang === "pl" ? "Lewo" : "Left"}</SelectItem>
+              <SelectItem value="center">{lang === "pl" ? "Srodek" : "Center"}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LayoutPicker({
+  current,
+  onChange,
+  lang,
+}: {
+  current: NlSectionLayout;
+  onChange: (l: NlSectionLayout) => void;
+  lang: NlLang;
+}) {
+  const options: { v: NlSectionLayout; label: string; ratio: number[] }[] = [
+    { v: "single", label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
+    { v: "1-2", label: "1 / 3", ratio: [1, 2] },
+    { v: "1-1", label: "1 / 2", ratio: [1, 1] },
+    { v: "2-1", label: "3 / 1", ratio: [2, 1] },
+  ];
+  return (
+    <div className="space-y-2">
+      <Label>{lang === "pl" ? "Uklad sekcji" : "Section layout"}</Label>
+      <div className="grid grid-cols-4 gap-1.5">
+        {options.map((opt) => {
+          const active = current === opt.v;
+          return (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => onChange(opt.v)}
+              aria-pressed={active}
+              className={
+                "flex flex-col items-center gap-1 p-2 rounded-md border text-[10px] transition-colors " +
+                (active
+                  ? "border-primary bg-primary/5 text-foreground"
+                  : "border-border text-muted-foreground hover:border-primary/40")
+              }
+            >
+              <div className="flex gap-0.5 w-full h-5">
+                {opt.ratio.map((r, i) => (
+                  <div
+                    key={i}
+                    className={active ? "bg-primary/60 rounded-sm" : "bg-muted-foreground/40 rounded-sm"}
+                    style={{ flex: r }}
+                  />
+                ))}
+              </div>
+              <span className="font-semibold">{opt.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 function I18nField({
   label,

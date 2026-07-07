@@ -1,7 +1,10 @@
-// BuilderCanvas - lista widgetow z @dnd-kit/sortable.
-// Obsluguje layout "single" (jedna kolumna) oraz split ("1-2" / "1-1" / "2-1")
-// - kazda kolumna to osobny droppable + SortableContext, dzieki czemu widgety
-// mozna przenosic pomiedzy kolumnami drag & drop.
+// BuilderCanvas - lista widgetow z @dnd-kit/sortable dla pojedynczej sekcji.
+// Kazda sekcja przekazuje wlasny `sectionId` - dzieki temu droppable IDs sa
+// namespaceowane i widgety mozna DnD-owac takze pomiedzy sekcjami.
+// Rozpoznawane IDs:
+//   - "sec-{sectionId}-drop"       -> single layout empty drop
+//   - "sec-{sectionId}-col-0"      -> pierwsza kolumna
+//   - "sec-{sectionId}-col-1"      -> druga kolumna
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -15,15 +18,8 @@ const LAYOUT_GRID: Record<Exclude<NlSectionLayout, "single">, string> = {
   "2-1": "md:grid-cols-[2fr_1fr]",
 };
 
-export function BuilderCanvas({
-  widgets,
-  lang,
-  layout = "single",
-  selectedId,
-  onSelect,
-  onRemove,
-  onDuplicate,
-}: {
+export interface BuilderCanvasProps {
+  sectionId: string;
   widgets: NlWidget[];
   lang: NlLang;
   layout?: NlSectionLayout;
@@ -31,11 +27,23 @@ export function BuilderCanvas({
   onSelect: (id: string | null) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
-}) {
+}
+
+export function BuilderCanvas({
+  sectionId,
+  widgets,
+  lang,
+  layout = "single",
+  selectedId,
+  onSelect,
+  onRemove,
+  onDuplicate,
+}: BuilderCanvasProps) {
   if (layout === "single") {
     return (
       <ColumnDropZone
-        id="canvas-drop"
+        id={`sec-${sectionId}-drop`}
+        sectionId={sectionId}
         widgets={widgets.filter((w) => !w.col)}
         lang={lang}
         selectedId={selectedId}
@@ -52,7 +60,8 @@ export function BuilderCanvas({
   return (
     <div className={`grid grid-cols-1 ${LAYOUT_GRID[layout]} gap-3`}>
       <ColumnDropZone
-        id="canvas-col-0"
+        id={`sec-${sectionId}-col-0`}
+        sectionId={sectionId}
         widgets={col0}
         lang={lang}
         selectedId={selectedId}
@@ -62,7 +71,8 @@ export function BuilderCanvas({
         columnLabel={lang === "pl" ? "Kolumna 1" : "Column 1"}
       />
       <ColumnDropZone
-        id="canvas-col-1"
+        id={`sec-${sectionId}-col-1`}
+        sectionId={sectionId}
         widgets={col1}
         lang={lang}
         selectedId={selectedId}
@@ -86,6 +96,7 @@ function ColumnDropZone({
   columnLabel,
 }: {
   id: string;
+  sectionId: string;
   widgets: NlWidget[];
   lang: NlLang;
   selectedId: string | null;
@@ -95,14 +106,13 @@ function ColumnDropZone({
   columnLabel?: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
-
   return (
     <SortableContext items={widgets.map((w) => w.id)} strategy={verticalListSortingStrategy}>
       <div
         ref={setNodeRef}
         className={
           "space-y-2 rounded-lg transition-colors " +
-          (columnLabel ? "border border-dashed p-2 min-h-[160px] " : "") +
+          (columnLabel ? "border border-dashed p-2 min-h-[160px] " : "min-h-[120px] ") +
           (isOver
             ? "border-primary bg-primary/5"
             : columnLabel
@@ -116,7 +126,7 @@ function ColumnDropZone({
           </div>
         )}
         {widgets.length === 0 ? (
-          <div className="flex items-center justify-center py-10 text-center text-xs text-muted-foreground opacity-70">
+          <div className="flex items-center justify-center py-8 text-center text-xs text-muted-foreground opacity-70">
             {lang === "pl" ? "Upusc widget tutaj" : "Drop widget here"}
           </div>
         ) : (
