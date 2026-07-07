@@ -771,6 +771,26 @@ export function MediaManager() {
         >
           <ClipboardPaste className="w-4 h-4" />
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            if (selectedIds.size) {
+              setConfirmDelete({ kind: "files", ids: Array.from(selectedIds) });
+            } else if (currentPath !== "/") {
+              setConfirmDelete({ kind: "folder", folder: currentPath });
+            }
+          }}
+          disabled={!selectedIds.size && currentPath === "/"}
+          title={
+            selectedIds.size
+              ? t("admin.media.deleteSelected", { defaultValue: "Usuń zaznaczone" })
+              : t("admin.media.deleteCurrentFolder", { defaultValue: "Usuń bieżący folder" })
+          }
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
         <div className="h-6 w-px bg-border mx-1" />
         <Button
           size="sm"
