@@ -442,6 +442,113 @@ export function JoinUsForm({
   const inputStyle = placeholderSize ? { fontSize: `${placeholderSize}px` } : { fontSize: "14px" };
   const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
 
+  // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
+  // Rendered into a single 2-col grid; when the count is odd, the last item spans both columns
+  // so no empty cell remains.
+  const extraFields: React.ReactNode[] = [];
+  if (useSplitName) {
+    extraFields.push(
+      <input
+        key="email"
+        type="email"
+        required={requireEmail}
+        aria-required={requireEmail || undefined}
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder={withMark(phEmail, requireEmail)}
+        maxLength={254}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="email"
+      />,
+    );
+  }
+  if (showPosition) {
+    extraFields.push(
+      <input
+        key="position"
+        type="text"
+        value={extra.position}
+        onChange={(e) => updateExtra("position", e.target.value)}
+        placeholder={withMark(phPosition, requirePosition)}
+        aria-required={requirePosition || undefined}
+        required={requirePosition}
+        maxLength={200}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="organization-title"
+      />,
+    );
+  }
+  if (showLinkedin) {
+    extraFields.push(
+      <input
+        key="linkedin"
+        type="url"
+        value={extra.linkedin}
+        onChange={(e) => updateExtra("linkedin", e.target.value)}
+        placeholder={withMark(phLinkedin, requireLinkedin)}
+        aria-required={requireLinkedin || undefined}
+        required={requireLinkedin}
+        maxLength={300}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="url"
+      />,
+    );
+  }
+  if (showPhone) {
+    extraFields.push(
+      <input
+        key="phone"
+        type="tel"
+        value={extra.phone}
+        onChange={(e) => updateExtra("phone", e.target.value)}
+        placeholder={withMark(phPhone, requirePhone)}
+        aria-required={requirePhone || undefined}
+        required={requirePhone}
+        maxLength={40}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="tel"
+      />,
+    );
+  }
+  if (showCompany) {
+    extraFields.push(
+      <input
+        key="company"
+        type="text"
+        value={extra.company}
+        onChange={(e) => updateExtra("company", e.target.value)}
+        placeholder={withMark(phCompany, requireCompany)}
+        aria-required={requireCompany || undefined}
+        required={requireCompany}
+        maxLength={200}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="organization"
+      />,
+    );
+  }
+  if (showCountry) {
+    extraFields.push(
+      <input
+        key="country"
+        type="text"
+        value={extra.country}
+        onChange={(e) => updateExtra("country", e.target.value)}
+        placeholder={withMark(phCountry, requireCountry)}
+        aria-required={requireCountry || undefined}
+        required={requireCountry}
+        maxLength={100}
+        className={inputCls}
+        style={inputStyle}
+        autoComplete="country-name"
+      />,
+    );
+  }
+
   const form = (
     <form onSubmit={submit} className="space-y-3" noValidate>
       {useSplitName ? (
@@ -456,6 +563,7 @@ export function JoinUsForm({
               required={requireFirstName}
               maxLength={100}
               className={inputCls}
+              style={inputStyle}
               autoComplete="given-name"
             />
           )}
@@ -469,6 +577,7 @@ export function JoinUsForm({
               required={requireLastName}
               maxLength={100}
               className={inputCls}
+              style={inputStyle}
               autoComplete="family-name"
             />
           )}
@@ -482,6 +591,7 @@ export function JoinUsForm({
             placeholder={phName}
             maxLength={120}
             className={inputCls}
+            style={inputStyle}
             autoComplete="name"
           />
           <input
@@ -493,96 +603,28 @@ export function JoinUsForm({
             placeholder={withMark(phEmail, requireEmail)}
             maxLength={254}
             className={inputCls}
+            style={inputStyle}
             autoComplete="email"
           />
         </div>
       )}
 
-      {useSplitName && (
+      {extraFields.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          <input
-            type="email"
-            required={requireEmail}
-            aria-required={requireEmail || undefined}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={withMark(phEmail, requireEmail)}
-            maxLength={254}
-            className={inputCls}
-            autoComplete="email"
-          />
+          {extraFields.map((el, i) => {
+            const isLastOdd =
+              i === extraFields.length - 1 && extraFields.length % 2 === 1;
+            return isLastOdd ? (
+              <div key={`wrap-${i}`} className="sm:col-span-2">
+                {el}
+              </div>
+            ) : (
+              el
+            );
+          })}
         </div>
       )}
 
-      {(showPosition || showLinkedin || showPhone || showCompany || showCountry) && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {showPosition && (
-            <input
-              type="text"
-              value={extra.position}
-              onChange={(e) => updateExtra("position", e.target.value)}
-              placeholder={withMark(phPosition, requirePosition)}
-              aria-required={requirePosition || undefined}
-              required={requirePosition}
-              maxLength={200}
-              className={inputCls}
-              autoComplete="organization-title"
-            />
-          )}
-          {showLinkedin && (
-            <input
-              type="url"
-              value={extra.linkedin}
-              onChange={(e) => updateExtra("linkedin", e.target.value)}
-              placeholder={withMark(phLinkedin, requireLinkedin)}
-              aria-required={requireLinkedin || undefined}
-              required={requireLinkedin}
-              maxLength={300}
-              className={inputCls}
-              autoComplete="url"
-            />
-          )}
-          {showPhone && (
-            <input
-              type="tel"
-              value={extra.phone}
-              onChange={(e) => updateExtra("phone", e.target.value)}
-              placeholder={withMark(phPhone, requirePhone)}
-              aria-required={requirePhone || undefined}
-              required={requirePhone}
-              maxLength={40}
-              className={inputCls}
-              autoComplete="tel"
-            />
-          )}
-          {showCompany && (
-            <input
-              type="text"
-              value={extra.company}
-              onChange={(e) => updateExtra("company", e.target.value)}
-              placeholder={withMark(phCompany, requireCompany)}
-              aria-required={requireCompany || undefined}
-              required={requireCompany}
-              maxLength={200}
-              className={inputCls}
-              autoComplete="organization"
-            />
-          )}
-          {showCountry && (
-            <input
-              type="text"
-              value={extra.country}
-              onChange={(e) => updateExtra("country", e.target.value)}
-              placeholder={withMark(phCountry, requireCountry)}
-              aria-required={requireCountry || undefined}
-              required={requireCountry}
-              maxLength={100}
-              className={inputCls}
-              autoComplete="country-name"
-            />
-          )}
-        </div>
-      )}
 
       {cfList.length > 0 && (
         <CustomFieldsRenderer
