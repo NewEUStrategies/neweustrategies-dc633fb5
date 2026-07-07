@@ -37,6 +37,9 @@ const NewsletterInput = z.object({
   // Popup "extended fields" (job, company, linkedin, phone, mailing_list, ...)
   // are persisted verbatim in newsletter_subscribers.meta; keys/values capped.
   meta: z.record(z.string().max(64), z.string().max(500)).optional(),
+  // Widget-defined "custom" hybrid fields → forwarded to CRM under
+  // aliases.custom.<id> via crm_upsert_from_form(_custom).
+  custom: z.record(z.string().max(64), z.string().max(500)).optional(),
   // "Wymagane" pola zadeklarowane przez widget; server merguje z tenant
   // policy floor (form_field_policies) i weryfikuje przed zapisem.
   requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
