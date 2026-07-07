@@ -89,6 +89,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
   const [device, setDevice] = useState<Device>("desktop");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [sideTab, setSideTab] = useState<"widgets" | "settings">("widgets");
   const [draggingType, setDraggingType] = useState<NlWidgetType | null>(null);
   const [draggingWidgetId, setDraggingWidgetId] = useState<string | null>(null);
 
