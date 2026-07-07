@@ -24,6 +24,8 @@ import type {
   NlMailingListsWidget,
   NlSocialProofWidget,
   NlCountdownWidget,
+  NlCtaButtonWidget,
+  NlCouponWidget,
 } from "./types";
 
 const uid = (): string => {
