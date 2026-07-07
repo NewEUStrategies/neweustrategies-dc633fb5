@@ -278,10 +278,14 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     sectionId: string,
     atIndex?: number,
     col: 0 | 1 = 0,
+    preset?: Partial<NlWidget>,
   ) => {
     const section = doc.sections[findSectionIdx(sectionId)];
     if (!section) return;
-    const w = makeWidget(type);
+    const base = makeWidget(type);
+    // Preset (np. wariant field.text: firstName/lastName/phone/company/position/linkedin)
+    // nadpisuje wartosci domyslne, ale zachowuje `id` i `type` z makeWidget.
+    const w = (preset ? { ...base, ...preset, id: base.id, type: base.type } : base) as NlWidget;
     if ((section.layout ?? "single") !== "single") w.col = col;
     updateSectionWidgets(sectionId, (list) => {
       const next = [...list];
