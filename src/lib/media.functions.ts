@@ -342,3 +342,354 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
       details: details.slice(0, 200),
     };
   });
+
+// ============================================================================
+// Folder & file management (iOS Files-style):
+// - virtual folders (media_folders)
+// - rename/move files (updates media row only; storage_path stays stable)
+// - bulk delete / move / duplicate (copy in storage)
+// ============================================================================
+
+const FOLDER_PATH_RE = /^\/(?:[A-Za-z0-9 _.\-]{1,64}\/)*$/;
+
+function normalizeFolderPath(input: string): string {
+  let p = (input || "/").trim();
+  if (!p.startsWith("/")) p = "/" + p;
+  if (!p.endsWith("/")) p = p + "/";
+  p = p.replace(/\/+/g, "/");
+  if (!FOLDER_PATH_RE.test(p)) throw new Error("Invalid folder path");
+  if (p.includes("/../") || p.includes("/./")) throw new Error("Invalid folder path");
+  return p;
+}
+
+async function requireTenantId(
+  supabase: NonNullable<Parameters<typeof recordAudit>[0]>,
+  userId: string,
+): Promise<string> {
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !profile?.tenant_id) throw new Error("No tenant for current user");
+  return profile.tenant_id as string;
+}
+
+// ---------- Update media (rename / alt / move) ----------
+const UpdateMediaSchema = z.object({
+  mediaId: z.string().uuid(),
+  filename: z.string().min(1).max(255).optional(),
+  altText: z.string().max(500).nullable().optional(),
+  folderPath: z.string().min(1).max(512).optional(),
+});
+
+export const updateMediaMeta = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => UpdateMediaSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const patch: Record<string, unknown> = {};
+    if (data.filename !== undefined) {
+      const clean = data.filename.replace(/[/\\]/g, "-").trim();
+      if (!clean) throw new Error("Invalid filename");
+      patch.filename = clean;
+    }
+    if (data.altText !== undefined) patch.alt_text = data.altText;
+    if (data.folderPath !== undefined) patch.folder_path = normalizeFolderPath(data.folderPath);
+    if (!Object.keys(patch).length) return { ok: true };
+
+    const { data: row, error } = await supabase
+      .from("media")
+      .update(patch)
+      .eq("id", data.mediaId)
+      .select("id, tenant_id")
+      .single();
+    if (error) throw new Error(error.message);
+
+    await recordAudit(supabase, {
+      tenantId: row.tenant_id,
+      action: "media.update",
+      entityType: "media",
+      entityId: row.id,
+      metadata: patch,
+    });
+    return { ok: true };
+  });
+
+// ---------- Bulk move ----------
+const BulkMoveSchema = z.object({
+  mediaIds: z.array(z.string().uuid()).min(1).max(500),
+  folderPath: z.string().min(1).max(512),
+});
+
+export const bulkMoveMedia = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => BulkMoveSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const folder = normalizeFolderPath(data.folderPath);
+    const { error, data: rows } = await supabase
+      .from("media")
+      .update({ folder_path: folder })
+      .in("id", data.mediaIds)
+      .select("id, tenant_id");
+    if (error) throw new Error(error.message);
+    if (rows?.length) {
+      await recordAudit(supabase, {
+        tenantId: rows[0].tenant_id,
+        action: "media.bulk_move",
+        entityType: "media",
+        entityId: rows[0].id,
+        metadata: { count: rows.length, folder },
+      });
+    }
+    return { ok: true, moved: rows?.length ?? 0 };
+  });
+
+// ---------- Bulk delete ----------
+const BulkDeleteSchema = z.object({ mediaIds: z.array(z.string().uuid()).min(1).max(500) });
+
+export const bulkDeleteMedia = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => BulkDeleteSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: rows, error } = await supabase
+      .from("media")
+      .select("id, tenant_id, storage_path")
+      .in("id", data.mediaIds);
+    if (error) throw new Error(error.message);
+    if (!rows?.length) return { ok: true, deleted: 0 };
+    const paths = rows.map((r) => r.storage_path).filter(Boolean) as string[];
+    if (paths.length) {
+      const { error: rmErr } = await supabaseAdmin.storage.from("media").remove(paths);
+      if (rmErr) console.warn("[media.bulkDelete] storage remove failed:", rmErr.message);
+    }
+    const { error: delErr } = await supabase
+      .from("media")
+      .delete()
+      .in(
+        "id",
+        rows.map((r) => r.id),
+      );
+    if (delErr) throw new Error(delErr.message);
+    await recordAudit(supabase, {
+      tenantId: rows[0].tenant_id,
+      action: "media.bulk_delete",
+      entityType: "media",
+      entityId: rows[0].id,
+      metadata: { count: rows.length },
+    });
+    return { ok: true, deleted: rows.length };
+  });
+
+// ---------- Duplicate (copy-paste) ----------
+const DuplicateSchema = z.object({
+  mediaIds: z.array(z.string().uuid()).min(1).max(100),
+  folderPath: z.string().min(1).max(512),
+});
+
+export const duplicateMedia = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => DuplicateSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const folder = normalizeFolderPath(data.folderPath);
+    const tenantId = await requireTenantId(supabase, userId);
+
+    const { data: rows, error } = await supabase
+      .from("media")
+      .select("id, storage_path, filename, mime_type, size_bytes, alt_text")
+      .in("id", data.mediaIds);
+    if (error) throw new Error(error.message);
+    const out: Array<{ id: string }> = [];
+
+    for (const r of rows ?? []) {
+      const ext = (r.storage_path.split(".").pop() ?? "bin")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+      const newPath = `${tenantId}/${userId}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${ext}`;
+      const { error: cpErr } = await supabaseAdmin.storage
+        .from("media")
+        .copy(r.storage_path, newPath);
+      if (cpErr) {
+        console.warn("[media.duplicate] copy failed:", cpErr.message);
+        continue;
+      }
+      const { data: urlData } = supabaseAdmin.storage.from("media").getPublicUrl(newPath);
+      const dot = r.filename.lastIndexOf(".");
+      const base = dot > 0 ? r.filename.slice(0, dot) : r.filename;
+      const suffix = dot > 0 ? r.filename.slice(dot) : "";
+      const newName = `${base} - kopia${suffix}`;
+      const { data: ins, error: iErr } = await supabase
+        .from("media")
+        .insert({
+          tenant_id: tenantId,
+          uploader_id: userId,
+          storage_path: newPath,
+          public_url: urlData.publicUrl,
+          filename: newName,
+          mime_type: r.mime_type,
+          size_bytes: r.size_bytes,
+          alt_text: r.alt_text,
+          folder_path: folder,
+        })
+        .select("id")
+        .single();
+      if (iErr) {
+        console.warn("[media.duplicate] insert failed:", iErr.message);
+        continue;
+      }
+      out.push({ id: ins.id });
+    }
+    await recordAudit(supabase, {
+      tenantId,
+      action: "media.duplicate",
+      entityType: "media",
+      entityId: out[0]?.id ?? "n/a",
+      metadata: { count: out.length, folder },
+    });
+    return { ok: true, ids: out.map((o) => o.id) };
+  });
+
+// ---------- Folders ----------
+const CreateFolderSchema = z.object({ path: z.string().min(1).max(512) });
+
+export const createMediaFolder = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => CreateFolderSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const path = normalizeFolderPath(data.path);
+    if (path === "/") throw new Error("Root folder always exists");
+    const tenantId = await requireTenantId(supabase, userId);
+
+    // Ensure parents exist (auto-create ancestor chain).
+    const parts = path.slice(1, -1).split("/");
+    const chain: string[] = [];
+    let acc = "/";
+    for (const p of parts) {
+      acc = acc + p + "/";
+      chain.push(acc);
+    }
+    const rows = chain.map((p) => ({ tenant_id: tenantId, path: p, created_by: userId }));
+    const { error } = await supabase.from("media_folders").upsert(rows, { onConflict: "tenant_id,path" });
+    if (error) throw new Error(error.message);
+    await recordAudit(supabase, {
+      tenantId,
+      action: "media.folder_create",
+      entityType: "media_folder",
+      entityId: path,
+      metadata: { path },
+    });
+    return { ok: true, path };
+  });
+
+const RenameFolderSchema = z.object({
+  oldPath: z.string().min(1).max(512),
+  newPath: z.string().min(1).max(512),
+});
+
+export const renameMediaFolder = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => RenameFolderSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const oldP = normalizeFolderPath(data.oldPath);
+    const newP = normalizeFolderPath(data.newPath);
+    if (oldP === "/" || newP === "/") throw new Error("Cannot rename root");
+    if (oldP === newP) return { ok: true };
+    const tenantId = await requireTenantId(supabase, userId);
+
+    // Update all folders whose path starts with oldP.
+    const { data: folders, error: fErr } = await supabase
+      .from("media_folders")
+      .select("id, path")
+      .eq("tenant_id", tenantId)
+      .like("path", `${oldP}%`);
+    if (fErr) throw new Error(fErr.message);
+    for (const f of folders ?? []) {
+      const np = newP + f.path.slice(oldP.length);
+      const { error: uErr } = await supabase
+        .from("media_folders")
+        .update({ path: np })
+        .eq("id", f.id);
+      if (uErr) throw new Error(uErr.message);
+    }
+    // Update media rows.
+    const { data: items, error: mErr } = await supabase
+      .from("media")
+      .select("id, folder_path")
+      .eq("tenant_id", tenantId)
+      .like("folder_path", `${oldP}%`);
+    if (mErr) throw new Error(mErr.message);
+    for (const it of items ?? []) {
+      const np = newP + it.folder_path.slice(oldP.length);
+      await supabase.from("media").update({ folder_path: np }).eq("id", it.id);
+    }
+    await recordAudit(supabase, {
+      tenantId,
+      action: "media.folder_rename",
+      entityType: "media_folder",
+      entityId: newP,
+      metadata: { oldPath: oldP, newPath: newP },
+    });
+    return { ok: true };
+  });
+
+const DeleteFolderSchema = z.object({
+  path: z.string().min(1).max(512),
+  recursive: z.boolean().default(false),
+});
+
+export const deleteMediaFolder = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => DeleteFolderSchema.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const path = normalizeFolderPath(data.path);
+    if (path === "/") throw new Error("Cannot delete root");
+    const tenantId = await requireTenantId(supabase, userId);
+
+    const { count: fileCount } = await supabase
+      .from("media")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .like("folder_path", `${path}%`);
+    if (!data.recursive && (fileCount ?? 0) > 0) {
+      throw new Error("Folder is not empty");
+    }
+    if (data.recursive && (fileCount ?? 0) > 0) {
+      const { data: rows } = await supabase
+        .from("media")
+        .select("id, storage_path")
+        .eq("tenant_id", tenantId)
+        .like("folder_path", `${path}%`);
+      const paths = (rows ?? []).map((r) => r.storage_path).filter(Boolean) as string[];
+      if (paths.length) await supabaseAdmin.storage.from("media").remove(paths);
+      if (rows?.length)
+        await supabase
+          .from("media")
+          .delete()
+          .in(
+            "id",
+            rows.map((r) => r.id),
+          );
+    }
+    const { error } = await supabase
+      .from("media_folders")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .like("path", `${path}%`);
+    if (error) throw new Error(error.message);
+    await recordAudit(supabase, {
+      tenantId,
+      action: "media.folder_delete",
+      entityType: "media_folder",
+      entityId: path,
+      metadata: { path, recursive: data.recursive },
+    });
+    return { ok: true };
+  });
