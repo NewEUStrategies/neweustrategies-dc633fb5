@@ -1413,9 +1413,7 @@ function GridView({
             onDragStart={onDragStart(m.id)}
             onClick={(e) => onSelect(m.id, e)}
             onContextMenu={(e) => onContextFile(e, m.id)}
-            onDoubleClick={() => {
-              if (m.public_url) window.open(m.public_url, "_blank");
-            }}
+            onDoubleClick={() => onPreviewFile(m)}
             className={`group relative rounded-md border overflow-hidden cursor-pointer transition-colors ${
               selected
                 ? "border-brand ring-2 ring-brand/40 bg-brand/5"
