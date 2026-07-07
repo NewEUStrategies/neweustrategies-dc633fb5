@@ -772,6 +772,7 @@ export function JoinUsForm({
         disabled={state === "loading"}
         className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 font-sans font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
         style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
+        data-edit-target="buttonSize"
       >
         {state === "loading" ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -785,11 +786,13 @@ export function JoinUsForm({
       <p
         className="font-sans leading-relaxed text-muted-foreground"
         style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
+        data-edit-target="consentSize"
       >
         {consent}
       </p>
     </form>
   );
+
 
 
   const titleStyle = titleSize ? { fontSize: `${titleSize}px` } : undefined;
