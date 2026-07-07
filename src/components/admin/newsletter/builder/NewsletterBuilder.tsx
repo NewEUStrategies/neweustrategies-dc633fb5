@@ -605,7 +605,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                           backgroundColor:
                             st.bg ??
                             (variant === "popup"
-                              ? popupBg
+                              ? "transparent"
                               : sIdx === 0
                                 ? "var(--card)"
                                 : "transparent"),
