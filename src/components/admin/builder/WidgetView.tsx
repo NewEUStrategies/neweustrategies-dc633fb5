@@ -237,6 +237,17 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       }
     : undefined;
 
+  // "Wyrównanie" dropdown (style.align → baseStyle.textAlign) drives block-level
+  // alignment of widget children inside forms/newsletters. When the user picks
+  // Lewo/Środek/Prawo, the whole inner column shifts accordingly (align-items
+  // on the flex-col wrapper, and same on the inner shell when present).
+  const styleAlignItems: CSSProperties["alignItems"] | undefined = (() => {
+    const ta = baseStyle.textAlign;
+    if (ta === "left" || ta === "justify" || ta === "start") return "flex-start";
+    if (ta === "right" || ta === "end") return "flex-end";
+    if (ta === "center") return "center";
+    return undefined;
+  })();
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
@@ -247,7 +258,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       style={{
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
+        alignItems: styleAlignItems ?? "center",
         justifyContent: isCompactWidget ? "center" : "flex-start",
         width: "100%",
         minWidth: 0,
@@ -264,7 +275,21 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         ...motionStyle,
       }}
     >
-      {innerShellStyle ? <div style={innerShellStyle}>{children}</div> : children}
+      {innerShellStyle ? (
+        <div
+          style={
+            // When "Wyrównanie treści" (contentAlign) isn't set, let the top-level
+            // "Wyrównanie" dropdown drive the inner shell alignment too.
+            innerAlignItems || !styleAlignItems
+              ? innerShellStyle
+              : { ...innerShellStyle, alignItems: styleAlignItems }
+          }
+        >
+          {children}
+        </div>
+      ) : (
+        children
+      )}
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
     </div>
   );
