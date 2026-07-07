@@ -2586,6 +2586,18 @@ textarea::placeholder {
   opacity: 1;
 }
 
+/* ============================================================
+   Global input-label font-size — unified across every widget.
+   ============================================================ */
+.cf-shell label,
+[data-w-id] label,
+.cms-widget-form label,
+.nl-shell label,
+.auth-shell label,
+.join-us-shell label {
+  font-size: var(--gc-label-font-size, 0.75rem);
+}
+
 
 
 
