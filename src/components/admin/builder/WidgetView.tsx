@@ -729,6 +729,22 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || undefined;
 
       const isOn = (k: string) => getStr(c, k) === "1";
+      // Parse "customFields" widget content (stringArray of JSON objects) into
+      // typed field definitions. See src/lib/builder/formFieldConfig.tsx.
+      const customFields = (() => {
+        try {
+          // dynamic import kept out of the render path; parseCustomFields is
+          // a pure sync function, so import statically at the top of this file
+          // would work too — but keeping it lazy avoids widening the widget-
+          // view bundle for pages that never render join-us.
+          const { parseCustomFields } =
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            require("@/lib/builder/formFieldConfig") as typeof import("@/lib/builder/formFieldConfig");
+          return parseCustomFields(c.customFields);
+        } catch {
+          return [];
+        }
+      })();
       return wrap(
         <JoinUsForm
           variant={variant}
@@ -770,6 +786,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           phonePlaceholder={pick("phonePlaceholder")}
           companyPlaceholder={pick("companyPlaceholder")}
           countryPlaceholder={pick("countryPlaceholder")}
+          customFields={customFields}
           source={`widget:${node.id}`}
         />,
       );
