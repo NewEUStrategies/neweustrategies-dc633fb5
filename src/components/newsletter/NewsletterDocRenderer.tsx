@@ -31,6 +31,40 @@ const pickI = (v: { pl: string; en: string }, lang: NlLang) => (lang === "pl" ? 
 
 const REQUIRED_TXT: Record<NlLang, string> = { pl: "Pole wymagane", en: "Required field" };
 const EMAIL_TXT: Record<NlLang, string> = { pl: "Niepoprawny adres e-mail.", en: "Invalid email address." };
+const NAME_TXT: Record<NlLang, string> = {
+  pl: "Dozwolone litery, spacja i myslnik (2-80 znakow).",
+  en: "Letters, space and hyphen only (2-80 chars).",
+};
+const PHONE_TXT: Record<NlLang, string> = {
+  pl: "Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).",
+  en: "Invalid phone number (7-15 digits, optional leading +).",
+};
+const LINKEDIN_TXT: Record<NlLang, string> = {
+  pl: "Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).",
+  en: "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe).",
+};
+const COMPANY_TXT: Record<NlLang, string> = {
+  pl: "Nieprawidlowa wartosc (2-120 znakow).",
+  en: "Invalid value (2-120 characters).",
+};
+
+const NAME_RE = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
+const LINKEDIN_RE =
+  /^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/(in|pub|company)\/[A-Za-z0-9_\-%.]{2,100}\/?$/i;
+
+/** Normalizuje numer telefonu do postaci E.164-lite: opcjonalne `+` + 7-15 cyfr. */
+function normalizePhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-().]/g, "");
+  if (!/^\+?[0-9]{7,15}$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+/** Normalizuje URL LinkedIn: dodaje https:// gdy brak schematu. */
+function normalizeLinkedin(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!LINKEDIN_RE.test(trimmed)) return null;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
 
 // Zliczanie subskrybentow z publicznej perspektywy - do widgetu social-proof.
 // RLS moze zablokowac; wtedy uzywamy fallback z widgetu.
@@ -80,17 +114,56 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
     if (!email) errs.email = REQUIRED_TXT[lang];
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = EMAIL_TXT[lang];
 
-    const firstName = String(fd.get("firstName") ?? "").trim() || undefined;
-    const lastName = String(fd.get("lastName") ?? "").trim() || undefined;
+    let firstName = String(fd.get("firstName") ?? "").trim() || undefined;
+    let lastName = String(fd.get("lastName") ?? "").trim() || undefined;
     const meta: Record<string, string> = {};
     const consents: { key: string; text: string; given: boolean; lang: NlLang }[] = [];
     const requiredFields: string[] = [];
 
+    // Walidacja pol tekstowych (per-preset regex + normalizacja).
+    // firstName/lastName -> top-level; phone/company/position/linkedin -> meta
+    // (server mapuje meta.* -> crm_upsert_from_form).
     for (const w of flatWidgets) {
       if (w.type === "field.text") {
-        const val = String(fd.get(w.name) ?? "").trim();
-        if (w.required && !val) errs[w.name] = REQUIRED_TXT[lang];
-        if (val && w.name !== "firstName" && w.name !== "lastName") meta[w.name] = val;
+        const raw = String(fd.get(w.name) ?? "").trim();
+        if (w.required && !raw) {
+          errs[w.name] = REQUIRED_TXT[lang];
+        } else if (raw) {
+          switch (w.name) {
+            case "firstName":
+            case "lastName": {
+              if (!NAME_RE.test(raw)) {
+                errs[w.name] = NAME_TXT[lang];
+              } else if (w.name === "firstName") {
+                firstName = raw;
+              } else {
+                lastName = raw;
+              }
+              break;
+            }
+            case "phone": {
+              const norm = normalizePhone(raw);
+              if (!norm) errs[w.name] = PHONE_TXT[lang];
+              else meta.phone = norm;
+              break;
+            }
+            case "linkedin": {
+              const norm = normalizeLinkedin(raw);
+              if (!norm) errs[w.name] = LINKEDIN_TXT[lang];
+              else meta.linkedin = norm;
+              break;
+            }
+            case "company":
+            case "position": {
+              if (raw.length < 2 || raw.length > 120) {
+                errs[w.name] = COMPANY_TXT[lang];
+              } else {
+                meta[w.name] = raw;
+              }
+              break;
+            }
+          }
+        }
         if (w.required) requiredFields.push(w.name);
       } else if (w.type === "field.select") {
         const val = String(fd.get(w.name) ?? "").trim();
