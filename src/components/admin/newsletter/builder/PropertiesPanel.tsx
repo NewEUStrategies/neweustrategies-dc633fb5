@@ -33,7 +33,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
+
+// Kompaktowa paleta presetow - dopasowana do design tokens projektu.
+const COLOR_PRESETS: string[] = [
+  "#000000", "#0a0a0a", "#1a1a1a", "#333333", "#666666", "#999999", "#cccccc", "#ffffff",
+  "#f97316", "#ea580c", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#14b8a6",
+  "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
+  "#ef4444", "#dc2626", "#b91c1c", "#7f1d1d", "transparent",
+];
 
 interface Props {
   variant: "inline" | "popup";
