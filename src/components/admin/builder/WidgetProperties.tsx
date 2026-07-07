@@ -504,24 +504,6 @@ export function WidgetProperties({
             </section>
           )}
 
-          <section className="space-y-2 pt-2 border-t border-border">
-            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Odstępy
-            </h4>
-            <SpacingControl style={widget.style} device={device} onChange={setStyle} />
-            <PropField label="Pozycja w komórce">
-              <PositionAnchor
-                justify={widget.style?.selfJustify}
-                align={widget.style?.selfAlign}
-                onChange={({ justify, align }) =>
-                  setStyle((s) => {
-                    s.selfJustify = justify;
-                    s.selfAlign = align;
-                  })
-                }
-              />
-            </PropField>
-          </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
