@@ -117,19 +117,87 @@ function SectionProps({
   section,
   onPatchSection,
   onPatchLayout,
+  onPatchSectionMedia,
   lang,
 }: {
   section: NlSection;
   onPatchSection: (patch: Partial<NlSectionStyle>) => void;
   onPatchLayout: (layout: NlSectionLayout) => void;
+  onPatchSectionMedia: (patch: Partial<NlSectionMedia> | null) => void;
   lang: NlLang;
 }) {
   const st = section.style ?? {};
+  const media = section.media ?? null;
   return (
     <div className="space-y-4">
       <LayoutPicker current={section.layout ?? "single"} onChange={onPatchLayout} lang={lang} />
 
-      <div className="space-y-3">
+      <div className="space-y-3 border-t border-border/60 pt-3">
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {lang === "pl" ? "Obraz sekcji (pelna wysokosc)" : "Section image (full height)"}
+          </div>
+          {media && (
+            <button
+              type="button"
+              onClick={() => onPatchSectionMedia(null)}
+              className="text-[10px] text-destructive hover:underline"
+            >
+              {lang === "pl" ? "Usun" : "Remove"}
+            </button>
+          )}
+        </div>
+        <div>
+          <Label>{lang === "pl" ? "URL obrazu" : "Image URL"}</Label>
+          <Input
+            value={media?.url ?? ""}
+            onChange={(e) => onPatchSectionMedia({ url: e.target.value })}
+            placeholder="https://..."
+          />
+        </div>
+        {media?.url ? (
+          <>
+            <div>
+              <Label>{lang === "pl" ? "Tekst alt" : "Alt text"}</Label>
+              <Input
+                value={media.alt ?? ""}
+                onChange={(e) => onPatchSectionMedia({ alt: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>{lang === "pl" ? "Pozycja" : "Position"}</Label>
+                <Select
+                  value={media.position}
+                  onValueChange={(v) => onPatchSectionMedia({ position: v as "left" | "right" })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">{lang === "pl" ? "Lewa" : "Left"}</SelectItem>
+                    <SelectItem value="right">{lang === "pl" ? "Prawa" : "Right"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{lang === "pl" ? "Szerokosc (%)" : "Width (%)"}</Label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={70}
+                  value={media.widthPct ?? 40}
+                  onChange={(e) =>
+                    onPatchSectionMedia({
+                      widthPct: Math.min(70, Math.max(10, Number(e.target.value) || 40)),
+                    })
+                  }
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      <div className="space-y-3 border-t border-border/60 pt-3">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {lang === "pl" ? "Styl" : "Style"}
         </div>
