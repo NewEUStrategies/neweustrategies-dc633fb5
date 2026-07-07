@@ -3,12 +3,20 @@
 // dodaje nowy widget przez NewsletterBuilder.onDragEnd. Klikniecie karty
 // dodaje widget na koniec (dostepnosc + touch).
 //
+// Niektore karty (np. "Imie", "Pracodawca") to warianty tego samego `type`
+// z presetem - przekazujemy je razem z `type` do onAdd i onDragEnd.
+//
 // `context` filtruje widgety po `WidgetMeta.contexts` - np. builder popupu
 // nie pokazuje pol formularza newslettera, ktore nie maja sensu poza inline.
 import { useDraggable } from "@dnd-kit/core";
 import * as Lucide from "lucide-react";
-import type { NlWidgetType, NlLang } from "@/lib/newsletter-builder/types";
-import { widgetLabel, widgetsForContext, type BuilderContext } from "@/lib/newsletter-builder/registry";
+import type { NlWidgetType, NlLang, NlWidget } from "@/lib/newsletter-builder/types";
+import {
+  libraryItemId,
+  widgetsForContext,
+  type BuilderContext,
+  type WidgetLibraryItem,
+} from "@/lib/newsletter-builder/registry";
 
 const GROUP_LABEL: Record<string, { pl: string; en: string }> = {
   content: { pl: "Tresc", en: "Content" },
@@ -24,7 +32,7 @@ export function WidgetLibrary({
   context = "newsletter",
 }: {
   lang: NlLang;
-  onAdd: (type: NlWidgetType) => void;
+  onAdd: (type: NlWidgetType, preset?: Partial<NlWidget>) => void;
   context?: BuilderContext;
 }) {
   const groups = Object.keys(GROUP_LABEL);
@@ -44,7 +52,7 @@ export function WidgetLibrary({
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               {items.map((w) => (
-                <LibraryCard key={w.type} type={w.type} lang={lang} icon={w.icon} onAdd={onAdd} />
+                <LibraryCard key={libraryItemId(w)} item={w} lang={lang} onAdd={onAdd} />
               ))}
             </div>
           </div>
@@ -55,27 +63,29 @@ export function WidgetLibrary({
 }
 
 function LibraryCard({
-  type,
+  item,
   lang,
-  icon,
   onAdd,
 }: {
-  type: NlWidgetType;
+  item: WidgetLibraryItem;
   lang: NlLang;
-  icon: string;
-  onAdd: (type: NlWidgetType) => void;
+  onAdd: (type: NlWidgetType, preset?: Partial<NlWidget>) => void;
 }) {
+  const id = libraryItemId(item);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `lib-${type}`,
-    data: { kind: "library", type },
+    id: `lib-${id}`,
+    data: { kind: "library", type: item.type, preset: item.preset },
   });
-  const IconCmp = (Lucide as unknown as Record<string, React.ComponentType<{ className?: string }>>)[icon] ?? Lucide.Square;
+  const IconCmp =
+    (Lucide as unknown as Record<string, React.ComponentType<{ className?: string }>>)[item.icon] ??
+    Lucide.Square;
+  const label = lang === "pl" ? item.labelPl : item.labelEn;
 
   return (
     <button
       ref={setNodeRef}
       type="button"
-      onClick={() => onAdd(type)}
+      onClick={() => onAdd(item.type, item.preset)}
       {...attributes}
       {...listeners}
       className={
@@ -84,7 +94,7 @@ function LibraryCard({
       }
     >
       <IconCmp className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-      <span className="text-[10px] leading-tight text-center">{widgetLabel(type, lang)}</span>
+      <span className="text-[10px] leading-tight text-center">{label}</span>
     </button>
   );
 }

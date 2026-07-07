@@ -278,10 +278,14 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     sectionId: string,
     atIndex?: number,
     col: 0 | 1 = 0,
+    preset?: Partial<NlWidget>,
   ) => {
     const section = doc.sections[findSectionIdx(sectionId)];
     if (!section) return;
-    const w = makeWidget(type);
+    const base = makeWidget(type);
+    // Preset (np. wariant field.text: firstName/lastName/phone/company/position/linkedin)
+    // nadpisuje wartosci domyslne, ale zachowuje `id` i `type` z makeWidget.
+    const w = (preset ? { ...base, ...preset, id: base.id, type: base.type } : base) as NlWidget;
     if ((section.layout ?? "single") !== "single") w.col = col;
     updateSectionWidgets(sectionId, (list) => {
       const next = [...list];
@@ -374,7 +378,9 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     setDraggingWidgetId(null);
     const { active, over } = e;
     if (!over) return;
-    const data = active.data.current as { kind?: string; type?: NlWidgetType } | undefined;
+    const data = active.data.current as
+      | { kind?: string; type?: NlWidgetType; preset?: Partial<NlWidget> }
+      | undefined;
     const target = resolveDropTarget(String(over.id));
     if (!target.sectionId) return;
 
@@ -384,7 +390,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     // Drop from library
     if (data?.kind === "library" && data.type) {
       const col = targetLayout === "single" ? 0 : (target.col ?? 0);
-      addWidget(data.type, target.sectionId, target.overWidgetIdx ?? undefined, col);
+      addWidget(data.type, target.sectionId, target.overWidgetIdx ?? undefined, col, data.preset);
       return;
     }
 
@@ -555,11 +561,12 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
               {sideTab === "widgets" ? (
                 <WidgetLibrary
                   lang={lang}
-                  onAdd={(type) => {
+                  onAdd={(type, preset) => {
                     const sid = selectedSectionId ?? doc.sections[0]?.id;
-                    if (sid) addWidget(type, sid);
+                    if (sid) addWidget(type, sid, undefined, 0, preset);
                   }}
                 />
+
               ) : (
                 <PropertiesPanel
                   variant={variant}
