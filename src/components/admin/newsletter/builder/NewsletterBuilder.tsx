@@ -27,10 +27,8 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import {
   useNewsletterSettings,
@@ -116,17 +114,34 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
   useUnsavedChangesGuard(isDirty);
 
   const widgets = doc.sections[0]?.widgets ?? [];
+  const sectionLayout = doc.sections[0]?.layout ?? "single";
   const selected = widgets.find((w) => w.id === selectedId) ?? null;
 
-  const updateWidgets = (fn: (list: NlWidget[]) => NlWidget[]) => {
+  const updateSection = (fn: (section: NlDoc["sections"][number]) => NlDoc["sections"][number]) => {
     history.set((prev) => ({
       ...prev,
-      sections: prev.sections.map((s, i) => (i === 0 ? { ...s, widgets: fn(s.widgets) } : s)),
+      sections: prev.sections.map((s, i) => (i === 0 ? fn(s) : s)),
     }));
   };
 
-  const addWidget = (type: NlWidgetType, atIndex?: number) => {
+  const updateWidgets = (fn: (list: NlWidget[]) => NlWidget[]) => {
+    updateSection((s) => ({ ...s, widgets: fn(s.widgets) }));
+  };
+
+  const setSectionLayout = (layout: NlDoc["sections"][number]["layout"]) => {
+    updateSection((s) => {
+      // Reset col dla single, spuszczaj col=1 do 0 jesli nowy layout=single
+      if (layout === "single" || !layout) {
+        return { ...s, layout: "single", widgets: s.widgets.map((w) => ({ ...w, col: undefined })) };
+      }
+      // Przy przejsciu z single -> split kolumny startowo puste w drugiej.
+      return { ...s, layout, widgets: s.widgets.map((w) => ({ ...w, col: (w.col ?? 0) as 0 | 1 })) };
+    });
+  };
+
+  const addWidget = (type: NlWidgetType, atIndex?: number, col: 0 | 1 = 0) => {
     const w = makeWidget(type);
+    if (sectionLayout !== "single") w.col = col;
     updateWidgets((list) => {
       const next = [...list];
       const idx = typeof atIndex === "number" ? Math.max(0, Math.min(atIndex, next.length)) : next.length;
