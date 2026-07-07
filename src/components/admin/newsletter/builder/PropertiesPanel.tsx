@@ -38,15 +38,21 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Settings2, Upload } from "lucide-react";
+import { Settings2, Upload, Image as ImageIcon, X as XIcon, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
+import { useServerFn } from "@tanstack/react-start";
+import { registerMediaUpload } from "@/lib/media.functions";
+import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 
 /**
- * Pole URL obrazu z wgrywaniem z lokalnego dysku.
- * Upload -> bucket `media` w folderze `newsletter-builder/<tenant>/<uid>/`,
- * po sukcesie zwraca publiczny URL i wpisuje go do pola.
+ * Pole URL obrazu z:
+ * - miniaturą podglądu ustawionego obrazu,
+ * - przyciskiem usunięcia (czyszczenia pola),
+ * - szybką podmianą (upload zastępuje URL bez potrzeby edycji pola),
+ * - wgrywaniem z lokalnego dysku (rejestrowane w tabeli `media`),
+ * - wyborem z biblioteki mediów (/admin/media).
  */
 function ImageUrlField({
   value,
@@ -64,24 +70,29 @@ function ImageUrlField({
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [previewOk, setPreviewOk] = useState(true);
   const tenantId = useRequiredTenant();
+  const registerUpload = useServerFn(registerMediaUpload);
+
+  const T = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   const handleFile = async (file: File) => {
     setError(null);
     if (!file.type.startsWith("image/")) {
-      setError(lang === "pl" ? "Wybierz plik obrazu." : "Please select an image file.");
+      setError(T("Wybierz plik obrazu.", "Please select an image file."));
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      setError(lang === "pl" ? "Plik za duzy (max 8 MB)." : "File too large (max 8 MB).");
+      setError(T("Plik za duzy (max 8 MB).", "File too large (max 8 MB)."));
       return;
     }
     setUploading(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id ?? "anon";
-      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-      const path = `${tenantId}/${uid}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const ext = (file.name.split(".").pop() ?? "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const path = `${tenantId}/${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("media").upload(path, file, {
         cacheControl: "3600",
         upsert: false,
@@ -89,6 +100,23 @@ function ImageUrlField({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
+      // Register in the `media` table so it shows up on /admin/media.
+      try {
+        await registerUpload({
+          data: {
+            storagePath: path,
+            filename: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            publicUrl: data.publicUrl,
+          },
+        });
+      } catch (regErr) {
+        // Upload succeeded, DB registration failed: don't lose the URL,
+        // just log so the user still gets an image and it can be reconciled.
+        console.warn("[ImageUrlField] media registration failed:", regErr);
+      }
+      setPreviewOk(true);
       onChange(data.publicUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : "upload error");
@@ -97,12 +125,64 @@ function ImageUrlField({
     }
   };
 
+  const clear = () => {
+    setPreviewOk(true);
+    onChange("");
+  };
+
+  const hasImage = !!value;
+
   return (
     <div className="space-y-1.5">
+      {/* Preview */}
+      {hasImage && (
+        <div className="relative rounded-md border border-border overflow-hidden bg-muted/30 group">
+          {previewOk ? (
+            <img
+              src={value}
+              alt={T("Podgląd", "Preview")}
+              className="w-full max-h-40 object-contain bg-checkerboard"
+              onError={() => setPreviewOk(false)}
+              onLoad={() => setPreviewOk(true)}
+            />
+          ) : (
+            <div className="w-full h-24 flex flex-col items-center justify-center text-[11px] text-muted-foreground gap-1">
+              <ImageIcon className="w-4 h-4" />
+              {T("Nie udało się załadować podglądu", "Preview failed to load")}
+            </div>
+          )}
+          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+              className="w-7 h-7 rounded-md bg-background/90 backdrop-blur border border-border hover:border-brand hover:text-brand flex items-center justify-center disabled:opacity-50"
+              title={T("Szybka podmiana pliku", "Quick replace")}
+              aria-label={T("Szybka podmiana", "Quick replace")}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${uploading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={clear}
+              className="w-7 h-7 rounded-md bg-background/90 backdrop-blur border border-border hover:border-destructive hover:text-destructive flex items-center justify-center"
+              title={T("Usuń obraz", "Remove image")}
+              aria-label={T("Usuń obraz", "Remove image")}
+            >
+              <XIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* URL + actions */}
       <div className="flex gap-1.5">
         <Input
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            setPreviewOk(true);
+            onChange(e.target.value);
+          }}
           placeholder={placeholder}
           className="flex-1"
         />
@@ -111,12 +191,22 @@ function ImageUrlField({
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
           className="inline-flex items-center gap-1 px-2.5 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50 whitespace-nowrap"
-          title={lang === "pl" ? "Wgraj z dysku" : "Upload from device"}
+          title={T("Wgraj z dysku", "Upload from device")}
         >
           <Upload className="w-3.5 h-3.5" />
-          {uploading ? (lang === "pl" ? "Wgrywam…" : "Uploading…") : (lang === "pl" ? "Wgraj" : "Upload")}
+          {uploading ? T("Wgrywam…", "Uploading…") : T("Wgraj", "Upload")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="inline-flex items-center gap-1 px-2.5 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs whitespace-nowrap"
+          title={T("Wybierz z biblioteki mediów", "Pick from Media Library")}
+        >
+          <ImageIcon className="w-3.5 h-3.5" />
+          {T("Media", "Media")}
         </button>
       </div>
+
       <input
         ref={fileRef}
         type="file"
@@ -129,9 +219,25 @@ function ImageUrlField({
         }}
       />
       {error && <div className="text-[10px] text-destructive">{error}</div>}
+
+      <MediaPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPick={(url) => {
+          setPreviewOk(true);
+          onChange(url);
+        }}
+        accept="image"
+        title={T("Wybierz obraz z biblioteki", "Pick image from library")}
+      />
     </div>
   );
 }
+
+// The `folder` prop is intentionally unused inside the storage path now
+// (media library is flat/tenant-scoped; folder_path is set separately by the
+// media manager). Keeping the prop for API stability with call sites.
+void folder;
 
 // Kompaktowa paleta presetow - dopasowana do design tokens projektu.
 const COLOR_PRESETS: string[] = [
