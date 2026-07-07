@@ -1,8 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { NlDoc } from "@/lib/newsletter-builder/types";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
 type NewsletterPopupLayout = "stacked" | "split";
+export type NewsletterMode = "off" | "inline" | "popup" | "both";
+
 
 export interface NewsletterMailingList {
   id: string;
