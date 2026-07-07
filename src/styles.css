@@ -2447,3 +2447,33 @@ textarea::placeholder {
   width: 12px;
   height: 12px;
 }
+
+/* ============================================================
+   Widget form fields — global baseline
+   - Kills the browser-default blue focus ring / glow
+   - Enforces a uniform default input height across every widget
+   - Uses :where() so any per-widget override still wins
+   ============================================================ */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"])),
+:where(textarea),
+:where(select) {
+  min-height: 2.5rem;
+}
+:where(textarea) {
+  min-height: 5rem;
+}
+/* Neutralize the browser's default focus outline (Chrome/Safari blue glow) */
+:where(input, textarea, select):focus {
+  outline: none;
+}
+:where(input, textarea, select):focus-visible {
+  outline: 2px solid hsl(var(--foreground) / 0.35);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+/* Also neutralize the primary-tinted focus ring on the contact-form shell */
+.cf-shell .cf-input:focus,
+.dark .cf-shell .cf-input:focus {
+  border-color: hsl(var(--foreground) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.12);
+}
