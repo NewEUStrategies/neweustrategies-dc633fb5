@@ -70,6 +70,31 @@ export const NlWidgetSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...BaseWidget,
+    type: z.literal("field.select"),
+    name: z.string().min(1).max(64),
+    label: NlI18n,
+    placeholder: NlI18n,
+    required: z.boolean().optional(),
+    options: z
+      .array(
+        z.object({
+          value: z.string().min(1).max(120),
+          labelPl: z.string().max(200),
+          labelEn: z.string().max(200),
+        }),
+      )
+      .max(64),
+  }),
+  z.object({
+    ...BaseWidget,
+    type: z.literal("field.mailing-lists"),
+    label: NlI18n,
+    display: z.enum(["select", "checkboxes"]).optional(),
+    required: z.boolean().optional(),
+    listIds: z.array(z.string().max(64)).max(32).optional(),
+  }),
+  z.object({
+    ...BaseWidget,
     type: z.literal("submit"),
     label: NlI18n,
     fullWidth: z.boolean().optional(),
@@ -80,6 +105,23 @@ export const NlWidgetSchema = z.discriminatedUnion("type", [
     ...BaseWidget,
     type: z.literal("success-message"),
     text: NlI18n,
+  }),
+  z.object({
+    ...BaseWidget,
+    type: z.literal("social-proof"),
+    text: NlI18n,
+    fallbackCount: z.number().int().min(0).max(10_000_000).optional(),
+    align: z.enum(["left", "center", "right"]).optional(),
+  }),
+  z.object({
+    ...BaseWidget,
+    type: z.literal("countdown"),
+    deadline: z.string().min(1).max(64),
+    labelDays: NlI18n,
+    labelHours: NlI18n,
+    labelMinutes: NlI18n,
+    labelSeconds: NlI18n,
+    accent: z.string().max(32).nullish(),
   }),
 ]);
 

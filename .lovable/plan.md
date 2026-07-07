@@ -187,12 +187,20 @@ Rekomendacja: wdrożenie w 2 turach ze względu na rozmiar (~35 nowych plików).
 - Builder MVP: canvas, biblioteka, properties, drag & drop dla top-level widgetów (heading, paragraph, field.email, field.text, submit, consent, image, divider) - bez sekcji/kolumn (na kanwie flat list z drag reorder)
 - i18n PL/EN, testy jednostkowe schemy i defaults
 
-**Tura 2 (po akceptacji tury 1)**:
-- Sekcje + kolumny (grid 12) + presety układów
-- Pozostałe widgety (select, mailing-lists, social-proof, countdown, spacer, success-message)
-- Import CSV subskrybentów + modal detalu
-- Testy E2E buildera (Playwright)
-- Migracja legacy popup color settings do doc-poziomowych stylów
+**Tura 2 (wdrozona)**:
+- Nowe widgety: `field.select`, `field.mailing-lists`, `social-proof`, `countdown` (types + schema + defaults + registry + WidgetPreview + PropertiesPanel).
+- Runtime `NewsletterDocRenderer` (src/components/newsletter/) - waliduje, submituje przez `subscribeToNewsletter`, renderuje sukces, obsluguje wszystkie widgety, live subscriber count z fallbackiem.
+- Wpiecie w produkcje: `NewsletterForm` uzywa doc renderera gdy `settings.inline_doc` + `mode !== off/popup`; `NewsletterPopup` renderuje `settings.popup_doc` w miejscu legacy split/stacked. Fallback zachowany.
+- Backfill legacy popup color settings do `doc.popup` przy pierwszym otwarciu buildera (bg/fg/muted/accent/accentFg/overlay/radius/layout/sideImage).
+- Import CSV: `importNewsletterSubscribers` (requireStaff), `ImportCsvDialog` z parserem CSV (, i ;), auto-mapowaniem kolumn, podgladem i idempotencja per e-mail.
+- Gating trybu w NewsletterPopup (nie pokazuje sie gdy `mode === off/inline`).
+
+**Tura 3 (planowana)**:
+- Multi-sekcje w builderze (add/delete/reorder + section-level styling w PropertiesPanel).
+- Grid 12-kolumnowy per sekcja + presety ukladow (1, 1/1, 1/2/1, 2/1, itd.).
+- Modal detalu subskrybenta (edycja custom fields).
+- Testy E2E buildera (Playwright).
+- Migracja legacy popup color settings do doc-poziomowych stylow (permanent, nie tylko lazy backfill).
 
 ## 10. Ryzyka
 

@@ -7,9 +7,10 @@
 // custom fields zdefiniowane w builderze — całość leci do CRM przez server.
 import { useMemo, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -19,6 +20,29 @@ import {
   validateCustom,
   type CustomField,
 } from "@/lib/builder/formFields";
+
+function BuilderInlineWrapper({
+  settings,
+  lang,
+  source,
+  variant,
+}: {
+  settings: NewsletterSettings;
+  lang: "pl" | "en";
+  source: string;
+  variant: "card" | "inline";
+}) {
+  if (!settings.inline_doc) return null;
+  const containerCls =
+    variant === "card"
+      ? "border border-border rounded-lg p-6 lg:p-8 bg-transparent"
+      : "border-t border-b border-border py-8";
+  return (
+    <section className={containerCls + " nl-shell nl-shell--" + variant} aria-label="Newsletter">
+      <NewsletterDocRenderer doc={settings.inline_doc} settings={settings} lang={lang} source={source} />
+    </section>
+  );
+}
 
 interface Props {
   lang?: "pl" | "en";
@@ -44,6 +68,20 @@ export function NewsletterForm({
 }: Props) {
   const { data: s } = useNewsletterSettings();
   const cfg = widgetConfig ?? {};
+
+  // Nowy builder: jesli tenant ma inline_doc i tryb pozwala na inline, uzywamy
+  // NewsletterDocRenderer (Elementor-style). Legacy fallback nizej.
+  if (s && s.enabled && s.inline_doc && s.mode !== "off" && s.mode !== "popup") {
+    return (
+      <BuilderInlineWrapper
+        settings={s}
+        lang={lang}
+        source={source}
+        variant={variant}
+      />
+    );
+  }
+
   const [email, setEmail] = useState("");
   const [name, setName] = useState(""); // legacy single "name" (fallback)
   const [firstName, setFirstName] = useState("");

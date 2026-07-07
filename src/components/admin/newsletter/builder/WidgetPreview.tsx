@@ -126,6 +126,64 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
           {pick(widget.text)}
         </div>
       );
+    case "field.select":
+      return (
+        <label className="block space-y-1">
+          <span className="text-xs font-semibold">
+            {pick(widget.label)}
+            {widget.required && <span className="text-destructive ml-0.5">*</span>}
+          </span>
+          <select disabled className="w-full px-3 py-2 rounded border border-input bg-background/60 text-sm">
+            <option>{pick(widget.placeholder)}</option>
+            {widget.options.map((o) => (
+              <option key={o.value}>{lang === "pl" ? o.labelPl : o.labelEn}</option>
+            ))}
+          </select>
+        </label>
+      );
+    case "field.mailing-lists":
+      return (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold">
+            {pick(widget.label)}
+            {widget.required && <span className="text-destructive ml-0.5">*</span>}
+          </div>
+          <div className="text-[11px] text-muted-foreground border border-dashed border-border/60 rounded p-2">
+            {lang === "pl" ? "Listy z ustawien newslettera" : "Lists from newsletter settings"}
+            {widget.display === "select" ? " (dropdown)" : " (checkboxes)"}
+          </div>
+        </div>
+      );
+    case "social-proof":
+      return (
+        <div
+          className="text-xs font-medium text-muted-foreground"
+          style={{ textAlign: widget.align ?? "center" }}
+        >
+          {pick(widget.text).replace("{count}", String(widget.fallbackCount ?? 0))}
+        </div>
+      );
+    case "countdown": {
+      const diff = Math.max(0, new Date(widget.deadline).getTime() - Date.now());
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      const cell = (n: number, l: string) => (
+        <div className="text-center px-2 py-1 rounded" style={{ backgroundColor: widget.accent ?? "var(--muted)" }}>
+          <div className="text-lg font-bold leading-none">{String(n).padStart(2, "0")}</div>
+          <div className="text-[9px] uppercase tracking-wider opacity-80">{l}</div>
+        </div>
+      );
+      return (
+        <div className="grid grid-cols-4 gap-2">
+          {cell(d, pick(widget.labelDays))}
+          {cell(h, pick(widget.labelHours))}
+          {cell(m, pick(widget.labelMinutes))}
+          {cell(s, pick(widget.labelSeconds))}
+        </div>
+      );
+    }
     default:
       return null;
   }

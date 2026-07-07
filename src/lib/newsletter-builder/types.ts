@@ -27,8 +27,18 @@ export type NlWidgetType =
   | "field.email"
   | "field.text"
   | "field.checkbox"
+  | "field.select"
+  | "field.mailing-lists"
   | "submit"
-  | "success-message";
+  | "success-message"
+  | "social-proof"
+  | "countdown";
+
+export interface NlSelectOption {
+  value: string;
+  labelPl: string;
+  labelEn: string;
+}
 
 export interface NlWidgetBase {
   id: string;
@@ -91,6 +101,25 @@ export interface NlCheckboxWidget extends NlWidgetBase {
   required?: boolean;
 }
 
+export interface NlSelectWidget extends NlWidgetBase {
+  type: "field.select";
+  name: string; // stored in meta[name]
+  label: NlI18n;
+  placeholder: NlI18n;
+  required?: boolean;
+  options: NlSelectOption[];
+}
+
+export interface NlMailingListsWidget extends NlWidgetBase {
+  type: "field.mailing-lists";
+  label: NlI18n;
+  /** UI mode: dropdown vs checkboxes. */
+  display?: "select" | "checkboxes";
+  required?: boolean;
+  /** Optional: restrict to a subset of list IDs from newsletter_settings.popup_mailing_lists. */
+  listIds?: string[];
+}
+
 export interface NlSubmitWidget extends NlWidgetBase {
   type: "submit";
   label: NlI18n;
@@ -104,6 +133,25 @@ export interface NlSuccessMessageWidget extends NlWidgetBase {
   text: NlI18n;
 }
 
+export interface NlSocialProofWidget extends NlWidgetBase {
+  type: "social-proof";
+  text: NlI18n; // "{count}" placeholder is replaced at render
+  /** Fallback minimum if we cannot read subscriber count. */
+  fallbackCount?: number;
+  align?: "left" | "center" | "right";
+}
+
+export interface NlCountdownWidget extends NlWidgetBase {
+  type: "countdown";
+  /** ISO 8601 UTC date-time (e.g. "2026-08-01T18:00:00Z"). */
+  deadline: string;
+  labelDays: NlI18n;
+  labelHours: NlI18n;
+  labelMinutes: NlI18n;
+  labelSeconds: NlI18n;
+  accent?: string | null;
+}
+
 export type NlWidget =
   | NlHeadingWidget
   | NlParagraphWidget
@@ -113,8 +161,12 @@ export type NlWidget =
   | NlEmailFieldWidget
   | NlTextFieldWidget
   | NlCheckboxWidget
+  | NlSelectWidget
+  | NlMailingListsWidget
   | NlSubmitWidget
-  | NlSuccessMessageWidget;
+  | NlSuccessMessageWidget
+  | NlSocialProofWidget
+  | NlCountdownWidget;
 
 export interface NlSectionStyle {
   bg?: string | null;
