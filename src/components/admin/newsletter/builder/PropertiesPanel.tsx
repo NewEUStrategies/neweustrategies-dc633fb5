@@ -258,35 +258,32 @@ function SectionProps({
                 onChange={(e) => onPatchSectionMedia({ alt: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            {(section.layout ?? "single") === "1-1" ? (
               <div>
-                <Label>{lang === "pl" ? "Pozycja" : "Position"}</Label>
+                <Label>{lang === "pl" ? "Pozycja obrazu" : "Image position"}</Label>
                 <Select
                   value={media.position}
                   onValueChange={(v) => onPatchSectionMedia({ position: v as "left" | "right" })}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="left">{lang === "pl" ? "Lewa" : "Left"}</SelectItem>
-                    <SelectItem value="right">{lang === "pl" ? "Prawa" : "Right"}</SelectItem>
+                    <SelectItem value="left">{lang === "pl" ? "Lewa (50%)" : "Left (50%)"}</SelectItem>
+                    <SelectItem value="right">{lang === "pl" ? "Prawa (50%)" : "Right (50%)"}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {lang === "pl"
+                    ? "Uklad 1/2: obraz zajmuje 50% szerokosci, pelna wysokosc."
+                    : "1/2 layout: image spans 50% width, full height."}
+                </p>
               </div>
-              <div>
-                <Label>{lang === "pl" ? "Szerokosc (%)" : "Width (%)"}</Label>
-                <Input
-                  type="number"
-                  min={10}
-                  max={70}
-                  value={media.widthPct ?? 40}
-                  onChange={(e) =>
-                    onPatchSectionMedia({
-                      widthPct: Math.min(70, Math.max(10, Number(e.target.value) || 40)),
-                    })
-                  }
-                />
-              </div>
-            </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground">
+                {lang === "pl"
+                  ? "Uklad 1-kolumnowy: obraz renderuje sie jako tlo calej sekcji."
+                  : "Single-column layout: image renders as the section background."}
+              </p>
+            )}
           </>
         ) : null}
       </div>
