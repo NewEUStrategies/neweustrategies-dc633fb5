@@ -270,6 +270,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       referer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
       consents,
       requiredFields,
+      custom: collectCustomValues(customFields, fd),
     };
 
     const errs: Record<string, string> = {};
@@ -283,9 +284,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (requiredMap.subject && !payload.subject) errs.subject = t.required;
     if (requiredMap.message && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
+    Object.assign(errs, validateCustom(customFields, payload.custom, t.required));
 
     setErrors(errs);
     if (Object.keys(errs).length) return;
+
     setStatus("sending");
     try {
       await submit({ data: payload });
