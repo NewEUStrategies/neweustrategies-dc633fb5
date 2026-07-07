@@ -7,26 +7,62 @@
 // jest odrzucany zanim handler w ogole sie wykona.
 //
 // Kontekst (supabase scoped na uzytkownika, userId, claims) pochodzi z
-// requireSupabaseAuth. is_staff() to SECURITY DEFINER RPC po stronie bazy.
+// requireSupabaseAuth. Sprawdzamy role bezposrednio przez user-scoped klienta:
+// uzytkownik moze odczytac wlasny profil i wlasne role, wiec mutacje contentu
+// nie zaleza od dostepnosci RPC is_staff() ani od uprawnien EXECUTE funkcji.
 import { createMiddleware } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "./auth-middleware";
+import type { Database } from "./types";
+
+type AppRole = Database["public"]["Enums"]["app_role"];
+
+const STAFF_ROLES: readonly AppRole[] = ["admin", "editor", "author"];
 
 export const requireStaff = createMiddleware({ type: "function" })
   .middleware([requireSupabaseAuth])
   .server(async ({ next, context }) => {
-    const { data: isStaff, error } = await context.supabase.rpc("is_staff");
-    if (error) {
-      console.error("[requireStaff] is_staff RPC failed", {
+    const { data: profile, error: profileError } = await context.supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("[requireStaff] profile lookup failed", {
         userId: context.userId,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+        code: profileError.code,
       });
-      throw new Error(`Forbidden: could not verify staff role (${error.message})`);
+      throw new Error(`Forbidden: could not verify staff role (${profileError.message})`);
     }
-    if (!isStaff) {
+
+    if (!profile?.tenant_id) {
       throw new Error("Forbidden: staff role (admin/editor/author) required");
     }
+
+    const { data: roles, error: rolesError } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("tenant_id", profile.tenant_id)
+      .in("role", [...STAFF_ROLES]);
+
+    if (rolesError) {
+      console.error("[requireStaff] role lookup failed", {
+        userId: context.userId,
+        message: rolesError.message,
+        details: rolesError.details,
+        hint: rolesError.hint,
+        code: rolesError.code,
+      });
+      throw new Error(`Forbidden: could not verify staff role (${rolesError.message})`);
+    }
+
+    if (!roles?.length) {
+      throw new Error("Forbidden: staff role (admin/editor/author) required");
+    }
+
     return next();
   });
