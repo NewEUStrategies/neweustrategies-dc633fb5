@@ -348,6 +348,58 @@ export function WidgetProperties({
             />
           </section>
 
+          {(widget.type === "join-us" || widget.type === "contact-form") && (
+            <section className="space-y-2 pt-2 border-t border-border">
+              <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Rozmiary elementów formularza (px)
+              </h4>
+              <p className="text-[10px] text-muted-foreground -mt-1">
+                Puste = domyślne. Wpisz wartość w pikselach.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(widget.type === "join-us"
+                  ? [
+                      { key: "perkSize", label: "Bulletpointy", min: 8, max: 32 },
+                      { key: "labelSize", label: "Etykiety pól", min: 8, max: 24 },
+                      { key: "placeholderSize", label: "Placeholdery / pola", min: 8, max: 24 },
+                      { key: "buttonSize", label: "Przycisk", min: 8, max: 28 },
+                      { key: "consentSize", label: "Zgody / stopka", min: 8, max: 20 },
+                    ]
+                  : [
+                      { key: "labelSize", label: "Etykiety pól", min: 8, max: 24 },
+                      { key: "placeholderSize", label: "Placeholdery / pola", min: 8, max: 24 },
+                      { key: "buttonFontSize", label: "Przycisk", min: 8, max: 28 },
+                      { key: "consentSize", label: "Zgody / newsletter", min: 8, max: 20 },
+                    ]
+                ).map((f) => {
+                  const raw = (widget.content as Record<string, Json> | undefined)?.[f.key];
+                  const v = typeof raw === "number" ? raw : "";
+                  return (
+                    <PropField key={f.key} label={f.label}>
+                      <Input
+                        type="number"
+                        min={f.min}
+                        max={f.max}
+                        value={v}
+                        placeholder="px"
+                        onChange={(e) => {
+                          const n = Number(e.target.value);
+                          setContent(
+                            f.key,
+                            e.target.value === "" || Number.isNaN(n) ? null : n,
+                          );
+                        }}
+                        className="h-8 text-xs"
+                      />
+                    </PropField>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+
+
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Kolory ({mode === "dark" ? "ciemny" : "jasny"})
