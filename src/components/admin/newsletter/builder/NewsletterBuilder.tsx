@@ -510,15 +510,41 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
           </aside>
 
           <main
-            className="bg-gradient-to-br from-muted/40 to-muted/10 border border-dashed border-border rounded-xl p-4 overflow-y-auto max-h-[80vh]"
+            className="relative rounded-xl overflow-hidden border border-border/60 bg-[repeating-linear-gradient(45deg,transparent_0_12px,rgba(255,255,255,0.02)_12px_13px)] bg-muted/30"
             onClick={() => {
               setSelectedId(null);
               setSelectedSectionId(null);
             }}
           >
+            {/* Device meta bar */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/60 bg-background/40 backdrop-blur text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span className="font-semibold">{deviceLabel}</span>
+              <span>{canvasPxLabel}</span>
+            </div>
+
             <div
-              className="mx-auto transition-all space-y-4"
-              style={{ maxWidth: typeof canvasWidth === "number" ? `${canvasWidth}px` : canvasWidth }}
+              className="p-6 overflow-y-auto max-h-[calc(80vh-2.5rem)]"
+              style={
+                variant === "popup"
+                  ? { backgroundColor: overlayBg }
+                  : undefined
+              }
+            >
+            <div
+              className={
+                "mx-auto transition-all space-y-4 " +
+                (variant === "popup"
+                  ? "shadow-2xl ring-1 ring-black/10 overflow-hidden"
+                  : device !== "desktop"
+                    ? "shadow-lg ring-1 ring-border/60 rounded-2xl bg-card"
+                    : "")
+              }
+              style={{
+                maxWidth: typeof canvasWidth === "number" ? `${canvasWidth}px` : canvasWidth,
+                width: typeof canvasWidth === "number" ? `${canvasWidth}px` : undefined,
+                borderRadius: variant === "popup" ? `${popupRadius}px` : undefined,
+                backgroundColor: variant === "popup" ? popupBg : undefined,
+              }}
             >
               {doc.sections.map((section, sIdx) => {
                 const isSelected = selectedSectionId === section.id;
