@@ -767,7 +767,8 @@ export function JoinUsForm({
       <button
         type="submit"
         disabled={state === "loading"}
-        className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 font-sans font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
+        style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
       >
         {state === "loading" ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -778,9 +779,15 @@ export function JoinUsForm({
       </button>
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
-      <p className="text-[11px] leading-relaxed text-muted-foreground">{consent}</p>
+      <p
+        className="font-sans leading-relaxed text-muted-foreground"
+        style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
+      >
+        {consent}
+      </p>
     </form>
   );
+
 
   if (variant === "split") {
     return (
