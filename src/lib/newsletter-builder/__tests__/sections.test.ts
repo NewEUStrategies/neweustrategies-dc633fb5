@@ -1,6 +1,6 @@
-// Testy dla multi-section + column layoutow dodanych w Turze 3.
+// Testy dla multi-section + column layoutow.
 // Weryfikuje ze:
-// - Section.layout jest walidowany przez Zod ("single" | "1-2" | "1-1" | "2-1")
+// - Section.layout jest walidowany przez Zod ("single" | "1-1")
 // - Widget.col jest walidowany (0 | 1)
 // - Doc z wieloma sekcjami przechodzi walidacje
 // - makeSection buduje sekcje ze stylem domyslnym
@@ -9,11 +9,11 @@ import { emptyDoc, makeSection, makeWidget } from "../defaults";
 import { NlDocSchema, NlSectionSchema } from "../schema";
 import type { NlDoc, NlSection } from "../types";
 
-describe("multi-section builder (Tura 3)", () => {
-  it("section with layout=1-2 validates", () => {
+describe("multi-section builder", () => {
+  it("section with layout=1-1 validates", () => {
     const s: NlSection = {
       id: "s1",
-      layout: "1-2",
+      layout: "1-1",
       widgets: [
         { ...makeWidget("heading"), col: 0 },
         { ...makeWidget("field.email"), col: 1 },
