@@ -88,6 +88,7 @@
      Override per-widget by setting these vars on the widget shell. */
   --gc-input-hover-border: #FDB078; /* light-orange hover ring, per brand */
   --gc-input-focus-border: #FDB078; /* focus uses the same orange for continuity */
+  --gc-label-font-size: 0.75rem;   /* 12px - unified input-label size */
 
 
 
