@@ -302,6 +302,25 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       .single();
     if (error || !inserted) throw new Error(error?.message ?? "insert failed");
 
+    // Push contact into CRM (append-only aliases so history is preserved).
+    try {
+      const { error: crmErr } = await supabaseAdmin.rpc("crm_upsert_from_form", {
+        _tenant: inserted.tenant_id,
+        _email: data.email,
+        _first_name: data.firstName ?? null,
+        _last_name: data.lastName ?? null,
+        _phone: data.phone ?? null,
+        _company: data.company ?? null,
+        _source: `contact-form${data.source ? `:${data.source}` : ""}`,
+        _custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
+      });
+      if (crmErr) console.error("[contact] crm sync failed", crmErr);
+    } catch (e) {
+      console.error("[contact] crm sync threw", e);
+    }
+
+
+
 
     const { data: cfs } = await supabaseAdmin
       .from("contact_form_settings")
