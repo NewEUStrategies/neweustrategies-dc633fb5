@@ -146,6 +146,13 @@ export function JoinUsForm({
   companyPlaceholder,
   countryPlaceholder,
   customFields,
+  titleSize,
+  descriptionSize,
+  perkSize,
+  labelSize,
+  placeholderSize,
+  buttonSize,
+  consentSize,
 }: JoinUsFormProps) {
 
   const { t, i18n } = useTranslation();
