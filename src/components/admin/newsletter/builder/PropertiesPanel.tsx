@@ -22,6 +22,8 @@ import type {
   NlMailingListsWidget,
   NlSocialProofWidget,
   NlCountdownWidget,
+  NlCtaButtonWidget,
+  NlCouponWidget,
 } from "@/lib/newsletter-builder/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
