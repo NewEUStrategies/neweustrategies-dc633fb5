@@ -640,8 +640,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             lang={lang}
             variant={variant === "inline" ? "inline" : "card"}
             source={`widget:${node.id}`}
+            widgetConfig={c as Record<string, unknown>}
           />,
         );
+
       }
 
       // editable=true → builder preview (oryginalna statyczna grafika)
