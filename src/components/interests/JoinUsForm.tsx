@@ -25,6 +25,8 @@ import "@/lib/i18n-interests";
 export interface JoinUsFormProps {
   variant?: "card" | "split" | "inline";
   showInterests?: boolean;
+  /** Sposób wyboru zainteresowań: chips (przyciski) lub droplist (multiselect z listy rozwijanej). */
+  interestsDisplay?: "chips" | "droplist";
   className?: string;
   source?: string;
 
