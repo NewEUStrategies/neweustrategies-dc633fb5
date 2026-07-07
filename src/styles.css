@@ -2508,13 +2508,10 @@ textarea::placeholder {
   border: 0;
 }
 
-/* Restore the original contact-form focus behaviour (primary-tinted ring).
-   Previous "neutral gray" override is removed on purpose - user wants the
-   contact-form look everywhere. */
+/* Contact-form input focus: orange border only, no glow. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, hsl(var(--primary)));
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--gc-input-focus-border, hsl(var(--primary))) 22%, transparent);
+  border-color: var(--gc-input-focus-border, #FDB078);
 }
 
 /* ============================================================
