@@ -37,6 +37,9 @@ const NewsletterInput = z.object({
   // Popup "extended fields" (job, company, linkedin, phone, mailing_list, ...)
   // are persisted verbatim in newsletter_subscribers.meta; keys/values capped.
   meta: z.record(z.string().max(64), z.string().max(500)).optional(),
+  // Widget-defined "custom" hybrid fields → forwarded to CRM under
+  // aliases.custom.<id> via crm_upsert_from_form(_custom).
+  custom: z.record(z.string().max(64), z.string().max(500)).optional(),
   // "Wymagane" pola zadeklarowane przez widget; server merguje z tenant
   // policy floor (form_field_policies) i weryfikuje przed zapisem.
   requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
@@ -275,7 +278,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         { onConflict: "tenant_id,email" },
       );
       if (error) return { ok: false, error: error.message };
-      await syncToCrm(tenantId, email, data, meta);
+      await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
       return { ok: true, status: "subscribed" };
 
     }
@@ -298,7 +301,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl);
     const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html });
-    await syncToCrm(tenantId, email, data, meta);
+    await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
     return { ok: true, status: "pending", emailSent: send.ok };
   });
 
@@ -306,7 +309,8 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
 // Creates or updates the CRM contact + company for every successful signup.
 // Existing contacts are never overwritten - new alt emails/phones/companies/
 // positions/linkedins/countries and the submission source are appended to the
-// `aliases` history via the crm_upsert_from_form() DB helper.
+// `aliases` history via the crm_upsert_from_form() DB helper. Custom hybrid
+// fields (widget-defined) land under aliases.custom.<id>.
 async function syncToCrm(
   tenantId: string,
   email: string,
@@ -316,6 +320,7 @@ async function syncToCrm(
     source?: string;
   },
   meta: Record<string, string> | null,
+  custom: Record<string, string> | null,
 ): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -330,6 +335,7 @@ async function syncToCrm(
       _linkedin: meta?.linkedin?.trim() ?? "",
       _country: meta?.country?.trim() ?? "",
       _source: data.source?.trim() ?? "newsletter",
+      _custom: custom && Object.keys(custom).length ? custom : {},
     });
 
     if (error) console.error("[newsletter] crm sync failed", error);

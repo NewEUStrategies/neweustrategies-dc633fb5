@@ -27,6 +27,7 @@ import { useBuilderMode } from "@/lib/builder/modeContext";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
 // weigh down the shared Header/Footer bundle on pages that don't render them.
 // SSR streaming still renders them server-side, so the HTML is unchanged.
+import { parseCustomFields } from "@/lib/builder/formFieldConfig";
 import {
   NewsletterForm as NewsletterFormLive,
   JoinUsForm,
@@ -729,6 +730,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || undefined;
 
       const isOn = (k: string) => getStr(c, k) === "1";
+      const customFields = parseCustomFields(c.customFields);
       return wrap(
         <JoinUsForm
           variant={variant}
@@ -770,6 +772,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           phonePlaceholder={pick("phonePlaceholder")}
           companyPlaceholder={pick("companyPlaceholder")}
           countryPlaceholder={pick("countryPlaceholder")}
+          customFields={customFields}
           source={`widget:${node.id}`}
         />,
       );

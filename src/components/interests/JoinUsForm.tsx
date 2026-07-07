@@ -15,6 +15,11 @@ import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { cn } from "@/lib/utils";
+import {
+  CustomFieldsRenderer,
+  validateCustomFields,
+  type CustomFieldDef,
+} from "@/lib/builder/formFieldConfig";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
@@ -71,6 +76,10 @@ export interface JoinUsFormProps {
   phonePlaceholder?: string;
   companyPlaceholder?: string;
   countryPlaceholder?: string;
+
+  /** Extra CMS-defined fields ("hybrid" mode). Values are forwarded to CRM
+   *  under `aliases.custom.<id>` via the crm_upsert_from_form(_custom) RPC. */
+  customFields?: CustomFieldDef[];
 }
 
 
@@ -124,6 +133,7 @@ export function JoinUsForm({
   phonePlaceholder,
   companyPlaceholder,
   countryPlaceholder,
+  customFields,
 }: JoinUsFormProps) {
 
   const { t, i18n } = useTranslation();
@@ -145,8 +155,12 @@ export function JoinUsForm({
     country: "",
   });
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const cfList = customFields ?? [];
+  const setCustom = (id: string, v: string) =>
+    setCustomValues((prev) => ({ ...prev, [id]: v }));
 
   const useSplitName = showFirstName || showLastName;
 
@@ -242,6 +256,16 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+    const missingCustom = validateCustomFields(cfList, customValues);
+    if (missingCustom.length) {
+      setErrMsg(
+        lang === "en"
+          ? `Please fill in required fields: ${missingCustom.join(", ")}`
+          : `Uzupełnij wymagane pola: ${missingCustom.join(", ")}`,
+      );
+      setState("err");
+      return;
+    }
 
 
     try {
@@ -263,6 +287,13 @@ export function JoinUsForm({
         ? [firstName, lastName].filter(Boolean).join(" ")
         : name.trim();
 
+      // Custom fields → forwarded to CRM under aliases.custom.<id>.
+      const custom: Record<string, string> = {};
+      for (const f of cfList) {
+        const v = (customValues[f.id] ?? "").trim();
+        if (v) custom[f.id] = v.slice(0, 500);
+      }
+
       const res = await subscribe({
         data: {
           email: trimmed,
@@ -273,6 +304,7 @@ export function JoinUsForm({
           source,
           consents: [{ key: "newsletter", text: nlText, given: true, lang }],
           meta: Object.keys(meta).length ? meta : undefined,
+          custom: Object.keys(custom).length ? custom : undefined,
           requiredFields,
           formType: "join_us",
         },
@@ -322,6 +354,7 @@ export function JoinUsForm({
       company: "",
       country: "",
     });
+    setCustomValues({});
   };
 
   // Resolved copy (props override → newsletter settings → i18n default)
@@ -511,7 +544,14 @@ export function JoinUsForm({
         </div>
       )}
 
-
+      {cfList.length > 0 && (
+        <CustomFieldsRenderer
+          fields={cfList}
+          values={customValues}
+          onChange={setCustom}
+          lang={lang}
+        />
+      )}
 
       {showInterests && allItems.length > 0 && (
         <div>
