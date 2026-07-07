@@ -7,10 +7,10 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Loader2, UserPlus } from "lucide-react";
+import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
@@ -25,6 +25,8 @@ import "@/lib/i18n-interests";
 export interface JoinUsFormProps {
   variant?: "card" | "split" | "inline";
   showInterests?: boolean;
+  /** Sposób wyboru zainteresowań: chips (przyciski) lub droplist (multiselect z listy rozwijanej). */
+  interestsDisplay?: "chips" | "droplist";
   className?: string;
   source?: string;
 
@@ -95,6 +97,7 @@ type ExtraKey =
 export function JoinUsForm({
   variant = "card",
   showInterests = true,
+  interestsDisplay = "chips",
   className,
   source = "join-us",
   title,
@@ -158,6 +161,23 @@ export function JoinUsForm({
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [dropOpen, setDropOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!dropOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDropOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [dropOpen]);
   const cfList = customFields ?? [];
   const setCustom = (id: string, v: string) =>
     setCustomValues((prev) => ({ ...prev, [id]: v }));
@@ -561,29 +581,124 @@ export function JoinUsForm({
             {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
 
-          <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto pr-1">
-            {allItems.map((it) => {
-              const active = picked.has(it.id);
-              return (
+          {interestsDisplay === "droplist" ? (
+            <div className="space-y-2">
+              {/* Selected pills row */}
+              {picked.size > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {allItems
+                    .filter((it) => picked.has(it.id))
+                    .map((it) => (
+                      <span
+                        key={`sel:${it.type}:${it.id}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-brand bg-brand px-2.5 py-1 text-xs text-brand-foreground"
+                      >
+                        {it.label}
+                        <button
+                          type="button"
+                          onClick={() => togglePick(it.id)}
+                          aria-label={
+                            lang === "en" ? `Remove ${it.label}` : `Usuń ${it.label}`
+                          }
+                          className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:opacity-80"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
+
+              {/* Dropdown trigger + menu */}
+              <div ref={dropRef} className="relative">
                 <button
-                  key={`${it.type}:${it.id}`}
                   type="button"
-                  onClick={() => togglePick(it.id)}
-                  aria-pressed={active}
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-xs transition",
-                    active
-                      ? "border-brand bg-brand text-brand-foreground"
-                      : "border-border bg-background hover:border-brand/60",
-                  )}
+                  onClick={() => setDropOpen((v) => !v)}
+                  aria-haspopup="listbox"
+                  aria-expanded={dropOpen}
+                  className="flex w-full items-center justify-between rounded border border-input bg-background px-3 py-2 text-sm text-left"
                 >
-                  {it.label}
+                  <span className={picked.size ? "text-foreground" : "text-muted-foreground"}>
+                    {picked.size
+                      ? lang === "en"
+                        ? `${picked.size} selected`
+                        : `Wybrano: ${picked.size}`
+                      : lang === "en"
+                        ? "Select topics…"
+                        : "Wybierz tematy…"}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 opacity-60 transition-transform",
+                      dropOpen && "rotate-180",
+                    )}
+                  />
                 </button>
-              );
-            })}
-          </div>
+
+                {dropOpen && (
+                  <div
+                    role="listbox"
+                    aria-multiselectable="true"
+                    className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded border border-border bg-popover p-1 shadow-lg"
+                  >
+                    {allItems.map((it) => {
+                      const active = picked.has(it.id);
+                      return (
+                        <button
+                          key={`opt:${it.type}:${it.id}`}
+                          type="button"
+                          role="option"
+                          aria-selected={active}
+                          onClick={() => togglePick(it.id)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
+                            active && "text-brand",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
+                              active
+                                ? "border-brand bg-brand text-brand-foreground"
+                                : "border-input bg-background",
+                            )}
+                          >
+                            {active && <Check className="h-2.5 w-2.5" />}
+                          </span>
+                          <span className="flex-1">{it.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto pr-1">
+              {allItems.map((it) => {
+                const active = picked.has(it.id);
+                return (
+                  <button
+                    key={`${it.type}:${it.id}`}
+                    type="button"
+                    onClick={() => togglePick(it.id)}
+                    aria-pressed={active}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs transition",
+                      active
+                        ? "border-brand bg-brand text-brand-foreground"
+                        : "border-border bg-background hover:border-brand/60",
+                    )}
+                  >
+                    {it.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
+
 
       <button
         type="submit"

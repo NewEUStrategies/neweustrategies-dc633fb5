@@ -935,6 +935,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
+      key: "interestsDisplay",
+      type: "select",
+      label: "Zainteresowania: sposób wyboru",
+      options: [
+        { value: "chips", label: "chipsy (widoczne wszystkie)" },
+        { value: "droplist", label: "droplist (multiselect)" },
+      ],
+    },
+    {
       key: "requireInterests",
       type: "select",
       label: "Zainteresowania: wymagane?",
