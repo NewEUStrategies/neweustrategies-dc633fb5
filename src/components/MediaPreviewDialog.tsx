@@ -324,3 +324,272 @@ function UsagePanel({ mediaId, lang }: { mediaId: string; lang: "pl" | "en" }) {
     </div>
   );
 }
+
+// ---------- helpers ----------
+function formatBytes(n: number | null | undefined): string {
+  if (!n && n !== 0) return "-";
+  if (n === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v = v / 1024;
+    i++;
+  }
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : v >= 10 ? 1 : 2)} ${units[i]}`;
+}
+
+function formatDuration(sec: number | null): string {
+  if (sec == null || !isFinite(sec)) return "-";
+  const s = Math.floor(sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+}
+
+/** Human-friendly file kind for a MIME + filename combo (PL/EN). */
+function fileKind(mime: string, filename: string, lang: "pl" | "en"): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const T = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  if (mime.startsWith("image/gif") || ext === "gif") return T("GIF", "GIF");
+  if (mime.startsWith("image/")) return T("Obraz", "Image");
+  if (mime.startsWith("video/")) return T("Wideo", "Video");
+  if (mime.startsWith("audio/")) return T("Audio", "Audio");
+  if (mime === "application/pdf" || ext === "pdf") return T("PDF", "PDF");
+  if (
+    mime === "application/msword" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    ext === "doc" ||
+    ext === "docx" ||
+    ext === "rtf"
+  )
+    return T("Word", "Word");
+  if (
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    ext === "xls" ||
+    ext === "xlsx" ||
+    ext === "csv"
+  )
+    return T("Excel", "Excel");
+  if (
+    mime === "application/vnd.ms-powerpoint" ||
+    mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    ext === "ppt" ||
+    ext === "pptx"
+  )
+    return T("PowerPoint", "PowerPoint");
+  if (
+    ext === "epub" ||
+    ext === "mobi" ||
+    ext === "azw" ||
+    ext === "azw3" ||
+    mime === "application/epub+zip"
+  )
+    return T("E-book", "E-book");
+  if (
+    ext === "zip" ||
+    ext === "rar" ||
+    ext === "7z" ||
+    ext === "tar" ||
+    ext === "gz" ||
+    mime === "application/zip" ||
+    mime === "application/x-7z-compressed"
+  )
+    return T("Archiwum", "Archive");
+  if (mime.startsWith("text/") || ["txt", "md", "json", "xml", "log", "csv"].includes(ext))
+    return T("Tekst", "Text");
+  return ext ? ext.toUpperCase() : T("Plik", "File");
+}
+
+// ---------- Info sidebar ----------
+interface MediaDetailsRow {
+  id: string;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  storage_path: string;
+  created_at: string;
+  uploader_id: string | null;
+  alt_text: string | null;
+  folder_path: string | null;
+}
+
+function InfoSidebar({
+  item,
+  lang,
+  naturalSize,
+  duration,
+  onClose,
+}: {
+  item: PreviewableMedia;
+  lang: "pl" | "en";
+  naturalSize: { w: number; h: number } | null;
+  duration: number | null;
+  onClose: () => void;
+}) {
+  const T = (pl: string, en: string) => (lang === "pl" ? pl : en);
+
+  // Fetch full row (uploader, folder, created_at) - RLS scopes to tenant.
+  const { data: details } = useQuery({
+    queryKey: ["media-details", item.id],
+    queryFn: async (): Promise<MediaDetailsRow | null> => {
+      const { data, error } = await supabase
+        .from("media")
+        .select(
+          "id, filename, mime_type, size_bytes, storage_path, created_at, uploader_id, alt_text, folder_path",
+        )
+        .eq("id", item.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
+  });
+
+  const uploaderId = details?.uploader_id ?? null;
+  const { data: uploader } = useQuery({
+    queryKey: ["media-uploader", uploaderId],
+    enabled: !!uploaderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, email")
+        .eq("id", uploaderId!)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+  });
+
+  const mime = item.mime_type ?? details?.mime_type ?? "";
+  const size = details?.size_bytes ?? item.size_bytes ?? null;
+  const kind = useMemo(() => fileKind(mime, item.filename, lang), [mime, item.filename, lang]);
+
+  const created = details?.created_at ? new Date(details.created_at) : null;
+  const dpr =
+    naturalSize && size ? (size / (naturalSize.w * naturalSize.h)).toFixed(2) : null;
+
+  return (
+    <aside className="w-80 shrink-0 border-l border-border bg-background overflow-y-auto">
+      <div className="flex items-center justify-between p-3 border-b border-border">
+        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+          <Info className="w-4 h-4" /> {T("Informacje", "Info")}
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded hover:bg-muted"
+          aria-label={T("Zamknij", "Close")}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <dl className="p-3 space-y-2 text-xs">
+        <InfoRow label={T("Nazwa pliku", "Filename")} value={item.filename} title />
+        <InfoRow label={T("Typ", "Kind")} value={kind} />
+        <InfoRow label="MIME" value={mime || "-"} mono />
+        {size != null && (
+          <InfoRow
+            label={T("Rozmiar", "Size")}
+            value={`${formatBytes(size)} · ${size.toLocaleString(lang)} B`}
+          />
+        )}
+        {naturalSize && (
+          <InfoRow
+            label={T("Wymiary", "Dimensions")}
+            value={`${naturalSize.w} × ${naturalSize.h} px`}
+          />
+        )}
+        {duration != null && (
+          <InfoRow label={T("Czas trwania", "Duration")} value={formatDuration(duration)} />
+        )}
+        {dpr && (
+          <InfoRow
+            label={T("Bajtów na piksel", "Bytes / pixel")}
+            value={dpr}
+          />
+        )}
+        {details?.folder_path && (
+          <InfoRow label={T("Folder", "Folder")} value={details.folder_path} mono />
+        )}
+        {details?.alt_text && (
+          <InfoRow label={T("Tekst alternatywny", "Alt text")} value={details.alt_text} />
+        )}
+        {created && (
+          <>
+            <InfoRow
+              label={T("Utworzono", "Created")}
+              value={created.toLocaleString(lang === "pl" ? "pl-PL" : "en-US")}
+            />
+            <InfoRow
+              label={T("Relatywnie", "Relative")}
+              value={relativeTime(created, lang)}
+            />
+          </>
+        )}
+        {uploader && (
+          <InfoRow
+            label={T("Autor", "Uploaded by")}
+            value={uploader.display_name || uploader.email || uploaderId || "-"}
+          />
+        )}
+        {details?.storage_path && (
+          <InfoRow label={T("Ścieżka", "Storage path")} value={details.storage_path} mono />
+        )}
+        <InfoRow label="ID" value={item.id} mono />
+        <div className="pt-2 border-t border-border">
+          <a
+            href={item.public_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-brand hover:underline break-all"
+          >
+            {item.public_url}
+          </a>
+        </div>
+      </dl>
+    </aside>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+  mono,
+  title,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  title?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[7rem_1fr] gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd
+        className={`min-w-0 break-words ${mono ? "font-mono text-[11px]" : ""} ${
+          title ? "font-medium" : ""
+        }`}
+        title={value}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function relativeTime(date: Date, lang: "pl" | "en"): string {
+  const diff = (date.getTime() - Date.now()) / 1000;
+  const abs = Math.abs(diff);
+  const rtf = new Intl.RelativeTimeFormat(lang === "pl" ? "pl-PL" : "en-US", {
+    numeric: "auto",
+  });
+  if (abs < 60) return rtf.format(Math.round(diff), "second");
+  if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
+  if (abs < 86400) return rtf.format(Math.round(diff / 3600), "hour");
+  if (abs < 2592000) return rtf.format(Math.round(diff / 86400), "day");
+  if (abs < 31536000) return rtf.format(Math.round(diff / 2592000), "month");
+  return rtf.format(Math.round(diff / 31536000), "year");
+}
