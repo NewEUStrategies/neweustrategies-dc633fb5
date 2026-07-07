@@ -2653,7 +2653,14 @@ textarea::placeholder {
   justify-content: flex-start;
 }
 
-/* Center */
+/* Center — cała lista jako blok jedzie do środka; li zwężone do content-width,
+   dzięki temu wielowierszowy tekst wewnątrz zawija się LEWOSTRONNIE, nie w słupku. */
+[data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks),
+[data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks),
+[data-w-id].text-center :where(.join-us-perks, .widget-perks),
+[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) {
+  align-items: center;
+}
 [data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id].text-center :where(.join-us-perks, .widget-perks) > li,
@@ -2662,11 +2669,19 @@ textarea::placeholder {
 [data-w-id][style*="text-align:center"] .widget-align-row,
 [data-w-id].text-center .widget-align-row,
 [data-w-id][data-align="center"] .widget-align-row {
-  justify-content: center;
+  justify-content: flex-start;
+  width: auto;
+  max-width: 100%;
   text-align: left;
 }
 
-/* Right */
+/* Right — analogicznie: lista dosunięta do prawej, wiersze wąskie na content. */
+[data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks),
+[data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks),
+[data-w-id].text-right :where(.join-us-perks, .widget-perks),
+[data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) {
+  align-items: flex-end;
+}
 [data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li,
 [data-w-id].text-right :where(.join-us-perks, .widget-perks) > li,
@@ -2675,7 +2690,9 @@ textarea::placeholder {
 [data-w-id][style*="text-align:right"] .widget-align-row,
 [data-w-id].text-right .widget-align-row,
 [data-w-id][data-align="right"] .widget-align-row {
-  justify-content: flex-end;
+  justify-content: flex-start;
+  width: auto;
+  max-width: 100%;
   text-align: left;
 }
 
