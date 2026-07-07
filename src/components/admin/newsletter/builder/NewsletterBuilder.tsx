@@ -422,11 +422,39 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     return <div className="text-sm text-muted-foreground p-6">Ladowanie ustawien...</div>;
   }
 
-  const canvasWidth = device === "desktop" ? "100%" : device === "tablet" ? 720 : 380;
+  // Realistyczne szerokosci podgladu - popup ma stala szerokosc jak w produkcji,
+  // inline dostosowuje sie do dostepnej przestrzeni w kanwie.
+  const popupLayout = variant === "popup" ? (doc.popup?.layout ?? settings.popup_layout ?? "stacked") : null;
+  const desktopPopupWidth = popupLayout === "split" ? 880 : 520;
+  const canvasWidth =
+    variant === "popup"
+      ? device === "desktop"
+        ? desktopPopupWidth
+        : device === "tablet"
+          ? 560
+          : 360
+      : device === "desktop"
+        ? "100%"
+        : device === "tablet"
+          ? 720
+          : 380;
   const popupBg = variant === "popup" ? (doc.popup?.bg ?? settings.popup_bg_color) : undefined;
+  const overlayBg =
+    variant === "popup"
+      ? (doc.popup?.overlay ?? settings.popup_overlay_color ?? "rgba(0,0,0,0.7)")
+      : undefined;
+  const popupRadius = variant === "popup" ? (doc.popup?.radius ?? settings.popup_border_radius_px ?? 16) : 0;
   const draggingWidget = draggingWidgetId
     ? doc.sections.flatMap((s) => s.widgets).find((w) => w.id === draggingWidgetId) ?? null
     : null;
+
+  const deviceLabel =
+    device === "desktop"
+      ? lang === "pl" ? "Desktop" : "Desktop"
+      : device === "tablet"
+        ? "Tablet"
+        : "Mobile";
+  const canvasPxLabel = typeof canvasWidth === "number" ? `${canvasWidth}px` : lang === "pl" ? "pelna szerokosc" : "full width";
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -470,7 +498,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_320px] gap-3 min-h-[70vh]">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-3 min-h-[70vh]">
           <aside className="bg-card border border-border rounded-xl p-3 overflow-y-auto max-h-[80vh]">
             <WidgetLibrary
               lang={lang}
@@ -482,15 +510,41 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
           </aside>
 
           <main
-            className="bg-gradient-to-br from-muted/40 to-muted/10 border border-dashed border-border rounded-xl p-4 overflow-y-auto max-h-[80vh]"
+            className="relative rounded-xl overflow-hidden border border-border/60 bg-[repeating-linear-gradient(45deg,transparent_0_12px,rgba(255,255,255,0.02)_12px_13px)] bg-muted/30"
             onClick={() => {
               setSelectedId(null);
               setSelectedSectionId(null);
             }}
           >
+            {/* Device meta bar */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/60 bg-background/40 backdrop-blur text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span className="font-semibold">{deviceLabel}</span>
+              <span>{canvasPxLabel}</span>
+            </div>
+
             <div
-              className="mx-auto transition-all space-y-4"
-              style={{ maxWidth: typeof canvasWidth === "number" ? `${canvasWidth}px` : canvasWidth }}
+              className="p-6 overflow-y-auto max-h-[calc(80vh-2.5rem)]"
+              style={
+                variant === "popup"
+                  ? { backgroundColor: overlayBg }
+                  : undefined
+              }
+            >
+            <div
+              className={
+                "mx-auto transition-all space-y-4 " +
+                (variant === "popup"
+                  ? "shadow-2xl ring-1 ring-black/10 overflow-hidden"
+                  : device !== "desktop"
+                    ? "shadow-lg ring-1 ring-border/60 rounded-2xl bg-card"
+                    : "")
+              }
+              style={{
+                maxWidth: typeof canvasWidth === "number" ? `${canvasWidth}px` : canvasWidth,
+                width: typeof canvasWidth === "number" ? `${canvasWidth}px` : undefined,
+                borderRadius: variant === "popup" ? `${popupRadius}px` : undefined,
+                backgroundColor: variant === "popup" ? popupBg : undefined,
+              }}
             >
               {doc.sections.map((section, sIdx) => {
                 const isSelected = selectedSectionId === section.id;
@@ -551,7 +605,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                           backgroundColor:
                             st.bg ??
                             (variant === "popup"
-                              ? popupBg
+                              ? "transparent"
                               : sIdx === 0
                                 ? "var(--card)"
                                 : "transparent"),
@@ -600,6 +654,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                   </div>
                 );
               })}
+            </div>
             </div>
           </main>
 
