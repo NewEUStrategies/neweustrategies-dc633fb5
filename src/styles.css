@@ -2456,9 +2456,7 @@ textarea::placeholder {
      (Tailwind utilities like h-9/h-11 always beat this)
    ============================================================ */
 :where(
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"])
-    :not([type="color"]):not([type="file"]):not([type="submit"])
-    :not([type="button"]):not([type="reset"]):not([type="image"])
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
 ),
 :where(select) {
   height: 2.5rem;
