@@ -242,10 +242,11 @@ function SectionProps({
         </div>
         <div>
           <Label>{lang === "pl" ? "URL obrazu" : "Image URL"}</Label>
-          <Input
+          <ImageUrlField
             value={media?.url ?? ""}
-            onChange={(e) => onPatchSectionMedia({ url: e.target.value })}
-            placeholder="https://..."
+            onChange={(url) => onPatchSectionMedia({ url })}
+            folder="newsletter-section"
+            lang={lang}
           />
         </div>
         {media?.url ? (
