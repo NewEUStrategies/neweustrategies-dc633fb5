@@ -276,6 +276,7 @@ function RootComponent() {
           <PopupHost />
           <CommandPalette />
         </Suspense>
+        <UnsavedChangesGuardHost />
         <Toaster />
       </AuthProvider>
     </ThemeProvider>
