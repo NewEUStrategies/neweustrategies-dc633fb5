@@ -911,6 +911,74 @@ function ThemedColorField({
   );
 }
 
+function escapeAttrSelector(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
+function FormElementSizeField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  onPreview,
+}: {
+  label: string;
+  value: number | "";
+  min: number;
+  max: number;
+  onChange: (next: number | null) => void;
+  onPreview: () => void;
+}) {
+  const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next)));
+  const numericValue = typeof value === "number" ? value : null;
+  const commit = (raw: string) => {
+    if (raw.trim() === "") {
+      onChange(null);
+      return;
+    }
+    const next = Number(raw);
+    if (Number.isNaN(next)) return;
+    onChange(clamp(next));
+  };
+  const bump = (delta: number) => onChange(clamp((numericValue ?? min) + delta));
+
+  return (
+    <PropField label={label}>
+      <div className="flex items-center gap-1" onFocus={onPreview} onMouseEnter={onPreview}>
+        <button
+          type="button"
+          onClick={() => bump(-1)}
+          className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={`Zmniejsz: ${label}`}
+        >
+          <Minus className="h-3 w-3" />
+        </button>
+        <Input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          placeholder="px"
+          onChange={(e) => commit(e.target.value)}
+          className="h-8 text-center text-xs tabular-nums"
+        />
+        <button
+          type="button"
+          onClick={() => bump(1)}
+          className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={`Zwiększ: ${label}`}
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+    </PropField>
+  );
+}
+
 // Reads the actually-rendered widget element (data-widget-id="...") and returns
 // the inherited bg / text / border colors via getComputedStyle. Recomputes when
 // the widget id, mode or style changes (next animation frame, to let DOM update).
