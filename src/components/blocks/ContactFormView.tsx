@@ -11,6 +11,16 @@ import {
 } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
+import {
+  collectCustomValues,
+  parseCustomFields,
+  pickLabel,
+  pickPlaceholder,
+  readI18nOverride,
+  validateCustom,
+  type CustomField,
+} from "@/lib/builder/formFields";
+
 
 
 type Lang = "pl" | "en";
