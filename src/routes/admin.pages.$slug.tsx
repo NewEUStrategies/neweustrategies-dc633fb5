@@ -129,8 +129,17 @@ function EditPage() {
   const [step, setStep] = useState<"details" | "content">("details");
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
 
+  // `savedFormRef` mirrors the form snapshot last persisted to the server.
+  // We compare `form` (identity) against it to derive `isDirty` - this keeps
+  // the "unsaved changes" guard honest across saves (unlike `history.canUndo`
+  // which stays true forever after the first edit).
+  const savedFormRef = useRef<PageForm | null>(null);
+
   useEffect(() => {
-    if (page) history.reset(page);
+    if (page) {
+      history.reset(page);
+      savedFormRef.current = page;
+    }
   }, [page, history.reset]);
 
   useEffect(() => {
@@ -223,7 +232,7 @@ function EditPage() {
   // wyłącznie po kliknięciu „Zapisz". `flush()` pozostaje wywoływane w
   // handlerze `save`, aby ręczny zapis nadal działał.
   const autosave = useAutosave({ value: form, enabled: false, save: saveFn });
-  const isDirty = history.canUndo;
+  const isDirty = form !== null && form !== savedFormRef.current;
   useUnsavedChangesGuard(isDirty || autosave.status === "saving");
 
   // Ciężkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
@@ -274,7 +283,11 @@ function EditPage() {
     }
     setBusy(true);
     try {
+      const snapshot = form;
       await autosave.flush();
+      // Mark the just-persisted snapshot as clean so the unsaved-changes
+      // guard stops firing until the next real edit.
+      savedFormRef.current = snapshot;
       toast.success(t("admin.saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));

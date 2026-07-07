@@ -42,6 +42,7 @@ import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import type { HeaderSettings } from "../components/Header";
 import { SiteChrome } from "../components/SiteChrome";
+import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 
 // Non-critical overlays: not visible at first paint (they open on trigger/delay),
 // so they are code-split out of the entry to shrink the critical hydration bundle.
@@ -276,6 +277,7 @@ function RootComponent() {
           <PopupHost />
           <CommandPalette />
         </Suspense>
+        <UnsavedChangesGuardHost />
         <Toaster />
       </AuthProvider>
     </ThemeProvider>

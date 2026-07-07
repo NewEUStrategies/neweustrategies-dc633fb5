@@ -2,25 +2,32 @@
 //
 // Two layers, one hook:
 //   * TanStack Router blocker - in-app navigation (Link, navigate, back)
-//     asks for confirmation while `when` is true;
+//     opens the styled confirmation dialog rendered by
+//     <UnsavedChangesGuardHost /> (mounted once in __root.tsx);
 //   * native beforeunload - tab close / hard reload / external navigation
-//     shows the browser's leave-site prompt.
+//     uses the browser's built-in leave-site prompt (browsers intentionally
+//     render a generic non-styleable message here for security reasons).
 //
-// Pair it with useAutosave's `isDirty`: the prompt only appears in the
-// window between the last edit and the debounced save completing.
+// The in-app dialog matches the app design system (Radix AlertDialog +
+// design tokens) instead of the previous window.confirm().
 import { useBlocker } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
+import { useRef } from "react";
+import { requestLeaveConfirmation } from "@/lib/unsavedChanges";
 
 export function useUnsavedChangesGuard(when: boolean): void {
-  const { t } = useTranslation();
+  // Latest `when` inside async blocker callbacks.
+  const whenRef = useRef(when);
+  whenRef.current = when;
+
   useBlocker({
     disabled: !when,
-    enableBeforeUnload: () => when,
-    shouldBlockFn: () => {
-      if (!when) return false;
-      if (typeof window === "undefined") return false;
-      const stay = !window.confirm(t("admin.unsavedChanges"));
-      return stay;
+    enableBeforeUnload: () => whenRef.current,
+    shouldBlockFn: async () => {
+      if (!whenRef.current) return false;
+      // Dialog resolves with `leave=true` when user chose to discard.
+      const leave = await requestLeaveConfirmation();
+      // Returning `true` blocks navigation ("stay").
+      return !leave;
     },
   });
 }
