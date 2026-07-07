@@ -693,6 +693,11 @@ export function VisualCanvas({
           </div>
         ))}
       </div>
+      <InlineEditToolbar
+        selectedWidgetId={selection.kind === "widget" ? selection.id : null}
+        canvasRef={rootRef}
+      />
     </div>
   );
 }
+
