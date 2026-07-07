@@ -354,6 +354,7 @@ export function JoinUsForm({
       company: "",
       country: "",
     });
+    setCustomValues({});
   };
 
   // Resolved copy (props override → newsletter settings → i18n default)
