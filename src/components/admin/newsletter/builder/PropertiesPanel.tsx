@@ -24,6 +24,7 @@ import type {
   NlCountdownWidget,
   NlCtaButtonWidget,
   NlCouponWidget,
+  NlCloseButtonWidget,
 } from "@/lib/newsletter-builder/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -805,6 +806,60 @@ function WidgetProps({
             </Select>
           </div>
           <ColorInput label="Akcent" value={w.accent} onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)} />
+        </div>
+      );
+    }
+    case "close-button": {
+      const w = selected as NlCloseButtonWidget;
+      return (
+        <div className="space-y-3">
+          <div>
+            <Label>Wariant</Label>
+            <Select
+              value={w.variant}
+              onValueChange={(v) => onPatch({ variant: v as NlCloseButtonWidget["variant"] } as Partial<NlWidget>)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="icon-x">Ikona X</SelectItem>
+                <SelectItem value="icon-chevron">Ikona strzalka</SelectItem>
+                <SelectItem value="text">Tekst</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Pozycja</Label>
+            <Select
+              value={w.position}
+              onValueChange={(v) => onPatch({ position: v as NlCloseButtonWidget["position"] } as Partial<NlWidget>)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="top-right">Rog gorny prawy</SelectItem>
+                <SelectItem value="inline">W tresci sekcji</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {w.variant === "text" && (
+            <I18nField
+              label="Etykieta"
+              value={w.label ?? { pl: "Zamknij", en: "Close" }}
+              onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+            />
+          )}
+          <div>
+            <Label>Rozmiar (px)</Label>
+            <Input
+              type="number"
+              min={16}
+              max={96}
+              value={w.size ?? 32}
+              onChange={(e) => onPatch({ size: Number(e.target.value) || 32 } as Partial<NlWidget>)}
+              className="h-8 text-xs"
+            />
+          </div>
+          <ColorInput label="Tlo" value={w.bg} onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)} />
+          <ColorInput label="Ikona / tekst" value={w.fg} onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)} />
         </div>
       );
     }

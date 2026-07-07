@@ -26,6 +26,7 @@ import type {
   NlCountdownWidget,
   NlCtaButtonWidget,
   NlCouponWidget,
+  NlCloseButtonWidget,
 } from "./types";
 
 const uid = (): string => {
@@ -152,6 +153,14 @@ export const widgetFactories: Record<NlWidgetType, () => NlWidget> = {
     label: i18n("Twoj kod rabatowy", "Your coupon code"),
     copiedLabel: i18n("Skopiowano!", "Copied!"),
     style: "dashed",
+  }),
+  "close-button": (): NlCloseButtonWidget => ({
+    id: uid(),
+    type: "close-button",
+    variant: "icon-x",
+    position: "top-right",
+    size: 32,
+    label: i18n("Zamknij", "Close"),
   }),
 };
 

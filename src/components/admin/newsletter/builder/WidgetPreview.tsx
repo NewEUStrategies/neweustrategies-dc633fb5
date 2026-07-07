@@ -290,6 +290,31 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
           </span>
         </div>
       );
+    case "close-button": {
+      const size = widget.size ?? 32;
+      const text = widget.variant === "text" ? pick(widget.label ?? { pl: "Zamknij", en: "Close" }) : null;
+      const glyph = widget.variant === "icon-chevron" ? "‹" : widget.variant === "icon-x" ? "✕" : text;
+      const isCorner = widget.position === "top-right";
+      return (
+        <div className={isCorner ? "flex justify-end" : "flex justify-center"}>
+          <span
+            className="inline-flex items-center justify-center rounded-full text-sm font-medium"
+            style={{
+              width: widget.variant === "text" ? undefined : size,
+              height: size,
+              paddingInline: widget.variant === "text" ? 12 : 0,
+              backgroundColor: widget.bg ?? "rgba(0,0,0,0.06)",
+              color: widget.fg ?? "currentColor",
+              fontSize: Math.round(size * 0.5),
+              lineHeight: 1,
+            }}
+            aria-label={lang === "pl" ? "Zamknij popup" : "Close popup"}
+          >
+            {glyph}
+          </span>
+        </div>
+      );
+    }
     default:
       return null;
   }
