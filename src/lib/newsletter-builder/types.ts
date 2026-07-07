@@ -228,7 +228,7 @@ export interface NlSectionStyle {
  * - "1-1"     -> dwie kolumny 1/2 + 1/2
  * - "2-1"     -> dwie kolumny 2/3 + 1/3
  */
-export type NlSectionLayout = "single" | "1-2" | "1-1" | "2-1";
+export type NlSectionLayout = "single" | "1-1";
 
 /**
  * Sekcja moze miec pelnowysokosciowy obraz przyklejony do jednej krawedzi.

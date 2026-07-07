@@ -176,7 +176,14 @@ export const NlSectionSchema = z.object({
   id: z.string().min(1).max(64),
   widgets: z.array(NlWidgetSchema).max(64),
   style: NlSectionStyle.optional(),
-  layout: z.enum(["single", "1-2", "1-1", "2-1"]).optional(),
+  // Dozwolone tylko "single" i "1-1". Legacy wartosci ("1-2", "2-1") sa
+  // konwertowane do "1-1" dla zachowania kompatybilnosci danych.
+  layout: z
+    .preprocess(
+      (v) => (v === "1-2" || v === "2-1" ? "1-1" : v),
+      z.enum(["single", "1-1"]),
+    )
+    .optional(),
   media: NlSectionMediaSchema.nullish(),
 });
 

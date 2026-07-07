@@ -305,8 +305,7 @@ function SectionRenderer({
       (() => {
         const col0 = section.widgets.filter((w) => (w.col ?? 0) === 0);
         const col1 = section.widgets.filter((w) => w.col === 1);
-        const gridCols =
-          layout === "1-2" ? "1fr 2fr" : layout === "2-1" ? "2fr 1fr" : "1fr 1fr";
+        const gridCols = "1fr 1fr";
         return (
           <div
             style={{
@@ -326,17 +325,35 @@ function SectionRenderer({
       })()
     );
 
-  // Pelnowysokosciowy obraz sekcji: flex row + align-items:stretch, kolumna
-  // obrazu ma background-size:cover, wiec naturalnie wypelnia cala wysokosc.
+  // Obraz sekcji:
+  //  - layout === "single": obraz jako tlo calej sekcji (background-cover)
+  //  - layout === "1-1":    obraz jako 50% kolumny (lewo/prawo) pelnej wysokosci
   const media = section.media;
   if (media && media.url) {
-    const w = Math.min(70, Math.max(10, media.widthPct ?? 40));
+    if (layout === "single") {
+      return (
+        <div
+          role="img"
+          aria-label={media.alt ?? ""}
+          style={{
+            ...containerStyle,
+            backgroundImage: `url(${media.url})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        >
+          {innerContent}
+        </div>
+      );
+    }
+    // 1-1: split 50/50, obraz zajmuje jedna z kolumn od gory do dolu
     const mediaCol = (
       <div
         role="img"
         aria-label={media.alt ?? ""}
         style={{
-          flex: `0 0 ${w}%`,
+          flex: "0 0 50%",
           alignSelf: "stretch",
           minHeight: "100%",
           backgroundImage: `url(${media.url})`,
@@ -346,12 +363,10 @@ function SectionRenderer({
         }}
       />
     );
-    const contentCol = <div style={{ flex: "1 1 0%", minWidth: 0 }}>{innerContent}</div>;
     return (
       <div
         style={{
           ...containerStyle,
-          // padding zeruje sie na kontenerze zewnetrznym; pojdzie na kolumne tresci
           padding: 0,
           display: "flex",
           flexDirection: "row",
@@ -370,8 +385,6 @@ function SectionRenderer({
           {innerContent}
         </div>
         {media.position === "right" ? mediaCol : null}
-        {/* zapewniamy ze contentCol renderuje sie tylko raz */}
-        {false ? contentCol : null}
       </div>
     );
   }

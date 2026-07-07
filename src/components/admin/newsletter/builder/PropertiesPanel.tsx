@@ -258,35 +258,32 @@ function SectionProps({
                 onChange={(e) => onPatchSectionMedia({ alt: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            {(section.layout ?? "single") === "1-1" ? (
               <div>
-                <Label>{lang === "pl" ? "Pozycja" : "Position"}</Label>
+                <Label>{lang === "pl" ? "Pozycja obrazu" : "Image position"}</Label>
                 <Select
                   value={media.position}
                   onValueChange={(v) => onPatchSectionMedia({ position: v as "left" | "right" })}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="left">{lang === "pl" ? "Lewa" : "Left"}</SelectItem>
-                    <SelectItem value="right">{lang === "pl" ? "Prawa" : "Right"}</SelectItem>
+                    <SelectItem value="left">{lang === "pl" ? "Lewa (50%)" : "Left (50%)"}</SelectItem>
+                    <SelectItem value="right">{lang === "pl" ? "Prawa (50%)" : "Right (50%)"}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {lang === "pl"
+                    ? "Uklad 1/2: obraz zajmuje 50% szerokosci, pelna wysokosc."
+                    : "1/2 layout: image spans 50% width, full height."}
+                </p>
               </div>
-              <div>
-                <Label>{lang === "pl" ? "Szerokosc (%)" : "Width (%)"}</Label>
-                <Input
-                  type="number"
-                  min={10}
-                  max={70}
-                  value={media.widthPct ?? 40}
-                  onChange={(e) =>
-                    onPatchSectionMedia({
-                      widthPct: Math.min(70, Math.max(10, Number(e.target.value) || 40)),
-                    })
-                  }
-                />
-              </div>
-            </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground">
+                {lang === "pl"
+                  ? "Uklad 1-kolumnowy: obraz renderuje sie jako tlo calej sekcji."
+                  : "Single-column layout: image renders as the section background."}
+              </p>
+            )}
           </>
         ) : null}
       </div>
@@ -374,11 +371,12 @@ function LayoutPicker({
   onChange: (l: NlSectionLayout) => void;
   lang: NlLang;
 }) {
+  // Dozwolone tylko dwa uklady:
+  //  - single: pelna szerokosc (obraz sekcji, jesli ustawiony, staje sie tlem)
+  //  - 1-1:    dwie rowne kolumny (jedna to obraz - pozycja lewo/prawo w media.position)
   const options: { v: NlSectionLayout; label: string; ratio: number[] }[] = [
     { v: "single", label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
-    { v: "1-2", label: "1 / 3", ratio: [1, 2] },
     { v: "1-1", label: "1 / 2", ratio: [1, 1] },
-    { v: "2-1", label: "3 / 1", ratio: [2, 1] },
   ];
   return (
     <div className="space-y-2">
@@ -1052,13 +1050,11 @@ function DocProps({
   const layoutBlock = (
     <div className="space-y-2">
       <Label>{lang === "pl" ? "Uklad sekcji" : "Section layout"}</Label>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {(
           [
             { v: "single" as const, label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
-            { v: "1-2" as const, label: "1 / 3", ratio: [1, 2] },
             { v: "1-1" as const, label: "1 / 2", ratio: [1, 1] },
-            { v: "2-1" as const, label: "3 / 1", ratio: [2, 1] },
           ]
         ).map((opt) => {
           const active = currentLayout === opt.v;
