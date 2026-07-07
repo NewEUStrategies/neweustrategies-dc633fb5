@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { useAuth } from "@/hooks/useAuth";
 import { X } from "@/lib/lucide-shim";
-import type { Device } from "@/lib/builder/types";
+import { isEmptyDocument, type Device } from "@/lib/builder/types";
 import {
   evaluatePopupTargeting,
   isPopupFrequencyOk,
@@ -61,7 +61,11 @@ export function PopupHost() {
       popups.find(
         (p) =>
           !shownRef.current.has(p.id) &&
-          p.builder_data.sections.length > 0 &&
+          // Runtime fallback for "no document yet": an active popup whose
+          // builder document is empty is silently skipped (never render an
+          // empty modal to a visitor). The admin editor surfaces this as a
+          // create-first-section empty state instead.
+          !isEmptyDocument(p.builder_data) &&
           evaluatePopupTargeting(p.settings, ctx) &&
           isPopupFrequencyOk(p.id, p.settings.frequencyDays),
       ) ?? null
