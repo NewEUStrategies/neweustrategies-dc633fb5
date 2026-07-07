@@ -183,9 +183,15 @@ export function InlineEditToolbar({
     return () => canvas.removeEventListener("click", onClick, true);
   }, [canvasRef, onSelectWidget]);
 
-  // Dismiss when the widget selection changes or Escape is pressed.
+  // Dismiss only when selection moves away from the toolbar's widget. When the
+  // user clicks an editable element in a previously unselected widget, we first
+  // select that widget and must keep the toolbar open for the same widgetId.
   useEffect(() => {
-    setTarget(null);
+    setTarget((prev) => {
+      if (!prev) return prev;
+      if (selectedWidgetId && prev.widgetId === selectedWidgetId) return prev;
+      return null;
+    });
   }, [selectedWidgetId]);
 
   useEffect(() => {
