@@ -70,6 +70,20 @@
 
 :root {
   --radius: 0.5rem;
+
+  /* ---- Global form-field sizing tokens ----
+     Nadpisz per-widget ustawiając te zmienne na shellu widgetu
+     (np. .cf-shell{ --form-input-height: 3rem }) lub inline
+     style={{ ['--form-input-height' as string]: '3rem' }} */
+  --form-input-height: 2.5rem;
+  --form-input-padding-x: 0.75rem;
+  --form-input-font-size: 0.875rem;
+  --form-input-line-height: 1.25rem;
+  --form-input-radius: 8px;
+  --form-textarea-min-height: 5rem;
+  --form-textarea-padding-y: 0.5rem;
+  --form-control-size: 1.05rem; /* checkbox / radio */
+
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.18 0 0);
   --card: oklch(1 0 0);
