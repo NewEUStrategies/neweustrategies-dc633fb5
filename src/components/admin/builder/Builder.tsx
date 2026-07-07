@@ -216,17 +216,18 @@ export function Builder({
         .detail;
       if (!detail?.widgetId || !detail.key) return;
       updateWidget(detail.widgetId, (w) => {
-        const content = (w.content ?? {}) as Record<string, unknown>;
+        const content = { ...(w.content ?? {}) } as Record<string, unknown>;
         if (detail.value === null || detail.value === undefined) {
           delete content[detail.key];
         } else {
           content[detail.key] = detail.value;
         }
-        w.content = content;
+        w.content = content as typeof w.content;
       });
     };
     window.addEventListener("lovable:inline-edit-set", onSet);
     return () => window.removeEventListener("lovable:inline-edit-set", onSet);
+
   }, [updateWidget]);
 
 
