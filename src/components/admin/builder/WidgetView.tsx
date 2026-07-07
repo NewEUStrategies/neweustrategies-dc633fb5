@@ -760,6 +760,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "join-us": {
       const variant = (getStr(c, "variant") || "split") as "card" | "split" | "inline";
       const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
+      const interestsDisplay =
+        (getStr(c, "interestsDisplay") === "droplist" ? "droplist" : "chips") as
+          | "chips"
+          | "droplist";
       const interestSlugsRaw = c.interestSlugs;
       const interestSlugs = Array.isArray(interestSlugsRaw)
         ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
