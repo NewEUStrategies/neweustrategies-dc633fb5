@@ -157,6 +157,11 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
     }
   };
 
+  const emailLabel = pickLang(data, "emailLabel", lang, L.email);
+  const emailPlaceholder = pickLang(data, "emailPlaceholder", lang, "name@example.com");
+  const pwdLabel = pickLang(data, "passwordLabel", lang, L.password);
+  const pwdPlaceholder = pickLang(data, "passwordPlaceholder", lang, "");
+
   return wrap(
     data.variant,
     <>
@@ -164,7 +169,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="auth-email" className="text-sm">
-            {L.email}
+            {emailLabel}
           </Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -175,13 +180,14 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder={emailPlaceholder}
               className="pl-9"
             />
           </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="auth-password" className="text-sm">
-            {L.password}
+            {pwdLabel}
           </Label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -192,6 +198,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder={pwdPlaceholder}
               className="pl-9 pr-10"
             />
             {data.showShowPassword !== false && (
@@ -206,6 +213,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
             )}
           </div>
         </div>
+
         <div className="flex items-center justify-between text-sm">
           {data.showRemember !== false ? (
             <label className="flex items-center gap-2 cursor-pointer select-none">
