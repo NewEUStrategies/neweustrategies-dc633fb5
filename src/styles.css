@@ -2577,12 +2577,13 @@ textarea::placeholder {
     input[type="date"], input[type="datetime-local"],
     input[type="time"], input[type="month"], input[type="week"]
   ) {
-  height: 2.5rem;
-  padding-inline: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  height: var(--form-input-height);
+  padding-inline: var(--form-input-padding-x);
+  font-size: var(--form-input-font-size);
+  line-height: var(--form-input-line-height);
   border: 1.5px solid hsl(var(--border));
-  border-radius: var(--cf-radius, 8px);
+  border-radius: var(--form-input-radius);
+
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: inherit;
