@@ -38,7 +38,100 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Settings2 } from "lucide-react";
+import { Settings2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useRequiredTenant } from "@/hooks/useAuth";
+
+/**
+ * Pole URL obrazu z wgrywaniem z lokalnego dysku.
+ * Upload -> bucket `media` w folderze `newsletter-builder/<tenant>/<uid>/`,
+ * po sukcesie zwraca publiczny URL i wpisuje go do pola.
+ */
+function ImageUrlField({
+  value,
+  onChange,
+  placeholder = "https://...",
+  folder = "newsletter",
+  lang,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  placeholder?: string;
+  folder?: string;
+  lang: NlLang;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const tenantId = useRequiredTenant();
+
+  const handleFile = async (file: File) => {
+    setError(null);
+    if (!file.type.startsWith("image/")) {
+      setError(lang === "pl" ? "Wybierz plik obrazu." : "Please select an image file.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError(lang === "pl" ? "Plik za duzy (max 8 MB)." : "File too large (max 8 MB).");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? "anon";
+      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+      const path = `${tenantId}/${uid}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from("media").getPublicUrl(path);
+      onChange(data.publicUrl);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "upload error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1.5">
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1"
+        />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="inline-flex items-center gap-1 px-2.5 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50 whitespace-nowrap"
+          title={lang === "pl" ? "Wgraj z dysku" : "Upload from device"}
+        >
+          <Upload className="w-3.5 h-3.5" />
+          {uploading ? (lang === "pl" ? "Wgrywam…" : "Uploading…") : (lang === "pl" ? "Wgraj" : "Upload")}
+        </button>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = "";
+        }}
+      />
+      {error && <div className="text-[10px] text-destructive">{error}</div>}
+    </div>
+  );
+}
 
 // Kompaktowa paleta presetow - dopasowana do design tokens projektu.
 const COLOR_PRESETS: string[] = [
