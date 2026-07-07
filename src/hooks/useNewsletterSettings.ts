@@ -1,8 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { NlDoc } from "@/lib/newsletter-builder/types";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
 type NewsletterPopupLayout = "stacked" | "split";
+export type NewsletterMode = "off" | "inline" | "popup" | "both";
+
 
 export interface NewsletterMailingList {
   id: string;
@@ -54,7 +57,14 @@ export interface NewsletterSettings {
   popup_border_radius_px: number;
   popup_eyebrow_pl: string;
   popup_eyebrow_en: string;
+  // Builder documents + globalne przelaczniki nowej wersji admin panelu.
+  mode: NewsletterMode;
+  inline_doc: NlDoc | null;
+  popup_doc: NlDoc | null;
+  sender_name: string | null;
+  sender_email: string | null;
 }
+
 
 export function defaultNewsletterSettings(): NewsletterSettings {
   return {
@@ -100,8 +110,14 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_border_radius_px: 16,
     popup_eyebrow_pl: "Newsletter",
     popup_eyebrow_en: "Newsletter",
+    mode: "both",
+    inline_doc: null,
+    popup_doc: null,
+    sender_name: null,
+    sender_email: null,
   };
 }
+
 
 export function useNewsletterSettings() {
   return useQuery({

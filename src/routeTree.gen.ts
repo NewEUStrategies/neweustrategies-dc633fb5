@@ -90,6 +90,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
+import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
@@ -107,6 +108,10 @@ import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
+import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
+import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
+import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
+import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
@@ -523,6 +528,11 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   id: '/api/public/vitals',
   path: '/api/public/vitals',
@@ -608,6 +618,27 @@ const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => AdminPagesRoute,
 } as any)
+const AdminNewsletterSubscribersRoute =
+  AdminNewsletterSubscribersRouteImport.update({
+    id: '/subscribers',
+    path: '/subscribers',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
+const AdminNewsletterPopupRoute = AdminNewsletterPopupRouteImport.update({
+  id: '/popup',
+  path: '/popup',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
+const AdminNewsletterOverviewRoute = AdminNewsletterOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
+const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
+  id: '/inline',
+  path: '/inline',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
 const AdminAppearancePostSidebarRoute =
   AdminAppearancePostSidebarRouteImport.update({
     id: '/post-sidebar',
@@ -690,7 +721,7 @@ export interface FileRoutesByFullPath {
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/names': typeof AdminNamesRoute
-  '/admin/newsletter': typeof AdminNewsletterRoute
+  '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
@@ -739,6 +770,10 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
+  '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
+  '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -756,6 +791,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -796,7 +832,6 @@ export interface FileRoutesByTo {
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/names': typeof AdminNamesRoute
-  '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
@@ -843,6 +878,10 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
+  '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
+  '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -860,6 +899,7 @@ export interface FileRoutesByTo {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -903,7 +943,7 @@ export interface FileRoutesById {
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/names': typeof AdminNamesRoute
-  '/admin/newsletter': typeof AdminNewsletterRoute
+  '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
@@ -952,6 +992,10 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
+  '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
+  '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -969,6 +1013,7 @@ export interface FileRoutesById {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -1062,6 +1107,10 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/inline'
+    | '/admin/newsletter/overview'
+    | '/admin/newsletter/popup'
+    | '/admin/newsletter/subscribers'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -1079,6 +1128,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/client-errors'
     | '/api/public/vitals'
+    | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/api/public/newsletter/confirm'
@@ -1119,7 +1169,6 @@ export interface FileRouteTypes {
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/names'
-    | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/performance'
@@ -1166,6 +1215,10 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/inline'
+    | '/admin/newsletter/overview'
+    | '/admin/newsletter/popup'
+    | '/admin/newsletter/subscribers'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -1183,6 +1236,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/client-errors'
     | '/api/public/vitals'
+    | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
     | '/api/public/newsletter/confirm'
@@ -1274,6 +1328,10 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/inline'
+    | '/admin/newsletter/overview'
+    | '/admin/newsletter/popup'
+    | '/admin/newsletter/subscribers'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -1291,6 +1349,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/client-errors'
     | '/api/public/vitals'
+    | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/api/public/newsletter/confirm'
@@ -1904,6 +1963,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsIndexRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/newsletter/': {
+      id: '/admin/newsletter/'
+      path: '/'
+      fullPath: '/admin/newsletter/'
+      preLoaderRoute: typeof AdminNewsletterIndexRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/api/public/vitals': {
       id: '/api/public/vitals'
       path: '/api/public/vitals'
@@ -2023,6 +2089,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesSlugRouteImport
       parentRoute: typeof AdminPagesRoute
     }
+    '/admin/newsletter/subscribers': {
+      id: '/admin/newsletter/subscribers'
+      path: '/subscribers'
+      fullPath: '/admin/newsletter/subscribers'
+      preLoaderRoute: typeof AdminNewsletterSubscribersRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/popup': {
+      id: '/admin/newsletter/popup'
+      path: '/popup'
+      fullPath: '/admin/newsletter/popup'
+      preLoaderRoute: typeof AdminNewsletterPopupRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/overview': {
+      id: '/admin/newsletter/overview'
+      path: '/overview'
+      fullPath: '/admin/newsletter/overview'
+      preLoaderRoute: typeof AdminNewsletterOverviewRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/inline': {
+      id: '/admin/newsletter/inline'
+      path: '/inline'
+      fullPath: '/admin/newsletter/inline'
+      preLoaderRoute: typeof AdminNewsletterInlineRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/appearance/post-sidebar': {
       id: '/admin/appearance/post-sidebar'
       path: '/post-sidebar'
@@ -2100,6 +2194,26 @@ const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
 
 const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
   AdminAppearanceRouteChildren,
+)
+
+interface AdminNewsletterRouteChildren {
+  AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
+  AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
+  AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
+  AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
+  AdminNewsletterIndexRoute: typeof AdminNewsletterIndexRoute
+}
+
+const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
+  AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
+  AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
+  AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
+  AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
+  AdminNewsletterIndexRoute: AdminNewsletterIndexRoute,
+}
+
+const AdminNewsletterRouteWithChildren = AdminNewsletterRoute._addFileChildren(
+  AdminNewsletterRouteChildren,
 )
 
 interface AdminPagesRouteChildren {
@@ -2203,7 +2317,7 @@ interface AdminRouteChildren {
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminNamesRoute: typeof AdminNamesRoute
-  AdminNewsletterRoute: typeof AdminNewsletterRoute
+  AdminNewsletterRoute: typeof AdminNewsletterRouteWithChildren
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
   AdminPerformanceRoute: typeof AdminPerformanceRoute
@@ -2244,7 +2358,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminNamesRoute: AdminNamesRoute,
-  AdminNewsletterRoute: AdminNewsletterRoute,
+  AdminNewsletterRoute: AdminNewsletterRouteWithChildren,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
   AdminPerformanceRoute: AdminPerformanceRoute,

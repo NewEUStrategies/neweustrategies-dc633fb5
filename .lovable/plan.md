@@ -1,61 +1,205 @@
-## Cel
 
-Klik / hover na element w preview (bulletpoint, etykieta, placeholder, przycisk, zgoda, tytuł, opis) → mini toolbar tuż nad elementem z szybkim regulatorem rozmiaru + przycisk „Otwórz w panelu" który przewija właściwą kontrolkę w panelu Styl i podświetla ją.
+# Redesign /admin/newsletter
 
-Zakres: builder canvas (edycja), NIE na opublikowanej stronie. Granularność grupowa — edycja jednej kontrolki (np. `perkSize`) wpływa na wszystkie bullety.
+Cel: zamiana obecnego długiego formularza na dedykowany moduł z zakładkami, KPI, wyborem trybu i pełnym drag & drop builderem (osobne kanwy dla inline i popup).
 
-## Warstwy zmian
+## 1. Nawigacja i struktura URL
 
-### 1. Oznaczenie elementów edytowalnych (widgety)
+```
+/admin/newsletter                    -> Overview (redirect na .overview)
+/admin/newsletter/overview          -> KPI + logika + wybór trybu + dual preview
+/admin/newsletter/inline            -> Inline form builder (drag & drop)
+/admin/newsletter/popup             -> Popup builder (drag & drop) + triggery
+/admin/newsletter/subscribers       -> Tabela subskrybentów (CRUD, filtry, eksport)
+```
 
-W `src/components/interests/JoinUsForm.tsx` i `src/components/blocks/ContactFormView.tsx` dodaję atrybut `data-edit-target="<klucz>"` na elementach:
+Layout ma sticky sub-nav (segmented tabs) i wspólny nagłówek `NewsletterHeader` z tytułem, statusem publikacji i przyciskiem "Zapisz wszystko".
 
-| Element | data-edit-target (join-us) | (contact-form) |
-|---|---|---|
-| Tytuł | `titleSize` | `titleSize` |
-| Opis | `descriptionSize` | `descriptionSize` |
-| Bullet | `perkSize` | - |
-| Label pola | `labelSize` | `labelSize` |
-| Input/placeholder | `placeholderSize` | `placeholderSize` |
-| Przycisk submit | `buttonSize` | `buttonFontSize` |
-| Zgody / newsletter | `consentSize` | `consentSize` |
+## 2. Overview (nowa strona główna)
 
-Atrybuty są zawsze w DOM (nieinwazyjne — bez wpływu na produkcję), toolbar aktywuje się tylko wewnątrz `[data-visual-canvas]`.
+Cztery bloki jeden pod drugim:
 
-### 2. Nowy komponent `InlineEditToolbar`
+### 2a. KPI grid (4 karty)
+- Subskrybenci (total) + delta 30d
+- Wzrost 30d (%) z mini sparklinem
+- Opt-in rate (subscribed / all) - jeśli włączony double opt-in
+- Unsubscribes 30d + trend
 
-Ścieżka: `src/components/admin/builder/ui/organisms/InlineEditToolbar.tsx`
+Dane z `newsletter_subscribers` agregowane w server function `getNewsletterKpis` (SQL group by day).
 
-- Mountowany raz w `VisualCanvas`.
-- Listener `pointerover` / `click` na canvas → wykrywa `[data-edit-target]` wewnątrz `[data-widget-id]` należącego do aktualnie zaznaczonego widgetu.
-- Portal `position:fixed` nad elementem (getBoundingClientRect + scroll listener).
-- Zawartość: nazwa grupy · stepper `–` / wartość px / `+` · przycisk „Otwórz w panelu".
-- Zmiany wywołują `onSetContent(key, n)` przekazane przez context / prop drilling z Buildera (używa tego samego `setContent` co panel — pełna spójność, undo/redo działa automatycznie).
+### 2b. Ustawienia logiki
+- Enable / disable form globalnie
+- Double opt-in on/off
+- Domyślne listy mailingowe (multi)
+- Sender name/email (nowe pola)
+- Reguły triggerów popup: delay / scroll / exit-intent + frequency
 
-### 3. Auto-scroll + podświetlenie w panelu
+### 2c. Wybór trybu (segmented)
+`newsletter_mode: 'inline' | 'popup' | 'both' | 'off'` decyduje co jest aktywne na froncie.
+Zapisywane w `newsletter_settings`.
 
-- Toolbar dispatch `CustomEvent('lovable:focus-field', { detail: { key } })`.
-- `WidgetProperties` listenuje event → przełącza tab `Styl` → `element.scrollIntoView({block:'center'})` → dodaje klasę `.is-focused` na 1.5s (ring-2 ring-brand animate-pulse).
-- Do każdego `PropField` w sekcji Rozmiary dodaję `data-field-key={f.key}` żeby móc go znaleźć.
+### 2d. Dual live preview
+Dwie kolumny obok siebie: Inline (render `NewsletterInlineRenderer`) i Popup (render `NewsletterPopupRenderer` w kontenerze udającym viewport). Podgląd PL/EN.
 
-### 4. Guardy
+## 3. Inline & Popup builder (Elementor-style)
 
-- Toolbar renderuje się TYLKO gdy: element ma `data-edit-target`, jest wewnątrz aktualnie zaznaczonego widgetu, widget to `join-us` lub `contact-form`.
-- Domyślne wartości (gdy klucz pusty) czytane z tego samego mapowania fallbacków co widgety (14px inputy, 12px labels, 11px consent itd.).
-- Klawiatura: `Esc` chowa toolbar, `↑`/`↓` +/- 1px, `Shift+↑`/`↓` +/- 4px.
+Nowy dedykowany builder w `src/lib/newsletter-builder/` - osobny od CMS pages buildera, żeby nie mieszać widgetów.
 
-## Pliki
+### Model danych
+```ts
+type NlDoc = {
+  version: 1;
+  sections: NlSection[];   // pionowe sekcje z background
+};
+type NlSection = { id; columns: NlColumn[]; style: {...} };
+type NlColumn = { id; span: 1..12; widgets: NlWidget[] };
+type NlWidget =
+  | { type: 'heading', ... }
+  | { type: 'paragraph', ... }
+  | { type: 'image', ... }
+  | { type: 'divider', ... }
+  | { type: 'spacer', ... }
+  | { type: 'field.email', ... }         // required, jeden w drzewie
+  | { type: 'field.text', name, label, required }
+  | { type: 'field.select', options, mailingListLink }
+  | { type: 'field.checkbox', consentHtml, required }
+  | { type: 'field.mailing-lists' }
+  | { type: 'submit', label, style }
+  | { type: 'success-message' }
+  | { type: 'social-proof' }             // "1234 zapisanych"
+  | { type: 'countdown' }                // opcjonalny incentive
+;
+```
 
-- edit: `src/components/interests/JoinUsForm.tsx` (dodanie `data-edit-target`)
-- edit: `src/components/blocks/ContactFormView.tsx` (dodanie `data-edit-target`)
-- new: `src/components/admin/builder/ui/organisms/InlineEditToolbar.tsx`
-- edit: `src/components/admin/builder/ui/organisms/builder/VisualCanvas.tsx` (mount toolbara)
-- edit: `src/components/admin/builder/WidgetProperties.tsx` (listener eventu + `data-field-key` + animacja focus)
+### UI buildera (3 panele)
+```text
++---------------------------------------------------+
+| Toolbar: Undo | Redo | Device | PL/EN | Zapisz    |
++------+-------------------------------+-----+------+
+| Lib  |          Canvas (D&D)         |  Properties |
+| dnd  |  section > column > widget    |  (panel)    |
++------+-------------------------------+-------------+
+```
 
-## Poza zakresem (do potwierdzenia)
+- Lewy panel: `WidgetLibrary` z pogrupowanymi kafelkami (Layout / Content / Fields / Actions). HTML5 drag.
+- Canvas: klik zaznacza element (podświetla), hover pokazuje toolbar (duplikat/usuń/parent), reorder przez drag handle. Sekcje mają `+ dodaj sekcję` między nimi. Kolumny wybierane z presetów (1, 1/1, 1/2/1, 1/3, ...).
+- Prawy panel: kontekstowe properties (style, content, layout, advanced) - reużywamy tokenów Theme Design (tak jak w CMS builderze).
+- Undo/redo (useUndoRedo), autosave off (manual save + unsaved guard - reuse istniejącej infrastruktury `useUnsavedChangesGuard`).
 
-- Per-element overrides (np. inny rozmiar dla pojedynczego bulleta) — pomijam zgodnie z odpowiedzią „grupy".
-- Zmiana koloru / wagi / dekoracji z toolbara — MVP tylko rozmiar. Mogę dodać w kolejnej iteracji.
-- Rozszerzenie na inne widgety (newsletter, login-form) — analogicznie, po zatwierdzeniu wzorca.
+### Persistence
+Nowa migracja: dodać do `newsletter_settings` kolumny:
+- `mode text default 'inline'`
+- `inline_doc jsonb`
+- `popup_doc jsonb`
+- `sender_name text`, `sender_email text`
 
-Potwierdź plan albo powiedz co zmienić, wtedy wdrażam.
+Migracja backfillowa: z obecnych pól (`heading_pl`, `description_pl`, `policy_html_pl`, cover, side_image, colors, popup_title_pl, ...) buduje default `inline_doc` i `popup_doc`, żeby istniejące instalacje wyglądały jak dziś.
+
+### Renderery frontendowe
+- `NewsletterInlineRenderer` (używany w widgetach block `newsletter` na stronach)
+- `NewsletterPopupRenderer` (używany w `NewsletterPopup`)
+Oba czytają `inline_doc` / `popup_doc`. Jeśli doc pusty -> fallback do klasycznego layoutu (backward compat).
+
+## 4. Subscribers (osobna podstrona)
+
+`/admin/newsletter/subscribers`:
+- Sticky toolbar: search, filter status, filter language, filter source, date range
+- Tabela virtualized (jeżeli > 500) - kolumny: email, imię, język, status (badge), źródło, lista, data, akcje (resend confirm, unsubscribe, delete)
+- Bulk actions: export selected, delete, change status
+- Modal detalu subskrybenta (custom fields z popup extended fields)
+- Import CSV (nowe) - upload pliku, mapowanie kolumn, preview, zapis (server fn)
+
+## 5. Bezpieczeństwo i backend
+
+- Wszystkie mutacje przez `createServerFn` z `requireSupabaseAuth` + `has_role(auth.uid(), 'admin' | 'editor')` (reuse `require-staff.ts`).
+- KPI query po stronie serwera (agregaty), nie ciągniemy 10k wierszy do klienta.
+- RLS: kolumny `inline_doc/popup_doc/mode/sender_*` wpadają pod istniejące polityki `newsletter_settings`.
+- Sanitize HTML we wszystkich widgetach typu `paragraph`/`consent` (istniejący `sanitizeHtml`).
+- Walidacja Zod na wszystkich server fn i input z buildera (schema `NlDocSchema`).
+
+## 6. Design system
+
+- Layout builda: dark canvas, sticky panels, radius-md, cień `--shadow-elegant`.
+- Kolory z tokenów semantycznych (`--card`, `--border`, `--primary`, `--muted-foreground`).
+- Font `Red Hat Display` (memory).
+- Section-label widget (jeśli używamy) trzyma z-index >= 20 (memory).
+- Motion: fade+scale 150ms na drop targets, spring na drag handle.
+
+## 7. i18n
+
+Wszystkie nowe stringi w `src/locales/pl.json` i `src/locales/en.json` pod `admin.newsletter.builder.*` i `admin.newsletter.overview.*`. Widgety w preview używają `lang` prop (PL/EN toggle w toolbarze).
+
+## 8. Pliki (kluczowe)
+
+Route files:
+- `src/routes/admin.newsletter.tsx` -> layout z Outlet + sub-nav
+- `src/routes/admin.newsletter.index.tsx` -> redirect na overview
+- `src/routes/admin.newsletter.overview.tsx`
+- `src/routes/admin.newsletter.inline.tsx`
+- `src/routes/admin.newsletter.popup.tsx`
+- `src/routes/admin.newsletter.subscribers.tsx`
+
+Builder core:
+- `src/lib/newsletter-builder/types.ts`
+- `src/lib/newsletter-builder/schema.ts` (Zod)
+- `src/lib/newsletter-builder/defaults.ts` (fabryki widgetów + backfill z legacy settings)
+- `src/lib/newsletter-builder/history.ts`
+
+Admin UI:
+- `src/components/admin/newsletter/NewsletterSubNav.tsx`
+- `src/components/admin/newsletter/KpiCards.tsx`
+- `src/components/admin/newsletter/ModeSelector.tsx`
+- `src/components/admin/newsletter/LogicSettings.tsx`
+- `src/components/admin/newsletter/DualPreview.tsx`
+- `src/components/admin/newsletter/builder/NewsletterBuilder.tsx`
+- `src/components/admin/newsletter/builder/BuilderCanvas.tsx`
+- `src/components/admin/newsletter/builder/WidgetLibrary.tsx`
+- `src/components/admin/newsletter/builder/PropertiesPanel.tsx`
+- `src/components/admin/newsletter/builder/widgets/*` (jeden plik na widget)
+- `src/components/admin/newsletter/subscribers/*` (Table, Filters, ImportDialog, DetailDialog)
+
+Runtime rendery:
+- `src/components/newsletter/NewsletterDocRenderer.tsx`
+- Update `src/components/NewsletterForm.tsx` i `src/components/NewsletterPopup.tsx` do użycia doc-renderera z fallbackiem.
+
+Server fns:
+- `src/lib/newsletter.functions.ts` (getKpis, listSubscribers, importSubscribers, updateSubscriber, deleteSubscriber, saveNewsletterDoc)
+
+Migracja:
+- `supabase/migrations/<ts>_newsletter_builder.sql`
+
+Testy:
+- `src/lib/newsletter-builder/__tests__/schema.test.ts`
+- `src/lib/newsletter-builder/__tests__/defaults.test.ts`
+- `src/components/admin/newsletter/builder/__tests__/BuilderCanvas.test.tsx`
+
+## 9. Zakres i etapowanie
+
+Rekomendacja: wdrożenie w 2 turach ze względu na rozmiar (~35 nowych plików).
+
+**Tura 1 (ta wiadomość)** - fundament, żeby wszystko było użyteczne od razu:
+- Migracja bazy + backfill doców
+- Model danych + Zod schema + defaults + history
+- Routing (layout + 4 podstrony)
+- Overview (KPI, LogicSettings, ModeSelector, DualPreview)
+- Subscribers (tabela + filtry + eksport, bez importu CSV)
+- Runtime `NewsletterDocRenderer` + spięcie z istniejącym `NewsletterForm`/`NewsletterPopup` (z fallbackiem)
+- Builder MVP: canvas, biblioteka, properties, drag & drop dla top-level widgetów (heading, paragraph, field.email, field.text, submit, consent, image, divider) - bez sekcji/kolumn (na kanwie flat list z drag reorder)
+- i18n PL/EN, testy jednostkowe schemy i defaults
+
+**Tura 2 (po akceptacji tury 1)**:
+- Sekcje + kolumny (grid 12) + presety układów
+- Pozostałe widgety (select, mailing-lists, social-proof, countdown, spacer, success-message)
+- Import CSV subskrybentów + modal detalu
+- Testy E2E buildera (Playwright)
+- Migracja legacy popup color settings do doc-poziomowych stylów
+
+## 10. Ryzyka
+
+- Legacy `NewsletterPopup`/`NewsletterForm` używane na froncie - musimy zachować backward compat (fallback do starych pól, jeśli doc = null).
+- `newsletter_settings` ma jeden wiersz per tenant - migracja backfill musi być idempotentna.
+- Drag & drop bez ciężkiej biblioteki (chcemy natywny HTML5, jak w istniejącym CMS builderze) - trzeba uważać na touch devices.
+
+---
+
+Potwierdź plan (lub wskaż zmiany) - po akceptacji rusza Tura 1.

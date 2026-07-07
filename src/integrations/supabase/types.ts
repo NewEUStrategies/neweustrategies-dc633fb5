@@ -1539,6 +1539,8 @@ export type Database = {
           enabled: boolean
           heading_en: string
           heading_pl: string
+          inline_doc: Json | null
+          mode: string
           policy_html_en: string | null
           policy_html_pl: string | null
           popup_accent_color: string | null
@@ -1551,6 +1553,7 @@ export type Database = {
           popup_delay_seconds: number
           popup_description_en: string
           popup_description_pl: string
+          popup_doc: Json | null
           popup_enabled: boolean
           popup_extended_fields: boolean
           popup_eyebrow_en: string | null
@@ -1569,6 +1572,8 @@ export type Database = {
           popup_title_en: string
           popup_title_pl: string
           popup_trigger: string
+          sender_email: string | null
+          sender_name: string | null
           success_message_en: string
           success_message_pl: string
           tenant_id: string
@@ -1582,6 +1587,8 @@ export type Database = {
           enabled?: boolean
           heading_en?: string
           heading_pl?: string
+          inline_doc?: Json | null
+          mode?: string
           policy_html_en?: string | null
           policy_html_pl?: string | null
           popup_accent_color?: string | null
@@ -1594,6 +1601,7 @@ export type Database = {
           popup_delay_seconds?: number
           popup_description_en?: string
           popup_description_pl?: string
+          popup_doc?: Json | null
           popup_enabled?: boolean
           popup_extended_fields?: boolean
           popup_eyebrow_en?: string | null
@@ -1612,6 +1620,8 @@ export type Database = {
           popup_title_en?: string
           popup_title_pl?: string
           popup_trigger?: string
+          sender_email?: string | null
+          sender_name?: string | null
           success_message_en?: string
           success_message_pl?: string
           tenant_id?: string
@@ -1625,6 +1635,8 @@ export type Database = {
           enabled?: boolean
           heading_en?: string
           heading_pl?: string
+          inline_doc?: Json | null
+          mode?: string
           policy_html_en?: string | null
           policy_html_pl?: string | null
           popup_accent_color?: string | null
@@ -1637,6 +1649,7 @@ export type Database = {
           popup_delay_seconds?: number
           popup_description_en?: string
           popup_description_pl?: string
+          popup_doc?: Json | null
           popup_enabled?: boolean
           popup_extended_fields?: boolean
           popup_eyebrow_en?: string | null
@@ -1655,6 +1668,8 @@ export type Database = {
           popup_title_en?: string
           popup_title_pl?: string
           popup_trigger?: string
+          sender_email?: string | null
+          sender_name?: string | null
           success_message_en?: string
           success_message_pl?: string
           tenant_id?: string
