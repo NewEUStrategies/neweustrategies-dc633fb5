@@ -1650,5 +1650,122 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   );
 }
 
+// ---------- Preview Dialog ----------
+function MediaPreviewDialog({
+  file,
+  onClose,
+}: {
+  file: MediaRow | null;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const mime = file?.mime_type ?? "";
+  const url = file?.public_url ?? "";
+  const ext = file ? extOf(file.filename).toLowerCase() : "";
+
+  const kind: "image" | "video" | "audio" | "pdf" | "text" | "office" | "other" =
+    !file
+      ? "other"
+      : mime.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"].includes(ext)
+        ? "image"
+        : mime.startsWith("video/") || ["mp4", "webm", "mov", "m4v", "ogv"].includes(ext)
+          ? "video"
+          : mime.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a", "flac"].includes(ext)
+            ? "audio"
+            : mime === "application/pdf" || ext === "pdf"
+              ? "pdf"
+              : mime.startsWith("text/") || ["txt", "md", "csv", "json", "log", "xml", "html", "css", "js", "ts", "tsx", "jsx"].includes(ext)
+                ? "text"
+                : ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"].includes(ext)
+                  ? "office"
+                  : "other";
+
+  return (
+    <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-4 py-3 border-b border-border shrink-0">
+          <DialogTitle className="truncate text-sm">
+            {file?.filename ?? ""}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 min-h-0 bg-muted/30 flex items-center justify-center overflow-auto">
+          {file && kind === "image" && (
+            <img
+              src={url}
+              alt={file.alt_text || file.filename}
+              className="max-w-full max-h-full object-contain"
+            />
+          )}
+          {file && kind === "video" && (
+            <video src={url} controls className="max-w-full max-h-full" />
+          )}
+          {file && kind === "audio" && (
+            <audio src={url} controls className="w-[80%]" />
+          )}
+          {file && kind === "pdf" && (
+            <iframe
+              src={`${url}#toolbar=1`}
+              title={file.filename}
+              className="w-full h-full border-0 bg-background"
+            />
+          )}
+          {file && kind === "text" && (
+            <iframe
+              src={url}
+              title={file.filename}
+              className="w-full h-full border-0 bg-background"
+            />
+          )}
+          {file && kind === "office" && (
+            <iframe
+              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
+              title={file.filename}
+              className="w-full h-full border-0 bg-background"
+            />
+          )}
+          {file && kind === "other" && (
+            <div className="flex flex-col items-center gap-3 text-muted-foreground p-6 text-center">
+              <span className="text-5xl">📄</span>
+              <div className="text-sm">
+                {t("admin.media.previewUnavailable", {
+                  defaultValue: "Podgląd niedostępny dla tego formatu.",
+                })}
+              </div>
+              <div className="text-xs">{mime || ext.toUpperCase()}</div>
+            </div>
+          )}
+        </div>
+        <DialogFooter className="px-4 py-3 border-t border-border shrink-0 gap-2">
+          {file && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              {t("admin.media.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}
+            </a>
+          )}
+          {file && (
+            <a
+              href={url}
+              download={file.filename}
+              className="inline-flex"
+            >
+              <Button variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-1" />
+                {t("admin.download", { defaultValue: "Pobierz" })}
+              </Button>
+            </a>
+          )}
+          <Button size="sm" onClick={onClose}>
+            {t("admin.close", { defaultValue: "Zamknij" })}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // avoid unused warnings for the imported keyboard type
 export type _KeyboardEvent = ReactKeyboardEvent;
