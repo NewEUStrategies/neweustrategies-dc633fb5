@@ -153,6 +153,31 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const showNewsletter = bool(data, "showNewsletterOptIn");
   const consentTextRaw = s(data, `consentText_${lang}`, t.consent);
 
+  // Per-field label / placeholder overrides (fall back to defaults from `t`).
+  const L = {
+    firstName: readI18nOverride(data, "firstNameLabel", lang, t.firstName),
+    lastName: readI18nOverride(data, "lastNameLabel", lang, t.lastName),
+    email: readI18nOverride(data, "emailLabel", lang, t.email),
+    phone: readI18nOverride(data, "phoneLabel", lang, t.phone),
+    company: readI18nOverride(data, "companyLabel", lang, t.company),
+    subject: readI18nOverride(data, "subjectLabel", lang, t.subject),
+    message: readI18nOverride(data, "messageLabel", lang, t.message),
+  };
+  const P = {
+    firstName: readI18nOverride(data, "firstNamePlaceholder", lang, lang === "pl" ? "Jan" : "John"),
+    lastName: readI18nOverride(data, "lastNamePlaceholder", lang, lang === "pl" ? "Kowalski" : "Doe"),
+    email: readI18nOverride(data, "emailPlaceholder", lang, "name@example.com"),
+    phone: readI18nOverride(data, "phonePlaceholder", lang, ""),
+    company: readI18nOverride(data, "companyPlaceholder", lang, ""),
+    subject: readI18nOverride(data, "subjectPlaceholder", lang, ""),
+    message: readI18nOverride(data, "messagePlaceholder", lang, ""),
+  };
+  const customFields = useMemo<CustomField[]>(
+    () => parseCustomFields(data.customFields),
+    [data.customFields],
+  );
+
+
   const columns = Math.max(1, Math.min(3, num(data, "columns", 2)));
   const buttonAlign = s(data, "buttonAlign", "left") as "left" | "center" | "right" | "full";
   const buttonPosition = s(data, "buttonPosition", "bottom") as "bottom" | "inline-right";
