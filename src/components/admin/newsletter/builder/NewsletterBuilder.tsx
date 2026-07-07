@@ -498,7 +498,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_320px] gap-3 min-h-[70vh]">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-3 min-h-[70vh]">
           <aside className="bg-card border border-border rounded-xl p-3 overflow-y-auto max-h-[80vh]">
             <WidgetLibrary
               lang={lang}
