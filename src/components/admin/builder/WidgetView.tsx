@@ -777,6 +777,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         <JoinUsForm
           variant={variant}
           showInterests={showInterests}
+          interestsDisplay={interestsDisplay}
           title={pick("title")}
           subtitle={pick("subtitle")}
           perk1={pick("perk1")}
