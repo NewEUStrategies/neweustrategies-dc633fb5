@@ -129,8 +129,17 @@ function EditPage() {
   const [step, setStep] = useState<"details" | "content">("details");
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
 
+  // `savedFormRef` mirrors the form snapshot last persisted to the server.
+  // We compare `form` (identity) against it to derive `isDirty` - this keeps
+  // the "unsaved changes" guard honest across saves (unlike `history.canUndo`
+  // which stays true forever after the first edit).
+  const savedFormRef = useRef<PageForm | null>(null);
+
   useEffect(() => {
-    if (page) history.reset(page);
+    if (page) {
+      history.reset(page);
+      savedFormRef.current = page;
+    }
   }, [page, history.reset]);
 
   useEffect(() => {
