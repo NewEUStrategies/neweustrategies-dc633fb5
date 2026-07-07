@@ -2673,6 +2673,19 @@ textarea::placeholder {
   vertical-align: top;
 }
 
+/* Kiedy ul staje się inline-block, `gap` (flex property) przestaje działać.
+   Odtwarzamy odstępy pionowe przez margin-top na kolejnych li. */
+[data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id].text-center :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id].text-right :where(.join-us-perks, .widget-perks) > li + li,
+[data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) > li + li {
+  margin-top: 0.5rem;
+}
+
 /* li wraca do zwykłego flex-row, bez per-item justify — całość i tak jest
    już przesunięta jako blok przez inline-block. */
 [data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
