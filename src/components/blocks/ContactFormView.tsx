@@ -2,6 +2,7 @@
 // columns, button placement, light/dark backgrounds, image background,
 // and six subtle animated background variants.
 import {
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -9,6 +10,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
 import {
