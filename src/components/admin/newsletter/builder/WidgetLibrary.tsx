@@ -2,10 +2,13 @@
 // z registry.ts. Kazda karta jest draggable (kind="library") - drop w kanwie
 // dodaje nowy widget przez NewsletterBuilder.onDragEnd. Klikniecie karty
 // dodaje widget na koniec (dostepnosc + touch).
+//
+// `context` filtruje widgety po `WidgetMeta.contexts` - np. builder popupu
+// nie pokazuje pol formularza newslettera, ktore nie maja sensu poza inline.
 import { useDraggable } from "@dnd-kit/core";
 import * as Lucide from "lucide-react";
 import type { NlWidgetType, NlLang } from "@/lib/newsletter-builder/types";
-import { WIDGET_REGISTRY, widgetLabel } from "@/lib/newsletter-builder/registry";
+import { widgetLabel, widgetsForContext, type BuilderContext } from "@/lib/newsletter-builder/registry";
 
 const GROUP_LABEL: Record<string, { pl: string; en: string }> = {
   content: { pl: "Tresc", en: "Content" },
@@ -18,18 +21,21 @@ const GROUP_LABEL: Record<string, { pl: string; en: string }> = {
 export function WidgetLibrary({
   lang,
   onAdd,
+  context = "newsletter",
 }: {
   lang: NlLang;
   onAdd: (type: NlWidgetType) => void;
+  context?: BuilderContext;
 }) {
   const groups = Object.keys(GROUP_LABEL);
+  const available = widgetsForContext(context);
   return (
     <div className="space-y-4">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {lang === "pl" ? "Biblioteka widgetow" : "Widget library"}
       </div>
       {groups.map((g) => {
-        const items = WIDGET_REGISTRY.filter((w) => w.group === g);
+        const items = available.filter((w) => w.group === g);
         if (!items.length) return null;
         return (
           <div key={g} className="space-y-1.5">

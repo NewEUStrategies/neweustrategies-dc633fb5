@@ -22,6 +22,8 @@ import type {
   NlMailingListsWidget,
   NlSocialProofWidget,
   NlCountdownWidget,
+  NlCtaButtonWidget,
+  NlCouponWidget,
 } from "@/lib/newsletter-builder/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -718,6 +720,91 @@ function WidgetProps({
           <I18nField label="Godziny" value={w.labelHours} onChange={(labelHours) => onPatch({ labelHours } as Partial<NlWidget>)} />
           <I18nField label="Minuty" value={w.labelMinutes} onChange={(labelMinutes) => onPatch({ labelMinutes } as Partial<NlWidget>)} />
           <I18nField label="Sekundy" value={w.labelSeconds} onChange={(labelSeconds) => onPatch({ labelSeconds } as Partial<NlWidget>)} />
+        </div>
+      );
+    }
+    case "cta-button": {
+      const w = selected as NlCtaButtonWidget;
+      return (
+        <div className="space-y-3">
+          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <div>
+            <Label>URL</Label>
+            <Input
+              value={w.url}
+              onChange={(e) => onPatch({ url: e.target.value } as Partial<NlWidget>)}
+              placeholder="https://... , mailto:... , /sciezka"
+            />
+          </div>
+          <div>
+            <Label>Target</Label>
+            <Select
+              value={w.target ?? "_self"}
+              onValueChange={(v) => onPatch({ target: v as "_self" | "_blank" } as Partial<NlWidget>)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_self">Ta sama karta</SelectItem>
+                <SelectItem value="_blank">Nowa karta</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Wyrownanie</Label>
+            <Select
+              value={w.align ?? "center"}
+              onValueChange={(v) => onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left">Do lewej</SelectItem>
+                <SelectItem value="center">Wysrodkowany</SelectItem>
+                <SelectItem value="right">Do prawej</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={w.fullWidth ?? false}
+              onChange={(e) => onPatch({ fullWidth: e.target.checked } as Partial<NlWidget>)}
+            />
+            <span>Pelna szerokosc</span>
+          </label>
+          <ColorInput label="Tlo" value={w.bg} onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)} />
+          <ColorInput label="Tekst" value={w.fg} onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)} />
+        </div>
+      );
+    }
+    case "coupon": {
+      const w = selected as NlCouponWidget;
+      return (
+        <div className="space-y-3">
+          <div>
+            <Label>Kod</Label>
+            <Input
+              value={w.code}
+              onChange={(e) => onPatch({ code: e.target.value.toUpperCase() } as Partial<NlWidget>)}
+              className="font-mono uppercase"
+              maxLength={64}
+            />
+          </div>
+          <I18nField label="Podpis" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <I18nField label="Komunikat po kopiowaniu" value={w.copiedLabel} onChange={(copiedLabel) => onPatch({ copiedLabel } as Partial<NlWidget>)} />
+          <div>
+            <Label>Styl</Label>
+            <Select
+              value={w.style ?? "dashed"}
+              onValueChange={(v) => onPatch({ style: v as "boxed" | "dashed" } as Partial<NlWidget>)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dashed">Przerywana ramka</SelectItem>
+                <SelectItem value="boxed">Pelna ramka</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <ColorInput label="Akcent" value={w.accent} onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)} />
         </div>
       );
     }
