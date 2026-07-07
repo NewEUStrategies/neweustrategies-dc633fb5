@@ -162,6 +162,15 @@ export interface AdvancedSettings {
   height?: ResponsiveValue<WidgetSize> | number;
   /** Section-only: marks this section as a variant of an A/B experiment. */
   abTest?: AbTestTag;
+  /**
+   * Inner content shell — pozwala „ścisnąć" treść widgetu do węższego
+   * bloku bez zmiany szerokości samego widgetu, wycentrować go i sterować
+   * odstępem między dziećmi. Wszystko opcjonalne; brak = zachowanie legacy.
+   */
+  contentMaxWidth?: number | string; // px (number) lub dowolna wartość CSS
+  contentAlign?: "start" | "center" | "end"; // wyrównanie treści w widgecie
+  contentGap?: number | string; // px (number) lub wartość CSS - odstęp między dziećmi
+
 }
 
 // ---------- Section-specific settings (Elementor-style) ----------
