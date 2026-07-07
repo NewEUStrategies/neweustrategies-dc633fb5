@@ -201,7 +201,15 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const bgImage = s(data, "bgImage");
   const bgImageMobile = s(data, "bgImageMobile");
   const bgOverlay = num(data, "bgOverlay", 0);
-  
+
+  // Font-size overrides (px). 0 = leave default.
+  const titleSize = num(data, "titleSize", 0);
+  const descriptionSize = num(data, "descriptionSize", 0);
+  const labelSize = num(data, "labelSize", 0);
+  const placeholderSize = num(data, "placeholderSize", 0);
+  const buttonFontSize = num(data, "buttonFontSize", 0);
+  const consentSize = num(data, "consentSize", 0);
+
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
@@ -214,6 +222,27 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (borderColor) css["--cf-border"] = borderColor;
     return css as CSSProperties;
   }, [bgLight, bgDark, textColor, borderColor, radiusPx, paddingPx]);
+
+  // Scoped CSS for per-instance font sizes. Empty (0) values are skipped so
+  // Tailwind defaults still apply.
+  const fontSizeCss = useMemo(() => {
+    const scope = `[data-cf-id="${formId}"]`;
+    const rules: string[] = [];
+    if (titleSize > 0) rules.push(`${scope} .cf-title{font-size:${titleSize}px;line-height:1.2;}`);
+    if (descriptionSize > 0)
+      rules.push(`${scope} .cf-subtitle{font-size:${descriptionSize}px;}`);
+    if (labelSize > 0)
+      rules.push(`${scope} .cf-field-label{font-size:${labelSize}px;}`);
+    if (placeholderSize > 0)
+      rules.push(
+        `${scope} .cf-input{font-size:${placeholderSize}px;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px;}`,
+      );
+    if (buttonFontSize > 0)
+      rules.push(`${scope} .cf-submit{font-size:${buttonFontSize}px;}`);
+    if (consentSize > 0)
+      rules.push(`${scope} .cf-consent{font-size:${consentSize}px;}`);
+    return rules.join("");
+  }, [formId, titleSize, descriptionSize, labelSize, placeholderSize, buttonFontSize, consentSize]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
