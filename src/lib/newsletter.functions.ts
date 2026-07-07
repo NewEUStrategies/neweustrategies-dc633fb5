@@ -278,7 +278,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         { onConflict: "tenant_id,email" },
       );
       if (error) return { ok: false, error: error.message };
-      await syncToCrm(tenantId, email, data, meta);
+      await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
       return { ok: true, status: "subscribed" };
 
     }
