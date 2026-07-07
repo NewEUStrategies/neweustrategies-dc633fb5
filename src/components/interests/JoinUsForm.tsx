@@ -287,6 +287,13 @@ export function JoinUsForm({
         ? [firstName, lastName].filter(Boolean).join(" ")
         : name.trim();
 
+      // Custom fields → forwarded to CRM under aliases.custom.<id>.
+      const custom: Record<string, string> = {};
+      for (const f of cfList) {
+        const v = (customValues[f.id] ?? "").trim();
+        if (v) custom[f.id] = v.slice(0, 500);
+      }
+
       const res = await subscribe({
         data: {
           email: trimmed,
@@ -297,6 +304,7 @@ export function JoinUsForm({
           source,
           consents: [{ key: "newsletter", text: nlText, given: true, lang }],
           meta: Object.keys(meta).length ? meta : undefined,
+          custom: Object.keys(custom).length ? custom : undefined,
           requiredFields,
           formType: "join_us",
         },
