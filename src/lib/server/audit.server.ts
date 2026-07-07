@@ -29,7 +29,14 @@ export type AuditAction =
   | "redirect.create"
   | "redirect.update"
   | "redirect.delete"
-  | "redirect.import";
+  | "redirect.import"
+  | "media.update"
+  | "media.bulk_move"
+  | "media.bulk_delete"
+  | "media.duplicate"
+  | "media.folder_create"
+  | "media.folder_rename"
+  | "media.folder_delete";
 
 export async function recordAudit(
   supabase: SupabaseClient,
