@@ -481,36 +481,22 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Kolor tła">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={navBgColor}
-                onChange={(e) => setContent("navBgColor", e.target.value)}
-                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer"
-              />
-              <Input
-                value={navBgColor}
-                onChange={(e) => setContent("navBgColor", e.target.value)}
-                className="h-8 text-xs font-mono"
-                placeholder="#ffffff"
-              />
-            </div>
+            <AdminColorPicker
+              value={navBgColor}
+              onChange={(v) => setContent("navBgColor", v ?? "#ffffff")}
+              allowTransparent={false}
+              allowReset={false}
+              placeholder="#ffffff"
+            />
           </PropField>
           <PropField label="Kolor strzałki">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={navArrowColor}
-                onChange={(e) => setContent("navArrowColor", e.target.value)}
-                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer"
-              />
-              <Input
-                value={navArrowColor}
-                onChange={(e) => setContent("navArrowColor", e.target.value)}
-                className="h-8 text-xs font-mono"
-                placeholder="#ffffff"
-              />
-            </div>
+            <AdminColorPicker
+              value={navArrowColor}
+              onChange={(v) => setContent("navArrowColor", v ?? "#ffffff")}
+              allowTransparent={false}
+              allowReset={false}
+              placeholder="#ffffff"
+            />
           </PropField>
         </div>
         <PropField label="Styl tła przycisku">
