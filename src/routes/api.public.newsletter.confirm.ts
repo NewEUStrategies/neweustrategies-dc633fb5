@@ -11,7 +11,6 @@
 //   więc ponowne kliknięcie tego samego linku zwraca { already: true }
 //   zamiast błędu not_found.
 import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /** A confirmation token is 16-128 lowercase-hex chars. Exported for tests. */
 export function isValidConfirmToken(token: string | null): token is string {
@@ -68,6 +67,7 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
           return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
         }
 
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: sub, error } = await supabaseAdmin
           .from("newsletter_subscribers")
           .select("id, status, confirmation_expires_at")

@@ -7,7 +7,6 @@
 // other roles), mirroring /api/public/vitals.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 
 const VALID_SOURCES = new Set(["onerror", "unhandledrejection", "react_error_boundary"]);
@@ -52,6 +51,7 @@ export const Route = createFileRoute("/api/public/client-errors")({
 
           // `client_errors` is created by a migration not yet reflected in the
           // generated Supabase types, so the table name/payload are cast here.
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           await supabaseAdmin
             .from("client_errors" as never)
             .insert({ message, stack, source, path, meta } as never);

@@ -4,7 +4,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { resolveUserTenantId } from "./server/userTenant.server";

@@ -4,8 +4,6 @@
 //
 // Soft race-acceptable: under heavy concurrent load a few extra calls may slip
 // through. Adequate for abuse prevention; not for billing/quota enforcement.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
 interface CheckOpts {
   scope: string;
   subjectId: string;
@@ -19,6 +17,7 @@ export async function rateLimit({
   max,
   windowMinutes = 1,
 }: CheckOpts): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const bucketMs = windowMinutes * 60_000;
   const windowStart = new Date(Math.floor(Date.now() / bucketMs) * bucketMs).toISOString();
 
