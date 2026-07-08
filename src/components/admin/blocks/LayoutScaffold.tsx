@@ -256,14 +256,19 @@ function SideBySide({
   url,
   title,
   excerpt,
+  settings,
 }: {
   url?: string | null;
   title: string;
   excerpt?: string | null;
+  settings: PostLayoutSettings;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="grid lg:grid-cols-2 gap-4 items-center">
+    <div
+      className="grid lg:grid-cols-2 gap-4 items-center"
+      style={headerTypographyStyle(settings)}
+    >
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
         <ZoneTag
           label={t("admin.layoutScaffold.sideBySide.cover", { defaultValue: "Cover - side" })}
@@ -272,15 +277,18 @@ function SideBySide({
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
         <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
-        <p className="font-display text-xl md:text-2xl lg:text-3xl font-bold leading-[1.1]">
+        <p className="font-display header-title-typography font-bold leading-[1.1]">
           {title ||
             t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
-        {excerpt && <p className="text-sm md:text-base text-muted-foreground mt-2">{excerpt}</p>}
+        {excerpt && (
+          <p className="header-excerpt-typography text-muted-foreground mt-2">{excerpt}</p>
+        )}
       </div>
     </div>
   );
 }
+
 
 function FooterBars({ s }: { s: PostLayoutSettings }) {
   const { t } = useTranslation();
