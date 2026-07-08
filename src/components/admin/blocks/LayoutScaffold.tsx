@@ -40,6 +40,7 @@ function Cover({
   preset: LayoutPreset;
   ratio: number;
 }) {
+  const { t } = useTranslation();
   if (preset.cover === "none") return null;
   const aspect =
     preset.cover === "ratio"
@@ -57,13 +58,20 @@ function Cover({
         : "";
   return (
     <div className={`relative ${wrap}`}>
-      <ZoneTag label={`Cover · ${preset.cover}`} />
+      <ZoneTag
+        label={t("admin.layoutScaffold.cover.label", {
+          defaultValue: "Cover - {{variant}}",
+          variant: preset.cover,
+        })}
+      />
       <div className={`${ZONE} overflow-hidden`} style={{ aspectRatio: aspect }}>
         {url ? (
           <img src={url} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full grid place-items-center text-xs text-muted-foreground/70">
-            Brak cover · ustaw w panelu Szczegóły
+            {t("admin.layoutScaffold.cover.empty", {
+              defaultValue: "Brak cover - ustaw w panelu Szczegóły",
+            })}
           </div>
         )}
       </div>
