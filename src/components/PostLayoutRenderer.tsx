@@ -107,7 +107,7 @@ export function PostLayoutRenderer({
         ? { aspectRatio: `100 / ${ratioPct}` }
         : undefined;
     const heightClass = isFullBleed
-      ? "min-h-[380px] md:min-h-[480px] lg:min-h-[560px]"
+      ? ""
       : useRatio
         ? ""
         : "h-[50vh] md:h-[55vh] lg:h-[60vh] min-h-[320px] md:min-h-[400px] lg:min-h-[460px]";
