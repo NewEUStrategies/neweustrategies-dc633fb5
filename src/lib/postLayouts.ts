@@ -237,7 +237,24 @@ export interface PostLayoutSettings {
   auto_load_next_post: boolean;
   /** Nadpisania włączenia sidebara per preset (id-layoutu -> boolean). */
   layout_sidebar_overrides: Record<string, boolean>;
+  /** Typografia overlay (Layout 4/5/12) - rozmiar tytułu w px per breakpoint. */
+  overlay_title_size_base: number;
+  overlay_title_size_md: number;
+  overlay_title_size_lg: number;
+  /** Typografia overlay - rozmiar podtytułu (excerpt) w px per breakpoint. */
+  overlay_excerpt_size_base: number;
+  overlay_excerpt_size_md: number;
+  overlay_excerpt_size_lg: number;
+  /** Typografia klasycznego nagłówka (bez overlay) - rozmiar tytułu w px. */
+  header_title_size_base: number;
+  header_title_size_md: number;
+  header_title_size_lg: number;
+  /** Typografia klasycznego nagłówka - rozmiar podtytułu (excerpt) w px. */
+  header_excerpt_size_base: number;
+  header_excerpt_size_md: number;
+  header_excerpt_size_lg: number;
 }
+
 
 /** Zwraca efektywną wartość hasSidebar (override -> preset default). */
 export function effectiveHasSidebar(
