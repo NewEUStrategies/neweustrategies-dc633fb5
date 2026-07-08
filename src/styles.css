@@ -3001,3 +3001,50 @@ textarea::placeholder {
 .light :is([data-builder-renderer], [data-visual-canvas]) .gc-img-dark {
   display: none !important;
 }
+
+/* Post layout typography (steruje z admin.post-layouts).
+   Wartości px pochodzą z inline CSS-vars ustawianych przez renderer
+   (PostLayoutRenderer) oraz podgląd CMS (LayoutScaffold), które czytają je
+   z tabeli post_layout_settings przez usePostLayoutSettings(). Jedno źródło
+   prawdy = zmiana w panelu → identyczny efekt w publicznym rendererze i w
+   podglądzie edytora. Fallbacki odzwierciedlają obecne defaulty. */
+.overlay-title-typography {
+  font-size: var(--overlay-title-base, 24px);
+}
+.overlay-excerpt-typography {
+  font-size: var(--overlay-excerpt-base, 12px);
+}
+.header-title-typography {
+  font-size: var(--header-title-base, 30px);
+}
+.header-excerpt-typography {
+  font-size: var(--header-excerpt-base, 16px);
+}
+@media (min-width: 768px) {
+  .overlay-title-typography {
+    font-size: var(--overlay-title-md, 30px);
+  }
+  .overlay-excerpt-typography {
+    font-size: var(--overlay-excerpt-md, 14px);
+  }
+  .header-title-typography {
+    font-size: var(--header-title-md, 36px);
+  }
+  .header-excerpt-typography {
+    font-size: var(--header-excerpt-md, 18px);
+  }
+}
+@media (min-width: 1024px) {
+  .overlay-title-typography {
+    font-size: var(--overlay-title-lg, 36px);
+  }
+  .overlay-excerpt-typography {
+    font-size: var(--overlay-excerpt-lg, 16px);
+  }
+  .header-title-typography {
+    font-size: var(--header-title-lg, 48px);
+  }
+  .header-excerpt-typography {
+    font-size: var(--header-excerpt-lg, 18px);
+  }
+}
