@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
