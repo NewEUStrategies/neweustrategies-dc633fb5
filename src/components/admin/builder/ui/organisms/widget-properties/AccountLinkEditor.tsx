@@ -129,27 +129,27 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
           <PropField label="Tło panelu">
-            <Input
-              type="color"
-              className="h-8 w-full"
+            <AdminColorPicker
               value={readStr(c.panelBg) || "#ffffff"}
-              onChange={(e) => setContent("panelBg", e.target.value)}
+              onChange={(v) => setContent("panelBg", v ?? "#ffffff")}
+              allowTransparent={false}
+              allowReset={false}
             />
           </PropField>
           <PropField label="Kolor tekstu">
-            <Input
-              type="color"
-              className="h-8 w-full"
+            <AdminColorPicker
               value={readStr(c.panelText) || "#0f172a"}
-              onChange={(e) => setContent("panelText", e.target.value)}
+              onChange={(v) => setContent("panelText", v ?? "#0f172a")}
+              allowTransparent={false}
+              allowReset={false}
             />
           </PropField>
           <PropField label="Akcent (CTA)">
-            <Input
-              type="color"
-              className="h-8 w-full"
+            <AdminColorPicker
               value={readStr(c.panelAccent) || "#FA9346"}
-              onChange={(e) => setContent("panelAccent", e.target.value)}
+              onChange={(v) => setContent("panelAccent", v ?? "#FA9346")}
+              allowTransparent={false}
+              allowReset={false}
             />
           </PropField>
         </div>
