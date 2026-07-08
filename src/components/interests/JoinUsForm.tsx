@@ -933,10 +933,25 @@ export function JoinUsForm({
     return (
       <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
         {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
-        {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy */}
+        {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy.
+            aspectRatio + object-fit + object-position pozwalają operatorowi
+            CMS dopasować kadr do dowolnej kreacji (np. 16/9 dla banerów,
+            1/1 dla portretów) bez zmian w kodzie. */}
         <div
-          className="relative min-h-[220px] md:min-h-[380px] overflow-hidden"
-          style={!imageUrl ? { background: fallbackGradient } : undefined}
+          className={cn(
+            "relative overflow-hidden",
+            // Bez zdefiniowanego aspect-ratio zachowujemy dotychczasowe minima,
+            // żeby obraz zawsze wypełniał kolumnę obok formularza.
+            !imageAspect || imageAspect === "auto"
+              ? "min-h-[220px] md:min-h-[380px]"
+              : undefined,
+          )}
+          style={{
+            ...(imageAspect && imageAspect !== "auto"
+              ? { aspectRatio: imageAspect.replace("/", " / ") }
+              : null),
+            ...(!imageUrl ? { background: fallbackGradient } : null),
+          }}
         >
           {imageUrl && (
             <img
@@ -944,10 +959,14 @@ export function JoinUsForm({
               alt={altText}
               loading="lazy"
               decoding="async"
-              className="absolute inset-0 h-full w-full object-cover"
+              className={cn(
+                "absolute inset-0 h-full w-full",
+                imageFit === "contain" ? "object-contain" : "object-cover",
+              )}
               style={{ objectPosition: imagePosition }}
             />
           )}
+
           {overlayAlpha > 0 && (
             <div
               aria-hidden="true"
