@@ -2,6 +2,7 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { PropField } from "../../atoms";
 
 // Compact px-size stepper. Accepts/produces strings like "14px" / "1.5rem" / "".
