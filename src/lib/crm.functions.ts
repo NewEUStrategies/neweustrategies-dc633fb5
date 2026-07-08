@@ -215,7 +215,11 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
     ];
     const esc = (v: unknown): string => {
       if (v == null) return "";
-      const s = Array.isArray(v) ? v.join("|") : String(v);
+      const raw = Array.isArray(v) ? v.join("|") : String(v);
+      // Neutralize spreadsheet formula injection: a leading = + - @ (or tab/CR)
+      // makes Excel/Sheets execute attacker-supplied cell content when the admin
+      // opens the export. Prefix a single quote so the value renders literally.
+      const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [cols.join(",")];
@@ -500,7 +504,9 @@ export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
     const { lead, events } = await buildLeadTimeline(context, data.id);
     const esc = (v: unknown): string => {
       if (v == null) return "";
-      const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+      const raw = typeof v === "object" ? JSON.stringify(v) : String(v);
+      // Neutralize spreadsheet formula injection (leading = + - @ / tab / CR).
+      const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const cols = ["at", "type", "title", "detail", "meta"];

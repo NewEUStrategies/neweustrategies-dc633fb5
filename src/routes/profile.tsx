@@ -55,7 +55,7 @@ function ProfileLayout() {
     user?.email ||
     null;
   const initials = initialsFrom(user?.email, displayName);
-  const memberLabel = t("profile.overview.planNone", "Członek");
+  const memberLabel = t("profile.overview.memberLabel", "Członek");
 
   return (
     <AuthGate>

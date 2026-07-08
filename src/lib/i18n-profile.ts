@@ -21,6 +21,7 @@ const pl = {
     },
     overview: {
       welcome: "Witaj, {{name}}",
+      memberLabel: "Członek",
       memberSince: "Z nami od {{date}}",
       planActive: "Aktywny plan",
       planNone: "Brak aktywnej subskrypcji",
@@ -262,6 +263,7 @@ const en: typeof pl = {
     },
     overview: {
       welcome: "Welcome, {{name}}",
+      memberLabel: "Member",
       memberSince: "Member since {{date}}",
       planActive: "Active plan",
       planNone: "No active subscription",

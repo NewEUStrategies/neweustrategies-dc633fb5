@@ -143,5 +143,20 @@ export function isBlocksDoc(value: unknown): value is BlocksDoc {
 
 export function safeParseBlocks(value: unknown): BlocksDoc {
   const r = BlocksDocSchema.safeParse(value);
-  return r.success ? r.data : { version: 1, blocks: [] satisfies Block[] };
+  if (r.success) return r.data;
+  // Degrade gracefully: a single schema-invalid block must not blank the whole
+  // post body. Keep the blocks that validate individually and drop only the bad
+  // ones (e.g. an unknown/extra-keyed block authored on a newer deploy and then
+  // served after a rollback) instead of returning an empty document, which the
+  // renderer treats as "no content" and shows nothing.
+  const raw = value as { blocks?: unknown; meta?: unknown } | null;
+  if (raw && Array.isArray(raw.blocks)) {
+    const blocks: Block[] = [];
+    for (const b of raw.blocks) {
+      const parsed = BlockSchema.safeParse(b);
+      if (parsed.success) blocks.push(parsed.data as Block);
+    }
+    if (blocks.length) return { version: 1, blocks };
+  }
+  return { version: 1, blocks: [] satisfies Block[] };
 }

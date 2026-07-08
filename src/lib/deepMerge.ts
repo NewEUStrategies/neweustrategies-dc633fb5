@@ -14,6 +14,12 @@ export function deepMerge<T>(target: T, source: unknown): T {
   if (!isPlainObject(target) || !isPlainObject(source)) return target;
   const out: Plain = { ...(target as Plain) };
   for (const [k, v] of Object.entries(source)) {
+    // Guard against prototype pollution: a `source` parsed from stored JSON can
+    // carry an own "__proto__"/"constructor"/"prototype" key, and `out[k] = v`
+    // for "__proto__" invokes the prototype setter - corrupting `out` (its keys
+    // become inherited and vanish on JSON.stringify, and later merges no-op
+    // because it is no longer a plain object).
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
     const current = out[k];
     out[k] = isPlainObject(current) && isPlainObject(v) ? deepMerge(current, v) : v;
   }

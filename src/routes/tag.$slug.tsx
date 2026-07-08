@@ -47,7 +47,8 @@ function TagArchivePage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   if (!data) return <NotFound />;
   const { taxonomy, posts } = data;
-  const name = taxonomy.name_pl || taxonomy.name_en;
+  const name =
+    lang === "en" ? taxonomy.name_en || taxonomy.name_pl : taxonomy.name_pl || taxonomy.name_en;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">

@@ -38,8 +38,16 @@ export function periodEndFor(interval: PlanInterval | null | undefined, from: Da
     case "day":
       d.setDate(d.getDate() + 1);
       break;
-    default:
+    default: {
+      // Add one month without JS's month-end overflow (Jan 31 + 1 month must be
+      // Feb 28/29, not Mar 3). Clamp the day to the last valid day of the target
+      // month so a month-end signup doesn't over-grant a few days of access.
+      const day = d.getDate();
+      d.setDate(1);
       d.setMonth(d.getMonth() + 1);
+      const lastDayOfTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(day, lastDayOfTarget));
+    }
   }
   return d;
 }

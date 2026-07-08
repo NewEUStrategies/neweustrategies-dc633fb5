@@ -219,6 +219,8 @@ function AccountPage() {
     toast.success(t("profile.account.saved"));
     qc.invalidateQueries({ queryKey: ["header-profile", user.id] });
     qc.invalidateQueries({ queryKey: ["greeting", user.id] });
+    // Refresh the profile sidebar (name + initials), which reads its own query.
+    qc.invalidateQueries({ queryKey: ["profile-sidebar", user.id] });
   };
 
   return (

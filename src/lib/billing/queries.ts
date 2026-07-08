@@ -118,10 +118,16 @@ export async function fetchMySubscription(): Promise<UserSubscriptionRow | null>
     .eq("user_id", uid)
     .eq("status", "active")
     .order("started_at", { ascending: false })
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
-  if (!data) return null;
-  const row = data as Record<string, unknown>;
+  // Take the most recent active row rather than `.maybeSingle()`: a user can
+  // legitimately end up with more than one active subscription row (canceling
+  // keeps status='active' until period end, and a second purchase inserts a new
+  // row), and `.maybeSingle()` throws on >1 row - which blanked the whole
+  // subscription page and hid the cancel button for an actively paying user.
+  const row0 = Array.isArray(data) ? data[0] : data;
+  if (!row0) return null;
+  const row = row0 as Record<string, unknown>;
   const planRow = row.plan as Record<string, unknown> | null;
   return {
     id: String(row.id),

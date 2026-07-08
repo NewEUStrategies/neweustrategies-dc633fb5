@@ -248,6 +248,21 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       // request context unavailable - fine
     }
 
+    // Abuse guard: this public, unauthenticated endpoint sends a double-opt-in
+    // email to a caller-supplied address, so it can be used to bomb inboxes /
+    // burn the Resend quota (mirrors contact.functions.ts). Cap per client IP;
+    // fail open when the IP is unknown rather than blocking legitimate users.
+    if (clientIp) {
+      const { rateLimit } = await import("@/lib/server/rate-limit.server");
+      const allowed = await rateLimit({
+        scope: "newsletter.subscribe",
+        subjectId: clientIp,
+        max: 5,
+        windowMinutes: 10,
+      });
+      if (!allowed) return { ok: false, error: "rate_limited" };
+    }
+
     // `meta` is spread in only when present so a later signup (e.g. a plain form
     // over a popup entry) never clobbers previously captured fields with null.
     const base = {

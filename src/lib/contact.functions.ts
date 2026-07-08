@@ -384,6 +384,11 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       error?: string;
     } | null = null;
     if (data.newsletterOptIn) {
+      // Key the subscriber on the lowercased email, matching every other write
+      // path (newsletter.functions.ts, newsletter-admin). The DB's
+      // (tenant_id, lower(email)) unique index otherwise rejects a mixed-case
+      // opt-in as a duplicate and the raw Postgres error surfaced to the user.
+      const subscriberEmail = data.email.toLowerCase();
       const { data: nls } = await supabaseAdmin
         .from("newsletter_settings")
         .select("double_opt_in, enabled")
@@ -399,7 +404,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         .from("newsletter_subscribers")
         .select("id, status")
         .eq("tenant_id", inserted.tenant_id)
-        .eq("email", data.email)
+        .eq("email", subscriberEmail)
         .maybeSingle();
 
       if (existing?.status === "subscribed") {
@@ -409,7 +414,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         const expires = new Date(Date.now() + DOI_TTL_MS).toISOString();
         const { error: upErr } = await supabaseAdmin.from("newsletter_subscribers").upsert(
           {
-            email: data.email,
+            email: subscriberEmail,
             display_name: data.name,
             tenant_id: inserted.tenant_id,
             language: data.lang,
@@ -441,7 +446,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         // Single opt-in path
         const { error: upErr } = await supabaseAdmin.from("newsletter_subscribers").upsert(
           {
-            email: data.email,
+            email: subscriberEmail,
             display_name: data.name,
             tenant_id: inserted.tenant_id,
             language: data.lang,

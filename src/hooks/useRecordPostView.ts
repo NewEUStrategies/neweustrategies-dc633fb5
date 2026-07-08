@@ -10,20 +10,33 @@ import { useAuth } from "@/hooks/useAuth";
 export function useRecordPostView(postId: string | undefined | null, authorId?: string | null) {
   const record = useServerFn(recordPostView);
   const { user } = useAuth();
+
   const fired = useRef<string | null>(null);
+  // Read identity/callbacks through refs so the recording effect depends only on
+  // `postId`. Previously `user?.id` (and `record`/`authorId`) were in the deps:
+  // client auth resolves null->id shortly after mount, which tore down the
+  // pending 1.5s timer and re-ran the effect, where the `fired` guard early-
+  // returned WITHOUT rescheduling - so a signed-in user's view and read-history
+  // were never recorded on a hard page load (the common case).
+  const userIdRef = useRef<string | undefined>(undefined);
+  userIdRef.current = user?.id;
+  const authorIdRef = useRef<string | null | undefined>(authorId);
+  authorIdRef.current = authorId;
+  const recordRef = useRef(record);
+  recordRef.current = record;
 
   useEffect(() => {
     if (!postId || fired.current === postId) return;
     fired.current = postId;
     const viewerHash = getViewerHash();
-    const userId = user?.id;
-    // Don't let an author inflate their own post's public view count / trending
-    // rank by reloading it (best-effort; anon views still count as designed).
-    const isAuthor = !!userId && !!authorId && userId === authorId;
     // 1.5 s delay - filters out instant back/forward navigation.
     const t = window.setTimeout(() => {
+      const userId = userIdRef.current;
+      // Don't let an author inflate their own post's public view count / trending
+      // rank by reloading it (best-effort; anon views still count as designed).
+      const isAuthor = !!userId && !!authorIdRef.current && userId === authorIdRef.current;
       if (!isAuthor) {
-        record({ data: { postId, viewerHash } }).catch(() => {
+        recordRef.current({ data: { postId, viewerHash } }).catch(() => {
           /* silent: view counts are best-effort */
         });
       }
@@ -44,5 +57,5 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
       }
     }, 1500);
     return () => window.clearTimeout(t);
-  }, [postId, authorId, record, user?.id]);
+  }, [postId]);
 }
