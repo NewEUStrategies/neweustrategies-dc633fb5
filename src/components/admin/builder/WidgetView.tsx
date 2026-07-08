@@ -834,6 +834,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const rawOverlay = getNum(c, "imageOverlay", -1);
       const imageOverlay = rawOverlay >= 0 && rawOverlay <= 100 ? rawOverlay : undefined;
       const imagePosition = getStr(c, "imagePosition") || undefined;
+      const imageAspect = getStr(c, "imageAspect") || undefined;
+      const rawFit = getStr(c, "imageFit");
+      const imageFit = rawFit === "contain" ? "contain" : rawFit === "cover" ? "cover" : undefined;
+
 
       const isOn = (k: string) => getStr(c, k) === "1";
       const customFields = parseCustomFields(c.customFields);
@@ -846,6 +850,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           imageGradient={imageGradient}
           imageOverlay={imageOverlay}
           imagePosition={imagePosition}
+          imageAspect={imageAspect}
+          imageFit={imageFit}
+
           showInterests={showInterests}
           interestsDisplay={interestsDisplay}
 
