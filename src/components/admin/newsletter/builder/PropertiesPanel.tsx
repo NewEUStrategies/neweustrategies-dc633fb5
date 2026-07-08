@@ -581,7 +581,7 @@ function ColorInput({
     </div>
   );
 }
-}
+
 
 function WidgetProps({
   selected,
