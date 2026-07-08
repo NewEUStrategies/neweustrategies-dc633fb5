@@ -697,9 +697,14 @@ function CenteredHero({
         {coverUrl ? (
           <img src={coverUrl} alt="" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-            <ImageIcon className="mr-1.5 h-4 w-4" aria-hidden />
-            {t("profile.account.coverPlaceholder")}
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
+            <div className="inline-flex items-center">
+              <ImageIcon className="mr-1.5 h-4 w-4" aria-hidden />
+              {t("profile.account.coverPlaceholder")}
+            </div>
+            <span className="text-[10px] text-muted-foreground/70">
+              {lang === "pl" ? "Zalecane: 1600 × 400 px (4:1), JPG/PNG, do 5 MB" : "Recommended: 1600 × 400 px (4:1), JPG/PNG, up to 5 MB"}
+            </span>
           </div>
         )}
 
