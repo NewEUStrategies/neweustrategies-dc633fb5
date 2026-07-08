@@ -342,6 +342,7 @@ export function LayoutScaffold({
   coverImageUrl,
   children,
 }: Props) {
+  const { t } = useTranslation();
   const preset = findLayout(format, layoutId);
   const ratio = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : 56;
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
@@ -378,7 +379,12 @@ export function LayoutScaffold({
 
   const contentZone = (
     <div className={`relative pt-6 ${ZONE} p-4 mt-4`}>
-      <ZoneTag label={`Treść · max ${contentMaxW}px`} />
+      <ZoneTag
+        label={t("admin.layoutScaffold.content.label", {
+          defaultValue: "Treść - max {{max}}px",
+          max: contentMaxW,
+        })}
+      />
       <div style={{ maxWidth: `${contentMaxW}px` }} className="w-full mx-auto">
         {children}
       </div>
@@ -388,13 +394,35 @@ export function LayoutScaffold({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground border-b border-border pb-2">
-        <span className="font-semibold text-foreground/80">Podgląd layoutu:</span>
+        <span className="font-semibold text-foreground/80">
+          {t("admin.layoutScaffold.summary.title", { defaultValue: "Podgląd layoutu:" })}
+        </span>
         <span className="px-1.5 py-0.5 rounded bg-muted/60">{preset.label}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60">format: {format}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60">header: {preset.header}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60">cover: {preset.cover}</span>
-        {preset.hasSidebar && <span className="px-1.5 py-0.5 rounded bg-brand/20">+ sidebar</span>}
+        <span className="px-1.5 py-0.5 rounded bg-muted/60">
+          {t("admin.layoutScaffold.summary.format", {
+            defaultValue: "format: {{value}}",
+            value: format,
+          })}
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-muted/60">
+          {t("admin.layoutScaffold.summary.header", {
+            defaultValue: "header: {{value}}",
+            value: preset.header,
+          })}
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-muted/60">
+          {t("admin.layoutScaffold.summary.cover", {
+            defaultValue: "cover: {{value}}",
+            value: preset.cover,
+          })}
+        </span>
+        {preset.hasSidebar && (
+          <span className="px-1.5 py-0.5 rounded bg-brand/20">
+            {t("admin.layoutScaffold.summary.sidebar", { defaultValue: "+ sidebar" })}
+          </span>
+        )}
       </div>
+
 
       {topZone}
 
