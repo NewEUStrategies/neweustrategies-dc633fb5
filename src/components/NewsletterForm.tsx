@@ -243,7 +243,7 @@ export function NewsletterForm({
             <>
               <div className="grid sm:grid-cols-2 gap-2">
                 {showFirstName && (
-                  <FieldWrap label={L.firstName} required={requireFirstName} error={errors.firstName}>
+                  <FieldWrap label={L.firstName} required={requireFirstName} showMark={inBuilder} error={errors.firstName}>
                     <input
                       type="text"
                       value={firstName}
@@ -252,11 +252,12 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={100}
                       required={requireFirstName}
+                      aria-required={requireFirstName || undefined}
                     />
                   </FieldWrap>
                 )}
                 {showLastName && (
-                  <FieldWrap label={L.lastName} required={requireLastName} error={errors.lastName}>
+                  <FieldWrap label={L.lastName} required={requireLastName} showMark={inBuilder} error={errors.lastName}>
                     <input
                       type="text"
                       value={lastName}
@@ -265,11 +266,12 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={100}
                       required={requireLastName}
+                      aria-required={requireLastName || undefined}
                     />
                   </FieldWrap>
                 )}
                 {showCompany && (
-                  <FieldWrap label={L.company} required={requireCompany} error={errors.company}>
+                  <FieldWrap label={L.company} required={requireCompany} showMark={inBuilder} error={errors.company}>
                     <input
                       type="text"
                       value={company}
@@ -278,13 +280,15 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={200}
                       required={requireCompany}
+                      aria-required={requireCompany || undefined}
                     />
                   </FieldWrap>
                 )}
-                <FieldWrap label={L.email} required={requireEmail} error={errors.email}>
+                <FieldWrap label={L.email} required={requireEmail} showMark={inBuilder} error={errors.email}>
                   <input
                     type="email"
                     required={requireEmail}
+                    aria-required={requireEmail || undefined}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={P.email}
@@ -293,9 +297,10 @@ export function NewsletterForm({
                   />
                 </FieldWrap>
                 {customFields.map((f) => (
-                  <CustomFieldRender key={f.id} field={f} lang={lang} err={errors[f.id]} inputCls={inputCls} />
+                  <CustomFieldRender key={f.id} field={f} lang={lang} err={errors[f.id]} inputCls={inputCls} showMark={inBuilder} />
                 ))}
               </div>
+
               <button
                 type="submit"
                 disabled={state === "loading"}
