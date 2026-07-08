@@ -62,7 +62,16 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
           ...((widget.settings as Partial<ReadingPanelSettings>)?.social ?? {}),
         },
       };
-      return <FloatingShareBar title={postTitle} lang={lang} variant="sidebar" settings={cfg} />;
+      return (
+        <FloatingShareBar
+          title={postTitle}
+          entityId={postId}
+          entityType="post"
+          lang={lang}
+          variant="sidebar"
+          settings={cfg}
+        />
+      );
     }
     case "tags": {
       if (!tags || tags.length === 0) return null;

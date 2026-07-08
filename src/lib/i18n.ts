@@ -24,8 +24,31 @@ const STORAGE_KEY = "lovable.lang";
  */
 export async function syncI18nToRequest(): Promise<AppLang> {
   const lang = currentLang();
-  if (i18n.language !== lang) await i18n.changeLanguage(lang);
+  // Mutating the shared singleton is safe only on the client (one user per
+  // runtime). On the server this instance is shared across every concurrent
+  // request, so a changeLanguage here races with another request's render and
+  // can emit the wrong language into an edge-cached document. On the server the
+  // per-request render clone (getRenderI18n) carries the language instead.
+  if (typeof window !== "undefined" && i18n.language !== lang) {
+    await i18n.changeLanguage(lang);
+  }
   return lang;
+}
+
+/**
+ * The i18next instance a render should use.
+ *
+ * - Client: the shared singleton (one user per runtime; keeps the language
+ *   switcher, cookie sync and `changeLanguage` working).
+ * - Server: a fresh per-request clone seeded to the request language. The clone
+ *   shares the singleton's resource store by reference (i18next `cloneInstance`
+ *   without `forkResourceStore`), so every base + overlay bundle is present and
+ *   no translations go missing - but its `language` is isolated, so concurrent
+ *   requests of different languages can no longer bleed into each other.
+ */
+export function getRenderI18n(): typeof i18n {
+  if (typeof window !== "undefined") return i18n;
+  return i18n.cloneInstance({ lng: currentLang() });
 }
 
 if (!i18n.isInitialized) {

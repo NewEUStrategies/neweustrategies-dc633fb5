@@ -7,7 +7,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, type ReactNode } from "react";
+import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
 // Fingerprinted by Vite to the SAME emitted file the @font-face in styles.css
@@ -18,7 +19,7 @@ import { fontPreloadLinks } from "../lib/seo/fontPreload";
 import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
 import { getOrigin } from "../lib/seo/request";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { syncI18nToRequest } from "../lib/i18n";
+import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { currentLang } from "../lib/i18n/localeRuntime";
 import "../lib/i18n-profile";
 import { ThemeProvider } from "../components/ThemeProvider";
@@ -252,34 +253,41 @@ function RootComponent() {
     void import("../lib/observability").then((m) => m.initObservability());
   }, []);
 
+  // Per-request i18next instance on the server (isolates the render language
+  // from concurrent requests); the shared singleton on the client. Rendered
+  // once per request on the server, so a mount-stable memo is correct.
+  const renderI18n = useMemo(() => getRenderI18n(), []);
+
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <LocalePreferenceRedirect />
-        <IconPackSync />
-        <WidgetLiveSync />
-        <SiteSettingsLiveSync />
-        <DesignTokensStyle />
-        <ContentAreaStyle />
-        <ThemeOptionsStyle />
-        <ThemeDesignStyle />
-        <ErrorBoundary>
-          <SiteChrome>
-            <Suspense fallback={<RouteLoadingSkeleton />}>
-              <Outlet />
-            </Suspense>
-          </SiteChrome>
-        </ErrorBoundary>
-        <ConsentBanner />
-        <Suspense fallback={null}>
-          <LoginPopup />
-          <NewsletterPopup />
-          <PopupHost />
-          <CommandPalette />
-        </Suspense>
-        <UnsavedChangesGuardHost />
-        <Toaster />
-      </AuthProvider>
-    </ThemeProvider>
+    <I18nextProvider i18n={renderI18n}>
+      <ThemeProvider>
+        <AuthProvider>
+          <LocalePreferenceRedirect />
+          <IconPackSync />
+          <WidgetLiveSync />
+          <SiteSettingsLiveSync />
+          <DesignTokensStyle />
+          <ContentAreaStyle />
+          <ThemeOptionsStyle />
+          <ThemeDesignStyle />
+          <ErrorBoundary>
+            <SiteChrome>
+              <Suspense fallback={<RouteLoadingSkeleton />}>
+                <Outlet />
+              </Suspense>
+            </SiteChrome>
+          </ErrorBoundary>
+          <ConsentBanner />
+          <Suspense fallback={null}>
+            <LoginPopup />
+            <NewsletterPopup />
+            <PopupHost />
+            <CommandPalette />
+          </Suspense>
+          <UnsavedChangesGuardHost />
+          <Toaster />
+        </AuthProvider>
+      </ThemeProvider>
+    </I18nextProvider>
   );
 }
