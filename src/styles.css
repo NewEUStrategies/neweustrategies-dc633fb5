@@ -212,6 +212,23 @@
   transition: none !important;
 }
 
+/* Overlay hero title/excerpt inherit typografię z globalnych tokenów Theme Design
+   (rodzina, waga, tracking, line-height). Rozmiar zostaje z utility (text-3xl…5xl
+   / text-base…lg), bo to hero, nie karta-widgetu. Podwojony selektor podnosi
+   specyficzność ponad Tailwind utilities. */
+.overlay-meta-card .overlay-meta-title.overlay-meta-title {
+  font-family: var(--td-pt-family, "Red Hat Display", system-ui, sans-serif);
+  font-weight: var(--td-pt-weight, 700);
+  line-height: var(--td-pt-lh, 1.15);
+  letter-spacing: var(--td-pt-spacing, 0);
+  text-transform: var(--td-pt-transform, none);
+}
+.overlay-meta-card .overlay-meta-description.overlay-meta-description {
+  font-family: var(--td-pe-family, "Red Hat Display", system-ui, sans-serif);
+  font-weight: var(--td-pe-weight, 400);
+  line-height: var(--td-pe-lh, 1.5);
+}
+
 .overlay-meta-card a,
 .overlay-meta-card a:hover,
 .overlay-meta-card a:focus,
