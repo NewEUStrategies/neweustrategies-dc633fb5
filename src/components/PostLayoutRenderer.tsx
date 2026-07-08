@@ -94,35 +94,43 @@ export function PostLayoutRenderer({
     </div>
   );
 
-  // Wrapper dla cover + overlay. Dostosowuje wysokość / aspect-ratio wg presetu.
+  // Wrapper dla cover + overlay. Full-bleed używa filmowego kadru 16/8
+  // (jak w podglądzie edytora) - nie 70vh, żeby cover nie zajmował całego
+  // ekranu i tytuł/subtytuł/meta trafiały w wyraźny dolny pas nakładki.
   const coverWithOverlay = (extraWrapClass = "") => {
     if (!coverImageUrl) return null;
     const isFullBleed = preset.cover === "full-bleed";
     const useRatio = preset.cover === "ratio" && ratioPct;
+    const aspectStyle = isFullBleed
+      ? { aspectRatio: "16 / 8" as const }
+      : useRatio
+        ? { aspectRatio: `100 / ${ratioPct}` }
+        : undefined;
     const heightClass = isFullBleed
-      ? "h-[60vh] md:h-[70vh] lg:h-[78vh] min-h-[420px] md:min-h-[520px] lg:min-h-[600px]"
+      ? "min-h-[380px] md:min-h-[480px] lg:min-h-[560px]"
       : useRatio
         ? ""
         : "h-[50vh] md:h-[55vh] lg:h-[60vh] min-h-[320px] md:min-h-[400px] lg:min-h-[460px]";
-    const style = useRatio ? { aspectRatio: `100 / ${ratioPct}` } : undefined;
     return (
       <div className={`relative ${isFullBleed ? "-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}>
         <div className="relative mb-8">
           <div
-            className={`relative ${heightClass} ${isFullBleed ? "" : "rounded-lg"} overflow-hidden`}
-            style={style}
+            className={`relative ${heightClass} ${isFullBleed ? "" : "rounded-lg"} overflow-hidden bg-neutral-900`}
+            style={aspectStyle}
           >
             <OptimizedImage
               src={coverImageUrl}
               alt={title}
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover opacity-80"
               priority
               responsive
               sizes={coverImageSizes(preset)}
             />
-            {/* Ciemny gradient - zapewnia czytelność tytułu/excerptu na dowolnym zdjęciu */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-black/85" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.45)_75%)]" />
+            {/* Ciemna nakładka - taka sama recepta jak w podglądzie edytora
+                (gradient + radial vignetta), żeby tytuł/excerpt były czytelne
+                niezależnie od zdjęcia. */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]" />
             {overlayMetaCard}
           </div>
         </div>
