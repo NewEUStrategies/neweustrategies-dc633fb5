@@ -137,11 +137,11 @@ function CategoryColorsPage() {
   };
 
   return (
-    <div className="max-w-4xl">
-      <header className="flex items-start justify-between gap-3 mb-4">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="font-display text-2xl font-bold">{t("admin.categoryColors.title")}</h1>
-          <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+          <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
             {t("admin.categoryColors.subtitle")}
           </p>
         </div>
@@ -155,84 +155,92 @@ function CategoryColorsPage() {
             {t("admin.categoryColors.save")}
           </Button>
         </div>
-      </header>
+      </div>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/30 text-[10px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="text-left p-3 w-[140px]">
-                {t("admin.categoryColors.column.preview")}
-              </th>
-              <th className="text-left p-3">{t("admin.categoryColors.column.name")}</th>
-              <th className="text-left p-3 w-[220px]">{t("admin.categoryColors.column.slug")}</th>
-              <th className="text-left p-3 w-[260px]">{t("admin.categoryColors.column.color")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ordered.map((r) => {
-              const c = colorFor(r);
-              const label = lang === "en" ? r.name_en || r.name_pl : r.name_pl || r.name_en;
-              const recommended = recommendedFor(r.slug);
-              const dirty =
-                draft[r.slug] && draft[r.slug].toLowerCase() !== (r.color ?? "").toLowerCase();
-              return (
-                <tr key={r.id} className="border-t border-border">
-                  <td className="p-3">
-                    <span
-                      className="inline-flex items-center rounded-sm px-3 py-1 text-[11px] font-semibold uppercase tracking-wide shadow-sm"
-                      style={{ backgroundColor: c, color: pickText(c) }}
-                    >
-                      {label}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="font-medium">{r.name_pl}</div>
-                    <div className="text-xs text-muted-foreground">{r.name_en}</div>
-                  </td>
-                  <td className="p-3 text-xs text-muted-foreground">{r.slug}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        aria-label={t("admin.categoryColors.column.color")}
-                        value={c}
-                        onChange={(e) => setColor(r.slug, e.target.value)}
-                        className="h-8 w-10 rounded border border-input bg-background cursor-pointer p-0"
-                      />
-                      <Input
-                        value={c}
-                        onChange={(e) => setColor(r.slug, e.target.value)}
-                        className="h-8 w-[100px] font-mono text-xs uppercase"
-                        maxLength={7}
-                      />
-                      {recommended && recommended.toLowerCase() !== c.toLowerCase() && (
-                        <button
-                          type="button"
-                          onClick={() => setColor(r.slug, recommended)}
-                          className="text-[10px] underline text-muted-foreground hover:text-foreground"
-                          title={recommended}
-                        >
-                          {t("admin.categoryColors.reset")}
-                        </button>
-                      )}
-                      {dirty && (
-                        <span className="text-[10px] text-brand font-semibold uppercase">●</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {!ordered.length && (
+        {!ordered.length ? (
+          <div className="p-10 text-center text-muted-foreground text-sm">
+            {t("admin.empty")}
+          </div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
               <tr>
-                <td colSpan={4} className="p-10 text-center text-muted-foreground text-sm">
-                  -
-                </td>
+                <th className="text-left p-2 w-[140px]">
+                  {t("admin.categoryColors.column.preview")}
+                </th>
+                <th className="text-left p-2">{t("admin.categoryColors.column.name")}</th>
+                <th className="text-left p-2 w-[200px]">
+                  {t("admin.categoryColors.column.slug")}
+                </th>
+                <th className="text-left p-2 w-[260px]">
+                  {t("admin.categoryColors.column.color")}
+                </th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {ordered.map((r) => {
+                const c = colorFor(r);
+                const label = lang === "en" ? r.name_en || r.name_pl : r.name_pl || r.name_en;
+                const recommended = recommendedFor(r.slug);
+                const dirty =
+                  draft[r.slug] && draft[r.slug].toLowerCase() !== (r.color ?? "").toLowerCase();
+                return (
+                  <tr key={r.id} className="border-t border-border hover:bg-muted/20">
+                    <td className="p-2">
+                      <span
+                        className="inline-flex items-center rounded-sm px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide shadow-sm"
+                        style={{ backgroundColor: c, color: pickText(c) }}
+                      >
+                        {label}
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      <div className="font-medium text-[13px]">{r.name_pl}</div>
+                      <div className="text-[11px] text-muted-foreground">{r.name_en}</div>
+                    </td>
+                    <td
+                      className="p-2 text-[11px] text-muted-foreground truncate max-w-[200px]"
+                      title={r.slug}
+                    >
+                      {r.slug}
+                    </td>
+                    <td className="p-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          aria-label={t("admin.categoryColors.column.color")}
+                          value={c}
+                          onChange={(e) => setColor(r.slug, e.target.value)}
+                          className="h-8 w-10 rounded border border-input bg-background cursor-pointer p-0"
+                        />
+                        <Input
+                          value={c}
+                          onChange={(e) => setColor(r.slug, e.target.value)}
+                          className="h-8 w-[100px] font-mono text-xs uppercase"
+                          maxLength={7}
+                        />
+                        {recommended && recommended.toLowerCase() !== c.toLowerCase() && (
+                          <button
+                            type="button"
+                            onClick={() => setColor(r.slug, recommended)}
+                            className="text-[10px] underline text-muted-foreground hover:text-foreground"
+                            title={recommended}
+                          >
+                            {t("admin.categoryColors.reset")}
+                          </button>
+                        )}
+                        {dirty && (
+                          <span className="text-[10px] text-brand font-semibold uppercase">●</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
