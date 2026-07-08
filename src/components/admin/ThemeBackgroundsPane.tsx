@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Sun, Moon, Save, Undo } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { hardenStyleCss } from "@/lib/sanitize";
