@@ -36,49 +36,20 @@ function ColorField({
   onChange: (v: string) => void;
 }) {
   const effective = value || defaultValue || "#ffffff";
-  const transparent = isTransparent(value);
   return (
     <div className="space-y-1.5">
       <Label className="text-xs flex items-center gap-1.5 text-muted-foreground">
         {icon}
         {label}
       </Label>
-      <div className="flex items-center gap-2">
-        <div
-          className="h-9 w-12 rounded border border-border overflow-hidden relative shrink-0"
-          style={{
-            backgroundImage:
-              "linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)",
-            backgroundSize: "8px 8px",
-            backgroundPosition: "0 0, 0 4px, 4px -4px, -4px 0",
-          }}
-        >
-          <input
-            type="color"
-            value={isHex(effective) ? effective : "#ffffff"}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 w-full h-full cursor-pointer opacity-100"
-            style={{ opacity: transparent ? 0.2 : 1 }}
-            aria-label={`${label} - color picker`}
-          />
-        </div>
-        <Input
-          value={value}
-          placeholder={defaultValue ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          className="font-mono text-xs h-9"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant={transparent ? "default" : "outline"}
-          onClick={() => onChange(transparent ? (defaultValue ?? "") : "transparent")}
-          className="h-9 px-2 text-[11px] shrink-0"
-          title="Przezroczyste tło"
-        >
-          {transparent ? "✓ " : ""}Przezroczyste
-        </Button>
-      </div>
+      <AdminColorPicker
+        value={value}
+        onChange={(v) => onChange(v ?? "")}
+        inheritedValue={defaultValue}
+        allowTransparent={true}
+        allowReset={true}
+        ariaLabel={label}
+      />
     </div>
   );
 }
