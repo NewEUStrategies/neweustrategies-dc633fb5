@@ -50,6 +50,13 @@ export interface BrandIconProps extends SVGAttributes<SVGSVGElement> {
   className?: string;
   /** Etykieta dostępności. */
   alt?: string;
+  /**
+   * Pomija ikony marki z biblioteki i zawsze renderuje Lucide fallback,
+   * dzięki czemu ikona dziedziczy `currentColor` i poprawnie adaptuje się do
+   * trybu jasnego / ciemnego. Używaj tam, gdzie ikona pełni rolę czysto
+   * dekoracyjną (np. wiersze kontaktu w profilu), a nie brandu.
+   */
+  neutral?: boolean;
 }
 
 /**
