@@ -633,8 +633,26 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     );
   }
 
-  // Pages: pick template (default/full_width/landing/archive_listing/contact).
+  // Pages authored in the CMS builder are self-contained (hero, sections,
+  // own headings, own container widths). Render them bare and full width so
+  // the published page matches the builder canvas 1:1 - no auto-injected
+  // max-w wrapper, breadcrumbs, ads, or duplicate H1 above the document.
   const page = it as PageData;
+  if (it.editor === "builder") {
+    return (
+      <div
+        className="flex flex-col bg-background text-foreground"
+        data-page-template="builder"
+        data-page-header-override={page.header_override ?? "default"}
+      >
+        <h1 className="sr-only">{title}</h1>
+        <main className="flex-1 w-full">{contentBlock}</main>
+        <FooterSlideup pageType={adPageType} pageId={it.id} />
+      </div>
+    );
+  }
+
+  // Pages: pick template (default/full_width/landing/archive_listing/contact).
   const tpl = findPageTemplate(page.template_type ?? "default");
   const pageMaxW = tpl.fullWidth ? "max-w-none" : "max-w-[1200px]";
   const parentPath = data.crumbs
