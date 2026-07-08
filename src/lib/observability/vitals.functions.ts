@@ -10,6 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 import {
   aggregateVitals,
   trendsFromDailyP75,
@@ -62,6 +63,10 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     // hasn't been applied to this database yet): the dashboard shows "no data"
     // instead of returning a 500. Auth/admin failures above still throw.
     try {
+      // Scope every read to the caller's own tenant so one workspace's admin
+      // never sees another workspace's RUM data / URL paths.
+      const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
+
       // `web_vitals` is created by a migration not yet reflected in the generated
       // Supabase types, so the table name/row shape are cast here (mirrors the
       // ingest route in src/routes/api/public/vitals.ts).
@@ -70,12 +75,14 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       const { count: windowCount, error: countErr } = await supabaseAdmin
         .from("web_vitals" as never)
         .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
         .gte("created_at", since);
       if (countErr) throw new Error(countErr.message);
 
       const { data: rows, error } = await supabaseAdmin
         .from("web_vitals" as never)
         .select("metric, value, rating, path, created_at")
+        .eq("tenant_id", tenantId)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(SAMPLE_CAP);
@@ -94,7 +101,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       try {
         const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
           "web_vitals_daily_p75" as never,
-          { p_since: since } as never,
+          { p_since: since, p_tenant: tenantId } as never,
         );
         if (!trendErr && Array.isArray(trendRows)) {
           trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
