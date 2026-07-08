@@ -206,6 +206,16 @@ function precomputeFootnotes(
     } else if (b.type === "columns") {
       precomputeFootnotes(readBlocksArray(b.data.left), fn, out);
       precomputeFootnotes(readBlocksArray(b.data.right), fn, out);
+    } else if (
+      b.type === "group" ||
+      b.type === "row" ||
+      b.type === "stack" ||
+      b.type === "grid"
+    ) {
+      // These containers nest their children under `data.children`; walk them
+      // too or footnotes inside a grouped paragraph render as literal shortcodes
+      // and drop out of the notes section (BlockView at case "group"/"row"/…).
+      precomputeFootnotes(readBlocksArray(b.data.children), fn, out);
     }
   }
 }

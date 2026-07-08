@@ -400,7 +400,7 @@ export function MorePostsView({
         {posts.map((p) => {
           const title =
             (lang === "pl" ? p.title_pl : p.title_en) ?? p.title_pl ?? p.title_en ?? p.slug;
-          const href = `/${p.slug}`;
+          const href = `/post/${p.slug}`;
           return (
             <li key={p.id}>
               <AppLink href={href} className="group block">

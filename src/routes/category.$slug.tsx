@@ -60,7 +60,10 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
   const { taxonomy, posts } = data;
   const name =
     lang === "en" ? taxonomy.name_en || taxonomy.name_pl : taxonomy.name_pl || taxonomy.name_en;
-  const description = lang === "en" ? taxonomy.description_en : taxonomy.description_pl;
+  const description =
+    lang === "en"
+      ? taxonomy.description_en || taxonomy.description_pl
+      : taxonomy.description_pl || taxonomy.description_en;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Consent {
   key?: string;
@@ -122,7 +123,7 @@ export function SubscriberDetailDialog({
                       {c.text && (
                         <div
                           className="text-muted-foreground [&_a]:underline"
-                          dangerouslySetInnerHTML={{ __html: c.text }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(c.text) }}
                         />
                       )}
                       {c.at && (

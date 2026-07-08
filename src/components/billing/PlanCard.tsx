@@ -24,7 +24,7 @@ function intervalLabel(interval: AccessPlan["interval"], t: (key: string) => str
       return t("pricing.perMonth");
     case "year":
       return t("pricing.perYear");
-    case "once":
+    case "one_time":
       return t("pricing.perOnce");
   }
 }

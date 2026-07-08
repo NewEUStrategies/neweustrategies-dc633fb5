@@ -130,7 +130,7 @@ function gridClass(cols: number) {
 }
 
 function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" }) {
-  const { data: bookmarks } = useBookmarks();
+  const { data: bookmarks, isLoading } = useBookmarks();
   const postIds = (bookmarks ?? []).filter((b) => b.entity_type === "post").map((b) => b.entity_id);
   const { data: posts } = useQuery({
     queryKey: ["saved-posts", postIds.join(",")],
@@ -148,6 +148,7 @@ function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" })
       return data as PostRow[];
     },
   });
+  if (isLoading) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
   if (postIds.length === 0)
     return <EmptyState text="Nie masz jeszcze żadnych zapisanych artykułów." />;
   if (!posts) return <p className="text-center text-muted-foreground">Ładowanie…</p>;

@@ -1,6 +1,9 @@
 // Domain types for billing/checkout module. Strict - no any.
 
-type PlanInterval = "day" | "week" | "month" | "year" | "once";
+// Must match the DB enum `plan_interval` ("month" | "year" | "one_time"); day/week
+// are legacy-tolerant extras. The value stored for a one-time plan is "one_time"
+// (not "once"), so comparisons/labels must use that spelling.
+type PlanInterval = "day" | "week" | "month" | "year" | "one_time";
 
 export interface AccessPlan {
   id: string;

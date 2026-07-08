@@ -176,7 +176,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
 
     const { data: settings } = await supabaseAdmin
       .from("newsletter_settings")
-      .select("tenant_id, enabled, double_opt_in")
+      .select("tenant_id, enabled, double_opt_in, sender_name, sender_email")
       .eq("tenant_id", hostTenantId)
       .maybeSingle();
     if (!settings?.tenant_id) return { ok: false, error: "not_configured" };
@@ -300,7 +300,13 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // zlokalizowany komunikat, a strona woła endpoint JSON w tle.
     const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl);
-    const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html });
+    // Use the tenant's configured sender when set; otherwise sendEmail() falls
+    // back to the shared Resend onboarding address.
+    const senderEmail = settings.sender_email?.trim();
+    const from = senderEmail
+      ? `${settings.sender_name?.trim() || "New European Strategies"} <${senderEmail}>`
+      : undefined;
+    const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html, from });
     await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
     return { ok: true, status: "pending", emailSent: send.ok };
   });

@@ -150,7 +150,7 @@ export function NewsletterPopupForm({
     if (ext) {
       if (v.name.trim()) meta.first_name = v.name.trim();
       if (v.surname.trim()) meta.last_name = v.surname.trim();
-      if (v.job.trim()) meta.job_position = v.job.trim();
+      if (v.job.trim()) meta.position = v.job.trim();
       if (v.company.trim()) meta.company = v.company.trim();
       if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
       if (v.phone.trim()) meta.phone = v.phone.trim();

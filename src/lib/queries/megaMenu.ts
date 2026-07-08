@@ -51,7 +51,10 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
         .eq("category_id", cat.id as string)
         .limit(limit * 4);
       const ids = (pivot ?? []).map((r) => r.post_id as string);
-      const catName = pickLang(cat.name_pl as string | null, cat.name_en as string | null);
+      const catName =
+        lang === "en"
+          ? pickLang(cat.name_en as string | null, cat.name_pl as string | null)
+          : pickLang(cat.name_pl as string | null, cat.name_en as string | null);
       if (ids.length === 0) return { posts: [], catName };
       const { data: posts } = await supabase
         .from("posts")
