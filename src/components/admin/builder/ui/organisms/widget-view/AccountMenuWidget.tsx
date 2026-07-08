@@ -284,7 +284,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const trigger = session ? (
     <button
       type="button"
-      className="inline-flex h-8 items-center gap-2 rounded-full pl-1 pr-3 text-xs font-medium hover:bg-muted/60 transition-colors"
+      className="inline-flex h-8 items-center gap-2 rounded-full pl-1 pr-3 text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
       aria-label={displayName || "Account"}
       title={triggerLabel}
     >
@@ -299,7 +299,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   ) : (
     <button
       type="button"
-      className="inline-flex h-7 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80"
+      className="inline-flex h-7 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
       aria-label={`${signInLabel} / ${signUpLabel}`}
     >
       <LucideIcons.LogIn className="w-3.5 h-3.5" />
