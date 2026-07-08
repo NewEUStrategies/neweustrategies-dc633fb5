@@ -2,6 +2,7 @@
 // klasy `.post-content` na publicznym widoku. Komponent montowany raz w
 // `__root.tsx`, podobnie jak <DesignTokensStyle/>.
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { hardenStyleCss } from "@/lib/sanitize";
 
 function num(px: number | null | undefined, fallback: string) {
   return typeof px === "number" && px > 0 ? `${px}px` : fallback;
@@ -71,5 +72,5 @@ ${
 }
 `.replace(/\s+\n/g, "\n");
 
-  return <style data-content-area dangerouslySetInnerHTML={{ __html: css }} />;
+  return <style data-content-area dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
 }

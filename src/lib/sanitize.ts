@@ -125,3 +125,22 @@ export function safeImageUrl(raw: string | undefined): string {
   if (!raw) return "";
   return SAFE_IMG_URL_RE.test(raw) ? raw : "";
 }
+
+// ---------- Injected <style> hardening ----------
+
+/**
+ * Harden a CSS string before it is written into a `<style>` element via
+ * dangerouslySetInnerHTML. `<style>` is a raw-text element: HTML entities are
+ * NOT decoded inside it, so the only way a stored value (theme colour, font
+ * name, size) can escape into HTML - and run script - is the literal `</style>`
+ * end tag, e.g. a colour stored as `red}</style><script>…`. We drop the `<`
+ * from any `</style>` / `</script>` end tag and `<!--` comment opener so data
+ * can no longer close the element. Valid CSS never contains these sequences, so
+ * legitimate rules (including `>` child combinators and range-syntax media
+ * queries) pass through unchanged. Use this for ANY data-derived `<style>`.
+ */
+export function hardenStyleCss(css: string): string {
+  return String(css)
+    .replace(/<(?=\s*\/\s*(?:style|script)\b)/gi, "")
+    .replace(/<(?=!--)/g, "");
+}

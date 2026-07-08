@@ -6,6 +6,7 @@ import { Sun, Moon, Save, Undo } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { hardenStyleCss } from "@/lib/sanitize";
 import {
   GLOBAL_COLOR_GROUPS,
   EMPTY_GLOBAL_COLORS,
@@ -235,7 +236,10 @@ export function ThemeBackgroundsPane({
 
   return (
     <div className="space-y-6">
-      <style data-theme-backgrounds-preview dangerouslySetInnerHTML={{ __html: liveCss }} />
+      <style
+        data-theme-backgrounds-preview
+        dangerouslySetInnerHTML={{ __html: hardenStyleCss(liveCss) }}
+      />
 
       <div className="flex items-start justify-between gap-4">
         <div>
