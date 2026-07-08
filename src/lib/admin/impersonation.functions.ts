@@ -98,12 +98,16 @@ export const endImpersonation = createServerFn({ method: "POST" })
     }
     return { sessionId: input.sessionId };
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Only the actor who started the session may end it - otherwise any
+    // authenticated user could mark arbitrary impersonation audit rows ended
+    // (startImpersonation is super_admin-gated, but this end path was not).
     await supabaseAdmin
       .from("impersonation_sessions")
       .update({ ended_at: new Date().toISOString() })
       .eq("id", data.sessionId)
+      .eq("actor_user_id", context.userId)
       .is("ended_at", null);
     return { ok: true } as const;
   });

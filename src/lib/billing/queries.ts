@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { cancelSubscription } from "./checkout.functions";
 import type {
   AccessPlan,
   BillingProfile,
@@ -135,9 +136,9 @@ export async function fetchMySubscription(): Promise<UserSubscriptionRow | null>
 }
 
 export async function cancelMySubscription(subscriptionId: string): Promise<void> {
-  const { error } = await supabase
-    .from("user_subscriptions")
-    .update({ status: "canceled", canceled_at: new Date().toISOString() })
-    .eq("id", subscriptionId);
-  if (error) throw error;
+  // Goes through the ownership-checked server fn: user_subscriptions grants no
+  // UPDATE to the client (a direct update both failed with permission denied and
+  // would let a user self-grant access). Cancel-at-period-end keeps access until
+  // current_period_end instead of revoking already-paid time immediately.
+  await cancelSubscription({ data: { subscriptionId } });
 }
