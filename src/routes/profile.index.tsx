@@ -362,7 +362,7 @@ function ProfileInline() {
                 <ul className="divide-y divide-border/60">
                   {/* Email - read-only from auth */}
                   <ContactRow
-                    icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
+                    icon={<BrandIcon neutral name="mail" fallback={Mail} className="h-4 w-4 text-muted-foreground" alt="" />}
                     ariaLabel={t("profile.account.email")}
                   >
                     <a
