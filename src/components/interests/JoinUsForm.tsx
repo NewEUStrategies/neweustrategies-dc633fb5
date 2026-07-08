@@ -911,6 +911,83 @@ export function JoinUsForm({
     );
   }
 
+  if (variant === "split-image") {
+    const altText = (lang === "en" ? imageAltEn : imageAlt) || imageAlt || imageAltEn || "";
+    const fallbackGradient =
+      imageGradient ||
+      "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #0f172a) 100%)";
+    const overlayAlpha = Math.min(100, Math.max(0, imageOverlay)) / 100;
+    return (
+      <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+        {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
+        {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy */}
+        <div
+          className="relative min-h-[220px] md:min-h-[380px] overflow-hidden"
+          style={!imageUrl ? { background: fallbackGradient } : undefined}
+        >
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt={altText}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ objectPosition: imagePosition }}
+            />
+          )}
+          {overlayAlpha > 0 && (
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{ backgroundColor: `rgba(0,0,0,${overlayAlpha})` }}
+            />
+          )}
+          <div className="relative flex h-full flex-col justify-end gap-3 p-6 sm:p-8 text-white">
+            <h3
+              id="joinus-heading"
+              className={cn("font-display drop-shadow-md", !titleSize && "text-2xl")}
+              style={titleStyle}
+              data-edit-target="titleSize"
+            >
+              {heading}
+            </h3>
+            {description && (
+              <p
+                className="font-sans text-white/90 drop-shadow"
+                style={descStyle}
+                data-edit-target="descriptionSize"
+              >
+                {description}
+              </p>
+            )}
+            <ul
+              className="join-us-perks flex flex-col gap-2 font-sans text-white/95"
+              style={perkStyle}
+              data-edit-target="perkSize"
+            >
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <span>{p1}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <span>{p2}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <span>{p3}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        {/* Prawa kolumna: formularz */}
+        <div className="p-6 sm:p-8">{form}</div>
+      </section>
+    );
+  }
+
+
+
 
   return (
     <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
