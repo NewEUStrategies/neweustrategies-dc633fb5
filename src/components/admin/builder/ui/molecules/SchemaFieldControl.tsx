@@ -4,6 +4,7 @@ import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
