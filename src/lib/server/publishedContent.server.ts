@@ -12,6 +12,11 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 
 const CACHE_TTL_MS = 60_000;
 
+async function getSupabaseAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
 /**
  * Crawler-facing surfaces must degrade, never 500: robots.txt, feeds and
  * sitemaps stay up (with defaults / empty lists) even when the DB read fails,
@@ -54,6 +59,7 @@ export interface PublishedCategoryRow {
 async function fetchPagePaths(tenantId: string): Promise<Map<string, string>> {
   return edgeTtlCache(`seo:page-paths:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("page-paths", new Map<string, string>(), async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
       const { data } = await supabaseAdmin
         .from("pages")
         .select("id")
@@ -85,6 +91,7 @@ export async function fetchPublishedPosts(
 ): Promise<PublishedPostRow[]> {
   return edgeTtlCache(`seo:published-posts:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("published-posts", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
       const [pagePaths, { data }] = await Promise.all([
         fetchPagePaths(tenantId),
         supabaseAdmin
@@ -114,6 +121,7 @@ export async function fetchPublishedPosts(
 export async function fetchPublicCategories(tenantId: string): Promise<PublishedCategoryRow[]> {
   return edgeTtlCache(`seo:categories:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("categories", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
       const { data } = await supabaseAdmin
         .from("categories")
         .select("slug, name_pl, name_en, description_pl, description_en")
@@ -128,6 +136,7 @@ export async function fetchPublicCategories(tenantId: string): Promise<Published
 export async function fetchSeoSettingsValue(tenantId: string): Promise<unknown> {
   return edgeTtlCache(`seo:settings:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("settings", null, async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
       const { data } = await supabaseAdmin
         .from("site_settings")
         .select("value")
