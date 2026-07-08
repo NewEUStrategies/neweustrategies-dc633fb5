@@ -8,7 +8,6 @@
 // every query filters by the tenant that owns the request host (resolved via
 // resolveTenantForHost). Without the explicit filter a second tenant's
 // content would leak into another site's sitemap/RSS/llms.txt.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 const CACHE_TTL_MS = 60_000;
