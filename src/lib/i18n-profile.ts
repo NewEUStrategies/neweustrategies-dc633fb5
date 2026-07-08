@@ -12,6 +12,7 @@ const pl = {
       social: "Media społecznościowe",
       interests: "Zainteresowania",
       bookmarks: "Zapisane materiały",
+      notifications: "Powiadomienia",
       follows: "Obserwowane",
       billing: "Dane rozliczeniowe",
       subscription: "Subskrypcja",
