@@ -82,6 +82,51 @@ function Cover({
   );
 }
 
+// Meta bar zgodny 1:1 z <PostOverlayMeta /> (public): ikona + etykieta,
+// bez separatorów "|" i bez ikon social. Kolor/rozmiar via klasy nadrzędne.
+function ScaffoldMetaPreview({ lang = "pl" as "pl" | "en" }: { lang?: "pl" | "en" }) {
+  const L = {
+    pl: { by: "Autor", published: "Opublikowano", read: "X min czytania", name: "Imię Nazwisko" },
+    en: { by: "By", published: "Published", read: "X min read", name: "First Last" },
+  }[lang];
+  return (
+    <>
+      <span className="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
+        </svg>
+        <span className="opacity-80">{L.by}</span>
+        <span className="font-medium underline">{L.name}</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+        <span className="opacity-80">{L.published}:</span>
+        <span>DD/MM/YYYY</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+        <span>{L.read}</span>
+      </span>
+    </>
+  );
+}
+
+// Chip kategorii zgodny 1:1 z <CategoryBadges /> (public).
+function CategoryChipPreview({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-sm px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow-sm bg-foreground/85 text-background">
+      {label}
+    </span>
+  );
+}
+
 function Header({
   title,
   excerpt,
@@ -107,34 +152,31 @@ function Header({
         }
       />
       <div className={center ? "text-center mx-auto max-w-2xl" : ""}>
-        <p className="font-display header-title-typography leading-[1.1] font-bold text-foreground/90">
+        <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
+          <CategoryChipPreview
+            label={t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
+          />
+        </div>
+        <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4 text-foreground/90">
           {title || (
             <span className="text-muted-foreground/70">
               {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
             </span>
           )}
-        </p>
+        </h1>
         {excerpt ? (
-          <p className="header-excerpt-typography text-muted-foreground mt-1.5">{excerpt}</p>
+          <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
         ) : (
-          <p className="text-xs text-muted-foreground/60 mt-1.5">
+          <p className="text-xs text-muted-foreground/60 mb-4">
             {t("admin.layoutScaffold.excerptPlaceholder", {
               defaultValue: "Excerpt - uzupełnij w „Szczegóły\"",
             })}
           </p>
         )}
         <div
-          className={`flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground ${center ? "justify-center" : ""}`}
+          className={`text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 items-center ${center ? "justify-center" : ""}`}
         >
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">
-            {t("admin.layoutScaffold.meta.date", { defaultValue: "data" })}
-          </span>
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">
-            {t("admin.layoutScaffold.meta.author", { defaultValue: "autor" })}
-          </span>
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">
-            {t("admin.layoutScaffold.meta.readTime", { defaultValue: "read time" })}
-          </span>
+          <ScaffoldMetaPreview />
         </div>
       </div>
     </div>
@@ -167,7 +209,7 @@ function OverlayCover({
         })}
       />
       {url && (
-        <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" />
+        <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-80" />
       )}
       {/* Ciemny gradient - identyczny jak w publicznym renderze (PostLayoutRenderer). */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90" />
@@ -182,69 +224,35 @@ function OverlayCover({
         }`}
         style={overlayTypographyStyle(settings)}
       >
-        <div className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}>
-          <span
-            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm"
-            style={{ background: "#FDB078", color: "#111" }}
-          >
-            {t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
-          </span>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm bg-white/15 text-white/90 border border-white/20">
-            {t("admin.layoutScaffold.overlay.tag", { defaultValue: "Tag" })}
-          </span>
-        </div>
+        <div className={`overlay-meta-card w-full ${center ? "text-center" : ""}`}>
+          <div className={`mb-3 flex flex-wrap gap-1.5 ${center ? "justify-center" : ""}`}>
+            <CategoryChipPreview
+              label={t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
+            />
+          </div>
 
-        <p className="font-display font-bold overlay-title-typography leading-[1.1] mb-2">
-          {title ||
-            t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
-        </p>
+          <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.1] mb-2 text-white">
+            {title ||
+              t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+          </h1>
 
-        {excerpt && (
-          <p
-            className={`overlay-excerpt-typography text-white/80 max-w-2xl line-clamp-2 mb-3 ${
-              center ? "mx-auto" : ""
+          {excerpt && (
+            <p
+              className={`overlay-meta-description overlay-excerpt-typography text-white/80 mb-3 line-clamp-2 max-w-2xl ${
+                center ? "mx-auto" : ""
+              }`}
+            >
+              {excerpt}
+            </p>
+          )}
+
+          <div
+            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 ${
+              center ? "justify-center" : ""
             }`}
           >
-            {excerpt}
-          </p>
-        )}
-
-        <div
-          className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] md:text-[11px] lg:text-xs text-white/70 items-center ${
-            center ? "justify-center" : ""
-          }`}
-        >
-          <span>
-            {t("admin.layoutScaffold.overlay.by", { defaultValue: "Autor:" })}{" "}
-            <span className="underline text-white/90">
-              {t("admin.layoutScaffold.overlay.author", { defaultValue: "Imię Nazwisko" })}
-            </span>
-          </span>
-          <span className="opacity-50">|</span>
-          <span>
-            {t("admin.layoutScaffold.overlay.published", {
-              defaultValue: "Opublikowano: DD/MM/YYYY",
-            })}
-          </span>
-          <span className="opacity-50">|</span>
-          <span>
-            {t("admin.layoutScaffold.overlay.readTime", { defaultValue: "X min czytania" })}
-          </span>
-          <span className="opacity-50">|</span>
-          <span className="inline-flex gap-1.5" aria-hidden="true">
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
-              f
-            </span>
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
-              x
-            </span>
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
-              in
-            </span>
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
-              @
-            </span>
-          </span>
+            <ScaffoldMetaPreview />
+          </div>
         </div>
       </div>
     </div>
