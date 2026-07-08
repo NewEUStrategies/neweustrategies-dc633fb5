@@ -215,8 +215,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
-      "--cf-bg-light": bgLight || "hsl(var(--card))",
-      "--cf-bg-dark": bgDark || bgLight || "hsl(var(--card))",
+      "--cf-bg-light": bgLight || "var(--card)",
+      "--cf-bg-dark": bgDark || bgLight || "var(--card)",
       "--cf-radius": `${radiusPx}px`,
       "--cf-padding": `${paddingPx}px`,
     };
@@ -377,7 +377,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         : buttonVariant === "ghost"
           ? "bg-transparent hover:bg-foreground/10"
           : buttonVariant === "gradient"
-            ? "bg-gradient-to-r from-primary to-[color-mix(in_oklab,hsl(var(--primary))_70%,white)] text-primary-foreground"
+            ? "bg-gradient-to-r from-primary to-[color-mix(in_oklab,var(--primary)_70%,white)] text-primary-foreground"
             : "bg-primary text-primary-foreground hover:opacity-90";
     const align = buttonAlign === "full" ? "w-full" : "";
     return `inline-flex items-center justify-center rounded-md font-medium transition disabled:opacity-60 ${size} ${variantCls} ${align}`;

@@ -153,7 +153,7 @@ export function AdminColorPicker({
   const swatchStyle = transparent
     ? {
         backgroundImage:
-          "linear-gradient(45deg, hsl(var(--muted-foreground) / 0.35) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted-foreground) / 0.35) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted-foreground) / 0.35) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted-foreground) / 0.35) 75%)",
+          "linear-gradient(45deg, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 25%, transparent 25%), linear-gradient(-45deg, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 75%), linear-gradient(-45deg, transparent 75%, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 75%)",
         backgroundSize: "8px 8px",
         backgroundPosition: "0 0, 0 4px, 4px -4px, -4px 0",
       }
@@ -286,13 +286,13 @@ export function AdminColorPicker({
           style={
             transparent
               ? {
-                  background: "var(--gc-highlight, hsl(var(--primary)))",
-                  color: "var(--gc-highlight-foreground, hsl(var(--primary-foreground)))",
-                  borderColor: "var(--gc-highlight, hsl(var(--primary)))",
+                  background: "var(--gc-highlight, var(--primary))",
+                  color: "var(--gc-highlight-foreground, var(--primary-foreground))",
+                  borderColor: "var(--gc-highlight, var(--primary))",
                 }
               : {
                   backgroundImage:
-                    "linear-gradient(45deg, hsl(var(--muted-foreground) / 0.35) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted-foreground) / 0.35) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted-foreground) / 0.35) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted-foreground) / 0.35) 75%)",
+                    "linear-gradient(45deg, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 25%, transparent 25%), linear-gradient(-45deg, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 75%), linear-gradient(-45deg, transparent 75%, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 75%)",
                   backgroundSize: "8px 8px",
                   backgroundPosition: "0 0, 0 4px, 4px -4px, -4px 0",
                 }

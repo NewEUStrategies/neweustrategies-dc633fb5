@@ -19,9 +19,9 @@ interface Props {
 
 // Prosty kontrast: jasny/ciemny tekst względem tła (WCAG luminance approx).
 function pickTextColor(hex: string | null | undefined): string {
-  if (!hex) return "hsl(var(--background))";
+  if (!hex) return "var(--background)";
   const m = hex.replace("#", "");
-  if (m.length !== 6) return "hsl(var(--background))";
+  if (m.length !== 6) return "var(--background)";
   const r = parseInt(m.slice(0, 2), 16);
   const g = parseInt(m.slice(2, 4), 16);
   const b = parseInt(m.slice(4, 6), 16);

@@ -41,7 +41,7 @@ function ProfileLayout() {
     <AuthGate>
       <div className="profile-shell bg-muted/40 py-6 md:py-10">
         <div className="container mx-auto max-w-6xl px-3 sm:px-4">
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_4px_20px_-4px_hsl(var(--foreground)/0.08)]">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_4px_20px_-4px_color-mix(in oklab, var(--foreground) 8%, transparent)]">
             <div className="flex flex-col md:flex-row">
               {/* Sidebar */}
               <aside className="w-full shrink-0 border-b border-border bg-muted/40 p-5 md:w-72 md:border-b-0 md:border-r">

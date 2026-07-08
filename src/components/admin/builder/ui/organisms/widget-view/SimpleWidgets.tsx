@@ -342,10 +342,10 @@ export function renderSimpleWidget(
       const resolveBg = (k: string, active: boolean): string | undefined => {
         if (!active && showEmpty) return undefined;
         if (bgMode === "none") return undefined;
-        if (bgMode === "subtle") return "hsl(var(--muted))";
+        if (bgMode === "subtle") return "var(--muted)";
         if (bgMode === "brand") return "var(--brand, currentColor)";
         if (bgMode === "official") return OFFICIAL[k];
-        if (bgMode === "contrast") return "hsl(var(--foreground))";
+        if (bgMode === "contrast") return "var(--foreground)";
         if (bgMode === "custom") return customBgColor || undefined;
         return undefined;
       };

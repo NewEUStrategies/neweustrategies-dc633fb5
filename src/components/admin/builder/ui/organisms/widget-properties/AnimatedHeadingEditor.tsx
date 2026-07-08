@@ -167,7 +167,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                         shape: s.value,
                         tag: "h6",
                         highlight: "Abc",
-                        accentColor: accentColor || "hsl(var(--foreground))",
+                        accentColor: accentColor || "var(--foreground)",
                         durationMs: 1200,
                         loop: false,
                       }}

@@ -61,7 +61,7 @@ function Dashboard() {
           >
             <c.icon
               className="w-4 h-4 mb-1.5"
-              style={{ color: "var(--gc-icon, var(--gc-highlight, hsl(var(--brand))))" }}
+              style={{ color: "var(--gc-icon, var(--gc-highlight, var(--brand)))" }}
             />
             <div className="text-xl font-bold font-display leading-tight">{c.value}</div>
             <div className="text-[12px] font-medium mt-0.5">{c.label}</div>

@@ -746,7 +746,7 @@ function CenteredHero({
         onMouseLeave={() => setHoverAvatar(false)}
       >
         {/* Gradient halo ring */}
-        <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-[10px] bg-gradient-to-br from-primary/60 via-primary/20 to-transparent p-[3px] shadow-[0_10px_30px_-10px_hsl(var(--primary)/0.45)]">
+        <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-[10px] bg-gradient-to-br from-primary/60 via-primary/20 to-transparent p-[3px] shadow-[0_10px_30px_-10px_color-mix(in oklab, var(--primary) 45%, transparent)]">
           <div className="relative h-full w-full rounded-[7px] ring-[3px] ring-background bg-background overflow-hidden">
             {avatarUrl ? (
               <img

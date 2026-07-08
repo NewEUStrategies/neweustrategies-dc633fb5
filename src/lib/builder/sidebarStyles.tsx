@@ -69,28 +69,28 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
   };
   const presets: Record<SidebarStyle, Preset> = {
     "style-1": {
-      wrap: { background: "hsl(var(--muted) / 0.4)" },
-      aside: { background: "hsl(var(--card))", borderRight: "1px solid hsl(var(--border))" },
-      brand: { color: "hsl(var(--foreground))" },
-      item: { color: "hsl(var(--foreground))" },
-      itemActive: { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" },
+      wrap: { background: "color-mix(in oklab, var(--muted) 40%, transparent)" },
+      aside: { background: "var(--card)", borderRight: "1px solid var(--border)" },
+      brand: { color: "var(--foreground)" },
+      item: { color: "var(--foreground)" },
+      itemActive: { background: "var(--primary)", color: "var(--primary-foreground)" },
       width: 96,
       showLabels: true,
       itemRadius: 0,
     },
     "style-2": {
-      wrap: { background: "hsl(var(--background))" },
-      aside: { background: "transparent", borderRight: "1px dashed hsl(var(--border))" },
-      brand: { color: "hsl(var(--foreground))" },
+      wrap: { background: "var(--background)" },
+      aside: { background: "transparent", borderRight: "1px dashed var(--border)" },
+      brand: { color: "var(--foreground)" },
       item: {
-        color: "hsl(var(--muted-foreground))",
+        color: "var(--muted-foreground)",
         borderLeft: "2px solid transparent",
         paddingLeft: 8,
       },
       itemActive: {
-        color: "hsl(var(--primary))",
+        color: "var(--primary)",
         fontWeight: 700,
-        borderLeft: "2px solid hsl(var(--primary))",
+        borderLeft: "2px solid var(--primary)",
         paddingLeft: 8,
       },
       width: 96,
@@ -98,18 +98,18 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
       itemRadius: 0,
     },
     "style-3": {
-      wrap: { background: "hsl(var(--muted) / 0.5)", padding: 8 },
+      wrap: { background: "color-mix(in oklab, var(--muted) 50%, transparent)", padding: 8 },
       aside: {
-        background: "hsl(var(--card))",
+        background: "var(--card)",
         borderRadius: 4,
         boxShadow: "0 10px 28px -10px rgba(0,0,0,0.3)",
-        border: "1px solid hsl(var(--border))",
+        border: "1px solid var(--border)",
       },
-      brand: { color: "hsl(var(--foreground))" },
-      item: { color: "hsl(var(--foreground))", margin: "0 4px" },
+      brand: { color: "var(--foreground)" },
+      item: { color: "var(--foreground)", margin: "0 4px" },
       itemActive: {
-        background: "hsl(var(--primary))",
-        color: "hsl(var(--primary-foreground))",
+        background: "var(--primary)",
+        color: "var(--primary-foreground)",
         margin: "0 4px",
       },
       width: 92,
@@ -117,19 +117,19 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
       itemRadius: 4,
     },
     "style-4": {
-      wrap: { background: "hsl(var(--muted) / 0.4)" },
-      aside: { background: "hsl(var(--card))", borderRight: "1px solid hsl(var(--border))" },
-      brand: { color: "hsl(var(--foreground))", justifyContent: "center" },
+      wrap: { background: "color-mix(in oklab, var(--muted) 40%, transparent)" },
+      aside: { background: "var(--card)", borderRight: "1px solid var(--border)" },
+      brand: { color: "var(--foreground)", justifyContent: "center" },
       item: {
-        color: "hsl(var(--muted-foreground))",
+        color: "var(--muted-foreground)",
         justifyContent: "center",
         width: 26,
         height: 26,
         margin: "1px auto",
       },
       itemActive: {
-        background: "hsl(var(--primary))",
-        color: "hsl(var(--primary-foreground))",
+        background: "var(--primary)",
+        color: "var(--primary-foreground)",
         justifyContent: "center",
         width: 26,
         height: 26,
@@ -141,34 +141,35 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
     },
     "style-5": {
       wrap: {
-        background: "linear-gradient(135deg, hsl(var(--primary) / 0.25), hsl(var(--muted)))",
+        background:
+          "linear-gradient(135deg, color-mix(in oklab, var(--primary) 25%, transparent), var(--muted))",
       },
       aside: {
-        background: "hsl(var(--card) / 0.55)",
+        background: "color-mix(in oklab, var(--card) 55%, transparent)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        border: "1px solid hsl(var(--border) / 0.5)",
+        border: "1px solid color-mix(in oklab, var(--border) 50%, transparent)",
       },
-      brand: { color: "hsl(var(--foreground))" },
-      item: { color: "hsl(var(--foreground))" },
+      brand: { color: "var(--foreground)" },
+      item: { color: "var(--foreground)" },
       itemActive: {
-        background: "hsl(var(--primary) / 0.85)",
-        color: "hsl(var(--primary-foreground))",
+        background: "color-mix(in oklab, var(--primary) 85%, transparent)",
+        color: "var(--primary-foreground)",
       },
       width: 96,
       showLabels: true,
       itemRadius: 6,
     },
     "style-6": {
-      wrap: { background: "hsl(var(--muted) / 0.4)" },
+      wrap: { background: "color-mix(in oklab, var(--muted) 40%, transparent)" },
       aside: { background: "#0b0b12", borderRight: "1px solid #1f1f2b" },
       brand: { color: "#ffffff" },
       item: { color: "#c7c9d1", margin: "0 6px" },
       itemActive: {
-        background: "hsl(var(--primary))",
-        color: "hsl(var(--primary-foreground))",
+        background: "var(--primary)",
+        color: "var(--primary-foreground)",
         margin: "0 6px",
-        boxShadow: "0 4px 12px -4px hsl(var(--primary) / 0.6)",
+        boxShadow: "0 4px 12px -4px color-mix(in oklab, var(--primary) 60%, transparent)",
       },
       width: 96,
       showLabels: true,
@@ -236,12 +237,18 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
           </div>
         ))}
       </div>
-      <div className="flex-1" style={{ background: "hsl(var(--background) / 0.4)", padding: 8 }}>
+      <div
+        className="flex-1"
+        style={{
+          background: "color-mix(in oklab, var(--background) 40%, transparent)",
+          padding: 8,
+        }}
+      >
         <div
           style={{
             height: 18,
             borderRadius: 4,
-            background: "hsl(var(--muted) / 0.85)",
+            background: "color-mix(in oklab, var(--muted) 85%, transparent)",
             marginBottom: 6,
           }}
         />
@@ -249,8 +256,8 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
           style={{
             height: 34,
             borderRadius: 6,
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border) / 0.7)",
+            background: "var(--card)",
+            border: "1px solid color-mix(in oklab, var(--border) 70%, transparent)",
             marginBottom: 6,
           }}
         />
@@ -258,7 +265,7 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
           style={{
             height: 22,
             borderRadius: 6,
-            background: "hsl(var(--muted) / 0.65)",
+            background: "color-mix(in oklab, var(--muted) 65%, transparent)",
             width: "78%",
             marginBottom: 4,
           }}
@@ -267,7 +274,7 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
           style={{
             height: 22,
             borderRadius: 6,
-            background: "hsl(var(--muted) / 0.45)",
+            background: "color-mix(in oklab, var(--muted) 45%, transparent)",
             width: "62%",
           }}
         />
