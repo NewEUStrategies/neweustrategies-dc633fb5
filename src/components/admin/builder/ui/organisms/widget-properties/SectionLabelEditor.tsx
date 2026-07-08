@@ -144,28 +144,14 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="flex items-center gap-2 pt-1">
           <label className="text-[10px] text-muted-foreground shrink-0">Własny kolor:</label>
-          <input
-            type="color"
-            value={customAccent && customAccent.startsWith("#") ? customAccent : "#e85d3a"}
-            onChange={(e) => setContent("accentColor", e.target.value)}
-            className="h-7 w-10 rounded border border-border cursor-pointer bg-transparent"
-          />
-          <Input
+          <AdminColorPicker
             value={customAccent}
-            onChange={(e) => setContent("accentColor", e.target.value)}
+            onChange={(v) => setContent("accentColor", v ?? "")}
+            allowTransparent={false}
+            allowReset={true}
             placeholder="#hex / oklch(...)"
-            className="h-7 text-[11px] font-mono flex-1"
+            className="flex-1"
           />
-          {customAccent && (
-            <button
-              type="button"
-              onClick={() => setContent("accentColor", "")}
-              className="text-[10px] text-muted-foreground hover:text-destructive"
-              title="Wyczyść własny kolor"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
         </div>
         <div className="text-[10px] text-muted-foreground">
           Aktywny:{" "}
