@@ -7,6 +7,8 @@ import { useTranslation } from "react-i18next";
 import { ExternalLink, Globe, Linkedin, Twitter } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { FollowButton } from "@/components/FollowButton";
+import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { authorBySlugQueryOptions } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -53,6 +55,7 @@ function AuthorArchivePage() {
   const { data } = useSuspenseQuery(authorBySlugQueryOptions(slug));
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const personalized = usePersonalizedSettings();
   if (!data) return <AuthorNotFound />;
   const { author, posts } = data;
   const name = author.display_name ?? "Autor";
@@ -77,7 +80,12 @@ function AuthorArchivePage() {
                 />
               )}
               <div className="flex-1 space-y-2">
-                <h1 className="font-display text-3xl lg:text-4xl">{name}</h1>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="font-display text-3xl lg:text-4xl">{name}</h1>
+                  {personalized.followInAuthorHeader && (
+                    <FollowButton targetType="author" targetId={author.id} lang={lang} />
+                  )}
+                </div>
                 {bio && <p className="text-muted-foreground max-w-2xl">{bio}</p>}
                 <div className="flex flex-wrap gap-3 pt-1 text-sm">
                   {author.website_url && (
