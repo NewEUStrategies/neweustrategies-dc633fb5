@@ -577,7 +577,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                     <input type="checkbox" name={name} className="mt-0.5" />
                     <span>
                       {label}
-                      {f.required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+                      {null}
                     </span>
                   </label>
                   {err && <span className="block text-[11px] text-destructive">{err}</span>}
@@ -645,7 +645,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="consent" className="mt-0.5" />
                 <span>{renderConsentText(consentTextRaw)}</span>
-                {errors.consent && <span className="text-destructive ml-1">*</span>}
+                {null}
               </label>
             )}
 
@@ -685,7 +685,7 @@ function Field({
     <label className={`block space-y-1 ${className ?? ""}`}>
       <span className="cf-field-label text-xs font-semibold tracking-wide opacity-95">
         {label}
-        {required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+        {null}
       </span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
