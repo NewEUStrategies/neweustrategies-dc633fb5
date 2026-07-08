@@ -366,30 +366,39 @@ export function LayoutScaffold({
 
   const topZone = (() => {
     if (preset.header === "overlay") {
-      return <OverlayCover url={coverImageUrl} title={title} excerpt={excerpt} center={center} />;
+      return (
+        <OverlayCover
+          url={coverImageUrl}
+          title={title}
+          excerpt={excerpt}
+          center={center}
+          settings={settings}
+        />
+      );
     }
     if (preset.header === "side-by-side") {
-      return <SideBySide url={coverImageUrl} title={title} excerpt={excerpt} />;
+      return <SideBySide url={coverImageUrl} title={title} excerpt={excerpt} settings={settings} />;
     }
     if (preset.header === "below-cover") {
       return (
         <>
           <Cover url={coverImageUrl} preset={preset} ratio={ratio} />
-          <Header title={title} excerpt={excerpt} center={center} />
+          <Header title={title} excerpt={excerpt} center={center} settings={settings} />
         </>
       );
     }
     if (preset.header === "no-cover") {
-      return <Header title={title} excerpt={excerpt} center={center} />;
+      return <Header title={title} excerpt={excerpt} center={center} settings={settings} />;
     }
     // above-cover (default)
     return (
       <>
-        <Header title={title} excerpt={excerpt} center={center} />
+        <Header title={title} excerpt={excerpt} center={center} settings={settings} />
         {coverImageUrl !== undefined && <Cover url={coverImageUrl} preset={preset} ratio={ratio} />}
       </>
     );
   })();
+
 
   const contentZone = (
     <div className={`relative pt-6 ${ZONE} p-4 mt-4`}>
