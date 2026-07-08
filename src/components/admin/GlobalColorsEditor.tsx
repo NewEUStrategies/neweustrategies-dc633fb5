@@ -584,30 +584,19 @@ function ColorRow({
         <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">
           {label}
         </span>
-        <Input
-          type="color"
-          value={effective}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={(e) => onCommit(e.target.value)}
-          className="w-12 h-8 p-1 cursor-pointer"
-        />
-        <Input
-          type="text"
+        <AdminColorPicker
           value={value}
+          onChange={(v) => {
+            const next = v ?? "";
+            onChange(next);
+            onCommit(next);
+          }}
+          inheritedValue={defaultValue}
+          allowTransparent={false}
+          allowReset={true}
           placeholder={defaultValue || "#______"}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={(e) => onCommit(e.target.value)}
-          className="h-8 text-xs font-mono w-[120px]"
+          className="flex-1"
         />
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            Wyczyść
-          </button>
-        )}
       </div>
       <div className="space-y-1.5">
         <div>
