@@ -75,14 +75,11 @@ export function PostLayoutRenderer({
               {categoryBadges}
             </div>
           )}
-          <h1
-            className="overlay-meta-title font-display font-bold text-white text-xl md:text-2xl lg:text-4xl leading-[1.15] mb-2 md:mb-3"
-            style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
-          >
+          <h1 className="overlay-meta-title font-display mb-2 md:mb-3 text-white text-3xl md:text-4xl lg:text-5xl">
             {title}
           </h1>
           {excerpt && (
-            <p className="overlay-meta-description text-xs md:text-sm lg:text-base text-white/85 mb-2 md:mb-3 max-w-3xl mx-auto leading-relaxed">
+            <p className="overlay-meta-description text-white/85 mb-2 md:mb-3 max-w-3xl mx-auto text-base md:text-lg">
               {excerpt}
             </p>
           )}
