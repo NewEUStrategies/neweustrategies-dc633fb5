@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { upsertCategory } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { CORE_CATEGORY_AREAS, type CoreCategoryArea } from "@/lib/categoryAreas";
 
 export const Route = createFileRoute("/admin/category-colors")({
@@ -207,24 +207,19 @@ function CategoryColorsPage() {
                     </td>
                     <td className="p-2">
                       <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          aria-label={t("admin.categoryColors.column.color")}
+                        <AdminColorPicker
                           value={c}
-                          onChange={(e) => setColor(r.slug, e.target.value)}
-                          className="h-8 w-10 rounded border border-input bg-background cursor-pointer p-0"
-                        />
-                        <Input
-                          value={c}
-                          onChange={(e) => setColor(r.slug, e.target.value)}
-                          className="h-8 w-[100px] font-mono text-xs uppercase"
-                          maxLength={7}
+                          onChange={(v) => setColor(r.slug, v ?? "#111827")}
+                          ariaLabel={t("admin.categoryColors.column.color")}
+                          allowTransparent={false}
+                          allowReset={false}
+                          className="flex-1"
                         />
                         {recommended && recommended.toLowerCase() !== c.toLowerCase() && (
                           <button
                             type="button"
                             onClick={() => setColor(r.slug, recommended)}
-                            className="text-[10px] underline text-muted-foreground hover:text-foreground"
+                            className="text-[10px] underline text-muted-foreground hover:text-foreground shrink-0"
                             title={recommended}
                           >
                             {t("admin.categoryColors.reset")}
@@ -233,6 +228,7 @@ function CategoryColorsPage() {
                         {dirty && (
                           <span className="text-[10px] text-brand font-semibold uppercase">●</span>
                         )}
+
                       </div>
                     </td>
                   </tr>
