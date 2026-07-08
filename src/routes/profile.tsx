@@ -31,8 +31,6 @@ function ProfileLayout() {
   const { user } = useAuth();
   const isRoot = pathname === "/profile" || pathname === "/profile/";
 
-  const displayName =
-    (user?.user_metadata?.full_name as string | undefined) ??
   const { data: profile } = useQuery({
     enabled: !!user?.id,
     queryKey: ["profile-sidebar", user?.id],
