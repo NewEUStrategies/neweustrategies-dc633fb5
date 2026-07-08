@@ -3759,6 +3759,7 @@ export type Database = {
           metric: string
           path: string | null
           rating: string | null
+          tenant_id: string
           value: number
         }
         Insert: {
@@ -3767,6 +3768,7 @@ export type Database = {
           metric: string
           path?: string | null
           rating?: string | null
+          tenant_id?: string
           value: number
         }
         Update: {
@@ -3775,9 +3777,18 @@ export type Database = {
           metric?: string
           path?: string | null
           rating?: string | null
+          tenant_id?: string
           value?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "web_vitals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wp_import_jobs: {
         Row: {
@@ -4287,7 +4298,7 @@ export type Database = {
       }
       unaccent: { Args: { "": string }; Returns: string }
       web_vitals_daily_p75: {
-        Args: { p_since: string }
+        Args: { p_since: string; p_tenant: string }
         Returns: {
           day: string
           metric: string
