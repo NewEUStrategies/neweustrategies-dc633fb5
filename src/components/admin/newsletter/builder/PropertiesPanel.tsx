@@ -28,6 +28,7 @@ import type {
   NlCloseButtonWidget,
 } from "@/lib/newsletter-builder/types";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
