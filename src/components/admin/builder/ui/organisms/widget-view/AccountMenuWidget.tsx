@@ -253,7 +253,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     color: config.panelText || undefined,
     borderRadius: typeof config.panelRadius === "number" ? config.panelRadius : 12,
     width: typeof config.panelWidth === "number" ? config.panelWidth : 280,
-    ["--account-accent" as string]: config.panelAccent || "var(--brand, hsl(var(--primary)))",
+    ["--account-accent" as string]: config.panelAccent || "var(--brand, var(--primary))",
   };
 
   // Trigger - greeting based on time of day + gender + vocative (PL).

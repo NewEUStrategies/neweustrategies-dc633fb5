@@ -37,21 +37,21 @@ export interface TickerSettings {
 }
 
 export const DEFAULT_LIGHT_COLORS: TickerColors = {
-  bg: "hsl(var(--muted) / 0.3)",
-  border: "hsl(var(--border))",
-  label: "hsl(var(--brand))",
-  item: "hsl(var(--foreground))",
-  itemHover: "hsl(var(--brand))",
-  counter: "hsl(var(--muted-foreground))",
+  bg: "color-mix(in oklab, var(--muted) 30%, transparent)",
+  border: "var(--border)",
+  label: "var(--brand)",
+  item: "var(--foreground)",
+  itemHover: "var(--brand)",
+  counter: "var(--muted-foreground)",
 };
 
 export const DEFAULT_DARK_COLORS: TickerColors = {
-  bg: "hsl(var(--muted) / 0.3)",
-  border: "hsl(var(--border))",
-  label: "hsl(var(--brand))",
-  item: "hsl(var(--foreground))",
-  itemHover: "hsl(var(--brand))",
-  counter: "hsl(var(--muted-foreground))",
+  bg: "color-mix(in oklab, var(--muted) 30%, transparent)",
+  border: "var(--border)",
+  label: "var(--brand)",
+  item: "var(--foreground)",
+  itemHover: "var(--brand)",
+  counter: "var(--muted-foreground)",
 };
 
 export const DEFAULT_TICKER_COLORS: TickerColorScheme = {

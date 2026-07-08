@@ -68,7 +68,15 @@
   --font-sans: "Red Hat Display", system-ui, sans-serif;
 }
 
-:root {
+/* `.light` mirrors the :root (light) tokens so an INNER scope can force light
+   mode under a dark ancestor. The builder canvas relies on this: with a dark
+   admin theme (html.dark), toggling the canvas preview to "Jasny" previously
+   did nothing — the wrapper only ever ADDED `.dark`, and without a light
+   scope the dark tokens kept cascading, leaving light-resolved widget text
+   invisible on dark surfaces. Custom properties resolve by DOM proximity, so
+   the nearest `.light`/`.dark` ancestor wins. */
+:root,
+.light {
   --radius: 0.5rem;
 
   /* ---- Global form-field sizing tokens ----
@@ -91,7 +99,7 @@
   --gc-label-font-size: 0.75rem;   /* 12px - unified input-label size */
   --gc-input-font-size: 14px;      /* unified input/select/textarea text size */
   --gc-input-line-height: 1.4;
-  --gc-input-text: hsl(var(--foreground));
+  --gc-input-text: var(--foreground);
   --gc-input-placeholder: oklch(0.62 0 0);
   --gc-input-placeholder-dark: oklch(0.58 0 0);
 
@@ -238,7 +246,7 @@
   [data-admin-form]
   input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .admin-compact [data-admin-form] textarea {
-  background: hsl(var(--card, 0 0% 100%));
+  background: var(--card, hsl(0 0% 100%));
   color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: 0.375rem;
@@ -354,7 +362,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-1"] [data-sidebar="menu-
 /* Style 2 - Minimal Borderless */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] {
   background: transparent !important;
-  border-right: 1px dashed hsl(var(--border));
+  border-right: 1px dashed var(--border);
   box-shadow: none;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"].sidebar-shell {
@@ -362,21 +370,21 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-2"].sidebar-shell {
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"] {
   background: transparent !important;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   border-left: 2px solid transparent;
   border-radius: 0 !important;
   padding-left: 0.75rem !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"]:hover {
   background: transparent !important;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"]
   [data-sidebar="menu-button"][data-active="true"] {
   background: transparent !important;
-  color: hsl(var(--primary));
+  color: var(--primary);
   font-weight: 700;
-  border-left-color: hsl(var(--primary));
+  border-left-color: var(--primary);
 }
 
 /* Style 3 - Floating Card */
@@ -385,7 +393,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] {
   height: calc(100vh - 1.5rem) !important;
   max-height: calc(100vh - 1.5rem) !important;
   border-radius: 4px;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   box-shadow:
     0 20px 50px -20px rgba(0, 0, 0, 0.35),
     0 8px 16px -8px rgba(0, 0, 0, 0.15);
@@ -426,25 +434,25 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="group
 
 /* Style 5 - Glass / Frosted */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
-  background: linear-gradient(180deg, hsl(var(--card) / 0.55), hsl(var(--card) / 0.35)) !important;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 55%, transparent), color-mix(in oklab, var(--card) 35%, transparent)) !important;
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
-  border-right: 1px solid hsl(var(--border) / 0.4);
-  box-shadow: inset -1px 0 0 hsl(var(--background) / 0.4);
+  border-right: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  box-shadow: inset -1px 0 0 color-mix(in oklab, var(--background) 40%, transparent);
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"] {
   border-radius: 0.5rem;
   backdrop-filter: blur(4px);
-  border: 1px solid hsl(var(--border) / 0.22);
+  border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"]
   [data-sidebar="menu-button"]:not([data-active="true"]) {
-  background: hsl(var(--background) / 0.24) !important;
+  background: color-mix(in oklab, var(--background) 24%, transparent) !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"]
   [data-sidebar="menu-button"][data-active="true"] {
-  background: hsl(var(--primary) / 0.85) !important;
-  border-color: hsl(var(--primary) / 0.25);
+  background: color-mix(in oklab, var(--primary) 85%, transparent) !important;
+  border-color: color-mix(in oklab, var(--primary) 25%, transparent);
 }
 
 /* Style 6 - Bold Dark (forces dark contrast in both modes) */
@@ -464,9 +472,9 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"]
   [data-sidebar="menu-button"][data-active="true"] {
-  background: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-  box-shadow: 0 6px 16px -6px hsl(var(--primary) / 0.6);
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  box-shadow: 0 6px 16px -6px color-mix(in oklab, var(--primary) 60%, transparent);
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-brand],
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-toggle] {
@@ -931,7 +939,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-block-heading {
   font-size: var(--td-bh-size, 18px);
   font-weight: var(--td-bh-weight, 700);
-  color: var(--td-bh-color, hsl(var(--foreground)));
+  color: var(--td-bh-color, var(--foreground));
   text-transform: var(--td-bh-transform, none);
   letter-spacing: var(--td-bh-spacing, 0);
   margin-bottom: var(--td-bh-mb, 16px);
@@ -959,8 +967,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   align-items: center;
   gap: 6px;
   background: var(--td-rm-bg, transparent);
-  color: var(--td-rm-color, hsl(var(--brand)));
-  border: 1px solid var(--td-rm-border, hsl(var(--brand)));
+  color: var(--td-rm-color, var(--brand));
+  border: 1px solid var(--td-rm-border, var(--brand));
   border-radius: var(--td-rm-radius, 9999px);
   padding: var(--td-rm-py, 8px) var(--td-rm-px, 16px);
   font-weight: var(--td-rm-weight, 600);
@@ -971,8 +979,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
     transform 0.2s ease;
 }
 .cms-read-more:hover {
-  background: var(--td-rm-color, hsl(var(--brand)));
-  color: var(--td-rm-bg, hsl(var(--background)));
+  background: var(--td-rm-color, var(--brand));
+  color: var(--td-rm-bg, var(--background));
 }
 .cms-meta-info {
   display: inline-flex;
@@ -980,7 +988,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   flex-wrap: wrap;
   gap: var(--td-meta-gap, 12px);
   font-size: var(--td-meta-size, 13px);
-  color: var(--td-meta-color, hsl(var(--muted-foreground)));
+  color: var(--td-meta-color, var(--muted-foreground));
   text-transform: var(--td-meta-transform, none);
 }
 .cms-meta-info > * + *::before {
@@ -995,8 +1003,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   align-items: center;
   justify-content: center;
   gap: 4px;
-  background: var(--td-tb-bg, hsl(var(--muted)));
-  color: var(--td-tb-color, hsl(var(--foreground)));
+  background: var(--td-tb-bg, var(--muted));
+  color: var(--td-tb-color, var(--foreground));
   border-radius: var(--td-tb-radius, 6px);
   padding: var(--td-tb-py, 6px) var(--td-tb-px, 8px);
   transition:
@@ -1009,8 +1017,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   height: var(--td-tb-size, 16px);
 }
 .cms-tb-btn:hover:not(:disabled):not([data-active="true"]) {
-  background: var(--td-tb-hover-bg, hsl(var(--muted) / 0.7));
-  color: var(--td-tb-hover-color, hsl(var(--foreground)));
+  background: var(--td-tb-hover-bg, color-mix(in oklab, var(--muted) 70%, transparent));
+  color: var(--td-tb-hover-color, var(--foreground));
 }
 .cms-tb-btn[data-active="true"] {
   background: var(--td-tb-active-bg, #fa9346);
@@ -1025,8 +1033,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-mode-switch {
   display: inline-flex;
   align-items: center;
-  background: var(--td-ms-track-bg, hsl(var(--muted)));
-  border: 1px solid var(--td-ms-track-border, hsl(var(--border)));
+  background: var(--td-ms-track-bg, var(--muted));
+  border: 1px solid var(--td-ms-track-border, var(--border));
   border-radius: var(--td-ms-radius, 6px);
   padding: 2px;
 }
@@ -1037,17 +1045,17 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   padding: 4px 8px;
   font-size: 11px;
   border-radius: calc(var(--td-ms-radius, 6px) - 2px);
-  color: var(--td-ms-inactive, hsl(var(--muted-foreground)));
+  color: var(--td-ms-inactive, var(--muted-foreground));
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
 }
 .cms-mode-switch__btn:hover {
-  color: var(--td-ms-active-color, hsl(var(--foreground)));
+  color: var(--td-ms-active-color, var(--foreground));
 }
 .cms-mode-switch__btn[data-active="true"] {
-  background: var(--td-ms-active-bg, hsl(var(--background)));
-  color: var(--td-ms-active-color, hsl(var(--foreground)));
+  background: var(--td-ms-active-bg, var(--background));
+  color: var(--td-ms-active-color, var(--foreground));
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
@@ -1062,7 +1070,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--td-si-color, hsl(var(--foreground)));
+  color: var(--td-si-color, var(--foreground));
   background: var(--td-si-bg, transparent);
   border-radius: var(--td-si-radius, 9999px);
   padding: var(--td-si-py, 6px) var(--td-si-px, 6px);
@@ -1096,7 +1104,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   font-size: var(--td-pt-size, 15px);
   font-weight: var(--td-pt-weight, 600);
   line-height: var(--td-pt-lh, 1.4);
-  color: var(--td-pt-color, hsl(var(--foreground)));
+  color: var(--td-pt-color, var(--foreground));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
 
@@ -1147,7 +1155,7 @@ a:has(.cms-post-title):focus {
   font-size: var(--td-pe-size, 13px);
   font-weight: var(--td-pe-weight, 400);
   line-height: var(--td-pe-lh, 1.5);
-  color: var(--td-pe-color, hsl(var(--muted-foreground)));
+  color: var(--td-pe-color, var(--muted-foreground));
   margin-top: var(--td-pe-mt, 6px);
 }
 
@@ -1156,7 +1164,7 @@ a:has(.cms-post-title):focus {
    / `text-sm` na sztywno. Podwojenie selektora dla specyficzności. */
 .cms-meta.cms-meta {
   font-size: var(--td-meta-size, 13px);
-  color: var(--td-meta-color, hsl(var(--muted-foreground)));
+  color: var(--td-meta-color, var(--muted-foreground));
   line-height: 1.4;
 }
 
@@ -1287,7 +1295,7 @@ a:has(.cms-post-title):focus {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 
 /* Section dividers softer */
@@ -2022,8 +2030,8 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .profile-shell > section > div[class*="rounded"] {
   border-radius: var(--profile-radius);
   box-shadow:
-    0 1px 0 0 hsl(var(--border) / 0.4),
-    0 8px 24px -16px hsl(var(--foreground) / 0.12);
+    0 1px 0 0 color-mix(in oklab, var(--border) 40%, transparent),
+    0 8px 24px -16px color-mix(in oklab, var(--foreground) 12%, transparent);
 }
 .profile-shell [data-slot="card-header"] {
   padding: 1rem 1.25rem 0.5rem;
@@ -2043,7 +2051,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 
 /* Inputs / textareas / selects: denser, modern */
@@ -2053,8 +2061,8 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .profile-shell [data-slot="select-trigger"] {
   height: 2.25rem;
   border-radius: 8px;
-  background: hsl(var(--background));
-  border-color: hsl(var(--border) / 0.7);
+  background: var(--background);
+  border-color: color-mix(in oklab, var(--border) 70%, transparent);
   font-size: 0.875rem;
   transition:
     border-color 0.15s ease,
@@ -2069,8 +2077,8 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .profile-shell input:focus-visible,
 .profile-shell textarea:focus-visible,
 .profile-shell [data-slot="select-trigger"]:focus-visible {
-  border-color: hsl(var(--ring));
-  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.18);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 18%, transparent);
 }
 
 /* Section sub-headings inside cards */
@@ -2079,9 +2087,9 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: hsl(var(--foreground) / 0.65);
+  color: color-mix(in oklab, var(--foreground) 65%, transparent);
   padding-bottom: 0.25rem;
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
 }
 
 /* Two-column form grid for compact pages */
@@ -2123,16 +2131,16 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .cf-shell {
   position: relative;
   border-radius: var(--cf-radius, 12px);
-  background: var(--cf-bg-light, hsl(var(--card)));
+  background: var(--cf-bg-light, var(--card));
   color: var(--cf-text, inherit);
   overflow: hidden;
   isolation: isolate;
 }
 .dark .cf-shell {
-  background: var(--cf-bg-dark, var(--cf-bg-light, hsl(var(--card))));
+  background: var(--cf-bg-dark, var(--cf-bg-light, var(--card)));
 }
 .cf-shell--card {
-  border: 1px solid var(--cf-border, hsl(var(--border)));
+  border: 1px solid var(--cf-border, var(--border));
 }
 .cf-shell .cf-inner {
   position: relative;
@@ -2142,17 +2150,17 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .cf-shell .cf-input {
   display: block;
   width: 100%;
-  border: 1.5px solid var(--gc-input-border, var(--cf-border, hsl(var(--border))));
-  background: var(--gc-input-bg, hsl(var(--background)));
+  border: 1.5px solid var(--gc-input-border, var(--cf-border, var(--border)));
+  background: var(--gc-input-bg, var(--background));
   border-radius: 8px;
   padding: 12px 14px;
   font-size: 14px;
   line-height: 1.4;
-  color: var(--gc-input-text, hsl(var(--foreground)));
+  color: var(--gc-input-text, var(--foreground));
   outline: none;
   box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.04),
-    0 1px 2px hsl(var(--foreground) / 0.05);
+    inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent),
+    0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease,
@@ -2179,17 +2187,17 @@ textarea::placeholder {
 }
 .cf-shell .cf-input:focus {
   border-color: var(--gc-input-focus-border, #FDB078);
-  background: var(--gc-input-bg, hsl(var(--background)));
+  background: var(--gc-input-bg, var(--background));
 }
 .dark .cf-shell .cf-input {
-  background: var(--gc-input-bg, color-mix(in oklab, hsl(var(--background)) 80%, hsl(var(--foreground)) 10%));
-  border-color: var(--gc-input-border, color-mix(in oklab, hsl(var(--foreground)) 30%, transparent));
+  background: var(--gc-input-bg, color-mix(in oklab, var(--background) 80%, var(--foreground) 10%));
+  border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 .dark .cf-shell .cf-input:hover {
   border-color: var(--gc-input-hover-border, #FDB078);
 }
 .dark .cf-shell .cf-input:focus {
-  background: var(--gc-input-bg, color-mix(in oklab, hsl(var(--background)) 65%, hsl(var(--foreground)) 14%));
+  background: var(--gc-input-bg, color-mix(in oklab, var(--background) 65%, var(--foreground) 14%));
   border-color: var(--gc-input-focus-border, #FDB078);
 }
 
@@ -2224,18 +2232,18 @@ textarea::placeholder {
 .cf-bg--aurora span:nth-child(1) {
   top: -20%;
   left: -10%;
-  background: hsl(var(--primary));
+  background: var(--primary);
 }
 .cf-bg--aurora span:nth-child(2) {
   bottom: -25%;
   right: -10%;
-  background: hsl(var(--brand, var(--primary)));
+  background: var(--brand, var(--primary));
   animation-delay: -6s;
 }
 .cf-bg--aurora span:nth-child(3) {
   top: 30%;
   left: 40%;
-  background: hsl(var(--accent));
+  background: var(--accent);
   animation-delay: -12s;
   opacity: 0.3;
 }
@@ -2252,9 +2260,9 @@ textarea::placeholder {
 /* 2. Mesh drift */
 .cf-bg--mesh {
   background:
-    radial-gradient(60% 60% at 20% 20%, hsl(var(--primary) / 0.25), transparent 60%),
-    radial-gradient(50% 50% at 80% 30%, hsl(var(--accent) / 0.22), transparent 60%),
-    radial-gradient(70% 70% at 50% 90%, hsl(var(--brand, var(--primary)) / 0.2), transparent 60%);
+    radial-gradient(60% 60% at 20% 20%, color-mix(in oklab, var(--primary) 25%, transparent), transparent 60%),
+    radial-gradient(50% 50% at 80% 30%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
+    radial-gradient(70% 70% at 50% 90%, color-mix(in oklab, var(--brand, var(--primary)) 20%, transparent), transparent 60%);
   background-size: 200% 200%;
   animation: cf-mesh 22s ease-in-out infinite alternate;
 }
@@ -2301,7 +2309,7 @@ textarea::placeholder {
   height: 100%;
 }
 .cf-bg--waves path {
-  fill: hsl(var(--primary) / 0.18);
+  fill: color-mix(in oklab, var(--primary) 18%, transparent);
   animation: cf-wave 8s ease-in-out infinite alternate;
   transform-origin: center;
 }
@@ -2323,8 +2331,8 @@ textarea::placeholder {
 /* 5. Noise shimmer */
 .cf-bg--shimmer {
   background:
-    repeating-linear-gradient(115deg, transparent 0 60px, hsl(var(--primary) / 0.06) 60px 62px),
-    linear-gradient(115deg, transparent 30%, hsl(var(--primary) / 0.18) 50%, transparent 70%);
+    repeating-linear-gradient(115deg, transparent 0 60px, color-mix(in oklab, var(--primary) 6%, transparent) 60px 62px),
+    linear-gradient(115deg, transparent 30%, color-mix(in oklab, var(--primary) 18%, transparent) 50%, transparent 70%);
   background-size:
     100% 100%,
     200% 100%;
@@ -2348,7 +2356,7 @@ textarea::placeholder {
   position: absolute;
   left: 50%;
   top: 50%;
-  border: 1px solid hsl(var(--primary) / 0.18);
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
   border-radius: 50%;
   transform: translate(-50%, -50%);
   animation: cf-orbit 24s linear infinite;
@@ -2372,7 +2380,7 @@ textarea::placeholder {
   width: 14px;
   height: 14px;
   border: none;
-  background: hsl(var(--primary));
+  background: var(--primary);
   opacity: 0.6;
   margin-left: -7px;
   margin-top: -7px;
@@ -2438,12 +2446,12 @@ textarea::placeholder {
 .admin-calendar .rdp-day:hover:not([disabled]),
 .admin-calendar [data-slot="calendar"] button:hover:not([disabled]) {
   background-color: #fdb078 !important;
-  color: hsl(var(--foreground)) !important;
+  color: var(--foreground) !important;
 }
 
 .admin-date-trigger:hover:not([disabled]) {
   background-color: #fdb078 !important;
-  color: hsl(var(--foreground)) !important;
+  color: var(--foreground) !important;
   border-color: #fdb078 !important;
 }
 
@@ -2502,7 +2510,7 @@ textarea::placeholder {
   outline: none;
 }
 :where(input, textarea, select):focus-visible {
-  outline: 2px solid hsl(var(--foreground) / 0.35);
+  outline: 2px solid color-mix(in oklab, var(--foreground) 35%, transparent);
   outline-offset: 1px;
   box-shadow: none;
 }
@@ -2533,14 +2541,14 @@ textarea::placeholder {
   ) {
   display: block;
   width: 100%;
-  border: 1.5px solid var(--gc-input-border, var(--cf-border, hsl(var(--border))));
-  background: var(--gc-input-bg, hsl(var(--background)));
+  border: 1.5px solid var(--gc-input-border, var(--cf-border, var(--border)));
+  background: var(--gc-input-bg, var(--background));
   border-radius: 8px;
-  color: var(--gc-input-text, hsl(var(--foreground)));
+  color: var(--gc-input-text, var(--foreground));
   outline: none;
   box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.04),
-    0 1px 2px hsl(var(--foreground) / 0.05);
+    inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent),
+    0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease,
@@ -2570,7 +2578,7 @@ textarea::placeholder {
   ):focus-visible {
   outline: none;
   border-color: var(--gc-input-focus-border, #FDB078);
-  background: var(--gc-input-bg, hsl(var(--background)));
+  background: var(--gc-input-bg, var(--background));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
   --tw-ring-shadow: 0 0 #0000;
@@ -2582,8 +2590,8 @@ textarea::placeholder {
     textarea,
     select
   ) {
-  background: var(--gc-input-bg, color-mix(in oklab, hsl(var(--background)) 80%, hsl(var(--foreground)) 10%));
-  border-color: var(--gc-input-border, color-mix(in oklab, hsl(var(--foreground)) 30%, transparent));
+  background: var(--gc-input-bg, color-mix(in oklab, var(--background) 80%, var(--foreground) 10%));
+  border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 :where([data-w-id])
   :where(input, textarea)::placeholder {
@@ -2615,7 +2623,7 @@ textarea::placeholder {
 .join-us-shell :where(input, select, textarea) {
   font-size: var(--gc-input-font-size, 14px);
   line-height: var(--gc-input-line-height, 1.4);
-  color: var(--gc-input-text, hsl(var(--foreground)));
+  color: var(--gc-input-text, var(--foreground));
 }
 .cf-shell :where(input, select, textarea)::placeholder,
 [data-w-id] :where(input, select, textarea)::placeholder,
@@ -2752,10 +2760,10 @@ textarea::placeholder {
 :where(input):-webkit-autofill,
 :where(input):-webkit-autofill:hover,
 :where(input):-webkit-autofill:focus {
-  -webkit-text-fill-color: hsl(var(--foreground));
-  -webkit-box-shadow: 0 0 0 1000px hsl(var(--background)) inset;
+  -webkit-text-fill-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
   transition: background-color 5000s ease-in-out 0s;
-  caret-color: hsl(var(--foreground));
+  caret-color: var(--foreground);
 }
 
 /* ============================================================
@@ -2773,8 +2781,8 @@ textarea::placeholder {
 
   margin: 0;
   padding: 0;
-  border: 1.5px solid hsl(var(--border));
-  background: hsl(var(--background));
+  border: 1.5px solid var(--border);
+  background: var(--background);
   display: inline-block;
   vertical-align: middle;
   cursor: pointer;
@@ -2791,12 +2799,12 @@ textarea::placeholder {
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="checkbox"]:hover, input[type="radio"]:hover) {
-  border-color: hsl(var(--foreground) / 0.55);
+  border-color: color-mix(in oklab, var(--foreground) 55%, transparent);
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="checkbox"]:checked, input[type="radio"]:checked) {
-  border-color: hsl(var(--primary));
-  background-color: hsl(var(--primary));
+  border-color: var(--primary);
+  background-color: var(--primary);
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="checkbox"]:checked) {
@@ -2807,7 +2815,7 @@ textarea::placeholder {
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="radio"]:checked) {
-  box-shadow: inset 0 0 0 3px hsl(var(--background));
+  box-shadow: inset 0 0 0 3px var(--background);
 }
 
 /* Date / time inputs — match text input sizing */
@@ -2820,11 +2828,11 @@ textarea::placeholder {
   padding-inline: var(--form-input-padding-x);
   font-size: var(--form-input-font-size);
   line-height: var(--form-input-line-height);
-  border: 1.5px solid hsl(var(--border));
+  border: 1.5px solid var(--border);
   border-radius: var(--form-input-radius);
 
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--background);
+  color: var(--foreground);
   font-family: inherit;
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
@@ -2846,11 +2854,11 @@ textarea::placeholder {
   padding: 0.4rem 0.5rem;
   font-size: var(--form-input-font-size);
   line-height: var(--form-input-line-height);
-  border: 1.5px dashed hsl(var(--border));
+  border: 1.5px dashed var(--border);
   border-radius: var(--form-input-radius);
 
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--background);
+  color: var(--foreground);
   cursor: pointer;
   width: 100%;
 }
@@ -2862,8 +2870,8 @@ textarea::placeholder {
   font-weight: 500;
   border: 0;
   border-radius: 6px;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background: var(--primary);
+  color: var(--primary-foreground);
   cursor: pointer;
   transition: background-color 0.15s ease, opacity 0.15s ease;
 }
@@ -2875,11 +2883,11 @@ textarea::placeholder {
 /* Textarea — match input border/background inside widget shells */
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(textarea) {
-  border: 1.5px solid hsl(var(--border));
+  border: 1.5px solid var(--border);
   border-radius: var(--form-input-radius);
 
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--background);
+  color: var(--foreground);
   font-family: inherit;
   resize: vertical;
 }
@@ -2887,11 +2895,11 @@ textarea::placeholder {
 /* Select — match input styling */
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(select) {
-  border: 1.5px solid hsl(var(--border));
+  border: 1.5px solid var(--border);
   border-radius: var(--form-input-radius);
 
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--background);
+  color: var(--foreground);
   font-family: inherit;
   cursor: pointer;
 }
@@ -2908,3 +2916,62 @@ textarea::placeholder {
 }
 
 
+/* ============================================================
+   Forced-light scope (builder canvas "Jasny" under a dark admin).
+   `.light` re-declares the light tokens (see the `:root, .light` block
+   at the top), which fixes every `var(--token)`-driven color by
+   proximity. The rules below compensate the remaining SELECTOR-level
+   dark branches (`.dark X { ... }`) that would still match through the
+   outer `html.dark` ancestor. Keep them LAST so equal-specificity
+   source order favors the forced-light values.
+   ============================================================ */
+.light .cf-shell {
+  background: var(--cf-bg-light, var(--card));
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: oklch(0.62 0 0) !important;
+  opacity: 1 !important;
+}
+.light .cf-shell .cf-input {
+  background: var(--gc-input-bg, var(--background));
+  border-color: var(--gc-input-border, var(--cf-border, var(--border)));
+}
+.light .cf-shell .cf-input:hover {
+  border-color: var(--gc-input-hover-border, #FDB078);
+}
+.light .cf-shell .cf-input:focus {
+  background: var(--gc-input-bg, var(--background));
+  border-color: var(--gc-input-focus-border, #FDB078);
+}
+.light :where([data-w-id])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    textarea,
+    select
+  ) {
+  background: var(--gc-input-bg, var(--background));
+  border-color: var(--gc-input-border, var(--border));
+}
+.light .cf-shell :where(input, select, textarea)::placeholder,
+.light [data-w-id] :where(input, select, textarea)::placeholder,
+.light .cms-widget-form :where(input, select, textarea)::placeholder,
+.light .nl-shell :where(input, select, textarea)::placeholder,
+.light .auth-shell :where(input, select, textarea)::placeholder,
+.light .join-us-shell :where(input, select, textarea)::placeholder {
+  color: var(--gc-input-placeholder, oklch(0.62 0 0));
+}
+.light :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+  :where(input[type="date"], input[type="datetime-local"], input[type="time"])::-webkit-calendar-picker-indicator {
+  filter: invert(0);
+}
+/* Dual-source (light/dark) images inside the canvas follow the CANVAS mode,
+   not the admin theme. */
+.light :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-light,
+.light :is([data-builder-renderer], [data-visual-canvas]) .gc-img-light {
+  display: block !important;
+}
+.light :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-dark,
+.light :is([data-builder-renderer], [data-visual-canvas]) .gc-img-dark {
+  display: none !important;
+}

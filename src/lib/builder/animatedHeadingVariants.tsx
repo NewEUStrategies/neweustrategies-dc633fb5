@@ -575,7 +575,7 @@ export function AnimatedHeadingRender({
   const align = config.align ?? "left";
 
   const color = config.color || "currentColor";
-  const accent = config.accentColor || "hsl(var(--primary, 220 90% 56%))";
+  const accent = config.accentColor || "var(--primary, hsl(220 90% 56%))";
 
   const durationMs = Math.max(300, config.durationMs ?? 1600);
   const delayMs = Math.max(0, config.delayMs ?? 200);

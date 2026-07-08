@@ -135,7 +135,7 @@ function ColorPopover({
           style={{
             background:
               c === "transparent"
-                ? "linear-gradient(45deg, transparent 45%, hsl(var(--destructive)) 45%, hsl(var(--destructive)) 55%, transparent 55%)"
+                ? "linear-gradient(45deg, transparent 45%, var(--destructive) 45%, var(--destructive) 55%, transparent 55%)"
                 : c,
           }}
           title={c}

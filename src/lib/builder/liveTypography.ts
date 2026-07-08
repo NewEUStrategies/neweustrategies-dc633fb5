@@ -84,6 +84,40 @@ export function broadcastWidgetTypography(
   }
 }
 
+/**
+ * Drop every live typography override (same-document): removes the injected
+ * <style> nodes + sessionStorage snapshots and notifies subscribers with
+ * `undefined` so widgets fall back to the DOCUMENT's typography.
+ *
+ * Needed around undo/redo: the live broadcast otherwise shadows the restored
+ * document value and the canvas visibly "ignores" the undo.
+ */
+export function clearAllLiveWidgetTypography(): void {
+  if (typeof window === "undefined") return;
+  const widgetIds = new Set<string>();
+  try {
+    for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+      const key = window.sessionStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        widgetIds.add(key.slice(STORAGE_PREFIX.length));
+        window.sessionStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // sessionStorage can be disabled — style/subscriber cleanup still runs.
+  }
+  if (typeof document !== "undefined") {
+    document.querySelectorAll(`style[id^="${STYLE_ID_PREFIX}"]`).forEach((el) => el.remove());
+  }
+  widgetIds.forEach((widgetId) => {
+    window.dispatchEvent(
+      new CustomEvent<WidgetTypographyLivePayload>(EVENT_NAME, {
+        detail: { widgetId, typography: undefined, updatedAt: Date.now() },
+      }),
+    );
+  });
+}
+
 export function subscribeWidgetTypography(
   widgetId: string,
   onChange: (typography: WidgetTypography | undefined) => void,

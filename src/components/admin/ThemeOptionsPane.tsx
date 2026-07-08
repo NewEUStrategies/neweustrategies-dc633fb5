@@ -1343,8 +1343,8 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
         <button
           style={{
             ...base,
-            background: "var(--gc-btn-bg, hsl(var(--primary)))",
-            color: "var(--gc-btn-text, hsl(var(--primary-foreground)))",
+            background: "var(--gc-btn-bg, var(--primary))",
+            color: "var(--gc-btn-text, var(--primary-foreground))",
           }}
         >
           Solid
@@ -1353,8 +1353,8 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
           style={{
             ...base,
             background: "transparent",
-            color: "var(--gc-btn-bg, hsl(var(--primary)))",
-            border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))`,
+            color: "var(--gc-btn-bg, var(--primary))",
+            border: `2px solid var(--gc-btn-bg, var(--primary))`,
           }}
         >
           Outline
@@ -1363,7 +1363,7 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
           style={{
             ...base,
             background: "transparent",
-            color: "var(--gc-btn-bg, hsl(var(--primary)))",
+            color: "var(--gc-btn-bg, var(--primary))",
           }}
         >
           Ghost
@@ -1383,12 +1383,12 @@ function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
     borderWidth: isUnderline ? 0 : opts.border_width,
     borderBottomWidth: isUnderline ? Math.max(1, opts.border_width) : opts.border_width,
     borderStyle: "solid",
-    borderColor: "var(--gc-input-border, hsl(var(--border)))",
+    borderColor: "var(--gc-input-border, var(--border))",
     background: isFilled
-      ? "var(--gc-input-bg, hsl(var(--muted)))"
+      ? "var(--gc-input-bg, var(--muted))"
       : isUnderline
         ? "transparent"
-        : "var(--gc-input-bg, hsl(var(--background)))",
+        : "var(--gc-input-bg, var(--background))",
     color: "var(--gc-input-text, inherit)",
     paddingLeft: isUnderline ? 0 : 12,
     paddingRight: isUnderline ? 0 : 12,
@@ -1475,10 +1475,10 @@ function ThemeOptionsBody({
 
 function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
   // Tokens
-  const bg = "hsl(var(--muted))";
-  const fg = "hsl(var(--muted-foreground))";
-  const brand = "hsl(var(--brand, var(--primary)))";
-  const border = "hsl(var(--border))";
+  const bg = "var(--muted)";
+  const fg = "var(--muted-foreground)";
+  const brand = "var(--brand, var(--primary))";
+  const border = "var(--border)";
   const navItems = [0, 1, 2, 3];
 
   const Bar = ({ y, h, fill = bg }: { y: number; h: number; fill?: string }) => (
@@ -1496,12 +1496,12 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
       <svg viewBox="0 0 200 90" className="w-full h-[90px] block" preserveAspectRatio="none">
         {id === "layout-1" && (
           <>
-            <Bar y={0} h={10} fill="hsl(var(--muted) / 0.6)" />
+            <Bar y={0} h={10} fill="color-mix(in oklab, var(--muted) 60%, transparent)" />
             <NavDot x={6} y={5} w={20} />
             <NavDot x={170} y={5} w={24} />
             <Bar y={10} h={40} fill="transparent" />
             <Logo cx={100} cy={30} />
-            <Bar y={50} h={20} fill="hsl(var(--muted) / 0.4)" />
+            <Bar y={50} h={20} fill="color-mix(in oklab, var(--muted) 40%, transparent)" />
             {navItems.map((i) => (
               <NavDot key={i} x={50 + i * 28} y={60} />
             ))}
@@ -1510,7 +1510,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         )}
         {id === "layout-2" && (
           <>
-            <Bar y={0} h={36} fill="hsl(var(--muted) / 0.4)" />
+            <Bar y={0} h={36} fill="color-mix(in oklab, var(--muted) 40%, transparent)" />
             <Logo cx={28} cy={18} />
             {navItems.map((i) => (
               <NavDot key={i} x={90 + i * 22} y={18} />
@@ -1521,7 +1521,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         )}
         {id === "layout-3" && (
           <>
-            <Bar y={0} h={36} fill="hsl(var(--muted) / 0.4)" />
+            <Bar y={0} h={36} fill="color-mix(in oklab, var(--muted) 40%, transparent)" />
             <NavDot x={14} y={18} />
             <NavDot x={36} y={18} />
             <NavDot x={58} y={18} />
@@ -1534,12 +1534,12 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         )}
         {id === "layout-4" && (
           <>
-            <Bar y={0} h={10} fill="hsl(var(--muted) / 0.6)" />
+            <Bar y={0} h={10} fill="color-mix(in oklab, var(--muted) 60%, transparent)" />
             <NavDot x={6} y={5} w={18} />
             <NavDot x={172} y={5} w={22} />
             <Bar y={10} h={32} fill="transparent" />
             <Logo cx={100} cy={26} w={36} />
-            <Bar y={42} h={18} fill="hsl(var(--muted) / 0.4)" />
+            <Bar y={42} h={18} fill="color-mix(in oklab, var(--muted) 40%, transparent)" />
             {navItems.map((i) => (
               <NavDot key={i} x={56 + i * 26} y={51} />
             ))}
@@ -1558,7 +1558,13 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         )}
         {id === "layout-6" && (
           <>
-            <rect x="0" y="0" width="44" height="90" fill="hsl(var(--muted) / 0.6)" />
+            <rect
+              x="0"
+              y="0"
+              width="44"
+              height="90"
+              fill="color-mix(in oklab, var(--muted) 60%, transparent)"
+            />
             <Logo cx={22} cy={12} w={22} />
             {navItems.map((i) => (
               <rect

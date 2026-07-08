@@ -42,6 +42,16 @@ export class RenderErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
+  // A transient render throw (e.g. a bad value mid-edit in the builder) must
+  // not hide the node forever: retry whenever the parent re-renders us with
+  // fresh children (doc mutation, undo, fixed content). If the error persists
+  // the boundary simply catches again — no retry loop.
+  componentDidUpdate(prevProps: Props): void {
+    if (this.state.error && prevProps.children !== this.props.children) {
+      this.setState({ error: null });
+    }
+  }
+
   componentDidCatch(error: Error, info: ErrorInfo): void {
     if (this.props.onError) {
       this.props.onError(error, info);

@@ -9,18 +9,36 @@
 // Each widget below is wrapped in React.lazy + Suspense so its code lives in a
 // separate chunk loaded on demand. With TanStack Start's streaming SSR the
 // dynamic import resolves on the server, so the rendered HTML is identical -
-// only the *client* download is deferred. The `null` fallback guarantees zero
-// layout shift; in steady state the chunk is already resolved (SSR) or arrives
-// during intent-preloaded navigation.
+// only the *client* download is deferred.
+//
+// Fallback contract: on PUBLIC pages it stays `null` (SSR fills the boundary,
+// so it is ~never shown and zero layout shift is guaranteed). Inside the
+// BUILDER canvas — a pure client render where the chunk genuinely loads on
+// first mount — `null` made the widget blink out of existence for a moment,
+// so the canvas shows a shimmer placeholder instead.
 //
 // What stays EAGER (deliberately): layout-critical, frequently above-the-fold
 // or navigation widgets - heading, text, button, nav-link, mega-menu,
 // post-list / carousel, categories, tags, cta, dark-featured-card. Splitting
 // those would risk a visible pop-in on first paint.
 import { lazy, Suspense, type ComponentProps } from "react";
+import { useBuilderMode } from "@/lib/builder/modeContext";
 
-/** Shared zero-CLS fallback. SSR fills the boundary, so this is rarely shown. */
-const FALLBACK = null;
+/** Builder-only shimmer; `null` on public pages (SSR fills the boundary). */
+function LazyFallback() {
+  const inBuilder = useBuilderMode() !== null;
+  if (!inBuilder) return null;
+  return (
+    <div
+      aria-hidden="true"
+      data-lazy-widget-fallback
+      className="skeleton-shimmer"
+      style={{ minHeight: 48, width: "100%", borderRadius: 8, opacity: 0.7 }}
+    />
+  );
+}
+
+const FALLBACK = <LazyFallback />;
 
 const NewsletterFormImpl = lazy(() =>
   import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),

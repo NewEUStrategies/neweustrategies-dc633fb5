@@ -125,11 +125,20 @@ export function VisualCanvas({
       e.preventDefault();
       e.stopPropagation();
     };
+    // Form elements with data-edit-target are clickable again (inline size
+    // editing), so make sure a stray Enter/submit can never fire a REAL
+    // network submission from inside the canvas preview.
+    const killSubmit = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
     root.addEventListener("click", kill, { capture: true });
     root.addEventListener("auxclick", kill, { capture: true });
+    root.addEventListener("submit", killSubmit, { capture: true });
     return () => {
       root.removeEventListener("click", kill, { capture: true });
       root.removeEventListener("auxclick", kill, { capture: true });
+      root.removeEventListener("submit", killSubmit, { capture: true });
     };
   }, []);
 
@@ -607,6 +616,16 @@ export function VisualCanvas({
     [data-visual-canvas] button{pointer-events:none}
     [data-visual-canvas] [data-section-inserter] button,
     [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
+    /* Inline-size editing: elements stamped with data-edit-target must stay
+       clickable (the InlineSizeToolbar opens from them) and advertise it. */
+    [data-visual-canvas] [data-edit-target],
+    [data-visual-canvas] [data-edit-target] *{pointer-events:auto}
+    [data-visual-canvas] [data-edit-target]{cursor:pointer}
+    [data-visual-canvas] [data-edit-target]:hover{
+      outline:1px dashed color-mix(in oklab, var(--brand) 65%, transparent);
+      outline-offset:2px;
+      border-radius:3px;
+    }
     [data-visual-canvas] img{max-width:100% !important;}
     [data-visual-canvas] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]){height:auto;object-fit:contain;}
     [data-visual-canvas] img[data-fill-image]{width:100%;height:100%;}
