@@ -20,11 +20,6 @@ const ALLOWED_MIME = new Set([
 ]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
-async function getSupabaseAdmin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
-}
-
 const RegisterUploadSchema = z.object({
   storagePath: z.string().min(1).max(512),
   filename: z.string().min(1).max(255),
@@ -118,7 +113,7 @@ export const deleteMedia = createServerFn({ method: "POST" })
 
     // Delete the storage object via admin (bypasses storage RLS but we already
     // validated ownership via the user-client SELECT above).
-    const supabaseAdmin = await getSupabaseAdmin();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: rmErr } = await supabaseAdmin.storage.from("media").remove([row.storage_path]);
     if (rmErr) console.warn("[media.delete] storage remove failed:", rmErr.message);
 
@@ -171,7 +166,7 @@ export const getMediaUsage = createServerFn({ method: "POST" })
     // Fail-closed guard: a caller without a tenant must not run this scan
     // (resolveUserTenantId throws). The tenant id also scopes the service-role
     // scans below so this admin read can never surface another tenant's content.
-    const supabaseAdmin = await getSupabaseAdmin();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
 
     const { data: media, error: mErr } = await supabase
@@ -475,7 +470,7 @@ export const bulkDeleteMedia = createServerFn({ method: "POST" })
     if (!rows?.length) return { ok: true, deleted: 0 };
     const paths = rows.map((r) => r.storage_path).filter(Boolean) as string[];
     if (paths.length) {
-      const supabaseAdmin = await getSupabaseAdmin();
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { error: rmErr } = await supabaseAdmin.storage.from("media").remove(paths);
       if (rmErr) console.warn("[media.bulkDelete] storage remove failed:", rmErr.message);
     }
@@ -517,7 +512,7 @@ export const duplicateMedia = createServerFn({ method: "POST" })
       .in("id", data.mediaIds);
     if (error) throw new Error(error.message);
     const out: Array<{ id: string }> = [];
-    const supabaseAdmin = await getSupabaseAdmin();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     for (const r of rows ?? []) {
       const ext = (r.storage_path.split(".").pop() ?? "bin")
@@ -686,7 +681,7 @@ export const deleteMediaFolder = createServerFn({ method: "POST" })
         .like("folder_path", `${path}%`);
       const paths = (rows ?? []).map((r) => r.storage_path).filter(Boolean) as string[];
       if (paths.length) {
-        const supabaseAdmin = await getSupabaseAdmin();
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         await supabaseAdmin.storage.from("media").remove(paths);
       }
       if (rows?.length)
