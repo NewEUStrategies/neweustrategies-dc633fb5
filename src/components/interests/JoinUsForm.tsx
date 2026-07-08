@@ -138,7 +138,9 @@ export function JoinUsForm({
   imageGradient,
   imageOverlay = 0,
   imagePosition = "center",
-  title,
+  imageAspect,
+  imageFit = "cover",
+
 
   subtitle,
   perk1,
