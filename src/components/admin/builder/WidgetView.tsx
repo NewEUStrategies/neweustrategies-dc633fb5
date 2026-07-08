@@ -803,7 +803,16 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
 
     case "join-us": {
-      const variant = (getStr(c, "variant") || "split") as "card" | "split" | "inline";
+      // Live preview mirrors JoinUsForm's full variant set — including
+      // "split-image" — so switching the variant in the property panel
+      // updates the canvas immediately, no page refresh.
+      const rawVariant = getStr(c, "variant") || "split";
+      const variant = (
+        rawVariant === "card" || rawVariant === "split" ||
+        rawVariant === "inline" || rawVariant === "split-image"
+          ? rawVariant
+          : "split"
+      ) as "card" | "split" | "inline" | "split-image";
       const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
       const interestsDisplay =
         (getStr(c, "interestsDisplay") === "droplist" ? "droplist" : "chips") as
@@ -816,13 +825,30 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const pick = (base: string) =>
         getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || undefined;
 
+      // Image config for variant="split-image" — forwarded so the canvas
+      // reflects URL/alt/gradient/overlay/focal-point edits instantly.
+      const imageUrl = getStr(c, "imageUrl") || undefined;
+      const imageAlt = getStr(c, "imageAlt") || undefined;
+      const imageAltEn = getStr(c, "imageAltEn") || undefined;
+      const imageGradient = getStr(c, "imageGradient") || undefined;
+      const rawOverlay = getNum(c, "imageOverlay", -1);
+      const imageOverlay = rawOverlay >= 0 && rawOverlay <= 100 ? rawOverlay : undefined;
+      const imagePosition = getStr(c, "imagePosition") || undefined;
+
       const isOn = (k: string) => getStr(c, k) === "1";
       const customFields = parseCustomFields(c.customFields);
       return wrap(
         <JoinUsForm
           variant={variant}
+          imageUrl={imageUrl}
+          imageAlt={imageAlt}
+          imageAltEn={imageAltEn}
+          imageGradient={imageGradient}
+          imageOverlay={imageOverlay}
+          imagePosition={imagePosition}
           showInterests={showInterests}
           interestsDisplay={interestsDisplay}
+
           title={pick("title")}
           subtitle={pick("subtitle")}
           perk1={pick("perk1")}
