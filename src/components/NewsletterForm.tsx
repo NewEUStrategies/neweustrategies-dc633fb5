@@ -353,11 +353,15 @@ export function NewsletterForm({
 function FieldWrap({
   label,
   required,
+  showMark,
   error,
   children,
 }: {
   label: string;
   required?: boolean;
+  /** Show the visible "*" marker. Only true inside the CMS builder — public
+   *  visitors never see which fields are required until they try to submit. */
+  showMark?: boolean;
   error?: string;
   children: React.ReactNode;
 }) {
@@ -365,7 +369,7 @@ function FieldWrap({
     <label className="block space-y-1">
       <span className="text-xs font-semibold tracking-wide opacity-95">
         {label}
-        {required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+        {required && showMark ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
       </span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
@@ -378,11 +382,13 @@ function CustomFieldRender({
   lang,
   err,
   inputCls,
+  showMark,
 }: {
   field: CustomField;
   lang: "pl" | "en";
   err?: string;
   inputCls: string;
+  showMark?: boolean;
 }) {
   const label = pickLabel(field, lang);
   const placeholder = pickPlaceholder(field, lang);
@@ -392,10 +398,10 @@ function CustomFieldRender({
     return (
       <div>
         <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
-          <input type="checkbox" name={name} className="mt-0.5" />
+          <input type="checkbox" name={name} className="mt-0.5" aria-required={field.required || undefined} />
           <span>
             {label}
-            {field.required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+            {field.required && showMark ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
           </span>
         </label>
         {err && <span className="block text-[11px] text-destructive">{err}</span>}
@@ -404,8 +410,8 @@ function CustomFieldRender({
   }
   if (field.type === "select") {
     return (
-      <FieldWrap label={label} required={field.required} error={err}>
-        <select name={name} required={field.required} className={inputCls} defaultValue="">
+      <FieldWrap label={label} required={field.required} showMark={showMark} error={err}>
+        <select name={name} required={field.required} aria-required={field.required || undefined} className={inputCls} defaultValue="">
           <option value="" disabled>
             {placeholder || (lang === "pl" ? "Wybierz..." : "Select...")}
           </option>
@@ -420,11 +426,12 @@ function CustomFieldRender({
   }
   if (field.type === "textarea") {
     return (
-      <FieldWrap label={label} required={field.required} error={err}>
+      <FieldWrap label={label} required={field.required} showMark={showMark} error={err}>
         <textarea
           name={name}
           rows={4}
           required={field.required}
+          aria-required={field.required || undefined}
           className={`${inputCls} resize-y`}
           placeholder={placeholder}
           maxLength={field.maxLength ?? 4000}
@@ -433,11 +440,12 @@ function CustomFieldRender({
     );
   }
   return (
-    <FieldWrap label={label} required={field.required} error={err}>
+    <FieldWrap label={label} required={field.required} showMark={showMark} error={err}>
       <input
         name={name}
         type={field.type}
         required={field.required}
+        aria-required={field.required || undefined}
         className={inputCls}
         placeholder={placeholder}
         maxLength={field.maxLength ?? 500}
@@ -445,3 +453,4 @@ function CustomFieldRender({
     </FieldWrap>
   );
 }
+
