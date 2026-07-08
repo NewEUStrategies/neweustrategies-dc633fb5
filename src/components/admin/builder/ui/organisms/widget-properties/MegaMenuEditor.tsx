@@ -3,6 +3,7 @@ import { toJson } from "@/lib/builder/types";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
