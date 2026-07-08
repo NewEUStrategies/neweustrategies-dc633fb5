@@ -5,6 +5,7 @@
 // wewnątrz kolumny "content" - dokładnie tak, jak na froncie.
 
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   findLayout,
   type PostFormat,
