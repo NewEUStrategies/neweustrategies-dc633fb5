@@ -63,13 +63,17 @@ function hexToken(bytes = 32): string {
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// SECURITY: ignore X-Forwarded-* headers - an attacker can set them on the
+// incoming request to point the DOI confirmation link at a phishing domain and
+// steal the token. Prefer a hard-coded PUBLIC_SITE_URL; fall back to the
+// request URL's own origin (never the forwarded host). Mirrors
+// contact.functions.ts originFromRequest.
 function originFromRequest(): string {
+  const envUrl = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL;
+  if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
     const req = getRequest();
-    const url = new URL(req.url);
-    const fwdHost = req.headers.get("x-forwarded-host");
-    const fwdProto = req.headers.get("x-forwarded-proto");
-    return `${fwdProto ?? url.protocol.replace(":", "")}://${fwdHost ?? url.host}`;
+    return new URL(req.url).origin;
   } catch {
     return "";
   }
