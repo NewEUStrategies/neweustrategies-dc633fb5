@@ -24,12 +24,28 @@ import {
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
-  variant?: "card" | "split" | "inline";
+  variant?: "card" | "split" | "inline" | "split-image";
   showInterests?: boolean;
   /** Sposób wyboru zainteresowań: chips (przyciski) lub droplist (multiselect z listy rozwijanej). */
   interestsDisplay?: "chips" | "droplist";
   className?: string;
   source?: string;
+
+  // --- Media (variant="split-image"): grafika po lewej, formularz po prawej.
+  /** URL obrazu w lewej kolumnie. Puste = użyj gradientu fallback. */
+  imageUrl?: string;
+  /** Alt tekst PL (dostępność / SEO). */
+  imageAlt?: string;
+  /** Alt tekst EN (dostępność / SEO). */
+  imageAltEn?: string;
+  /** Fallback gradient (dowolna wartość CSS `background`), gdy brak imageUrl.
+   *  Domyślnie: gradient bazujący na tokenach brandu. */
+  imageGradient?: string;
+  /** Nakładka przyciemniająca 0-100 (% opacity czarnej warstwy). */
+  imageOverlay?: number;
+  /** Focal point / kadrowanie obrazu (`object-position`), np. "center", "top", "50% 30%". */
+  imagePosition?: string;
+
 
   // Headings / copy
   title?: string;
