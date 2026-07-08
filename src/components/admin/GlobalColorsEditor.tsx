@@ -944,18 +944,13 @@ function BrandPaletteEditor({
         </div>
         {(adding || editingIdx !== null) && (
           <div className="rounded-md border border-border bg-background/60 p-2 flex flex-wrap items-center gap-2">
-            <Input
-              type="color"
-              value={isHexColor(draftValue) ? draftValue : "#000000"}
-              onChange={(e) => setDraftValue(e.target.value)}
-              className="w-10 h-8 p-1 cursor-pointer"
-            />
-            <Input
-              type="text"
+            <AdminColorPicker
               value={draftValue}
-              onChange={(e) => setDraftValue(e.target.value)}
+              onChange={(v) => setDraftValue(v ?? "")}
+              allowTransparent={false}
+              allowReset={false}
               placeholder="#______"
-              className="h-8 text-xs font-mono w-[110px]"
+              className="flex-1 min-w-[220px]"
             />
             <Input
               type="text"
