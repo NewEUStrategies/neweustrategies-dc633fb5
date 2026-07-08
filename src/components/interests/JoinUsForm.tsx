@@ -45,6 +45,12 @@ export interface JoinUsFormProps {
   imageOverlay?: number;
   /** Focal point / kadrowanie obrazu (`object-position`), np. "center", "top", "50% 30%". */
   imagePosition?: string;
+  /** Proporcje kadru (CSS `aspect-ratio`), np. "16/9", "4/3", "1/1", "3/4", "21/9".
+   *  Pozostaw puste ("" lub "auto") żeby zachować wysokość dopasowaną do kolumny obok. */
+  imageAspect?: string;
+  /** Sposób dopasowania obrazu w kadrze (`object-fit`). Domyślnie "cover". */
+  imageFit?: "cover" | "contain";
+
 
 
   // Headings / copy
