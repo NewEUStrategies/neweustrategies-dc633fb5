@@ -239,37 +239,61 @@ function SideBySide({
   title: string;
   excerpt?: string | null;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid lg:grid-cols-2 gap-4 items-center">
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
-        <ZoneTag label="Cover · side" />
+        <ZoneTag
+          label={t("admin.layoutScaffold.sideBySide.cover", { defaultValue: "Cover - side" })}
+        />
         {url && <img src={url} alt="" className="w-full h-full object-cover" />}
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
-        <ZoneTag label="Nagłówek" />
-        <p className="font-display text-xl lg:text-2xl">{title || "Tytuł wpisu"}</p>
-        {excerpt && <p className="text-sm text-muted-foreground mt-2">{excerpt}</p>}
+        <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
+        <p className="font-display text-xl md:text-2xl lg:text-3xl font-bold leading-[1.1]">
+          {title ||
+            t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+        </p>
+        {excerpt && <p className="text-sm md:text-base text-muted-foreground mt-2">{excerpt}</p>}
       </div>
     </div>
   );
 }
 
 function FooterBars({ s }: { s: PostLayoutSettings }) {
+  const { t } = useTranslation();
   const bars: Array<[string, boolean]> = [
-    ["Tagi", s.show_post_tags_bar],
-    ["Źródła", s.show_sources_bar],
-    ["Via", s.show_via_bar],
-    ["Karta autora", s.show_author_card],
-    ["Poprzedni / Następny", s.show_prev_next],
-    ["Newsletter", s.show_bottom_newsletter],
-    ["Floating share", s.show_floating_share_bar],
-    ["Auto-load next", s.auto_load_next_post],
+    [t("admin.layoutScaffold.footer.tags", { defaultValue: "Tagi" }), s.show_post_tags_bar],
+    [t("admin.layoutScaffold.footer.sources", { defaultValue: "Źródła" }), s.show_sources_bar],
+    [t("admin.layoutScaffold.footer.via", { defaultValue: "Via" }), s.show_via_bar],
+    [
+      t("admin.layoutScaffold.footer.authorCard", { defaultValue: "Karta autora" }),
+      s.show_author_card,
+    ],
+    [
+      t("admin.layoutScaffold.footer.prevNext", { defaultValue: "Poprzedni / Następny" }),
+      s.show_prev_next,
+    ],
+    [
+      t("admin.layoutScaffold.footer.newsletter", { defaultValue: "Newsletter" }),
+      s.show_bottom_newsletter,
+    ],
+    [
+      t("admin.layoutScaffold.footer.floatingShare", { defaultValue: "Floating share" }),
+      s.show_floating_share_bar,
+    ],
+    [
+      t("admin.layoutScaffold.footer.autoLoad", { defaultValue: "Auto-load next" }),
+      s.auto_load_next_post,
+    ],
   ];
   const enabled = bars.filter(([, v]) => v);
   if (!enabled.length) return null;
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-4`}>
-      <ZoneTag label="Stopka wpisu" />
+      <ZoneTag
+        label={t("admin.layoutScaffold.footer.label", { defaultValue: "Stopka wpisu" })}
+      />
       <div className="flex flex-wrap gap-1.5">
         {enabled.map(([label]) => (
           <span
@@ -285,14 +309,17 @@ function FooterBars({ s }: { s: PostLayoutSettings }) {
 }
 
 function Sidebar() {
+  const { t } = useTranslation();
   return (
     <aside className={`relative pt-6 ${ZONE} px-3 pb-3 self-start lg:sticky lg:top-4 space-y-2`}>
-      <ZoneTag label="Sidebar" />
+      <ZoneTag label={t("admin.layoutScaffold.sidebar.label", { defaultValue: "Sidebar" })} />
       <div className="h-6 rounded bg-muted/60" />
       <div className="h-16 rounded bg-muted/40" />
       <div className="h-24 rounded bg-muted/40" />
       <p className="text-[10px] text-muted-foreground/70 italic">
-        Tu pojawi się: ToC, tagi, related, reklama, social.
+        {t("admin.layoutScaffold.sidebar.hint", {
+          defaultValue: "Tu pojawi się: ToC, tagi, related, reklama, social.",
+        })}
       </p>
     </aside>
   );
