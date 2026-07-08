@@ -202,20 +202,20 @@ function OverlayCover({
           }`}
         >
           <span>
-            {t("admin.layoutScaffold.overlay.by", { defaultValue: "By" })}{" "}
+            {t("admin.layoutScaffold.overlay.by", { defaultValue: "Autor:" })}{" "}
             <span className="underline text-white/90">
-              {t("admin.layoutScaffold.overlay.author", { defaultValue: "Autor" })}
+              {t("admin.layoutScaffold.overlay.author", { defaultValue: "Imię Nazwisko" })}
             </span>
           </span>
           <span className="opacity-50">|</span>
           <span>
             {t("admin.layoutScaffold.overlay.published", {
-              defaultValue: "Published: DD/MM/YYYY",
+              defaultValue: "Opublikowano: DD/MM/YYYY",
             })}
           </span>
           <span className="opacity-50">|</span>
           <span>
-            {t("admin.layoutScaffold.overlay.readTime", { defaultValue: "X Min Read" })}
+            {t("admin.layoutScaffold.overlay.readTime", { defaultValue: "X min czytania" })}
           </span>
           <span className="opacity-50">|</span>
           <span className="inline-flex gap-1.5" aria-hidden="true">
