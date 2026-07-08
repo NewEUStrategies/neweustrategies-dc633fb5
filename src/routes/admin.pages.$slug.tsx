@@ -104,6 +104,11 @@ function EditPage() {
   const { data: page, isLoading } = useQuery({
     queryKey: ["page-by-slug", tenantId, routeSlug],
     enabled: !!tenantId,
+    // Never background-refetch the row being edited: a refetch (e.g. on network
+    // reconnect) replaces `page`, which history.reset()s the form and silently
+    // discards unsaved edits + undo history. Explicit invalidations (slug
+    // change) still refetch and reset intentionally.
+    refetchOnReconnect: false,
     queryFn: async (): Promise<PageForm> => {
       // Body columns are revoked from the authenticated role, so `select("*")`
       // would be denied. Staff load the full row (incl. body) through the
@@ -293,6 +298,14 @@ function EditPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // Discard unsaved edits: revert to the last SAVED snapshot (savedFormRef),
+  // not the stale mount-time row - resetting to the fetched row leaves a dirty
+  // form that a subsequent save would persist over newer already-saved work.
+  const discardToSaved = () => {
+    const target = savedFormRef.current ?? page;
+    if (target) history.reset(target);
   };
 
   const del = async () => {
@@ -500,7 +513,7 @@ function EditPage() {
             canRedo={history.canRedo}
             onUndo={history.undo}
             onRedo={history.redo}
-            onDiscard={page ? () => history.reset(page) : undefined}
+            onDiscard={discardToSaved}
           />
 
           <Button
@@ -519,7 +532,7 @@ function EditPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => page && history.reset(page)}
+            onClick={discardToSaved}
             disabled={!isDirty || busy}
             title={t("admin.cancelHint", {
               defaultValue: "Odrzuć niezapisane zmiany i przywróć wersję z serwera",
