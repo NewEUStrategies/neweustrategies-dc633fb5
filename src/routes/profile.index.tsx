@@ -403,7 +403,7 @@ function ProfileInline() {
                   {/* Location */}
                   <ContactRow
                     icon={
-                      <BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />
+                      <BrandIcon neutral name="location" fallback={MapPin} className="h-4 w-4 text-muted-foreground" alt="" />
                     }
                     ariaLabel={t("profile.account.location")}
                   >
