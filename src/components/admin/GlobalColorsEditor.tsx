@@ -8,6 +8,7 @@ import { Save, Undo, Redo, X, ChevronUp, ChevronDown, Moon, Sun } from "@/lib/lu
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { hardenStyleCss } from "@/lib/sanitize";
 import {
@@ -583,30 +584,19 @@ function ColorRow({
         <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">
           {label}
         </span>
-        <Input
-          type="color"
-          value={effective}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={(e) => onCommit(e.target.value)}
-          className="w-12 h-8 p-1 cursor-pointer"
-        />
-        <Input
-          type="text"
+        <AdminColorPicker
           value={value}
+          onChange={(v) => {
+            const next = v ?? "";
+            onChange(next);
+            onCommit(next);
+          }}
+          inheritedValue={defaultValue}
+          allowTransparent={false}
+          allowReset={true}
           placeholder={defaultValue || "#______"}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={(e) => onCommit(e.target.value)}
-          className="h-8 text-xs font-mono w-[120px]"
+          className="flex-1"
         />
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            Wyczyść
-          </button>
-        )}
       </div>
       <div className="space-y-1.5">
         <div>
@@ -954,18 +944,13 @@ function BrandPaletteEditor({
         </div>
         {(adding || editingIdx !== null) && (
           <div className="rounded-md border border-border bg-background/60 p-2 flex flex-wrap items-center gap-2">
-            <Input
-              type="color"
-              value={isHexColor(draftValue) ? draftValue : "#000000"}
-              onChange={(e) => setDraftValue(e.target.value)}
-              className="w-10 h-8 p-1 cursor-pointer"
-            />
-            <Input
-              type="text"
+            <AdminColorPicker
               value={draftValue}
-              onChange={(e) => setDraftValue(e.target.value)}
+              onChange={(v) => setDraftValue(v ?? "")}
+              allowTransparent={false}
+              allowReset={false}
               placeholder="#______"
-              className="h-8 text-xs font-mono w-[110px]"
+              className="flex-1 min-w-[220px]"
             />
             <Input
               type="text"

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Sun, Moon, Save, Undo } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { hardenStyleCss } from "@/lib/sanitize";
 import {
@@ -15,11 +16,6 @@ import {
   type GlobalColorSlot,
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
-
-function isTransparent(v: string): boolean {
-  const t = v.trim().toLowerCase();
-  return t === "transparent" || t === "#00000000" || t === "rgba(0,0,0,0)";
-}
 
 function ColorField({
   label,
@@ -34,56 +30,22 @@ function ColorField({
   defaultValue?: string;
   onChange: (v: string) => void;
 }) {
-  const effective = value || defaultValue || "#ffffff";
-  const transparent = isTransparent(value);
   return (
     <div className="space-y-1.5">
       <Label className="text-xs flex items-center gap-1.5 text-muted-foreground">
         {icon}
         {label}
       </Label>
-      <div className="flex items-center gap-2">
-        <div
-          className="h-9 w-12 rounded border border-border overflow-hidden relative shrink-0"
-          style={{
-            backgroundImage:
-              "linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)",
-            backgroundSize: "8px 8px",
-            backgroundPosition: "0 0, 0 4px, 4px -4px, -4px 0",
-          }}
-        >
-          <input
-            type="color"
-            value={isHex(effective) ? effective : "#ffffff"}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 w-full h-full cursor-pointer opacity-100"
-            style={{ opacity: transparent ? 0.2 : 1 }}
-            aria-label={`${label} - color picker`}
-          />
-        </div>
-        <Input
-          value={value}
-          placeholder={defaultValue ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          className="font-mono text-xs h-9"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant={transparent ? "default" : "outline"}
-          onClick={() => onChange(transparent ? (defaultValue ?? "") : "transparent")}
-          className="h-9 px-2 text-[11px] shrink-0"
-          title="Przezroczyste tło"
-        >
-          {transparent ? "✓ " : ""}Przezroczyste
-        </Button>
-      </div>
+      <AdminColorPicker
+        value={value}
+        onChange={(v) => onChange(v ?? "")}
+        inheritedValue={defaultValue}
+        allowTransparent={true}
+        allowReset={true}
+        ariaLabel={label}
+      />
     </div>
   );
-}
-
-function isHex(v: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
 }
 
 function resolveColor(

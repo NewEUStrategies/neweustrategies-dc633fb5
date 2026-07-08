@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useSettings } from "@/lib/admin/useSettings";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -698,19 +699,19 @@ export function ThemeOptionsPane() {
 
                 <SectionTitle>{t("themeOptions.mainMenu.subLevel")}</SectionTitle>
                 <Row label={t("themeOptions.mainMenu.submenuFrom")}>
-                  <Input
-                    type="color"
-                    className="w-[80px] h-9"
+                  <AdminColorPicker
                     value={draft.header.main_menu.submenu_bg_from || "#ffffff"}
-                    onChange={(e) => patchMenu({ submenu_bg_from: e.target.value })}
+                    onChange={(v) => patchMenu({ submenu_bg_from: v ?? "#ffffff" })}
+                    allowTransparent={false}
+                    allowReset={false}
                   />
                 </Row>
                 <Row label={t("themeOptions.mainMenu.submenuTo")}>
-                  <Input
-                    type="color"
-                    className="w-[80px] h-9"
+                  <AdminColorPicker
                     value={draft.header.main_menu.submenu_bg_to || "#ffffff"}
-                    onChange={(e) => patchMenu({ submenu_bg_to: e.target.value })}
+                    onChange={(v) => patchMenu({ submenu_bg_to: v ?? "#ffffff" })}
+                    allowTransparent={false}
+                    allowReset={false}
                   />
                 </Row>
               </div>

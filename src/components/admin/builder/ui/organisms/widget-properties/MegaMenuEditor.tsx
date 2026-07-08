@@ -3,6 +3,7 @@ import { toJson } from "@/lib/builder/types";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -328,13 +329,13 @@ function ColumnEditor({
                     </Select>
                   </PropField>
                   <PropField label="Tło placeholdera">
-                    <Input
-                      type="color"
+                    <AdminColorPicker
                       value={str(featured.placeholderColor) || "#e5e7eb"}
-                      onChange={(e) =>
-                        set("featured", { ...featured, placeholderColor: e.target.value })
+                      onChange={(v) =>
+                        set("featured", { ...featured, placeholderColor: v ?? "#e5e7eb" })
                       }
-                      className="h-7 p-1"
+                      allowTransparent={false}
+                      allowReset={false}
                     />
                   </PropField>
                 </div>

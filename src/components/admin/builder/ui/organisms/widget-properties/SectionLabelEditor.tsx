@@ -2,6 +2,7 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { PropField } from "../../atoms";
 
 // Compact px-size stepper. Accepts/produces strings like "14px" / "1.5rem" / "".
@@ -143,28 +144,14 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="flex items-center gap-2 pt-1">
           <label className="text-[10px] text-muted-foreground shrink-0">Własny kolor:</label>
-          <input
-            type="color"
-            value={customAccent && customAccent.startsWith("#") ? customAccent : "#e85d3a"}
-            onChange={(e) => setContent("accentColor", e.target.value)}
-            className="h-7 w-10 rounded border border-border cursor-pointer bg-transparent"
-          />
-          <Input
+          <AdminColorPicker
             value={customAccent}
-            onChange={(e) => setContent("accentColor", e.target.value)}
+            onChange={(v) => setContent("accentColor", v ?? "")}
+            allowTransparent={false}
+            allowReset={true}
             placeholder="#hex / oklch(...)"
-            className="h-7 text-[11px] font-mono flex-1"
+            className="flex-1"
           />
-          {customAccent && (
-            <button
-              type="button"
-              onClick={() => setContent("accentColor", "")}
-              className="text-[10px] text-muted-foreground hover:text-destructive"
-              title="Wyczyść własny kolor"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
         </div>
         <div className="text-[10px] text-muted-foreground">
           Aktywny:{" "}
@@ -241,30 +228,13 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Kolor tekstu">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={labelColor && labelColor.startsWith("#") ? labelColor : "#000000"}
-                onChange={(e) => setContent("labelColor", e.target.value)}
-                className="h-8 w-9 rounded border border-border cursor-pointer bg-transparent shrink-0"
-              />
-              <Input
-                value={labelColor}
-                onChange={(e) => setContent("labelColor", e.target.value)}
-                placeholder="auto"
-                className="h-8 text-[11px] font-mono flex-1"
-              />
-              {labelColor && (
-                <button
-                  type="button"
-                  onClick={() => setContent("labelColor", "")}
-                  title="Wyczyść"
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+            <AdminColorPicker
+              value={labelColor}
+              onChange={(v) => setContent("labelColor", v ?? "")}
+              allowTransparent={false}
+              allowReset={true}
+              placeholder="auto"
+            />
           </PropField>
           <PropField label="Rozmiar (np. 16px)">
             <PxSizeInput
@@ -280,30 +250,13 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Kolor tekstu">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={actionColor && actionColor.startsWith("#") ? actionColor : "#000000"}
-                onChange={(e) => setContent("actionColor", e.target.value)}
-                className="h-8 w-9 rounded border border-border cursor-pointer bg-transparent shrink-0"
-              />
-              <Input
-                value={actionColor}
-                onChange={(e) => setContent("actionColor", e.target.value)}
-                placeholder="auto"
-                className="h-8 text-[11px] font-mono flex-1"
-              />
-              {actionColor && (
-                <button
-                  type="button"
-                  onClick={() => setContent("actionColor", "")}
-                  title="Wyczyść"
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+            <AdminColorPicker
+              value={actionColor}
+              onChange={(v) => setContent("actionColor", v ?? "")}
+              allowTransparent={false}
+              allowReset={true}
+              placeholder="auto"
+            />
           </PropField>
           <PropField label="Rozmiar (np. 12px)">
             <PxSizeInput

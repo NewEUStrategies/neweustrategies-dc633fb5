@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -413,10 +414,11 @@ function Editor({
               {cur.background === "color" ? (
                 <div>
                   <Label>Kolor tła</Label>
-                  <Input
-                    type="color"
+                  <AdminColorPicker
                     value={cur.color}
-                    onChange={(e) => updPage(activePage, { color: e.target.value })}
+                    onChange={(v) => updPage(activePage, { color: v ?? "#000000" })}
+                    allowTransparent={false}
+                    allowReset={false}
                   />
                 </div>
               ) : (
