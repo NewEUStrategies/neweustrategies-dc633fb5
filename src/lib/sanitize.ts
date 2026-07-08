@@ -47,39 +47,68 @@ export function sanitizeCssClass(raw: string | undefined): string | undefined {
 const CSS_BLACKLIST_RE =
   /(<\s*\/?\s*(style|script|html|body)|@import|javascript\s*:|expression\s*\(|behavior\s*:)/i;
 
+// Conditional group rules whose *inner* selectors still need scoping.
+const NESTED_AT_RULE_RE = /^@(media|supports|container|layer|scope)\b/i;
+// At-rules whose body must be emitted verbatim - their "selectors" are keyframe
+// stops (`0%`, `from`) or descriptors, which must NOT get the widget prefix.
+const RAW_AT_RULE_RE =
+  /^@(keyframes|-webkit-keyframes|-moz-keyframes|font-face|page|counter-style|property|font-feature-values)\b/i;
+
 /**
- * Scope user CSS to a single widget. The CSS string is wrapped with a parent
- * selector `[data-w-id="<scope>"]` so it cannot leak out, and is rejected if
- * it contains style-breaking or script-loading tokens.
+ * Scope user CSS to a single widget. Every selector is prefixed with a parent
+ * selector `[data-w-id="<scope>"]` so it cannot leak out - including selectors
+ * nested inside `@media` / `@supports` / `@container` blocks, which are walked
+ * recursively. `@keyframes` / `@font-face` / `@page` bodies are emitted as-is
+ * (their inner "selectors" must not be prefixed). The input is rejected if it
+ * contains style-breaking or script-loading tokens.
  *
- * Returns the wrapped CSS or `""` when the input is unsafe.
+ * Returns the scoped CSS or `""` when the input is unsafe.
+ *
+ * Note: brace matching is not string-aware, so a `{`/`}` inside a CSS string
+ * value (e.g. `content: "}"`) is not supported - acceptable for widget CSS.
  */
 export function scopeCustomCss(raw: string | undefined, scopeId: string): string {
   if (!raw) return "";
   if (CSS_BLACKLIST_RE.test(raw)) return "";
-  // Naïve scoping: every selector list gets the parent prefix prepended.
-  // Block @media and @supports correctly by recursing into their bodies.
-  const scope = `[data-w-id="${scopeId}"]`;
-  const scoped = raw
-    .replace(/\}/g, "}\n")
-    .split(/(?<=})/)
-    .map((rule) => {
-      const trimmed = rule.trim();
-      if (!trimmed) return "";
-      // Leave @-rules untouched; they're already scoped by media context.
-      if (trimmed.startsWith("@")) return trimmed;
-      const idx = trimmed.indexOf("{");
-      if (idx < 0) return "";
-      const selectors = trimmed.slice(0, idx);
-      const body = trimmed.slice(idx);
-      const prefixed = selectors
-        .split(",")
-        .map((s) => `${scope} ${s.trim()}`)
-        .join(", ");
-      return `${prefixed} ${body}`;
-    })
-    .join("\n");
-  return scoped;
+  return scopeCssRules(raw, `[data-w-id="${scopeId}"]`);
+}
+
+// Split CSS into top-level rules (respecting nested braces) and scope each.
+function scopeCssRules(css: string, scope: string): string {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        const scoped = scopeCssRule(css.slice(start, i + 1), scope);
+        if (scoped) out.push(scoped);
+        start = i + 1;
+      }
+    }
+  }
+  return out.join("\n");
+}
+
+function scopeCssRule(rule: string, scope: string): string {
+  const trimmed = rule.trim();
+  const braceIdx = trimmed.indexOf("{");
+  const closeIdx = trimmed.lastIndexOf("}");
+  if (braceIdx < 0 || closeIdx <= braceIdx) return "";
+  const prelude = trimmed.slice(0, braceIdx).trim();
+  const body = trimmed.slice(braceIdx + 1, closeIdx).trim();
+  if (RAW_AT_RULE_RE.test(prelude)) return `${prelude} { ${body} }`;
+  if (NESTED_AT_RULE_RE.test(prelude)) return `${prelude} { ${scopeCssRules(body, scope)} }`;
+  const prefixed = prelude
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => `${scope} ${s}`)
+    .join(", ");
+  return `${prefixed} { ${body} }`;
 }
 
 // ---------- URLs ----------

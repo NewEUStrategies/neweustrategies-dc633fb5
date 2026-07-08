@@ -44,6 +44,23 @@ describe("sanitize", () => {
     expect(out).toContain("color: red");
   });
 
+  it("scopes selectors inside @media and keeps the block balanced", () => {
+    const out = scopeCustomCss("@media (max-width: 600px) { .btn { color: red } }", "w1");
+    expect(out).toContain("@media (max-width: 600px)");
+    expect(out).toContain('[data-w-id="w1"] .btn');
+    // The @media wrapper must not leave the inner selector unscoped, and braces
+    // must stay balanced (the old split-on-"}" logic dropped the closing brace).
+    expect(out).not.toMatch(/@media[^{]*\{\s*\.btn/);
+    expect((out.match(/\{/g) ?? []).length).toBe((out.match(/\}/g) ?? []).length);
+  });
+
+  it("does not prefix @keyframes stops", () => {
+    const out = scopeCustomCss("@keyframes spin { from { opacity: 0 } to { opacity: 1 } }", "w1");
+    expect(out).toContain("@keyframes spin");
+    expect(out).not.toContain('[data-w-id="w1"] from');
+    expect(out).not.toContain('[data-w-id="w1"] to');
+  });
+
   it("safeUrl allows http/mailto/anchor; blocks js:", () => {
     expect(safeUrl("https://x.com")).toBe("https://x.com");
     expect(safeUrl("mailto:a@b.c")).toBe("mailto:a@b.c");
