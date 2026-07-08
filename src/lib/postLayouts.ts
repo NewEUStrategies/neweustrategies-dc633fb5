@@ -139,7 +139,17 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     featuredRatioKey: "featured_ratio_l11",
     recommendedImage: { width: 1200, height: 540, ratio: "20:9" },
   },
+  {
+    id: "layout-12",
+    label: "Layout 12 - overlay + sidebar",
+    header: "overlay",
+    cover: "full-bleed",
+    hasSidebar: true,
+    centerHeaderDefault: true,
+    recommendedImage: { width: 1920, height: 1080, ratio: "16:9" },
+  },
 ];
+
 
 export const VIDEO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({
   ...l,
