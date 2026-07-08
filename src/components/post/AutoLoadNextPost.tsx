@@ -5,8 +5,10 @@
 // analitykę kolejnych odsłon. SSR-safe (cała logika w useEffect).
 import { useEffect, useRef, useState } from "react";
 import { fetchNextPost, type NextPostSummary } from "@/lib/queries/nextPost";
-import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { AppLink } from "@/components/atoms/AppLink";
+import { ContentRenderer } from "@/components/content/ContentRenderer";
+import { parseBuilderDoc } from "@/lib/builder/parse";
+import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 
 interface Props {
   currentPostId: string;
@@ -116,10 +118,18 @@ export function AutoLoadNextPost({
       {chain.map((c) => {
         const title =
           lang === "en" ? c.post.title_en || c.post.title_pl : c.post.title_pl || c.post.title_en;
+        // Render via the shared engine so blocks/builder posts (the default
+        // editor) show their real body - not just legacy content_* HTML, which
+        // is empty for them.
+        const builderDoc = parseBuilderDoc(c.post.builder_data);
+        const blocksData = (c.post.blocks_data as LocalizedBlocks | null) ?? null;
+        const blocksDoc: BlocksDoc | null = blocksData
+          ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null)
+          : null;
         const html =
-          lang === "en"
+          (lang === "en"
             ? c.post.content_en || c.post.content_pl
-            : c.post.content_pl || c.post.content_en;
+            : c.post.content_pl || c.post.content_en) ?? "";
         return (
           <article key={c.post.id} className="border-t-2 border-border pt-10 mt-10">
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">{L.next}</p>
@@ -136,12 +146,14 @@ export function AutoLoadNextPost({
                 className="w-full rounded-lg mb-6 max-h-[420px] object-cover"
               />
             )}
-            {html && (
-              <div
-                className="single-post-content prose prose-lg dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(html) }}
-              />
-            )}
+            <ContentRenderer
+              editor={c.post.editor}
+              builderDoc={builderDoc}
+              blocksDoc={blocksDoc}
+              html={html}
+              lang={lang}
+              postId={c.post.id}
+            />
           </article>
         );
       })}
