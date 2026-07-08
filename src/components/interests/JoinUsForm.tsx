@@ -21,6 +21,7 @@ import {
   validateCustomFields,
   type CustomFieldDef,
 } from "@/lib/builder/formFieldConfig";
+import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
