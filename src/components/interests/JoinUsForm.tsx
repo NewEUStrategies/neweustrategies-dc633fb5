@@ -701,7 +701,7 @@ export function JoinUsForm({
             data-edit-target="labelSize"
           >
             {iLabel}
-            {requireInterests && <span className="ml-1 text-destructive">*</span>}
+            {requireInterests && inBuilder && <span className="ml-1 text-destructive">*</span>}
           </p>
 
 
