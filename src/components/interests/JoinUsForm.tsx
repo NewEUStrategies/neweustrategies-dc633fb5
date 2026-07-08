@@ -24,12 +24,28 @@ import {
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
-  variant?: "card" | "split" | "inline";
+  variant?: "card" | "split" | "inline" | "split-image";
   showInterests?: boolean;
   /** Sposób wyboru zainteresowań: chips (przyciski) lub droplist (multiselect z listy rozwijanej). */
   interestsDisplay?: "chips" | "droplist";
   className?: string;
   source?: string;
+
+  // --- Media (variant="split-image"): grafika po lewej, formularz po prawej.
+  /** URL obrazu w lewej kolumnie. Puste = użyj gradientu fallback. */
+  imageUrl?: string;
+  /** Alt tekst PL (dostępność / SEO). */
+  imageAlt?: string;
+  /** Alt tekst EN (dostępność / SEO). */
+  imageAltEn?: string;
+  /** Fallback gradient (dowolna wartość CSS `background`), gdy brak imageUrl.
+   *  Domyślnie: gradient bazujący na tokenach brandu. */
+  imageGradient?: string;
+  /** Nakładka przyciemniająca 0-100 (% opacity czarnej warstwy). */
+  imageOverlay?: number;
+  /** Focal point / kadrowanie obrazu (`object-position`), np. "center", "top", "50% 30%". */
+  imagePosition?: string;
+
 
   // Headings / copy
   title?: string;
@@ -110,7 +126,14 @@ export function JoinUsForm({
   interestsDisplay = "chips",
   className,
   source = "join-us",
+  imageUrl,
+  imageAlt,
+  imageAltEn,
+  imageGradient,
+  imageOverlay = 0,
+  imagePosition = "center",
   title,
+
   subtitle,
   perk1,
   perk2,
@@ -429,8 +452,11 @@ export function JoinUsForm({
       ? "border-t border-b border-border py-6"
       : variant === "split"
         ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
-        : "rounded-xl border border-border bg-card p-6 sm:p-8") +
+        : variant === "split-image"
+          ? "grid gap-0 overflow-hidden rounded-xl border border-border bg-card md:grid-cols-2"
+          : "rounded-xl border border-border bg-card p-6 sm:p-8") +
     ` join-us-shell join-us-shell--${variant}`;
+
 
   if (state === "ok") {
     return (
@@ -884,6 +910,83 @@ export function JoinUsForm({
       </section>
     );
   }
+
+  if (variant === "split-image") {
+    const altText = (lang === "en" ? imageAltEn : imageAlt) || imageAlt || imageAltEn || "";
+    const fallbackGradient =
+      imageGradient ||
+      "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #0f172a) 100%)";
+    const overlayAlpha = Math.min(100, Math.max(0, imageOverlay)) / 100;
+    return (
+      <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+        {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
+        {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy */}
+        <div
+          className="relative min-h-[220px] md:min-h-[380px] overflow-hidden"
+          style={!imageUrl ? { background: fallbackGradient } : undefined}
+        >
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt={altText}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ objectPosition: imagePosition }}
+            />
+          )}
+          {overlayAlpha > 0 && (
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{ backgroundColor: `rgba(0,0,0,${overlayAlpha})` }}
+            />
+          )}
+          <div className="relative flex h-full flex-col justify-end gap-3 p-6 sm:p-8 text-white">
+            <h3
+              id="joinus-heading"
+              className={cn("font-display drop-shadow-md", !titleSize && "text-2xl")}
+              style={titleStyle}
+              data-edit-target="titleSize"
+            >
+              {heading}
+            </h3>
+            {description && (
+              <p
+                className="font-sans text-white/90 drop-shadow"
+                style={descStyle}
+                data-edit-target="descriptionSize"
+              >
+                {description}
+              </p>
+            )}
+            <ul
+              className="join-us-perks flex flex-col gap-2 font-sans text-white/95"
+              style={perkStyle}
+              data-edit-target="perkSize"
+            >
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <span>{p1}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <span>{p2}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <span>{p3}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        {/* Prawa kolumna: formularz */}
+        <div className="p-6 sm:p-8">{form}</div>
+      </section>
+    );
+  }
+
+
 
 
   return (

@@ -922,9 +922,34 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "card", label: "karta" },
         { value: "split", label: "split (lewo: korzyści, prawo: formularz)" },
+        { value: "split-image", label: "split z grafiką (lewo: obraz + korzyści, prawo: formularz)" },
         { value: "inline", label: "inline" },
       ],
     },
+
+    // --- Obszar grafiki (aktywny w wariancie "split-image")
+    { key: "imageUrl", type: "text", label: "Grafika: URL obrazu (puste = gradient fallback)" },
+    { key: "imageAlt", type: "text", label: "Grafika: alt PL" },
+    { key: "imageAltEn", type: "text", label: "Grafika: alt EN" },
+    {
+      key: "imageGradient",
+      type: "text",
+      label: "Grafika: gradient/kolor fallback (CSS `background`, np. linear-gradient(...))",
+    },
+    {
+      key: "imageOverlay",
+      type: "number",
+      label: "Grafika: przyciemnienie (0-100%)",
+      min: 0,
+      max: 100,
+      step: 5,
+    },
+    {
+      key: "imagePosition",
+      type: "text",
+      label: "Grafika: focal point / object-position (np. center, top, 50% 30%)",
+    },
+
     {
       key: "showInterests",
       type: "select",
