@@ -33,8 +33,28 @@ function ProfileLayout() {
 
   const displayName =
     (user?.user_metadata?.full_name as string | undefined) ??
-    (user?.user_metadata?.name as string | undefined) ??
-    user?.email ??
+  const { data: profile } = useQuery({
+    enabled: !!user?.id,
+    queryKey: ["profile-sidebar", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, first_name, last_name")
+        .eq("id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60_000,
+  });
+
+  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim();
+  const displayName =
+    (profile?.display_name && profile.display_name.trim()) ||
+    (fullName.length > 0 ? fullName : null) ||
+    (user?.user_metadata?.full_name as string | undefined) ||
+    (user?.user_metadata?.name as string | undefined) ||
+    user?.email ||
     null;
   const initials = initialsFrom(user?.email, displayName);
   const memberLabel = t("profile.overview.planNone", "Członek");
