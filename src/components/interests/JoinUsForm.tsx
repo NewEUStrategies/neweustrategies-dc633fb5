@@ -141,8 +141,9 @@ export function JoinUsForm({
   imageAspect,
   imageFit = "cover",
 
-
+  title,
   subtitle,
+
   perk1,
   perk2,
   perk3,
