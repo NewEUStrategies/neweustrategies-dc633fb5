@@ -464,7 +464,7 @@ function ProfileInline() {
 
                   {/* X / Twitter */}
                   <ContactRow
-                    icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
+                    icon={<BrandIcon neutral name="x" fallback={Twitter} className="h-4 w-4 text-muted-foreground" alt="X" />}
                     ariaLabel="X"
                   >
                     {editable ? (
