@@ -7,6 +7,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
+import { currentTenantHost } from "@/lib/http/requestHost";
 
 const VALID_METRICS = new Set(["LCP", "CLS", "INP", "FCP", "TTFB", "FID"]);
 // A page load emits ~6 vitals; SPA navigations add a few more. 60-token burst
@@ -40,11 +42,27 @@ export const Route = createFileRoute("/api/public/vitals")({
           const rating = typeof body.rating === "string" ? body.rating.slice(0, 32) : null;
           const path = typeof body.url === "string" ? body.url.slice(0, 512) : null;
 
+          // Attribute the sample to the browsed host's tenant so per-tenant RUM
+          // stays isolated. The service-role client sends no x-tenant-host, so
+          // the column default (public_tenant_id() -> default tenant) can't infer
+          // it; resolve it here. Best-effort: on failure the row still lands under
+          // the default tenant via the column default rather than being dropped.
+          let tenantId: string | null = null;
+          try {
+            tenantId = await resolveTenantIdForHost(await currentTenantHost());
+          } catch {
+            // keep tenantId null -> column default applies
+          }
+
           // `web_vitals` is created by a migration not yet reflected in the
           // generated Supabase types, so the table name/payload are cast here.
-          await supabaseAdmin
-            .from("web_vitals" as never)
-            .insert({ metric, value, rating, path } as never);
+          await supabaseAdmin.from("web_vitals" as never).insert({
+            metric,
+            value,
+            rating,
+            path,
+            ...(tenantId ? { tenant_id: tenantId } : {}),
+          } as never);
         } catch {
           // Ingest is best-effort - never error the beacon.
         }
