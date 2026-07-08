@@ -184,7 +184,6 @@ export function NewsletterPopupForm({
         },
       });
 
-
       if (!res.ok) {
         setErr(
           res.error === "not_configured" || res.error === "disabled"

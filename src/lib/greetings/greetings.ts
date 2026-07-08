@@ -46,11 +46,11 @@ export function normalize(input: string): string {
 // `{name}` placeholder = vocative form (or plain name if not found).
 const PL: Record<TimeBucket, string[]> = {
   night: [
-    "Dobry wieczór, {name}",
+    "Witaj o tej porze, {name}",
     "Miło Cię widzieć, {name}",
     "Witaj, {name}",
     "Cieszymy się, że jesteś, {name}",
-    "Dobrego wieczoru, {name}",
+    "Dobrze, że jesteś, {name}",
     "Powodzenia, {name}",
     "Witaj ponownie, {name}",
   ],
@@ -113,11 +113,11 @@ const PL: Record<TimeBucket, string[]> = {
 
 const EN: Record<TimeBucket, string[]> = {
   night: [
-    "Good evening, {name}",
+    "Hello, {name}",
     "Great to see you, {name}",
     "Welcome, {name}",
     "Glad you're here, {name}",
-    "Have a good evening, {name}",
+    "Good to have you here, {name}",
     "All the best, {name}",
     "Welcome back, {name}",
   ],

@@ -582,7 +582,9 @@ export const createMediaFolder = createServerFn({ method: "POST" })
       chain.push(acc);
     }
     const rows = chain.map((p) => ({ tenant_id: tenantId, path: p, created_by: userId }));
-    const { error } = await supabase.from("media_folders").upsert(rows, { onConflict: "tenant_id,path" });
+    const { error } = await supabase
+      .from("media_folders")
+      .upsert(rows, { onConflict: "tenant_id,path" });
     if (error) throw new Error(error.message);
     await recordAudit(supabase, {
       tenantId,

@@ -46,7 +46,6 @@ const NewsletterInput = z.object({
   formType: z.enum(["newsletter", "join_us"]).default("newsletter"),
 });
 
-
 export type NewsletterSubscribeResult =
   | { ok: true; status: "pending" | "subscribed" | "exists"; emailSent?: boolean }
   | { ok: false; error: string };
@@ -223,7 +222,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       };
     }
 
-
     // Never reset an already-confirmed subscriber.
     const { data: existing } = await supabaseAdmin
       .from("newsletter_subscribers")
@@ -240,8 +238,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       const req = getRequest();
       const fwd = req.headers.get("x-forwarded-for");
       const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
-      clientIp =
-        req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+      clientIp = req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
       userAgent = req.headers.get("user-agent");
     } catch {
       // request context unavailable - fine
@@ -265,7 +262,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       ...(meta ? { meta } : {}),
     };
 
-
     if (!doi) {
       const { error } = await supabaseAdmin.from("newsletter_subscribers").upsert(
         {
@@ -280,7 +276,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       if (error) return { ok: false, error: error.message };
       await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
       return { ok: true, status: "subscribed" };
-
     }
 
     const token = hexToken(32);
@@ -349,4 +344,3 @@ async function syncToCrm(
     console.error("[newsletter] crm sync threw", err);
   }
 }
-

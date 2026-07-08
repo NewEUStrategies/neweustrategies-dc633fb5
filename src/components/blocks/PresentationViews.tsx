@@ -138,20 +138,23 @@ function useInView<T extends HTMLElement>(): [React.RefObject<T | null>, boolean
   return [ref, inView];
 }
 
-function formatNumber(n: number): string {
+function formatNumber(n: number, lang: "pl" | "en"): string {
+  const locale = lang === "en" ? "en-US" : "pl-PL";
   return Number.isInteger(n)
-    ? n.toLocaleString("pl-PL")
-    : n.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
+    ? n.toLocaleString(locale)
+    : n.toLocaleString(locale, { maximumFractionDigits: 2 });
 }
 
 function AnimatedCounter({
   target,
   duration,
   run,
+  lang,
 }: {
   target: number;
   duration: number;
   run: boolean;
+  lang: "pl" | "en";
 }) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -172,16 +175,17 @@ function AnimatedCounter({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [run, target, duration]);
-  return <>{formatNumber(Math.round(val))}</>;
+  return <>{formatNumber(Math.round(val), lang)}</>;
 }
 
 interface StatsProps {
   items?: Json[];
   duration?: number;
   cls?: string;
+  lang?: "pl" | "en";
 }
 
-export function StatsCounterView({ items, duration = 1500, cls }: StatsProps) {
+export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: StatsProps) {
   const parsed: StatItemLite[] = useMemo(() => {
     if (!Array.isArray(items)) return [];
     return items.map((i) => {
@@ -209,7 +213,7 @@ export function StatsCounterView({ items, duration = 1500, cls }: StatsProps) {
           <div key={idx} className="space-y-1">
             <div className="text-3xl md:text-4xl font-bold text-foreground tabular-nums">
               {prefix}
-              <AnimatedCounter target={num} duration={duration} run={inView} />
+              <AnimatedCounter target={num} duration={duration} run={inView} lang={lang} />
               {it.suffix}
             </div>
             {it.label ? <div className="text-sm text-muted-foreground">{it.label}</div> : null}
