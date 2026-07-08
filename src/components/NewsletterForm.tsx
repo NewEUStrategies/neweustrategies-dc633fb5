@@ -369,7 +369,7 @@ function FieldWrap({
     <label className="block space-y-1">
       <span className="text-xs font-semibold tracking-wide opacity-95">
         {label}
-        {required && showMark ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+        {null}
       </span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
@@ -401,7 +401,7 @@ function CustomFieldRender({
           <input type="checkbox" name={name} className="mt-0.5" aria-required={field.required || undefined} />
           <span>
             {label}
-            {field.required && showMark ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+            {null}
           </span>
         </label>
         {err && <span className="block text-[11px] text-destructive">{err}</span>}

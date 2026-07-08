@@ -492,7 +492,7 @@ export function JoinUsForm({
   // Only annotate labels/placeholders with "*" inside the CMS builder canvas —
   // public visitors never see which fields are required until they submit and
   // the server/client validation reports what is missing.
-  const withMark = (label: string, req: boolean) => (req && inBuilder ? `${label} *` : label);
+  const withMark = (label: string, _req: boolean) => label;
 
 
   // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
@@ -710,7 +710,7 @@ export function JoinUsForm({
             data-edit-target="labelSize"
           >
             {iLabel}
-            {requireInterests && inBuilder && <span className="ml-1 text-destructive">*</span>}
+            {null}
           </p>
 
 
