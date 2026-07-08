@@ -80,26 +80,45 @@ function Header({
   excerpt?: string | null;
   center: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}>
-      <ZoneTag label={center ? "Nagłówek · centered" : "Nagłówek"} />
+      <ZoneTag
+        label={
+          center
+            ? t("admin.layoutScaffold.header.centered", { defaultValue: "Nagłówek - centered" })
+            : t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })
+        }
+      />
       <div className={center ? "text-center mx-auto max-w-2xl" : ""}>
-        <p className="font-display text-2xl lg:text-3xl leading-tight text-foreground/90">
-          {title || <span className="text-muted-foreground/70">Tytuł wpisu</span>}
+        <p className="font-display text-2xl md:text-3xl lg:text-4xl leading-[1.1] font-bold text-foreground/90">
+          {title || (
+            <span className="text-muted-foreground/70">
+              {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+            </span>
+          )}
         </p>
         {excerpt ? (
-          <p className="text-sm text-muted-foreground mt-1.5">{excerpt}</p>
+          <p className="text-sm md:text-base text-muted-foreground mt-1.5">{excerpt}</p>
         ) : (
           <p className="text-xs text-muted-foreground/60 mt-1.5">
-            Excerpt - uzupełnij w „Szczegóły"
+            {t("admin.layoutScaffold.excerptPlaceholder", {
+              defaultValue: "Excerpt - uzupełnij w „Szczegóły\"",
+            })}
           </p>
         )}
         <div
           className={`flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground ${center ? "justify-center" : ""}`}
         >
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">data</span>
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">autor</span>
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">read time</span>
+          <span className="px-1.5 py-0.5 rounded bg-muted/60">
+            {t("admin.layoutScaffold.meta.date", { defaultValue: "data" })}
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-muted/60">
+            {t("admin.layoutScaffold.meta.author", { defaultValue: "autor" })}
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-muted/60">
+            {t("admin.layoutScaffold.meta.readTime", { defaultValue: "read time" })}
+          </span>
         </div>
       </div>
     </div>
