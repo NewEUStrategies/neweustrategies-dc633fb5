@@ -156,34 +156,16 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
     case "color": {
       const value = asString(content[field.key]);
-      const safe = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value) ? value : "";
       return (
         <PropField label={field.label} hint={field.hint}>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={safe || "#888888"}
-              onChange={(e) => setContent(field.key, e.target.value)}
-              className="h-8 w-10 rounded border border-border bg-background cursor-pointer p-0"
-              aria-label={field.label}
-            />
-            <Input
-              value={value}
-              placeholder="#RRGGBB lub puste"
-              onChange={(e) => setContent(field.key, e.target.value)}
-              className="h-8 text-xs flex-1"
-            />
-            {value ? (
-              <button
-                type="button"
-                onClick={() => setContent(field.key, "")}
-                className="h-8 px-2 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground border border-border rounded"
-                aria-label="Wyczyść kolor"
-              >
-                Reset
-              </button>
-            ) : null}
-          </div>
+          <AdminColorPicker
+            value={value}
+            onChange={(v) => setContent(field.key, v ?? "")}
+            ariaLabel={field.label}
+            allowTransparent={false}
+            allowReset={true}
+            placeholder="#RRGGBB lub puste"
+          />
         </PropField>
       );
     }
