@@ -928,9 +928,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
 
     // --- Obszar grafiki (aktywny w wariancie "split-image")
-    { key: "imageUrl", type: "text", label: "Grafika: URL obrazu (puste = gradient fallback)" },
-    { key: "imageAlt", type: "text", label: "Grafika: alt PL" },
-    { key: "imageAltEn", type: "text", label: "Grafika: alt EN" },
+    {
+      key: "imageUrl",
+      type: "image",
+      label: "Grafika: obraz (wgraj plik lub wklej URL)",
+      hint: "Wgraj plik z dysku (trafi do biblioteki mediów) albo wklej pełny URL. Puste = użyty zostanie gradient fallback.",
+    },
+    { key: "imageAlt", type: "text", label: "Grafika: alt (PL) - opis dla dostępności / SEO" },
+    { key: "imageAltEn", type: "text", label: "Grafika: alt (EN) - accessibility / SEO description" },
+
     {
       key: "imageGradient",
       type: "text",
