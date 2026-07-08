@@ -480,7 +480,11 @@ export function JoinUsForm({
   const chipStyle = labelSize
     ? ({ fontSize: `${labelSize}px` } satisfies CSSProperties)
     : undefined;
-  const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
+  // Only annotate labels/placeholders with "*" inside the CMS builder canvas —
+  // public visitors never see which fields are required until they submit and
+  // the server/client validation reports what is missing.
+  const withMark = (label: string, req: boolean) => (req && inBuilder ? `${label} *` : label);
+
 
   // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
   // Rendered into a single 2-col grid; when the count is odd, the last item spans both columns
