@@ -147,11 +147,13 @@ function OverlayCover({
   title,
   excerpt,
   center,
+  settings,
 }: {
   url?: string | null;
   title: string;
   excerpt?: string | null;
   center: boolean;
+  settings: PostLayoutSettings;
 }) {
   const { t } = useTranslation();
   return (
@@ -171,12 +173,14 @@ function OverlayCover({
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]" />
 
-      {/* Zawartość: kategorie -> tytuł -> excerpt -> meta. Rozmiary dokładnie
+      {/* Zawartość: kategorie -> tytuł -> excerpt -> meta. Rozmiary sterowane
+          z admin.post-layouts przez CSS-vars (overlayTypographyStyle) -
           zsynchronizowane z src/components/PostLayoutRenderer.tsx. */}
       <div
         className={`absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white ${
           center ? "text-center" : ""
         }`}
+        style={overlayTypographyStyle(settings)}
       >
         <div className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}>
           <span
@@ -190,14 +194,14 @@ function OverlayCover({
           </span>
         </div>
 
-        <p className="font-display font-bold text-2xl md:text-3xl lg:text-4xl leading-[1.1] mb-2">
+        <p className="font-display font-bold overlay-title-typography leading-[1.1] mb-2">
           {title ||
             t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
 
         {excerpt && (
           <p
-            className={`text-xs md:text-sm lg:text-base text-white/80 max-w-2xl line-clamp-2 mb-3 ${
+            className={`overlay-excerpt-typography text-white/80 max-w-2xl line-clamp-2 mb-3 ${
               center ? "mx-auto" : ""
             }`}
           >
@@ -246,6 +250,7 @@ function OverlayCover({
     </div>
   );
 }
+
 
 function SideBySide({
   url,
