@@ -183,6 +183,16 @@
   }
 }
 
+/* Site header widgets: każdy interaktywny element (przyciski, linki, role=button,
+   sumaryczne / checkbox / select) pokazuje "rączkę" na hover. Tailwind v4 preflight
+   ustawia buttonom `cursor: default`, więc jawnie przywracamy pointer w obrębie
+   nagłówka strony, bez naruszania stanów disabled/aria-disabled. */
+[data-site-header] :is(button, a, [role="button"], [role="link"], [role="menuitem"], [role="tab"], summary, label[for], select, input[type="submit"], input[type="button"], input[type="checkbox"], input[type="radio"]):not(:disabled):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+
+
 /* Overlay meta card: wyłączone efekty hover (brak zmiany koloru, opacity, underline). */
 .overlay-meta-card,
 .overlay-meta-card:hover,
