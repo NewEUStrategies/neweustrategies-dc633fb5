@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import "@/lib/i18n-profile";
 
 export const Route = createFileRoute("/profile")({
@@ -29,10 +31,28 @@ function ProfileLayout() {
   const { user } = useAuth();
   const isRoot = pathname === "/profile" || pathname === "/profile/";
 
+  const { data: profile } = useQuery({
+    enabled: !!user?.id,
+    queryKey: ["profile-sidebar", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, first_name, last_name")
+        .eq("id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60_000,
+  });
+
+  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim();
   const displayName =
-    (user?.user_metadata?.full_name as string | undefined) ??
-    (user?.user_metadata?.name as string | undefined) ??
-    user?.email ??
+    (profile?.display_name && profile.display_name.trim()) ||
+    (fullName.length > 0 ? fullName : null) ||
+    (user?.user_metadata?.full_name as string | undefined) ||
+    (user?.user_metadata?.name as string | undefined) ||
+    user?.email ||
     null;
   const initials = initialsFrom(user?.email, displayName);
   const memberLabel = t("profile.overview.planNone", "Członek");
