@@ -850,6 +850,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           imageGradient={imageGradient}
           imageOverlay={imageOverlay}
           imagePosition={imagePosition}
+          imageAspect={imageAspect}
+          imageFit={imageFit}
+
           showInterests={showInterests}
           interestsDisplay={interestsDisplay}
 
