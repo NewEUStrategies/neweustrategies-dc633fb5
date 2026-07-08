@@ -428,9 +428,10 @@ function ProfileInline() {
                   <ContactRow
                     icon={
                       <BrandIcon
+                        neutral
                         name="linkedin"
                         fallback={Linkedin}
-                        className="h-4 w-4"
+                        className="h-4 w-4 text-muted-foreground"
                         alt="LinkedIn"
                       />
                     }
