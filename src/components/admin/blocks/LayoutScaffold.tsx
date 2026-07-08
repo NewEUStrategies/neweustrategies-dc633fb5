@@ -5,6 +5,7 @@
 // wewnątrz kolumny "content" - dokładnie tak, jak na froncie.
 
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   findLayout,
   type PostFormat,
@@ -39,6 +40,7 @@ function Cover({
   preset: LayoutPreset;
   ratio: number;
 }) {
+  const { t } = useTranslation();
   if (preset.cover === "none") return null;
   const aspect =
     preset.cover === "ratio"
@@ -56,13 +58,20 @@ function Cover({
         : "";
   return (
     <div className={`relative ${wrap}`}>
-      <ZoneTag label={`Cover · ${preset.cover}`} />
+      <ZoneTag
+        label={t("admin.layoutScaffold.cover.label", {
+          defaultValue: "Cover - {{variant}}",
+          variant: preset.cover,
+        })}
+      />
       <div className={`${ZONE} overflow-hidden`} style={{ aspectRatio: aspect }}>
         {url ? (
           <img src={url} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full grid place-items-center text-xs text-muted-foreground/70">
-            Brak cover · ustaw w panelu Szczegóły
+            {t("admin.layoutScaffold.cover.empty", {
+              defaultValue: "Brak cover - ustaw w panelu Szczegóły",
+            })}
           </div>
         )}
       </div>
@@ -79,26 +88,45 @@ function Header({
   excerpt?: string | null;
   center: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}>
-      <ZoneTag label={center ? "Nagłówek · centered" : "Nagłówek"} />
+      <ZoneTag
+        label={
+          center
+            ? t("admin.layoutScaffold.header.centered", { defaultValue: "Nagłówek - centered" })
+            : t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })
+        }
+      />
       <div className={center ? "text-center mx-auto max-w-2xl" : ""}>
-        <p className="font-display text-2xl lg:text-3xl leading-tight text-foreground/90">
-          {title || <span className="text-muted-foreground/70">Tytuł wpisu</span>}
+        <p className="font-display text-2xl md:text-3xl lg:text-4xl leading-[1.1] font-bold text-foreground/90">
+          {title || (
+            <span className="text-muted-foreground/70">
+              {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+            </span>
+          )}
         </p>
         {excerpt ? (
-          <p className="text-sm text-muted-foreground mt-1.5">{excerpt}</p>
+          <p className="text-sm md:text-base text-muted-foreground mt-1.5">{excerpt}</p>
         ) : (
           <p className="text-xs text-muted-foreground/60 mt-1.5">
-            Excerpt - uzupełnij w „Szczegóły"
+            {t("admin.layoutScaffold.excerptPlaceholder", {
+              defaultValue: "Excerpt - uzupełnij w „Szczegóły\"",
+            })}
           </p>
         )}
         <div
           className={`flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground ${center ? "justify-center" : ""}`}
         >
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">data</span>
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">autor</span>
-          <span className="px-1.5 py-0.5 rounded bg-muted/60">read time</span>
+          <span className="px-1.5 py-0.5 rounded bg-muted/60">
+            {t("admin.layoutScaffold.meta.date", { defaultValue: "data" })}
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-muted/60">
+            {t("admin.layoutScaffold.meta.author", { defaultValue: "autor" })}
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-muted/60">
+            {t("admin.layoutScaffold.meta.readTime", { defaultValue: "read time" })}
+          </span>
         </div>
       </div>
     </div>
@@ -116,68 +144,81 @@ function OverlayCover({
   excerpt?: string | null;
   center: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className={`relative ${ZONE} overflow-hidden bg-neutral-900`}
       style={{ aspectRatio: "16 / 8" }}
     >
-      <ZoneTag label="Cover overlay + nagłówek" />
+      <ZoneTag
+        label={t("admin.layoutScaffold.overlay.label", {
+          defaultValue: "Cover overlay + nagłówek",
+        })}
+      />
       {url && (
         <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" />
       )}
-      {/* Ciemny gradient całości + wzmocnienie dołu (jak w referencji) */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90" />
+      {/* Ciemny gradient - identyczny jak w publicznym renderze (PostLayoutRenderer). */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]" />
 
-      {/* Zawartość - kategorie, tytuł, excerpt, meta */}
+      {/* Zawartość: kategorie -> tytuł -> excerpt -> meta. Rozmiary dokładnie
+          zsynchronizowane z src/components/PostLayoutRenderer.tsx. */}
       <div
-        className={`absolute inset-x-0 bottom-0 p-5 lg:p-8 text-white ${
+        className={`absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white ${
           center ? "text-center" : ""
         }`}
       >
-        {/* Kategorie */}
         <div className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}>
           <span
-            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm text-white"
+            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm"
             style={{ background: "#FDB078", color: "#111" }}
           >
-            Kategoria
+            {t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
           </span>
           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm bg-white/15 text-white/90 border border-white/20">
-            Tag
+            {t("admin.layoutScaffold.overlay.tag", { defaultValue: "Tag" })}
           </span>
         </div>
 
-        {/* Tytuł */}
-        <p
-          className="font-display font-bold text-2xl lg:text-4xl leading-[1.1] mb-2"
-          style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
-        >
-          {title || "Tytuł wpisu"}
+        <p className="font-display font-bold text-2xl md:text-3xl lg:text-4xl leading-[1.1] mb-2">
+          {title ||
+            t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
 
-        {/* Excerpt */}
         {excerpt && (
-          <p className="text-xs lg:text-sm text-white/80 max-w-2xl mx-auto line-clamp-2 mb-3">
+          <p
+            className={`text-xs md:text-sm lg:text-base text-white/80 max-w-2xl line-clamp-2 mb-3 ${
+              center ? "mx-auto" : ""
+            }`}
+          >
             {excerpt}
           </p>
         )}
 
-        {/* Meta */}
         <div
-          className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] lg:text-[11px] text-white/70 items-center ${
+          className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] md:text-[11px] lg:text-xs text-white/70 items-center ${
             center ? "justify-center" : ""
           }`}
         >
           <span>
-            By <span className="underline text-white/90">Autor</span>
+            {t("admin.layoutScaffold.overlay.by", { defaultValue: "By" })}{" "}
+            <span className="underline text-white/90">
+              {t("admin.layoutScaffold.overlay.author", { defaultValue: "Autor" })}
+            </span>
           </span>
           <span className="opacity-50">|</span>
-          <span>Published: DD/MM/YYYY</span>
+          <span>
+            {t("admin.layoutScaffold.overlay.published", {
+              defaultValue: "Published: DD/MM/YYYY",
+            })}
+          </span>
           <span className="opacity-50">|</span>
-          <span>X Min Read</span>
+          <span>
+            {t("admin.layoutScaffold.overlay.readTime", { defaultValue: "X Min Read" })}
+          </span>
           <span className="opacity-50">|</span>
-          <span className="inline-flex gap-1.5">
+          <span className="inline-flex gap-1.5" aria-hidden="true">
             <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
               f
             </span>
@@ -206,37 +247,61 @@ function SideBySide({
   title: string;
   excerpt?: string | null;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid lg:grid-cols-2 gap-4 items-center">
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
-        <ZoneTag label="Cover · side" />
+        <ZoneTag
+          label={t("admin.layoutScaffold.sideBySide.cover", { defaultValue: "Cover - side" })}
+        />
         {url && <img src={url} alt="" className="w-full h-full object-cover" />}
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
-        <ZoneTag label="Nagłówek" />
-        <p className="font-display text-xl lg:text-2xl">{title || "Tytuł wpisu"}</p>
-        {excerpt && <p className="text-sm text-muted-foreground mt-2">{excerpt}</p>}
+        <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
+        <p className="font-display text-xl md:text-2xl lg:text-3xl font-bold leading-[1.1]">
+          {title ||
+            t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+        </p>
+        {excerpt && <p className="text-sm md:text-base text-muted-foreground mt-2">{excerpt}</p>}
       </div>
     </div>
   );
 }
 
 function FooterBars({ s }: { s: PostLayoutSettings }) {
+  const { t } = useTranslation();
   const bars: Array<[string, boolean]> = [
-    ["Tagi", s.show_post_tags_bar],
-    ["Źródła", s.show_sources_bar],
-    ["Via", s.show_via_bar],
-    ["Karta autora", s.show_author_card],
-    ["Poprzedni / Następny", s.show_prev_next],
-    ["Newsletter", s.show_bottom_newsletter],
-    ["Floating share", s.show_floating_share_bar],
-    ["Auto-load next", s.auto_load_next_post],
+    [t("admin.layoutScaffold.footer.tags", { defaultValue: "Tagi" }), s.show_post_tags_bar],
+    [t("admin.layoutScaffold.footer.sources", { defaultValue: "Źródła" }), s.show_sources_bar],
+    [t("admin.layoutScaffold.footer.via", { defaultValue: "Via" }), s.show_via_bar],
+    [
+      t("admin.layoutScaffold.footer.authorCard", { defaultValue: "Karta autora" }),
+      s.show_author_card,
+    ],
+    [
+      t("admin.layoutScaffold.footer.prevNext", { defaultValue: "Poprzedni / Następny" }),
+      s.show_prev_next,
+    ],
+    [
+      t("admin.layoutScaffold.footer.newsletter", { defaultValue: "Newsletter" }),
+      s.show_bottom_newsletter,
+    ],
+    [
+      t("admin.layoutScaffold.footer.floatingShare", { defaultValue: "Floating share" }),
+      s.show_floating_share_bar,
+    ],
+    [
+      t("admin.layoutScaffold.footer.autoLoad", { defaultValue: "Auto-load next" }),
+      s.auto_load_next_post,
+    ],
   ];
   const enabled = bars.filter(([, v]) => v);
   if (!enabled.length) return null;
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-4`}>
-      <ZoneTag label="Stopka wpisu" />
+      <ZoneTag
+        label={t("admin.layoutScaffold.footer.label", { defaultValue: "Stopka wpisu" })}
+      />
       <div className="flex flex-wrap gap-1.5">
         {enabled.map(([label]) => (
           <span
@@ -252,14 +317,17 @@ function FooterBars({ s }: { s: PostLayoutSettings }) {
 }
 
 function Sidebar() {
+  const { t } = useTranslation();
   return (
     <aside className={`relative pt-6 ${ZONE} px-3 pb-3 self-start lg:sticky lg:top-4 space-y-2`}>
-      <ZoneTag label="Sidebar" />
+      <ZoneTag label={t("admin.layoutScaffold.sidebar.label", { defaultValue: "Sidebar" })} />
       <div className="h-6 rounded bg-muted/60" />
       <div className="h-16 rounded bg-muted/40" />
       <div className="h-24 rounded bg-muted/40" />
       <p className="text-[10px] text-muted-foreground/70 italic">
-        Tu pojawi się: ToC, tagi, related, reklama, social.
+        {t("admin.layoutScaffold.sidebar.hint", {
+          defaultValue: "Tu pojawi się: ToC, tagi, related, reklama, social.",
+        })}
       </p>
     </aside>
   );
@@ -274,6 +342,7 @@ export function LayoutScaffold({
   coverImageUrl,
   children,
 }: Props) {
+  const { t } = useTranslation();
   const preset = findLayout(format, layoutId);
   const ratio = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : 56;
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
@@ -310,7 +379,12 @@ export function LayoutScaffold({
 
   const contentZone = (
     <div className={`relative pt-6 ${ZONE} p-4 mt-4`}>
-      <ZoneTag label={`Treść · max ${contentMaxW}px`} />
+      <ZoneTag
+        label={t("admin.layoutScaffold.content.label", {
+          defaultValue: "Treść - max {{max}}px",
+          max: contentMaxW,
+        })}
+      />
       <div style={{ maxWidth: `${contentMaxW}px` }} className="w-full mx-auto">
         {children}
       </div>
@@ -320,13 +394,35 @@ export function LayoutScaffold({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground border-b border-border pb-2">
-        <span className="font-semibold text-foreground/80">Podgląd layoutu:</span>
+        <span className="font-semibold text-foreground/80">
+          {t("admin.layoutScaffold.summary.title", { defaultValue: "Podgląd layoutu:" })}
+        </span>
         <span className="px-1.5 py-0.5 rounded bg-muted/60">{preset.label}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60">format: {format}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60">header: {preset.header}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60">cover: {preset.cover}</span>
-        {preset.hasSidebar && <span className="px-1.5 py-0.5 rounded bg-brand/20">+ sidebar</span>}
+        <span className="px-1.5 py-0.5 rounded bg-muted/60">
+          {t("admin.layoutScaffold.summary.format", {
+            defaultValue: "format: {{value}}",
+            value: format,
+          })}
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-muted/60">
+          {t("admin.layoutScaffold.summary.header", {
+            defaultValue: "header: {{value}}",
+            value: preset.header,
+          })}
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-muted/60">
+          {t("admin.layoutScaffold.summary.cover", {
+            defaultValue: "cover: {{value}}",
+            value: preset.cover,
+          })}
+        </span>
+        {preset.hasSidebar && (
+          <span className="px-1.5 py-0.5 rounded bg-brand/20">
+            {t("admin.layoutScaffold.summary.sidebar", { defaultValue: "+ sidebar" })}
+          </span>
+        )}
       </div>
+
 
       {topZone}
 
