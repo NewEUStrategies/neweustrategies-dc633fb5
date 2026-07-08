@@ -3,6 +3,8 @@
 // Definicje są PRESETAMI - decydują o pozycji nagłówka, croppingu cover,
 // szerokości treści i obecności sidebara. Renderer (PostLayoutRenderer)
 // mapuje preset na klasy/elementy.
+import type React from "react";
+
 
 export type PostFormat = "standard" | "video" | "audio" | "gallery";
 
@@ -237,7 +239,24 @@ export interface PostLayoutSettings {
   auto_load_next_post: boolean;
   /** Nadpisania włączenia sidebara per preset (id-layoutu -> boolean). */
   layout_sidebar_overrides: Record<string, boolean>;
+  /** Typografia overlay (Layout 4/5/12) - rozmiar tytułu w px per breakpoint. */
+  overlay_title_size_base: number;
+  overlay_title_size_md: number;
+  overlay_title_size_lg: number;
+  /** Typografia overlay - rozmiar podtytułu (excerpt) w px per breakpoint. */
+  overlay_excerpt_size_base: number;
+  overlay_excerpt_size_md: number;
+  overlay_excerpt_size_lg: number;
+  /** Typografia klasycznego nagłówka (bez overlay) - rozmiar tytułu w px. */
+  header_title_size_base: number;
+  header_title_size_md: number;
+  header_title_size_lg: number;
+  /** Typografia klasycznego nagłówka - rozmiar podtytułu (excerpt) w px. */
+  header_excerpt_size_base: number;
+  header_excerpt_size_md: number;
+  header_excerpt_size_lg: number;
 }
+
 
 /** Zwraca efektywną wartość hasSidebar (override -> preset default). */
 export function effectiveHasSidebar(
@@ -301,8 +320,70 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     show_floating_share_bar: true,
     auto_load_next_post: false,
     layout_sidebar_overrides: {},
+    overlay_title_size_base: 24,
+    overlay_title_size_md: 30,
+    overlay_title_size_lg: 36,
+    overlay_excerpt_size_base: 12,
+    overlay_excerpt_size_md: 14,
+    overlay_excerpt_size_lg: 16,
+    header_title_size_base: 30,
+    header_title_size_md: 36,
+    header_title_size_lg: 48,
+    header_excerpt_size_base: 16,
+    header_excerpt_size_md: 18,
+    header_excerpt_size_lg: 18,
   };
 }
+
+/**
+ * Zwraca CSS custom properties do inline-style, które napędzają responsywne
+ * klasy `.overlay-title-typography`, `.overlay-excerpt-typography`,
+ * `.header-title-typography`, `.header-excerpt-typography`. Dzięki temu
+ * jedno źródło (globalne ustawienia) synchronizuje public renderer
+ * (PostLayoutRenderer) i podgląd CMS (LayoutScaffold).
+ */
+export function overlayTypographyStyle(
+  s: Pick<
+    PostLayoutSettings,
+    | "overlay_title_size_base"
+    | "overlay_title_size_md"
+    | "overlay_title_size_lg"
+    | "overlay_excerpt_size_base"
+    | "overlay_excerpt_size_md"
+    | "overlay_excerpt_size_lg"
+  >,
+): React.CSSProperties {
+  return {
+    ["--overlay-title-base" as string]: `${s.overlay_title_size_base}px`,
+    ["--overlay-title-md" as string]: `${s.overlay_title_size_md}px`,
+    ["--overlay-title-lg" as string]: `${s.overlay_title_size_lg}px`,
+    ["--overlay-excerpt-base" as string]: `${s.overlay_excerpt_size_base}px`,
+    ["--overlay-excerpt-md" as string]: `${s.overlay_excerpt_size_md}px`,
+    ["--overlay-excerpt-lg" as string]: `${s.overlay_excerpt_size_lg}px`,
+  };
+}
+
+export function headerTypographyStyle(
+  s: Pick<
+    PostLayoutSettings,
+    | "header_title_size_base"
+    | "header_title_size_md"
+    | "header_title_size_lg"
+    | "header_excerpt_size_base"
+    | "header_excerpt_size_md"
+    | "header_excerpt_size_lg"
+  >,
+): React.CSSProperties {
+  return {
+    ["--header-title-base" as string]: `${s.header_title_size_base}px`,
+    ["--header-title-md" as string]: `${s.header_title_size_md}px`,
+    ["--header-title-lg" as string]: `${s.header_title_size_lg}px`,
+    ["--header-excerpt-base" as string]: `${s.header_excerpt_size_base}px`,
+    ["--header-excerpt-md" as string]: `${s.header_excerpt_size_md}px`,
+    ["--header-excerpt-lg" as string]: `${s.header_excerpt_size_lg}px`,
+  };
+}
+
 
 /** Łączy globalne ustawienia z overridem konkretnego wpisu. */
 export function mergeOverrides(

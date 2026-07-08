@@ -5,11 +5,14 @@ import {
   findLayout,
   coverImageSizes,
   effectiveHasSidebar,
+  overlayTypographyStyle,
+  headerTypographyStyle,
   type PostFormat,
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
+
 
 interface Props {
   format: PostFormat;
@@ -43,16 +46,22 @@ export function PostLayoutRenderer({
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
   const ratioPct = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : null;
   const contentMaxW = hasSidebar ? settings.has_sidebar_max_width : settings.no_sidebar_max_width;
+  const headerTypoStyle = headerTypographyStyle(settings);
+  const overlayTypoStyle = overlayTypographyStyle(settings);
 
   const header = (
-    <header className={`mb-8 ${center ? "text-center" : ""}`}>
+    <header className={`mb-8 ${center ? "text-center" : ""}`} style={headerTypoStyle}>
       {categoryBadges && (
         <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
           {categoryBadges}
         </div>
       )}
-      <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
-      {excerpt && <p className="text-lg text-muted-foreground mb-4">{excerpt}</p>}
+      <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4">
+        {title}
+      </h1>
+      {excerpt && (
+        <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
+      )}
       {meta && (
         <div
           className={`text-sm text-muted-foreground ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
@@ -66,19 +75,22 @@ export function PostLayoutRenderer({
   // Overlay: tytuł, excerpt i meta renderowane bezpośrednio na cover
   // (bez czarnej karty) - zgodnie z podglądem layoutu w edytorze.
   const overlayMetaCard = (
-    <div className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
+    <div
+      className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
+      style={overlayTypoStyle}
+    >
       <div className={`w-full ${center ? "text-center" : ""} overlay-meta-card`}>
         {categoryBadges && (
           <div className={`mb-3 flex flex-wrap gap-1.5 ${center ? "justify-center" : ""}`}>
             {categoryBadges}
           </div>
         )}
-        <h1 className="overlay-meta-title font-display font-bold leading-[1.1] mb-2 text-white text-2xl md:text-3xl lg:text-4xl">
+        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.1] mb-2 text-white">
           {title}
         </h1>
         {excerpt && (
           <p
-            className={`overlay-meta-description text-white/80 mb-3 text-xs md:text-sm lg:text-base line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
+            className={`overlay-meta-description overlay-excerpt-typography text-white/80 mb-3 line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
           >
             {excerpt}
           </p>
@@ -93,6 +105,7 @@ export function PostLayoutRenderer({
       </div>
     </div>
   );
+
 
   // Wrapper dla cover + overlay. Full-bleed używa filmowego kadru 16/8
   // (jak w podglądzie edytora) - nie 70vh, żeby cover nie zajmował całego

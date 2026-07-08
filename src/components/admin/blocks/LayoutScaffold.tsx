@@ -8,10 +8,13 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   findLayout,
+  overlayTypographyStyle,
+  headerTypographyStyle,
   type PostFormat,
   type PostLayoutSettings,
   type LayoutPreset,
 } from "@/lib/postLayouts";
+
 
 interface Props {
   format: PostFormat;
@@ -83,14 +86,19 @@ function Header({
   title,
   excerpt,
   center,
+  settings,
 }: {
   title: string;
   excerpt?: string | null;
   center: boolean;
+  settings: PostLayoutSettings;
 }) {
   const { t } = useTranslation();
   return (
-    <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}>
+    <div
+      className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}
+      style={headerTypographyStyle(settings)}
+    >
       <ZoneTag
         label={
           center
@@ -99,7 +107,7 @@ function Header({
         }
       />
       <div className={center ? "text-center mx-auto max-w-2xl" : ""}>
-        <p className="font-display text-2xl md:text-3xl lg:text-4xl leading-[1.1] font-bold text-foreground/90">
+        <p className="font-display header-title-typography leading-[1.1] font-bold text-foreground/90">
           {title || (
             <span className="text-muted-foreground/70">
               {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
@@ -107,7 +115,7 @@ function Header({
           )}
         </p>
         {excerpt ? (
-          <p className="text-sm md:text-base text-muted-foreground mt-1.5">{excerpt}</p>
+          <p className="header-excerpt-typography text-muted-foreground mt-1.5">{excerpt}</p>
         ) : (
           <p className="text-xs text-muted-foreground/60 mt-1.5">
             {t("admin.layoutScaffold.excerptPlaceholder", {
@@ -133,16 +141,19 @@ function Header({
   );
 }
 
+
 function OverlayCover({
   url,
   title,
   excerpt,
   center,
+  settings,
 }: {
   url?: string | null;
   title: string;
   excerpt?: string | null;
   center: boolean;
+  settings: PostLayoutSettings;
 }) {
   const { t } = useTranslation();
   return (
@@ -162,12 +173,14 @@ function OverlayCover({
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]" />
 
-      {/* Zawartość: kategorie -> tytuł -> excerpt -> meta. Rozmiary dokładnie
+      {/* Zawartość: kategorie -> tytuł -> excerpt -> meta. Rozmiary sterowane
+          z admin.post-layouts przez CSS-vars (overlayTypographyStyle) -
           zsynchronizowane z src/components/PostLayoutRenderer.tsx. */}
       <div
         className={`absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white ${
           center ? "text-center" : ""
         }`}
+        style={overlayTypographyStyle(settings)}
       >
         <div className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}>
           <span
@@ -181,14 +194,14 @@ function OverlayCover({
           </span>
         </div>
 
-        <p className="font-display font-bold text-2xl md:text-3xl lg:text-4xl leading-[1.1] mb-2">
+        <p className="font-display font-bold overlay-title-typography leading-[1.1] mb-2">
           {title ||
             t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
 
         {excerpt && (
           <p
-            className={`text-xs md:text-sm lg:text-base text-white/80 max-w-2xl line-clamp-2 mb-3 ${
+            className={`overlay-excerpt-typography text-white/80 max-w-2xl line-clamp-2 mb-3 ${
               center ? "mx-auto" : ""
             }`}
           >
@@ -238,18 +251,24 @@ function OverlayCover({
   );
 }
 
+
 function SideBySide({
   url,
   title,
   excerpt,
+  settings,
 }: {
   url?: string | null;
   title: string;
   excerpt?: string | null;
+  settings: PostLayoutSettings;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="grid lg:grid-cols-2 gap-4 items-center">
+    <div
+      className="grid lg:grid-cols-2 gap-4 items-center"
+      style={headerTypographyStyle(settings)}
+    >
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
         <ZoneTag
           label={t("admin.layoutScaffold.sideBySide.cover", { defaultValue: "Cover - side" })}
@@ -258,15 +277,18 @@ function SideBySide({
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
         <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
-        <p className="font-display text-xl md:text-2xl lg:text-3xl font-bold leading-[1.1]">
+        <p className="font-display header-title-typography font-bold leading-[1.1]">
           {title ||
             t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
-        {excerpt && <p className="text-sm md:text-base text-muted-foreground mt-2">{excerpt}</p>}
+        {excerpt && (
+          <p className="header-excerpt-typography text-muted-foreground mt-2">{excerpt}</p>
+        )}
       </div>
     </div>
   );
 }
+
 
 function FooterBars({ s }: { s: PostLayoutSettings }) {
   const { t } = useTranslation();
@@ -352,30 +374,39 @@ export function LayoutScaffold({
 
   const topZone = (() => {
     if (preset.header === "overlay") {
-      return <OverlayCover url={coverImageUrl} title={title} excerpt={excerpt} center={center} />;
+      return (
+        <OverlayCover
+          url={coverImageUrl}
+          title={title}
+          excerpt={excerpt}
+          center={center}
+          settings={settings}
+        />
+      );
     }
     if (preset.header === "side-by-side") {
-      return <SideBySide url={coverImageUrl} title={title} excerpt={excerpt} />;
+      return <SideBySide url={coverImageUrl} title={title} excerpt={excerpt} settings={settings} />;
     }
     if (preset.header === "below-cover") {
       return (
         <>
           <Cover url={coverImageUrl} preset={preset} ratio={ratio} />
-          <Header title={title} excerpt={excerpt} center={center} />
+          <Header title={title} excerpt={excerpt} center={center} settings={settings} />
         </>
       );
     }
     if (preset.header === "no-cover") {
-      return <Header title={title} excerpt={excerpt} center={center} />;
+      return <Header title={title} excerpt={excerpt} center={center} settings={settings} />;
     }
     // above-cover (default)
     return (
       <>
-        <Header title={title} excerpt={excerpt} center={center} />
+        <Header title={title} excerpt={excerpt} center={center} settings={settings} />
         {coverImageUrl !== undefined && <Cover url={coverImageUrl} preset={preset} ratio={ratio} />}
       </>
     );
   })();
+
 
   const contentZone = (
     <div className={`relative pt-6 ${ZONE} p-4 mt-4`}>

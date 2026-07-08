@@ -2332,6 +2332,12 @@ export type Database = {
           featured_ratio_l6: number
           gallery_layout: string
           has_sidebar_max_width: number
+          header_excerpt_size_base: number
+          header_excerpt_size_lg: number
+          header_excerpt_size_md: number
+          header_title_size_base: number
+          header_title_size_lg: number
+          header_title_size_md: number
           hyperlink_color: string | null
           hyperlink_color_dark: string | null
           hyperlink_style: string
@@ -2340,6 +2346,12 @@ export type Database = {
           layout_sidebar_overrides: Json
           list_style: string
           no_sidebar_max_width: number
+          overlay_excerpt_size_base: number
+          overlay_excerpt_size_lg: number
+          overlay_excerpt_size_md: number
+          overlay_title_size_base: number
+          overlay_title_size_lg: number
+          overlay_title_size_md: number
           paragraph_spacing_rem: number
           prev_next_mobile_hide: boolean
           quick_view_info: boolean
@@ -2369,6 +2381,12 @@ export type Database = {
           featured_ratio_l6?: number
           gallery_layout?: string
           has_sidebar_max_width?: number
+          header_excerpt_size_base?: number
+          header_excerpt_size_lg?: number
+          header_excerpt_size_md?: number
+          header_title_size_base?: number
+          header_title_size_lg?: number
+          header_title_size_md?: number
           hyperlink_color?: string | null
           hyperlink_color_dark?: string | null
           hyperlink_style?: string
@@ -2377,6 +2395,12 @@ export type Database = {
           layout_sidebar_overrides?: Json
           list_style?: string
           no_sidebar_max_width?: number
+          overlay_excerpt_size_base?: number
+          overlay_excerpt_size_lg?: number
+          overlay_excerpt_size_md?: number
+          overlay_title_size_base?: number
+          overlay_title_size_lg?: number
+          overlay_title_size_md?: number
           paragraph_spacing_rem?: number
           prev_next_mobile_hide?: boolean
           quick_view_info?: boolean
@@ -2406,6 +2430,12 @@ export type Database = {
           featured_ratio_l6?: number
           gallery_layout?: string
           has_sidebar_max_width?: number
+          header_excerpt_size_base?: number
+          header_excerpt_size_lg?: number
+          header_excerpt_size_md?: number
+          header_title_size_base?: number
+          header_title_size_lg?: number
+          header_title_size_md?: number
           hyperlink_color?: string | null
           hyperlink_color_dark?: string | null
           hyperlink_style?: string
@@ -2414,6 +2444,12 @@ export type Database = {
           layout_sidebar_overrides?: Json
           list_style?: string
           no_sidebar_max_width?: number
+          overlay_excerpt_size_base?: number
+          overlay_excerpt_size_lg?: number
+          overlay_excerpt_size_md?: number
+          overlay_title_size_base?: number
+          overlay_title_size_lg?: number
+          overlay_title_size_md?: number
           paragraph_spacing_rem?: number
           prev_next_mobile_hide?: boolean
           quick_view_info?: boolean

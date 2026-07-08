@@ -1,42 +1,105 @@
 ## Cel
 
-Jeden picker kolorów na całą platformę = `AdminColorPicker` (popover z podglądem, HEX/RGB/HSL, react-colorful) — taki sam jak w `/admin/category-colors` po ostatniej zmianie. Znika systemowy popup przeglądarki.
+Dodać w panelu **Admin → Post Layouts** grupę pól „Typografia overlay" ze sterowaniem rozmiarem tytułu i podtytułu (excerpt) per breakpoint (base / md / lg). Ustawienia trzymane w `post_layout_settings` (globalne, tenant-scoped) i konsumowane w:
 
-## Zakres — 17 miejsc do podmiany
+1. Publiczny renderer wpisu (`PostLayoutRenderer.tsx`)
+2. Podgląd CMS (`LayoutScaffold.tsx` - Header + OverlayCover + SideBySide)
 
-Builder widget properties (5 plików):
-- `AccountLinkEditor.tsx` — 3× swatche kolorów
-- `MegaMenuEditor.tsx` — 1×
-- `SliderEditor.tsx` — 3×
-- `SectionLabelEditor.tsx` — 3×
-- `SchemaFieldControl.tsx` — generyczny renderer pola koloru (1×)
+Zmiana w panelu → jedno źródło prawdy → obydwa widoki zmieniają się natychmiast (react-query invalidate).
 
-Panele Theme / Global / Newsletter (4 pliki):
-- `GlobalColorsEditor.tsx` — 2×
-- `ThemeOptionsPane.tsx` — 2×
-- `ThemeBackgroundsPane.tsx` — 1×
-- `newsletter/builder/PropertiesPanel.tsx` — 1×
+## Zakres pól (globalne, w px)
 
-Trasy admin (1 plik):
-- `admin.web-stories.tsx` — 1×
+Overlay title:
+- `overlay_title_size_base` (mobile), default 24
+- `overlay_title_size_md` (tablet), default 30
+- `overlay_title_size_lg` (desktop), default 36
 
-Atomy buildera już delegują do `AdminColorPicker` (`ColorInput`, `ColorField`) — zostają.
+Overlay excerpt (podtytuł):
+- `overlay_excerpt_size_base`, default 12
+- `overlay_excerpt_size_md`, default 14
+- `overlay_excerpt_size_lg`, default 16
 
-## Zasady podmiany
+Nagłówek bez cover (layout-9 i fallback):
+- `header_title_size_base` / `_md` / `_lg`, default 30 / 36 / 48
+- `header_excerpt_size_base` / `_md` / `_lg`, default 16 / 18 / 18
 
-1. `<input type="color" value={x} onChange=... />` + towarzyszący text `Input` z HEX → jeden `<AdminColorPicker value={x} onChange={v => setX(v ?? "")} />`.
-2. Jeśli obok był dedykowany przycisk „reset do domyślnego" — mapujemy na wbudowane `allowReset` pickera; jeśli logika resetu jest inna (np. do rekomendowanego koloru z presetu), zostawiamy osobny przycisk i wyłączamy `allowReset={false}`.
-3. Kolor obowiązkowy (nie może być `undefined`) — użycie `onChange={v => setX(v ?? fallback)}`, `allowTransparent={false}`, `allowReset={false}`.
-4. Kolor opcjonalny (dziedziczony/token) — `allowTransparent={true}`, `allowReset={true}`, opcjonalnie `inheritedValue` żeby pokazywać dziedziczoną wartość jako placeholder.
-5. Zero zmian w logice biznesowej / stanie / walidacji — tylko warstwa UI.
-6. Reguły w `styles.css` z `input:not([type="color"])` zostają — nie kolidują (nie ma już natywnych kolorów, ale selektor jest nadal poprawny i bezpieczny).
+Wszystkie: `smallint`, `NOT NULL` z defaultami, zakres 10-96 (walidacja UI slider).
 
-## Weryfikacja
+## Kroki wdrożenia
 
-- `rg "type=\"color\"" src/components src/routes` po zmianach → 0 trafień poza `styles.css`, `ThemeOptionsStyle.tsx`, `globalColors.ts` (selektory CSS, nie inputy).
-- Build ok, brak nowych błędów TS.
-- Ręczny przegląd screenshotów: builder widget properties, Global Colors, Theme Options, Newsletter, web-stories.
+### 1. Migracja (schema)
 
-## Szacunkowy rozmiar
+`ALTER TABLE public.post_layout_settings ADD COLUMN ... DEFAULT ... NOT NULL` × 12 kolumn. Bez zmiany polityk RLS ani GRANT (tabela już skonfigurowana).
 
-~10 plików, głównie mechaniczna podmiana JSX. Bez migracji DB, bez zmian typów. Wysokie ryzyko regresji tylko przy „resetach do preseta" — te robimy ręcznie z zachowaniem istniejącego zachowania.
+### 2. Warstwa TS - `src/lib/postLayouts.ts`
+
+- Dodać 12 pól do interfejsu `PostLayoutSettings`.
+- Dodać defaulty w `defaultPostLayoutSettings()`.
+- Nowy helper `overlayTypographyStyles(settings)` → zwraca dwa obiekty CSS z custom properties `--overlay-title-*` i `--overlay-excerpt-*` (base + `@media` przez CSS vars i klasy responsywne w globalnym CSS).
+
+### 3. Globalne CSS - `src/styles.css`
+
+Dodać reguły korzystające z CSS variables ustawianych inline na wrapperze cover:
+
+```css
+.overlay-typography { font-size: var(--overlay-title-base); }
+@media (min-width: 768px) { .overlay-typography { font-size: var(--overlay-title-md); } }
+@media (min-width: 1024px) { .overlay-typography { font-size: var(--overlay-title-lg); } }
+/* analogicznie .overlay-excerpt-typography, .header-title-typography, .header-excerpt-typography */
+```
+
+Dzięki temu tytuł/subtytuł konsumuje inline-style zmienne, a responsywność załatwia CSS - bez `@source inline` i bez dynamicznych klas Tailwind.
+
+### 4. Renderer publiczny - `src/components/PostLayoutRenderer.tsx`
+
+- Pobrać `settings` (już w propsach).
+- Na `<h1>` overlay: usunąć `text-2xl md:text-3xl lg:text-4xl`, dodać `overlay-title-typography` + `style={{"--overlay-title-base": ..., "--overlay-title-md": ..., "--overlay-title-lg": ...}}`.
+- Analogicznie dla `<p>` excerpt: klasa `overlay-excerpt-typography` + CSS vars.
+- To samo dla klasycznego nagłówka bez cover (`.header-title-typography`, `.header-excerpt-typography`).
+
+### 5. Podgląd CMS - `src/components/admin/blocks/LayoutScaffold.tsx`
+
+- Propsy scaffolda już dostają `settings`. Zaaplikować te same klasy + CSS vars w `Header`, `OverlayCover`, `SideBySide` - żeby preview 1:1 pokazywał efekt sliderów zanim użytkownik zapisze.
+- Preview czyta lokalny `local` state z routa (już przez propsy → route przekazuje `local`).
+
+### 6. Panel - `src/routes/admin.post-layouts.tsx`
+
+Nowa sekcja „Typografia overlay" pod „Featured Ratio":
+
+```
+Tytuł overlay:   [base 24] [md 30] [lg 36]
+Podtytuł overlay:[base 12] [md 14] [lg 16]
+Tytuł (bez cover):    [base 30] [md 36] [lg 48]
+Podtytuł (bez cover): [base 16] [md 18] [lg 18]
+```
+
+Kontrolka: `<input type="range" min=10 max=96>` + liczbowe pole obok (double-input jak w istniejących `featured_ratio_*`). Live-preview korzysta z `local` state → efekt widoczny natychmiast w `LayoutPreview` bez zapisu.
+
+### 7. Synchronizacja publiczny ↔ admin
+
+Nic dodatkowego nie trzeba - `usePostLayoutSettings()` używa react-query, po `save.mutateAsync()` `invalidateQueries(["post-layout-settings"])` odświeży też renderer publiczny.
+
+### 8. Testy
+
+- Rozszerzyć `src/components/PostLayoutRenderer.test.tsx` o assert obecności CSS var `--overlay-title-lg` po podaniu settings.
+- `src/lib/__tests__/postLayouts.test.ts`: `defaultPostLayoutSettings()` zawiera nowe pola.
+
+### 9. i18n
+
+Etykiety pól panelu: `t("admin.postLayouts.overlayTypography.*", { defaultValue: "Tytuł overlay (mobile)" })` itd. - PL fallback zgodnie z memory.
+
+## Pliki dotknięte
+
+- migration (nowa)
+- `src/lib/postLayouts.ts` (+ nowe pola + helper)
+- `src/styles.css` (+ 4 klasy responsywne)
+- `src/components/PostLayoutRenderer.tsx` (klasy + CSS vars)
+- `src/components/admin/blocks/LayoutScaffold.tsx` (klasy + CSS vars w Header/OverlayCover/SideBySide)
+- `src/routes/admin.post-layouts.tsx` (nowa sekcja UI)
+- `src/components/PostLayoutRenderer.test.tsx` / `src/lib/__tests__/postLayouts.test.ts` (aktualizacje)
+
+## Ryzyko / uwagi
+
+- Nie używam dynamicznych klas Tailwind ani `@source inline` - unikamy problemów z tree-shakingiem.
+- CSS vars są settowane inline tylko na wrapperze cover/header, więc żaden inny widget nie dziedziczy.
+- Zakres 10-96 zabezpiecza przed groteskowymi wartościami; można ograniczyć per pole (np. tytuł min 16).
