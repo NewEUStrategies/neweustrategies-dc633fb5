@@ -17,11 +17,6 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
-function isTransparent(v: string): boolean {
-  const t = v.trim().toLowerCase();
-  return t === "transparent" || t === "#00000000" || t === "rgba(0,0,0,0)";
-}
-
 function ColorField({
   label,
   icon,
@@ -35,7 +30,6 @@ function ColorField({
   defaultValue?: string;
   onChange: (v: string) => void;
 }) {
-  const effective = value || defaultValue || "#ffffff";
   return (
     <div className="space-y-1.5">
       <Label className="text-xs flex items-center gap-1.5 text-muted-foreground">
