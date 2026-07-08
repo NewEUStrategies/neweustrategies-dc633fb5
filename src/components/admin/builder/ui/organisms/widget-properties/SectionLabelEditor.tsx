@@ -250,30 +250,13 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Kolor tekstu">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={actionColor && actionColor.startsWith("#") ? actionColor : "#000000"}
-                onChange={(e) => setContent("actionColor", e.target.value)}
-                className="h-8 w-9 rounded border border-border cursor-pointer bg-transparent shrink-0"
-              />
-              <Input
-                value={actionColor}
-                onChange={(e) => setContent("actionColor", e.target.value)}
-                placeholder="auto"
-                className="h-8 text-[11px] font-mono flex-1"
-              />
-              {actionColor && (
-                <button
-                  type="button"
-                  onClick={() => setContent("actionColor", "")}
-                  title="Wyczyść"
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+            <AdminColorPicker
+              value={actionColor}
+              onChange={(v) => setContent("actionColor", v ?? "")}
+              allowTransparent={false}
+              allowReset={true}
+              placeholder="auto"
+            />
           </PropField>
           <PropField label="Rozmiar (np. 12px)">
             <PxSizeInput
