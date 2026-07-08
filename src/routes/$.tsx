@@ -385,7 +385,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
   const accessRule = data.access;
   const { data: globalLayoutSettings } = usePostLayoutSettings();
-  useRecordPostView(isPost ? it.id : null);
+  useRecordPostView(isPost ? it.id : null, postAuthor?.id ?? null);
 
   // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
   // caller gets an all-null body, so premium content is never shipped. For an

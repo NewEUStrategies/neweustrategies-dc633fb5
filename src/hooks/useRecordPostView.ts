@@ -7,7 +7,7 @@ import { getViewerHash } from "@/lib/views/viewerHash";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-export function useRecordPostView(postId: string | undefined | null) {
+export function useRecordPostView(postId: string | undefined | null, authorId?: string | null) {
   const record = useServerFn(recordPostView);
   const { user } = useAuth();
   const fired = useRef<string | null>(null);
@@ -17,11 +17,16 @@ export function useRecordPostView(postId: string | undefined | null) {
     fired.current = postId;
     const viewerHash = getViewerHash();
     const userId = user?.id;
+    // Don't let an author inflate their own post's public view count / trending
+    // rank by reloading it (best-effort; anon views still count as designed).
+    const isAuthor = !!userId && !!authorId && userId === authorId;
     // 1.5 s delay - filters out instant back/forward navigation.
     const t = window.setTimeout(() => {
-      record({ data: { postId, viewerHash } }).catch(() => {
-        /* silent: view counts are best-effort */
-      });
+      if (!isAuthor) {
+        record({ data: { postId, viewerHash } }).catch(() => {
+          /* silent: view counts are best-effort */
+        });
+      }
       // The view counter runs as anon and can't attribute the read to the user,
       // so record the signed-in user's read history here (owner-RLS, authed
       // session). This is what feeds recommendations' "already read" exclusion
@@ -39,5 +44,5 @@ export function useRecordPostView(postId: string | undefined | null) {
       }
     }, 1500);
     return () => window.clearTimeout(t);
-  }, [postId, record, user?.id]);
+  }, [postId, authorId, record, user?.id]);
 }
