@@ -686,11 +686,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                     />
                   </PropField>
                   <PropField label="Kolor">
-                    <input
-                      type="color"
+                    <AdminColorPicker
                       value={it.categoryColor || "#ef6c2e"}
-                      onChange={(e) => updateItem(i, { categoryColor: e.target.value })}
-                      className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer"
+                      onChange={(v) => updateItem(i, { categoryColor: v ?? "#ef6c2e" })}
+                      allowTransparent={false}
+                      allowReset={false}
                     />
                   </PropField>
                 </div>
