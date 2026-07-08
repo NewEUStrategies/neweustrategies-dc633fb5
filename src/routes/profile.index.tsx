@@ -362,7 +362,7 @@ function ProfileInline() {
                 <ul className="divide-y divide-border/60">
                   {/* Email - read-only from auth */}
                   <ContactRow
-                    icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
+                    icon={<BrandIcon neutral name="mail" fallback={Mail} className="h-4 w-4 text-muted-foreground" alt="" />}
                     ariaLabel={t("profile.account.email")}
                   >
                     <a
@@ -375,7 +375,7 @@ function ProfileInline() {
 
                   {/* Phone */}
                   <ContactRow
-                    icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
+                    icon={<BrandIcon neutral name="phone" fallback={Phone} className="h-4 w-4 text-muted-foreground" alt="" />}
                     ariaLabel={t("profile.account.phone")}
                   >
                     {editable ? (
@@ -403,7 +403,7 @@ function ProfileInline() {
                   {/* Location */}
                   <ContactRow
                     icon={
-                      <BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />
+                      <BrandIcon neutral name="location" fallback={MapPin} className="h-4 w-4 text-muted-foreground" alt="" />
                     }
                     ariaLabel={t("profile.account.location")}
                   >
@@ -428,9 +428,10 @@ function ProfileInline() {
                   <ContactRow
                     icon={
                       <BrandIcon
+                        neutral
                         name="linkedin"
                         fallback={Linkedin}
-                        className="h-4 w-4"
+                        className="h-4 w-4 text-muted-foreground"
                         alt="LinkedIn"
                       />
                     }
@@ -463,7 +464,7 @@ function ProfileInline() {
 
                   {/* X / Twitter */}
                   <ContactRow
-                    icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
+                    icon={<BrandIcon neutral name="x" fallback={Twitter} className="h-4 w-4 text-muted-foreground" alt="X" />}
                     ariaLabel="X"
                   >
                     {editable ? (

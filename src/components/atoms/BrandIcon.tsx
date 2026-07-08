@@ -50,6 +50,13 @@ export interface BrandIconProps extends SVGAttributes<SVGSVGElement> {
   className?: string;
   /** Etykieta dostępności. */
   alt?: string;
+  /**
+   * Pomija ikony marki z biblioteki i zawsze renderuje Lucide fallback,
+   * dzięki czemu ikona dziedziczy `currentColor` i poprawnie adaptuje się do
+   * trybu jasnego / ciemnego. Używaj tam, gdzie ikona pełni rolę czysto
+   * dekoracyjną (np. wiersze kontaktu w profilu), a nie brandu.
+   */
+  neutral?: boolean;
 }
 
 /**
@@ -71,14 +78,23 @@ const ALIASES: Record<string, string[]> = {
   mail: ["mail", "email", "envelope"],
 };
 
-export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
+export function BrandIcon({
+  name,
+  fallback: Fallback,
+  className,
+  alt,
+  neutral,
+  ...rest
+}: BrandIconProps) {
   const { theme } = useTheme();
   const { resolve } = useBrandIcons();
   const candidates = ALIASES[name.toLowerCase()] ?? [name];
   let row: IconRow | undefined;
-  for (const c of candidates) {
-    row = resolve(c);
-    if (row) break;
+  if (!neutral) {
+    for (const c of candidates) {
+      row = resolve(c);
+      if (row) break;
+    }
   }
 
   if (row && (row.url_default || row.url_light || row.url_dark)) {
