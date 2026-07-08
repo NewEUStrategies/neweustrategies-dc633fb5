@@ -3,6 +3,14 @@
 // in-flight status, surfaces errors, exposes a manual flush and reports
 // `isDirty` so navigation guards (useUnsavedChangesGuard) can block
 // tab-close / route-change while changes are not yet persisted.
+//
+// Saves are SERIALIZED and always converge on the freshest value: a burst of
+// edits made while a save is in flight is coalesced and re-saved, so the last
+// value the user produced is the one that ends up persisted. Crucially,
+// `flush()` REJECTS when the underlying save throws, so a caller can never mark
+// the form clean or toast "Saved" for a save that did not actually persist -
+// that lie caused silent, total data loss on the page builder, which has no
+// other persistence path (no autosave, no revisions).
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type AutosaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -15,11 +23,20 @@ export interface UseAutosaveOpts<T> {
   equals?: (a: T, b: T) => boolean;
 }
 
-export interface UseAutosaveResult {
+export interface UseAutosaveResult<T> {
   status: AutosaveStatus;
   error: string | null;
+  /**
+   * Persist any pending changes now and resolve once the freshest value is
+   * stored. REJECTS if the underlying save throws, so callers MUST treat a
+   * rejection as "not saved" - never mark the form clean or toast success on a
+   * rejected flush. Safe to call while a debounced save is already running (it
+   * awaits that and any edits made in the meantime).
+   */
   flush: () => Promise<void>;
   lastSavedAt: number | null;
+  /** The last value successfully persisted; a stable target for "discard". */
+  lastSaved: T;
   /** True while the current value differs from the last persisted snapshot. */
   isDirty: boolean;
 }
@@ -30,76 +47,89 @@ export function useAutosave<T>({
   delayMs = 1500,
   enabled = true,
   equals = Object.is,
-}: UseAutosaveOpts<T>): UseAutosaveResult {
+}: UseAutosaveOpts<T>): UseAutosaveResult<T> {
   const [status, setStatus] = useState<AutosaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  // Mirror the last-saved value in state so `lastSaved` is a stable target a
+  // consumer can reset to (e.g. "discard unsaved changes" without reverting to
+  // the stale mount-time row).
+  const [lastSaved, setLastSaved] = useState<T>(value);
 
   const lastSavedRef = useRef<T>(value);
   const valueRef = useRef<T>(value);
   valueRef.current = value;
-  const inFlightRef = useRef(false);
-  const queuedRef = useRef<T | null>(null);
+  // Keep `save`/`equals` in refs so the save machinery has a stable identity and
+  // the debounce effect does not restart on every render when the caller passes
+  // an inline `save`/`equals` - that pushed the idle timer out by `delayMs` on
+  // each re-render and, under a recurring re-render source, could starve
+  // autosave entirely.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const equalsRef = useRef(equals);
+  equalsRef.current = equals;
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstRunRef = useRef(true);
+  const drainingRef = useRef<Promise<void> | null>(null);
 
-  const runSave = useCallback(
-    async (snapshot: T) => {
-      if (inFlightRef.current) {
-        queuedRef.current = snapshot;
-        return;
-      }
-      inFlightRef.current = true;
-      setStatus("saving");
+  const markSaved = useCallback((snapshot: T) => {
+    lastSavedRef.current = snapshot;
+    setLastSaved(snapshot);
+    setLastSavedAt(Date.now());
+  }, []);
+
+  // Persist the freshest value, coalescing concurrent callers into one running
+  // chain. Keeps saving until valueRef === lastSavedRef so edits made while a
+  // save was in flight are not lost. Rejects (and sets status "error") when a
+  // save throws, so flush() can propagate the failure to its caller.
+  const drain = useCallback((): Promise<void> => {
+    if (drainingRef.current) return drainingRef.current;
+    const run = (async () => {
       try {
-        await save(snapshot);
-        lastSavedRef.current = snapshot;
-        setLastSavedAt(Date.now());
-        setError(null);
-        const q = queuedRef.current;
-        queuedRef.current = null;
-        inFlightRef.current = false;
-        if (q !== null && !equals(q, lastSavedRef.current)) {
-          await runSave(q);
-        } else {
-          setStatus("saved");
+        while (!equalsRef.current(valueRef.current, lastSavedRef.current)) {
+          const snapshot = valueRef.current;
+          setStatus("saving");
+          await saveRef.current(snapshot);
+          markSaved(snapshot);
         }
+        setError(null);
+        setStatus("saved");
       } catch (e) {
-        // Drop any value queued while this save was in flight: it is an
-        // intermediate snapshot, and the freshest value always lives in
-        // valueRef (re-saved by the effect on the next edit or by flush()).
-        // Replaying the stale queued snapshot after a later successful save
-        // would clobber newer content with older content.
-        queuedRef.current = null;
-        inFlightRef.current = false;
         setError(e instanceof Error ? e.message : String(e));
         setStatus("error");
+        throw e;
+      } finally {
+        drainingRef.current = null;
       }
-    },
-    [save, equals],
-  );
+    })();
+    drainingRef.current = run;
+    return run;
+  }, [markSaved]);
 
   useEffect(() => {
     if (!enabled) return;
     if (firstRunRef.current) {
       firstRunRef.current = false;
       lastSavedRef.current = value;
+      setLastSaved(value);
       return;
     }
-    if (equals(value, lastSavedRef.current)) return;
-    // Debounced AUTO-save: mark dirty immediately, then persist after the
-    // editor goes idle for `delayMs`. The timer restarts on every change, so
-    // one save covers a whole burst of typing. Saving reads valueRef (the
-    // freshest value), never the closure snapshot.
+    if (equalsRef.current(value, lastSavedRef.current)) return;
+    // Debounced AUTO-save: mark dirty immediately, then persist after the editor
+    // goes idle for `delayMs`. The timer restarts on every change, so one save
+    // covers a whole burst of typing. `drain` reads valueRef (the freshest
+    // value), never this closure's snapshot.
     setStatus("dirty");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
-      if (!equals(valueRef.current, lastSavedRef.current)) {
-        void runSave(valueRef.current);
-      }
+      void drain().catch(() => {
+        // Failure is surfaced via status/error; the value stays dirty so the
+        // navigation guard keeps protecting it and the next edit retries.
+      });
     }, delayMs);
-  }, [value, enabled, equals, delayMs, runSave]);
+  }, [value, enabled, delayMs, drain]);
 
   // Clear any pending timer on unmount - the unsaved-changes guard (not a
   // fire-and-forget async save) is responsible for the closing-tab case.
@@ -118,10 +148,16 @@ export function useAutosave<T>({
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    if (!equals(valueRef.current, lastSavedRef.current)) await runSave(valueRef.current);
-  }, [equals, runSave]);
+    // Drain to completion, then re-check: a value that arrived while the last
+    // drain was finishing must still be saved before flush resolves. Each drain
+    // persists the latest snapshot, so this converges as soon as edits stop; a
+    // failing save throws out of `drain`, rejecting flush.
+    while (!equalsRef.current(valueRef.current, lastSavedRef.current)) {
+      await drain();
+    }
+  }, [drain]);
 
   const isDirty = enabled && !equals(value, lastSavedRef.current);
 
-  return { status, error, flush, lastSavedAt, isDirty };
+  return { status, error, flush, lastSavedAt, lastSaved, isDirty };
 }

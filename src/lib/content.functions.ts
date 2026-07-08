@@ -136,7 +136,12 @@ async function applyBulkStatus(
     .not("published_at", "is", null)
     .select("id");
   if (keepError) throw new Error(keepError.message);
-  return [...(stamped ?? []), ...(kept ?? [])].map((r) => r.id);
+  // De-duplicate: the first UPDATE commits before the second runs, so rows it
+  // just stamped now satisfy the second filter (`published_at IS NOT NULL`) and
+  // come back in `kept` too. Without the Set the same id is counted twice, which
+  // inflated the result count and defeated the partial-RLS-failure check that
+  // compares the affected count against the requested count.
+  return Array.from(new Set([...(stamped ?? []), ...(kept ?? [])].map((r) => r.id)));
 }
 
 /**
@@ -554,6 +559,22 @@ export const updatePost = createServerFn({ method: "POST" })
           oldPath: oldBase ? `/${oldBase}/${existing.slug}` : null,
           newPath: newBase ? `/${newBase}/${newSlug}` : null,
         });
+      }
+
+      // A taxonomy-only save (empty `fields`) skips the ownership-guarded UPDATE
+      // above, yet the category/tag writes below run under tenant-only RLS -
+      // which would let a user rewrite another author's post taxonomy. Force a
+      // guarded touch so RLS re-checks edit permission on the post itself.
+      if (!Object.keys(updates).length && (data.categories || data.tags)) {
+        const { data: touched, error: touchErr } = await supabase
+          .from("posts")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", data.id)
+          .select("id");
+        if (touchErr) throw new Error(touchErr.message);
+        if (!touched?.length) {
+          throw new Error("Save rejected - you do not have permission to edit this post");
+        }
       }
 
       if (data.categories) {

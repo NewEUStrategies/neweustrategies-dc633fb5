@@ -6,6 +6,7 @@ import {
   scopeCustomCss,
   safeUrl,
   safeImageUrl,
+  hardenStyleCss,
 } from "./sanitize";
 
 describe("sanitize", () => {
@@ -73,5 +74,25 @@ describe("sanitize", () => {
     expect(safeImageUrl("data:image/png;base64,xxx")).toBe("data:image/png;base64,xxx");
     expect(safeImageUrl("data:text/html,x")).toBe("");
     expect(safeImageUrl("javascript:1")).toBe("");
+  });
+
+  it("hardenStyleCss neutralizes a </style> breakout from a stored value", () => {
+    const out = hardenStyleCss(":root{--c: red}</style><script>alert(1)</script>{");
+    expect(out).not.toContain("</style");
+    expect(out).not.toContain("</script");
+    // Legitimate CSS is preserved.
+    expect(out).toContain("--c: red");
+  });
+
+  it("hardenStyleCss handles case and spacing variants", () => {
+    expect(hardenStyleCss("a{}</STYLE >")).not.toMatch(/<\s*\/\s*style/i);
+    expect(hardenStyleCss("a{}< / script>")).not.toMatch(/<\s*\/\s*script/i);
+    expect(hardenStyleCss("a{}<!--x-->")).not.toContain("<!--");
+  });
+
+  it("hardenStyleCss leaves valid CSS (> combinators, @media, ranges) untouched", () => {
+    const input =
+      ".a > .b{color:red}@media (min-width:700px){.a{color:blue}}@container (width < 400px){.x{}}";
+    expect(hardenStyleCss(input)).toBe(input);
   });
 });

@@ -18,6 +18,7 @@ import {
   type TickerColorScheme,
 } from "@/lib/views/tickerVariants";
 import { AppLink } from "@/components/atoms/AppLink";
+import { hardenStyleCss } from "@/lib/sanitize";
 
 export type { TickerMode };
 
@@ -275,7 +276,7 @@ function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColo
     }
     ${sel} .tt-item:hover { color: var(--tt-item-hover) !important; }
   `;
-  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+  return <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
 }
 
 function TickerStyles() {

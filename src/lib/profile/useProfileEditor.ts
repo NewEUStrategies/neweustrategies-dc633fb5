@@ -87,6 +87,9 @@ export function useProfileEditor() {
     if (!user) return;
     void qc.invalidateQueries({ queryKey: ["header-profile", user.id] });
     void qc.invalidateQueries({ queryKey: ["greeting", user.id] });
+    // The profile sidebar (name + initials) reads its own query; without this it
+    // kept showing the pre-edit name until a full reload.
+    void qc.invalidateQueries({ queryKey: ["profile-sidebar", user.id] });
   }, [qc, user]);
 
   const saveField = useCallback(

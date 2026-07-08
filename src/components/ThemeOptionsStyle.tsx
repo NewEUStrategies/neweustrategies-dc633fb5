@@ -1,6 +1,7 @@
 // Injects CSS variables driven by site_settings.theme_options
 // (Buttons + Text Fields tabs) so changes apply across the whole site.
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { hardenStyleCss } from "@/lib/sanitize";
 
 type ButtonsCfg = {
   default_variant?: "solid" | "outline" | "ghost" | "pill";
@@ -88,5 +89,5 @@ export function ThemeOptionsStyle() {
   `;
 
   const css = (buttonsCss + inputsCss).replace(/\s+/g, " ").trim();
-  return <style data-theme-options dangerouslySetInnerHTML={{ __html: css }} />;
+  return <style data-theme-options dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
 }

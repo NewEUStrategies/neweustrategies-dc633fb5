@@ -98,4 +98,65 @@ describe("useAutosave", () => {
     });
     expect(save).toHaveBeenCalledTimes(1);
   });
+
+  it("flush REJECTS when the save fails (never a silent success)", async () => {
+    const save = vi.fn().mockRejectedValue(new Error("server_down"));
+    const { result, rerender } = renderHook(
+      ({ value }: { value: string }) => useAutosave({ value, save, delayMs: 10_000 }),
+      { initialProps: { value: "a" } },
+    );
+    rerender({ value: "ab" });
+    await act(async () => {
+      await expect(result.current.flush()).rejects.toThrow("server_down");
+    });
+    // Caller must be able to see this was NOT saved: still dirty, status error.
+    expect(result.current.status).toBe("error");
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("flush resolves on success and exposes the last-saved value", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ value }: { value: string }) => useAutosave({ value, save, delayMs: 10_000 }),
+      { initialProps: { value: "a" } },
+    );
+    rerender({ value: "ab" });
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(save).toHaveBeenCalledWith("ab");
+    expect(result.current.status).toBe("saved");
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.lastSaved).toBe("ab");
+  });
+
+  it("persists the latest value even when it changed while a save was in flight", async () => {
+    let resolveFirst: () => void = () => {};
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((r) => (resolveFirst = r)))
+      .mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ value }: { value: string }) => useAutosave({ value, save, delayMs: 100 }),
+      { initialProps: { value: "a" } },
+    );
+    rerender({ value: "ab" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenLastCalledWith("ab");
+
+    // Edit again while the first save is still pending, then flush.
+    rerender({ value: "abc" });
+    await act(async () => {
+      const flushed = result.current.flush();
+      resolveFirst();
+      await flushed;
+    });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith("abc");
+    expect(result.current.lastSaved).toBe("abc");
+    expect(result.current.isDirty).toBe(false);
+  });
 });

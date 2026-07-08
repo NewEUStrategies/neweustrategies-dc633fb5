@@ -9,6 +9,7 @@ import { Save, Undo, Redo, X, ChevronUp, ChevronDown, Moon, Sun } from "@/lib/lu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { hardenStyleCss } from "@/lib/sanitize";
 import {
   GLOBAL_COLOR_GROUPS,
   GLOBAL_COLOR_CATEGORIES,
@@ -345,7 +346,10 @@ export function GlobalColorsEditor() {
 
   return (
     <div className="space-y-6">
-      <style data-global-colors-preview dangerouslySetInnerHTML={{ __html: liveCss }} />
+      <style
+        data-global-colors-preview
+        dangerouslySetInnerHTML={{ __html: hardenStyleCss(liveCss) }}
+      />
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg">Global Colors</h3>

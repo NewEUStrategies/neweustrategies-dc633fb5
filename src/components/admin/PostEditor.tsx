@@ -69,9 +69,12 @@ function RichEditor({
   });
 
   useEffect(() => {
+    // Sync EXTERNAL value changes (undo/redo, discard, revision restore) into
+    // the editor. The `value !== getHTML()` guard skips editor-originated
+    // changes - `value` came from onUpdate, so it already equals getHTML() - so
+    // this never fires a cursor-resetting setContent while the user is typing.
     if (editor && value !== editor.getHTML()) editor.commands.setContent(value || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
+  }, [editor, value]);
 
   if (!editor) return null;
 

@@ -102,6 +102,34 @@ async function handle(request: Request): Promise<Response> {
 
         if (!orderId && !sessionId) break;
 
+        // Load the order WITHOUT gating on status. Idempotency lives in
+        // grantEntitlement (keyed on external_ref for subscriptions and the
+        // unique (user, entity) key for purchases), so we can safely grant on
+        // every delivery. Gating the *grant* on "did this delivery flip the
+        // status to paid" was a bug: if grantEntitlement threw after the status
+        // was already flipped, the Stripe retry found the order paid, matched
+        // zero rows, and skipped the grant forever - customer charged, no access.
+        const cols =
+          "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency";
+        const { data: order, error: orderErr } = orderId
+          ? await supabaseAdmin.from("payment_orders").select(cols).eq("id", orderId).maybeSingle()
+          : await supabaseAdmin
+              .from("payment_orders")
+              .select(cols)
+              .eq("provider_session_id", sessionId!)
+              .maybeSingle();
+        if (orderErr) throw orderErr;
+        if (!order) break;
+
+        // Grant first (idempotent). A retry after a transient grant failure
+        // still completes the grant because we no longer skip it once paid.
+        await grantEntitlement(
+          amountTotal !== null ? { ...order, amount_cents: amountTotal } : order,
+          subscriptionId ?? sessionId,
+        );
+
+        // Then record the payment. `.neq("status","paid")` keeps paid_at stamped
+        // exactly once across retries; the grant above already ran regardless.
         type OrderUpdate = {
           status: "paid";
           paid_at: string;
@@ -120,22 +148,11 @@ async function handle(request: Request): Promise<Response> {
         if (amountTotal !== null) updates.amount_cents = amountTotal;
         if (currency) updates.currency = currency.toUpperCase();
         if (customerEmail) updates.receipt_email = customerEmail;
-
-        // `.neq("status","paid")` makes this idempotent: a Stripe retry of an
-        // already-paid order updates zero rows -> order is null -> we skip the
-        // grant instead of double-provisioning.
-        const cols =
-          "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency";
-        const base = supabaseAdmin.from("payment_orders").update(updates).neq("status", "paid");
-        const { data: order, error: orderErr } = orderId
-          ? await base.eq("id", orderId).select(cols).maybeSingle()
-          : await base.eq("provider_session_id", sessionId!).select(cols).maybeSingle();
-        if (orderErr) throw orderErr;
-
-        // Turn the paid order into access (subscription or one-time purchase).
-        if (order) {
-          await grantEntitlement(order, subscriptionId ?? sessionId);
-        }
+        await supabaseAdmin
+          .from("payment_orders")
+          .update(updates)
+          .eq("id", order.id)
+          .neq("status", "paid");
         break;
       }
 

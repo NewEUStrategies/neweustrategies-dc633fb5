@@ -166,6 +166,11 @@ function EditPost() {
   const { data: post, isLoading } = useQuery({
     queryKey: ["post-by-slug", tenantId, routeSlug],
     enabled: !!tenantId,
+    // Never background-refetch the row being edited: a refetch (e.g. on network
+    // reconnect) replaces `post`, which history.reset()s the form and silently
+    // discards unsaved edits + undo history. Explicit invalidations (revision
+    // restore, slug change) still refetch and reset intentionally.
+    refetchOnReconnect: false,
     queryFn: async (): Promise<PostForm> => {
       // Body columns are revoked from the authenticated role, so `select("*")`
       // would be denied. Staff load the full row (incl. body) through the
@@ -409,6 +414,16 @@ function EditPost() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // Discard unsaved edits by reverting to the last SAVED snapshot - not the
+  // stale mount-time row (autosave would then persist that stale content over
+  // newer already-saved work).
+  const discardToSaved = () => {
+    const saved = autosave.lastSaved;
+    if (saved.form) history.reset(saved.form);
+    setSelectedCats(saved.cats);
+    setSelectedTags(saved.tags);
   };
 
   const del = async () => {
@@ -847,7 +862,7 @@ function EditPost() {
             canRedo={history.canRedo}
             onUndo={history.undo}
             onRedo={history.redo}
-            onDiscard={post ? () => history.reset(post) : undefined}
+            onDiscard={discardToSaved}
           />
 
           <Button variant="ghost" size="sm" onClick={del}>
