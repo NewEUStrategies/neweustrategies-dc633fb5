@@ -8,6 +8,7 @@ import { Save, Undo, Redo, X, ChevronUp, ChevronDown, Moon, Sun } from "@/lib/lu
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { hardenStyleCss } from "@/lib/sanitize";
 import {
