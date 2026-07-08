@@ -46,9 +46,7 @@ const ContactInput = z.object({
   custom: z.record(z.string().max(64), z.string().max(500)).optional(),
 });
 
-
 type ContactPayload = z.infer<typeof ContactInput>;
-
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const DOI_TTL_MS = 1000 * 60 * 60 * 48; // 48h
@@ -256,7 +254,6 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       throw new Error(`policy_violation:${Array.from(new Set(violations)).join(",")}`);
     }
 
-
     // Extract client IP + UA from request headers (defensive: proxy chains vary)
     let clientIp: string | null = null;
     let userAgent: string | null = null;
@@ -264,12 +261,26 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       const req = getRequest();
       const fwd = req.headers.get("x-forwarded-for");
       const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
-      clientIp =
-        req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+      clientIp = req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
 
       userAgent = req.headers.get("user-agent");
     } catch {
       // request context unavailable (e.g. non-HTTP invocation) - fine
+    }
+
+    // Abuse guard: this public endpoint sends an auto-reply (and, on opt-in, a
+    // DOI confirmation) to the caller-supplied address, so it can be used to
+    // bomb inboxes / burn the Resend quota. Cap submissions per client IP. Fail
+    // open when the IP is unknown (rare) rather than blocking legitimate users.
+    if (clientIp) {
+      const { rateLimit } = await import("@/lib/server/rate-limit.server");
+      const allowed = await rateLimit({
+        scope: "contact.submit",
+        subjectId: clientIp,
+        max: 5,
+        windowMinutes: 10,
+      });
+      if (!allowed) throw new Error("rate_limited");
     }
 
     const { data: inserted, error } = await supabaseAdmin
@@ -321,9 +332,6 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     } catch (e) {
       console.error("[contact] crm sync threw", e);
     }
-
-
-
 
     const { data: cfs } = await supabaseAdmin
       .from("contact_form_settings")

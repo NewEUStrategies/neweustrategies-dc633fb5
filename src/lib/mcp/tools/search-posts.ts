@@ -1,6 +1,6 @@
 import { defineTool } from "@lovable.dev/mcp-js";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { mcpSupabase } from "@/lib/mcp/supabaseClient";
 
 export default defineTool({
   name: "search_posts",
@@ -14,17 +14,16 @@ export default defineTool({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ query, lang, limit }) => {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !key) {
+    const sb = await mcpSupabase();
+    if (!sb) {
       return { content: [{ type: "text", text: "Backend not configured" }], isError: true };
     }
-    const sb = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
     const titleCol = lang === "en" ? "title_en" : "title_pl";
     const excerptCol = lang === "en" ? "excerpt_en" : "excerpt_pl";
-    const like = `%${query.replace(/[%_]/g, "")}%`;
+    // Strip LIKE wildcards and PostgREST .or() metacharacters (comma separates
+    // filters, parens group, quotes escape) so the phrase can't inject extra
+    // filter conditions into the .or() below.
+    const like = `%${query.replace(/[%_,()"\\]/g, "")}%`;
     const { data, error } = await sb
       .from("posts")
       .select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)
