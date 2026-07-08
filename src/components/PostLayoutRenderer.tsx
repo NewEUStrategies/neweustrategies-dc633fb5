@@ -63,45 +63,44 @@ export function PostLayoutRenderer({
     </header>
   );
 
-  // Wspólna meta-karta w stylu overlay – używana we wszystkich wariantach layoutu z cover photo.
+  // Overlay: tytuł, excerpt i meta renderowane bezpośrednio na cover
+  // (bez czarnej karty) - zgodnie z podglądem layoutu w edytorze.
   const overlayMetaCard = (
-    <div className="absolute inset-x-0 bottom-0 flex justify-center px-3 md:px-4 lg:px-6">
+    <div className="absolute inset-x-0 bottom-0 px-4 md:px-8 lg:px-12 pb-8 md:pb-12 lg:pb-16 text-white">
       <div
-        className={`w-full max-w-[92vw] md:max-w-2xl lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""} overlay-meta-card`}
+        className={`w-full max-w-4xl ${center ? "mx-auto text-center" : ""} overlay-meta-card`}
       >
-        <div className="px-4 md:px-5 lg:px-8 pt-4 md:pt-5 pb-4 md:pb-5">
-          {categoryBadges && (
-            <div className={`mb-2 md:mb-3 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
-              {categoryBadges}
-            </div>
-          )}
-          <h1 className="overlay-meta-title font-display mb-2 md:mb-3 text-white text-3xl md:text-4xl lg:text-5xl">
-            {title}
-          </h1>
-          {excerpt && (
-            <p className="overlay-meta-description text-white/85 mb-2 md:mb-3 max-w-3xl mx-auto text-base md:text-lg">
-              {excerpt}
-            </p>
-          )}
-          {meta && (
-            <div
-              className={`text-xs md:text-sm flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-1 text-white/70 pt-2 md:pt-3 border-t border-white/10 ${center ? "justify-center" : ""}`}
-            >
-              {meta}
-            </div>
-          )}
-        </div>
+        {categoryBadges && (
+          <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
+            {categoryBadges}
+          </div>
+        )}
+        <h1 className="overlay-meta-title font-display mb-3 md:mb-4 text-white text-3xl md:text-4xl lg:text-5xl">
+          {title}
+        </h1>
+        {excerpt && (
+          <p className="overlay-meta-description text-white/85 mb-4 md:mb-5 max-w-3xl mx-auto text-base md:text-lg">
+            {excerpt}
+          </p>
+        )}
+        {meta && (
+          <div
+            className={`text-xs md:text-sm flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-1 text-white/80 ${center ? "justify-center" : ""}`}
+          >
+            {meta}
+          </div>
+        )}
       </div>
     </div>
   );
 
-  // Wrapper dla cover + overlay meta-karta. Dostosowuje wysokość / aspect-ratio wg presetu.
+  // Wrapper dla cover + overlay. Dostosowuje wysokość / aspect-ratio wg presetu.
   const coverWithOverlay = (extraWrapClass = "") => {
     if (!coverImageUrl) return null;
     const isFullBleed = preset.cover === "full-bleed";
     const useRatio = preset.cover === "ratio" && ratioPct;
     const heightClass = isFullBleed
-      ? "h-[55vh] md:h-[65vh] lg:h-[70vh] min-h-[380px] md:min-h-[480px] lg:min-h-[520px]"
+      ? "h-[60vh] md:h-[70vh] lg:h-[78vh] min-h-[420px] md:min-h-[520px] lg:min-h-[600px]"
       : useRatio
         ? ""
         : "h-[50vh] md:h-[55vh] lg:h-[60vh] min-h-[320px] md:min-h-[400px] lg:min-h-[460px]";
@@ -121,7 +120,9 @@ export function PostLayoutRenderer({
               responsive
               sizes={coverImageSizes(preset)}
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/60" />
+            {/* Ciemny gradient - zapewnia czytelność tytułu/excerptu na dowolnym zdjęciu */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-black/85" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.45)_75%)]" />
             {overlayMetaCard}
           </div>
         </div>
