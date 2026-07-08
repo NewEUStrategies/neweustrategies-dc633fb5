@@ -452,8 +452,11 @@ export function JoinUsForm({
       ? "border-t border-b border-border py-6"
       : variant === "split"
         ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
-        : "rounded-xl border border-border bg-card p-6 sm:p-8") +
+        : variant === "split-image"
+          ? "grid gap-0 overflow-hidden rounded-xl border border-border bg-card md:grid-cols-2"
+          : "rounded-xl border border-border bg-card p-6 sm:p-8") +
     ` join-us-shell join-us-shell--${variant}`;
+
 
   if (state === "ok") {
     return (
