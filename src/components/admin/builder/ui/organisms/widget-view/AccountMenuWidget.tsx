@@ -299,7 +299,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   ) : (
     <button
       type="button"
-      className="inline-flex h-7 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80"
+      className="inline-flex h-7 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
       aria-label={`${signInLabel} / ${signUpLabel}`}
     >
       <LucideIcons.LogIn className="w-3.5 h-3.5" />
