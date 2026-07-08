@@ -21,6 +21,7 @@ import {
   validateCustomFields,
   type CustomFieldDef,
 } from "@/lib/builder/formFieldConfig";
+import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
@@ -591,22 +592,20 @@ export function JoinUsForm({
   }
   if (showCountry) {
     extraFields.push(
-      <input
+      <CountryCombobox
         key="country"
-        type="text"
         value={extra.country}
-        onChange={(e) => updateExtra("country", e.target.value)}
+        onChange={(v) => updateExtra("country", v)}
+        lang={lang}
         placeholder={withMark(phCountry, requireCountry)}
-        aria-required={requireCountry || undefined}
         required={requireCountry}
         maxLength={100}
-        className={inputCls}
         style={inputStyle}
-        data-edit-target="placeholderSize"
-        autoComplete="country-name"
+        ariaLabel={phCountry}
       />,
     );
   }
+
 
   const form = (
     <form onSubmit={submit} className="space-y-3" noValidate>
