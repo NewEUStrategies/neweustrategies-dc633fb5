@@ -345,3 +345,125 @@ function Toggle({
     </label>
   );
 }
+
+// Sekcja "Typografia overlay + nagłówek" - steruje CSS-vars w globalnym CSS
+// (.overlay-title-typography, .overlay-excerpt-typography,
+// .header-title-typography, .header-excerpt-typography). Panel edytuje ten
+// sam obiekt `post_layout_settings`, który konsumuje PostLayoutRenderer
+// (publiczny) i LayoutScaffold (podgląd CMS) - jedno źródło prawdy, zmiana
+// widoczna natychmiast w obydwu widokach po zapisie.
+interface TypoRow {
+  key: keyof PostLayoutSettings;
+  label: string;
+  min: number;
+  max: number;
+}
+
+function TypographySection({
+  local,
+  upd,
+}: {
+  local: PostLayoutSettings;
+  upd: (p: Partial<PostLayoutSettings>) => void;
+}) {
+  const overlayTitle: TypoRow[] = [
+    { key: "overlay_title_size_base", label: "Mobile", min: 12, max: 96 },
+    { key: "overlay_title_size_md", label: "Tablet", min: 12, max: 96 },
+    { key: "overlay_title_size_lg", label: "Desktop", min: 12, max: 96 },
+  ];
+  const overlayExcerpt: TypoRow[] = [
+    { key: "overlay_excerpt_size_base", label: "Mobile", min: 8, max: 48 },
+    { key: "overlay_excerpt_size_md", label: "Tablet", min: 8, max: 48 },
+    { key: "overlay_excerpt_size_lg", label: "Desktop", min: 8, max: 48 },
+  ];
+  const headerTitle: TypoRow[] = [
+    { key: "header_title_size_base", label: "Mobile", min: 14, max: 128 },
+    { key: "header_title_size_md", label: "Tablet", min: 14, max: 128 },
+    { key: "header_title_size_lg", label: "Desktop", min: 14, max: 128 },
+  ];
+  const headerExcerpt: TypoRow[] = [
+    { key: "header_excerpt_size_base", label: "Mobile", min: 8, max: 48 },
+    { key: "header_excerpt_size_md", label: "Tablet", min: 8, max: 48 },
+    { key: "header_excerpt_size_lg", label: "Desktop", min: 8, max: 48 },
+  ];
+
+  const Group = ({ heading, hint, rows }: { heading: string; hint: string; rows: TypoRow[] }) => (
+    <div className="space-y-2">
+      <div>
+        <h3 className="text-xs font-semibold text-foreground/80">{heading}</h3>
+        <p className="text-[10px] text-muted-foreground">{hint}</p>
+      </div>
+      <div className="grid sm:grid-cols-3 gap-3">
+        {rows.map((r) => {
+          const value = Number(local[r.key] ?? 0);
+          return (
+            <label key={String(r.key)} className="block space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>{r.label}</span>
+                <span className="tabular-nums font-medium text-foreground/90">{value}px</span>
+              </div>
+              <input
+                type="range"
+                min={r.min}
+                max={r.max}
+                step={1}
+                value={value}
+                onChange={(e) =>
+                  upd({ [r.key]: Number(e.target.value) } as Partial<PostLayoutSettings>)
+                }
+                className="w-full accent-brand"
+                aria-label={`${heading} - ${r.label}`}
+              />
+              <input
+                type="number"
+                min={r.min}
+                max={r.max}
+                value={value}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  const clamped = Math.max(r.min, Math.min(r.max, n));
+                  upd({ [r.key]: clamped } as Partial<PostLayoutSettings>);
+                }}
+                className="w-full px-2 py-1 rounded border border-input bg-background text-xs"
+              />
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="font-display text-base">Typografia wpisu</h2>
+        <p className="text-[11px] text-muted-foreground">
+          Rozmiary czcionek tytułu i podtytułu (excerpt) per breakpoint. Wartości w pikselach.
+          Zmiana natychmiast synchronizuje publiczny widok wpisu i podgląd w CMS.
+        </p>
+      </div>
+
+      <Group
+        heading="Tytuł - overlay (Layout 4 / 5 / 12)"
+        hint="Widoczne w wariantach z pełnoekranowym coverem i nakładką."
+        rows={overlayTitle}
+      />
+      <Group
+        heading="Podtytuł - overlay"
+        hint="Krótki opis (excerpt) na nakładce cover photo."
+        rows={overlayExcerpt}
+      />
+      <Group
+        heading="Tytuł - klasyczny nagłówek"
+        hint="Layouty 1-3, 6-11 (nagłówek nad/pod cover, side-by-side, bez cover)."
+        rows={headerTitle}
+      />
+      <Group
+        heading="Podtytuł - klasyczny nagłówek"
+        hint="Excerpt w klasycznych nagłówkach wpisu."
+        rows={headerExcerpt}
+      />
+    </section>
+  );
+}
