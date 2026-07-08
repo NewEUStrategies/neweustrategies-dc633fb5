@@ -160,10 +160,7 @@ export function MediaPreviewDialog({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 flex overflow-hidden">
-          <div
-            className="flex-1 min-w-0 min-h-0 overflow-auto bg-muted/30"
-            ref={mediaContainerRef}
-          >
+          <div className="flex-1 min-w-0 min-h-0 overflow-auto bg-muted/30" ref={mediaContainerRef}>
             {blocked && rule ? (
               <div className="p-6">
                 <Paywall rule={rule} lang={lang} fallbackText={null} />
@@ -455,7 +452,9 @@ function InfoSidebar({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("display_name, email")
+        // Account `email` is not readable by the authenticated role (PII column
+        // ACL); the uploader label falls back to display name / id instead.
+        .select("display_name")
         .eq("id", uploaderId!)
         .maybeSingle();
       if (error) return null;
@@ -468,8 +467,7 @@ function InfoSidebar({
   const kind = useMemo(() => fileKind(mime, item.filename, lang), [mime, item.filename, lang]);
 
   const created = details?.created_at ? new Date(details.created_at) : null;
-  const dpr =
-    naturalSize && size ? (size / (naturalSize.w * naturalSize.h)).toFixed(2) : null;
+  const dpr = naturalSize && size ? (size / (naturalSize.w * naturalSize.h)).toFixed(2) : null;
 
   return (
     <aside className="w-80 shrink-0 border-l border-border bg-background overflow-y-auto">
@@ -505,12 +503,7 @@ function InfoSidebar({
         {duration != null && (
           <InfoRow label={T("Czas trwania", "Duration")} value={formatDuration(duration)} />
         )}
-        {dpr && (
-          <InfoRow
-            label={T("Bajtów na piksel", "Bytes / pixel")}
-            value={dpr}
-          />
-        )}
+        {dpr && <InfoRow label={T("Bajtów na piksel", "Bytes / pixel")} value={dpr} />}
         {details?.folder_path && (
           <InfoRow label={T("Folder", "Folder")} value={details.folder_path} mono />
         )}
@@ -523,16 +516,13 @@ function InfoSidebar({
               label={T("Utworzono", "Created")}
               value={created.toLocaleString(lang === "pl" ? "pl-PL" : "en-US")}
             />
-            <InfoRow
-              label={T("Relatywnie", "Relative")}
-              value={relativeTime(created, lang)}
-            />
+            <InfoRow label={T("Relatywnie", "Relative")} value={relativeTime(created, lang)} />
           </>
         )}
         {uploader && (
           <InfoRow
             label={T("Autor", "Uploaded by")}
-            value={uploader.display_name || uploader.email || uploaderId || "-"}
+            value={uploader.display_name || uploaderId || "-"}
           />
         )}
         {details?.storage_path && (
