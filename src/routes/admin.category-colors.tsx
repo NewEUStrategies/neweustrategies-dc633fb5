@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { upsertCategory } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { CORE_CATEGORY_AREAS, type CoreCategoryArea } from "@/lib/categoryAreas";
 
 export const Route = createFileRoute("/admin/category-colors")({
