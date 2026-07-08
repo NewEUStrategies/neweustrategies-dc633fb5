@@ -249,6 +249,9 @@ function Page() {
           </div>
         </section>
 
+        <TypographySection local={local} upd={upd} />
+
+
         <div className="grid md:grid-cols-2 gap-6">
           <section className="space-y-1">
             <h2 className="font-display text-base mb-1">Centering Header</h2>
