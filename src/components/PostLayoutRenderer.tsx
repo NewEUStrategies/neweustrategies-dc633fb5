@@ -5,11 +5,14 @@ import {
   findLayout,
   coverImageSizes,
   effectiveHasSidebar,
+  overlayTypographyStyle,
+  headerTypographyStyle,
   type PostFormat,
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
+
 
 interface Props {
   format: PostFormat;
