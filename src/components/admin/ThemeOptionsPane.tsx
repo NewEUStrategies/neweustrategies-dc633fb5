@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useSettings } from "@/lib/admin/useSettings";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
