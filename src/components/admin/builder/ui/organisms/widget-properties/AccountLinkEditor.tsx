@@ -4,6 +4,7 @@
 // separators, and a dedicated logout entry. Bilingual labels + descriptions.
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
