@@ -3,6 +3,8 @@
 // Definicje są PRESETAMI - decydują o pozycji nagłówka, croppingu cover,
 // szerokości treści i obecności sidebara. Renderer (PostLayoutRenderer)
 // mapuje preset na klasy/elementy.
+import type React from "react";
+
 
 export type PostFormat = "standard" | "video" | "audio" | "gallery";
 
