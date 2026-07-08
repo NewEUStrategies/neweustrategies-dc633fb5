@@ -514,7 +514,7 @@ function RuntimeWidget({
         <fieldset className="space-y-1">
           <legend className="text-xs font-semibold">
             {pickI(w.label, lang)}
-            {w.required ? <span className="text-destructive ml-0.5">*</span> : null}
+            {null}
           </legend>
           {restricted.map((l) => (
             <label key={l.id} className="flex items-center gap-2 text-xs">
@@ -684,7 +684,7 @@ function FieldWrap({
     <label className="block space-y-1">
       <span className="text-xs font-semibold">
         {label}
-        {required ? <span className="text-destructive ml-0.5">*</span> : null}
+        {null}
       </span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
