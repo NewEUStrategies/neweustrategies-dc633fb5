@@ -86,14 +86,19 @@ function Header({
   title,
   excerpt,
   center,
+  settings,
 }: {
   title: string;
   excerpt?: string | null;
   center: boolean;
+  settings: PostLayoutSettings;
 }) {
   const { t } = useTranslation();
   return (
-    <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}>
+    <div
+      className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}
+      style={headerTypographyStyle(settings)}
+    >
       <ZoneTag
         label={
           center
@@ -102,7 +107,7 @@ function Header({
         }
       />
       <div className={center ? "text-center mx-auto max-w-2xl" : ""}>
-        <p className="font-display text-2xl md:text-3xl lg:text-4xl leading-[1.1] font-bold text-foreground/90">
+        <p className="font-display header-title-typography leading-[1.1] font-bold text-foreground/90">
           {title || (
             <span className="text-muted-foreground/70">
               {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
@@ -110,7 +115,7 @@ function Header({
           )}
         </p>
         {excerpt ? (
-          <p className="text-sm md:text-base text-muted-foreground mt-1.5">{excerpt}</p>
+          <p className="header-excerpt-typography text-muted-foreground mt-1.5">{excerpt}</p>
         ) : (
           <p className="text-xs text-muted-foreground/60 mt-1.5">
             {t("admin.layoutScaffold.excerptPlaceholder", {
@@ -135,6 +140,7 @@ function Header({
     </div>
   );
 }
+
 
 function OverlayCover({
   url,
