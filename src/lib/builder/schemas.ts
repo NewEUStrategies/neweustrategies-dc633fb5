@@ -955,6 +955,33 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "text",
       label: "Grafika: focal point / object-position (np. center, top, 50% 30%)",
     },
+    {
+      key: "imageAspect",
+      type: "select",
+      label: "Grafika: proporcje kadru (aspect-ratio)",
+      options: [
+        { value: "auto", label: "auto (dopasuj do kolumny obok)" },
+        { value: "16/9", label: "16:9 - baner poziomy" },
+        { value: "4/3", label: "4:3 - klasyczny" },
+        { value: "3/2", label: "3:2 - fotografia" },
+        { value: "1/1", label: "1:1 - kwadrat" },
+        { value: "4/5", label: "4:5 - portret social" },
+        { value: "3/4", label: "3:4 - portret" },
+        { value: "2/3", label: "2:3 - plakat" },
+        { value: "9/16", label: "9:16 - pionowy / mobile story" },
+        { value: "21/9", label: "21:9 - ultrawide cinematic" },
+      ],
+    },
+    {
+      key: "imageFit",
+      type: "select",
+      label: "Grafika: dopasowanie w kadrze (object-fit)",
+      options: [
+        { value: "cover", label: "cover - wypełnij kadr (może przyciąć)" },
+        { value: "contain", label: "contain - zmieść cały obraz (może zostać tło)" },
+      ],
+    },
+
 
     {
       key: "showInterests",
