@@ -4,7 +4,6 @@
 // so the hot path never waits on Supabase. Consumed by the request middleware
 // in src/start.ts, which resolves the tenant from the request host first -
 // rules of one tenant can never capture another tenant's traffic.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   buildRedirectIndex,
   matchRedirect,
@@ -27,6 +26,7 @@ const EMPTY_INDEX = buildRedirectIndex([]);
 
 async function loadIndex(tenantId: string): Promise<RedirectIndex> {
   try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("redirects")
       .select("id, source_path, target_path, status_code")
@@ -71,8 +71,10 @@ export async function resolveRedirect(
 
 /** Fire-and-forget hit counter - never blocks or fails the redirect. */
 export function recordRedirectHit(id: string): void {
-  void supabaseAdmin.rpc("record_redirect_hit", { _id: id }).then(({ error }) => {
-    if (error) console.warn("[redirects] hit record failed:", error.message);
+  void import("@/integrations/supabase/client.server").then(({ supabaseAdmin }) => {
+    void supabaseAdmin.rpc("record_redirect_hit", { _id: id }).then(({ error }) => {
+      if (error) console.warn("[redirects] hit record failed:", error.message);
+    });
   });
 }
 
@@ -101,9 +103,15 @@ export function recordSeo404(
   if (!shouldLog404(pathname)) return;
   if (!log404Limiter.check("global", Date.now())) return;
   const path = `${pathname}${search}`.slice(0, 500);
-  void supabaseAdmin
-    .rpc("record_seo_404", { _tenant_id: tenantId, _path: path, _referrer: referrer ?? undefined })
-    .then(({ error }) => {
-      if (error) console.warn("[redirects] 404 record failed:", error.message);
-    });
+  void import("@/integrations/supabase/client.server").then(({ supabaseAdmin }) => {
+    void supabaseAdmin
+      .rpc("record_seo_404", {
+        _tenant_id: tenantId,
+        _path: path,
+        _referrer: referrer ?? undefined,
+      })
+      .then(({ error }) => {
+        if (error) console.warn("[redirects] 404 record failed:", error.message);
+      });
+  });
 }

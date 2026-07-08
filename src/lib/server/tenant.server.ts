@@ -22,7 +22,6 @@
 // The full tenant directory is tiny and changes rarely, so it is cached per
 // isolate with a short TTL (same pattern as the redirect rules cache) and
 // resolution never adds a per-request round-trip in steady state.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 
 export interface TenantDirectoryEntry {
@@ -67,6 +66,7 @@ function buildDirectory(rows: readonly TenantDirectoryEntry[]): TenantDirectory 
 
 async function loadDirectory(): Promise<TenantDirectory> {
   try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("tenants")
       .select("id, slug, domain, is_default")

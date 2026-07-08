@@ -5,7 +5,6 @@
 // the beacon. Stored server-side via the admin client (RLS denies other roles).
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
@@ -56,6 +55,7 @@ export const Route = createFileRoute("/api/public/vitals")({
 
           // `web_vitals` is created by a migration not yet reflected in the
           // generated Supabase types, so the table name/payload are cast here.
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           await supabaseAdmin.from("web_vitals" as never).insert({
             metric,
             value,

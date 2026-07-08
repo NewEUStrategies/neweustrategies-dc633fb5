@@ -9,7 +9,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 import {
   aggregateVitals,
@@ -63,6 +62,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     // hasn't been applied to this database yet): the dashboard shows "no data"
     // instead of returning a 500. Auth/admin failures above still throw.
     try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       // Scope every read to the caller's own tenant so one workspace's admin
       // never sees another workspace's RUM data / URL paths.
       const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);

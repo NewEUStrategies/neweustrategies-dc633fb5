@@ -3,7 +3,6 @@
 // preview, custom domain and prod without baking a placeholder URL).
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requestPublicHost } from "@/lib/http/requestHost";
 import {
   DEFAULT_LANG,
@@ -68,6 +67,7 @@ function requestContext(): { origin: string; host: string } {
 async function buildPagePaths(
   tenantId: string,
 ): Promise<{ paths: Map<string, string>; noindex: Set<string> }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("pages")
     .select("id, seo_noindex")
@@ -110,6 +110,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         // Crawler surfaces degrade, never 500: on a DB failure the sitemap
         // still serves the static entries instead of poisoning the crawl.
         try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { paths: pagePaths, noindex: noindexPages } = await buildPagePaths(tenantId);
           for (const [id, path] of pagePaths) {
             // Pages marked noindex are excluded - a sitemap must not advertise

@@ -2,7 +2,6 @@
 // mock-mode finaliser so "a paid order unlocks content" lives in one place and
 // behaves identically in both paths. Uses the service-role client because
 // user_subscriptions / user_purchases are insert-locked to service_role.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { periodEndFor, entitlementForOrder } from "@/lib/billing/entitlement";
 
 export interface GrantableOrder {
@@ -33,6 +32,7 @@ export async function grantEntitlement(
   order: GrantableOrder,
   externalRef: string | null,
 ): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const entitlement = entitlementForOrder(order);
 
   if (entitlement.type === "subscription") {

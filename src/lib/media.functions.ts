@@ -4,7 +4,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { resolveUserTenantId } from "./server/userTenant.server";
@@ -114,6 +113,7 @@ export const deleteMedia = createServerFn({ method: "POST" })
 
     // Delete the storage object via admin (bypasses storage RLS but we already
     // validated ownership via the user-client SELECT above).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: rmErr } = await supabaseAdmin.storage.from("media").remove([row.storage_path]);
     if (rmErr) console.warn("[media.delete] storage remove failed:", rmErr.message);
 
@@ -166,6 +166,7 @@ export const getMediaUsage = createServerFn({ method: "POST" })
     // Fail-closed guard: a caller without a tenant must not run this scan
     // (resolveUserTenantId throws). The tenant id also scopes the service-role
     // scans below so this admin read can never surface another tenant's content.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
 
     const { data: media, error: mErr } = await supabase
@@ -469,6 +470,7 @@ export const bulkDeleteMedia = createServerFn({ method: "POST" })
     if (!rows?.length) return { ok: true, deleted: 0 };
     const paths = rows.map((r) => r.storage_path).filter(Boolean) as string[];
     if (paths.length) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { error: rmErr } = await supabaseAdmin.storage.from("media").remove(paths);
       if (rmErr) console.warn("[media.bulkDelete] storage remove failed:", rmErr.message);
     }
@@ -510,6 +512,7 @@ export const duplicateMedia = createServerFn({ method: "POST" })
       .in("id", data.mediaIds);
     if (error) throw new Error(error.message);
     const out: Array<{ id: string }> = [];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     for (const r of rows ?? []) {
       const ext = (r.storage_path.split(".").pop() ?? "bin")
@@ -677,7 +680,10 @@ export const deleteMediaFolder = createServerFn({ method: "POST" })
         .eq("tenant_id", tenantId)
         .like("folder_path", `${path}%`);
       const paths = (rows ?? []).map((r) => r.storage_path).filter(Boolean) as string[];
-      if (paths.length) await supabaseAdmin.storage.from("media").remove(paths);
+      if (paths.length) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.storage.from("media").remove(paths);
+      }
       if (rows?.length)
         await supabase
           .from("media")
