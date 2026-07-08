@@ -375,7 +375,7 @@ function ProfileInline() {
 
                   {/* Phone */}
                   <ContactRow
-                    icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
+                    icon={<BrandIcon neutral name="phone" fallback={Phone} className="h-4 w-4 text-muted-foreground" alt="" />}
                     ariaLabel={t("profile.account.phone")}
                   >
                     {editable ? (
