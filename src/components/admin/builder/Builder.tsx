@@ -50,6 +50,8 @@ import { useBuilderOperations } from "./ui/hooks/useBuilderOperations";
 import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
 import { useGlobalWidgetSync } from "./ui/hooks/useGlobalWidgetSync";
+import { InlineSizeToolbar } from "./ui/organisms/InlineSizeToolbar";
+import { clearAllLiveWidgetTypography } from "@/lib/builder/liveTypography";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
 import { readClipboard } from "@/lib/builder/clipboard";
@@ -111,6 +113,18 @@ export function Builder({
   const initial = useMemo(() => safeParseBuilderDoc(value ?? emptyDocument()), [value]);
   const history = useHistory(initial, onChange);
   const doc = safeParseBuilderDoc(history.doc);
+  // Undo/redo restores the DOCUMENT's typography — drop the live typography
+  // broadcast first, or its injected <style> keeps shadowing the restored
+  // values and the canvas looks like undo "did nothing".
+  const { undo: historyUndo, redo: historyRedo } = history;
+  const undo = useCallback(() => {
+    clearAllLiveWidgetTypography();
+    historyUndo();
+  }, [historyUndo]);
+  const redo = useCallback(() => {
+    clearAllLiveWidgetTypography();
+    historyRedo();
+  }, [historyRedo]);
   const [device, setDevice] = useState<Device>("desktop");
   // Default canvas preview mode follows the live site theme so the editor
   // shows the same colors/tokens visitors see - keeps admin and prod parity.
@@ -193,8 +207,8 @@ export function Builder({
   useBuilderShortcuts({
     selection,
     setSelection,
-    undo: history.undo,
-    redo: history.redo,
+    undo,
+    redo,
     copySelection,
     cutSelection,
     pasteFromClipboard,
@@ -517,13 +531,16 @@ export function Builder({
             setMode={setMode}
             canUndo={history.canUndo}
             canRedo={history.canRedo}
-            onUndo={history.undo}
-            onRedo={history.redo}
+            onUndo={undo}
+            onRedo={redo}
           />
         </div>
 
+        {/* `.light` (not just the absence of `.dark`) is required: with a dark
+            admin theme the dark tokens cascade from <html>, so light preview
+            must explicitly re-scope the light tokens for the canvas subtree. */}
         <div
-          className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : ""}`}
+          className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : "light"}`}
           onClick={() => setSelection({ kind: null, id: null })}
           onContextMenu={onCanvasContextMenu}
         >
@@ -561,8 +578,8 @@ export function Builder({
                 <CanvasActionBar
                   canUndo={history.canUndo}
                   canRedo={history.canRedo}
-                  onUndo={history.undo}
-                  onRedo={history.redo}
+                  onUndo={undo}
+                  onRedo={redo}
                   selection={selection}
                   onDelete={() => {
                     if (!selection.id) return;
@@ -613,6 +630,16 @@ export function Builder({
           </BuilderModeProvider>
         </div>
       </div>
+      {/* Floating font-size toolbar for [data-edit-target] elements. Mounted
+          OUTSIDE the canvas click-wrapper so clicks inside the (portaled)
+          toolbar can never bubble into the "deselect on canvas click" handler
+          above — that bubbling was one of the ways the old toolbar vanished. */}
+      <InlineSizeToolbar
+        doc={doc}
+        selection={selection}
+        setSelection={setSelection}
+        updateWidget={updateWidget}
+      />
       <ConfirmDeleteDialog
         pending={pendingDelete}
         onCancel={() => setPendingDelete(null)}

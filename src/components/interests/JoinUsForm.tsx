@@ -14,6 +14,7 @@ import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
+import { useBuilderMode } from "@/lib/builder/modeContext";
 import { cn } from "@/lib/utils";
 import {
   CustomFieldsRenderer,
@@ -161,6 +162,10 @@ export function JoinUsForm({
   const catalog = useInterestCatalog(lang);
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);
+  // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
+  // builder the widget must NEVER unmount to null — otherwise disabling the
+  // newsletter in settings makes it silently vanish from the canvas.
+  const inBuilder = useBuilderMode() !== null;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -227,7 +232,8 @@ export function JoinUsForm({
     });
   };
 
-  if (nl && !nl.enabled) return null;
+  const newsletterDisabled = !!nl && !nl.enabled;
+  if (newsletterDisabled && !inBuilder) return null;
 
   const updateExtra = (k: ExtraKey, v: string) =>
     setExtra((prev) => ({ ...prev, [k]: v }));
@@ -823,9 +829,22 @@ export function JoinUsForm({
   const descStyle = { fontSize: descriptionSize ? `${descriptionSize}px` : "14px" } as const;
   const perkStyle = { fontSize: perkSize ? `${perkSize}px` : "14px" } as const;
 
+  // Builder-only: keep the widget visible and explain why it is hidden on the
+  // public site instead of rendering nothing.
+  const disabledNotice =
+    newsletterDisabled && inBuilder ? (
+      <p
+        role="status"
+        className="mb-3 rounded border border-amber-500/60 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-600"
+      >
+        Newsletter jest wyłączony w ustawieniach — ten widget nie wyświetla się na stronie.
+      </p>
+    ) : null;
+
   if (variant === "split") {
     return (
       <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+        {disabledNotice && <div className="md:col-span-2">{disabledNotice}</div>}
         <div>
           <h3
             id="joinus-heading"
@@ -869,6 +888,7 @@ export function JoinUsForm({
 
   return (
     <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+      {disabledNotice}
       <h3
         id="joinus-heading"
         className={cn("font-display mb-2", !titleSize && "text-2xl")}

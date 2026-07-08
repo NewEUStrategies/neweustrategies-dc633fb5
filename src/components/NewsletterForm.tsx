@@ -7,6 +7,7 @@
 // custom fields zdefiniowane w builderze — całość leci do CRM przez server.
 import { useMemo, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useBuilderMode } from "@/lib/builder/modeContext";
 import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -67,21 +68,15 @@ export function NewsletterForm({
   widgetConfig,
 }: Props) {
   const { data: s } = useNewsletterSettings();
+  // Inside the CMS builder canvas the widget must stay visible even when the
+  // newsletter is disabled — otherwise it silently vanishes mid-edit.
+  const inBuilder = useBuilderMode() !== null;
   const cfg = widgetConfig ?? {};
 
-  // Nowy builder: jesli tenant ma inline_doc i tryb pozwala na inline, uzywamy
-  // NewsletterDocRenderer (Elementor-style). Legacy fallback nizej.
-  if (s && s.enabled && s.inline_doc && s.mode !== "off" && s.mode !== "popup") {
-    return (
-      <BuilderInlineWrapper
-        settings={s}
-        lang={lang}
-        source={source}
-        variant={variant}
-      />
-    );
-  }
-
+  // ALL hooks must run before any conditional return: settings load async, so
+  // the inline_doc branch below can flip between renders — an early return
+  // above these hooks made React throw "Rendered fewer hooks than expected"
+  // and the whole widget vanished into the error boundary.
   const [email, setEmail] = useState("");
   const [name, setName] = useState(""); // legacy single "name" (fallback)
   const [firstName, setFirstName] = useState("");
@@ -92,6 +87,17 @@ export function NewsletterForm({
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const subscribe = useServerFn(subscribeToNewsletter);
 
+  const customFields = useMemo<CustomField[]>(
+    () => parseCustomFields(cfg.customFields),
+    [cfg.customFields],
+  );
+
+  // Nowy builder: jesli tenant ma inline_doc i tryb pozwala na inline, uzywamy
+  // NewsletterDocRenderer (Elementor-style). Legacy fallback nizej.
+  if (s && s.enabled && s.inline_doc && s.mode !== "off" && s.mode !== "popup") {
+    return <BuilderInlineWrapper settings={s} lang={lang} source={source} variant={variant} />;
+  }
+
   // Per-widget visibility toggles for the extra fields.
   const showFirstName = boolCfg(cfg, "showFirstName", false);
   const showLastName = boolCfg(cfg, "showLastName", false);
@@ -101,12 +107,19 @@ export function NewsletterForm({
   const requireCompany = boolCfg(cfg, "requireCompany", false);
   const requireEmail = boolCfg(cfg, "requireEmail", true);
 
-  const customFields = useMemo<CustomField[]>(
-    () => parseCustomFields(cfg.customFields),
-    [cfg.customFields],
-  );
-
-  if (!s || !s.enabled) return null;
+  if (!s || !s.enabled) {
+    if (!inBuilder) return null;
+    return (
+      <div
+        role="status"
+        className="rounded border border-dashed border-amber-500/60 bg-amber-500/10 px-3 py-2 text-[11px] font-medium text-amber-600"
+      >
+        {!s
+          ? "Newsletter: wczytywanie ustawień…"
+          : "Newsletter jest wyłączony w ustawieniach — ten widget nie wyświetla się na stronie."}
+      </div>
+    );
+  }
 
   // Labels / placeholders (widget override > sensible defaults).
   const L = {

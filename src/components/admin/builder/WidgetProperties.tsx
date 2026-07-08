@@ -50,6 +50,13 @@ import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
 
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import {
+  EDIT_TARGET_META,
+  FOCUS_SIZE_FIELD_EVENT,
+  FORM_SIZE_FIELDS,
+  escapeAttrSelector,
+  measureEditTargetPx,
+} from "@/lib/builder/editTargets";
+import {
   AccordionEditor,
   TabsEditor,
   PricingEditor,
@@ -251,9 +258,37 @@ export function WidgetProperties({
 
   const [activeTab, setActiveTab] = useState<string>("content");
 
+  // Effective (computed) px per size key, measured from the live canvas DOM.
+  // Shown as the stepper placeholder so the CURRENT font size is always
+  // visible even when no override is stored ("auto").
+  const sizeFields = FORM_SIZE_FIELDS[widget.type];
+  const effectiveSizes = useEffectiveSizes(widget.id, sizeFields, widget.content);
+
+  // Bridge from the canvas InlineSizeToolbar's "Panel" button: reveal the
+  // Style tab and flash the matching stepper.
+  useEffect(() => {
+    const onFocusField = (e: Event) => {
+      const key = (e as CustomEvent<{ key?: string }>).detail?.key;
+      if (!key) return;
+      setActiveTab("style");
+      window.requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-field-key="${escapeAttrSelector(key)}"]`,
+        );
+        if (!el) return;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.add("cms-panel-field-focus");
+        window.setTimeout(() => el.classList.remove("cms-panel-field-focus"), 1600);
+      });
+    };
+    window.addEventListener(FOCUS_SIZE_FIELD_EVENT, onFocusField);
+    return () => window.removeEventListener(FOCUS_SIZE_FIELD_EVENT, onFocusField);
+  }, []);
+
   return (
     <div className="wp-compact">
-      <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}`}</style>
+      <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}
+.cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}`}</style>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
 
         <div className="mb-1.5 px-0.5">
@@ -374,39 +409,28 @@ export function WidgetProperties({
             />
           </section>
 
-          {(widget.type === "join-us" || widget.type === "contact-form") && (
+          {sizeFields && (
             <section className="space-y-2 pt-2 border-t border-border">
               <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Rozmiary elementów formularza (px)
               </h4>
               <p className="text-[10px] text-muted-foreground -mt-1">
-                Zmiany działają od razu w preview. Puste = domyślne.
+                Zmiany działają od razu w preview. Puste = automatyczny (pokazany obok). Możesz też
+                kliknąć element bezpośrednio w preview.
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {(widget.type === "join-us"
-                  ? [
-                      { key: "perkSize", label: "Bulletpointy", min: 8, max: 32 },
-                      { key: "labelSize", label: "Etykiety pól", min: 8, max: 24 },
-                      { key: "placeholderSize", label: "Placeholdery / pola", min: 8, max: 24 },
-                      { key: "buttonSize", label: "Przycisk", min: 8, max: 28 },
-                      { key: "consentSize", label: "Zgody / stopka", min: 8, max: 20 },
-                    ]
-                  : [
-                      { key: "labelSize", label: "Etykiety pól", min: 8, max: 24 },
-                      { key: "placeholderSize", label: "Placeholdery / pola", min: 8, max: 24 },
-                      { key: "buttonFontSize", label: "Przycisk", min: 8, max: 28 },
-                      { key: "consentSize", label: "Zgody / newsletter", min: 8, max: 20 },
-                    ]
-                ).map((f) => {
+                {sizeFields.map((f) => {
+                  const meta = EDIT_TARGET_META[f.key];
                   const raw = (widget.content as Record<string, Json> | undefined)?.[f.key];
                   const v = typeof raw === "number" ? raw : "";
                   return (
                     <div key={f.key} data-field-key={f.key}>
                       <FormElementSizeField
-                        label={f.label}
+                        label={meta.label}
                         value={v}
-                        min={f.min}
-                        max={f.max}
+                        min={meta.min}
+                        max={meta.max}
+                        effectivePx={effectiveSizes[f.key] ?? meta.fallbackPx}
                         onPreview={() => highlightPreviewTarget(f.key)}
                         onChange={(next) => {
                           setOptionalNumberContent(f.key, next);
@@ -415,7 +439,6 @@ export function WidgetProperties({
                       />
                     </div>
                   );
-
                 })}
               </div>
             </section>
@@ -911,18 +934,12 @@ function ThemedColorField({
   );
 }
 
-function escapeAttrSelector(value: string) {
-  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
-    return CSS.escape(value);
-  }
-  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
-}
-
 function FormElementSizeField({
   label,
   value,
   min,
   max,
+  effectivePx,
   onChange,
   onPreview,
 }: {
@@ -930,11 +947,14 @@ function FormElementSizeField({
   value: number | "";
   min: number;
   max: number;
+  /** Computed size measured from the canvas — the visible "auto" value. */
+  effectivePx: number;
   onChange: (next: number | null) => void;
   onPreview: () => void;
 }) {
   const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next)));
   const numericValue = typeof value === "number" ? value : null;
+  const isAuto = numericValue === null;
   const commit = (raw: string) => {
     if (raw.trim() === "") {
       onChange(null);
@@ -944,10 +964,26 @@ function FormElementSizeField({
     if (Number.isNaN(next)) return;
     onChange(clamp(next));
   };
-  const bump = (delta: number) => onChange(clamp((numericValue ?? min) + delta));
+  // Stepping from "auto" starts at the CURRENT rendered size, not at `min` —
+  // otherwise the first click visibly snapped tiny text sizes onto the form.
+  const bump = (delta: number) => onChange(clamp((numericValue ?? effectivePx) + delta));
 
   return (
-    <PropField label={label}>
+    <PropField
+      label={
+        <span className="inline-flex items-center gap-1">
+          {label}
+          {isAuto && (
+            <span
+              className="rounded bg-muted px-1 py-px text-[8px] font-bold uppercase tracking-wider text-muted-foreground"
+              title={`Bez nadpisania — aktualnie ${effectivePx}px`}
+            >
+              auto
+            </span>
+          )}
+        </span>
+      }
+    >
       <div className="flex items-center gap-1" onFocus={onPreview} onMouseEnter={onPreview}>
         <button
           type="button"
@@ -962,7 +998,7 @@ function FormElementSizeField({
           min={min}
           max={max}
           value={value}
-          placeholder="px"
+          placeholder={String(effectivePx)}
           onChange={(e) => commit(e.target.value)}
           className="h-8 text-center text-xs tabular-nums"
         />
@@ -977,6 +1013,29 @@ function FormElementSizeField({
       </div>
     </PropField>
   );
+}
+
+// Measures the computed font-size of each edit-target inside the rendered
+// canvas widget. Re-measures after content changes (next frame, so the DOM
+// already reflects the edit).
+function useEffectiveSizes(
+  widgetId: string,
+  fields: Array<{ key: string }> | undefined,
+  content: unknown,
+): Record<string, number | null> {
+  const [sizes, setSizes] = useState<Record<string, number | null>>({});
+  const keys = (fields ?? []).map((f) => f.key).join("|");
+  useEffect(() => {
+    if (!keys || typeof window === "undefined") return;
+    let raf = 0;
+    raf = window.requestAnimationFrame(() => {
+      const next: Record<string, number | null> = {};
+      for (const key of keys.split("|")) next[key] = measureEditTargetPx(widgetId, key);
+      setSizes(next);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [widgetId, keys, content]);
+  return sizes;
 }
 
 // Reads the actually-rendered widget element (data-widget-id="...") and returns

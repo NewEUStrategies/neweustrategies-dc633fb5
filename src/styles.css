@@ -68,7 +68,15 @@
   --font-sans: "Red Hat Display", system-ui, sans-serif;
 }
 
-:root {
+/* `.light` mirrors the :root (light) tokens so an INNER scope can force light
+   mode under a dark ancestor. The builder canvas relies on this: with a dark
+   admin theme (html.dark), toggling the canvas preview to "Jasny" previously
+   did nothing — the wrapper only ever ADDED `.dark`, and without a light
+   scope the dark tokens kept cascading, leaving light-resolved widget text
+   invisible on dark surfaces. Custom properties resolve by DOM proximity, so
+   the nearest `.light`/`.dark` ancestor wins. */
+:root,
+.light {
   --radius: 0.5rem;
 
   /* ---- Global form-field sizing tokens ----
@@ -2908,3 +2916,62 @@ textarea::placeholder {
 }
 
 
+/* ============================================================
+   Forced-light scope (builder canvas "Jasny" under a dark admin).
+   `.light` re-declares the light tokens (see the `:root, .light` block
+   at the top), which fixes every `var(--token)`-driven color by
+   proximity. The rules below compensate the remaining SELECTOR-level
+   dark branches (`.dark X { ... }`) that would still match through the
+   outer `html.dark` ancestor. Keep them LAST so equal-specificity
+   source order favors the forced-light values.
+   ============================================================ */
+.light .cf-shell {
+  background: var(--cf-bg-light, hsl(var(--card)));
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: oklch(0.62 0 0) !important;
+  opacity: 1 !important;
+}
+.light .cf-shell .cf-input {
+  background: var(--gc-input-bg, hsl(var(--background)));
+  border-color: var(--gc-input-border, var(--cf-border, hsl(var(--border))));
+}
+.light .cf-shell .cf-input:hover {
+  border-color: var(--gc-input-hover-border, #FDB078);
+}
+.light .cf-shell .cf-input:focus {
+  background: var(--gc-input-bg, hsl(var(--background)));
+  border-color: var(--gc-input-focus-border, #FDB078);
+}
+.light :where([data-w-id])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    textarea,
+    select
+  ) {
+  background: var(--gc-input-bg, hsl(var(--background)));
+  border-color: var(--gc-input-border, hsl(var(--border)));
+}
+.light .cf-shell :where(input, select, textarea)::placeholder,
+.light [data-w-id] :where(input, select, textarea)::placeholder,
+.light .cms-widget-form :where(input, select, textarea)::placeholder,
+.light .nl-shell :where(input, select, textarea)::placeholder,
+.light .auth-shell :where(input, select, textarea)::placeholder,
+.light .join-us-shell :where(input, select, textarea)::placeholder {
+  color: var(--gc-input-placeholder, oklch(0.62 0 0));
+}
+.light :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+  :where(input[type="date"], input[type="datetime-local"], input[type="time"])::-webkit-calendar-picker-indicator {
+  filter: invert(0);
+}
+/* Dual-source (light/dark) images inside the canvas follow the CANVAS mode,
+   not the admin theme. */
+.light :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-light,
+.light :is([data-builder-renderer], [data-visual-canvas]) .gc-img-light {
+  display: block !important;
+}
+.light :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-dark,
+.light :is([data-builder-renderer], [data-visual-canvas]) .gc-img-dark {
+  display: none !important;
+}
