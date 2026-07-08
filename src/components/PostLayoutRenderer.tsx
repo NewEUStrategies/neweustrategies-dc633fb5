@@ -66,26 +66,26 @@ export function PostLayoutRenderer({
   // Overlay: tytuł, excerpt i meta renderowane bezpośrednio na cover
   // (bez czarnej karty) - zgodnie z podglądem layoutu w edytorze.
   const overlayMetaCard = (
-    <div className="absolute inset-x-0 bottom-0 px-4 md:px-8 lg:px-12 pb-8 md:pb-12 lg:pb-16 text-white">
-      <div
-        className={`w-full max-w-4xl ${center ? "mx-auto text-center" : ""} overlay-meta-card`}
-      >
+    <div className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
+      <div className={`w-full ${center ? "text-center" : ""} overlay-meta-card`}>
         {categoryBadges && (
-          <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
+          <div className={`mb-3 flex flex-wrap gap-1.5 ${center ? "justify-center" : ""}`}>
             {categoryBadges}
           </div>
         )}
-        <h1 className="overlay-meta-title font-display mb-3 md:mb-4 text-white text-3xl md:text-4xl lg:text-5xl">
+        <h1 className="overlay-meta-title font-display font-bold leading-[1.1] mb-2 text-white text-2xl md:text-3xl lg:text-4xl">
           {title}
         </h1>
         {excerpt && (
-          <p className="overlay-meta-description text-white/85 mb-4 md:mb-5 max-w-3xl mx-auto text-base md:text-lg">
+          <p
+            className={`overlay-meta-description text-white/80 mb-3 text-xs md:text-sm lg:text-base line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
+          >
             {excerpt}
           </p>
         )}
         {meta && (
           <div
-            className={`text-xs md:text-sm flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-1 text-white/80 ${center ? "justify-center" : ""}`}
+            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-3 gap-y-1 text-white/70 ${center ? "justify-center" : ""}`}
           >
             {meta}
           </div>
