@@ -33,6 +33,11 @@ export type ConfirmOutcome = { kind: "already" } | { kind: "expired" } | { kind:
  */
 export function resolveConfirmOutcome(sub: ConfirmSubscriberRow, now: Date): ConfirmOutcome {
   if (sub.status === "subscribed") return { kind: "already" };
+  // Only a pending row may be confirmed. The token is deliberately retained
+  // after use (for idempotency), so any other status - e.g. an address that
+  // later unsubscribed - must NOT be silently resurrected by re-clicking the
+  // old link; treat it as a stale link.
+  if (sub.status !== "pending") return { kind: "expired" };
   if (sub.confirmation_expires_at && new Date(sub.confirmation_expires_at) < now) {
     return { kind: "expired" };
   }

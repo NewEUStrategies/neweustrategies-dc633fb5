@@ -30,6 +30,11 @@ interface SubRow {
 
 type StatusFilter = "all" | "subscribed" | "pending" | "unsubscribed";
 
+// Newest N rows are fetched client-side for the table, filters and CSV export.
+// When the cap is hit the list/export may be incomplete, so we warn instead of
+// truncating silently (full server-side pagination is a larger follow-up).
+const SUBSCRIBER_FETCH_CAP = 5000;
+
 export function SubscribersPanel() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
@@ -45,7 +50,7 @@ export function SubscribersPanel() {
         .from("newsletter_subscribers")
         .select("id, email, display_name, language, status, source, created_at, confirmed_at")
         .order("created_at", { ascending: false })
-        .limit(2000);
+        .limit(SUBSCRIBER_FETCH_CAP);
       if (error) throw error;
       return (data ?? []) as SubRow[];
     },
@@ -56,7 +61,11 @@ export function SubscribersPanel() {
     return (subs ?? []).filter((s) => {
       if (status !== "all" && s.status !== status) return false;
       if (lang !== "all" && s.language !== lang) return false;
-      if (term && !s.email.toLowerCase().includes(term) && !(s.display_name ?? "").toLowerCase().includes(term)) {
+      if (
+        term &&
+        !s.email.toLowerCase().includes(term) &&
+        !(s.display_name ?? "").toLowerCase().includes(term)
+      ) {
         return false;
       }
       return true;
@@ -64,7 +73,15 @@ export function SubscribersPanel() {
   }, [subs, q, status, lang]);
 
   const exportCsv = () => {
-    const head = ["email", "display_name", "language", "status", "source", "created_at", "confirmed_at"] as const;
+    const head = [
+      "email",
+      "display_name",
+      "language",
+      "status",
+      "source",
+      "created_at",
+      "confirmed_at",
+    ] as const;
     const csv = [head.join(",")]
       .concat(
         filtered.map((r) =>
@@ -120,6 +137,13 @@ export function SubscribersPanel() {
       </header>
       <ImportCsvDialog open={importOpen} onOpenChange={setImportOpen} />
 
+      {subs && subs.length >= SUBSCRIBER_FETCH_CAP && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          Pokazano pierwsze {SUBSCRIBER_FETCH_CAP.toLocaleString("pl-PL")} subskrybentów (najnowsi).
+          Lista i eksport CSV mogą być niekompletne - zawęź filtrami, aby dotrzeć do starszych
+          wpisów.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_180px] gap-2">
         <div className="relative">
@@ -132,7 +156,9 @@ export function SubscribersPanel() {
           />
         </div>
         <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
-          <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Wszystkie statusy</SelectItem>
             <SelectItem value="subscribed">Aktywni</SelectItem>
@@ -141,7 +167,9 @@ export function SubscribersPanel() {
           </SelectContent>
         </Select>
         <Select value={lang} onValueChange={(v) => setLang(v as typeof lang)}>
-          <SelectTrigger><SelectValue placeholder="Jezyk" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Jezyk" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Wszystkie jezyki</SelectItem>
             <SelectItem value="pl">PL</SelectItem>

@@ -193,3 +193,30 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
     await grantEntitlement(order, order.id);
     return { ok: true as const };
   });
+
+const cancelSubscriptionSchema = z.object({ subscriptionId: z.string().uuid() });
+
+// Cancel-at-period-end for the caller's own subscription. user_subscriptions
+// grants no UPDATE to authenticated (a client UPDATE could self-grant access),
+// so this runs service-role with an explicit ownership check. We set
+// canceled_at and keep status 'active': has_content_access already ends access
+// at current_period_end, so paid time is preserved and the UI shows "cancels at".
+// NOTE: in live Stripe mode the Stripe subscription must additionally be
+// canceled via the Stripe API to stop renewals; that is a follow-up (the DB /
+// mock-mode representation is handled here).
+export const cancelSubscription = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => cancelSubscriptionSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: updated, error } = await supabaseAdmin
+      .from("user_subscriptions")
+      .update({ canceled_at: new Date().toISOString() })
+      .eq("id", data.subscriptionId)
+      .eq("user_id", context.userId)
+      .is("canceled_at", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!updated?.length) throw new Error("subscription_not_found");
+    return { ok: true as const };
+  });

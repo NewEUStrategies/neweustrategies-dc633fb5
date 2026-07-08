@@ -19,6 +19,8 @@ import {
 } from "@/lib/lucide-shim";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { toast } from "sonner";
+import { useSaveArticle } from "@/hooks/useSaveArticle";
+import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
@@ -29,6 +31,10 @@ interface Props {
   title: string;
   /** Absolute URL of the post. When empty we use window.location at runtime. */
   url?: string;
+  /** Post/page id - when present, a signed-in user's "Save for later" persists
+   *  to their account (user_bookmarks) instead of only device localStorage. */
+  entityId?: string;
+  entityType?: BookmarkEntityType;
   lang: Lang;
   /** Hide automatically until user scrolls past N px from top. Default 240. */
   showAfter?: number;
@@ -67,8 +73,6 @@ const COPY = {
     read: "przeczytano",
     saveLater: "Zapisz później",
     saved: "Zapisano",
-    savedToast: "Dodano do zapisanych",
-    removedToast: "Usunięto z zapisanych",
   },
   en: {
     share: "Share",
@@ -88,8 +92,6 @@ const COPY = {
     read: "read",
     saveLater: "Save for later",
     saved: "Saved",
-    savedToast: "Added to saved",
-    removedToast: "Removed from saved",
   },
 } as const;
 
@@ -116,6 +118,8 @@ function slugifyHeading(s: string): string {
 export function FloatingShareBar({
   title,
   url,
+  entityId,
+  entityType = "post",
   lang,
   showAfter = 240,
   variant = "rail",
@@ -136,14 +140,16 @@ export function FloatingShareBar({
   const [items, setItems] = useState<TocItem[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
 
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
 
+  // Re-read the URL when the article changes (entityId/title), not only on
+  // mount - the post subtree is reused on client-side post->post navigation, so
+  // a mount-only capture would keep sharing/saving the previous article's URL.
   useEffect(() => {
     if (!url && typeof window !== "undefined") setHref(window.location.href);
-  }, [url]);
+  }, [url, entityId, title]);
 
   // Scan headings (h1-h5) within the article body. Assign IDs when missing.
   useEffect(() => {
@@ -290,41 +296,16 @@ export function FloatingShareBar({
     window.setTimeout(() => window.print(), 120);
   };
 
-  const SAVE_KEY = "lovable:saved-articles";
-
-  type SavedItem = { url: string; title: string; savedAt: number };
-
-  const readSaved = (): SavedItem[] => {
-    try {
-      const raw = window.localStorage.getItem(SAVE_KEY);
-      if (!raw) return [];
-      const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as SavedItem[]) : [];
-    } catch {
-      return [];
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !u) return;
-    setIsSaved(readSaved().some((s) => s.url === u));
-  }, [u]);
-
-  const onToggleSave = (): void => {
-    if (typeof window === "undefined" || !u) return;
-    try {
-      const list = readSaved();
-      const exists = list.some((s) => s.url === u);
-      const next = exists
-        ? list.filter((s) => s.url !== u)
-        : [{ url: u, title, savedAt: Date.now() }, ...list].slice(0, 200);
-      window.localStorage.setItem(SAVE_KEY, JSON.stringify(next));
-      setIsSaved(!exists);
-      toast.success(exists ? t.removedToast : t.savedToast);
-    } catch {
-      // localStorage may be unavailable (private mode); ignore silently.
-    }
-  };
+  // "Save for later": signed-in users persist to their account (user_bookmarks,
+  // surfaced in /reading-list + /profile/bookmarks); guests fall back to device
+  // localStorage or a login nudge per the personalization settings.
+  const { isSaved, toggle: onToggleSave } = useSaveArticle({
+    entityId,
+    entityType,
+    url: u,
+    title,
+    lang,
+  });
 
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
@@ -780,25 +761,27 @@ export function FloatingShareBar({
                 <Copy className="w-[17px] h-[17px]" />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={onToggleSave}
-              aria-pressed={isSaved}
-              aria-label={isSaved ? t.saved : t.saveLater}
-              className={[
-                "w-full mt-2.5 inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] text-[12px] font-semibold tracking-tight transition active:scale-[0.98]",
-                isSaved
-                  ? "bg-brand/10 text-brand border border-brand/40"
-                  : "border border-border bg-background text-foreground active:bg-muted",
-              ].join(" ")}
-            >
-              {isSaved ? (
-                <BookmarkCheck className="w-[15px] h-[15px]" />
-              ) : (
-                <Bookmark className="w-[15px] h-[15px]" />
-              )}
-              {isSaved ? t.saved : t.saveLater}
-            </button>
+            {cfg.showSaveLater && (
+              <button
+                type="button"
+                onClick={onToggleSave}
+                aria-pressed={isSaved}
+                aria-label={isSaved ? t.saved : t.saveLater}
+                className={[
+                  "w-full mt-2.5 inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] text-[12px] font-semibold tracking-tight transition active:scale-[0.98]",
+                  isSaved
+                    ? "bg-brand/10 text-brand border border-brand/40"
+                    : "border border-border bg-background text-foreground active:bg-muted",
+                ].join(" ")}
+              >
+                {isSaved ? (
+                  <BookmarkCheck className="w-[15px] h-[15px]" />
+                ) : (
+                  <Bookmark className="w-[15px] h-[15px]" />
+                )}
+                {isSaved ? t.saved : t.saveLater}
+              </button>
+            )}
             <div className="grid grid-cols-2 gap-2 mt-2.5">
               <button
                 type="button"

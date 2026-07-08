@@ -50,6 +50,7 @@ export function NewsletterPopupForm({
   const [v, setV] = useState<ExtendedFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(true);
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
   const subscribe = useServerFn(subscribeToNewsletter);
@@ -150,7 +151,7 @@ export function NewsletterPopupForm({
     if (ext) {
       if (v.name.trim()) meta.first_name = v.name.trim();
       if (v.surname.trim()) meta.last_name = v.surname.trim();
-      if (v.job.trim()) meta.job_position = v.job.trim();
+      if (v.job.trim()) meta.position = v.job.trim();
       if (v.company.trim()) meta.company = v.company.trim();
       if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
       if (v.phone.trim()) meta.phone = v.phone.trim();
@@ -184,7 +185,6 @@ export function NewsletterPopupForm({
         },
       });
 
-
       if (!res.ok) {
         setErr(
           res.error === "not_configured" || res.error === "disabled"
@@ -194,6 +194,10 @@ export function NewsletterPopupForm({
         setState("err");
         return;
       }
+      // res.emailSent is false when DOI is on but the confirmation mail could
+      // not be sent (Resend unconfigured/failed) - don't then tell the user to
+      // check an inbox for a link that never went out.
+      setEmailSent(res.emailSent !== false);
       setState("ok");
       setV(empty);
       onSuccess?.();
@@ -212,15 +216,22 @@ export function NewsletterPopupForm({
 
   if (state === "ok") {
     const doi = settings.double_opt_in;
-    const headline = doi
+    // Only claim "check your inbox" when a confirmation mail actually went out.
+    const doiSent = doi && emailSent;
+    const headline = doiSent
       ? t("Sprawdź swoją skrzynkę!", "Check your inbox!")
       : t("Zapisano. Dziękujemy!", "You're in. Thanks!");
-    const body = doi
+    const body = doiSent
       ? t(
           "Wysłaliśmy link potwierdzający - kliknij go w ciągu 48 godzin, aby aktywować subskrypcję. Sprawdź też folder Spam.",
           "We've sent you a confirmation link - click it within 48 hours to activate your subscription. Please also check your Spam folder.",
         )
-      : successMsg;
+      : doi
+        ? t(
+            "Zapisaliśmy Twój adres. Link potwierdzający wyślemy, gdy tylko to będzie możliwe.",
+            "We've saved your address. A confirmation link will be sent as soon as possible.",
+          )
+        : successMsg;
     return (
       <div
         role="status"
@@ -229,7 +240,7 @@ export function NewsletterPopupForm({
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            {doi ? (
+            {doiSent ? (
               <Mail className="w-5 h-5 text-emerald-300" />
             ) : (
               <Check className="w-5 h-5 text-emerald-300" />

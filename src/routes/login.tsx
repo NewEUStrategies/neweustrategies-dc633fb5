@@ -119,6 +119,9 @@ function LoginPage() {
     setBusy(true);
     try {
       if (mode === "signup") {
+        if (!settings.allow_public_signup) {
+          throw new Error(isPl ? "Rejestracja jest wyłączona." : "Sign-up is disabled.");
+        }
         const trimmed = name.trim();
         const parts = trimmed.split(/\s+/).filter(Boolean);
         const firstName = parts[0] ?? "";

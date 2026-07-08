@@ -34,15 +34,24 @@ describe("useUndoRedo", () => {
     expect(result.current.state.n).toBe(5);
   });
 
-  it("coalesce merges into present without growing history", () => {
+  it("coalesces same-key changes into one history step", () => {
     const { result } = renderHook(() => useUndoRedo({ s: "" }));
-    act(() => result.current.set({ s: "a" }));
-    act(() => result.current.set({ s: "ab" }, { coalesce: true }));
-    act(() => result.current.set({ s: "abc" }, { coalesce: true }));
+    act(() => result.current.set({ s: "a" }, { coalesceKey: "s" }));
+    act(() => result.current.set({ s: "ab" }, { coalesceKey: "s" }));
+    act(() => result.current.set({ s: "abc" }, { coalesceKey: "s" }));
     expect(result.current.state.s).toBe("abc");
     act(() => result.current.undo());
-    // single history step created; undo returns to initial
+    // one step for the whole run of same-key edits; undo returns to initial
     expect(result.current.state.s).toBe("");
+  });
+
+  it("keeps different coalesce keys as separate undo steps", () => {
+    const { result } = renderHook(() => useUndoRedo({ title: "", body: "" }));
+    act(() => result.current.set((p) => ({ ...p, title: "t" }), { coalesceKey: "title" }));
+    act(() => result.current.set((p) => ({ ...p, body: "b" }), { coalesceKey: "body" }));
+    // A key change must NOT fold the two edits into one step (the old bug).
+    act(() => result.current.undo());
+    expect(result.current.state).toEqual({ title: "t", body: "" });
   });
 
   it("reset clears history", () => {

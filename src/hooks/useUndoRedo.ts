@@ -12,7 +12,7 @@ const MAX_HISTORY = 50;
 
 export interface UndoRedo<T> {
   state: T;
-  set: (next: T | ((prev: T) => T), opts?: { coalesce?: boolean }) => void;
+  set: (next: T | ((prev: T) => T), opts?: { coalesceKey?: string }) => void;
   reset: (next: T) => void;
   undo: () => void;
   redo: () => void;
@@ -22,33 +22,37 @@ export interface UndoRedo<T> {
 
 /**
  * useUndoRedo - tracks a single value with linear history.
- * Pass `{ coalesce: true }` to merge the change into the current entry
- * instead of pushing a new history step (useful for typing in inputs).
+ * Pass `{ coalesceKey }` to merge a *run* of changes sharing the same key into
+ * one history entry (e.g. successive keystrokes in one field). A different key
+ * - or no key - starts a new entry, so each field is its own undo step. (The
+ * previous boolean `coalesce` latched on after the first edit and folded the
+ * entire session into a single step.)
  */
 export function useUndoRedo<T>(initial: T): UndoRedo<T> {
   const [s, setS] = useState<HistoryState<T>>({ past: [], present: initial, future: [] });
-  const coalesceRef = useRef(false);
+  const coalesceKeyRef = useRef<string | null>(null);
 
-  const set = useCallback((next: T | ((prev: T) => T), opts?: { coalesce?: boolean }) => {
+  const set = useCallback((next: T | ((prev: T) => T), opts?: { coalesceKey?: string }) => {
     setS((prev) => {
       const resolved = typeof next === "function" ? (next as (p: T) => T)(prev.present) : next;
       if (Object.is(resolved, prev.present)) return prev;
-      if (opts?.coalesce && coalesceRef.current) {
+      const key = opts?.coalesceKey ?? null;
+      if (key !== null && coalesceKeyRef.current === key) {
         return { past: prev.past, present: resolved, future: [] };
       }
-      coalesceRef.current = true;
+      coalesceKeyRef.current = key;
       const past = [...prev.past, prev.present].slice(-MAX_HISTORY);
       return { past, present: resolved, future: [] };
     });
   }, []);
 
   const reset = useCallback((next: T) => {
-    coalesceRef.current = false;
+    coalesceKeyRef.current = null;
     setS({ past: [], present: next, future: [] });
   }, []);
 
   const undo = useCallback(() => {
-    coalesceRef.current = false;
+    coalesceKeyRef.current = null;
     setS((prev) => {
       if (!prev.past.length) return prev;
       const previous = prev.past[prev.past.length - 1]!;
@@ -61,7 +65,7 @@ export function useUndoRedo<T>(initial: T): UndoRedo<T> {
   }, []);
 
   const redo = useCallback(() => {
-    coalesceRef.current = false;
+    coalesceKeyRef.current = null;
     setS((prev) => {
       if (!prev.future.length) return prev;
       const next = prev.future[0]!;

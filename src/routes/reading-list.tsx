@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarks } from "@/hooks/useBookmarks";
@@ -130,7 +130,7 @@ function gridClass(cols: number) {
 }
 
 function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" }) {
-  const { data: bookmarks } = useBookmarks();
+  const { data: bookmarks, isLoading } = useBookmarks();
   const postIds = (bookmarks ?? []).filter((b) => b.entity_type === "post").map((b) => b.entity_id);
   const { data: posts } = useQuery({
     queryKey: ["saved-posts", postIds.join(",")],
@@ -148,6 +148,7 @@ function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" })
       return data as PostRow[];
     },
   });
+  if (isLoading) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
   if (postIds.length === 0)
     return <EmptyState text="Nie masz jeszcze żadnych zapisanych artykułów." />;
   if (!posts) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
@@ -256,14 +257,18 @@ function RecommendedSection({
   lang: "pl" | "en";
 }) {
   const fetchFn = useServerFn(getRecommendedPosts);
-  const [posts, setPosts] = useState<RecommendedPost[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    fetchFn({ data: { limit } })
-      .then(setPosts)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Error"));
-  }, [fetchFn, limit]);
-  if (err) return <p className="text-center text-destructive">{err}</p>;
+  // React Query so saving interests (which invalidates ["recommended-posts"])
+  // actually refetches this list instead of waiting for a remount.
+  const { data: posts, error } = useQuery({
+    queryKey: ["recommended-posts", limit],
+    queryFn: () => fetchFn({ data: { limit } }),
+  });
+  if (error)
+    return (
+      <p className="text-center text-destructive">
+        {error instanceof Error ? error.message : "Error"}
+      </p>
+    );
   if (!posts) return <p className="text-center text-muted-foreground">Ładowanie rekomendacji…</p>;
   if (posts.length === 0)
     return (

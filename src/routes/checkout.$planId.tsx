@@ -60,7 +60,7 @@ function CheckoutPage() {
     try {
       const res = await checkout({
         data: {
-          kind: plan.data.interval === "once" ? "one_time" : "subscription",
+          kind: plan.data.interval === "one_time" ? "one_time" : "subscription",
           plan_id: plan.data.id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",

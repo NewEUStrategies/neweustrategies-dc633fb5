@@ -255,11 +255,10 @@ function EditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   if (isLoading || !form || !id) return <div className="text-sm text-muted-foreground">...</div>;
 
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
-    history.set((f) => (f ? { ...f, [k]: v } : f), { coalesce: true });
+    history.set((f) => (f ? { ...f, [k]: v } : f), { coalesceKey: String(k) });
 
   const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
@@ -597,7 +596,9 @@ function EditPage() {
                   og_image_generated_url: form.og_image_generated_url,
                 }}
                 onChange={(patch) =>
-                  history.set((f) => (f ? { ...f, ...patch } : f), { coalesce: true })
+                  history.set((f) => (f ? { ...f, ...patch } : f), {
+                    coalesceKey: Object.keys(patch).sort().join("|"),
+                  })
                 }
                 entity={{ kind: "page", id }}
                 slug={form.slug}

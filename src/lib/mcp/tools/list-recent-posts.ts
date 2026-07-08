@@ -1,6 +1,6 @@
 import { defineTool } from "@lovable.dev/mcp-js";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { mcpSupabase } from "@/lib/mcp/supabaseClient";
 
 export default defineTool({
   name: "list_recent_posts",
@@ -12,14 +12,10 @@ export default defineTool({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ lang, limit }) => {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !key) {
+    const sb = await mcpSupabase();
+    if (!sb) {
       return { content: [{ type: "text", text: "Backend not configured" }], isError: true };
     }
-    const sb = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
     const t = lang === "en" ? "en" : "pl";
     const { data, error } = await sb
       .from("posts")

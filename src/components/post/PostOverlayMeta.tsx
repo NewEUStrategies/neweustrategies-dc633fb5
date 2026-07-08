@@ -50,17 +50,17 @@ function fmtDate(iso: string, lang: Lang): string {
   }
 }
 
-function authorName(a: AuthorLite): string {
+function authorName(a: AuthorLite, lang: Lang): string {
   return (
     a.display_name ||
     [a.first_name, a.last_name].filter(Boolean).join(" ") ||
-    ((lang) => (lang === "en" ? "Author" : "Autor"))("pl")
+    (lang === "en" ? "Author" : "Autor")
   );
 }
 
 export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, customMeta }: Props) {
   const t = L[lang];
-  const name = author ? authorName(author) : null;
+  const name = author ? authorName(author, lang) : null;
   const authorHref = author?.slug ? `/${lang === "en" ? "en/" : ""}author/${author.slug}` : null;
 
   return (

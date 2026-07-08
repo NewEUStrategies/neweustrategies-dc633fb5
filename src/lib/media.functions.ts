@@ -164,8 +164,9 @@ export const getMediaUsage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
     const { supabase, userId } = context;
     // Fail-closed guard: a caller without a tenant must not run this scan
-    // (resolveUserTenantId throws). The tenant id itself is no longer used here.
-    await resolveUserTenantId(supabaseAdmin, userId);
+    // (resolveUserTenantId throws). The tenant id also scopes the service-role
+    // scans below so this admin read can never surface another tenant's content.
+    const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
 
     const { data: media, error: mErr } = await supabase
       .from("media")
@@ -213,6 +214,7 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       .select(
         "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, blocks_data, layout_overrides",
       )
+      .eq("tenant_id", tenantId)
       .is("deleted_at", null);
     if (pErr) throw new Error(pErr.message);
     for (const p of posts ?? []) {
@@ -240,6 +242,7 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       .select(
         "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, layout_overrides",
       )
+      .eq("tenant_id", tenantId)
       .is("deleted_at", null);
     if (gErr) throw new Error(gErr.message);
     for (const p of pages ?? []) {
@@ -579,7 +582,9 @@ export const createMediaFolder = createServerFn({ method: "POST" })
       chain.push(acc);
     }
     const rows = chain.map((p) => ({ tenant_id: tenantId, path: p, created_by: userId }));
-    const { error } = await supabase.from("media_folders").upsert(rows, { onConflict: "tenant_id,path" });
+    const { error } = await supabase
+      .from("media_folders")
+      .upsert(rows, { onConflict: "tenant_id,path" });
     if (error) throw new Error(error.message);
     await recordAudit(supabase, {
       tenantId,

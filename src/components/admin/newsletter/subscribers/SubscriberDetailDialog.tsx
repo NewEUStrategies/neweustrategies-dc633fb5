@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Consent {
   key?: string;
@@ -69,11 +70,11 @@ export function SubscriberDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">
-            {data?.email ?? "Subskrybent"}
-          </DialogTitle>
+          <DialogTitle className="font-display text-xl">{data?.email ?? "Subskrybent"}</DialogTitle>
           <DialogDescription>
-            {data?.display_name ?? [data?.first_name, data?.last_name].filter(Boolean).join(" ") ?? "-"}
+            {data?.display_name ??
+              [data?.first_name, data?.last_name].filter(Boolean).join(" ") ??
+              "-"}
           </DialogDescription>
         </DialogHeader>
 
@@ -87,7 +88,10 @@ export function SubscriberDetailDialog({
           <div className="space-y-5">
             <Section title="Podstawowe">
               <Row label="Status" value={<StatusBadge status={data.status} />} />
-              <Row label="Jezyk" value={<span className="uppercase text-xs">{data.language}</span>} />
+              <Row
+                label="Jezyk"
+                value={<span className="uppercase text-xs">{data.language}</span>}
+              />
               <Row label="Zrodlo" value={data.source ?? "-"} />
               <Row label="Formularz" value={data.source_form_name ?? "-"} />
             </Section>
@@ -122,7 +126,7 @@ export function SubscriberDetailDialog({
                       {c.text && (
                         <div
                           className="text-muted-foreground [&_a]:underline"
-                          dangerouslySetInnerHTML={{ __html: c.text }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(c.text) }}
                         />
                       )}
                       {c.at && (

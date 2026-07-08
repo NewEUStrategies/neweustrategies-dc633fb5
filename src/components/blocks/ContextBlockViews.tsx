@@ -14,9 +14,9 @@ function formatDate(iso: string | undefined, format: string, lang: Lang): string
   if (format === "relative") {
     const diff = Date.now() - d.getTime();
     const day = 86_400_000;
-    const days = Math.round(diff / day);
     const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en" : "pl", { numeric: "auto" });
-    if (Math.abs(days) < 1) return rtf.format(-Math.round(diff / 3_600_000), "hour");
+    if (Math.abs(diff) < day) return rtf.format(-Math.round(diff / 3_600_000), "hour");
+    const days = Math.round(diff / day);
     if (Math.abs(days) < 30) return rtf.format(-days, "day");
     if (Math.abs(days) < 365) return rtf.format(-Math.round(days / 30), "month");
     return rtf.format(-Math.round(days / 365), "year");

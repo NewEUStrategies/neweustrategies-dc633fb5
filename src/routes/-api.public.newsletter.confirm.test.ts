@@ -60,6 +60,13 @@ describe("resolveConfirmOutcome (idempotent double opt-in)", () => {
       kind: "expired",
     });
   });
+
+  it("does not resurrect a non-pending (e.g. unsubscribed) row via a retained token", () => {
+    expect(resolveConfirmOutcome(row("unsubscribed", null), now)).toEqual({ kind: "expired" });
+    expect(resolveConfirmOutcome(row("unsubscribed", "2026-07-05T00:00:00Z"), now)).toEqual({
+      kind: "expired",
+    });
+  });
 });
 
 describe("wantsHtml (browser clicks land on the result page, not raw JSON)", () => {

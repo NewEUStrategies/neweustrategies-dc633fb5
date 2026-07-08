@@ -65,6 +65,12 @@ export function useAutosave<T>({
           setStatus("saved");
         }
       } catch (e) {
+        // Drop any value queued while this save was in flight: it is an
+        // intermediate snapshot, and the freshest value always lives in
+        // valueRef (re-saved by the effect on the next edit or by flush()).
+        // Replaying the stale queued snapshot after a later successful save
+        // would clobber newer content with older content.
+        queuedRef.current = null;
         inFlightRef.current = false;
         setError(e instanceof Error ? e.message : String(e));
         setStatus("error");

@@ -6,6 +6,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { FollowButton } from "@/components/FollowButton";
+import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -56,11 +58,17 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
   const { data } = useSuspenseQuery(taxonomyArchiveQueryOptions(kind, slug));
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const personalized = usePersonalizedSettings();
+  const showFollow =
+    kind === "category" ? personalized.followInCategoryHeader : personalized.followInTagHeader;
   if (!data) return <NotFound />;
   const { taxonomy, posts } = data;
   const name =
     lang === "en" ? taxonomy.name_en || taxonomy.name_pl : taxonomy.name_pl || taxonomy.name_en;
-  const description = lang === "en" ? taxonomy.description_en : taxonomy.description_pl;
+  const description =
+    lang === "en"
+      ? taxonomy.description_en || taxonomy.description_pl
+      : taxonomy.description_pl || taxonomy.description_en;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -78,7 +86,10 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               {kind === "category" ? "Kategoria" : "Tag"}
             </p>
-            <h1 className="font-display text-3xl lg:text-4xl mt-1">{name}</h1>
+            <div className="flex flex-wrap items-center gap-3 mt-1">
+              <h1 className="font-display text-3xl lg:text-4xl">{name}</h1>
+              {showFollow && <FollowButton targetType={kind} targetId={taxonomy.id} lang={lang} />}
+            </div>
             {description && <p className="text-muted-foreground mt-2 max-w-2xl">{description}</p>}
           </header>
           <ArchivePostList posts={posts} lang={lang} emptyText="Brak opublikowanych wpisów." />

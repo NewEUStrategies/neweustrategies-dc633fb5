@@ -128,7 +128,7 @@ export const blockCategoriesQueryOptions = (lang: Lang) =>
         .order(lang === "en" ? "name_en" : "name_pl");
       if (error) throw error;
       return (data ?? []).map((c) => ({
-        label: (lang === "en" ? c.name_en : c.name_pl) ?? c.name_pl ?? c.name_en ?? c.slug,
+        label: (lang === "en" ? c.name_en : c.name_pl) || c.name_pl || c.name_en || c.slug,
         href: `/category/${c.slug}`,
         count: 0,
       }));

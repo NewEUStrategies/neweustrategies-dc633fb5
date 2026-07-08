@@ -92,6 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setRoles([]);
     setTenantId(null);
+    // Drop every cached query so the next user (e.g. on a shared device) never
+    // sees the previous account's data - billing, orders, subscription and
+    // bookmarks use static, user-independent query keys.
+    queryClient.clear();
   };
 
   const isSuperAdmin = roles.includes("super_admin");

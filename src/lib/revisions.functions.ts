@@ -145,16 +145,21 @@ export const restoreRevision = createServerFn({ method: "POST" })
       const snapshot = (revision.snapshot ?? {}) as Record<string, unknown>;
       const fields = pickRestorableFields(snapshot);
       if (!Object.keys(fields).length) throw new Error("Revision snapshot is empty");
-      const { error: updErr } = isPage
+      const { data: updated, error: updErr } = isPage
         ? await supabase
             .from("pages")
             .update(fields as Database["public"]["Tables"]["pages"]["Update"])
             .eq("id", revision.entity_id)
+            .select("id")
         : await supabase
             .from("posts")
             .update(fields as Database["public"]["Tables"]["posts"]["Update"])
-            .eq("id", revision.entity_id);
+            .eq("id", revision.entity_id)
+            .select("id");
       if (updErr) throw new Error(updErr.message);
+      // A silent RLS filter returns no error but writes nothing; surface it
+      // instead of reporting a successful restore that never happened.
+      if (!updated?.length) throw new Error("Restore failed: not found or access denied");
 
       await recordAudit(supabase, {
         tenantId,

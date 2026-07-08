@@ -164,8 +164,19 @@ export const Route = createFileRoute("/$")({
         ? prefetchBlockQueries(context.queryClient, blocksDoc, lang, {
             postId: data.kind === "post" ? data.item.id : null,
             publishedAt: data.item.published_at,
-            authorId: null,
-            categorySlugs: [],
+            // Mirror the client's useCurrentPostCtx-derived key exactly, or the
+            // SSR-warmed related/more/author-bio entries miss on hydration and
+            // crawlers see the wrong (category-agnostic) lists.
+            authorId:
+              data.kind === "post"
+                ? ((data as { author?: { id: string } | null }).author?.id ?? null)
+                : null,
+            categorySlugs:
+              data.kind === "post"
+                ? ((data as { categories?: Array<{ slug: string }> }).categories ?? []).map(
+                    (c) => c.slug,
+                  )
+                : [],
             tagSlugs: data.kind === "post" ? (data.tags ?? []).map((t) => t.slug) : [],
           })
         : Promise.resolve(),
@@ -374,7 +385,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
   const accessRule = data.access;
   const { data: globalLayoutSettings } = usePostLayoutSettings();
-  useRecordPostView(isPost ? it.id : null);
+  useRecordPostView(isPost ? it.id : null, postAuthor?.id ?? null);
 
   // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
   // caller gets an all-null body, so premium content is never shipped. For an

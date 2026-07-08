@@ -46,7 +46,6 @@ const NewsletterInput = z.object({
   formType: z.enum(["newsletter", "join_us"]).default("newsletter"),
 });
 
-
 export type NewsletterSubscribeResult =
   | { ok: true; status: "pending" | "subscribed" | "exists"; emailSent?: boolean }
   | { ok: false; error: string };
@@ -64,13 +63,17 @@ function hexToken(bytes = 32): string {
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// SECURITY: ignore X-Forwarded-* headers - an attacker can set them on the
+// incoming request to point the DOI confirmation link at a phishing domain and
+// steal the token. Prefer a hard-coded PUBLIC_SITE_URL; fall back to the
+// request URL's own origin (never the forwarded host). Mirrors
+// contact.functions.ts originFromRequest.
 function originFromRequest(): string {
+  const envUrl = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL;
+  if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
     const req = getRequest();
-    const url = new URL(req.url);
-    const fwdHost = req.headers.get("x-forwarded-host");
-    const fwdProto = req.headers.get("x-forwarded-proto");
-    return `${fwdProto ?? url.protocol.replace(":", "")}://${fwdHost ?? url.host}`;
+    return new URL(req.url).origin;
   } catch {
     return "";
   }
@@ -176,7 +179,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
 
     const { data: settings } = await supabaseAdmin
       .from("newsletter_settings")
-      .select("tenant_id, enabled, double_opt_in")
+      .select("tenant_id, enabled, double_opt_in, sender_name, sender_email")
       .eq("tenant_id", hostTenantId)
       .maybeSingle();
     if (!settings?.tenant_id) return { ok: false, error: "not_configured" };
@@ -223,7 +226,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       };
     }
 
-
     // Never reset an already-confirmed subscriber.
     const { data: existing } = await supabaseAdmin
       .from("newsletter_subscribers")
@@ -240,8 +242,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       const req = getRequest();
       const fwd = req.headers.get("x-forwarded-for");
       const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
-      clientIp =
-        req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+      clientIp = req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
       userAgent = req.headers.get("user-agent");
     } catch {
       // request context unavailable - fine
@@ -265,7 +266,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       ...(meta ? { meta } : {}),
     };
 
-
     if (!doi) {
       const { error } = await supabaseAdmin.from("newsletter_subscribers").upsert(
         {
@@ -280,7 +280,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       if (error) return { ok: false, error: error.message };
       await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
       return { ok: true, status: "subscribed" };
-
     }
 
     const token = hexToken(32);
@@ -300,7 +299,13 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // zlokalizowany komunikat, a strona woła endpoint JSON w tle.
     const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl);
-    const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html });
+    // Use the tenant's configured sender when set; otherwise sendEmail() falls
+    // back to the shared Resend onboarding address.
+    const senderEmail = settings.sender_email?.trim();
+    const from = senderEmail
+      ? `${settings.sender_name?.trim() || "New European Strategies"} <${senderEmail}>`
+      : undefined;
+    const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html, from });
     await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
     return { ok: true, status: "pending", emailSent: send.ok };
   });
@@ -343,4 +348,3 @@ async function syncToCrm(
     console.error("[newsletter] crm sync threw", err);
   }
 }
-

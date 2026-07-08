@@ -137,6 +137,7 @@ export const toggleRedirects = createServerFn({ method: "POST" })
       const { error } = await supabase
         .from("redirects")
         .update({ is_enabled: data.is_enabled })
+        .eq("tenant_id", tenantId)
         .in("id", data.ids);
       if (error) throw new Error(error.message);
       await recordAudit(supabase, {
@@ -157,7 +158,11 @@ export const deleteRedirects = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("redirect.delete", userId, 60, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("redirects").delete().in("id", data.ids);
+      const { error } = await supabase
+        .from("redirects")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .in("id", data.ids);
       if (error) throw new Error(error.message);
       await recordAudit(supabase, {
         tenantId,

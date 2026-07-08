@@ -6,6 +6,7 @@ import { fetchGatedBody } from "@/lib/queries/public";
 export interface NextPostSummary {
   id: string;
   slug: string;
+  editor: string | null;
   title_pl: string;
   title_en: string;
   excerpt_pl: string | null;
@@ -13,15 +14,18 @@ export interface NextPostSummary {
   cover_image_url: string | null;
   content_pl: string | null;
   content_en: string | null;
+  builder_data: unknown;
+  blocks_data: unknown;
   published_at: string | null;
   parent_page_id: string;
   href: string;
 }
 
-// Only non-gated display columns are selected directly; the body is fetched
-// through the SECURITY DEFINER get_entity_content RPC (see fetchGatedBody).
+// Only non-gated display columns (incl. the `editor` discriminator) are selected
+// directly; the body columns are fetched through the SECURITY DEFINER
+// get_entity_content RPC (see fetchGatedBody).
 const COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id";
+  "id, slug, editor, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id";
 
 export async function fetchNextPost(params: {
   currentPostId: string;
@@ -54,9 +58,14 @@ export async function fetchNextPost(params: {
   ]);
   const href = `/${typeof path === "string" ? path : "blog"}/${row.slug}`;
   return {
-    ...(row as Omit<NextPostSummary, "href" | "content_pl" | "content_en">),
+    ...(row as Omit<
+      NextPostSummary,
+      "href" | "content_pl" | "content_en" | "builder_data" | "blocks_data"
+    >),
     content_pl: body.content_pl,
     content_en: body.content_en,
+    builder_data: body.builder_data,
+    blocks_data: body.blocks_data,
     href,
   };
 }

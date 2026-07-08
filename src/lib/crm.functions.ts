@@ -58,7 +58,10 @@ export const listCrmLeads = createServerFn({ method: "POST" })
       .limit(data.limit);
     if (data.stage) q = q.eq("stage", data.stage);
     if (data.search) {
-      const s = `%${data.search.toLowerCase()}%`;
+      // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
+      // term can't inject extra filter conditions (RLS still scopes rows, but
+      // the term must not alter the query's filter logic).
+      const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
       q = q.or(`email.ilike.${s},first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s}`);
     }
     const { data: leads, error } = await (q as unknown as Promise<{
