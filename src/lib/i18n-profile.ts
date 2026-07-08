@@ -253,6 +253,7 @@ const en: typeof pl = {
       social: "Social media",
       interests: "Interests",
       bookmarks: "Saved items",
+      notifications: "Notifications",
       follows: "Following",
       billing: "Billing details",
       subscription: "Subscription",
