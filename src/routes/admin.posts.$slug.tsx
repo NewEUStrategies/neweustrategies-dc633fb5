@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
+import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import {
@@ -644,19 +645,11 @@ function EditPost() {
         />
       </div>
       <div>
-        <Label>{t("admin.posts.cover")}</Label>
-        <Input
+        <CoverImagePicker
+          label={t("admin.posts.cover")}
           value={form.cover_image_url ?? ""}
-          onChange={(e) => set("cover_image_url", e.target.value)}
-          placeholder="https://..."
+          onChange={(v: string) => set("cover_image_url", v || null)}
         />
-        {form.cover_image_url && (
-          <img
-            src={form.cover_image_url}
-            alt=""
-            className="mt-2 rounded w-full h-24 object-cover"
-          />
-        )}
       </div>
     </SidebarSection>
   );
