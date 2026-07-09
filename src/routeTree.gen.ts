@@ -52,6 +52,7 @@ import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminTocRouteImport } from './routes/admin.toc'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
 import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
@@ -335,6 +336,11 @@ const AdminWebStoriesRoute = AdminWebStoriesRouteImport.update({
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTocRoute = AdminTocRouteImport.update({
+  id: '/toc',
+  path: '/toc',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminThemeOptionsRoute = AdminThemeOptionsRouteImport.update({
@@ -744,6 +750,7 @@ export interface FileRoutesByFullPath {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
+  '/admin/toc': typeof AdminTocRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
@@ -854,6 +861,7 @@ export interface FileRoutesByTo {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
+  '/admin/toc': typeof AdminTocRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -968,6 +976,7 @@ export interface FileRoutesById {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
+  '/admin/toc': typeof AdminTocRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
@@ -1084,6 +1093,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
+    | '/admin/toc'
     | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
@@ -1194,6 +1204,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
+    | '/admin/toc'
     | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
@@ -1307,6 +1318,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
+    | '/admin/toc'
     | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
@@ -1707,6 +1719,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/toc': {
+      id: '/admin/toc'
+      path: '/toc'
+      fullPath: '/admin/toc'
+      preLoaderRoute: typeof AdminTocRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/theme-options': {
@@ -2353,6 +2372,7 @@ interface AdminRouteChildren {
   AdminTagsRoute: typeof AdminTagsRoute
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
   AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
+  AdminTocRoute: typeof AdminTocRoute
   AdminUsersRoute: typeof AdminUsersRouteWithChildren
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -2395,6 +2415,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminTagsRoute: AdminTagsRoute,
   AdminThemeDesignRoute: AdminThemeDesignRoute,
   AdminThemeOptionsRoute: AdminThemeOptionsRoute,
+  AdminTocRoute: AdminTocRoute,
   AdminUsersRoute: AdminUsersRouteWithChildren,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminIndexRoute: AdminIndexRoute,

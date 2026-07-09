@@ -54,6 +54,7 @@ import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
+import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
@@ -95,6 +96,7 @@ interface PostForm {
   layout_overrides: LayoutOverrides | null;
   takeaways_pl: string[];
   takeaways_en: string[];
+  toc_override: import("@/lib/toc/settings").TocOverride | null;
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
   seo_title_pl: string | null;
@@ -286,6 +288,7 @@ function EditPost() {
             layout_overrides: snapshot.layout_overrides,
             takeaways_pl: snapshot.takeaways_pl ?? [],
             takeaways_en: snapshot.takeaways_en ?? [],
+            toc_override: snapshot.toc_override ?? null,
             custom_meta: snapshot.custom_meta ?? null,
             related_override: snapshot.related_override ?? null,
             seo_title_pl: snapshot.seo_title_pl,
@@ -931,13 +934,18 @@ function EditPost() {
                 </div>
               </div>
 
-              <TakeawaysEditor
-                pl={form.takeaways_pl ?? []}
-                en={form.takeaways_en ?? []}
-                onChange={(lang, next) =>
+              <PostSettingsMetabox
+                entityType="post"
+                entityId={id}
+                tocOverride={form.toc_override ?? null}
+                onTocOverrideChange={(next) => set("toc_override", next)}
+                takeawaysPl={form.takeaways_pl ?? []}
+                takeawaysEn={form.takeaways_en ?? []}
+                onTakeawaysChange={(lang, next) =>
                   set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
                 }
               />
+
 
               <div className="rounded-lg border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between">

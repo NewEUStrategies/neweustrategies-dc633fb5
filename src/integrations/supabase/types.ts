@@ -1864,6 +1864,7 @@ export type Database = {
           tenant_id: string
           title_en: string
           title_pl: string
+          toc_override: Json | null
           updated_at: string
         }
         Insert: {
@@ -1899,6 +1900,7 @@ export type Database = {
           tenant_id: string
           title_en?: string
           title_pl?: string
+          toc_override?: Json | null
           updated_at?: string
         }
         Update: {
@@ -1934,6 +1936,7 @@ export type Database = {
           tenant_id?: string
           title_en?: string
           title_pl?: string
+          toc_override?: Json | null
           updated_at?: string
         }
         Relationships: [
@@ -2616,6 +2619,7 @@ export type Database = {
           tenant_id: string
           title_en: string
           title_pl: string
+          toc_override: Json | null
           updated_at: string
         }
         Insert: {
@@ -2657,6 +2661,7 @@ export type Database = {
           tenant_id: string
           title_en?: string
           title_pl?: string
+          toc_override?: Json | null
           updated_at?: string
         }
         Update: {
@@ -2698,6 +2703,7 @@ export type Database = {
           tenant_id?: string
           title_en?: string
           title_pl?: string
+          toc_override?: Json | null
           updated_at?: string
         }
         Relationships: [
@@ -4131,6 +4137,7 @@ export type Database = {
           tenant_id: string
           title_en: string
           title_pl: string
+          toc_override: Json | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -4181,6 +4188,7 @@ export type Database = {
           tenant_id: string
           title_en: string
           title_pl: string
+          toc_override: Json | null
           updated_at: string
         }[]
         SetofOptions: {
