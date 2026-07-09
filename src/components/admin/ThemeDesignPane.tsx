@@ -78,6 +78,8 @@ export function ThemeDesignPane() {
   const [cDraft, setCDraft] = useState<CarouselDefaults | null>(null);
   const [liveSync, setLiveSync] = useState<boolean>(false);
   const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
+  const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
+
 
   useEffect(() => {
     if (tdPl && !draftPl) setDraftPl(tdPl);
