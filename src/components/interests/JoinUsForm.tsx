@@ -934,15 +934,15 @@ export function JoinUsForm({
             data-edit-target="perkSize"
           >
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
               <span>{p1}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
               <span>{p2}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
               <span>{p3}</span>
             </li>
           </ul>
@@ -1026,15 +1026,15 @@ export function JoinUsForm({
               data-edit-target="perkSize"
             >
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
                 <span>{p1}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
                 <span>{p2}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
                 <span>{p3}</span>
               </li>
             </ul>
