@@ -552,13 +552,33 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             const isTextPost =
               isPost && postFormat !== "audio" && postFormat !== "video";
             const hasBullets = takeaways.length > 0;
-            if (!hasBullets && !isTextPost) return null;
+            const tocOverride = (post?.toc_override ?? null) as TocOverride | null;
+            const readMinutes = post?.read_minutes ?? null;
             return (
-              <KeyTakeaways
-                items={takeaways}
-                variantOverride={it.takeaways_variant ?? undefined}
-                withPlaceholders={!hasBullets && isTextPost}
-              />
+              <>
+                {(hasBullets || isTextPost) && (
+                  <KeyTakeaways
+                    items={takeaways}
+                    variantOverride={it.takeaways_variant ?? undefined}
+                    withPlaceholders={!hasBullets && isTextPost}
+                  />
+                )}
+                {isPost && isTextPost && (
+                  <PostListenBar
+                    postId={it.id}
+                    lang={lang}
+                    readMinutes={readMinutes}
+                  />
+                )}
+                {isPost && (
+                  <InlineToc
+                    blocksDoc={blocksDoc}
+                    defaults={tocDefaults}
+                    override={tocOverride}
+                    lang={lang}
+                  />
+                )}
+              </>
             );
           })()}
           <ContentRenderer
