@@ -73,7 +73,7 @@ type TabKey = "toc" | "membership" | "takeaways";
 
 const MAX_TAKEAWAYS = 7;
 const MAX_TAKEAWAY_LEN = 500;
-const RECOMMENDED_MIN = 40;
+const RECOMMENDED_MIN = 90;
 const RECOMMENDED_MAX = 200;
 
 export function PostSettingsMetabox({
