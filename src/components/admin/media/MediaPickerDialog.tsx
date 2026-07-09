@@ -2,11 +2,14 @@
  * MediaPickerDialog - browse images stored in the tenant's Media Library
  * and pick one. Lightweight modal used by newsletter/page/post builders to
  * insert existing assets without leaving the current editor.
+ * Supports uploading new files directly from the user's local disk.
  */
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { useRequiredTenant } from "@/hooks/useAuth";
+import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import { registerMediaUpload } from "@/lib/media.functions";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, X, Folder } from "@/lib/lucide-shim";
+import { Search, Check, X, Folder, Upload, Loader2 } from "@/lib/lucide-shim";
+import { toast } from "sonner";
 
 interface PickerRow {
   id: string;
@@ -41,9 +45,78 @@ export function MediaPickerDialog({
   title?: string;
 }) {
   const tenantId = useRequiredTenant();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const registerUpload = useServerFn(registerMediaUpload);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
   const [pickedUrl, setPickedUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const acceptAttr = accept === "image" ? "image/*" : undefined;
+
+  const handleFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const list = Array.from(files);
+      if (!list.length) return;
+      if (!user) {
+        toast.error("Musisz być zalogowany");
+        return;
+      }
+      setUploading(true);
+      let lastUrl: string | null = null;
+      try {
+        for (const file of list) {
+          if (accept === "image" && !file.type.startsWith("image/")) {
+            toast.error(`Pominięto ${file.name} - to nie jest obraz`);
+            continue;
+          }
+          const ext = (file.name.split(".").pop() ?? "bin")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+          const path = `${tenantId}/${user.id}/${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("media")
+            .upload(path, file, { contentType: file.type });
+          if (upErr) throw upErr;
+          const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
+          await registerUpload({
+            data: {
+              storagePath: path,
+              filename: file.name,
+              mimeType: file.type,
+              sizeBytes: file.size,
+              publicUrl: urlData.publicUrl,
+            },
+          });
+          lastUrl = urlData.publicUrl;
+        }
+        toast.success(list.length > 1 ? `Wgrano ${list.length} plików` : "Wgrano plik");
+        await qc.invalidateQueries({ queryKey: ["media-picker", tenantId, accept] });
+        if (lastUrl) setPickedUrl(lastUrl);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [accept, qc, registerUpload, tenantId, user],
+  );
+
+  const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) void handleFiles(e.target.files);
+  };
+
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
+  };
 
   const { data } = useQuery({
     queryKey: ["media-picker", tenantId, accept],
@@ -113,12 +186,55 @@ export function MediaPickerDialog({
               </option>
             ))}
           </select>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={acceptAttr}
+            className="hidden"
+            onChange={onInputChange}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Wgrywanie…
+              </>
+            ) : (
+              <>
+                <Upload className="w-3.5 h-3.5 mr-1" /> Wgraj z dysku
+              </>
+            )}
+          </Button>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto -mx-2 px-2">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={`relative max-h-[60vh] overflow-y-auto -mx-2 px-2 rounded-md transition-colors ${
+            dragOver ? "outline outline-2 outline-dashed outline-primary/60 bg-primary/5" : ""
+          }`}
+        >
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-medium text-primary bg-background/70 backdrop-blur-sm rounded-md">
+              <Upload className="w-4 h-4 mr-2" /> Upuść pliki, aby wgrać
+            </div>
+          )}
           {!filtered.length ? (
             <div className="text-center text-muted-foreground text-sm py-10">
-              Brak pasujących plików.
+              {uploading
+                ? "Trwa wgrywanie…"
+                : "Brak pasujących plików. Przeciągnij pliki tutaj lub użyj przycisku „Wgraj z dysku”."}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
