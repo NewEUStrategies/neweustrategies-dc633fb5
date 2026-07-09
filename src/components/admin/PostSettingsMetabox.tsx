@@ -3,7 +3,7 @@
 // - Panel po prawej
 // - Zakładki: Spis treści (ToC), Ochrona treści (Membership), Kluczowe punkty
 // - Wariant "page" ukrywa zakładkę Kluczowych punktów.
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import {
@@ -12,6 +12,12 @@ import {
   ListChecks,
   Trash2,
   ExternalLink,
+  Columns2,
+  Rows2,
+  AlignJustify,
+  Heading1,
+  Heading2,
+  Heading3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,10 +36,15 @@ import {
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import {
   TOC_LAYOUTS,
+  TOC_COLUMNS,
   useTocDefaults,
+  countPostHeadings,
   type TocLayout,
+  type TocColumns,
   type TocOverride,
+  type HeadingCounts,
 } from "@/lib/toc/settings";
+import type { LocalizedBlocks } from "@/lib/blocks/types";
 import type { AccessEntityType } from "@/hooks/useContentAccess";
 
 type EntityType = "post" | "page";
@@ -43,6 +54,8 @@ export interface PostSettingsMetaboxProps {
   entityId: string | null;
   tocOverride: TocOverride | null | undefined;
   onTocOverrideChange: (next: TocOverride | null) => void;
+  /** Bieżąca zawartość edytora blokowego - używana do live-liczenia H1/H2/H3. */
+  postBlocks?: LocalizedBlocks | null;
   /** Punkty PL/EN - tylko dla wpisów. */
   takeawaysPl?: string[];
   takeawaysEn?: string[];
