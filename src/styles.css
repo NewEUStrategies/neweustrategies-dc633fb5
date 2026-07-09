@@ -3136,7 +3136,8 @@ textarea::placeholder {
   padding-top: calc(clamp(8.75rem, 40vw, 27.5rem) - 2.75rem);
 }
 .key-takeaways--ghost .key-takeaways__ghost {
-  overflow: visible;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 .key-takeaways__ghost-title {
   color: var(--kt-title, #111827);
