@@ -311,6 +311,7 @@ function KeyTakeawaysAdmin() {
                 <TabsList>
                   <TabsTrigger value="card">A</TabsTrigger>
                   <TabsTrigger value="heading">B</TabsTrigger>
+                  <TabsTrigger value="ghost">C</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -333,7 +334,16 @@ function KeyTakeawaysAdmin() {
                 langOverride={previewLang}
               />
             </TabsContent>
+            <TabsContent value="ghost" className="mt-0">
+              <KeyTakeaways
+                items={SAMPLE_ITEMS[previewLang]}
+                settingsOverride={draft}
+                variantOverride="ghost"
+                langOverride={previewLang}
+              />
+            </TabsContent>
           </Tabs>
+
 
           <div className="mt-6 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
             {isPL
