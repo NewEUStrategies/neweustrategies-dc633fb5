@@ -64,7 +64,7 @@ export function PostLayoutRenderer({
       )}
       {meta && (
         <div
-          className={`text-sm text-muted-foreground ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
+          className={`cms-meta cms-meta-info ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
         >
           {meta}
         </div>
