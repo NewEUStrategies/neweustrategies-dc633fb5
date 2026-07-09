@@ -171,7 +171,34 @@ export interface AdvancedSettings {
   contentAlign?: "start" | "center" | "end"; // wyrównanie treści w widgecie
   contentGap?: number | string; // px (number) lub wartość CSS - odstęp między dziećmi
 
+  /**
+   * Opcjonalny link całego widgetu. Gdy `url` jest ustawiony, publiczny
+   * renderer nakłada niewidoczną warstwę <a> pokrywającą widget, dzięki
+   * czemu każdy widget może prowadzić do zewnętrznego URL, strony,
+   * wpisu lub pliku z biblioteki mediów. Wewnętrzne interaktywne
+   * elementy (przyciski, linki) zachowują swoje własne zachowanie
+   * dzięki wyższemu z-index.
+   */
+  link?: WidgetLink;
 }
+
+export type WidgetLinkKind = "external" | "post" | "page" | "media";
+
+export interface WidgetLink {
+  /** Finalny URL - relatywny (np. `/o-nas`) lub absolutny (https://...). */
+  url?: string;
+  /** Typ powiązania - używany przez edytor do przywracania stanu. */
+  kind?: WidgetLinkKind;
+  /** ID powiązanej encji (post/page/media) - do zachowania relacji. */
+  refId?: string;
+  /** Tekstowa etykieta pokazywana w panelu (np. tytuł wpisu). */
+  refLabel?: string;
+  target?: "_self" | "_blank";
+  rel?: string;
+  nofollow?: boolean;
+  ariaLabel?: string;
+}
+
 
 // ---------- Section-specific settings (Elementor-style) ----------
 
