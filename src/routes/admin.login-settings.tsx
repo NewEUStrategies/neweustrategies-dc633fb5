@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
-import { ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
+import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/login-settings")({
