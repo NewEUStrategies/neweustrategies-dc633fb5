@@ -67,6 +67,9 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
+import { PostListenBar } from "@/components/post/PostListenBar";
+import { InlineToc } from "@/components/post/InlineToc";
+import { useTocDefaults, type TocOverride } from "@/lib/toc/settings";
 
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import {
