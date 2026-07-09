@@ -113,6 +113,23 @@ export interface PostData extends PageData {
   author_id: string | null;
 }
 
+interface AuthorProfileOverlay {
+  avatar_url: string | null;
+  job_title: string | null;
+  company: string | null;
+  bio_pl: string | null;
+  bio_en: string | null;
+  contact_email: string | null;
+  phone: string | null;
+  website_url: string | null;
+  x_url: string | null;
+  linkedin_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  spotify_url: string | null;
+  custom_socials: Array<{ label: string; url: string; iconUrl?: string }>;
+}
+
 interface PostAuthor {
   id: string;
   slug: string | null;
@@ -120,6 +137,7 @@ interface PostAuthor {
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
+  author_profile?: AuthorProfileOverlay | null;
 }
 
 export interface PostCategory {
@@ -347,12 +365,36 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         const post = { ...data, ...body } as PostData;
         let author: PostAuthor | null = null;
         if (post.author_id) {
-          const { data: authorRow } = await supabase
-            .from("profiles")
-            .select("id, slug, display_name, first_name, last_name, avatar_url")
-            .eq("id", post.author_id)
-            .maybeSingle();
-          author = (authorRow as PostAuthor | null) ?? null;
+          const [{ data: authorRow }, { data: apRow }] = await Promise.all([
+            supabase
+              .from("profiles")
+              .select("id, slug, display_name, first_name, last_name, avatar_url")
+              .eq("id", post.author_id)
+              .maybeSingle(),
+            supabase
+              .from("author_profiles")
+              .select(
+                "avatar_url, job_title, company, bio_pl, bio_en, contact_email, phone, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
+              )
+              .eq("user_id", post.author_id)
+              .eq("is_public", true)
+              .maybeSingle(),
+          ]);
+          if (authorRow) {
+            const cs = Array.isArray(apRow?.custom_socials)
+              ? (apRow!.custom_socials as unknown as Array<{
+                  label: string;
+                  url: string;
+                  iconUrl?: string;
+                }>)
+              : [];
+            author = {
+              ...(authorRow as Omit<PostAuthor, "author_profile">),
+              author_profile: apRow
+                ? { ...(apRow as unknown as AuthorProfileOverlay), custom_socials: cs }
+                : null,
+            };
+          }
         }
         return {
           kind: "post",

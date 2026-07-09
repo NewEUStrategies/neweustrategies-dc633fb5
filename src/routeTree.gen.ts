@@ -40,6 +40,7 @@ import { Route as ProfileInterestsRouteImport } from './routes/profile.interests
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
+import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
@@ -276,6 +277,11 @@ const ProfileBookmarksRoute = ProfileBookmarksRouteImport.update({
 const ProfileBillingRoute = ProfileBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileAuthorRoute = ProfileAuthorRouteImport.update({
+  id: '/author',
+  path: '/author',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileAccountRoute = ProfileAccountRouteImport.update({
@@ -763,6 +769,7 @@ export interface FileRoutesByFullPath {
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
+  '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
@@ -873,6 +880,7 @@ export interface FileRoutesByTo {
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
+  '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
@@ -989,6 +997,7 @@ export interface FileRoutesById {
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
+  '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
@@ -1106,6 +1115,7 @@ export interface FileRouteTypes {
     | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
+    | '/profile/author'
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/follows'
@@ -1216,6 +1226,7 @@ export interface FileRouteTypes {
     | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
+    | '/profile/author'
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/follows'
@@ -1331,6 +1342,7 @@ export interface FileRouteTypes {
     | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
+    | '/profile/author'
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/follows'
@@ -1635,6 +1647,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/profile/billing'
       preLoaderRoute: typeof ProfileBillingRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/author': {
+      id: '/profile/author'
+      path: '/author'
+      fullPath: '/profile/author'
+      preLoaderRoute: typeof ProfileAuthorRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/account': {
@@ -2426,6 +2445,7 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
+  ProfileAuthorRoute: typeof ProfileAuthorRoute
   ProfileBillingRoute: typeof ProfileBillingRoute
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
@@ -2441,6 +2461,7 @@ interface ProfileRouteChildren {
 
 const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileAccountRoute: ProfileAccountRoute,
+  ProfileAuthorRoute: ProfileAuthorRoute,
   ProfileBillingRoute: ProfileBillingRoute,
   ProfileBookmarksRoute: ProfileBookmarksRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
