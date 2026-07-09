@@ -79,6 +79,10 @@ export function KeyTakeaways({
     (lang === "en" ? settings.labelEn : settings.labelPl)?.trim() ||
     t("post.takeaways.title");
 
+  const clean: readonly string[] = isPlaceholder
+    ? PLACEHOLDER_TEXTS[lang].slice(0, Math.max(1, Math.min(7, placeholderCount)))
+    : realClean;
+
   const variant = variantOverride ?? settings.variant;
 
   // Zestaw CSS variables (light + dark) - dark wchodzi w życie przez `.dark &`.
