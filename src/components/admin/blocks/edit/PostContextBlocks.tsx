@@ -167,12 +167,18 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         <details className="text-[11px] text-muted-foreground">
           <summary className="cursor-pointer select-none">Zobacz pozostałe warianty</summary>
           <div className="mt-3 space-y-4">
-            {(["card", "inline", "minimal"] as const)
+            {(["card", "split", "inline", "minimal"] as const)
               .filter((v) => v !== variant)
               .map((v) => (
                 <div key={v} className="space-y-1">
                   <div className="text-[10px] uppercase tracking-wide">
-                    {v === "card" ? "Karta" : v === "inline" ? "Inline" : "Minimalna"}
+                    {v === "card"
+                      ? "Karta"
+                      : v === "split"
+                        ? "Split"
+                        : v === "inline"
+                          ? "Inline"
+                          : "Minimalna"}
                   </div>
                   <CurrentPostProvider
                     value={{
