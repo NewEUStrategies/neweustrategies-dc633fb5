@@ -257,7 +257,13 @@ export const Route = createFileRoute("/api/public/post-tts")({
         if (!upstream.ok) {
           const errBody = await upstream.text().catch(() => "");
           console.error(`[post-tts] ElevenLabs ${upstream.status}: ${errBody.slice(0, 300)}`);
-          return jsonError(upstream.status === 429 ? 429 : 502, "TTS upstream failed");
+          if (/quota_exceeded/i.test(errBody)) {
+            return jsonError(402, "TTS quota exceeded - uzupełnij kredyty ElevenLabs");
+          }
+          if (upstream.status === 429) {
+            return jsonError(429, "TTS rate limited", { "Retry-After": "60" });
+          }
+          return jsonError(502, "TTS upstream failed");
         }
 
         return new Response(upstream.body, {
