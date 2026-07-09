@@ -150,23 +150,104 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     async (postId: string, lang: "pl" | "en"): Promise<string> => {
       const key = cacheKey(postId, lang);
       const cached = audioBlobCache.get(key);
-      if (cached) return cached;
+      if (cached) {
+        setTts({
+          stage: "cached",
+          percent: 100,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: 0,
+        });
+        return cached;
+      }
+
+      const startedAt = performance.now();
+      setTts({
+        stage: "preparing",
+        percent: 0,
+        bytes: 0,
+        totalBytes: null,
+        elapsedMs: 0,
+      });
+
       const res = await fetch("/api/public/post-tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId, lang }),
       });
+
       if (!res.ok) {
         const msg = await res.text().catch(() => "");
+        setTts({
+          stage: "error",
+          percent: 0,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: performance.now() - startedAt,
+        });
         throw new Error(msg || `HTTP ${res.status}`);
       }
-      const blob = await res.blob();
+
+      // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
+      const totalHeader = res.headers.get("content-length");
+      const totalBytes = totalHeader ? Number(totalHeader) : null;
+      setTts({
+        stage: "synthesizing",
+        percent: 0,
+        bytes: 0,
+        totalBytes,
+        elapsedMs: performance.now() - startedAt,
+      });
+
+      // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
+      // `res.blob()` gdy body nie jest czytelne (np. stary browser).
+      let blob: Blob;
+      const body = res.body;
+      if (body && typeof body.getReader === "function") {
+        const reader = body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        let announcedStreaming = false;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.byteLength;
+            if (!announcedStreaming) {
+              announcedStreaming = true;
+            }
+            setTts({
+              stage: "streaming",
+              percent:
+                totalBytes && totalBytes > 0
+                  ? Math.min(99, Math.round((received / totalBytes) * 100))
+                  : 0,
+              bytes: received,
+              totalBytes,
+              elapsedMs: performance.now() - startedAt,
+            });
+          }
+        }
+        blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
+      } else {
+        blob = await res.blob();
+      }
+
       const url = URL.createObjectURL(blob);
       audioBlobCache.set(key, url);
+      setTts({
+        stage: "ready",
+        percent: 100,
+        bytes: blob.size,
+        totalBytes: totalBytes ?? blob.size,
+        elapsedMs: performance.now() - startedAt,
+      });
       return url;
     },
     [],
   );
+
 
   const loadAndPlay = useCallback(
     async (meta: AudioTrackMeta) => {
