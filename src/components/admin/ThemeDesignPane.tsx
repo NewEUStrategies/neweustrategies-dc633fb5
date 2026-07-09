@@ -38,41 +38,83 @@ import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePos
 import { toast } from "sonner";
 import {
   useThemeDesign,
+  useThemeDesignEn,
   useSaveThemeDesign,
+  useThemeDesignLangMode,
+  useSaveThemeDesignLangMode,
+  useLiveThemeDesignPreview,
+  themeDesignToCss,
   THEME_DESIGN_DEFAULTS,
   type ThemeDesign,
+  type ThemeDesignLang,
 } from "@/lib/theme/themeDesign";
+import { hardenStyleCss } from "@/lib/sanitize";
 import {
   useCarouselDefaults,
   useSaveCarouselDefaults,
   CAROUSEL_DEFAULTS,
   type CarouselDefaults,
 } from "@/lib/theme/carouselDefaults";
+import { Languages, Eye, EyeOff } from "lucide-react";
 
 export function ThemeDesignPane() {
-  const { data: td, isLoading: tdLoading } = useThemeDesign();
+  const { data: tdPl, isLoading: tdPlLoading } = useThemeDesign();
+  const { data: tdEn, isLoading: tdEnLoading } = useThemeDesignEn();
+  const { data: langMode } = useThemeDesignLangMode();
   const { data: cd, isLoading: cdLoading } = useCarouselDefaults();
   const saveTd = useSaveThemeDesign();
+  const saveLangMode = useSaveThemeDesignLangMode();
   const saveCd = useSaveCarouselDefaults();
 
-  const [draft, setDraft] = useState<ThemeDesign | null>(null);
+  const mode: "shared" | "split" = langMode?.mode ?? "shared";
+  // The language slot we are currently editing. In "shared" mode we always
+  // edit the PL slot (which is the effective source of truth for both langs).
+  const [editLang, setEditLang] = useState<ThemeDesignLang>("pl");
+  const activeLang: ThemeDesignLang = mode === "split" ? editLang : "pl";
+
+  const [draftPl, setDraftPl] = useState<ThemeDesign | null>(null);
+  const [draftEn, setDraftEn] = useState<ThemeDesign | null>(null);
   const [cDraft, setCDraft] = useState<CarouselDefaults | null>(null);
+  const [liveSync, setLiveSync] = useState<boolean>(false);
+  const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
+
   useEffect(() => {
-    if (td && !draft) setDraft(td);
-  }, [td, draft]);
+    if (tdPl && !draftPl) setDraftPl(tdPl);
+  }, [tdPl, draftPl]);
+  useEffect(() => {
+    if (tdEn && !draftEn) setDraftEn(tdEn);
+  }, [tdEn, draftEn]);
   useEffect(() => {
     if (cd && !cDraft) setCDraft(cd);
   }, [cd, cDraft]);
 
-  if (tdLoading || cdLoading || !draft || !cDraft) {
+  const draft: ThemeDesign | null = activeLang === "en" ? draftEn : draftPl;
+  const setDraft = (next: ThemeDesign) => {
+    if (activeLang === "en") setDraftEn(next);
+    else setDraftPl(next);
+  };
+
+  // Live-mirror the current draft (in the language that will actually render
+  // on the public site + CMS canvases) into the react-query cache. This makes
+  // Gutenberg/Elementor previews and the whole app reflect the draft instantly.
+  const livePreviewDraft = mode === "split" ? draft : draftPl;
+  useLiveThemeDesignPreview(livePreviewDraft, liveSync, activeLang);
+
+  if (tdPlLoading || tdEnLoading || cdLoading || !draft || !cDraft || !draftPl) {
     return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
   }
 
-  const set = <K extends keyof ThemeDesign>(k: K, patch: Partial<ThemeDesign[K]>) =>
+  const set = <K extends keyof ThemeDesign>(k: K, patch: Partial<ThemeDesign[K]>) => {
     setDraft({ ...draft, [k]: { ...draft[k], ...patch } });
+  };
 
   const saveAll = () => {
-    saveTd.mutate(draft);
+    if (mode === "split") {
+      if (draftPl) saveTd.mutate({ next: draftPl, lang: "pl" });
+      if (draftEn) saveTd.mutate({ next: draftEn, lang: "en" });
+    } else {
+      saveTd.mutate({ next: draftPl, lang: "pl" });
+    }
     saveCd.mutate(cDraft);
   };
 
