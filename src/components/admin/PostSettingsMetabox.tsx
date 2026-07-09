@@ -83,6 +83,8 @@ export function PostSettingsMetabox({
   takeawaysPl = [],
   takeawaysEn = [],
   onTakeawaysChange,
+  takeawaysVariant = null,
+  onTakeawaysVariantChange,
 }: PostSettingsMetaboxProps) {
   const { t } = useTranslation();
   // Zarówno wpisy jak i strony mogą korzystać z sekcji „Dowiesz się, że...";
