@@ -74,6 +74,7 @@ export function PostSettingsMetabox({
   entityId,
   tocOverride,
   onTocOverrideChange,
+  postBlocks,
   takeawaysPl = [],
   takeawaysEn = [],
   onTakeawaysChange,
