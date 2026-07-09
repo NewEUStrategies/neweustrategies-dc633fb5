@@ -64,7 +64,7 @@ export interface PostSettingsMetaboxProps {
 
 type TabKey = "toc" | "membership" | "takeaways";
 
-const MAX_TAKEAWAYS = 6;
+const MAX_TAKEAWAYS = 7;
 const MAX_TAKEAWAY_LEN = 500;
 const RECOMMENDED_MIN = 40;
 const RECOMMENDED_MAX = 200;
@@ -80,7 +80,9 @@ export function PostSettingsMetabox({
   onTakeawaysChange,
 }: PostSettingsMetaboxProps) {
   const { t } = useTranslation();
-  const showTakeaways = entityType === "post" && !!onTakeawaysChange;
+  // Zarówno wpisy jak i strony mogą korzystać z sekcji „Dowiesz się, że...";
+  // jedynym warunkiem jest podanie handlera zmiany przez rodzica.
+  const showTakeaways = !!onTakeawaysChange;
   const [tab, setTab] = useState<TabKey>("toc");
 
   const tabs: { id: TabKey; icon: typeof ListOrdered; label: string }[] = [
