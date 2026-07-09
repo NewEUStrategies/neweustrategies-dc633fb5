@@ -2,11 +2,14 @@
  * MediaPickerDialog - browse images stored in the tenant's Media Library
  * and pick one. Lightweight modal used by newsletter/page/post builders to
  * insert existing assets without leaving the current editor.
+ * Supports uploading new files directly from the user's local disk.
  */
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { useRequiredTenant } from "@/hooks/useAuth";
+import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import { registerMediaUpload } from "@/lib/media.functions";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, X, Folder } from "@/lib/lucide-shim";
+import { Search, Check, X, Folder, Upload, Loader2 } from "@/lib/lucide-shim";
+import { toast } from "sonner";
 
 interface PickerRow {
   id: string;
