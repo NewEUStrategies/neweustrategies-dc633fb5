@@ -353,6 +353,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       duration,
       progress,
       error,
+      tts,
       isActive,
       loadAndPlay,
       toggle,
@@ -368,6 +369,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       duration,
       progress,
       error,
+      tts,
       isActive,
       loadAndPlay,
       toggle,
@@ -377,6 +379,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       download,
     ],
   );
+
 
   return <GlobalPlayerContext.Provider value={value}>{children}</GlobalPlayerContext.Provider>;
 }
