@@ -59,7 +59,7 @@ import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
-import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
+import { PostSettingsMetabox, TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
@@ -242,6 +242,7 @@ function EditPost() {
   const [step, setStep] = useState<"details" | "content">("details");
   type DetailsTab =
     | "general"
+    | "takeaways"
     | "settings"
     | "seo"
     | "meta"
@@ -1030,58 +1031,99 @@ function EditPost() {
 
       {step === "details" ? (
         (() => {
-          const tabs: {
+          type TabDef = {
             id: DetailsTab;
             label: string;
             icon: typeof SettingsIcon;
             hint?: string;
-          }[] = [
-            { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
-            { id: "settings", label: "Ustawienia strony", icon: ListChecks, hint: "ToC · Ochrona · Dowiesz się" },
-            { id: "seo", label: "SEO i podgląd", icon: Search, hint: "Meta title/description, OG" },
-            { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
-            { id: "related", label: "Powiązane wpisy", icon: LinkIconLucide, hint: "Override" },
-            { id: "publish", label: "Publikacja", icon: SettingsIcon, hint: "Status, slug, cover" },
-            { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
-            { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
-            { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
-            { id: "revisions", label: "Historia zmian", icon: History },
+          };
+          const groups: { id: string; label: string; tabs: TabDef[] }[] = [
+            {
+              id: "content",
+              label: "Treść",
+              tabs: [
+                { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
+                { id: "takeaways", label: "Dowiesz się…", icon: ListChecks, hint: "Kluczowe punkty PL/EN + wariant" },
+              ],
+            },
+            {
+              id: "structure",
+              label: "Struktura",
+              tabs: [
+                { id: "settings", label: "Ustawienia strony", icon: SettingsIcon, hint: "Spis treści · Ochrona treści" },
+                { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
+                { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
+                { id: "related", label: "Powiązane wpisy", icon: LinkIconLucide, hint: "Override" },
+              ],
+            },
+            {
+              id: "seo",
+              label: "SEO i meta",
+              tabs: [
+                { id: "seo", label: "SEO i podgląd", icon: Search, hint: "Meta title/description, OG" },
+                { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
+              ],
+            },
+            {
+              id: "publication",
+              label: "Publikacja",
+              tabs: [
+                { id: "publish", label: "Publikacja", icon: SettingsIcon, hint: "Status, slug, cover" },
+                { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
+              ],
+            },
+            {
+              id: "history",
+              label: "Historia",
+              tabs: [
+                { id: "revisions", label: "Historia zmian", icon: History },
+              ],
+            },
           ];
           return (
             <div className="flex flex-col md:flex-row gap-6">
               <aside className="md:w-64 shrink-0">
-                <nav className="bg-card border border-border rounded-lg p-2 space-y-0.5 sticky top-4">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const active = detailsTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setDetailsTab(tab.id)}
-                        aria-current={active ? "page" : undefined}
-                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-start gap-2.5 ${
-                          active
-                            ? "bg-brand text-brand-foreground"
-                            : "text-foreground hover:bg-muted"
-                        }`}
-                      >
-                        <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`} />
-                        <span className="flex-1 min-w-0">
-                          <span className="block font-medium leading-tight">{tab.label}</span>
-                          {tab.hint && (
-                            <span
-                              className={`block text-[11px] leading-tight mt-0.5 ${
-                                active ? "text-brand-foreground/80" : "text-muted-foreground"
+                <nav className="bg-card border border-border rounded-lg p-2 space-y-3 sticky top-4">
+                  {groups.map((group, gi) => (
+                    <div key={group.id} className={gi > 0 ? "pt-2 border-t border-border" : ""}>
+                      <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                        {group.label}
+                      </div>
+                      <div className="space-y-0.5">
+                        {group.tabs.map((tab) => {
+                          const Icon = tab.icon;
+                          const active = detailsTab === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setDetailsTab(tab.id)}
+                              aria-current={active ? "page" : undefined}
+                              className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-start gap-2.5 ${
+                                active
+                                  ? "bg-brand text-brand-foreground"
+                                  : "text-foreground hover:bg-muted"
                               }`}
                             >
-                              {tab.hint}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
+                              <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`} />
+                              <span className="flex-1 min-w-0">
+                                <span className="block font-medium leading-tight">{tab.label}</span>
+                                {tab.hint && (
+                                  <span
+                                    className={`block text-[11px] leading-tight mt-0.5 ${
+                                      active ? "text-brand-foreground/80" : "text-muted-foreground"
+                                    }`}
+                                  >
+                                    {tab.hint}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </nav>
               </aside>
               <section className="flex-1 min-w-0">
@@ -1132,14 +1174,30 @@ function EditPost() {
                       tocOverride={form.toc_override ?? null}
                       onTocOverrideChange={(next) => set("toc_override", next)}
                       postBlocks={form.blocks_data ?? null}
-                      takeawaysPl={form.takeaways_pl ?? []}
-                      takeawaysEn={form.takeaways_en ?? []}
-                      takeawaysVariant={form.takeaways_variant ?? null}
-                      onTakeawaysChange={(lang, next) =>
-                        set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
-                      }
-                      onTakeawaysVariantChange={(next) => set("takeaways_variant", next)}
+                      hideTakeawaysTab
                     />
+                  )}
+
+                  {detailsTab === "takeaways" && (
+                    <section className="rounded-xl border border-border bg-card overflow-hidden">
+                      <header className="px-4 py-3 border-b border-border bg-muted/30">
+                        <h3 className="text-sm font-semibold">Dowiesz się…</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Kluczowe punkty wpisu w PL i EN. Wybierz wariant wizualny lub zostaw globalny.
+                        </p>
+                      </header>
+                      <div className="p-4">
+                        <TakeawaysTab
+                          pl={form.takeaways_pl ?? []}
+                          en={form.takeaways_en ?? []}
+                          onChange={(lang, next) =>
+                            set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
+                          }
+                          variantOverride={form.takeaways_variant ?? null}
+                          onVariantChange={(next) => set("takeaways_variant", next)}
+                        />
+                      </div>
+                    </section>
                   )}
 
                   {detailsTab === "seo" && (

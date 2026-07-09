@@ -65,13 +65,15 @@ export interface PostSettingsMetaboxProps {
   /** Per-wpis wariant sekcji „Dowiesz się…". `null` = użyj globalnego. */
   takeawaysVariant?: "card" | "heading" | "ghost" | null;
   onTakeawaysVariantChange?: (next: "card" | "heading" | "ghost" | null) => void;
+  /** Ukryj wewnętrzną zakładkę „Dowiesz się…" – używane, gdy jest wystawiona jako osobna zakładka główna. */
+  hideTakeawaysTab?: boolean;
 }
 
 type TabKey = "toc" | "membership" | "takeaways";
 
 const MAX_TAKEAWAYS = 7;
 const MAX_TAKEAWAY_LEN = 500;
-const RECOMMENDED_MIN = 40;
+const RECOMMENDED_MIN = 90;
 const RECOMMENDED_MAX = 200;
 
 export function PostSettingsMetabox({
@@ -85,11 +87,12 @@ export function PostSettingsMetabox({
   onTakeawaysChange,
   takeawaysVariant = null,
   onTakeawaysVariantChange,
+  hideTakeawaysTab = false,
 }: PostSettingsMetaboxProps) {
   const { t } = useTranslation();
   // Zarówno wpisy jak i strony mogą korzystać z sekcji „Dowiesz się, że...";
   // jedynym warunkiem jest podanie handlera zmiany przez rodzica.
-  const showTakeaways = !!onTakeawaysChange;
+  const showTakeaways = !!onTakeawaysChange && !hideTakeawaysTab;
   const [tab, setTab] = useState<TabKey>("toc");
 
   const tabs: { id: TabKey; icon: typeof ListOrdered; label: string }[] = [
@@ -487,7 +490,7 @@ function HeadingCounter({
 
 
 // ---------------- Takeaways tab ----------------
-function TakeawaysTab({
+export function TakeawaysTab({
   pl,
   en,
   onChange,
@@ -529,7 +532,7 @@ function TakeawaysTab({
         })}
         hint={t("admin.metabox.takeaways.hint", {
           defaultValue:
-            "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-160 znaków na punkt.",
+            "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-200 znaków ze spacjami na punkt (limit można przekroczyć).",
         })}
         globalHref="/admin/key-takeaways"
       />
@@ -759,9 +762,9 @@ function TakeawayRow({
   }[status];
   const statusMsg = {
     empty: "",
-    short: "Za krótkie – dodaj kontekst",
+    short: `Za krótkie – dodaj kontekst (min. ${RECOMMENDED_MIN} znaków)`,
     ok: "Dobra długość",
-    long: "Rozbij na kilka punktów – jedno zdanie, jedna myśl",
+    long: "Powyżej rekomendacji – dopuszczalne, ale krótsze zdanie działa lepiej",
   }[status];
 
   return (
@@ -780,7 +783,7 @@ function TakeawayRow({
         <div className={cn("mt-1 text-[10px] flex justify-between gap-2", statusColor)}>
           <span>{statusMsg}</span>
           <span className="tabular-nums">
-            {len}/{MAX_TAKEAWAY_LEN} · rekom. {RECOMMENDED_MIN}-{RECOMMENDED_MAX}
+            {len}/{MAX_TAKEAWAY_LEN} znaków ze spacjami · rekom. {RECOMMENDED_MIN}-{RECOMMENDED_MAX}
           </span>
         </div>
       </div>
