@@ -465,6 +465,7 @@ function TakeawaysTab({
 }) {
   const { t } = useTranslation();
   const [active, setActive] = useState<"pl" | "en">("pl");
+  const ktSettings = useKeyTakeawaysSettings();
   const current = active === "pl" ? pl : en;
 
   const updateAt = (idx: number, value: string) => {
@@ -478,13 +479,19 @@ function TakeawaysTab({
     onChange(active, [...current, ""]);
   };
 
+  const cleanPl = pl.filter((s) => s.trim().length > 0);
+  const cleanEn = en.filter((s) => s.trim().length > 0);
+  const hasAnyContent = cleanPl.length > 0 || cleanEn.length > 0;
+
   return (
     <div className="space-y-4">
       <PanelHead
-        title={t("admin.metabox.takeaways.title", { defaultValue: "Dowiesz się, że…" })}
+        title={t("admin.metabox.takeaways.title", {
+          defaultValue: "Z tego materiału dowiesz się, że…",
+        })}
         hint={t("admin.metabox.takeaways.hint", {
           defaultValue:
-            "Max 6 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-160 znaków na punkt.",
+            "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-160 znaków na punkt.",
         })}
         globalHref="/admin/key-takeaways"
       />
@@ -492,10 +499,10 @@ function TakeawaysTab({
       <Tabs value={active} onValueChange={(v) => setActive(v === "en" ? "en" : "pl")}>
         <TabsList>
           <TabsTrigger value="pl">
-            PL ({pl.filter(Boolean).length}/{MAX_TAKEAWAYS})
+            🇵🇱 PL ({cleanPl.length}/{MAX_TAKEAWAYS})
           </TabsTrigger>
           <TabsTrigger value="en">
-            EN ({en.filter(Boolean).length}/{MAX_TAKEAWAYS})
+            🇬🇧 EN ({cleanEn.length}/{MAX_TAKEAWAYS})
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -527,7 +534,104 @@ function TakeawaysTab({
       >
         + {t("post.takeaways.add", { defaultValue: "Dodaj punkt" })}
       </Button>
+
+      {/* --- Live PL/EN visualisation --- */}
+      <div className="pt-4 mt-2 border-t border-border space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Podgląd na żywo (obie wersje językowe)
+          </h5>
+          <span className="text-[10px] text-muted-foreground">
+            Wariant globalny: <span className="font-mono">{ktSettings.variant}</span>
+          </span>
+        </div>
+
+        {!hasAnyContent ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground italic">
+            Dodaj przynajmniej jeden punkt (PL lub EN), aby zobaczyć podgląd sekcji.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <TakeawaysPreviewCard
+              lang="pl"
+              items={cleanPl}
+              settings={ktSettings}
+              placeholderMsg="Brak punktów w polskiej wersji."
+              active={active === "pl"}
+              onActivate={() => setActive("pl")}
+            />
+            <TakeawaysPreviewCard
+              lang="en"
+              items={cleanEn}
+              settings={ktSettings}
+              placeholderMsg="No bullets in the English version."
+              active={active === "en"}
+              onActivate={() => setActive("en")}
+            />
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+function TakeawaysPreviewCard({
+  lang,
+  items,
+  settings,
+  placeholderMsg,
+  active,
+  onActivate,
+}: {
+  lang: "pl" | "en";
+  items: string[];
+  settings: ReturnType<typeof useKeyTakeawaysSettings>;
+  placeholderMsg: string;
+  active: boolean;
+  onActivate: () => void;
+}) {
+  const flag = lang === "pl" ? "🇵🇱" : "🇬🇧";
+  return (
+    <button
+      type="button"
+      onClick={onActivate}
+      aria-pressed={active}
+      aria-label={`Edytuj wersję ${lang.toUpperCase()}`}
+      className={cn(
+        "group text-left rounded-xl border bg-background overflow-hidden transition-all",
+        active
+          ? "border-brand ring-2 ring-brand/30 shadow-sm"
+          : "border-border hover:border-brand/50",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-muted/30">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <span aria-hidden="true">{flag}</span> Wersja {lang.toUpperCase()}
+          <span className="ml-1 rounded bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground/70 border border-border">
+            {items.length}
+          </span>
+        </span>
+        {active && (
+          <span className="text-[10px] text-brand font-medium">edytowana</span>
+        )}
+      </div>
+      <div className="p-3 max-h-[380px] overflow-y-auto bg-background">
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic text-center py-6">
+            {placeholderMsg}
+          </p>
+        ) : (
+          <div className="scale-[0.9] origin-top-left w-[111%]">
+            <KeyTakeaways
+              items={items}
+              settingsOverride={settings}
+              langOverride={lang}
+              className="my-0"
+            />
+          </div>
+        )}
+      </div>
+    </button>
   );
 }
 
