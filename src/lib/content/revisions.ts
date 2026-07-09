@@ -21,6 +21,7 @@ export const REVISION_FIELDS = [
   "layout_overrides",
   "takeaways_pl",
   "takeaways_en",
+  "takeaways_variant",
   "custom_meta",
   "related_override",
 ] as const;

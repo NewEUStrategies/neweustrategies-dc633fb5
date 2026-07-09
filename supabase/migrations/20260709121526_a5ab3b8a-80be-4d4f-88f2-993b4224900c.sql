@@ -1,0 +1,2 @@
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS takeaways_variant TEXT NULL CHECK (takeaways_variant IS NULL OR takeaways_variant IN ('card','heading','ghost'));
+ALTER TABLE public.pages ADD COLUMN IF NOT EXISTS takeaways_variant TEXT NULL CHECK (takeaways_variant IS NULL OR takeaways_variant IN ('card','heading','ghost'));

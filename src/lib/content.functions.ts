@@ -298,6 +298,7 @@ const PostCore = z.object({
   layout_overrides: z.record(z.string(), z.unknown()).nullable().optional(),
   takeaways_pl: z.array(z.string().max(500)).max(7).optional(),
   takeaways_en: z.array(z.string().max(500)).max(7).optional(),
+  takeaways_variant: z.enum(["card", "heading", "ghost"]).nullable().optional(),
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
   custom_meta: z.record(z.string().max(64), z.string().max(200)).nullable().optional(),
   related_override: z.record(z.string().max(64), z.unknown()).nullable().optional(),
@@ -776,6 +777,7 @@ const PageCore = z.object({
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
   takeaways_pl: z.array(z.string().max(500)).max(7).optional(),
   takeaways_en: z.array(z.string().max(500)).max(7).optional(),
+  takeaways_variant: z.enum(["card", "heading", "ghost"]).nullable().optional(),
   ...SeoBlock,
 });
 

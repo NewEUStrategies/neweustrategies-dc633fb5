@@ -62,6 +62,9 @@ export interface PostSettingsMetaboxProps {
   takeawaysPl?: string[];
   takeawaysEn?: string[];
   onTakeawaysChange?: (lang: "pl" | "en", next: string[]) => void;
+  /** Per-wpis wariant sekcji „Dowiesz się…". `null` = użyj globalnego. */
+  takeawaysVariant?: "card" | "heading" | "ghost" | null;
+  onTakeawaysVariantChange?: (next: "card" | "heading" | "ghost" | null) => void;
 }
 
 type TabKey = "toc" | "membership" | "takeaways";
@@ -80,6 +83,8 @@ export function PostSettingsMetabox({
   takeawaysPl = [],
   takeawaysEn = [],
   onTakeawaysChange,
+  takeawaysVariant = null,
+  onTakeawaysVariantChange,
 }: PostSettingsMetaboxProps) {
   const { t } = useTranslation();
   // Zarówno wpisy jak i strony mogą korzystać z sekcji „Dowiesz się, że...";
@@ -169,6 +174,8 @@ export function PostSettingsMetabox({
               pl={takeawaysPl}
               en={takeawaysEn}
               onChange={onTakeawaysChange!}
+              variantOverride={takeawaysVariant}
+              onVariantChange={onTakeawaysVariantChange}
             />
           )}
         </div>
@@ -458,15 +465,20 @@ function TakeawaysTab({
   pl,
   en,
   onChange,
+  variantOverride,
+  onVariantChange,
 }: {
   pl: string[];
   en: string[];
   onChange: (lang: "pl" | "en", next: string[]) => void;
+  variantOverride: "card" | "heading" | "ghost" | null;
+  onVariantChange?: (next: "card" | "heading" | "ghost" | null) => void;
 }) {
   const { t } = useTranslation();
   const [active, setActive] = useState<"pl" | "en">("pl");
   const ktSettings = useKeyTakeawaysSettings();
   const current = active === "pl" ? pl : en;
+  const effectiveVariant = variantOverride ?? ktSettings.variant;
 
   const updateAt = (idx: number, value: string) => {
     const next = [...current];
@@ -495,6 +507,53 @@ function TakeawaysTab({
         })}
         globalHref="/admin/key-takeaways"
       />
+
+      {/* Per-wpis nadpisanie wariantu wizualnego (opcjonalne) */}
+      {onVariantChange && (
+        <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Wariant wizualny
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Globalny:{" "}
+              <span className="font-mono">{ktSettings.variant}</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {(
+              [
+                { id: null, label: "Globalny", desc: "Użyj ustawienia globalnego" },
+                { id: "card", label: "A", desc: "Karta" },
+                { id: "heading", label: "B", desc: "Nagłówek + kropki" },
+                { id: "ghost", label: "C", desc: "Ghost" },
+              ] as const
+            ).map((opt) => {
+              const on = (variantOverride ?? null) === opt.id;
+              return (
+                <button
+                  key={String(opt.id)}
+                  type="button"
+                  onClick={() => onVariantChange(opt.id)}
+                  aria-pressed={on}
+                  className={cn(
+                    "rounded-md border px-2 py-1.5 text-left transition",
+                    on
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:bg-muted",
+                  )}
+                  title={opt.desc}
+                >
+                  <div className="text-[11px] font-semibold">{opt.label}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    {opt.desc}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <Tabs value={active} onValueChange={(v) => setActive(v === "en" ? "en" : "pl")}>
         <TabsList>
@@ -542,7 +601,13 @@ function TakeawaysTab({
             Podgląd na żywo (obie wersje językowe)
           </h5>
           <span className="text-[10px] text-muted-foreground">
-            Wariant globalny: <span className="font-mono">{ktSettings.variant}</span>
+            Aktywny wariant:{" "}
+            <span className="font-mono">{effectiveVariant}</span>
+            {variantOverride && (
+              <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold uppercase text-primary">
+                override
+              </span>
+            )}
           </span>
         </div>
 
@@ -556,6 +621,7 @@ function TakeawaysTab({
               lang="pl"
               items={cleanPl}
               settings={ktSettings}
+              variantOverride={effectiveVariant}
               placeholderMsg="Brak punktów w polskiej wersji."
               active={active === "pl"}
               onActivate={() => setActive("pl")}
@@ -564,6 +630,7 @@ function TakeawaysTab({
               lang="en"
               items={cleanEn}
               settings={ktSettings}
+              variantOverride={effectiveVariant}
               placeholderMsg="No bullets in the English version."
               active={active === "en"}
               onActivate={() => setActive("en")}
@@ -579,6 +646,7 @@ function TakeawaysPreviewCard({
   lang,
   items,
   settings,
+  variantOverride,
   placeholderMsg,
   active,
   onActivate,
@@ -586,6 +654,7 @@ function TakeawaysPreviewCard({
   lang: "pl" | "en";
   items: string[];
   settings: ReturnType<typeof useKeyTakeawaysSettings>;
+  variantOverride?: "card" | "heading" | "ghost";
   placeholderMsg: string;
   active: boolean;
   onActivate: () => void;
@@ -625,6 +694,7 @@ function TakeawaysPreviewCard({
             <KeyTakeaways
               items={items}
               settingsOverride={settings}
+              variantOverride={variantOverride}
               langOverride={lang}
               className="my-0"
             />
