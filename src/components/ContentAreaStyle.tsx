@@ -21,26 +21,30 @@ export function ContentAreaStyle() {
   const linkWeight = styleMap[s.hyperlink_style] ?? "400";
   const linkItalic = s.hyperlink_style === "italic" ? "italic" : "normal";
 
+  // Cel: `.single-post-content` (klasa faktycznie renderowana przez
+  // ContentRenderer w treści wpisów) oraz `.post-content` (zapasowy alias
+  // używany m.in. w podglądach edytora). Bez tego zmiany z /admin/content-area
+  // nie miały efektu na produkcyjnym widoku wpisu.
   const css = `
-.post-content {
+.post-content, .single-post-content {
   --pc-link: ${linkColorLight};
   --pc-underline: ${underlineLight};
 }
-.dark .post-content {
+.dark .post-content, .dark .single-post-content {
   --pc-link: ${linkColorDark};
   --pc-underline: ${underlineDark};
 }
-.post-content { max-width: ${num(s.no_sidebar_max_width, "840px")}; }
-.post-content.has-sidebar { max-width: ${num(s.has_sidebar_max_width, "760px")}; }
 .post-content .alignwide,
 .post-content figure.wide,
-.post-content img.wide { max-width: ${num(s.wide_align_max_width, "1600px")}; }
-.post-content p,
-.post-content ul,
-.post-content ol,
-.post-content blockquote { margin-bottom: ${s.paragraph_spacing_rem || 1.5}rem; }
-.post-content ul { list-style: ${s.list_style || "disc"}; padding-left: 1.5rem; }
-.post-content a {
+.post-content img.wide,
+.single-post-content .alignwide,
+.single-post-content figure.wide,
+.single-post-content figure.is-wide,
+.single-post-content img.wide { max-width: ${num(s.wide_align_max_width, "1600px")}; margin-left: auto; margin-right: auto; }
+.post-content p, .post-content ul, .post-content ol, .post-content blockquote,
+.single-post-content p, .single-post-content ul, .single-post-content ol, .single-post-content blockquote { margin-bottom: ${s.paragraph_spacing_rem || 1.5}rem; }
+.post-content ul, .single-post-content ul { list-style: ${s.list_style || "disc"}; padding-left: 1.5rem; }
+.post-content a, .single-post-content a {
   color: var(--pc-link);
   font-weight: ${linkWeight};
   font-style: ${linkItalic};
@@ -48,11 +52,11 @@ export function ContentAreaStyle() {
   text-decoration-color: var(--pc-underline);
   text-underline-offset: 3px;
 }
-.post-content a:hover { opacity: .8; }
+.post-content a:hover, .single-post-content a:hover { opacity: .8; }
 ${
   s.image_caption_left_border
     ? `
-.post-content figcaption {
+.post-content figcaption, .single-post-content figcaption {
   border-left: 3px solid var(--pc-link);
   padding-left: .75rem;
 }`
