@@ -1,10 +1,22 @@
 // Trwały bottom bar globalnego odtwarzacza audio. Renderowany raz w __root,
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Loader2, Download, Play, Pause, X, Share2 } from "@/lib/lucide-shim";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+
+function ActionTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className="rounded-[6px] text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const COPY = {
   pl: {
