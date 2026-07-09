@@ -33,12 +33,16 @@ const L = {
     posts: (n: number) => `${n} ${n === 1 ? "wpis" : n < 5 ? "wpisy" : "wpisów"}`,
     related: "Powiązane wpisy",
     viewProfile: "Zobacz profil",
+    contact: "Kontakt",
+    follow: "Obserwuj",
   },
   en: {
     about: "About the author",
     posts: (n: number) => `${n} ${n === 1 ? "post" : "posts"}`,
     related: "Related posts",
     viewProfile: "View profile",
+    contact: "Contact",
+    follow: "Follow",
   },
 } as const;
 
