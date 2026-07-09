@@ -1221,7 +1221,11 @@ function LivePostPreview({
         {activeTab === "meta" && (
           <div
             className="cms-meta-info inline-flex flex-wrap items-center"
-            style={{ gap: draft.metaInfo.gap }}
+            style={{
+              gap: draft.metaInfo.gap,
+              fontSize: draft.metaInfo.fontSize,
+              textTransform: draft.metaInfo.uppercase ? "uppercase" : "none",
+            }}
           >
             <span>{copy.author}</span>
             <SepPreview kind={draft.metaInfo.separator} />
