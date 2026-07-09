@@ -454,7 +454,7 @@ function Page() {
             checked={local.quick_view_info}
             onChange={(v) => upd({ quick_view_info: v })}
             label={t("admin.contentArea.quickViewToggle")}
-            description="Kompaktowy pasek: kategoria • czas czytania • data (badge „Aktualizacja" gdy updated_at > published_at)."
+            description='Kompaktowy pasek: kategoria • czas czytania • data (badge „Aktualizacja" gdy updated_at > published_at).'
           />
         </SectionCard>
       </div>
