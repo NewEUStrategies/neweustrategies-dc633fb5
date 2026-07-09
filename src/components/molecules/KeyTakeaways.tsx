@@ -130,10 +130,19 @@ export function KeyTakeaways({
       aria-label={label}
       // Stabilne "key-takeaways" - referencowane przez SpeakableSpecification
       // w JSON-LD (src/lib/seo/meta.ts). Nie zmieniać nazwy.
-      className={`key-takeaways key-takeaways--${variant} my-10 ${className ?? ""}`}
+      className={`key-takeaways key-takeaways--${variant} my-10 ${
+        isPlaceholder ? "key-takeaways--placeholder opacity-70" : ""
+      } ${className ?? ""}`}
       style={styleVars as React.CSSProperties}
       data-variant={variant}
+      data-placeholder={isPlaceholder ? "true" : undefined}
+      aria-hidden={isPlaceholder ? "true" : undefined}
     >
+      {isPlaceholder && (
+        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-dashed border-current/30 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
+          {lang === "en" ? "Placeholder - fill in the takeaways" : "Placeholder - uzupełnij punkty"}
+        </div>
+      )}
       {variant === "card" ? (
         <div className="key-takeaways__card rounded-2xl p-6 md:p-8">
           <div className="flex items-start gap-4">
