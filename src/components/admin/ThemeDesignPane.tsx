@@ -161,7 +161,13 @@ export function ThemeDesignPane() {
         savingMode={saveLangMode.isPending}
       />
 
-      <LivePostPreview draft={draft} previewLang={previewLang} onLangChange={setPreviewLang} />
+      <LivePostPreview
+        draft={draft}
+        previewLang={previewLang}
+        onLangChange={setPreviewLang}
+        previewMode={previewMode}
+        onModeChange={setPreviewMode}
+      />
 
       <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
         <span className="text-xs text-muted-foreground pl-1">Edytujesz kolory dla trybu:</span>
