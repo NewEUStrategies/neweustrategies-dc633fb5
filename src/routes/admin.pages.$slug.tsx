@@ -625,6 +625,13 @@ function EditPage() {
                 onIssuesChange={setSeoIssues}
               />
 
+              <PostSettingsMetabox
+                entityType="page"
+                entityId={id}
+                tocOverride={form.toc_override ?? null}
+                onTocOverrideChange={(next) => set("toc_override", next)}
+              />
+
               <div className="flex justify-end pt-2 border-t border-border">
                 <Button
                   onClick={() => setStep("content")}
