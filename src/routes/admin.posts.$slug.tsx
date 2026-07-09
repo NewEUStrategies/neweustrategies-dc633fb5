@@ -242,6 +242,7 @@ function EditPost() {
   const [step, setStep] = useState<"details" | "content">("details");
   type DetailsTab =
     | "general"
+    | "takeaways"
     | "settings"
     | "seo"
     | "meta"
