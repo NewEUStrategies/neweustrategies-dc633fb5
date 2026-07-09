@@ -3141,9 +3141,13 @@ textarea::placeholder {
   opacity: 0.13;
   font-size: clamp(3.5rem, 16vw, 11rem);
   letter-spacing: -0.03em;
+  line-height: 0.9;
   z-index: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  /* Wyśrodkuj napis pionowo względem pierwszej linii listy: przesuwamy
+     tytuł w górę o ~40% jego wysokości, tak by jego środek pokrył się
+     ze środkiem pierwszego wiersza tekstu. */
+  transform: translateY(-38%);
 }
 .dark .key-takeaways__ghost-title {
   color: var(--kt-title-dark, #ffffff);
