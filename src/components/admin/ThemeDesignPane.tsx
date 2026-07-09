@@ -111,6 +111,28 @@ export function ThemeDesignPane() {
     setDraft({ ...draft, [k]: { ...draft[k], ...patch } });
   };
 
+  /** Writes a color-typed field to either the light slot (section[field]) or
+   *  the dark override (darkOverrides[section][field]) depending on preview mode.
+   *  Passing null/"" for dark clears the override so the light value / global
+   *  token wins. */
+  const setColor = (section: string, field: string, value: string | null) => {
+    if (previewMode === "light") {
+      setDraft({
+        ...draft,
+        [section]: { ...(draft as Record<string, unknown>)[section] as object, [field]: value ?? "" },
+      } as ThemeDesign);
+      return;
+    }
+    const overrides = { ...(draft.darkOverrides ?? {}) };
+    const sec = { ...(overrides[section] ?? {}) };
+    if (value == null || value === "") delete sec[field];
+    else sec[field] = value;
+    if (Object.keys(sec).length === 0) delete overrides[section];
+    else overrides[section] = sec;
+    setDraft({ ...draft, darkOverrides: overrides });
+  };
+
+
   const saveAll = () => {
     if (mode === "split") {
       if (draftPl) saveTd.mutate({ next: draftPl, lang: "pl" });
