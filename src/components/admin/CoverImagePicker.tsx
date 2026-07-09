@@ -11,7 +11,15 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Link as LinkIcon, X } from "@/lib/lucide-shim";
+import { Upload, Image as ImageIcon, Link as LinkIcon, X, Monitor, Tablet, Smartphone } from "@/lib/lucide-shim";
+
+type DevicePreview = "desktop" | "tablet" | "mobile";
+
+const DEVICE_FRAMES: Record<DevicePreview, { aspect: string; maxWidth: string; label: string }> = {
+  desktop: { aspect: "16 / 9", maxWidth: "100%", label: "Desktop" },
+  tablet: { aspect: "4 / 3", maxWidth: "62%", label: "Tablet" },
+  mobile: { aspect: "9 / 16", maxWidth: "34%", label: "Mobile" },
+};
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { useTranslation } from "react-i18next";
 
