@@ -87,7 +87,7 @@ export function SortableBlockItem(props: Props) {
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       style={style}
       data-block-id={props.id}
       onClick={props.onSelect}
@@ -113,7 +113,12 @@ export function SortableBlockItem(props: Props) {
       </button>
 
       {props.active && (
-        <div className="absolute -right-1 top-0 -translate-y-full pb-1 flex items-center gap-0.5 z-10 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5">
+        <div
+          ref={toolbarRef}
+          style={{ left: toolbarPos.left, top: toolbarPos.top }}
+          className="absolute flex items-center gap-0.5 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5"
+        >
+
           <IconButton
             disabled={props.index === 0}
             onClick={(e) => {
