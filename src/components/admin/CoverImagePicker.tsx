@@ -124,7 +124,7 @@ export function CoverImagePicker({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         <Input
           type="url"
           value={urlDraft}
