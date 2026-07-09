@@ -7,15 +7,13 @@ import { Label } from "@/components/ui/label";
 import {
   FileText,
   Search,
-  Database,
   Layers,
   Lock,
-  History,
-  ListChecks,
   Link as LinkIconLucide,
   Settings as SettingsIcon,
   Tags as TagIcon,
 } from "@/lib/lucide-shim";
+import { Database, History, ListChecks } from "lucide-react";
 import type { SeoIssue } from "@/lib/seo/validation";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import type { TocOverride } from "@/lib/toc/settings";
