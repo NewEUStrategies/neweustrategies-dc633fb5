@@ -343,7 +343,9 @@ export function FloatingShareBar({
   return (
     <>
       {isSidebar && listen && (
-        <div className="mb-4">
+        // Offset dopasowany do top-edge kart w kolumnie głównej (np. "Z tego
+        // artykułu dowiesz się..."), które leżą pod chipem section-label.
+        <div className="mb-4 lg:mt-9">
           <SidebarListenCard
             postId={listen.postId}
             lang={lang}

@@ -1,27 +1,10 @@
-// Widget odsłuchu w sidebarze - premium karta nad "Spis treści".
+// Widget odsłuchu w sidebarze - premium "Studio Hi-Fi" karta nad "Spis treści".
 // Steruje globalnym playerem: pierwsze kliknięcie ładuje audio i uruchamia
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
 import { useMemo, useState } from "react";
 import { Loader2, Download, Play, Pause } from "@/lib/lucide-shim";
 import { toast } from "sonner";
-
-const HeadphonesIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M3 14v-2a9 9 0 0 1 18 0v2" />
-    <path d="M21 14a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3v4Z" />
-    <path d="M3 14a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H3v4Z" />
-  </svg>
-);
 import {
   formatAudioTime,
   useGlobalAudioPlayer,
@@ -42,9 +25,6 @@ interface SidebarListenCardProps {
 const COPY = {
   pl: {
     label: "Posłuchaj artykułu",
-    subLoading: "Generuję audio…",
-    subReady: "Odsłuch materiału",
-    approx: "ok. {min} min",
     play: "Odtwórz",
     pause: "Pauza",
     download: "Pobierz MP3",
@@ -53,12 +33,11 @@ const COPY = {
     retry: "Spróbuj ponownie",
     error: "Nie udało się wygenerować audio",
     seek: "Przewiń materiał",
+    approx: "ok. {min} min",
+    loading: "Generuję audio…",
   },
   en: {
     label: "Listen to this article",
-    subLoading: "Generating audio…",
-    subReady: "Audio playback",
-    approx: "~{min} min",
     play: "Play",
     pause: "Pause",
     download: "Download MP3",
@@ -67,6 +46,8 @@ const COPY = {
     retry: "Try again",
     error: "Could not generate audio",
     seek: "Seek audio",
+    approx: "~{min} min",
+    loading: "Generating audio…",
   },
 } as const;
 
@@ -101,7 +82,9 @@ export function SidebarListenCard({
       authorHref: authorHref ?? null,
       postHref:
         postHref ??
-        (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/"),
+        (typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "/"),
     }),
     [postId, lang, title, author, authorHref, postHref],
   );
@@ -130,7 +113,6 @@ export function SidebarListenCard({
     if (downloading) return;
     setDownloading(true);
     try {
-      // Jeśli to nie jest aktywny track, załaduj go najpierw.
       if (!isThis) await player.loadAndPlay(meta);
       await player.download();
     } catch {
@@ -140,27 +122,25 @@ export function SidebarListenCard({
     }
   };
 
+  const currentLabel = formatAudioTime(displayTime);
+  const totalLabel = duration > 0 ? formatAudioTime(duration) : approxMin ? t.approx.replace("{min}", String(approxMin)) : "--:--";
+
   return (
     <aside
       aria-label={t.label}
-      className="relative overflow-hidden rounded-[5px] border border-border/70 bg-gradient-to-br from-brand/8 via-background to-background p-3.5"
+      className="group/card relative rounded-[6px] border border-border/70 bg-card p-5 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.35)] transition-shadow hover:shadow-[0_14px_36px_-16px_rgba(0,0,0,0.4)]"
     >
-      {/* Ambient glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-brand/20 blur-3xl"
-      />
-
-      <div className="relative flex items-center gap-2.5 mb-3">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand/15">
-          <HeadphonesIcon className="h-3.5 w-3.5 text-brand" />
-        </span>
-        <span className="text-[11px] font-extrabold tracking-[0.18em] uppercase text-foreground">
+      {/* Section label */}
+      <div className="flex items-center gap-3 mb-5">
+        <h3 className="text-[10px] font-black tracking-[0.25em] uppercase text-muted-foreground whitespace-nowrap">
           {t.label}
-        </span>
+        </h3>
+        <div className="h-px flex-1 bg-border" />
       </div>
 
-      <div className="relative flex items-center gap-3">
+      {/* Main row: play + time/progress */}
+      <div className="flex items-center gap-4">
+        {/* Play button with soft glow */}
         <button
           type="button"
           onClick={onPrimary}
@@ -168,119 +148,126 @@ export function SidebarListenCard({
           aria-label={playing ? t.pause : t.play}
           aria-pressed={playing}
           className={[
-            "group relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
-            "bg-brand text-brand-foreground shadow-lg shadow-brand/25",
-            "hover:brightness-110 hover:shadow-brand/40 active:scale-95",
-            "transition disabled:opacity-70",
+            "relative shrink-0 group/btn",
             FOCUS_RING,
+            "rounded-[6px]",
           ].join(" ")}
         >
-          {loading ? (
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-          ) : playing ? (
-            <Pause className="h-5 w-5" aria-hidden />
-          ) : (
-            <Play className="h-5 w-5 translate-x-[1px]" aria-hidden />
-          )}
-          {playing && (
-            <span
-              aria-hidden
-              className="absolute inset-0 rounded-full bg-brand/40 animate-ping"
-              style={{ animationDuration: "1.8s" }}
-            />
-          )}
+          <span
+            aria-hidden
+            className={[
+              "absolute -inset-1 rounded-full blur-md transition-opacity",
+              playing
+                ? "bg-brand/40 opacity-100 animate-pulse"
+                : "bg-brand/25 opacity-70 group-hover/btn:opacity-100",
+            ].join(" ")}
+          />
+          <span
+            className={[
+              "relative flex h-14 w-14 items-center justify-center rounded-full",
+              "bg-brand text-brand-foreground shadow-lg shadow-brand/40",
+              "transition-transform active:scale-95 group-hover/btn:brightness-110",
+              loading ? "opacity-80" : "",
+            ].join(" ")}
+          >
+            {loading ? (
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+            ) : playing ? (
+              <Pause className="h-6 w-6" aria-hidden />
+            ) : (
+              <Play className="h-6 w-6 translate-x-[1px]" aria-hidden fill="currentColor" />
+            )}
+          </span>
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] font-semibold text-foreground truncate">
-            {loading ? t.subLoading : errored ? t.error : t.subReady}
+          <div className="flex items-baseline justify-between gap-2 mb-2.5">
+            <span className="text-lg font-bold tracking-tight tabular-nums text-foreground">
+              {showProgress ? currentLabel : loading ? "…" : "00:00"}
+            </span>
+            <span className="text-[11px] font-bold tabular-nums tracking-wide text-muted-foreground">
+              / {totalLabel}
+            </span>
           </div>
-          <div
-            className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums"
-            aria-live="off"
-          >
-            {showProgress ? (
-              <>
-                <span>{formatAudioTime(displayTime)}</span>
-                <span aria-hidden>/</span>
-                <span>{formatAudioTime(duration)}</span>
-              </>
-            ) : approxMin ? (
-              <span>{t.approx.replace("{min}", String(approxMin))}</span>
-            ) : (
-              <span>MP3</span>
-            )}
+
+          {/* Slider */}
+          <div className="relative h-4 flex items-center">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-[6px] bg-muted" />
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-[6px] bg-brand transition-[width] duration-150"
+              style={{ width: `${displayPct}%` }}
+            />
+            <div
+              aria-hidden
+              className={[
+                "absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background border-2 border-brand shadow-md transition-transform",
+                showProgress ? "scale-0 group-hover/card:scale-100" : "scale-0",
+              ].join(" ")}
+              style={{ left: `calc(${displayPct}% - 6px)` }}
+            />
+            <input
+              type="range"
+              min={0}
+              max={duration || 0}
+              step={0.1}
+              value={displayTime}
+              disabled={!showProgress}
+              onChange={(e) => setScrub(Number(e.target.value))}
+              onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+              onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+              onBlur={(e) => {
+                if (scrub !== null) commitSeek(Number(e.target.value));
+              }}
+              aria-label={t.seek}
+              aria-valuemin={0}
+              aria-valuemax={Math.max(duration, 0)}
+              aria-valuenow={Math.floor(displayTime)}
+              aria-valuetext={`${currentLabel} / ${formatAudioTime(duration)}`}
+              className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed rounded-[6px] ${FOCUS_RING}`}
+            />
           </div>
         </div>
       </div>
 
-      {/* Slider */}
-      <div
-        className={[
-          "relative mt-3 h-4 flex items-center",
-          "rounded-full",
-          "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
-        ].join(" ")}
-      >
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-muted" />
-        <div
-          className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-brand transition-[width] duration-150"
-          style={{ width: `${displayPct}%` }}
-        />
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.1}
-          value={displayTime}
-          disabled={!showProgress}
-          onChange={(e) => setScrub(Number(e.target.value))}
-          onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
-          onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
-          onBlur={(e) => {
-            if (scrub !== null) commitSeek(Number(e.target.value));
-          }}
-          aria-label={t.seek}
-          aria-valuemin={0}
-          aria-valuemax={Math.max(duration, 0)}
-          aria-valuenow={Math.floor(displayTime)}
-          aria-valuetext={`${formatAudioTime(displayTime)} / ${formatAudioTime(duration)}`}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-        />
-      </div>
-
-      {/* Akcje */}
-      <div className="relative mt-2.5 flex items-center gap-1.5">
+      {/* Footer: download + status/retry */}
+      <div className="mt-5 pt-4 flex items-center justify-between border-t border-border/60">
         <button
           type="button"
           onClick={() => void onDownload()}
           disabled={downloading || loading}
-          className={[
-            "inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5",
-            "text-[11px] font-semibold text-muted-foreground",
-            "hover:text-brand hover:bg-background border border-border/60",
-            "transition disabled:opacity-50 disabled:cursor-not-allowed",
-            FOCUS_RING,
-          ].join(" ")}
           aria-label={downloading ? t.downloading : t.download}
           title={t.download}
+          className={[
+            "group/dl inline-flex items-center gap-2 rounded-[6px] text-muted-foreground",
+            "hover:text-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+            FOCUS_RING,
+          ].join(" ")}
         >
-          {downloading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          ) : (
-            <Download className="h-3.5 w-3.5" aria-hidden />
-          )}
-          <span>MP3</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-muted/60 group-hover/dl:bg-brand/10 transition-colors">
+            {downloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-3.5 w-3.5" aria-hidden />
+            )}
+          </span>
+          <span className="text-[10px] font-extrabold tracking-[0.2em] uppercase">
+            {t.download}
+          </span>
         </button>
-        {errored && (
+
+        {errored ? (
           <button
             type="button"
             onClick={() => void player.loadAndPlay(meta)}
-            className={`text-[11px] font-semibold text-brand underline hover:no-underline ml-auto rounded-sm ${FOCUS_RING}`}
+            className={`text-[11px] font-semibold text-brand underline hover:no-underline rounded-[6px] ${FOCUS_RING}`}
           >
             {t.retry}
           </button>
-        )}
+        ) : loading ? (
+          <span className="text-[10px] font-medium text-muted-foreground italic">
+            {t.loading}
+          </span>
+        ) : null}
       </div>
     </aside>
   );
