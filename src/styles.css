@@ -3133,16 +3133,21 @@ textarea::placeholder {
   padding: 0;
 }
 .key-takeaways--ghost .key-takeaways__ghost {
-  min-height: clamp(4rem, 12vw, 8rem);
+  min-height: clamp(3rem, 8vw, 5rem);
   overflow: hidden;
 }
 .key-takeaways__ghost-title {
   color: var(--kt-title, #111827);
-  opacity: 0.12;
-  font-size: clamp(3rem, 12vw, 8rem);
-  letter-spacing: -0.02em;
+  opacity: 0.13;
+  font-size: clamp(3.5rem, 16vw, 11rem);
+  letter-spacing: -0.03em;
+  line-height: 0.9;
   z-index: 0;
-  transform: translateY(-0.15em);
+  top: 0;
+  /* Wyśrodkuj napis pionowo względem pierwszej linii listy: przesuwamy
+     tytuł w górę o ~40% jego wysokości, tak by jego środek pokrył się
+     ze środkiem pierwszego wiersza tekstu. */
+  transform: translateY(-38%);
 }
 .dark .key-takeaways__ghost-title {
   color: var(--kt-title-dark, #ffffff);
