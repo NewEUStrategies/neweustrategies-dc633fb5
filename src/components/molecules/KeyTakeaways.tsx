@@ -147,10 +147,18 @@ export function KeyTakeaways({
             aria-hidden="true"
             className="key-takeaways__ghost-title font-display font-black tracking-tight pointer-events-none select-none absolute inset-x-0 top-0 whitespace-nowrap"
           >
-            {labelParts.head ? (
-              <span className="key-takeaways__ghost-title-hl">{labelParts.head}</span>
-            ) : null}
-            {labelParts.tail}
+            {labelTokens.map((tok, i) => {
+              if (!tok.isWord) return <span key={i}>{tok.text}</span>;
+              const on = highlightIdx.has(tok.index);
+              return (
+                <span
+                  key={i}
+                  className={on ? "key-takeaways__ghost-title-hl" : undefined}
+                >
+                  {tok.text}
+                </span>
+              );
+            })}
           </h2>
           <h2 className="sr-only">{label}</h2>
           <ul className="key-takeaways__list relative z-10 space-y-0">
