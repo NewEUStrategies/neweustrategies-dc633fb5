@@ -78,6 +78,8 @@ export function ThemeDesignPane() {
   const [cDraft, setCDraft] = useState<CarouselDefaults | null>(null);
   const [liveSync, setLiveSync] = useState<boolean>(false);
   const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
+  const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
+
 
   useEffect(() => {
     if (tdPl && !draftPl) setDraftPl(tdPl);
@@ -109,6 +111,28 @@ export function ThemeDesignPane() {
     setDraft({ ...draft, [k]: { ...draft[k], ...patch } });
   };
 
+  /** Writes a color-typed field to either the light slot (section[field]) or
+   *  the dark override (darkOverrides[section][field]) depending on preview mode.
+   *  Passing null/"" for dark clears the override so the light value / global
+   *  token wins. */
+  const setColor = (section: string, field: string, value: string | null) => {
+    if (previewMode === "light") {
+      setDraft({
+        ...draft,
+        [section]: { ...(draft as Record<string, unknown>)[section] as object, [field]: value ?? "" },
+      } as ThemeDesign);
+      return;
+    }
+    const overrides = { ...(draft.darkOverrides ?? {}) };
+    const sec = { ...(overrides[section] ?? {}) };
+    if (value == null || value === "") delete sec[field];
+    else sec[field] = value;
+    if (Object.keys(sec).length === 0) delete overrides[section];
+    else overrides[section] = sec;
+    setDraft({ ...draft, darkOverrides: overrides });
+  };
+
+
   const saveAll = () => {
     if (mode === "split") {
       if (draftPl) saveTd.mutate({ next: draftPl, lang: "pl" });
@@ -138,6 +162,41 @@ export function ThemeDesignPane() {
       />
 
       <LivePostPreview draft={draft} previewLang={previewLang} onLangChange={setPreviewLang} />
+
+      <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
+        <span className="text-xs text-muted-foreground pl-1">Edytujesz kolory dla trybu:</span>
+        <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
+          <button
+            type="button"
+            onClick={() => setPreviewMode("light")}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm text-xs font-medium transition-colors",
+              previewMode === "light"
+                ? "bg-brand text-[color:var(--brand-foreground)] shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Sun className="h-3.5 w-3.5" /> Light
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewMode("dark")}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm text-xs font-medium transition-colors",
+              previewMode === "dark"
+                ? "bg-brand text-[color:var(--brand-foreground)] shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Moon className="h-3.5 w-3.5" /> Dark
+          </button>
+        </div>
+        <span className="text-[11px] text-muted-foreground ml-auto pr-1">
+          Puste pole = dziedziczenie z tokenów globalnych (Kolory linków / ikon / pól tekstowych).
+        </span>
+      </div>
+
+
 
 
       <Tabs defaultValue="block-heading" className="space-y-4">
@@ -178,7 +237,7 @@ export function ThemeDesignPane() {
             <NumStepper value={draft.blockHeading.fontWeight} onChange={(v) => set("blockHeading", { fontWeight: v })} />
           </Field>
           <Field label="Kolor">
-            <AdminColorPicker value={draft.blockHeading.color} onChange={(v) => set("blockHeading", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="blockHeading" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Transformacja">
             <Select
@@ -281,13 +340,13 @@ export function ThemeDesignPane() {
 <Section title={"Przycisk „Czytaj więcej”"}>
         <Grid>
           <Field label="Kolor tła">
-            <AdminColorPicker value={draft.readMoreButton.bgColor} onChange={(v) => set("readMoreButton", { bgColor: v ?? "" })} allowTransparent />
+            <TdColorField section="readMoreButton" field="bgColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Kolor tekstu">
-            <AdminColorPicker value={draft.readMoreButton.color} onChange={(v) => set("readMoreButton", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="readMoreButton" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Kolor obramowania">
-            <AdminColorPicker value={draft.readMoreButton.borderColor} onChange={(v) => set("readMoreButton", { borderColor: v ?? "" })} allowTransparent />
+            <TdColorField section="readMoreButton" field="borderColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Zaokrąglenie (px)">
             <PxStepper value={draft.readMoreButton.radius} onChange={(v) => set("readMoreButton", { radius: v })} />
@@ -339,7 +398,7 @@ export function ThemeDesignPane() {
             <PxStepper value={draft.metaInfo.fontSize} onChange={(v) => set("metaInfo", { fontSize: v })} />
           </Field>
           <Field label="Kolor">
-            <AdminColorPicker value={draft.metaInfo.color} onChange={(v) => set("metaInfo", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="metaInfo" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Odstęp między (px)">
             <PxStepper value={draft.metaInfo.gap} onChange={(v) => set("metaInfo", { gap: v })} />
@@ -375,22 +434,22 @@ export function ThemeDesignPane() {
 <Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
         <Grid>
           <Field label="Tło">
-            <AdminColorPicker value={draft.toolbarButton.bgColor} onChange={(v) => set("toolbarButton", { bgColor: v ?? "" })} allowTransparent />
+            <TdColorField section="toolbarButton" field="bgColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Kolor ikony/tekstu">
-            <AdminColorPicker value={draft.toolbarButton.color} onChange={(v) => set("toolbarButton", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="toolbarButton" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Hover - tło">
-            <AdminColorPicker value={draft.toolbarButton.hoverBgColor} onChange={(v) => set("toolbarButton", { hoverBgColor: v ?? "" })} allowTransparent />
+            <TdColorField section="toolbarButton" field="hoverBgColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Hover - kolor">
-            <AdminColorPicker value={draft.toolbarButton.hoverColor} onChange={(v) => set("toolbarButton", { hoverColor: v ?? "" })} allowTransparent />
+            <TdColorField section="toolbarButton" field="hoverColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Aktywny - tło">
-            <AdminColorPicker value={draft.toolbarButton.activeBgColor} onChange={(v) => set("toolbarButton", { activeBgColor: v ?? "" })} allowTransparent />
+            <TdColorField section="toolbarButton" field="activeBgColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Aktywny - kolor">
-            <AdminColorPicker value={draft.toolbarButton.activeColor} onChange={(v) => set("toolbarButton", { activeColor: v ?? "" })} allowTransparent />
+            <TdColorField section="toolbarButton" field="activeColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Zaokrąglenie (px)">
             <PxStepper value={draft.toolbarButton.radius} onChange={(v) => set("toolbarButton", { radius: v })} />
@@ -450,19 +509,19 @@ export function ThemeDesignPane() {
 <Section title="Przełącznik trybu jasny/ciemny">
         <Grid>
           <Field label="Tło toru">
-            <AdminColorPicker value={draft.modeSwitcher.trackBg} onChange={(v) => set("modeSwitcher", { trackBg: v ?? "" })} allowTransparent />
+            <TdColorField section="modeSwitcher" field="trackBg" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Obramowanie toru">
-            <AdminColorPicker value={draft.modeSwitcher.trackBorder} onChange={(v) => set("modeSwitcher", { trackBorder: v ?? "" })} allowTransparent />
+            <TdColorField section="modeSwitcher" field="trackBorder" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Kolor nieaktywny">
-            <AdminColorPicker value={draft.modeSwitcher.inactiveColor} onChange={(v) => set("modeSwitcher", { inactiveColor: v ?? "" })} allowTransparent />
+            <TdColorField section="modeSwitcher" field="inactiveColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Aktywny - tło">
-            <AdminColorPicker value={draft.modeSwitcher.activeBg} onChange={(v) => set("modeSwitcher", { activeBg: v ?? "" })} allowTransparent />
+            <TdColorField section="modeSwitcher" field="activeBg" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Aktywny - kolor">
-            <AdminColorPicker value={draft.modeSwitcher.activeColor} onChange={(v) => set("modeSwitcher", { activeColor: v ?? "" })} allowTransparent />
+            <TdColorField section="modeSwitcher" field="activeColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Zaokrąglenie (px)">
             <PxStepper value={draft.modeSwitcher.radius} onChange={(v) => set("modeSwitcher", { radius: v })} />
@@ -503,16 +562,16 @@ export function ThemeDesignPane() {
 <Section title="Ikony social media">
         <Grid>
           <Field label="Kolor ikony">
-            <AdminColorPicker value={draft.socialIcons.color} onChange={(v) => set("socialIcons", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="socialIcons" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Hover - kolor">
-            <AdminColorPicker value={draft.socialIcons.hoverColor} onChange={(v) => set("socialIcons", { hoverColor: v ?? "" })} allowTransparent />
+            <TdColorField section="socialIcons" field="hoverColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Tło">
-            <AdminColorPicker value={draft.socialIcons.bgColor} onChange={(v) => set("socialIcons", { bgColor: v ?? "" })} allowTransparent />
+            <TdColorField section="socialIcons" field="bgColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Hover - tło">
-            <AdminColorPicker value={draft.socialIcons.hoverBgColor} onChange={(v) => set("socialIcons", { hoverBgColor: v ?? "" })} allowTransparent />
+            <TdColorField section="socialIcons" field="hoverBgColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Rozmiar (px)">
             <PxStepper value={draft.socialIcons.size} onChange={(v) => set("socialIcons", { size: v })} />
@@ -597,10 +656,10 @@ export function ThemeDesignPane() {
             />
           </Field>
           <Field label="Kolor">
-            <AdminColorPicker value={draft.postTitle.color} onChange={(v) => set("postTitle", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="postTitle" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Kolor hover">
-            <AdminColorPicker value={draft.postTitle.hoverColor} onChange={(v) => set("postTitle", { hoverColor: v ?? "" })} allowTransparent />
+            <TdColorField section="postTitle" field="hoverColor" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Transformacja">
             <Select
@@ -670,7 +729,7 @@ export function ThemeDesignPane() {
             />
           </Field>
           <Field label="Kolor">
-            <AdminColorPicker value={draft.postExcerpt.color} onChange={(v) => set("postExcerpt", { color: v ?? "" })} allowTransparent />
+            <TdColorField section="postExcerpt" field="color" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Margines górny (px)">
             <PxStepper value={draft.postExcerpt.marginTop} onChange={(v) => set("postExcerpt", { marginTop: v })} />
@@ -706,10 +765,10 @@ export function ThemeDesignPane() {
         </p>
         <Grid>
           <Field label="Kolor (light mode)">
-            <AdminColorPicker value={draft.listIndex.colorLight} onChange={(v) => set("listIndex", { colorLight: v ?? "" })} allowTransparent />
+            <TdColorField section="listIndex" field="colorLight" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Kolor (dark mode)">
-            <AdminColorPicker value={draft.listIndex.colorDark} onChange={(v) => set("listIndex", { colorDark: v ?? "" })} allowTransparent />
+            <TdColorField section="listIndex" field="colorDark" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Przezroczystość (0 - 1)">
             <Input
@@ -1097,7 +1156,113 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
   );
 }
 
+/** Default inheritance token per (section, field). When the user clicks
+ *  "Dziedzicz" we reset the value to this token (light mode) or clear the
+ *  dark override (dark mode). These tokens already flip automatically with
+ *  the site's global light/dark scheme, so inheritance from
+ *  Kolory linków / Kolory ikon / Pola tekstowe / Kolory pól tekstowych is
+ *  effectively free. */
+const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> = {
+  blockHeading: { color: { token: "var(--foreground)", hint: "Tekst globalny" } },
+  readMoreButton: {
+    bgColor: { token: "transparent", hint: "Przezroczyste" },
+    color: { token: "var(--brand)", hint: "Kolor marki" },
+    borderColor: { token: "var(--brand)", hint: "Kolor marki" },
+  },
+  metaInfo: { color: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" } },
+  toolbarButton: {
+    bgColor: { token: "var(--muted)", hint: "Tło pól tekstowych" },
+    color: { token: "var(--foreground)", hint: "Tekst globalny" },
+    hoverBgColor: { token: "var(--accent)", hint: "Akcent (hover)" },
+    hoverColor: { token: "var(--foreground)", hint: "Tekst globalny" },
+    activeBgColor: { token: "var(--brand)", hint: "Kolor marki" },
+    activeColor: { token: "var(--brand-foreground)", hint: "Tekst na marce" },
+  },
+  modeSwitcher: {
+    trackBg: { token: "var(--muted)", hint: "Tło pól tekstowych" },
+    trackBorder: { token: "var(--border)", hint: "Obramowanie" },
+    inactiveColor: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" },
+    activeBg: { token: "var(--background)", hint: "Tło globalne" },
+    activeColor: { token: "var(--foreground)", hint: "Tekst globalny" },
+  },
+  socialIcons: {
+    color: { token: "var(--foreground)", hint: "Kolor ikon" },
+    hoverColor: { token: "var(--brand)", hint: "Kolor marki" },
+    bgColor: { token: "transparent", hint: "Przezroczyste" },
+    hoverBgColor: { token: "var(--accent)", hint: "Akcent (hover)" },
+  },
+  listIndex: {
+    colorLight: { token: "var(--foreground)", hint: "Tekst globalny" },
+    colorDark: { token: "var(--brand)", hint: "Kolor marki" },
+  },
+  postTitle: {
+    color: { token: "var(--foreground)", hint: "Tekst globalny" },
+    hoverColor: { token: "var(--brand)", hint: "Link (hover)" },
+  },
+  postExcerpt: { color: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" } },
+};
+
+function TdColorField({
+  section,
+  field,
+  mode,
+  draft,
+  setColor,
+}: {
+  section: string;
+  field: string;
+  mode: "light" | "dark";
+  draft: ThemeDesign;
+  setColor: (section: string, field: string, value: string | null) => void;
+}) {
+  const lightVal = ((draft as unknown as Record<string, Record<string, unknown>>)[section]?.[
+    field
+  ] as string | undefined) ?? "";
+  const darkVal = (draft.darkOverrides?.[section]?.[field] as string | undefined) ?? "";
+  const value = mode === "light" ? lightVal : darkVal;
+  const inherit = INHERIT_DEFAULTS[section]?.[field];
+  const placeholder =
+    mode === "dark"
+      ? lightVal || inherit?.token || "auto"
+      : inherit?.token || "auto";
+
+  const reset = () => {
+    if (mode === "dark") setColor(section, field, null);
+    else setColor(section, field, inherit?.token ?? "");
+  };
+
+  return (
+    <div className="space-y-1">
+      <AdminColorPicker
+        value={value}
+        onChange={(v) => setColor(section, field, v ?? null)}
+        allowTransparent
+        placeholder={placeholder}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-muted-foreground truncate">
+          {mode === "dark" && !darkVal
+            ? `Dziedziczy z light (${lightVal || inherit?.hint || "auto"})`
+            : inherit
+              ? `Domyślnie: ${inherit.hint}`
+              : ""}
+        </span>
+        {(mode === "light" ? !!lightVal && lightVal !== inherit?.token : !!darkVal) && (
+          <button
+            type="button"
+            onClick={reset}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2"
+          >
+            ↩ Dziedzicz
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+
   return (
     <section className="space-y-3 rounded-lg border border-border bg-card p-5">
       <h2 className="text-base font-semibold">{title}</h2>
