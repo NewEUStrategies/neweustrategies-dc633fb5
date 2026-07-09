@@ -135,6 +135,7 @@ export function FloatingShareBar({
   showAfter = 240,
   variant = "rail",
   settings,
+  listen,
 }: Props) {
   const cfg: ReadingPanelSettings = useMemo(
     () => ({
