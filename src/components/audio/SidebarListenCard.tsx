@@ -123,7 +123,7 @@ export function SidebarListenCard({
 
       <div className="relative flex items-center gap-2.5 mb-3">
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand/15">
-          <Headphones className="h-3.5 w-3.5 text-brand" />
+          <HeadphonesIcon className="h-3.5 w-3.5 text-brand" />
         </span>
         <span className="text-[11px] font-extrabold tracking-[0.18em] uppercase text-foreground">
           {t.label}
