@@ -59,7 +59,7 @@ import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
-import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
+import { PostSettingsMetabox, TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
