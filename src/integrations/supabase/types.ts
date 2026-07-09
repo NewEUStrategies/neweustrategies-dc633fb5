@@ -1868,6 +1868,8 @@ export type Database = {
           seo_title_pl: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
+          takeaways_en: string[]
+          takeaways_pl: string[]
           template_id: string | null
           template_type: string
           tenant_id: string
@@ -1904,6 +1906,8 @@ export type Database = {
           seo_title_pl?: string | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
+          takeaways_en?: string[]
+          takeaways_pl?: string[]
           template_id?: string | null
           template_type?: string
           tenant_id: string
@@ -1940,6 +1944,8 @@ export type Database = {
           seo_title_pl?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
+          takeaways_en?: string[]
+          takeaways_pl?: string[]
           template_id?: string | null
           template_type?: string
           tenant_id?: string
@@ -4158,6 +4164,8 @@ export type Database = {
           seo_title_pl: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
+          takeaways_en: string[]
+          takeaways_pl: string[]
           template_id: string | null
           template_type: string
           tenant_id: string

@@ -258,9 +258,8 @@ export const Route = createFileRoute("/$")({
     // node carries the AEO layer (section, keywords, abstract, speakable);
     // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
     // exist after hydration.
-    const takeaways = isPost
-      ? ((lang === "en" ? (it as PostData).takeaways_en : (it as PostData).takeaways_pl) ?? [])
-      : [];
+    const takeaways =
+      (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
     const parentCrumbs = [...(loaderData.crumbs ?? [])].sort((a, b) => a.depth - b.depth);
     const sectionCrumb = isPost
       ? parentCrumbs[parentCrumbs.length - 1]
@@ -456,9 +455,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const maxW = "max-w-[1200px]";
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
-  const takeaways: readonly string[] = post
-    ? ((lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? [])
-    : [];
+  const takeaways: readonly string[] =
+    (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
 
   const currentPostCtx: CurrentPostCtx = {
     kind: isPost ? "post" : "page",
@@ -513,7 +511,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
-          {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
+          {takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
           <ContentRenderer
             editor={it.editor}
             builderDoc={doc}
