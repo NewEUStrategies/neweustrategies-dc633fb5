@@ -762,9 +762,9 @@ function TakeawayRow({
   }[status];
   const statusMsg = {
     empty: "",
-    short: "Za krótkie – dodaj kontekst",
+    short: `Za krótkie – dodaj kontekst (min. ${RECOMMENDED_MIN} znaków)`,
     ok: "Dobra długość",
-    long: "Rozbij na kilka punktów – jedno zdanie, jedna myśl",
+    long: "Powyżej rekomendacji – dopuszczalne, ale krótsze zdanie działa lepiej",
   }[status];
 
   return (
