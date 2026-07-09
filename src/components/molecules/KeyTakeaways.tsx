@@ -62,7 +62,30 @@ export function KeyTakeaways({
     "--kt-text-dark": settings.colors.textDark,
     "--kt-title": settings.colors.title,
     "--kt-title-dark": settings.colors.titleDark,
+    "--kt-highlight": settings.highlight?.color ?? settings.colors.accent,
   };
+
+  // Rozbij etykietę na "pierwsze N słów + reszta" na potrzeby wariantu ghost.
+  const highlightCount = Math.max(0, Math.min(3, settings.highlight?.words ?? 0));
+  const labelParts = (() => {
+    if (highlightCount <= 0) return { head: "", tail: label };
+    const tokens = label.split(/(\s+)/); // zachowaj spacje
+    let words = 0;
+    let cut = 0;
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i] && !/^\s+$/.test(tokens[i])) {
+        words += 1;
+        if (words === highlightCount) {
+          cut = i + 1;
+          break;
+        }
+      }
+    }
+    return {
+      head: tokens.slice(0, cut).join(""),
+      tail: tokens.slice(cut).join(""),
+    };
+  })();
 
   const iconName = (settings.icon || "Search") as IconName;
 
