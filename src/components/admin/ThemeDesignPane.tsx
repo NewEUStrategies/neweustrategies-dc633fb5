@@ -17,7 +17,10 @@ import {
   Youtube,
   Linkedin,
   Mail,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,23 +84,13 @@ export function ThemeDesignPane() {
       <Section title="Nagłówki bloków">
         <Grid>
           <Field label="Rozmiar (px)">
-            <Input
-              value={px(draft.blockHeading.fontSize)}
-              onChange={(e) => set("blockHeading", { fontSize: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.blockHeading.fontSize} onChange={(v) => set("blockHeading", { fontSize: v })} />
           </Field>
           <Field label="Grubość">
-            <Input
-              type="number"
-              value={draft.blockHeading.fontWeight}
-              onChange={(e) => set("blockHeading", { fontWeight: Number(e.target.value) })}
-            />
+            <NumStepper value={draft.blockHeading.fontWeight} onChange={(v) => set("blockHeading", { fontWeight: v })} />
           </Field>
           <Field label="Kolor">
-            <Input
-              value={draft.blockHeading.color}
-              onChange={(e) => set("blockHeading", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.blockHeading.color} onChange={(v) => set("blockHeading", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Transformacja">
             <Select
@@ -120,16 +113,10 @@ export function ThemeDesignPane() {
             </Select>
           </Field>
           <Field label="Odstęp liter (px)">
-            <Input
-              value={px(draft.blockHeading.letterSpacing)}
-              onChange={(e) => set("blockHeading", { letterSpacing: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.blockHeading.letterSpacing} onChange={(v) => set("blockHeading", { letterSpacing: v })} />
           </Field>
           <Field label="Margines dolny (px)">
-            <Input
-              value={px(draft.blockHeading.marginBottom)}
-              onChange={(e) => set("blockHeading", { marginBottom: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.blockHeading.marginBottom} onChange={(v) => set("blockHeading", { marginBottom: v })} />
           </Field>
         </Grid>
         <Preview>
@@ -152,10 +139,7 @@ export function ThemeDesignPane() {
       <Section title="Miniatury wpisów">
         <Grid>
           <Field label="Zaokrąglenie (px)">
-            <Input
-              value={px(draft.thumbnail.radius)}
-              onChange={(e) => set("thumbnail", { radius: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.thumbnail.radius} onChange={(v) => set("thumbnail", { radius: v })} />
           </Field>
           <Field label="Proporcje (np. 16/9)">
             <Input
@@ -205,47 +189,25 @@ export function ThemeDesignPane() {
       <Section title={"Przycisk „Czytaj więcej”"}>
         <Grid>
           <Field label="Kolor tła">
-            <Input
-              value={draft.readMoreButton.bgColor}
-              onChange={(e) => set("readMoreButton", { bgColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.readMoreButton.bgColor} onChange={(v) => set("readMoreButton", { bgColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Kolor tekstu">
-            <Input
-              value={draft.readMoreButton.color}
-              onChange={(e) => set("readMoreButton", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.readMoreButton.color} onChange={(v) => set("readMoreButton", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Kolor obramowania">
-            <Input
-              value={draft.readMoreButton.borderColor}
-              onChange={(e) => set("readMoreButton", { borderColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.readMoreButton.borderColor} onChange={(v) => set("readMoreButton", { borderColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Zaokrąglenie (px)">
-            <Input
-              value={px(draft.readMoreButton.radius)}
-              onChange={(e) => set("readMoreButton", { radius: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.readMoreButton.radius} onChange={(v) => set("readMoreButton", { radius: v })} />
           </Field>
           <Field label="Padding X (px)">
-            <Input
-              value={px(draft.readMoreButton.paddingX)}
-              onChange={(e) => set("readMoreButton", { paddingX: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.readMoreButton.paddingX} onChange={(v) => set("readMoreButton", { paddingX: v })} />
           </Field>
           <Field label="Padding Y (px)">
-            <Input
-              value={px(draft.readMoreButton.paddingY)}
-              onChange={(e) => set("readMoreButton", { paddingY: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.readMoreButton.paddingY} onChange={(v) => set("readMoreButton", { paddingY: v })} />
           </Field>
           <Field label="Grubość">
-            <Input
-              type="number"
-              value={draft.readMoreButton.fontWeight}
-              onChange={(e) => set("readMoreButton", { fontWeight: Number(e.target.value) })}
-            />
+            <NumStepper value={draft.readMoreButton.fontWeight} onChange={(v) => set("readMoreButton", { fontWeight: v })} />
           </Field>
           <ToggleField
             label="WIELKIE LITERY"
@@ -280,22 +242,13 @@ export function ThemeDesignPane() {
       <Section title="Informacje meta (autor, data, kategoria)">
         <Grid>
           <Field label="Rozmiar (px)">
-            <Input
-              value={px(draft.metaInfo.fontSize)}
-              onChange={(e) => set("metaInfo", { fontSize: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.metaInfo.fontSize} onChange={(v) => set("metaInfo", { fontSize: v })} />
           </Field>
           <Field label="Kolor">
-            <Input
-              value={draft.metaInfo.color}
-              onChange={(e) => set("metaInfo", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.metaInfo.color} onChange={(v) => set("metaInfo", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Odstęp między (px)">
-            <Input
-              value={px(draft.metaInfo.gap)}
-              onChange={(e) => set("metaInfo", { gap: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.metaInfo.gap} onChange={(v) => set("metaInfo", { gap: v })} />
           </Field>
           <Field label="Separator">
             <Select
@@ -326,64 +279,34 @@ export function ThemeDesignPane() {
       <Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
         <Grid>
           <Field label="Tło">
-            <Input
-              value={draft.toolbarButton.bgColor}
-              onChange={(e) => set("toolbarButton", { bgColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.toolbarButton.bgColor} onChange={(v) => set("toolbarButton", { bgColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Kolor ikony/tekstu">
-            <Input
-              value={draft.toolbarButton.color}
-              onChange={(e) => set("toolbarButton", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.toolbarButton.color} onChange={(v) => set("toolbarButton", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Hover - tło">
-            <Input
-              value={draft.toolbarButton.hoverBgColor}
-              onChange={(e) => set("toolbarButton", { hoverBgColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.toolbarButton.hoverBgColor} onChange={(v) => set("toolbarButton", { hoverBgColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Hover - kolor">
-            <Input
-              value={draft.toolbarButton.hoverColor}
-              onChange={(e) => set("toolbarButton", { hoverColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.toolbarButton.hoverColor} onChange={(v) => set("toolbarButton", { hoverColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Aktywny - tło">
-            <Input
-              value={draft.toolbarButton.activeBgColor}
-              onChange={(e) => set("toolbarButton", { activeBgColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.toolbarButton.activeBgColor} onChange={(v) => set("toolbarButton", { activeBgColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Aktywny - kolor">
-            <Input
-              value={draft.toolbarButton.activeColor}
-              onChange={(e) => set("toolbarButton", { activeColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.toolbarButton.activeColor} onChange={(v) => set("toolbarButton", { activeColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Zaokrąglenie (px)">
-            <Input
-              value={px(draft.toolbarButton.radius)}
-              onChange={(e) => set("toolbarButton", { radius: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.toolbarButton.radius} onChange={(v) => set("toolbarButton", { radius: v })} />
           </Field>
           <Field label="Padding X (px)">
-            <Input
-              value={px(draft.toolbarButton.paddingX)}
-              onChange={(e) => set("toolbarButton", { paddingX: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.toolbarButton.paddingX} onChange={(v) => set("toolbarButton", { paddingX: v })} />
           </Field>
           <Field label="Padding Y (px)">
-            <Input
-              value={px(draft.toolbarButton.paddingY)}
-              onChange={(e) => set("toolbarButton", { paddingY: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.toolbarButton.paddingY} onChange={(v) => set("toolbarButton", { paddingY: v })} />
           </Field>
           <Field label="Rozmiar ikony (px)">
-            <Input
-              value={px(draft.toolbarButton.size)}
-              onChange={(e) => set("toolbarButton", { size: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.toolbarButton.size} onChange={(v) => set("toolbarButton", { size: v })} />
           </Field>
         </Grid>
         <Preview>
@@ -429,40 +352,22 @@ export function ThemeDesignPane() {
       <Section title="Przełącznik trybu jasny/ciemny">
         <Grid>
           <Field label="Tło toru">
-            <Input
-              value={draft.modeSwitcher.trackBg}
-              onChange={(e) => set("modeSwitcher", { trackBg: e.target.value })}
-            />
+            <AdminColorPicker value={draft.modeSwitcher.trackBg} onChange={(v) => set("modeSwitcher", { trackBg: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Obramowanie toru">
-            <Input
-              value={draft.modeSwitcher.trackBorder}
-              onChange={(e) => set("modeSwitcher", { trackBorder: e.target.value })}
-            />
+            <AdminColorPicker value={draft.modeSwitcher.trackBorder} onChange={(v) => set("modeSwitcher", { trackBorder: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Kolor nieaktywny">
-            <Input
-              value={draft.modeSwitcher.inactiveColor}
-              onChange={(e) => set("modeSwitcher", { inactiveColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.modeSwitcher.inactiveColor} onChange={(v) => set("modeSwitcher", { inactiveColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Aktywny - tło">
-            <Input
-              value={draft.modeSwitcher.activeBg}
-              onChange={(e) => set("modeSwitcher", { activeBg: e.target.value })}
-            />
+            <AdminColorPicker value={draft.modeSwitcher.activeBg} onChange={(v) => set("modeSwitcher", { activeBg: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Aktywny - kolor">
-            <Input
-              value={draft.modeSwitcher.activeColor}
-              onChange={(e) => set("modeSwitcher", { activeColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.modeSwitcher.activeColor} onChange={(v) => set("modeSwitcher", { activeColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Zaokrąglenie (px)">
-            <Input
-              value={px(draft.modeSwitcher.radius)}
-              onChange={(e) => set("modeSwitcher", { radius: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.modeSwitcher.radius} onChange={(v) => set("modeSwitcher", { radius: v })} />
           </Field>
           <ToggleField
             label="Pokaż etykiety (Jasny/Ciemny)"
@@ -498,58 +403,31 @@ export function ThemeDesignPane() {
       <Section title="Ikony social media">
         <Grid>
           <Field label="Kolor ikony">
-            <Input
-              value={draft.socialIcons.color}
-              onChange={(e) => set("socialIcons", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.socialIcons.color} onChange={(v) => set("socialIcons", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Hover - kolor">
-            <Input
-              value={draft.socialIcons.hoverColor}
-              onChange={(e) => set("socialIcons", { hoverColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.socialIcons.hoverColor} onChange={(v) => set("socialIcons", { hoverColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Tło">
-            <Input
-              value={draft.socialIcons.bgColor}
-              onChange={(e) => set("socialIcons", { bgColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.socialIcons.bgColor} onChange={(v) => set("socialIcons", { bgColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Hover - tło">
-            <Input
-              value={draft.socialIcons.hoverBgColor}
-              onChange={(e) => set("socialIcons", { hoverBgColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.socialIcons.hoverBgColor} onChange={(v) => set("socialIcons", { hoverBgColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Rozmiar (px)">
-            <Input
-              value={px(draft.socialIcons.size)}
-              onChange={(e) => set("socialIcons", { size: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.socialIcons.size} onChange={(v) => set("socialIcons", { size: v })} />
           </Field>
           <Field label="Odstęp (px)">
-            <Input
-              value={px(draft.socialIcons.gap)}
-              onChange={(e) => set("socialIcons", { gap: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.socialIcons.gap} onChange={(v) => set("socialIcons", { gap: v })} />
           </Field>
           <Field label="Zaokrąglenie (px)">
-            <Input
-              value={px(draft.socialIcons.radius)}
-              onChange={(e) => set("socialIcons", { radius: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.socialIcons.radius} onChange={(v) => set("socialIcons", { radius: v })} />
           </Field>
           <Field label="Padding X (px)">
-            <Input
-              value={px(draft.socialIcons.paddingX)}
-              onChange={(e) => set("socialIcons", { paddingX: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.socialIcons.paddingX} onChange={(v) => set("socialIcons", { paddingX: v })} />
           </Field>
           <Field label="Padding Y (px)">
-            <Input
-              value={px(draft.socialIcons.paddingY)}
-              onChange={(e) => set("socialIcons", { paddingY: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.socialIcons.paddingY} onChange={(v) => set("socialIcons", { paddingY: v })} />
           </Field>
         </Grid>
         <Preview>
@@ -602,23 +480,13 @@ export function ThemeDesignPane() {
             />
           </Field>
           <Field label="Rozmiar desktop (px)">
-            <Input
-              value={px(draft.postTitle.fontSize)}
-              onChange={(e) => set("postTitle", { fontSize: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.postTitle.fontSize} onChange={(v) => set("postTitle", { fontSize: v })} />
           </Field>
           <Field label="Rozmiar mobile (px)">
-            <Input
-              value={px(draft.postTitle.fontSizeSm)}
-              onChange={(e) => set("postTitle", { fontSizeSm: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.postTitle.fontSizeSm} onChange={(v) => set("postTitle", { fontSizeSm: v })} />
           </Field>
           <Field label="Grubość">
-            <Input
-              type="number"
-              value={draft.postTitle.fontWeight}
-              onChange={(e) => set("postTitle", { fontWeight: Number(e.target.value) })}
-            />
+            <NumStepper value={draft.postTitle.fontWeight} onChange={(v) => set("postTitle", { fontWeight: v })} />
           </Field>
           <Field label="Interlinia (line-height)">
             <Input
@@ -627,16 +495,10 @@ export function ThemeDesignPane() {
             />
           </Field>
           <Field label="Kolor">
-            <Input
-              value={draft.postTitle.color}
-              onChange={(e) => set("postTitle", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.postTitle.color} onChange={(v) => set("postTitle", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Kolor hover">
-            <Input
-              value={draft.postTitle.hoverColor}
-              onChange={(e) => set("postTitle", { hoverColor: e.target.value })}
-            />
+            <AdminColorPicker value={draft.postTitle.hoverColor} onChange={(v) => set("postTitle", { hoverColor: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Transformacja">
             <Select
@@ -657,10 +519,7 @@ export function ThemeDesignPane() {
             </Select>
           </Field>
           <Field label="Odstęp liter (px)">
-            <Input
-              value={px(draft.postTitle.letterSpacing)}
-              onChange={(e) => set("postTitle", { letterSpacing: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.postTitle.letterSpacing} onChange={(v) => set("postTitle", { letterSpacing: v })} />
           </Field>
         </Grid>
         <Preview>
@@ -695,17 +554,10 @@ export function ThemeDesignPane() {
             />
           </Field>
           <Field label="Rozmiar (px)">
-            <Input
-              value={px(draft.postExcerpt.fontSize)}
-              onChange={(e) => set("postExcerpt", { fontSize: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.postExcerpt.fontSize} onChange={(v) => set("postExcerpt", { fontSize: v })} />
           </Field>
           <Field label="Grubość">
-            <Input
-              type="number"
-              value={draft.postExcerpt.fontWeight}
-              onChange={(e) => set("postExcerpt", { fontWeight: Number(e.target.value) })}
-            />
+            <NumStepper value={draft.postExcerpt.fontWeight} onChange={(v) => set("postExcerpt", { fontWeight: v })} />
           </Field>
           <Field label="Interlinia">
             <Input
@@ -714,16 +566,10 @@ export function ThemeDesignPane() {
             />
           </Field>
           <Field label="Kolor">
-            <Input
-              value={draft.postExcerpt.color}
-              onChange={(e) => set("postExcerpt", { color: e.target.value })}
-            />
+            <AdminColorPicker value={draft.postExcerpt.color} onChange={(v) => set("postExcerpt", { color: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Margines górny (px)">
-            <Input
-              value={px(draft.postExcerpt.marginTop)}
-              onChange={(e) => set("postExcerpt", { marginTop: `${e.target.value}px` })}
-            />
+            <PxStepper value={draft.postExcerpt.marginTop} onChange={(v) => set("postExcerpt", { marginTop: v })} />
           </Field>
         </Grid>
         <Preview>
@@ -754,16 +600,10 @@ export function ThemeDesignPane() {
         </p>
         <Grid>
           <Field label="Kolor (light mode)">
-            <Input
-              value={draft.listIndex.colorLight}
-              onChange={(e) => set("listIndex", { colorLight: e.target.value })}
-            />
+            <AdminColorPicker value={draft.listIndex.colorLight} onChange={(v) => set("listIndex", { colorLight: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Kolor (dark mode)">
-            <Input
-              value={draft.listIndex.colorDark}
-              onChange={(e) => set("listIndex", { colorDark: e.target.value })}
-            />
+            <AdminColorPicker value={draft.listIndex.colorDark} onChange={(v) => set("listIndex", { colorDark: v ?? "" })} allowTransparent />
           </Field>
           <Field label="Przezroczystość (0 - 1)">
             <Input
@@ -928,6 +768,59 @@ function Preview({ children }: { children: React.ReactNode }) {
     <div className="mt-2 p-4 rounded-md border border-dashed border-border bg-muted/30">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Podgląd</div>
       {children}
+    </div>
+  );
+}
+
+
+function PxStepper({ value, onChange, step = 1, min = 0, max = 999 }: { value: string; onChange: (v: string) => void; step?: number; min?: number; max?: number }) {
+  const n = Number(String(value).replace(/px$/, "")) || 0;
+  const clamp = (x: number) => Math.max(min, Math.min(max, x));
+  const commit = (x: number) => onChange(`${clamp(x)}px`);
+  return (
+    <div className="relative">
+      <Input
+        type="number"
+        value={n}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => commit(Number(e.target.value) || 0)}
+        className="pr-7"
+      />
+      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col">
+        <button type="button" aria-label="Zwiększ" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => commit(n + step)}>
+          <ChevronUp className="w-3 h-3" />
+        </button>
+        <button type="button" aria-label="Zmniejsz" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => commit(n - step)}>
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NumStepper({ value, onChange, step = 100, min = 0, max = 9999 }: { value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number }) {
+  const clamp = (x: number) => Math.max(min, Math.min(max, x));
+  return (
+    <div className="relative">
+      <Input
+        type="number"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(clamp(Number(e.target.value) || 0))}
+        className="pr-7"
+      />
+      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col">
+        <button type="button" aria-label="Zwiększ" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => onChange(clamp(value + step))}>
+          <ChevronUp className="w-3 h-3" />
+        </button>
+        <button type="button" aria-label="Zmniejsz" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => onChange(clamp(value - step))}>
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   );
 }
