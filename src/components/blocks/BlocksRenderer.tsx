@@ -1,6 +1,9 @@
 // Publiczny renderer BlocksDoc. SSR-friendly, czysto prezentacyjny.
 
+import { useRef } from "react";
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
+import { FootnoteTooltips } from "@/components/Footnotes";
+import type { Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
@@ -114,7 +117,8 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora. */
+/** Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora.
+ *  Emituje `data-fn="N"` na <a>, żeby zadziałał wspólny <FootnoteTooltips>. */
 function replaceFootnotes(html: string, fn: FootnoteCollector): string {
   return html.replace(/\[fn\]([\s\S]*?)\[\/fn\]/g, (_m, content: string) => {
     const text = content.trim();
@@ -122,8 +126,13 @@ function replaceFootnotes(html: string, fn: FootnoteCollector): string {
     fn.notes.push(text);
     const n = fn.notes.length;
     const safeTitle = escapeHtml(text.replace(/<[^>]+>/g, ""));
-    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" title="${safeTitle}" class="text-primary no-underline hover:underline">[${n}]</a></sup>`;
+    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" data-fn="${n}" title="${safeTitle}" aria-describedby="footnotes-heading" class="text-primary no-underline hover:underline">[${n}]</a></sup>`;
   });
+}
+
+/** Czy dany string zawiera choć jeden shortcode [fn]…[/fn]. */
+function hasFn(v: unknown): v is string {
+  return typeof v === "string" && v.includes("[fn]");
 }
 
 /** Zamienia treść przypisu z plain/markdown na czysty tekst dla listy końcowej. */
@@ -132,6 +141,7 @@ function renderFootnoteHtml(text: string): string {
 }
 
 export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
+  const articleRef = useRef<HTMLElement | null>(null);
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
@@ -142,9 +152,14 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   const fn: FootnoteCollector = { notes: [] };
   const fnHtml = new Map<string, string>();
   precomputeFootnotes(safe.blocks, fn, fnHtml);
+  const tooltipNotes: Footnote[] = fn.notes.map((html, i) => ({ id: i + 1, html }));
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
-    <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
+    <article
+      ref={articleRef}
+      className="blocks-content prose prose-lg dark:prose-invert max-w-none"
+      lang={lang}
+    >
       {safe.blocks.map((b) => (
         // Per-block isolation, mirroring the builder's per-widget boundary: one
         // malformed block degrades to nothing (prod) / a diagnostic (dev) instead
@@ -170,6 +185,9 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
           <ol data-footnotes-list className="space-y-2 pl-5 list-decimal">
             {fn.notes.map((n, i) => (
               <li key={i} id={`fn-${i + 1}`}>
+                <span data-fn-marker className="sr-only">
+                  [{i + 1}]
+                </span>
                 <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n) }} />{" "}
                 <a
                   href={`#fnref-${i + 1}`}
@@ -185,9 +203,13 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
           </ol>
         </section>
       )}
+      {tooltipNotes.length > 0 && (
+        <FootnoteTooltips notes={tooltipNotes} containerRef={articleRef} />
+      )}
     </article>
   );
 }
+
 
 /**
  * Walk blocks in render order (columns: left then right), transforming the
@@ -200,9 +222,42 @@ function precomputeFootnotes(
   fn: FootnoteCollector,
   out: Map<string, string>,
 ): void {
+  // Field-level key convention (kept flat so a single Map serves every block):
+  //   paragraph/html:  `${id}`
+  //   heading:         `${id}:text`
+  //   quote:           `${id}:text`, `${id}:cite`
+  //   list:            `${id}:item:${i}`
+  //   table:           `${id}:cell:${r}:${c}`
+  const process = (raw: unknown): string | null => {
+    if (!hasFn(raw)) return null;
+    return replaceFootnotes(sanitize(raw), fn);
+  };
   for (const b of blocks) {
     if (b.type === "paragraph" || b.type === "html") {
       out.set(b.id, replaceFootnotes(sanitize(String(b.data.html ?? "")), fn));
+    } else if (b.type === "heading") {
+      const v = process(b.data.text);
+      if (v !== null) out.set(`${b.id}:text`, v);
+    } else if (b.type === "quote") {
+      const t = process(b.data.text);
+      if (t !== null) out.set(`${b.id}:text`, t);
+      const c = process(b.data.cite);
+      if (c !== null) out.set(`${b.id}:cite`, c);
+    } else if (b.type === "list") {
+      const items = Array.isArray(b.data.items) ? (b.data.items as unknown[]) : [];
+      items.forEach((it, i) => {
+        const v = process(it);
+        if (v !== null) out.set(`${b.id}:item:${i}`, v);
+      });
+    } else if (b.type === "table") {
+      const rows = Array.isArray(b.data.rows) ? (b.data.rows as unknown[]) : [];
+      rows.forEach((r, ri) => {
+        if (!Array.isArray(r)) return;
+        r.forEach((c, ci) => {
+          const v = process(c);
+          if (v !== null) out.set(`${b.id}:cell:${ri}:${ci}`, v);
+        });
+      });
     } else if (b.type === "columns") {
       precomputeFootnotes(readBlocksArray(b.data.left), fn, out);
       precomputeFootnotes(readBlocksArray(b.data.right), fn, out);
@@ -214,6 +269,7 @@ function precomputeFootnotes(
     }
   }
 }
+
 
 function alignClass(b: Block): string {
   const a = b.style?.align;
@@ -291,12 +347,19 @@ function BlockView({
       const explicit = block.data.anchor ? String(block.data.anchor) : "";
       const id = explicit || (text ? slugify(text) : undefined);
       const Tag = `h${level}` as "h2" | "h3" | "h4";
+      const withFn = fnHtml.get(`${block.id}:text`);
+      if (withFn !== undefined) {
+        return (
+          <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: withFn }} />
+        );
+      }
       return (
         <Tag id={id} className={cls}>
           {text}
         </Tag>
       );
     }
+
     case "image": {
       // Sanitize author-supplied URLs: image src restricted to http(s)/data:image/
       // relative, link href restricted to safe schemes (drops javascript: etc.).
@@ -336,28 +399,55 @@ function BlockView({
       const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [];
       const ordered = Boolean(block.data.ordered);
       const Tag = ordered ? "ol" : "ul";
+      const kept = items
+        .map((it, i) => ({ it, i }))
+        .filter(({ it }) => Boolean(it));
       return (
         <Tag
           className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}
         >
-          {items.filter(Boolean).map((it, i) => (
-            <li key={i} className="my-0 pl-1">
-              {it}
-            </li>
-          ))}
+          {kept.map(({ it, i }) => {
+            const withFn = fnHtml.get(`${block.id}:item:${i}`);
+            return withFn !== undefined ? (
+              <li
+                key={i}
+                className="my-0 pl-1"
+                dangerouslySetInnerHTML={{ __html: withFn }}
+              />
+            ) : (
+              <li key={i} className="my-0 pl-1">
+                {it}
+              </li>
+            );
+          })}
         </Tag>
       );
     }
     case "quote": {
       const text = String(block.data.text ?? "");
       const cite = String(block.data.cite ?? "");
+      const textFn = fnHtml.get(`${block.id}:text`);
+      const citeFn = fnHtml.get(`${block.id}:cite`);
       return (
         <blockquote className={cls}>
-          <p>{text}</p>
-          {cite && <cite className="text-sm text-muted-foreground">- {cite}</cite>}
+          {textFn !== undefined ? (
+            <p dangerouslySetInnerHTML={{ __html: textFn }} />
+          ) : (
+            <p>{text}</p>
+          )}
+          {cite &&
+            (citeFn !== undefined ? (
+              <cite
+                className="text-sm text-muted-foreground"
+                dangerouslySetInnerHTML={{ __html: `- ${citeFn}` }}
+              />
+            ) : (
+              <cite className="text-sm text-muted-foreground">- {cite}</cite>
+            ))}
         </blockquote>
       );
     }
+
     case "code": {
       const code = String(block.data.code ?? "");
       const lang = String(block.data.lang ?? "");
@@ -459,32 +549,37 @@ function BlockView({
       );
       const header = Boolean(block.data.header);
       if (rows.length === 0) return null;
-      const [head, ...body] = header ? [rows[0], ...rows.slice(1)] : [null, ...rows];
+      // Preserve original row indices so footnote keys (`${id}:cell:${ri}:${ci}`)
+      // stay aligned with precomputeFootnotes.
+      const headIdx = header ? 0 : -1;
+      const head = header ? rows[0] : null;
+      const body = header ? rows.slice(1).map((r, i) => ({ r, ri: i + 1 })) : rows.map((r, i) => ({ r, ri: i }));
+      const renderCell = (Tag: "th" | "td", ri: number, ci: number, c: string) => {
+        const withFn = fnHtml.get(`${block.id}:cell:${ri}:${ci}`);
+        return withFn !== undefined ? (
+          <Tag key={ci} dangerouslySetInnerHTML={{ __html: withFn }} />
+        ) : (
+          <Tag key={ci}>{c}</Tag>
+        );
+      };
       return (
         <div className={`overflow-x-auto ${cls}`}>
           <table>
             {head && (
               <thead>
-                <tr>
-                  {head.map((c, i) => (
-                    <th key={i}>{c}</th>
-                  ))}
-                </tr>
+                <tr>{head.map((c, ci) => renderCell("th", headIdx, ci, c))}</tr>
               </thead>
             )}
             <tbody>
-              {body.map((r, i) => (
-                <tr key={i}>
-                  {r.map((c, j) => (
-                    <td key={j}>{c}</td>
-                  ))}
-                </tr>
+              {body.map(({ r, ri }) => (
+                <tr key={ri}>{r.map((c, ci) => renderCell("td", ri, ci, c))}</tr>
               ))}
             </tbody>
           </table>
         </div>
       );
     }
+
     case "button": {
       const label = String(block.data.label ?? "");
       const href = safeUrl(String(block.data.href ?? "#"));
