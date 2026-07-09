@@ -44,6 +44,7 @@ import {
   useSaveThemeDesignLangMode,
   useLiveThemeDesignPreview,
   themeDesignToCss,
+  themeDesignToStyleVars,
   THEME_DESIGN_DEFAULTS,
   THEME_DESIGN_COLOR_INHERITANCE,
   type ThemeDesign,
