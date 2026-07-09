@@ -3078,3 +3078,48 @@ textarea::placeholder {
     font-size: var(--header-excerpt-lg, 18px);
   }
 }
+
+/* ===== Key Takeaways ("Z tego artykułu dowiesz się...") ===== */
+/* Zmienne --kt-* są ustawiane inline przez <KeyTakeaways /> na podstawie
+   globalnych ustawień z site_settings.key_takeaways (edytowalne w
+   /admin/key-takeaways). */
+.key-takeaways__card {
+  background: var(--kt-bg, #eef1ff);
+  color: var(--kt-text, #1f2937);
+}
+.dark .key-takeaways__card {
+  background: var(--kt-bg-dark, #1e2540);
+  color: var(--kt-text-dark, #e5e7eb);
+}
+.key-takeaways__icon {
+  width: 40px;
+  height: 40px;
+  background: var(--kt-icon-bg, #4f46e5);
+  color: var(--kt-icon, #ffffff);
+}
+.key-takeaways__title {
+  color: var(--kt-title, #111827);
+}
+.dark .key-takeaways__title {
+  color: var(--kt-title-dark, #ffffff);
+}
+.key-takeaways__card .key-takeaways__list {
+  color: var(--kt-text, #1f2937);
+}
+.dark .key-takeaways__card .key-takeaways__list {
+  color: var(--kt-text-dark, #e5e7eb);
+}
+.key-takeaways__card .key-takeaways__list::marker,
+.key-takeaways__card .key-takeaways__list > li::marker {
+  color: var(--kt-accent, #4f46e5);
+}
+.key-takeaways--heading .key-takeaways__list {
+  color: var(--kt-text, #1f2937);
+  border-top-color: color-mix(in oklab, var(--kt-accent, #4f46e5) 30%, transparent);
+}
+.dark .key-takeaways--heading .key-takeaways__list {
+  color: var(--kt-text-dark, #e5e7eb);
+}
+.key-takeaways__bullet {
+  background: var(--kt-accent, #4f46e5);
+}
