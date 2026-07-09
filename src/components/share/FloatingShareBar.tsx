@@ -1,6 +1,7 @@
 // Floating reading rail - sticky left-side rail on long-form content.
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
+import { XIcon } from "@/components/atoms/XIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   // Twitter removed

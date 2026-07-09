@@ -2,6 +2,7 @@
 // breadcrumbs, reading-time, share-buttons, post-views.
 // Czytają CurrentPostCtx; bez side-effectów, bezpieczne dla SSR.
 
+import { XIcon } from "@/components/atoms/XIcon";
 import { useMemo, useState, useCallback } from "react";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";

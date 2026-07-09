@@ -1,5 +1,6 @@
 // Publiczny renderer BlocksDoc. SSR-friendly, czysto prezentacyjny.
 
+import { XIcon } from "@/components/atoms/XIcon";
 import { useRef } from "react";
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import { FootnoteTooltips } from "@/components/Footnotes";

@@ -1,3 +1,4 @@
+import { XIcon } from "@/components/atoms/XIcon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
