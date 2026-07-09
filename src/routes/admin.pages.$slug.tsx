@@ -191,6 +191,8 @@ function EditPage() {
             template_type: snapshot.template_type,
             header_override: snapshot.header_override,
             toc_override: snapshot.toc_override ?? null,
+            takeaways_pl: snapshot.takeaways_pl ?? [],
+            takeaways_en: snapshot.takeaways_en ?? [],
             seo_title_pl: snapshot.seo_title_pl,
             seo_title_en: snapshot.seo_title_en,
             seo_description_pl: snapshot.seo_description_pl,
