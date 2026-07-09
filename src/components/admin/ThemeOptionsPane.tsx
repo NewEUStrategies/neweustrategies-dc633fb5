@@ -36,7 +36,7 @@ import {
   MousePointerClick,
   Pencil,
   Brush,
-  Type,
+  Heading1,
   Palette,
 } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
