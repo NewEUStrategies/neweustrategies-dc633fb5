@@ -469,15 +469,26 @@ export function JoinUsForm({
   const phCompany = companyPlaceholder || (lang === "en" ? "Company" : "Firma");
   const phCountry = countryPlaceholder || (lang === "en" ? "Country" : "Kraj");
 
+  // Kontener: domyślnie `bg-card` (global colors); gdy operator ustawi
+  // `bgLight`/`bgDark` (w tym "transparent") - drop `bg-card` i użyj CSS
+  // vars ze scoped <style> poniżej.
+  const bgClass = hasCustomBg ? "" : "bg-card";
   const containerCls =
     (variant === "inline"
       ? "border-t border-b border-border py-6"
       : variant === "split"
-        ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
+        ? `grid gap-6 rounded-xl border border-border ${bgClass} p-6 sm:p-8 md:grid-cols-2`
         : variant === "split-image"
-          ? "grid gap-0 overflow-hidden rounded-xl border border-border bg-card md:grid-cols-2"
-          : "rounded-xl border border-border bg-card p-6 sm:p-8") +
+          ? `grid gap-0 overflow-hidden rounded-xl border border-border ${bgClass} md:grid-cols-2`
+          : `rounded-xl border border-border ${bgClass} p-6 sm:p-8`) +
     ` join-us-shell join-us-shell--${variant}`;
+
+  const bgStyleTag = hasCustomBg ? (
+    <style>{
+      `[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
+      `.dark [data-jus-id="${jusId}"]{background:${bgDark || bgLight || "var(--card)"} !important;}`
+    }</style>
+  ) : null;
 
 
   if (state === "ok") {
