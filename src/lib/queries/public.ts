@@ -176,7 +176,7 @@ export const homePageQueryOptions = () =>
         // is never read through direct body-column selects. Excerpts + SEO
         // overrides are included so the homepage head() (src/routes/index.tsx)
         // resolves the static page's own SEO fields like any other page.
-        const cols = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, ${SEO_FIELDS_SELECT}`;
+        const cols = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, takeaways_pl, takeaways_en, ${SEO_FIELDS_SELECT}`;
 
         let row: Record<string, unknown> | null = null;
         if (reading.homepage_mode === "static_page") {
