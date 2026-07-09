@@ -287,6 +287,7 @@ function EditPost() {
             layout_overrides: snapshot.layout_overrides,
             takeaways_pl: snapshot.takeaways_pl ?? [],
             takeaways_en: snapshot.takeaways_en ?? [],
+            toc_override: snapshot.toc_override ?? null,
             custom_meta: snapshot.custom_meta ?? null,
             related_override: snapshot.related_override ?? null,
             seo_title_pl: snapshot.seo_title_pl,
