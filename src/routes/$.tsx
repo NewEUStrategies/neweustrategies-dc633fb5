@@ -661,6 +661,24 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       (post as unknown as { sidebar_layout_id?: string | null })
                         .sidebar_layout_id ?? null
                     }
+                    listen={
+                      format !== "audio" && format !== "video"
+                        ? {
+                            postId: post.id,
+                            title,
+                            author:
+                              postAuthor?.display_name ||
+                              [postAuthor?.first_name, postAuthor?.last_name]
+                                .filter(Boolean)
+                                .join(" ") ||
+                              null,
+                            authorHref: postAuthor?.slug
+                              ? `/author/${postAuthor.slug}`
+                              : null,
+                            readMinutes: post.read_minutes ?? null,
+                          }
+                        : null
+                    }
                   />
                 ) : (
                   <FloatingShareBar title={title} lang={lang} variant="sidebar" />
