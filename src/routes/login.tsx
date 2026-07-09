@@ -376,7 +376,7 @@ function LoginPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={isPl ? "Jan Kowalski" : "Jane Doe"}
-                  className="pl-10 h-12"
+                  className="pl-11 h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
               </Field>
             )}
@@ -389,7 +389,7 @@ function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="youremail@example.com"
-                className="pl-10 h-12"
+                className="pl-11 h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
               />
             </Field>
 
@@ -416,13 +416,13 @@ function LoginPage() {
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="pl-10 pr-10 h-12"
+                  placeholder={isPl ? "Minimum 6 znaków" : "At least 6 characters"}
+                  className="pl-11 pr-11 h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground transition-colors p-1 rounded-md"
                   aria-label={showPw ? t.hidePw : t.showPw}
                 >
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
