@@ -152,6 +152,7 @@ export function JoinUsForm({
   imageFit = "cover",
   bgLight,
   bgDark,
+  perkIconColor,
 
   title,
   subtitle,
