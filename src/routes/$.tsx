@@ -563,13 +563,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     withPlaceholders={!hasBullets && isTextPost}
                   />
                 )}
-                {isPost && isTextPost && (
-                  <PostListenBar
-                    postId={it.id}
-                    lang={lang}
-                    readMinutes={readMinutes}
-                  />
-                )}
+                {/* Widget odsłuchu został przeniesiony do sidebar (nad "Spis treści"). */}
                 {isPost && (
                   <InlineToc
                     blocksDoc={blocksDoc}
