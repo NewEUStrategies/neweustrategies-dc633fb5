@@ -26,6 +26,37 @@ export interface AudioTrackMeta {
 
 export type AudioStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
+/**
+ * Etapy konwersji tekst -> audio przez ElevenLabs.
+ * - idle: brak aktywnej konwersji
+ * - preparing: żądanie wysyłane, serwer pobiera treść wpisu
+ * - synthesizing: ElevenLabs generuje audio (czekamy na pierwsze bajty)
+ * - streaming: strumieniowanie audio do przeglądarki
+ * - ready: gotowe do odtwarzania
+ * - cached: audio już było w cache (natychmiastowe)
+ * - error: błąd na dowolnym etapie
+ */
+export type TtsStage =
+  | "idle"
+  | "preparing"
+  | "synthesizing"
+  | "streaming"
+  | "ready"
+  | "cached"
+  | "error";
+
+export interface TtsProgress {
+  stage: TtsStage;
+  /** 0-100 - procentowy postęp jeśli znany (streaming). */
+  percent: number;
+  /** Odebrane bajty (streaming). */
+  bytes: number;
+  /** Total bajty jeśli serwer podał Content-Length. */
+  totalBytes: number | null;
+  /** ms od startu konwersji, do wyświetlenia telemetrii. */
+  elapsedMs: number;
+}
+
 interface AudioTrackState extends AudioTrackMeta {
   blobUrl: string;
 }
@@ -37,6 +68,8 @@ interface GlobalPlayerContextValue {
   duration: number;
   progress: number;
   error: string | null;
+  /** Aktualny etap konwersji TTS (dla widgetów pokazujących postęp). */
+  tts: TtsProgress;
   /** True, gdy `postId` jest aktualnie załadowany (niezależnie od stanu play/pause). */
   isActive: (postId: string, lang: "pl" | "en") => boolean;
   loadAndPlay: (meta: AudioTrackMeta) => Promise<void>;
@@ -46,6 +79,15 @@ interface GlobalPlayerContextValue {
   close: () => void;
   download: (meta?: AudioTrackMeta) => Promise<void>;
 }
+
+const INITIAL_TTS: TtsProgress = {
+  stage: "idle",
+  percent: 0,
+  bytes: 0,
+  totalBytes: null,
+  elapsedMs: 0,
+};
+
 
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
 
