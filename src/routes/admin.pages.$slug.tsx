@@ -44,6 +44,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
+import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
