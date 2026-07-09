@@ -263,10 +263,36 @@ function TocTab({
         overridden={value.enabled !== null && value.enabled !== undefined}
         onClear={() => patch({ enabled: null })}
       >
-        <Switch
-          checked={value.enabled ?? defaults.enabled}
-          onCheckedChange={(v) => patch({ enabled: v })}
-        />
+        <div className="flex gap-1">
+          {(
+            [
+              { id: null, label: "Globalny" },
+              { id: true, label: "Włącz" },
+              { id: false, label: "Brak ToC" },
+            ] as const
+          ).map((opt) => {
+            const cur = value.enabled ?? null;
+            const on = cur === opt.id;
+            return (
+              <button
+                key={String(opt.id)}
+                type="button"
+                onClick={() => patch({ enabled: opt.id })}
+                aria-pressed={on}
+                className={cn(
+                  "h-7 px-2 rounded-md border text-[11px] font-medium transition",
+                  on
+                    ? opt.id === false
+                      ? "border-destructive bg-destructive/10 text-destructive"
+                      : "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:bg-muted",
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </RowOverride>
 
       <RowOverride
