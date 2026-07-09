@@ -855,7 +855,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   }
 
   const parts: string[] = [];
-  if (rootLines.length) parts.push(`:root{${rootLines.join("")}}`);
+  if (rootLines.length) parts.push(`:root,.light{${rootLines.join("")}}`);
   if (darkLines.length) parts.push(`.dark{${darkLines.join("")}}`);
 
   // Widget bridge: map global colors to widget elements with specificity 0

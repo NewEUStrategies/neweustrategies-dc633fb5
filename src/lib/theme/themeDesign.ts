@@ -18,19 +18,80 @@ const PX = z
   .transform((v) => (typeof v === "number" ? `${v}px` : v));
 const COLOR = z.string().min(1);
 
-// All color defaults inherit — in order — from the sibling Theme Options
+// All color defaults inherit - in order - from the sibling Theme Options
 // tabs (Global kolory, Tła motywu, Przyciski, Pola tekstowe, Kolory ikon,
 // Kolory linków, Kolory pól tekstowych) via `--gc-*` CSS variables, with a
 // themed shadcn token as a last-resort fallback. Global Colors already emit
-// per-mode `.dark` overrides, so Theme Design values automatically flip in
-// dark mode without any explicit override.
+// per-mode `.light` / `.dark` overrides, so Theme Design values automatically
+// flip in CMS canvases and public pages without hard-coded copies.
+export const THEME_DESIGN_COLOR_INHERITANCE = {
+  blockHeading: {
+    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+  },
+  readMoreButton: {
+    bgColor: { token: "transparent", hint: "Przezroczyste" },
+    color: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
+    borderColor: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
+  },
+  metaInfo: {
+    color: {
+      token: "var(--gc-body-text-muted, var(--muted-foreground))",
+      hint: "Kolory pól tekstowych (muted)",
+    },
+  },
+  toolbarButton: {
+    bgColor: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
+    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+    hoverBgColor: {
+      token: "var(--gc-input-hover-bg, color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent))",
+      hint: "Pola tekstowe - hover",
+    },
+    hoverColor: {
+      token: "var(--gc-body-text, var(--foreground))",
+      hint: "Kolory pól tekstowych",
+    },
+    activeBgColor: { token: "var(--gc-btn-bg, #fa9346)", hint: "Przyciski - tło" },
+    activeColor: { token: "var(--gc-btn-text, #ffffff)", hint: "Przyciski - tekst" },
+  },
+  modeSwitcher: {
+    trackBg: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
+    trackBorder: { token: "var(--gc-input-border, var(--border))", hint: "Pola tekstowe - obramowanie" },
+    inactiveColor: {
+      token: "var(--gc-body-text-muted, var(--muted-foreground))",
+      hint: "Kolory pól tekstowych (muted)",
+    },
+    activeBg: { token: "var(--gc-surface-bg, var(--background))", hint: "Tła motywu - surface" },
+    activeColor: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+  },
+  socialIcons: {
+    color: { token: "var(--gc-icon, var(--foreground))", hint: "Kolory ikon" },
+    hoverColor: { token: "var(--gc-icon-hover, var(--brand))", hint: "Kolory ikon - hover" },
+    bgColor: { token: "transparent", hint: "Przezroczyste" },
+    hoverBgColor: { token: "transparent", hint: "Przezroczyste" },
+  },
+  listIndex: {
+    colorLight: { token: "var(--gc-body-text, #231f20)", hint: "Kolory pól tekstowych" },
+    colorDark: { token: "var(--gc-highlight, #fa9346)", hint: "Global kolory - highlight" },
+  },
+  postTitle: {
+    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+    hoverColor: { token: "var(--gc-link-hover, var(--brand))", hint: "Kolory linków - hover" },
+  },
+  postExcerpt: {
+    color: {
+      token: "var(--gc-body-text-muted, var(--muted-foreground))",
+      hint: "Kolory pól tekstowych (muted)",
+    },
+  },
+} as const;
+
 const ThemeDesignSchema = z
   .object({
     blockHeading: z
       .object({
         fontSize: PX.default("18px"),
         fontWeight: z.number().min(100).max(900).default(700),
-        color: COLOR.default("var(--gc-body-text, var(--foreground))"),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.blockHeading.color.token),
         textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
         letterSpacing: PX.default("0px"),
         marginBottom: PX.default("16px"),
@@ -48,9 +109,9 @@ const ThemeDesignSchema = z
     readMoreButton: z
       .object({
         // Inherits from the "Przyciski" tab.
-        bgColor: COLOR.default("transparent"),
-        color: COLOR.default("var(--gc-btn-bg, var(--brand))"),
-        borderColor: COLOR.default("var(--gc-btn-bg, var(--brand))"),
+        bgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.readMoreButton.bgColor.token),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.readMoreButton.color.token),
+        borderColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.readMoreButton.borderColor.token),
         radius: PX.default("9999px"),
         paddingX: PX.default("16px"),
         paddingY: PX.default("8px"),
@@ -63,7 +124,7 @@ const ThemeDesignSchema = z
       .object({
         // Inherits from "Kolory pól tekstowych" (muted body text).
         fontSize: PX.default("13px"),
-        color: COLOR.default("var(--gc-body-text-muted, var(--muted-foreground))"),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.metaInfo.color.token),
         uppercase: z.boolean().default(false),
         gap: PX.default("12px"),
         separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
@@ -72,14 +133,12 @@ const ThemeDesignSchema = z
     toolbarButton: z
       .object({
         // Toolbar surface inherits from "Pola tekstowe"; active state from "Przyciski".
-        bgColor: COLOR.default("var(--gc-input-bg, var(--muted))"),
-        color: COLOR.default("var(--gc-body-text, var(--foreground))"),
-        hoverBgColor: COLOR.default(
-          "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
-        ),
-        hoverColor: COLOR.default("var(--gc-body-text, var(--foreground))"),
-        activeBgColor: COLOR.default("var(--gc-btn-bg, #fa9346)"),
-        activeColor: COLOR.default("var(--gc-btn-text, #ffffff)"),
+        bgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.bgColor.token),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.color.token),
+        hoverBgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.hoverBgColor.token),
+        hoverColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.hoverColor.token),
+        activeBgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.activeBgColor.token),
+        activeColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.activeColor.token),
         radius: PX.default("6px"),
         paddingX: PX.default("8px"),
         paddingY: PX.default("6px"),
@@ -90,11 +149,11 @@ const ThemeDesignSchema = z
       .object({
         // Track = "Pola tekstowe", inactive = "Kolory pól tekstowych" muted,
         // active surface = "Tła motywu", active text = body text.
-        trackBg: COLOR.default("var(--gc-input-bg, var(--muted))"),
-        trackBorder: COLOR.default("var(--gc-input-border, var(--border))"),
-        inactiveColor: COLOR.default("var(--gc-body-text-muted, var(--muted-foreground))"),
-        activeBg: COLOR.default("var(--gc-surface-bg, var(--background))"),
-        activeColor: COLOR.default("var(--gc-body-text, var(--foreground))"),
+        trackBg: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.trackBg.token),
+        trackBorder: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.trackBorder.token),
+        inactiveColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.inactiveColor.token),
+        activeBg: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.activeBg.token),
+        activeColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.activeColor.token),
         radius: PX.default("6px"),
         showLabel: z.boolean().default(true),
       })
@@ -102,10 +161,10 @@ const ThemeDesignSchema = z
     socialIcons: z
       .object({
         // Inherits from "Kolory ikon".
-        color: COLOR.default("var(--gc-icon, var(--foreground))"),
-        hoverColor: COLOR.default("var(--gc-icon-hover, var(--brand))"),
-        bgColor: COLOR.default("transparent"),
-        hoverBgColor: COLOR.default("transparent"),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.socialIcons.color.token),
+        hoverColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.socialIcons.hoverColor.token),
+        bgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.socialIcons.bgColor.token),
+        hoverBgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.socialIcons.hoverBgColor.token),
         size: PX.default("18px"),
         gap: PX.default("8px"),
         radius: PX.default("9999px"),
@@ -117,8 +176,8 @@ const ThemeDesignSchema = z
       .object({
         // Global defaults for "numbered" / "ranked" post-list variants.
         // Used when the individual widget does not override colors.
-        colorLight: COLOR.default("var(--gc-body-text, #231f20)"),
-        colorDark: COLOR.default("var(--gc-highlight, #fa9346)"),
+        colorLight: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.listIndex.colorLight.token),
+        colorDark: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.listIndex.colorDark.token),
         opacity: z.number().min(0).max(1).default(0.18),
         weight: z.number().min(100).max(900).default(800),
       })
@@ -134,8 +193,8 @@ const ThemeDesignSchema = z
         fontSizeSm: PX.default("14px"),
         fontWeight: z.number().min(100).max(900).default(600),
         lineHeight: z.union([z.number(), z.string()]).default(1.3),
-        color: COLOR.default("var(--gc-body-text, var(--foreground))"),
-        hoverColor: COLOR.default("var(--gc-link-hover, var(--brand))"),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.postTitle.color.token),
+        hoverColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.postTitle.hoverColor.token),
         textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
         letterSpacing: PX.default("0px"),
       })
@@ -149,7 +208,7 @@ const ThemeDesignSchema = z
         fontSize: PX.default("13px"),
         fontWeight: z.number().min(100).max(900).default(400),
         lineHeight: z.union([z.number(), z.string()]).default(1.5),
-        color: COLOR.default("var(--gc-body-text-muted, var(--muted-foreground))"),
+        color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.postExcerpt.color.token),
         marginTop: PX.default("6px"),
       })
       .default({}),
@@ -169,6 +228,92 @@ export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
 
 export const THEME_DESIGN_DEFAULTS: ThemeDesign = ThemeDesignSchema.parse({});
 
+const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> = {
+  blockHeading: {
+    color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#231f20", "#1f2937", "oklch(0.18 0 0)"],
+  },
+  readMoreButton: {
+    bgColor: ["transparent"],
+    color: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#fa9346", "#f59e0b"],
+    borderColor: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#fa9346", "#f59e0b"],
+  },
+  metaInfo: {
+    color: ["var(--muted-foreground)", "hsl(var(--muted-foreground))", "#6b7280", "#71717a", "#9ca3af"],
+  },
+  toolbarButton: {
+    bgColor: ["var(--muted)", "hsl(var(--muted))", "#f4f4ef", "#1f1f1f"],
+    color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#f8f6f4", "#ffffff"],
+    hoverBgColor: [
+      "color-mix(in oklab, var(--muted) 70%, transparent)",
+      "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
+    ],
+    hoverColor: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff"],
+    activeBgColor: ["var(--brand)", "var(--primary)", "#fa9346", "#f59e0b"],
+    activeColor: ["var(--primary-foreground)", "#ffffff", "#fff"],
+  },
+  modeSwitcher: {
+    trackBg: ["var(--muted)", "hsl(var(--muted))", "#f4f4ef", "#1f1f1f"],
+    trackBorder: ["var(--border)", "hsl(var(--border))", "#e2e8f0", "#1f1f1f"],
+    inactiveColor: ["var(--muted-foreground)", "hsl(var(--muted-foreground))", "#6b7280", "#9ca3af"],
+    activeBg: ["var(--background)", "hsl(var(--background))", "#ffffff", "#0f0f0f", "#141414"],
+    activeColor: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff"],
+  },
+  socialIcons: {
+    color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff", "#6b7280"],
+    hoverColor: ["var(--brand)", "var(--primary)", "#fa9346", "#fdb078", "#f59e0b"],
+    bgColor: ["transparent"],
+    hoverBgColor: ["transparent"],
+  },
+  listIndex: {
+    colorLight: ["#231f20", "#141414", "var(--foreground)", "hsl(var(--foreground))"],
+    colorDark: ["#fa9346", "#f59e0b", "var(--brand)", "var(--primary)", "var(--gc-highlight)"],
+  },
+  postTitle: {
+    color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#231f20", "#1f2937"],
+    hoverColor: ["var(--brand)", "var(--primary)", "#fa9346", "#fdb078", "#f59e0b"],
+  },
+  postExcerpt: {
+    color: ["var(--muted-foreground)", "hsl(var(--muted-foreground))", "#6b7280", "#71717a", "#9ca3af"],
+  },
+};
+
+function canonicalColorValue(value: string): string {
+  return normalizeColor(value).trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function isLegacyInheritedColor(section: string, field: string, value: string): boolean {
+  const legacy = LEGACY_INHERIT_VALUES[section]?.[field] ?? [];
+  const current = canonicalColorValue(value);
+  return legacy.some((entry) => canonicalColorValue(entry) === current);
+}
+
+function normalizeLegacyInheritedColors(t: ThemeDesign): ThemeDesign {
+  for (const section of Object.keys(THEME_DESIGN_COLOR_INHERITANCE)) {
+    const sectionRecord = t[section as keyof ThemeDesign] as Record<string, unknown>;
+    const inheritance = THEME_DESIGN_COLOR_INHERITANCE[section as keyof typeof THEME_DESIGN_COLOR_INHERITANCE];
+    for (const field of Object.keys(inheritance)) {
+      const current = sectionRecord[field];
+      const target = inheritance[field as keyof typeof inheritance].token;
+      if (
+        typeof current === "string" &&
+        canonicalColorValue(current) !== canonicalColorValue(target) &&
+        isLegacyInheritedColor(section, field, current)
+      ) {
+        sectionRecord[field] = target;
+      }
+      const overrideSection = t.darkOverrides?.[section];
+      const override = overrideSection?.[field];
+      if (overrideSection && typeof override === "string" && isLegacyInheritedColor(section, field, override)) {
+        delete overrideSection[field];
+      }
+    }
+    if (t.darkOverrides?.[section] && Object.keys(t.darkOverrides[section]).length === 0) {
+      delete t.darkOverrides[section];
+    }
+  }
+  return t;
+}
+
 const KEY = "theme_design";
 const KEY_EN = "theme_design_en";
 const KEY_LANG_MODE = "theme_design_lang_mode";
@@ -187,7 +332,7 @@ function loadFromMap(map: Record<string, unknown>, key: string): ThemeDesign {
   const raw = map[key] ?? {};
   const merged = deepMerge(THEME_DESIGN_DEFAULTS, raw as Record<string, unknown>);
   const parsed = ThemeDesignSchema.safeParse(merged);
-  return parsed.success ? parsed.data : THEME_DESIGN_DEFAULTS;
+  return parsed.success ? normalizeLegacyInheritedColors(parsed.data) : THEME_DESIGN_DEFAULTS;
 }
 
 export function useThemeDesign() {
@@ -412,7 +557,7 @@ export function themeDesignToCss(t: ThemeDesign): string {
     }
   }
 
-  const parts = [`:root{${light.join("")}}`];
+  const parts = [`:root,.light{${light.join("")}}`];
   if (dark.length > 0) {
     parts.push(`.dark{${dark.join("")}}`);
   }
