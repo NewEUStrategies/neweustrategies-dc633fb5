@@ -3221,3 +3221,25 @@ textarea::placeholder {
   font-size: var(--fs-code, 0.875rem);
 }
 
+
+/* -------------------------------------------------------------
+ * Global input UX: hide placeholder on focus, restore on blur.
+ * Applies to every form field project-wide (inputs, textareas,
+ * [contenteditable]). Placeholder naturally returns when the
+ * field is empty and loses focus - no JS needed.
+ * ------------------------------------------------------------- */
+input:focus::placeholder,
+textarea:focus::placeholder,
+input:focus::-webkit-input-placeholder,
+textarea:focus::-webkit-input-placeholder {
+  opacity: 0;
+  color: transparent;
+  transition: opacity 120ms ease-out;
+}
+input::placeholder,
+textarea::placeholder {
+  transition: opacity 120ms ease-out;
+}
+[contenteditable][data-placeholder]:focus::before {
+  content: "" !important;
+}
