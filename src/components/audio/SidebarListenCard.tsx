@@ -2,8 +2,9 @@
 // Steruje globalnym playerem: pierwsze kliknięcie ładuje audio i uruchamia
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Download, Play, Pause } from "@/lib/lucide-shim";
+import { toast } from "sonner";
 
 const HeadphonesIcon = ({ className }: { className?: string }) => (
   <svg
@@ -47,8 +48,11 @@ const COPY = {
     play: "Odtwórz",
     pause: "Pauza",
     download: "Pobierz MP3",
+    downloading: "Pobieram audio…",
+    downloadFailed: "Nie udało się pobrać audio",
     retry: "Spróbuj ponownie",
     error: "Nie udało się wygenerować audio",
+    seek: "Przewiń materiał",
   },
   en: {
     label: "Listen to this article",
@@ -58,10 +62,16 @@ const COPY = {
     play: "Play",
     pause: "Pause",
     download: "Download MP3",
+    downloading: "Downloading audio…",
+    downloadFailed: "Download failed",
     retry: "Try again",
     error: "Could not generate audio",
+    seek: "Seek audio",
   },
 } as const;
+
+const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export function SidebarListenCard({
   postId,
@@ -78,6 +88,9 @@ export function SidebarListenCard({
   const loading = isThis && player.status === "loading";
   const playing = isThis && player.status === "playing";
   const errored = isThis && player.status === "error";
+
+  const [scrub, setScrub] = useState<number | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const meta: AudioTrackMeta = useMemo(
     () => ({
@@ -96,19 +109,36 @@ export function SidebarListenCard({
   const approxMin =
     readMinutes && readMinutes > 0 ? Math.max(1, Math.round(readMinutes * 1.15)) : null;
 
+  const duration = isThis ? player.duration : 0;
+  const currentTime = isThis ? player.currentTime : 0;
+  const displayTime = scrub ?? currentTime;
+  const displayPct = duration > 0 ? (displayTime / duration) * 100 : 0;
+  const showProgress = isThis && duration > 0;
+
   const onPrimary = () => {
     if (loading) return;
     if (isThis) void player.toggle();
     else void player.loadAndPlay(meta);
   };
 
-  const onSeek = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = ((e.clientX - rect.left) / rect.width) * 100;
-    player.seekPct(pct);
+  const commitSeek = (v: number) => {
+    player.seek(v);
+    setScrub(null);
   };
 
-  const showProgress = isThis && player.duration > 0;
+  const onDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      // Jeśli to nie jest aktywny track, załaduj go najpierw.
+      if (!isThis) await player.loadAndPlay(meta);
+      await player.download();
+    } catch {
+      toast.error(t.downloadFailed);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <aside
@@ -136,21 +166,22 @@ export function SidebarListenCard({
           onClick={onPrimary}
           disabled={loading}
           aria-label={playing ? t.pause : t.play}
+          aria-pressed={playing}
           className={[
             "group relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
             "bg-brand text-brand-foreground shadow-lg shadow-brand/25",
             "hover:brightness-110 hover:shadow-brand/40 active:scale-95",
             "transition disabled:opacity-70",
+            FOCUS_RING,
           ].join(" ")}
         >
           {loading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
           ) : playing ? (
-            <Pause className="h-5 w-5" />
+            <Pause className="h-5 w-5" aria-hidden />
           ) : (
-            <Play className="h-5 w-5 translate-x-[1px]" />
+            <Play className="h-5 w-5 translate-x-[1px]" aria-hidden />
           )}
-          {/* Pulse when playing */}
           {playing && (
             <span
               aria-hidden
@@ -164,12 +195,15 @@ export function SidebarListenCard({
           <div className="text-[12.5px] font-semibold text-foreground truncate">
             {loading ? t.subLoading : errored ? t.error : t.subReady}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums">
+          <div
+            className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums"
+            aria-live="off"
+          >
             {showProgress ? (
               <>
-                <span>{formatAudioTime(player.currentTime)}</span>
+                <span>{formatAudioTime(displayTime)}</span>
                 <span aria-hidden>/</span>
-                <span>{formatAudioTime(player.duration)}</span>
+                <span>{formatAudioTime(duration)}</span>
               </>
             ) : approxMin ? (
               <span>{t.approx.replace("{min}", String(approxMin))}</span>
@@ -180,45 +214,69 @@ export function SidebarListenCard({
         </div>
       </div>
 
-      {/* Progress bar - klikalny gdy audio jest załadowane */}
-      <div className="relative mt-3">
-        <button
-          type="button"
-          onClick={onSeek}
+      {/* Slider */}
+      <div
+        className={[
+          "relative mt-3 h-4 flex items-center",
+          "rounded-full",
+          "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
+        ].join(" ")}
+      >
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-muted" />
+        <div
+          className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-brand transition-[width] duration-150"
+          style={{ width: `${displayPct}%` }}
+        />
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={displayTime}
           disabled={!showProgress}
-          aria-label="Seek"
-          className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted cursor-pointer disabled:cursor-default"
-        >
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-brand transition-[width] duration-150"
-            style={{ width: `${isThis ? player.progress : 0}%` }}
-          />
-        </button>
+          onChange={(e) => setScrub(Number(e.target.value))}
+          onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+          onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+          onBlur={(e) => {
+            if (scrub !== null) commitSeek(Number(e.target.value));
+          }}
+          aria-label={t.seek}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(duration, 0)}
+          aria-valuenow={Math.floor(displayTime)}
+          aria-valuetext={`${formatAudioTime(displayTime)} / ${formatAudioTime(duration)}`}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+        />
       </div>
 
       {/* Akcje */}
       <div className="relative mt-2.5 flex items-center gap-1.5">
         <button
           type="button"
-          onClick={() => void player.download()}
-          disabled={!isThis || loading || errored}
+          onClick={() => void onDownload()}
+          disabled={downloading || loading}
           className={[
             "inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5",
             "text-[11px] font-semibold text-muted-foreground",
             "hover:text-brand hover:bg-background border border-border/60",
             "transition disabled:opacity-50 disabled:cursor-not-allowed",
+            FOCUS_RING,
           ].join(" ")}
-          aria-label={t.download}
+          aria-label={downloading ? t.downloading : t.download}
           title={t.download}
         >
-          <Download className="h-3.5 w-3.5" />
+          {downloading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Download className="h-3.5 w-3.5" aria-hidden />
+          )}
           <span>MP3</span>
         </button>
         {errored && (
           <button
             type="button"
             onClick={() => void player.loadAndPlay(meta)}
-            className="text-[11px] font-semibold text-brand underline hover:no-underline ml-auto"
+            className={`text-[11px] font-semibold text-brand underline hover:no-underline ml-auto rounded-sm ${FOCUS_RING}`}
           >
             {t.retry}
           </button>
