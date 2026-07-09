@@ -82,7 +82,7 @@ function KeyTakeawaysAdmin() {
       <header className="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            {isPL ? "Sekcja: „Z tego artykułu dowiesz się…"" : "Section: "From this article you will learn…""}
+            {isPL ? "Sekcja: \u201eZ tego artykułu dowiesz się\u2026\u201d" : "Section: \u201cFrom this article you will learn\u2026\u201d"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             {isPL
