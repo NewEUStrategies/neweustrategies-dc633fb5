@@ -194,16 +194,25 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     setError(null);
   }, []);
 
-  const download = useCallback(async () => {
-    if (!track) return;
-    const url = track.blobUrl;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${sanitizeFilename(track.title)}.mp3`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }, [track]);
+  const download = useCallback(
+    async (meta?: AudioTrackMeta) => {
+      // Determine target: explicit meta wins, else currently loaded track.
+      const target = meta ?? track;
+      if (!target) return;
+      const url =
+        "blobUrl" in target && target.blobUrl
+          ? target.blobUrl
+          : await fetchBlob(target.postId, target.lang);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${sanitizeFilename(target.title)}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    },
+    [track, fetchBlob],
+  );
+
 
   const isActive = useCallback(
     (postId: string, lang: "pl" | "en") =>
