@@ -199,6 +199,66 @@ function KeyTakeawaysAdmin() {
             </div>
           </section>
 
+          {/* Podświetlenie pierwszych N słów (dotyczy głównie wariantu ghost) */}
+          <section className="space-y-2">
+            <Label className="text-sm font-semibold">
+              {isPL ? "Podświetlenie słów (wariant Ghost)" : "Word highlight (Ghost variant)"}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {isPL
+                ? "Wybrana liczba pierwszych słów etykiety zostanie pokolorowana wybranym kolorem - z zachowaniem tej samej transparentności co reszta napisu."
+                : "The first N words of the label are painted with the picked color, keeping the same transparency as the rest of the ghost text."}
+            </p>
+            <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {isPL ? "Liczba słów" : "Word count"}
+                </Label>
+                <div className="flex gap-1 mt-1">
+                  {[0, 1, 2, 3].map((n) => {
+                    const active = (draft.highlight?.words ?? 0) === n;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() =>
+                          update("highlight", {
+                            words: n,
+                            color: draft.highlight?.color ?? draft.colors.accent,
+                          })
+                        }
+                        className={`flex-1 h-9 rounded-md border text-sm font-medium transition ${
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:bg-muted"
+                        }`}
+                      >
+                        {n === 0 ? (isPL ? "Off" : "Off") : n}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {isPL ? "Kolor" : "Color"}
+                </Label>
+                <div className="mt-1">
+                  <AdminColorPicker
+                    value={draft.highlight?.color ?? draft.colors.accent}
+                    onChange={(v) =>
+                      update("highlight", {
+                        words: draft.highlight?.words ?? 1,
+                        color: v ?? draft.colors.accent,
+                      })
+                    }
+                    ariaLabel={isPL ? "Kolor podświetlenia" : "Highlight color"}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Ikona */}
           <section>
             <Label className="text-sm font-semibold mb-2 block">

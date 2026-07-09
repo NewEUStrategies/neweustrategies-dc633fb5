@@ -3130,9 +3130,6 @@ textarea::placeholder {
    przecinają go w połowie. Overflow:hidden na kontenerze przycina tekst,
    który zawsze idzie w jednym wierszu (whitespace-nowrap). */
 .key-takeaways--ghost {
-  /* Minimalny padding-top - tyle, ile tytuł wystaje ponad środek pierwszej
-     linii listy. Wysokość tytułu ~5rem, pierwsza linia ~2.75rem, więc
-     tytuł wystaje o ~1.125rem ponad górną krawędź listy. */
   padding-top: clamp(0.5rem, 1.5vw, 1.25rem);
 }
 .key-takeaways--ghost .key-takeaways__ghost {
@@ -3141,25 +3138,28 @@ textarea::placeholder {
 }
 .key-takeaways .key-takeaways__ghost-title,
 h2.key-takeaways__ghost-title {
-  /* Kolor przez color-mix z currentColor - działa i na jasnym, i na ciemnym tle. */
-  color: color-mix(in oklab, currentColor 20%, transparent);
-  /* 2.5x powiększenie względem standardowego H2 - wielkość porównywalna
-     do pierwszej linii listy, ale wyraźnie większa. !important, żeby
-     ominąć globalne `.cms-post-h2` / `--td-bh-*` tokeny. */
+  /* Bardzo transparentny - napis ledwo majaczy pod tekstem. */
+  color: color-mix(in oklab, currentColor 11%, transparent);
+  /* 2.5x powiększenie względem standardowego H2. !important, żeby ominąć
+     globalne `.cms-post-h2` / `--td-bh-*` tokeny. */
   font-size: clamp(3rem, 7vw, 5.5rem) !important;
-  line-height: 1 !important;
+  /* line-height 1.15 daje zapas na descendery (g, y, j, p) - nie są przycinane. */
+  line-height: 1.15 !important;
   letter-spacing: -0.03em;
   font-weight: 900;
   z-index: 0;
   top: 0;
   margin: 0;
+  padding: 0;
   /* Środek tytułu wypada w środku pierwszej linii listy (~1.375rem od
      góry listy), przez co pierwszy bullet w całości nachodzi na napis. */
   transform: translateY(calc(1.375rem - 50%));
 }
-.key-takeaways .key-takeaways__ghost-title::first-letter,
-h2.key-takeaways__ghost-title::first-letter {
-  color: var(--kt-accent, #4f46e5);
+/* Podświetlone pierwsze N słów - kolor definiowany przez użytkownika,
+   ale z tą samą transparentnością co reszta napisu ghost. */
+.key-takeaways .key-takeaways__ghost-title .key-takeaways__ghost-title-hl,
+h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
+  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #4f46e5)) 22%, transparent);
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
