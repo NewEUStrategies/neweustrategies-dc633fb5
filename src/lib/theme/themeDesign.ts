@@ -303,14 +303,6 @@ function normalizeColor(c: string): string {
   return c.replace(/hsl\(\s*var\((--[a-z0-9-]+)\)(?:\s*\/\s*[^)]+)?\s*\)/gi, "var($1)");
 }
 
-/** Serializes the design tokens to CSS variables under `:root`. */
-export function themeDesignToCss(t: ThemeDesign): string {
-  const v: string[] = [];
-  // Block heading
-  v.push(`--td-bh-size:${t.blockHeading.fontSize};`);
-  v.push(`--td-bh-weight:${t.blockHeading.fontWeight};`);
-  v.push(`--td-bh-color:${t.blockHeading.color};`);
-  v.push(`--td-bh-transform:${t.blockHeading.textTransform};`);
 /** Serializes the design tokens to CSS variables under `:root` for light mode,
  *  plus a `.dark` selector block for any per-field dark overrides. Empty
  *  overrides fall through to the light value (which itself may reference a
