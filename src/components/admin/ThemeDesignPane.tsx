@@ -1676,17 +1676,15 @@ function NumStepper({ value, onChange, step = 100, min = 0, max = 9999 }: { valu
 }
 
 
-function OverlayTypographyTab() {
-  const { data, isLoading } = usePostLayoutSettings();
-  const save = useSavePostLayoutSettings();
-  if (isLoading || !data) {
-    return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
-  }
-  const patch = (p: Partial<typeof data>) => {
-    save.mutate(p, {
-      onSuccess: () => toast.success("Zapisano rozmiary overlay"),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Błąd zapisu"),
-    });
+function OverlayTypographyTab({
+  draft,
+  onChange,
+}: {
+  draft: NonNullable<ReturnType<typeof usePostLayoutSettings>["data"]>;
+  onChange: (next: NonNullable<ReturnType<typeof usePostLayoutSettings>["data"]>) => void;
+}) {
+  const patch = (p: Partial<typeof draft>) => {
+    onChange({ ...draft, ...p });
   };
   const Row = ({
     label,
@@ -1705,8 +1703,8 @@ function OverlayTypographyTab() {
             <div key={bp} className="space-y-1">
               <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">{bpLabel}</Label>
               <NumStepper
-                value={data[key] as number}
-                onChange={(v) => patch({ [key]: v } as Partial<typeof data>)}
+                value={draft[key] as number}
+                onChange={(v) => patch({ [key]: v } as Partial<typeof draft>)}
                 step={1}
                 min={8}
                 max={200}
@@ -1725,7 +1723,8 @@ function OverlayTypographyTab() {
         <p className="text-xs text-muted-foreground mt-1">
           Rozmiary czcionek (px) dla tytułu, podtytułu i meta (autor / data / czas czytania) renderowanych na cover photo
           oraz w klasycznym nagłówku wpisu. Wartości są responsywne per breakpoint i synchronizowane z ustawieniami w
-          <code className="mx-1">/admin/post-layouts</code>. Zmiana zapisuje się natychmiast.
+          <code className="mx-1">/admin/post-layouts</code>. Zmiany są trzymane w wersji roboczej i zapisują się dopiero
+          po kliknięciu „Zapisz wszystko".
         </p>
       </div>
       <div className="space-y-4">
