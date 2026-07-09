@@ -117,6 +117,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           onChange={(e) => set({ variant: e.target.value })}
         >
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
+          <option value="split">Split (kolorowy panel)</option>
           <option value="inline">Inline</option>
           <option value="minimal">Minimalna</option>
         </AdminSelect>
