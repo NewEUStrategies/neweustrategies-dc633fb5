@@ -65,6 +65,7 @@ import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
 import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
+import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
