@@ -1047,6 +1047,15 @@ function LivePostPreview({
       .replace(".dark{", ".theme-design-live-preview.dark{");
   }, [draft]);
 
+  // Parallel path: apply the same tokens as React inline style variables on
+  // the preview root. React diffs and writes each variable directly on the
+  // element on every draft change, which is bulletproof reactive even when
+  // the `<style>` innerHTML update path gets throttled or stale.
+  const inlineVars = useMemo(
+    () => themeDesignToStyleVars(draft, previewMode),
+    [draft, previewMode],
+  );
+
   const copy = previewLang === "en"
     ? {
         eyebrow: "Latest analyses",
@@ -1087,6 +1096,7 @@ function LivePostPreview({
 
   const isDark = previewMode === "dark";
   const rootStyle: CSSProperties = {
+    ...(inlineVars as CSSProperties),
     background: "var(--gc-body-bg, var(--background))",
     color: "var(--gc-body-text, var(--foreground))",
   };
