@@ -844,6 +844,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(
         <JoinUsForm
           variant={variant}
+          bgLight={getStr(c, "bgLight") || undefined}
+          bgDark={getStr(c, "bgDark") || undefined}
           imageUrl={imageUrl}
           imageAlt={imageAlt}
           imageAltEn={imageAltEn}

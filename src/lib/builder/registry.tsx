@@ -265,6 +265,8 @@ export const WIDGETS: WidgetDef[] = [
     icon: UserPlus,
     defaults: () => ({
       variant: "split",
+      bgLight: "",
+      bgDark: "",
       showInterests: "1",
       title_pl: "",
       title_en: "",

@@ -927,6 +927,11 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
 
+    // ----- Wygląd / tło (domyślnie: global colors, dopuszcza transparent) -----
+    { key: "bgLight", type: "color", label: "Tło (light mode)", hint: "Puste = tło z global colors. Możesz też ustawić transparent." },
+    { key: "bgDark", type: "color", label: "Tło (dark mode)", hint: "Puste = tło z global colors. Możesz też ustawić transparent." },
+
+
     // --- Obszar grafiki (aktywny w wariancie "split-image")
     {
       key: "imageUrl",

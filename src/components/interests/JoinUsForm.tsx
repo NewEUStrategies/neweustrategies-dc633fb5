@@ -7,7 +7,7 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
@@ -51,6 +51,13 @@ export interface JoinUsFormProps {
   imageAspect?: string;
   /** Sposób dopasowania obrazu w kadrze (`object-fit`). Domyślnie "cover". */
   imageFit?: "cover" | "contain";
+
+  // --- Tło kontenera formularza. Puste = global colors (var(--card)).
+  //     Można ustawić "transparent" żeby formularz "siedział" na tle strony.
+  bgLight?: string;
+  bgDark?: string;
+
+
 
 
 
@@ -141,6 +148,8 @@ export function JoinUsForm({
   imagePosition = "center",
   imageAspect,
   imageFit = "cover",
+  bgLight,
+  bgDark,
 
   title,
   subtitle,
@@ -188,6 +197,9 @@ export function JoinUsForm({
   buttonSize,
   consentSize,
 }: JoinUsFormProps) {
+  const jusId = useId();
+  const hasCustomBg = Boolean(bgLight || bgDark);
+
 
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
@@ -457,20 +469,31 @@ export function JoinUsForm({
   const phCompany = companyPlaceholder || (lang === "en" ? "Company" : "Firma");
   const phCountry = countryPlaceholder || (lang === "en" ? "Country" : "Kraj");
 
+  // Kontener: domyślnie `bg-card` (global colors); gdy operator ustawi
+  // `bgLight`/`bgDark` (w tym "transparent") - drop `bg-card` i użyj CSS
+  // vars ze scoped <style> poniżej.
+  const bgClass = hasCustomBg ? "" : "bg-card";
   const containerCls =
     (variant === "inline"
       ? "border-t border-b border-border py-6"
       : variant === "split"
-        ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
+        ? `grid gap-6 rounded-xl border border-border ${bgClass} p-6 sm:p-8 md:grid-cols-2`
         : variant === "split-image"
-          ? "grid gap-0 overflow-hidden rounded-xl border border-border bg-card md:grid-cols-2"
-          : "rounded-xl border border-border bg-card p-6 sm:p-8") +
+          ? `grid gap-0 overflow-hidden rounded-xl border border-border ${bgClass} md:grid-cols-2`
+          : `rounded-xl border border-border ${bgClass} p-6 sm:p-8`) +
     ` join-us-shell join-us-shell--${variant}`;
+
+  const bgStyleTag = hasCustomBg ? (
+    <style>{
+      `[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
+      `.dark [data-jus-id="${jusId}"]{background:${bgDark || bgLight || "var(--card)"} !important;}`
+    }</style>
+  ) : null;
 
 
   if (state === "ok") {
     return (
-      <section className={cn(containerCls, className)} aria-live="polite">
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-live="polite">{bgStyleTag}
         <div className="flex items-center gap-3 text-foreground">
           <Check className="w-5 h-5 text-emerald-500" />
           <p className="text-sm font-medium">{okText}</p>
@@ -881,7 +904,7 @@ export function JoinUsForm({
 
   if (variant === "split") {
     return (
-      <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
         {disabledNotice && <div className="md:col-span-2">{disabledNotice}</div>}
         <div>
           <h3
@@ -930,7 +953,7 @@ export function JoinUsForm({
       "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #141414) 100%)";
     const overlayAlpha = Math.min(100, Math.max(0, imageOverlay)) / 100;
     return (
-      <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
         {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
         {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy.
             aspectRatio + object-fit + object-position pozwalają operatorowi
@@ -1021,7 +1044,7 @@ export function JoinUsForm({
 
 
   return (
-    <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+    <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
       {disabledNotice}
       <h3
         id="joinus-heading"
