@@ -9,7 +9,7 @@ export const OG_CARD_HEIGHT = 630;
 
 /** Brand palette (styles.css: --brand / --brand-foreground dark theme). */
 export const OG_CARD_COLORS = {
-  background: "#131822",
+  background: "#141414",
   accent: "#FA9346",
   title: "#FFFFFF",
   kicker: "#FA9346",

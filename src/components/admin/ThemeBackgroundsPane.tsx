@@ -67,7 +67,7 @@ function resolveColor(
 function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
   const light: CSSProperties = {
     "--gc-input-bg": resolveColor(draft, "input-bg", "light", "#ffffff"),
-    "--gc-input-text": resolveColor(draft, "input-text", "light", "#131822"),
+    "--gc-input-text": resolveColor(draft, "input-text", "light", "#141414"),
     "--gc-input-placeholder": resolveColor(draft, "input-placeholder", "light", "#94a3b8"),
     "--gc-input-border": resolveColor(draft, "input-border", "light", "#e2e8f0"),
     "--gc-input-hover-bg": resolveColor(draft, "input-hover-bg", "light", "#f8fafc"),
@@ -76,11 +76,11 @@ function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
   } as CSSProperties;
 
   const dark: CSSProperties = {
-    "--gc-input-bg": resolveColor(draft, "input-bg", "dark", "#131822"),
+    "--gc-input-bg": resolveColor(draft, "input-bg", "dark", "#141414"),
     "--gc-input-text": resolveColor(draft, "input-text", "dark", "#f1f5f9"),
     "--gc-input-placeholder": resolveColor(draft, "input-placeholder", "dark", "#64748b"),
-    "--gc-input-border": resolveColor(draft, "input-border", "dark", "#1b1f27"),
-    "--gc-input-hover-bg": resolveColor(draft, "input-hover-bg", "dark", "#1b1f27"),
+    "--gc-input-border": resolveColor(draft, "input-border", "dark", "#1f1f1f"),
+    "--gc-input-hover-bg": resolveColor(draft, "input-hover-bg", "dark", "#1f1f1f"),
     "--gc-input-hover-border": resolveColor(draft, "input-hover-border", "dark", "#334155"),
     "--gc-input-focus-border": resolveColor(draft, "input-focus-border", "dark", "#fbbf24"),
   } as CSSProperties;
@@ -276,14 +276,14 @@ export function ThemeBackgroundsPane({
               {groupId !== "input" && (
                 <div className="grid md:grid-cols-2 gap-3 pt-1">
                   <div
-                    className="h-14 rounded-md border border-border flex items-center justify-center text-[11px] font-medium text-[#131822]"
+                    className="h-14 rounded-md border border-border flex items-center justify-center text-[11px] font-medium text-[#141414]"
                     style={{ background: val.light || slot.defaultLight || "#ffffff" }}
                   >
                     Light preview
                   </div>
                   <div
                     className="h-14 rounded-md border border-border flex items-center justify-center text-[11px] font-medium text-white"
-                    style={{ background: val.dark || slot.defaultDark || "#131822" }}
+                    style={{ background: val.dark || slot.defaultDark || "#141414" }}
                   >
                     Dark preview
                   </div>
