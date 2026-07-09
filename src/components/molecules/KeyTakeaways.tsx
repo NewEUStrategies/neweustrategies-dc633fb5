@@ -53,6 +53,7 @@ export function KeyTakeaways({
 
   // Zestaw CSS variables (light + dark) - dark wchodzi w życie przez `.dark &`.
   const sizeScale = Math.max(0.5, Math.min(3, settings.highlight?.sizeScale ?? 1));
+  const offsetY = Math.max(-200, Math.min(200, settings.highlight?.offsetY ?? 0));
   const styleVars: Record<string, string> = {
     "--kt-bg": settings.colors.bg,
     "--kt-bg-dark": settings.colors.bgDark,
@@ -65,6 +66,7 @@ export function KeyTakeaways({
     "--kt-title-dark": settings.colors.titleDark,
     "--kt-highlight": settings.highlight?.color ?? settings.colors.accent,
     "--kt-ghost-scale": String(sizeScale),
+    "--kt-ghost-offset-y": `${offsetY}px`,
   };
 
   // Rozbij etykietę na tokeny (słowa i spacje) - dla wariantu ghost
