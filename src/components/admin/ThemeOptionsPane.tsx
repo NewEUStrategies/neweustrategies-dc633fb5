@@ -36,10 +36,12 @@ import {
   MousePointerClick,
   Pencil,
   Brush,
+  Type,
   Palette,
 } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { ThemeDesignPane } from "@/components/admin/ThemeDesignPane";
+import { ThemeFontSizesPane } from "@/components/admin/ThemeFontSizesPane";
 import { ThemeBackgroundsPane } from "@/components/admin/ThemeBackgroundsPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
