@@ -257,10 +257,18 @@ export function SidebarListenCard({
             {t.retry}
           </button>
         ) : loading ? (
-          <span className="text-[10px] font-medium text-muted-foreground italic">
-            {t.loading}
-          </span>
+          <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
+              <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
+            </span>
+            <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+              {stageLabel}
+              {stagePct !== null ? ` · ${stagePct}%` : null}
+            </span>
+          </div>
         ) : null}
+
       </div>
     </aside>
   );
