@@ -64,8 +64,10 @@ export function ProfileNav() {
         <span
           aria-hidden
           className={cn(
-            "mr-2.5 inline-block h-1.5 w-1.5 rounded-full transition-colors",
-            active ? "bg-primary" : "bg-transparent group-hover:bg-border",
+            "absolute left-0 top-1/2 -translate-y-1/2 w-0.5 rounded-full bg-primary transition-all duration-200",
+            active
+              ? "h-5 opacity-100"
+              : "h-0 opacity-0 group-hover:h-3 group-hover:opacity-60",
           )}
         />
         <span className="truncate">{t(`profile.nav.${item.key}`)}</span>
