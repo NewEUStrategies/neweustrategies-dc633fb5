@@ -1129,6 +1129,7 @@ function EditPost() {
                       entityId={id}
                       tocOverride={form.toc_override ?? null}
                       onTocOverrideChange={(next) => set("toc_override", next)}
+                      postBlocks={form.blocks_data ?? null}
                       takeawaysPl={form.takeaways_pl ?? []}
                       takeawaysEn={form.takeaways_en ?? []}
                       onTakeawaysChange={(lang, next) =>
