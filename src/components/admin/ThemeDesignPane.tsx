@@ -79,6 +79,7 @@ export function ThemeDesignPane() {
   const [liveSync, setLiveSync] = useState<boolean>(false);
   const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
+  const [activeTab, setActiveTab] = useState<PreviewSection>("block-heading");
 
 
   useEffect(() => {
