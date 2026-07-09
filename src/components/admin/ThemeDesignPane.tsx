@@ -161,7 +161,13 @@ export function ThemeDesignPane() {
         savingMode={saveLangMode.isPending}
       />
 
-      <LivePostPreview draft={draft} previewLang={previewLang} onLangChange={setPreviewLang} />
+      <LivePostPreview
+        draft={draft}
+        previewLang={previewLang}
+        onLangChange={setPreviewLang}
+        previewMode={previewMode}
+        onModeChange={setPreviewMode}
+      />
 
       <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
         <span className="text-xs text-muted-foreground pl-1">Edytujesz kolory dla trybu:</span>
@@ -1004,17 +1010,23 @@ function LivePostPreview({
   draft,
   previewLang,
   onLangChange,
+  previewMode,
+  onModeChange,
 }: {
   draft: ThemeDesign;
   previewLang: ThemeDesignLang;
   onLangChange: (l: ThemeDesignLang) => void;
+  previewMode: "light" | "dark";
+  onModeChange: (m: "light" | "dark") => void;
 }) {
   // Scope the generated tokens to the preview root so unsaved values do not
-  // leak into the rest of the admin chrome. `themeDesignToCss` emits `:root{}`;
-  // we rewrite the selector to a scoped class.
+  // leak into the rest of the admin chrome. `themeDesignToCss` emits `:root{}`
+  // and `.dark{}`; we rescope both to the preview root and its .dark child.
   const scopedCss = useMemo(() => {
     const base = themeDesignToCss(draft);
-    return base.replace(":root{", ".theme-design-live-preview{");
+    return base
+      .replace(":root{", ".theme-design-live-preview{")
+      .replace(".dark{", ".theme-design-live-preview.dark{");
   }, [draft]);
 
   const copy = previewLang === "en"
@@ -1024,11 +1036,16 @@ function LivePostPreview({
         title: "How trade routes reshape modern statecraft",
         excerpt:
           "A concise take on how logistics corridors are redefining sovereignty, alliances and long-range planning.",
-        author: "By Anna Kowalska",
-        published: "Published: 09/07/2026",
+        author: "Anna Kowalska",
+        published: "09/07/2026",
         read: "6 min read",
         readMore: "Read more",
         listHeader: "Ranked stories",
+        toolbar: "Toolbar",
+        modeSwitcher: "Reader mode",
+        modeItems: ["Light", "Sepia", "Dark"] as const,
+        social: "Follow us",
+        overlayCategory: "Analysis",
         items: ["Container flows above 2019 peak", "New arctic corridor opens", "AI in customs risk scoring"],
       }
     : {
@@ -1037,104 +1054,299 @@ function LivePostPreview({
         title: "Jak szlaki handlowe redefiniują nowoczesną politykę państw",
         excerpt:
           "Zwięzła analiza tego, jak korytarze logistyczne zmieniają suwerenność, sojusze i planowanie długoterminowe.",
-        author: "Autor: Anna Kowalska",
-        published: "Opublikowano: 09/07/2026",
+        author: "Anna Kowalska",
+        published: "09/07/2026",
         read: "6 min czytania",
         readMore: "Czytaj więcej",
         listHeader: "Ranking artykułów",
+        toolbar: "Pasek narzędzi",
+        modeSwitcher: "Tryb czytnika",
+        modeItems: ["Jasny", "Sepia", "Ciemny"] as const,
+        social: "Obserwuj",
+        overlayCategory: "Analiza",
         items: ["Przepływy kontenerowe powyżej szczytu 2019", "Nowy korytarz arktyczny", "AI w scoringu ryzyka celnego"],
       };
 
+  const isDark = previewMode === "dark";
+  const rootStyle: CSSProperties = isDark
+    ? { background: "#0f0f0f", color: "#f8f6f4" }
+    : { background: "#ffffff", color: "#0f0f0f" };
+
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b border-border bg-muted/30">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
             Podgląd na żywo
           </span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground truncate">
             zmienia się natychmiast razem z ustawieniami
           </span>
         </div>
-        <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px]">
-          {(["pl", "en"] as const).map((l) => (
-            <button
-              key={l}
-              type="button"
-              onClick={() => onLangChange(l)}
-              className={cn(
-                "px-2.5 py-1 uppercase tracking-wide transition-colors",
-                l !== "pl" && "border-l border-border",
-                previewLang === l
-                  ? "bg-foreground text-background font-semibold"
-                  : "bg-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {l === "pl" ? "🇵🇱 PL" : "🇬🇧 EN"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {/* Light/Dark preview toggle */}
+          <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px]">
+            {(["light", "dark"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onModeChange(m)}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 transition-colors",
+                  m === "dark" && "border-l border-border",
+                  previewMode === m
+                    ? "bg-foreground text-background font-semibold"
+                    : "bg-transparent text-muted-foreground hover:text-foreground",
+                )}
+                aria-pressed={previewMode === m}
+              >
+                {m === "light" ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                {m === "light" ? "Light" : "Dark"}
+              </button>
+            ))}
+          </div>
+          {/* Language toggle */}
+          <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px]">
+            {(["pl", "en"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => onLangChange(l)}
+                className={cn(
+                  "px-2.5 py-1 uppercase tracking-wide transition-colors",
+                  l !== "pl" && "border-l border-border",
+                  previewLang === l
+                    ? "bg-foreground text-background font-semibold"
+                    : "bg-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {l === "pl" ? "🇵🇱 PL" : "🇬🇧 EN"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(scopedCss) }} />
 
-      <div className="theme-design-live-preview p-6 grid md:grid-cols-[1.4fr_1fr] gap-6 bg-background">
-        {/* Hero card */}
-        <article className="space-y-3">
-          <h2 className="cms-block-heading">{copy.eyebrow}</h2>
-          <div
-            className="cms-thumb relative overflow-hidden"
-            style={{ aspectRatio: draft.thumbnail.aspectRatio, background: "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)" }}
-          >
-            <span
-              className="absolute left-3 top-3 rounded-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
-              style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
+      <div
+        className={cn("theme-design-live-preview p-6 space-y-6 transition-colors", isDark && "dark")}
+        style={rootStyle}
+      >
+        {/* ==== Row 1: Cover / Overlay + Hero card ==== */}
+        <div className="grid md:grid-cols-[1.2fr_1fr] gap-6">
+          {/* Gutenberg-style cover overlay */}
+          <article className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
+              Cover / Overlay
+            </div>
+            <div
+              className="cms-thumb relative overflow-hidden"
+              style={{
+                aspectRatio: draft.thumbnail.aspectRatio,
+                background:
+                  "linear-gradient(135deg, #fa9346 0%, #b0552a 55%, #3a1e10 100%)",
+              }}
             >
-              {copy.category}
-            </span>
-          </div>
-          <h3 className="cms-post-title">
-            <a href="#" className="hover:opacity-90">
-              {copy.title}
-            </a>
-          </h3>
-          <p className="cms-post-excerpt">{copy.excerpt}</p>
-          <div
-            className="cms-meta-info inline-flex flex-wrap items-center"
-            style={{ gap: draft.metaInfo.gap }}
-          >
-            <span>{copy.author}</span>
-            <SepPreview kind={draft.metaInfo.separator} />
-            <span>{copy.published}</span>
-            <SepPreview kind={draft.metaInfo.separator} />
-            <span>{copy.read}</span>
-          </div>
-          <div>
-            <button type="button" className="cms-read-more inline-flex items-center gap-1 border">
-              {copy.readMore}
-              {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
-            </button>
-          </div>
-        </article>
+              {/* Dark scrim for legibility */}
+              <div
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.72) 100%)",
+                }}
+              />
+              <span
+                className="absolute left-4 top-4 rounded-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
+              >
+                {copy.overlayCategory}
+              </span>
+              <div className="absolute inset-x-0 bottom-0 p-4 md:p-5 space-y-2 text-white">
+                <h3
+                  className="cms-post-title"
+                  style={{ color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.35)" }}
+                >
+                  {copy.title}
+                </h3>
+                <p
+                  className="cms-post-excerpt"
+                  style={{ color: "rgba(255,255,255,.85)", marginTop: 0 }}
+                >
+                  {copy.excerpt}
+                </p>
+                <div
+                  className="cms-meta-info inline-flex flex-wrap items-center"
+                  style={{ gap: draft.metaInfo.gap, color: "rgba(255,255,255,.85)" }}
+                >
+                  <span>{copy.author}</span>
+                  <SepPreview kind={draft.metaInfo.separator} />
+                  <span>{copy.published}</span>
+                  <SepPreview kind={draft.metaInfo.separator} />
+                  <span>{copy.read}</span>
+                </div>
+              </div>
+            </div>
+          </article>
 
-        {/* Ranked list */}
+          {/* Standard post card */}
+          <article className="space-y-3">
+            <h2 className="cms-block-heading">{copy.eyebrow}</h2>
+            <div
+              className="cms-thumb relative overflow-hidden"
+              style={{
+                aspectRatio: draft.thumbnail.aspectRatio,
+                background: "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
+              }}
+            >
+              <span
+                className="absolute left-3 top-3 rounded-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
+              >
+                {copy.category}
+              </span>
+            </div>
+            <h3 className="cms-post-title">
+              <a href="#" onClick={(e) => e.preventDefault()}>
+                {copy.title}
+              </a>
+            </h3>
+            <p className="cms-post-excerpt">{copy.excerpt}</p>
+            <div
+              className="cms-meta-info inline-flex flex-wrap items-center"
+              style={{ gap: draft.metaInfo.gap }}
+            >
+              <span>{copy.author}</span>
+              <SepPreview kind={draft.metaInfo.separator} />
+              <span>{copy.published}</span>
+              <SepPreview kind={draft.metaInfo.separator} />
+              <span>{copy.read}</span>
+            </div>
+            <div>
+              <button type="button" className="cms-read-more inline-flex items-center gap-1 border">
+                {copy.readMore}
+                {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
+              </button>
+            </div>
+          </article>
+        </div>
+
+        {/* ==== Row 2: Toolbar + Mode switcher + Social icons + Ranked list ==== */}
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Toolbar buttons */}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
+              {copy.toolbar}
+            </div>
+            <div
+              className="inline-flex items-center gap-1 rounded-md p-1"
+              style={{ background: "color-mix(in oklab, currentColor 6%, transparent)" }}
+            >
+              <ToolbarBtnPreview t={draft} icon="B" />
+              <ToolbarBtnPreview t={draft} icon="I" />
+              <ToolbarBtnPreview t={draft} icon="U" active />
+              <ToolbarBtnPreview t={draft} icon="•" />
+              <ToolbarBtnPreview t={draft} icon="⧉" />
+            </div>
+            <p className="text-[10px] opacity-60">
+              Aktywny stan: 3-ci od lewej (podświetlony akcentem).
+            </p>
+          </div>
+
+          {/* Mode switcher */}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
+              {copy.modeSwitcher}
+            </div>
+            <div
+              className="inline-flex p-0.5 border"
+              style={{
+                background: "var(--td-ms-track-bg, transparent)",
+                borderColor: "var(--td-ms-track-border, currentColor)",
+                borderRadius: draft.modeSwitcher.radius,
+              }}
+            >
+              {copy.modeItems.map((m, i) => {
+                const active = i === (isDark ? 2 : 0);
+                return (
+                  <span
+                    key={m}
+                    className="px-3 py-1.5 text-[12px] font-medium transition-colors"
+                    style={{
+                      background: active ? "var(--td-ms-active-bg, transparent)" : "transparent",
+                      color: active
+                        ? "var(--td-ms-active-color, currentColor)"
+                        : "var(--td-ms-inactive, currentColor)",
+                      borderRadius: `calc(${draft.modeSwitcher.radius} - 2px)`,
+                    }}
+                  >
+                    {m}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Social icons */}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
+              {copy.social}
+            </div>
+            <div
+              className="inline-flex items-center"
+              style={{ gap: draft.socialIcons.gap }}
+            >
+              {[Facebook, Instagram, Youtube, Linkedin, Mail].map((Ico, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center justify-center"
+                  style={{
+                    background: "var(--td-si-bg, transparent)",
+                    color: "var(--td-si-color, currentColor)",
+                    padding: `${draft.socialIcons.paddingY} ${draft.socialIcons.paddingX}`,
+                    borderRadius: draft.socialIcons.radius,
+                  }}
+                >
+                  <Ico
+                    style={{
+                      width: draft.socialIcons.size,
+                      height: draft.socialIcons.size,
+                    }}
+                  />
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ==== Row 3: Ranked list ==== */}
         <aside className="space-y-3">
           <h2 className="cms-block-heading">{copy.listHeader}</h2>
-          <ol className="space-y-3">
+          <ol className="grid sm:grid-cols-3 gap-4">
             {copy.items.map((item, i) => (
-              <li key={item} className="flex items-start gap-3">
+              <li
+                key={item}
+                className="flex items-start gap-3 pb-3 border-b"
+                style={{ borderColor: "color-mix(in oklab, currentColor 12%, transparent)" }}
+              >
                 <span
                   className="font-display tabular-nums leading-none shrink-0"
                   style={{
                     fontSize: "44px",
                     fontWeight: draft.listIndex.weight,
-                    color: draft.listIndex.colorLight,
+                    color: isDark ? draft.listIndex.colorDark : draft.listIndex.colorLight,
                     opacity: draft.listIndex.opacity,
                   }}
                 >
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <a href="#" className="cms-post-title text-[15px]">
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="cms-post-title"
+                  style={{ fontSize: "15px" }}
+                >
                   {item}
                 </a>
               </li>
@@ -1143,6 +1355,37 @@ function LivePostPreview({
         </aside>
       </div>
     </div>
+  );
+}
+
+function ToolbarBtnPreview({
+  t,
+  icon,
+  active = false,
+}: {
+  t: ThemeDesign;
+  icon: string;
+  active?: boolean;
+}) {
+  return (
+    <span
+      className="inline-flex items-center justify-center font-semibold transition-colors"
+      style={{
+        background: active
+          ? "var(--td-tb-active-bg, currentColor)"
+          : "var(--td-tb-bg, transparent)",
+        color: active
+          ? "var(--td-tb-active-color, #fff)"
+          : "var(--td-tb-color, currentColor)",
+        borderRadius: t.toolbarButton.radius,
+        padding: `${t.toolbarButton.paddingY} ${t.toolbarButton.paddingX}`,
+        fontSize: t.toolbarButton.size,
+        lineHeight: 1,
+        minWidth: `calc(${t.toolbarButton.size} + ${t.toolbarButton.paddingX} * 2)`,
+      }}
+    >
+      {icon}
+    </span>
   );
 }
 
@@ -1155,6 +1398,7 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
     </span>
   );
 }
+
 
 /** Default inheritance token per (section, field). When the user clicks
  *  "Dziedzicz" we reset the value to this token (light mode) or clear the
