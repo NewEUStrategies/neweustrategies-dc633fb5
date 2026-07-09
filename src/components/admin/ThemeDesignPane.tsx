@@ -1028,12 +1028,14 @@ function LivePostPreview({
   onLangChange,
   previewMode,
   onModeChange,
+  activeTab,
 }: {
   draft: ThemeDesign;
   previewLang: ThemeDesignLang;
   onLangChange: (l: ThemeDesignLang) => void;
   previewMode: "light" | "dark";
   onModeChange: (m: "light" | "dark") => void;
+  activeTab: PreviewSection;
 }) {
   // Scope the generated tokens to the preview root so unsaved values do not
   // leak into the rest of the admin chrome. `themeDesignToCss` emits `:root{}`
