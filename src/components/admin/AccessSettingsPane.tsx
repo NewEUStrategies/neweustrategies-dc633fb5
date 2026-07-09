@@ -108,8 +108,8 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
         _entity_type: entityType,
         _entity_id: entityId,
         _password: pwd.newPassword,
-        _hint_pl: pwd.hintPl || null,
-        _hint_en: pwd.hintEn || null,
+        _hint_pl: pwd.hintPl || "",
+        _hint_en: pwd.hintEn || "",
       });
       if (rpcErr) {
         setSaving(false);
