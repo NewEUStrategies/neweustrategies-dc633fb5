@@ -512,7 +512,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
-          {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
+          {takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
           <ContentRenderer
             editor={it.editor}
             builderDoc={doc}
