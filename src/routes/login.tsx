@@ -530,17 +530,21 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 group">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {label}
         </Label>
         {action}
       </div>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+      <div className="relative focus-within:[&_.field-icon]:text-primary focus-within:[&_.field-divider]:bg-primary/40">
+        <span className="field-icon pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 transition-colors">
           {icon}
         </span>
+        <span
+          aria-hidden
+          className="field-divider pointer-events-none absolute left-[38px] top-1/2 -translate-y-1/2 h-5 w-px bg-border transition-colors"
+        />
         {children}
       </div>
     </div>
