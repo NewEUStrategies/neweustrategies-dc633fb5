@@ -168,6 +168,7 @@ export function ThemeDesignPane() {
         onLangChange={setPreviewLang}
         previewMode={previewMode}
         onModeChange={setPreviewMode}
+        activeTab={activeTab}
       />
 
       <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
