@@ -3,6 +3,7 @@
 // + global slider/carousel defaults.
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   Save,
@@ -126,6 +127,22 @@ export function ThemeDesignPane() {
   // Gutenberg/Elementor previews and the whole app reflect the draft instantly.
   const livePreviewDraft = mode === "split" ? draft : draftPl;
   useLiveThemeDesignPreview(livePreviewDraft, liveSync, activeLang);
+
+  // Live-mirror overlay typography draft (post_layout_settings) into the
+  // react-query cache so overlay/header size changes reflect immediately in
+  // the preview and across the app, without persisting to the DB until the
+  // user hits "Zapisz wszystko".
+  const qcLive = useQueryClient();
+  useEffect(() => {
+    if (!overlayDraft) return;
+    const key = ["post-layout-settings"] as const;
+    const prev = qcLive.getQueryData(key);
+    qcLive.setQueryData(key, overlayDraft);
+    return () => {
+      if (prev) qcLive.setQueryData(key, prev);
+      else qcLive.invalidateQueries({ queryKey: key });
+    };
+  }, [overlayDraft, qcLive]);
 
   if (
     tdPlLoading ||
