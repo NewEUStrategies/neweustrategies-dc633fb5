@@ -783,7 +783,7 @@ function TakeawayRow({
         <div className={cn("mt-1 text-[10px] flex justify-between gap-2", statusColor)}>
           <span>{statusMsg}</span>
           <span className="tabular-nums">
-            {len}/{MAX_TAKEAWAY_LEN} · rekom. {RECOMMENDED_MIN}-{RECOMMENDED_MAX}
+            {len}/{MAX_TAKEAWAY_LEN} znaków ze spacjami · rekom. {RECOMMENDED_MIN}-{RECOMMENDED_MAX}
           </span>
         </div>
       </div>
