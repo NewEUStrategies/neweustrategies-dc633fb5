@@ -465,15 +465,20 @@ function TakeawaysTab({
   pl,
   en,
   onChange,
+  variantOverride,
+  onVariantChange,
 }: {
   pl: string[];
   en: string[];
   onChange: (lang: "pl" | "en", next: string[]) => void;
+  variantOverride: "card" | "heading" | "ghost" | null;
+  onVariantChange?: (next: "card" | "heading" | "ghost" | null) => void;
 }) {
   const { t } = useTranslation();
   const [active, setActive] = useState<"pl" | "en">("pl");
   const ktSettings = useKeyTakeawaysSettings();
   const current = active === "pl" ? pl : en;
+  const effectiveVariant = variantOverride ?? ktSettings.variant;
 
   const updateAt = (idx: number, value: string) => {
     const next = [...current];
