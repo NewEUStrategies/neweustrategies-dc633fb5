@@ -1437,7 +1437,12 @@ function LivePostPreview({
                 </p>
                 <div
                   className="cms-meta-info inline-flex flex-wrap items-center"
-                  style={{ gap: draft.metaInfo.gap, color: "rgba(255,255,255,.85)" }}
+                  style={{
+                    gap: draft.metaInfo.gap,
+                    fontSize: draft.metaInfo.fontSize,
+                    textTransform: draft.metaInfo.uppercase ? "uppercase" : "none",
+                    color: "rgba(255,255,255,.85)",
+                  }}
                 >
                   <span>{copy.author}</span>
                   <SepPreview kind={draft.metaInfo.separator} />
