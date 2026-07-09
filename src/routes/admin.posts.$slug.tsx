@@ -45,13 +45,11 @@ import {
   Settings as SettingsIcon,
   Layers,
   Search,
-  Tag as TagIcon,
+  Tags as TagIcon,
   Lock,
-  History,
-  Link2,
-  Database,
-  ListChecks,
+  Link as LinkIconLucide,
 } from "@/lib/lucide-shim";
+import { History, Database, ListChecks } from "lucide-react";
 import { ChevronDown } from "lucide-react";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
