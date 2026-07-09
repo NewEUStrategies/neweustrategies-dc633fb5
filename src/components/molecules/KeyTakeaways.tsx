@@ -7,8 +7,7 @@
 //   - colors (tło, akcent, ikona, tekst, tytuł + warianty dark)
 // Wpisy per język: `posts.takeaways_pl` / `posts.takeaways_en`. Atomic-design "molecule".
 import { useTranslation } from "react-i18next";
-import { DynamicIcon } from "lucide-react/dynamic";
-import type { IconName } from "lucide-react/dynamic";
+import { DynamicIcon, type IconName } from "@/lib/icons/DynamicIcon";
 import {
   useKeyTakeawaysSettings,
   type KeyTakeawaysSettings,

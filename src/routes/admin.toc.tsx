@@ -26,6 +26,7 @@ import {
   type TocLayout,
   type TocColumns,
 } from "@/lib/toc/settings";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 
 export const Route = createFileRoute("/admin/toc")({
   component: TocAdmin,
@@ -335,21 +336,13 @@ function TocAdmin() {
                   ["accent", "Akcent (link hover)"],
                 ] as const
               ).map(([key, label]) => (
-                <div key={key} className="flex items-center gap-2">
-                  <input
-                    type="color"
+                <div key={key} className="space-y-1 min-w-0">
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <AdminColorPicker
                     value={draft.colors[key]}
-                    onChange={(e) => updateColor(key, e.target.value)}
-                    className="w-9 h-9 rounded border border-border cursor-pointer"
+                    onChange={(v: string | undefined) => updateColor(key, v ?? "")}
+                    ariaLabel={label}
                   />
-                  <div className="flex-1 min-w-0">
-                    <Label className="text-[10px] text-muted-foreground">{label}</Label>
-                    <Input
-                      value={draft.colors[key]}
-                      onChange={(e) => updateColor(key, e.target.value)}
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
                 </div>
               ))}
             </div>

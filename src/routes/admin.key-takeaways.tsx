@@ -6,8 +6,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DynamicIcon } from "lucide-react/dynamic";
-import type { IconName } from "lucide-react/dynamic";
+import { DynamicIcon, type IconName } from "@/lib/icons/DynamicIcon";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Save, RotateCcw, EyeOff, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -352,21 +352,13 @@ function ColorRow({
   onChange: (v: string) => void;
 }) {
   return (
-    <div>
+    <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <div className="flex items-center gap-2 mt-1">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-10 rounded border border-input bg-background cursor-pointer"
-        />
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="font-mono text-xs h-9"
-        />
-      </div>
+      <AdminColorPicker
+        value={value}
+        onChange={(v) => onChange(v ?? "")}
+        ariaLabel={label}
+      />
     </div>
   );
 }
