@@ -46,6 +46,8 @@ import {
 } from "@/lib/toc/settings";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
 import type { AccessEntityType } from "@/hooks/useContentAccess";
+import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
+import { useKeyTakeawaysSettings } from "@/lib/keyTakeaways/settings";
 
 type EntityType = "post" | "page";
 
