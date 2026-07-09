@@ -137,8 +137,17 @@ const ThemeDesignSchema = z
         marginTop: PX.default("6px"),
       })
       .default({}),
+    // Optional per-mode dark overrides. Shape mirrors the sibling sections
+    // above but only for color-typed fields. An empty string means "inherit
+    // the light value" (which itself may reference a global token like
+    // var(--foreground) / var(--brand) / var(--gc-input-*), so dark mode of
+    // the site's global tokens still kicks in automatically).
+    darkOverrides: z
+      .record(z.string(), z.record(z.string(), z.string()))
+      .default({}),
   })
   .default({});
+
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
 
