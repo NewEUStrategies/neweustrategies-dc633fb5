@@ -3133,7 +3133,7 @@ textarea::placeholder {
   padding: 0;
 }
 .key-takeaways--ghost .key-takeaways__ghost {
-  min-height: clamp(4rem, 12vw, 8rem);
+  min-height: clamp(3rem, 8vw, 5rem);
   overflow: hidden;
 }
 .key-takeaways__ghost-title {
