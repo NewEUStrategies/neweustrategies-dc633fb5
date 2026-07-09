@@ -26,6 +26,37 @@ export interface AudioTrackMeta {
 
 export type AudioStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
+/**
+ * Etapy konwersji tekst -> audio przez ElevenLabs.
+ * - idle: brak aktywnej konwersji
+ * - preparing: żądanie wysyłane, serwer pobiera treść wpisu
+ * - synthesizing: ElevenLabs generuje audio (czekamy na pierwsze bajty)
+ * - streaming: strumieniowanie audio do przeglądarki
+ * - ready: gotowe do odtwarzania
+ * - cached: audio już było w cache (natychmiastowe)
+ * - error: błąd na dowolnym etapie
+ */
+export type TtsStage =
+  | "idle"
+  | "preparing"
+  | "synthesizing"
+  | "streaming"
+  | "ready"
+  | "cached"
+  | "error";
+
+export interface TtsProgress {
+  stage: TtsStage;
+  /** 0-100 - procentowy postęp jeśli znany (streaming). */
+  percent: number;
+  /** Odebrane bajty (streaming). */
+  bytes: number;
+  /** Total bajty jeśli serwer podał Content-Length. */
+  totalBytes: number | null;
+  /** ms od startu konwersji, do wyświetlenia telemetrii. */
+  elapsedMs: number;
+}
+
 interface AudioTrackState extends AudioTrackMeta {
   blobUrl: string;
 }
@@ -37,6 +68,8 @@ interface GlobalPlayerContextValue {
   duration: number;
   progress: number;
   error: string | null;
+  /** Aktualny etap konwersji TTS (dla widgetów pokazujących postęp). */
+  tts: TtsProgress;
   /** True, gdy `postId` jest aktualnie załadowany (niezależnie od stanu play/pause). */
   isActive: (postId: string, lang: "pl" | "en") => boolean;
   loadAndPlay: (meta: AudioTrackMeta) => Promise<void>;
@@ -46,6 +79,15 @@ interface GlobalPlayerContextValue {
   close: () => void;
   download: (meta?: AudioTrackMeta) => Promise<void>;
 }
+
+const INITIAL_TTS: TtsProgress = {
+  stage: "idle",
+  percent: 0,
+  bytes: 0,
+  totalBytes: null,
+  elapsedMs: 0,
+};
+
 
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
 
@@ -75,6 +117,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [tts, setTts] = useState<TtsProgress>(INITIAL_TTS);
+
 
   // Lazy audio element - tworzymy w efekcie, żeby nie ruszać `Audio` w SSR.
   useEffect(() => {
@@ -106,23 +150,104 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     async (postId: string, lang: "pl" | "en"): Promise<string> => {
       const key = cacheKey(postId, lang);
       const cached = audioBlobCache.get(key);
-      if (cached) return cached;
+      if (cached) {
+        setTts({
+          stage: "cached",
+          percent: 100,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: 0,
+        });
+        return cached;
+      }
+
+      const startedAt = performance.now();
+      setTts({
+        stage: "preparing",
+        percent: 0,
+        bytes: 0,
+        totalBytes: null,
+        elapsedMs: 0,
+      });
+
       const res = await fetch("/api/public/post-tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId, lang }),
       });
+
       if (!res.ok) {
         const msg = await res.text().catch(() => "");
+        setTts({
+          stage: "error",
+          percent: 0,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: performance.now() - startedAt,
+        });
         throw new Error(msg || `HTTP ${res.status}`);
       }
-      const blob = await res.blob();
+
+      // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
+      const totalHeader = res.headers.get("content-length");
+      const totalBytes = totalHeader ? Number(totalHeader) : null;
+      setTts({
+        stage: "synthesizing",
+        percent: 0,
+        bytes: 0,
+        totalBytes,
+        elapsedMs: performance.now() - startedAt,
+      });
+
+      // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
+      // `res.blob()` gdy body nie jest czytelne (np. stary browser).
+      let blob: Blob;
+      const body = res.body;
+      if (body && typeof body.getReader === "function") {
+        const reader = body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        let announcedStreaming = false;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.byteLength;
+            if (!announcedStreaming) {
+              announcedStreaming = true;
+            }
+            setTts({
+              stage: "streaming",
+              percent:
+                totalBytes && totalBytes > 0
+                  ? Math.min(99, Math.round((received / totalBytes) * 100))
+                  : 0,
+              bytes: received,
+              totalBytes,
+              elapsedMs: performance.now() - startedAt,
+            });
+          }
+        }
+        blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
+      } else {
+        blob = await res.blob();
+      }
+
       const url = URL.createObjectURL(blob);
       audioBlobCache.set(key, url);
+      setTts({
+        stage: "ready",
+        percent: 100,
+        bytes: blob.size,
+        totalBytes: totalBytes ?? blob.size,
+        elapsedMs: performance.now() - startedAt,
+      });
       return url;
     },
     [],
   );
+
 
   const loadAndPlay = useCallback(
     async (meta: AudioTrackMeta) => {
@@ -228,6 +353,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       duration,
       progress,
       error,
+      tts,
       isActive,
       loadAndPlay,
       toggle,
@@ -243,6 +369,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       duration,
       progress,
       error,
+      tts,
       isActive,
       loadAndPlay,
       toggle,
@@ -252,6 +379,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       download,
     ],
   );
+
 
   return <GlobalPlayerContext.Provider value={value}>{children}</GlobalPlayerContext.Provider>;
 }
@@ -267,7 +395,9 @@ export function useGlobalAudioPlayer(): GlobalPlayerContextValue {
       duration: 0,
       progress: 0,
       error: null,
+      tts: INITIAL_TTS,
       isActive: () => false,
+
       loadAndPlay: async () => {},
       toggle: async () => {},
       seek: () => {},

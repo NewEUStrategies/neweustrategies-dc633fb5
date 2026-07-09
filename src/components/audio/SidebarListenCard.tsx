@@ -35,6 +35,11 @@ const COPY = {
     seek: "Przewiń materiał",
     approx: "ok. {min} min",
     loading: "Generuję audio…",
+    stagePreparing: "Przygotowuję tekst",
+    stageSynthesizing: "ElevenLabs syntezuje głos",
+    stageStreaming: "Pobieram audio",
+    stageReady: "Gotowe",
+    stageCached: "Z pamięci podręcznej",
   },
   en: {
     label: "Listen to this article",
@@ -48,7 +53,13 @@ const COPY = {
     seek: "Seek audio",
     approx: "~{min} min",
     loading: "Generating audio…",
+    stagePreparing: "Preparing text",
+    stageSynthesizing: "ElevenLabs synthesizing voice",
+    stageStreaming: "Streaming audio",
+    stageReady: "Ready",
+    stageCached: "From cache",
   },
+
 } as const;
 
 const FOCUS_RING =
@@ -69,6 +80,25 @@ export function SidebarListenCard({
   const loading = isThis && player.status === "loading";
   const playing = isThis && player.status === "playing";
   const errored = isThis && player.status === "error";
+  const tts = player.tts;
+  const stageLabel = (() => {
+    switch (tts.stage) {
+      case "preparing":
+        return t.stagePreparing;
+      case "synthesizing":
+        return t.stageSynthesizing;
+      case "streaming":
+        return t.stageStreaming;
+      case "ready":
+        return t.stageReady;
+      case "cached":
+        return t.stageCached;
+      default:
+        return t.loading;
+    }
+  })();
+  const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
+
 
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -246,10 +276,18 @@ export function SidebarListenCard({
             {t.retry}
           </button>
         ) : loading ? (
-          <span className="text-[10px] font-medium text-muted-foreground italic">
-            {t.loading}
-          </span>
+          <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
+              <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
+            </span>
+            <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+              {stageLabel}
+              {stagePct !== null ? ` · ${stagePct}%` : null}
+            </span>
+          </div>
         ) : null}
+
       </div>
     </aside>
   );
