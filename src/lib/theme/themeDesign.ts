@@ -565,6 +565,40 @@ export function themeDesignToCss(t: ThemeDesign): string {
   return normalizeColor(parts.join(""));
 }
 
+/** Parses `themeDesignToCss` output into a React inline-style object of CSS
+ *  variables for a given mode. Applying these on an element guarantees the
+ *  browser re-computes styles that read `var(--td-*)` on every draft change -
+ *  useful for admin previews where relying on `<style>` innerHTML updates has
+ *  proven flaky (memoization, hydration, stale caches). */
+export function themeDesignToStyleVars(
+  t: ThemeDesign,
+  mode: "light" | "dark" = "light",
+): Record<string, string> {
+  const css = themeDesignToCss(t);
+  const out: Record<string, string> = {};
+  const lightMatch = css.match(/:root,\.light\{([^}]*)\}/);
+  if (lightMatch) {
+    for (const decl of lightMatch[1].split(";")) {
+      const [k, ...rest] = decl.split(":");
+      const key = k.trim();
+      const val = rest.join(":").trim();
+      if (key.startsWith("--") && val.length > 0) out[key] = val;
+    }
+  }
+  if (mode === "dark") {
+    const darkMatch = css.match(/\.dark\{([^}]*)\}/);
+    if (darkMatch) {
+      for (const decl of darkMatch[1].split(";")) {
+        const [k, ...rest] = decl.split(":");
+        const key = k.trim();
+        const val = rest.join(":").trim();
+        if (key.startsWith("--") && val.length > 0) out[key] = val;
+      }
+    }
+  }
+  return out;
+}
+
 function shadow(level: "none" | "sm" | "md" | "lg"): string {
   switch (level) {
     case "sm":
