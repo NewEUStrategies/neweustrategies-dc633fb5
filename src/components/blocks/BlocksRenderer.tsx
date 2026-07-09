@@ -651,14 +651,21 @@ function BlockView({
       );
     }
     case "toc": {
+      const cols = String(block.data.columns ?? "col-1");
+      const columns = (cols === "col-2" || cols === "half" ? cols : "col-1") as
+        | "col-1"
+        | "col-2"
+        | "half";
       return (
         <div className={cls}>
           <TocBlockView
             blocks={allBlocks ?? []}
             title={String(block.data.title ?? "")}
+            minLevel={Number(block.data.minLevel ?? 2)}
             maxLevel={Number(block.data.maxLevel ?? 3)}
             ordered={Boolean(block.data.ordered)}
             sticky={Boolean(block.data.sticky)}
+            columns={columns}
             lang={lang}
           />
         </div>

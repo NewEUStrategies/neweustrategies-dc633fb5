@@ -19,18 +19,21 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   TOC_DEFAULTS,
   TOC_LAYOUTS,
+  TOC_COLUMNS,
   useTocDefaults,
   useSaveTocDefaults,
   type TocDefaults,
   type TocLayout,
+  type TocColumns,
 } from "@/lib/toc/settings";
 
 export const Route = createFileRoute("/admin/toc")({
   component: TocAdmin,
 });
 
-const SAMPLE_HEADINGS: Record<"pl" | "en", { level: 2 | 3; text: string; anchor: string }[]> = {
+const SAMPLE_HEADINGS: Record<"pl" | "en", { level: 1 | 2 | 3; text: string; anchor: string }[]> = {
   pl: [
+    { level: 1, text: "Główny temat opracowania", anchor: "glowny-temat" },
     { level: 2, text: "Wprowadzenie", anchor: "wprowadzenie" },
     { level: 2, text: "Kluczowe czynniki", anchor: "kluczowe-czynniki" },
     { level: 3, text: "Kontekst geopolityczny", anchor: "kontekst" },
@@ -38,6 +41,7 @@ const SAMPLE_HEADINGS: Record<"pl" | "en", { level: 2 | 3; text: string; anchor:
     { level: 2, text: "Wnioski", anchor: "wnioski" },
   ],
   en: [
+    { level: 1, text: "Main topic of the article", anchor: "main-topic" },
     { level: 2, text: "Introduction", anchor: "introduction" },
     { level: 2, text: "Key factors", anchor: "key-factors" },
     { level: 3, text: "Geopolitical context", anchor: "context" },
@@ -181,6 +185,30 @@ function TocAdmin() {
               </div>
               <div>
                 <Label className="text-xs">
+                  {t("admin.toc.minLevel", { defaultValue: "Min. poziom nagłówka" })}
+                </Label>
+                <Select
+                  value={String(draft.minLevel)}
+                  onValueChange={(v) => update("minLevel", parseInt(v, 10))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem
+                        key={n}
+                        value={String(n)}
+                        disabled={n > draft.maxLevel}
+                      >
+                        H{n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">
                   {t("admin.toc.maxLevel", { defaultValue: "Maks. poziom nagłówka" })}
                 </Label>
                 <Select
@@ -191,8 +219,12 @@ function TocAdmin() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[2, 3, 4, 5, 6].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem
+                        key={n}
+                        value={String(n)}
+                        disabled={n < draft.minLevel}
+                      >
                         H{n}
                       </SelectItem>
                     ))}
@@ -209,6 +241,50 @@ function TocAdmin() {
                   onCheckedChange={(v) => update("ordered", v)}
                 />
               </label>
+            </div>
+
+            <div>
+              <Label className="text-xs">
+                {t("admin.toc.columns", { defaultValue: "Kolumny spisu treści" })}
+              </Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {TOC_COLUMNS.map((c) => {
+                  const label =
+                    c === "col-1" ? "1 kolumna" : c === "col-2" ? "2 kolumny" : "Połowa";
+                  const desc =
+                    c === "col-1"
+                      ? "Pełna szerokość"
+                      : c === "col-2"
+                        ? "Podział na 2 kolumny"
+                        : "50% szerokości treści";
+                  const active = draft.columns === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => update("columns", c as TocColumns)}
+                      aria-pressed={active}
+                      className={`flex flex-col gap-1 rounded-md border px-2 py-2.5 text-left transition-colors ${
+                        active
+                          ? "border-brand bg-brand/10 text-brand"
+                          : "border-border bg-background hover:border-brand/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-medium">
+                        <div
+                          className={`grid gap-0.5 ${c === "col-2" ? "grid-cols-2" : "grid-cols-1"} ${c === "half" ? "w-3" : "w-5"}`}
+                          aria-hidden="true"
+                        >
+                          <span className="h-2 rounded-sm bg-current opacity-70" />
+                          {c === "col-2" && <span className="h-2 rounded-sm bg-current opacity-70" />}
+                        </div>
+                        {label}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <label className="flex items-center justify-between gap-3">
@@ -311,7 +387,9 @@ function TocPreview({ settings, lang }: { settings: TocDefaults; lang: "pl" | "e
     );
   }
   const title = lang === "en" ? settings.titleEn : settings.titlePl;
-  const headings = SAMPLE_HEADINGS[lang].filter((h) => h.level <= settings.maxLevel);
+  const headings = SAMPLE_HEADINGS[lang].filter(
+    (h) => h.level >= settings.minLevel && h.level <= settings.maxLevel,
+  );
   const Tag = settings.ordered ? "ol" : "ul";
 
   const style = {
@@ -324,22 +402,39 @@ function TocPreview({ settings, lang }: { settings: TocDefaults; lang: "pl" | "e
     "--toc-accent": settings.colors.accent,
     background: settings.colors.bg,
     color: settings.colors.text,
-    border:
-      settings.layout === "inline" ? "none" : `1px solid ${settings.colors.border}`,
+    border: settings.layout === "inline" ? "none" : `1px solid ${settings.colors.border}`,
   } as React.CSSProperties;
 
+  const wrapperCls = [
+    "not-prose p-4",
+    settings.layout === "inline" ? "" : "rounded-lg",
+    settings.sticky ? "lg:sticky lg:top-24" : "",
+    settings.columns === "half" ? "md:max-w-[50%]" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const listCls = [
+    "pl-5 text-sm",
+    settings.ordered ? "list-decimal" : "list-disc",
+    settings.columns === "col-2"
+      ? "sm:columns-2 sm:gap-8 [&>li]:break-inside-avoid space-y-1.5"
+      : "space-y-1.5",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <nav
-      aria-label={title}
-      className={`not-prose ${settings.layout === "inline" ? "" : "rounded-lg"} p-4 ${settings.sticky ? "lg:sticky lg:top-24" : ""}`}
-      style={style}
-    >
+    <nav aria-label={title} className={wrapperCls} style={style}>
       <p className="text-[10px] uppercase tracking-wider mb-3 font-semibold opacity-70">
         {title}
       </p>
-      <Tag className={`space-y-1.5 ${settings.ordered ? "list-decimal" : "list-disc"} pl-5 text-sm`}>
+      <Tag className={listCls}>
         {headings.map((h) => (
-          <li key={h.anchor} style={{ marginLeft: (h.level - 2) * 12 }}>
+          <li
+            key={h.anchor}
+            style={{ marginLeft: (h.level - settings.minLevel) * 12 }}
+          >
             <a
               href={`#${h.anchor}`}
               className="hover:underline transition-colors"
