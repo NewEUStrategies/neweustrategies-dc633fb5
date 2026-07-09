@@ -26,6 +26,7 @@ import {
   type TocLayout,
   type TocColumns,
 } from "@/lib/toc/settings";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 
 export const Route = createFileRoute("/admin/toc")({
   component: TocAdmin,
