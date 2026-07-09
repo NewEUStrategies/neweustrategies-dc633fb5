@@ -65,6 +65,8 @@ export interface PostSettingsMetaboxProps {
   /** Per-wpis wariant sekcji „Dowiesz się…". `null` = użyj globalnego. */
   takeawaysVariant?: "card" | "heading" | "ghost" | null;
   onTakeawaysVariantChange?: (next: "card" | "heading" | "ghost" | null) => void;
+  /** Ukryj wewnętrzną zakładkę „Dowiesz się…" – używane, gdy jest wystawiona jako osobna zakładka główna. */
+  hideTakeawaysTab?: boolean;
 }
 
 type TabKey = "toc" | "membership" | "takeaways";
