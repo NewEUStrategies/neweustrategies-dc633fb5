@@ -33,6 +33,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { toast } from "sonner";
 import {
   useThemeDesign,
   useSaveThemeDesign,
@@ -74,14 +77,31 @@ export function ThemeDesignPane() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Globalne style dla nagłówków bloków, miniatur, przycisku „Czytaj więcej” oraz informacji
         meta. Wartości są aplikowane jako zmienne CSS (<code>--td-*</code>) i nadpisują domyślny
         wygląd kart i widgetów.
       </p>
 
-      <Section title="Nagłówki bloków">
+      <Tabs defaultValue="block-heading" className="space-y-4">
+        <TabsList className="flex flex-wrap h-auto gap-1 justify-start">
+          <TabsTrigger value="block-heading">Nagłówki bloków</TabsTrigger>
+          <TabsTrigger value="thumbnail">Miniatury</TabsTrigger>
+          <TabsTrigger value="read-more">Czytaj więcej</TabsTrigger>
+          <TabsTrigger value="meta">Meta wpisu</TabsTrigger>
+          <TabsTrigger value="toolbar">Toolbar</TabsTrigger>
+          <TabsTrigger value="mode-switch">Tryb jasny/ciemny</TabsTrigger>
+          <TabsTrigger value="social">Social</TabsTrigger>
+          <TabsTrigger value="post-title">Tytuły wpisów</TabsTrigger>
+          <TabsTrigger value="post-excerpt">Excerpt</TabsTrigger>
+          <TabsTrigger value="list-index">Numeracja list</TabsTrigger>
+          <TabsTrigger value="carousel">Karuzela</TabsTrigger>
+          <TabsTrigger value="overlay">Overlay wpisu</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="block-heading" className="mt-0">
+<Section title="Nagłówki bloków">
         <Grid>
           <Field label="Rozmiar (px)">
             <PxStepper value={draft.blockHeading.fontSize} onChange={(v) => set("blockHeading", { fontSize: v })} />
@@ -135,8 +155,10 @@ export function ThemeDesignPane() {
           </h3>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Miniatury wpisów">
+      <TabsContent value="thumbnail" className="mt-0">
+<Section title="Miniatury wpisów">
         <Grid>
           <Field label="Zaokrąglenie (px)">
             <PxStepper value={draft.thumbnail.radius} onChange={(v) => set("thumbnail", { radius: v })} />
@@ -185,8 +207,10 @@ export function ThemeDesignPane() {
           </Field>
         </Grid>
       </Section>
+</TabsContent>
 
-      <Section title={"Przycisk „Czytaj więcej”"}>
+      <TabsContent value="read-more" className="mt-0">
+<Section title={"Przycisk „Czytaj więcej”"}>
         <Grid>
           <Field label="Kolor tła">
             <AdminColorPicker value={draft.readMoreButton.bgColor} onChange={(v) => set("readMoreButton", { bgColor: v ?? "" })} allowTransparent />
@@ -238,8 +262,10 @@ export function ThemeDesignPane() {
           </button>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Informacje meta (autor, data, kategoria)">
+      <TabsContent value="meta" className="mt-0">
+<Section title="Informacje meta (autor, data, kategoria)">
         <Grid>
           <Field label="Rozmiar (px)">
             <PxStepper value={draft.metaInfo.fontSize} onChange={(v) => set("metaInfo", { fontSize: v })} />
@@ -275,8 +301,10 @@ export function ThemeDesignPane() {
           />
         </Grid>
       </Section>
+</TabsContent>
 
-      <Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
+      <TabsContent value="toolbar" className="mt-0">
+<Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
         <Grid>
           <Field label="Tło">
             <AdminColorPicker value={draft.toolbarButton.bgColor} onChange={(v) => set("toolbarButton", { bgColor: v ?? "" })} allowTransparent />
@@ -348,8 +376,10 @@ export function ThemeDesignPane() {
           </div>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Przełącznik trybu jasny/ciemny">
+      <TabsContent value="mode-switch" className="mt-0">
+<Section title="Przełącznik trybu jasny/ciemny">
         <Grid>
           <Field label="Tło toru">
             <AdminColorPicker value={draft.modeSwitcher.trackBg} onChange={(v) => set("modeSwitcher", { trackBg: v ?? "" })} allowTransparent />
@@ -399,8 +429,10 @@ export function ThemeDesignPane() {
           </div>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Ikony social media">
+      <TabsContent value="social" className="mt-0">
+<Section title="Ikony social media">
         <Grid>
           <Field label="Kolor ikony">
             <AdminColorPicker value={draft.socialIcons.color} onChange={(v) => set("socialIcons", { color: v ?? "" })} allowTransparent />
@@ -466,8 +498,10 @@ export function ThemeDesignPane() {
           </div>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Tytuły wpisów (wszystkie widgety)">
+      <TabsContent value="post-title" className="mt-0">
+<Section title="Tytuły wpisów (wszystkie widgety)">
         <p className="text-xs text-muted-foreground -mt-2">
           Ujednolicony styl tytułów we wszystkich widgetach (lista, slider, grid, galeria, ranking,
           ticker, podcast). Aplikowane przez klasę <code>.cms-post-title</code>.
@@ -544,8 +578,10 @@ export function ThemeDesignPane() {
           </div>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Excerpt / lead wpisów">
+      <TabsContent value="post-excerpt" className="mt-0">
+<Section title="Excerpt / lead wpisów">
         <Grid>
           <Field label="Krój pisma (CSS font-family)">
             <Input
@@ -592,8 +628,10 @@ export function ThemeDesignPane() {
           </div>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Numeracja list (warianty „Numbered” / „Ranking”)">
+      <TabsContent value="list-index" className="mt-0">
+<Section title="Numeracja list (warianty „Numbered” / „Ranking”)">
         <p className="text-xs text-muted-foreground -mt-2">
           Globalne kolory dużych translucentnych cyfr (01, 02, 03...) za tytułami w listach
           rankingowych. Każdy widget może je nadpisać swoim własnym kolorem.
@@ -644,8 +682,10 @@ export function ThemeDesignPane() {
           </div>
         </Preview>
       </Section>
+</TabsContent>
 
-      <Section title="Slider / karuzela - ustawienia globalne">
+      <TabsContent value="carousel" className="mt-0">
+<Section title="Slider / karuzela - ustawienia globalne">
         <p className="text-xs text-muted-foreground -mt-2">
           Wartości używane domyślnie przez każdy widget slidera/karuzeli. Można je nadpisać w
           ustawieniach pojedynczego widgetu.
@@ -705,6 +745,12 @@ export function ThemeDesignPane() {
           </Field>
         </Grid>
       </Section>
+</TabsContent>
+
+        <TabsContent value="overlay" className="mt-0">
+          <OverlayTypographyTab />
+        </TabsContent>
+      </Tabs>
 
       <div className="flex gap-2 pt-2">
         <Button onClick={saveAll} disabled={saveTd.isPending || saveCd.isPending}>
@@ -822,6 +868,76 @@ function NumStepper({ value, onChange, step = 100, min = 0, max = 9999 }: { valu
         </button>
       </div>
     </div>
+  );
+}
+
+
+function OverlayTypographyTab() {
+  const { data, isLoading } = usePostLayoutSettings();
+  const save = useSavePostLayoutSettings();
+  if (isLoading || !data) {
+    return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
+  }
+  const patch = (p: Partial<typeof data>) => {
+    save.mutate(p, {
+      onSuccess: () => toast.success("Zapisano rozmiary overlay"),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Błąd zapisu"),
+    });
+  };
+  const Row = ({
+    label,
+    field,
+  }: {
+    label: string;
+    field: "overlay_title_size" | "overlay_excerpt_size" | "header_title_size" | "header_excerpt_size";
+  }) => (
+    <div className="space-y-2">
+      <Label className="text-xs font-semibold">{label}</Label>
+      <div className="grid grid-cols-3 gap-3">
+        {(["base", "md", "lg"] as const).map((bp) => {
+          const key = `${field}_${bp}` as const;
+          const bpLabel = bp === "base" ? "Mobile (base)" : bp === "md" ? "Tablet (md ≥768)" : "Desktop (lg ≥1024)";
+          return (
+            <div key={bp} className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">{bpLabel}</Label>
+              <NumStepper
+                value={data[key] as number}
+                onChange={(v) => patch({ [key]: v } as Partial<typeof data>)}
+                step={1}
+                min={8}
+                max={200}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="space-y-5 rounded-lg border border-border bg-card p-5">
+      <div>
+        <h2 className="text-base font-semibold">Typografia overlay wpisu (cover photo)</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Rozmiary czcionek (px) dla tytułu, podtytułu i meta (autor / data / czas czytania) renderowanych na cover photo
+          oraz w klasycznym nagłówku wpisu. Wartości są responsywne per breakpoint i synchronizowane z ustawieniami w
+          <code className="mx-1">/admin/post-layouts</code>. Zmiana zapisuje się natychmiast.
+        </p>
+      </div>
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Overlay (na cover photo)</h3>
+        <Row label="Tytuł" field="overlay_title_size" />
+        <Row label="Podtytuł / excerpt" field="overlay_excerpt_size" />
+      </div>
+      <div className="space-y-4 pt-3 border-t border-border">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Nagłówek klasyczny (bez cover)</h3>
+        <Row label="Tytuł" field="header_title_size" />
+        <Row label="Podtytuł / excerpt" field="header_excerpt_size" />
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Rozmiar meta bara (autor · data · czas czytania) jest sterowany w zakładce „Meta wpisu" (globalny --td-meta-size).
+      </p>
+    </section>
   );
 }
 
