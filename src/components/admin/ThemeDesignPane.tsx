@@ -837,6 +837,265 @@ export function ThemeDesignPane() {
   );
 }
 
+// ---------- i18n + live-sync toolbar ----------
+
+function I18nAndLiveToolbar({
+  mode,
+  onModeChange,
+  editLang,
+  onEditLangChange,
+  liveSync,
+  onLiveSyncChange,
+  savingMode,
+}: {
+  mode: "shared" | "split";
+  onModeChange: (m: "shared" | "split") => void;
+  editLang: ThemeDesignLang;
+  onEditLangChange: (l: ThemeDesignLang) => void;
+  liveSync: boolean;
+  onLiveSyncChange: (v: boolean) => void;
+  savingMode: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 text-sm">
+          <Languages className="w-4 h-4 text-muted-foreground" />
+          <span className="font-medium">Styl per język</span>
+        </div>
+        <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
+          <button
+            type="button"
+            onClick={() => onModeChange("shared")}
+            disabled={savingMode}
+            className={cn(
+              "px-3 py-1.5 transition-colors",
+              mode === "shared"
+                ? "bg-brand text-[color:var(--brand-foreground)] font-semibold"
+                : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
+            )}
+          >
+            Wspólne PL + EN
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("split")}
+            disabled={savingMode}
+            className={cn(
+              "px-3 py-1.5 transition-colors border-l border-border",
+              mode === "split"
+                ? "bg-brand text-[color:var(--brand-foreground)] font-semibold"
+                : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
+            )}
+          >
+            Osobno per język
+          </button>
+        </div>
+      </div>
+
+      {mode === "split" && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Edytuję:</span>
+          <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
+            {(["pl", "en"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => onEditLangChange(l)}
+                className={cn(
+                  "px-3 py-1.5 uppercase tracking-wide transition-colors",
+                  l !== "pl" && "border-l border-border",
+                  editLang === l
+                    ? "bg-foreground text-background font-semibold"
+                    : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
+                )}
+              >
+                {l === "pl" ? "🇵🇱 PL" : "🇬🇧 EN"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <label className="ml-auto flex items-center gap-2 cursor-pointer select-none">
+        {liveSync ? (
+          <Eye className="w-4 h-4 text-brand" />
+        ) : (
+          <EyeOff className="w-4 h-4 text-muted-foreground" />
+        )}
+        <div className="flex flex-col leading-tight">
+          <span className="text-xs font-medium">
+            Podgląd na żywo w CMS {liveSync ? "(aktywny)" : "(wyłączony)"}
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Odzwierciedla zmiany w całej aplikacji, w tym w kanwach Gutenberga i Elementora, bez
+            zapisu.
+          </span>
+        </div>
+        <Switch checked={liveSync} onCheckedChange={onLiveSyncChange} className="ml-1" />
+      </label>
+    </div>
+  );
+}
+
+// ---------- Live post preview ----------
+
+function LivePostPreview({
+  draft,
+  previewLang,
+  onLangChange,
+}: {
+  draft: ThemeDesign;
+  previewLang: ThemeDesignLang;
+  onLangChange: (l: ThemeDesignLang) => void;
+}) {
+  // Scope the generated tokens to the preview root so unsaved values do not
+  // leak into the rest of the admin chrome. `themeDesignToCss` emits `:root{}`;
+  // we rewrite the selector to a scoped class.
+  const scopedCss = useMemo(() => {
+    const base = themeDesignToCss(draft);
+    return base.replace(":root{", ".theme-design-live-preview{");
+  }, [draft]);
+
+  const copy = previewLang === "en"
+    ? {
+        eyebrow: "Latest analyses",
+        category: "Diplomacy",
+        title: "How trade routes reshape modern statecraft",
+        excerpt:
+          "A concise take on how logistics corridors are redefining sovereignty, alliances and long-range planning.",
+        author: "By Anna Kowalska",
+        published: "Published: 09/07/2026",
+        read: "6 min read",
+        readMore: "Read more",
+        listHeader: "Ranked stories",
+        items: ["Container flows above 2019 peak", "New arctic corridor opens", "AI in customs risk scoring"],
+      }
+    : {
+        eyebrow: "Najnowsze analizy",
+        category: "Dyplomacja",
+        title: "Jak szlaki handlowe redefiniują nowoczesną politykę państw",
+        excerpt:
+          "Zwięzła analiza tego, jak korytarze logistyczne zmieniają suwerenność, sojusze i planowanie długoterminowe.",
+        author: "Autor: Anna Kowalska",
+        published: "Opublikowano: 09/07/2026",
+        read: "6 min czytania",
+        readMore: "Czytaj więcej",
+        listHeader: "Ranking artykułów",
+        items: ["Przepływy kontenerowe powyżej szczytu 2019", "Nowy korytarz arktyczny", "AI w scoringu ryzyka celnego"],
+      };
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-muted/30">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+            Podgląd na żywo
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            zmienia się natychmiast razem z ustawieniami
+          </span>
+        </div>
+        <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px]">
+          {(["pl", "en"] as const).map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => onLangChange(l)}
+              className={cn(
+                "px-2.5 py-1 uppercase tracking-wide transition-colors",
+                l !== "pl" && "border-l border-border",
+                previewLang === l
+                  ? "bg-foreground text-background font-semibold"
+                  : "bg-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {l === "pl" ? "🇵🇱 PL" : "🇬🇧 EN"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(scopedCss) }} />
+
+      <div className="theme-design-live-preview p-6 grid md:grid-cols-[1.4fr_1fr] gap-6 bg-background">
+        {/* Hero card */}
+        <article className="space-y-3">
+          <h2 className="cms-block-heading">{copy.eyebrow}</h2>
+          <div
+            className="cms-thumb relative overflow-hidden"
+            style={{ aspectRatio: draft.thumbnail.aspectRatio, background: "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)" }}
+          >
+            <span
+              className="absolute left-3 top-3 rounded-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+              style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
+            >
+              {copy.category}
+            </span>
+          </div>
+          <h3 className="cms-post-title">
+            <a href="#" className="hover:opacity-90">
+              {copy.title}
+            </a>
+          </h3>
+          <p className="cms-post-excerpt">{copy.excerpt}</p>
+          <div
+            className="cms-meta-info inline-flex flex-wrap items-center"
+            style={{ gap: draft.metaInfo.gap }}
+          >
+            <span>{copy.author}</span>
+            <SepPreview kind={draft.metaInfo.separator} />
+            <span>{copy.published}</span>
+            <SepPreview kind={draft.metaInfo.separator} />
+            <span>{copy.read}</span>
+          </div>
+          <div>
+            <button type="button" className="cms-read-more inline-flex items-center gap-1 border">
+              {copy.readMore}
+              {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
+            </button>
+          </div>
+        </article>
+
+        {/* Ranked list */}
+        <aside className="space-y-3">
+          <h2 className="cms-block-heading">{copy.listHeader}</h2>
+          <ol className="space-y-3">
+            {copy.items.map((item, i) => (
+              <li key={item} className="flex items-start gap-3">
+                <span
+                  className="font-display tabular-nums leading-none shrink-0"
+                  style={{
+                    fontSize: "44px",
+                    fontWeight: draft.listIndex.weight,
+                    color: draft.listIndex.colorLight,
+                    opacity: draft.listIndex.opacity,
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <a href="#" className="cms-post-title text-[15px]">
+                  {item}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
+  if (kind === "none") return null;
+  const ch = kind === "dot" ? "•" : kind === "slash" ? "/" : "|";
+  return (
+    <span aria-hidden className="opacity-60">
+      {ch}
+    </span>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3 rounded-lg border border-border bg-card p-5">
