@@ -380,6 +380,8 @@ export function ThemeOptionsPane() {
             title={t("themeOptions.sections.linkColors")}
             description={t("themeOptions.linkColorsDescription")}
           />
+        ) : active === "font_sizes" ? (
+          <ThemeFontSizesPane />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
