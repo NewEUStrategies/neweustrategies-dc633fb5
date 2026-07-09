@@ -38,6 +38,9 @@ type Props = {
   passwordVerifying?: boolean;
 };
 
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 30;
+
 const T = {
   pl: {
     membersOnly: "Treść tylko dla zalogowanych",
@@ -49,7 +52,9 @@ const T = {
     passwordPlaceholder: "Wprowadź hasło",
     passwordSubmit: "Odblokuj",
     passwordChecking: "Sprawdzanie...",
-    passwordWrong: "Nieprawidłowe hasło. Spróbuj ponownie.",
+    passwordWrong: "Nieprawidłowe hasło.",
+    passwordAttemptsLeft: (n: number) => `Pozostało prób: ${n}`,
+    passwordLocked: (s: number) => `Zbyt wiele prób. Spróbuj ponownie za ${s} s.`,
     passwordHintLabel: "Podpowiedź:",
     signin: "Zaloguj się",
     signup: "Załóż konto",
@@ -72,7 +77,9 @@ const T = {
     passwordPlaceholder: "Enter password",
     passwordSubmit: "Unlock",
     passwordChecking: "Checking...",
-    passwordWrong: "Wrong password. Please try again.",
+    passwordWrong: "Wrong password.",
+    passwordAttemptsLeft: (n: number) => `Attempts left: ${n}`,
+    passwordLocked: (s: number) => `Too many attempts. Try again in ${s}s.`,
     passwordHintLabel: "Hint:",
     signin: "Sign in",
     signup: "Create account",
@@ -94,11 +101,32 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [pwdError, setPwdError] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [lockUntil, setLockUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [hint, setHint] = useState<string | null>(null);
   const t = T[lang];
   const teaser =
     (lang === "pl" ? rule.teaser_pl : rule.teaser_en) ||
     (fallbackText ? buildAutoTeaser(fallbackText) : "");
+
+  const locked = lockUntil !== null && now < lockUntil;
+  const secondsLeft = locked ? Math.ceil(((lockUntil ?? 0) - now) / 1000) : 0;
+  const attemptsLeft = Math.max(0, MAX_ATTEMPTS - attempts);
+
+  // Tick every second while locked to update countdown, then release.
+  useEffect(() => {
+    if (!locked) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [locked]);
+  useEffect(() => {
+    if (lockUntil !== null && now >= lockUntil) {
+      setLockUntil(null);
+      setAttempts(0);
+      setPwdError(false);
+    }
+  }, [now, lockUntil]);
 
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   useEffect(() => {
@@ -128,15 +156,23 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!onPasswordVerify || !password.trim()) return;
+    if (!onPasswordVerify || !password.trim() || passwordVerifying || locked) return;
     const ok = await onPasswordVerify(password);
-    if (!ok) setPwdError(true);
-    else setPwdError(false);
+    if (ok) {
+      setPwdError(false);
+      setAttempts(0);
+      return;
+    }
+    const next = attempts + 1;
+    setAttempts(next);
+    setPwdError(true);
+    setPassword("");
+    if (next >= MAX_ATTEMPTS) {
+      setLockUntil(Date.now() + LOCKOUT_SECONDS * 1000);
+      setNow(Date.now());
+    }
   };
 
-  // One-time purchase of this single entity. Price is resolved + charged
-  // server-side from the access rule; the webhook (or mock finaliser) grants the
-  // user_purchases row that has_content_access reads.
   const buyableEntity = rule.entity_type === "post" || rule.entity_type === "page";
   const startOneTime = async () => {
     if (!session) return;
@@ -198,7 +234,7 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
 
         {/* Password-protected */}
         {rule.mode === "password" && (
-          <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-3">
+          <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-2.5">
             {hint && (
               <p className="text-xs text-muted-foreground">
                 <span className="font-medium">{t.passwordHintLabel}</span> {hint}
@@ -216,16 +252,48 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                 placeholder={t.passwordPlaceholder}
                 aria-invalid={pwdError}
                 aria-label={t.passwordPlaceholder}
+                disabled={passwordVerifying || locked}
+                className={pwdError ? "border-destructive focus-visible:ring-destructive/40" : ""}
               />
-              <Button type="submit" disabled={passwordVerifying || !password.trim()}>
-                {passwordVerifying ? t.passwordChecking : t.passwordSubmit}
+              <Button
+                type="submit"
+                disabled={passwordVerifying || locked || !password.trim()}
+                className="min-w-[92px]"
+              >
+                {passwordVerifying ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin"
+                      aria-hidden="true"
+                    />
+                    {t.passwordChecking}
+                  </span>
+                ) : (
+                  t.passwordSubmit
+                )}
               </Button>
             </div>
-            {pwdError && (
-              <p className="text-xs text-destructive" role="alert">
-                {t.passwordWrong}
-              </p>
-            )}
+            {locked ? (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
+                <Lock className="h-3.5 w-3.5 shrink-0" />
+                <span>{t.passwordLocked(secondsLeft)}</span>
+              </div>
+            ) : pwdError ? (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
+                <span className="font-medium">{t.passwordWrong}</span>
+                {attemptsLeft > 0 && (
+                  <span className="tabular-nums opacity-80">
+                    {t.passwordAttemptsLeft(attemptsLeft)}
+                  </span>
+                )}
+              </div>
+            ) : null}
           </form>
         )}
 
