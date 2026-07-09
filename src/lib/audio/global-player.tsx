@@ -44,7 +44,7 @@ interface GlobalPlayerContextValue {
   seek: (seconds: number) => void;
   seekPct: (pct: number) => void;
   close: () => void;
-  download: () => Promise<void>;
+  download: (meta?: AudioTrackMeta) => Promise<void>;
 }
 
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
