@@ -634,6 +634,11 @@ function EditPage() {
                 entityId={id}
                 tocOverride={form.toc_override ?? null}
                 onTocOverrideChange={(next) => set("toc_override", next)}
+                takeawaysPl={form.takeaways_pl ?? []}
+                takeawaysEn={form.takeaways_en ?? []}
+                onTakeawaysChange={(lang, next) =>
+                  set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
+                }
               />
 
               <div className="flex justify-end pt-2 border-t border-border">
