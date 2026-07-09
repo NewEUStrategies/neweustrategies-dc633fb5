@@ -11,7 +11,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Link2, X } from "@/lib/lucide-shim";
+import { Upload, Image as ImageIcon, Link as LinkIcon, X } from "@/lib/lucide-shim";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { useTranslation } from "react-i18next";
 
