@@ -187,6 +187,7 @@ function EditPage() {
             menu_order: snapshot.menu_order,
             template_type: snapshot.template_type,
             header_override: snapshot.header_override,
+            toc_override: snapshot.toc_override ?? null,
             seo_title_pl: snapshot.seo_title_pl,
             seo_title_en: snapshot.seo_title_en,
             seo_description_pl: snapshot.seo_description_pl,
