@@ -3,6 +3,7 @@
 // + global slider/carousel defaults.
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   Save,
