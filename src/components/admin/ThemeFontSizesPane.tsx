@@ -256,7 +256,7 @@ export function ThemeFontSizesPane() {
 
         {/* PREVIEW */}
         <div className="lg:sticky lg:top-4 h-fit">
-          <div className="rounded-lg border border-border p-6 bg-background font-sizes-preview">
+          <div className="rounded-lg border border-border p-6 bg-background">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">
               {isPL ? "Podgląd" : "Preview"}
             </div>
