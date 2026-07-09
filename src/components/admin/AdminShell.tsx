@@ -188,6 +188,13 @@ function AdminShellInner({
         { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
+        {
+          to: "/admin/key-takeaways",
+          icon: ListChecks,
+          label: t("admin.nav.keyTakeaways", {
+            defaultValue: lang === "pl" ? "Sekcja „Dowiesz się…”" : "Key takeaways",
+          }),
+        },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
         ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
         ...(isSuperAdmin
