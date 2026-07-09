@@ -40,7 +40,7 @@ export function KeyTakeaways({
   const clean = items
     .map((s) => (typeof s === "string" ? s.trim() : ""))
     .filter((s) => s.length > 0)
-    .slice(0, 6);
+    .slice(0, 7);
 
   if (!settings.enabled || clean.length === 0) return null;
 
