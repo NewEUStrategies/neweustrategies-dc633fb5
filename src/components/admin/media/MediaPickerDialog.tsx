@@ -85,13 +85,20 @@ export function MediaPickerDialog({
         </DialogHeader>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <div className="relative flex-1 min-w-[220px] focus-within:[&_.mp-icon]:text-primary focus-within:[&_.mp-divider]:bg-primary/40">
+            <Search
+              className="mp-icon pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/70 transition-colors"
+              aria-hidden
+            />
+            <span
+              aria-hidden
+              className="mp-divider pointer-events-none absolute left-[26px] top-1/2 -translate-y-1/2 h-3.5 w-px bg-border transition-colors"
+            />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Szukaj plików..."
-              className="pl-7 h-8 text-xs"
+              className="pl-8 h-8 text-xs placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/40"
             />
           </div>
           <select
