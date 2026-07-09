@@ -1,3 +1,4 @@
+import type * as React from "react";
 // Floating reading rail - sticky left-side rail on long-form content.
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
@@ -231,7 +232,7 @@ export function FloatingShareBar({
   const enc = encodeURIComponent;
   const u = href || "";
   const links = useMemo(() => {
-    const all: { id: SocialKey; label: string; icon: typeof XIcon; href: string }[] = [
+    const all: { id: SocialKey; label: string; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
       {
         id: "x",
         label: t.x,

@@ -1,3 +1,4 @@
+import type * as React from "react";
 // Publiczne renderery dla Phase 2 batch 6:
 // breadcrumbs, reading-time, share-buttons, post-views.
 // Czytają CurrentPostCtx; bez side-effectów, bezpieczne dla SSR.
@@ -168,7 +169,7 @@ export function PostViewsView({ suffix, lang = "pl", cls }: PostViewsProps) {
 
 type Network = "facebook" | "x" | "linkedin" | "whatsapp" | "telegram" | "email" | "copy";
 
-const NETWORK_META: Record<Network, { label: string; Icon: typeof Facebook; color: string }> = {
+const NETWORK_META: Record<Network, { label: string; Icon: React.ComponentType<{ className?: string }>; color: string }> = {
   facebook: { label: "Facebook", Icon: Facebook, color: "bg-[#1877F2] text-white" },
   x: { label: "X", Icon: XIcon, color: "bg-foreground text-background" },
   linkedin: { label: "LinkedIn", Icon: Linkedin, color: "bg-[#0A66C2] text-white" },
