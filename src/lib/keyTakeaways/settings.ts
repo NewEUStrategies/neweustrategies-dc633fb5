@@ -33,6 +33,7 @@ export const KeyTakeawaysSettingsSchema = z
         indices: z.array(z.number().int().min(0).max(20)).default([]),
         color: COLOR.default("#4f46e5"),
         sizeScale: z.number().min(0.5).max(3).default(1),
+        offsetY: z.number().min(-200).max(200).default(0),
       })
       .default({}),
     colors: z
