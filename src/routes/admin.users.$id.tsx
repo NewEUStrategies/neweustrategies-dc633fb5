@@ -1,3 +1,4 @@
+import { XIcon } from "@/components/atoms/XIcon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +25,7 @@ import {
   Briefcase,
   MapPin,
   Globe,
-  Twitter,
+  // Twitter removed - use XIcon
   Linkedin,
   Facebook,
   Instagram,
@@ -246,8 +247,8 @@ function UserDetail() {
               value={data.website_url}
             />
             <SocialRow
-              icon={<Twitter className="w-4 h-4" />}
-              label="Twitter / X"
+              icon={<XIcon className="w-4 h-4" />}
+              label="X"
               value={data.twitter_url}
             />
             <SocialRow

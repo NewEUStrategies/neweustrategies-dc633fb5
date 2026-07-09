@@ -1,9 +1,11 @@
+import type * as React from "react";
 // Floating reading rail - sticky left-side rail on long-form content.
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
+import { XIcon } from "@/components/atoms/XIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Twitter,
+  // Twitter removed
   Facebook,
   Linkedin,
   Mail,
@@ -59,7 +61,7 @@ const COPY = {
     share: "Udostępnij",
     copy: "Skopiuj link",
     copied: "Skopiowano link!",
-    x: "X (Twitter)",
+    x: "X",
     fb: "Facebook",
     li: "LinkedIn",
     mail: "E-mail",
@@ -78,7 +80,7 @@ const COPY = {
     share: "Share",
     copy: "Copy link",
     copied: "Link copied!",
-    x: "X (Twitter)",
+    x: "X",
     fb: "Facebook",
     li: "LinkedIn",
     mail: "Email",
@@ -230,11 +232,11 @@ export function FloatingShareBar({
   const enc = encodeURIComponent;
   const u = href || "";
   const links = useMemo(() => {
-    const all: { id: SocialKey; label: string; icon: typeof Twitter; href: string }[] = [
+    const all: { id: SocialKey; label: string; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
       {
         id: "x",
         label: t.x,
-        icon: Twitter,
+        icon: XIcon,
         href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}`,
       },
       {

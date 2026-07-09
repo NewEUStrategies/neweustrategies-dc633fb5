@@ -11,7 +11,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
-import { Twitter, Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
+import { Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
+import { XIcon } from "@/components/atoms/XIcon";
 
 export const Route = createFileRoute("/profile/social")({
   component: SocialPage,
@@ -388,9 +389,9 @@ function SocialPage() {
                     <span className="inline-flex items-center gap-2">
                       <BrandIcon
                         name="x"
-                        fallback={Twitter}
+                        fallback={XIcon}
                         className="h-3.5 w-3.5"
-                        alt="X / Twitter"
+                        alt="X"
                       />
                       {t("profile.social.twitter")}
                     </span>

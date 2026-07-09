@@ -4,7 +4,8 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Globe, Linkedin, Twitter } from "lucide-react";
+import { ExternalLink, Globe, Linkedin } from "lucide-react";
+import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { FollowButton } from "@/components/FollowButton";
@@ -108,11 +109,11 @@ function AuthorArchivePage() {
                     >
                       <BrandIcon
                         name="x"
-                        fallback={Twitter}
+                        fallback={XIcon}
                         className="w-4 h-4"
-                        alt="X / Twitter"
+                        alt="X"
                       />
-                      X / Twitter
+                      X
                     </a>
                   )}
                   {author.linkedin_url && (

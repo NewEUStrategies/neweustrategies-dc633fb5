@@ -1,3 +1,4 @@
+import { XIcon } from "@/components/atoms/XIcon";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -21,7 +22,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Linkedin,
-  Twitter,
+  // Twitter removed
   Phone,
   Heart,
 } from "lucide-react";
@@ -461,9 +462,9 @@ function ProfileInline() {
                     )}
                   </ContactRow>
 
-                  {/* X / Twitter */}
+                  {/* X */}
                   <ContactRow
-                    icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
+                    icon={<BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />}
                     ariaLabel="X"
                   >
                     {editable ? (
@@ -830,7 +831,7 @@ function CenteredHero({
                   aria-label="X"
                   className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
                 >
-                  <Twitter className="h-3.5 w-3.5" />
+                  <XIcon className="h-3.5 w-3.5" />
                 </a>
               )}
             </div>

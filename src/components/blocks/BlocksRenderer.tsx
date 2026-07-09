@@ -1,5 +1,6 @@
 // Publiczny renderer BlocksDoc. SSR-friendly, czysto prezentacyjny.
 
+import { XIcon } from "@/components/atoms/XIcon";
 import { useRef } from "react";
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import { FootnoteTooltips } from "@/components/Footnotes";
@@ -29,7 +30,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Facebook,
-  Twitter,
+  // Twitter removed
   Instagram,
   Youtube,
   Linkedin,
@@ -1102,8 +1103,8 @@ function BlockView({
       if (raw.length === 0) return null;
       const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
         facebook: Facebook,
-        x: Twitter,
-        twitter: Twitter,
+        x: XIcon,
+        twitter: XIcon,
         instagram: Instagram,
         youtube: Youtube,
         linkedin: Linkedin,

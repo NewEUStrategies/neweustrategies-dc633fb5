@@ -1,6 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
-import { Twitter } from "lucide-react";
+import { XIcon } from "@/components/atoms/XIcon";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
@@ -18,7 +18,7 @@ export function XQuoteBlock({ block, onChange }: Props) {
   return (
     <div className="not-prose rounded-md border border-border bg-card p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <Twitter className="w-3.5 h-3.5" /> X Quote / Click-to-Tweet
+        <XIcon className="w-3.5 h-3.5" /> X Quote / Click-to-Tweet
         <span className="ml-auto text-[10px] normal-case tracking-normal">{text.length} / 280</span>
       </div>
       <textarea

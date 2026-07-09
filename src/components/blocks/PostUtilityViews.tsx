@@ -1,7 +1,9 @@
+import type * as React from "react";
 // Publiczne renderery dla Phase 2 batch 6:
 // breadcrumbs, reading-time, share-buttons, post-views.
 // Czytają CurrentPostCtx; bez side-effectów, bezpieczne dla SSR.
 
+import { XIcon } from "@/components/atoms/XIcon";
 import { useMemo, useState, useCallback } from "react";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -11,7 +13,7 @@ import {
   Clock,
   Eye,
   Facebook,
-  Twitter,
+  // Twitter removed
   Linkedin,
   MessageCircle,
   Send,
@@ -167,9 +169,9 @@ export function PostViewsView({ suffix, lang = "pl", cls }: PostViewsProps) {
 
 type Network = "facebook" | "x" | "linkedin" | "whatsapp" | "telegram" | "email" | "copy";
 
-const NETWORK_META: Record<Network, { label: string; Icon: typeof Facebook; color: string }> = {
+const NETWORK_META: Record<Network, { label: string; Icon: React.ComponentType<{ className?: string }>; color: string }> = {
   facebook: { label: "Facebook", Icon: Facebook, color: "bg-[#1877F2] text-white" },
-  x: { label: "X", Icon: Twitter, color: "bg-foreground text-background" },
+  x: { label: "X", Icon: XIcon, color: "bg-foreground text-background" },
   linkedin: { label: "LinkedIn", Icon: Linkedin, color: "bg-[#0A66C2] text-white" },
   whatsapp: { label: "WhatsApp", Icon: MessageCircle, color: "bg-[#25D366] text-white" },
   telegram: { label: "Telegram", Icon: Send, color: "bg-[#229ED9] text-white" },
