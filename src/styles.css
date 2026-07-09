@@ -483,8 +483,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"]
 
 /* Style 6 - Bold Dark (forces dark contrast in both modes) */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] {
-  background: #0b0b12 !important;
-  border-right: 1px solid #1f1f2b;
+  background: #0f0f0f !important;
+  border-right: 1px solid #1f1f1f;
   color: #e6e7eb !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"] {
@@ -493,7 +493,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-
   margin: 1px 6px;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"]:hover {
-  background: #1a1a24 !important;
+  background: #1f1f1f !important;
   color: #ffffff !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"]

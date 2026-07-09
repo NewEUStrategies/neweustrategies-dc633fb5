@@ -927,7 +927,7 @@ export function JoinUsForm({
     const altText = (lang === "en" ? imageAltEn : imageAlt) || imageAlt || imageAltEn || "";
     const fallbackGradient =
       imageGradient ||
-      "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #0f172a) 100%)";
+      "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #141414) 100%)";
     const overlayAlpha = Math.min(100, Math.max(0, imageOverlay)) / 100;
     return (
       <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
