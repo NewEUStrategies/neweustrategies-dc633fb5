@@ -45,6 +45,7 @@ export function CoverImagePicker({
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState(value ?? "");
+  const [device, setDevice] = useState<DevicePreview>("desktop");
 
   const handleFile = async (file: File) => {
     setError(null);
