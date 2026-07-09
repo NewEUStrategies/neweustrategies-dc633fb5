@@ -541,12 +541,22 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
-          {takeaways.length > 0 && (
-            <KeyTakeaways
-              items={takeaways}
-              variantOverride={it.takeaways_variant ?? undefined}
-            />
-          )}
+          {(() => {
+            const postFormat = isPost
+              ? ((it as { post_format?: string }).post_format ?? "standard")
+              : null;
+            const isTextPost =
+              isPost && postFormat !== "audio" && postFormat !== "video";
+            const hasBullets = takeaways.length > 0;
+            if (!hasBullets && !isTextPost) return null;
+            return (
+              <KeyTakeaways
+                items={takeaways}
+                variantOverride={it.takeaways_variant ?? undefined}
+                withPlaceholders={!hasBullets && isTextPost}
+              />
+            );
+          })()}
           <ContentRenderer
             editor={it.editor}
             builderDoc={doc}

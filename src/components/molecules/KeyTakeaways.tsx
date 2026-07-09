@@ -23,7 +23,33 @@ interface KeyTakeawaysProps {
   variantOverride?: KeyTakeawaysVariant;
   /** Wymusza język (dla podglądu). */
   langOverride?: "pl" | "en";
+  /**
+   * Gdy true i brak realnych punktów - renderuj placeholderowe bullety,
+   * żeby pokazać obecność sekcji (używane dla tekstowych wpisów przed
+   * uzupełnieniem treści). Placeholders znikają, gdy pojawi się choć
+   * jeden realny punkt.
+   */
+  withPlaceholders?: boolean;
+  /** Liczba placeholderów do wyświetlenia (domyślnie 3). */
+  placeholderCount?: number;
 }
+
+const PLACEHOLDER_TEXTS: Record<"pl" | "en", readonly string[]> = {
+  pl: [
+    "Kluczowy wniosek pojawi się tutaj po dodaniu pierwszego punktu.",
+    "Drugi kluczowy wniosek z artykułu.",
+    "Trzeci kluczowy wniosek z artykułu.",
+    "Czwarty kluczowy wniosek z artykułu.",
+    "Piąty kluczowy wniosek z artykułu.",
+  ],
+  en: [
+    "A key takeaway will appear here once you add your first point.",
+    "A second key takeaway from this article.",
+    "A third key takeaway from this article.",
+    "A fourth key takeaway from this article.",
+    "A fifth key takeaway from this article.",
+  ],
+};
 
 export function KeyTakeaways({
   items,
@@ -31,23 +57,31 @@ export function KeyTakeaways({
   settingsOverride,
   variantOverride,
   langOverride,
+  withPlaceholders = false,
+  placeholderCount = 3,
 }: KeyTakeawaysProps) {
   const { t, i18n } = useTranslation();
   const globalSettings = useKeyTakeawaysSettings();
   const settings = settingsOverride ?? globalSettings;
 
-  const clean = items
+  const realClean = items
     .map((s) => (typeof s === "string" ? s.trim() : ""))
     .filter((s) => s.length > 0)
     .slice(0, 7);
 
-  if (!settings.enabled || clean.length === 0) return null;
+  const isPlaceholder = realClean.length === 0 && withPlaceholders;
+  if (!settings.enabled) return null;
+  if (realClean.length === 0 && !withPlaceholders) return null;
 
   const lang: "pl" | "en" =
     langOverride ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
   const label =
     (lang === "en" ? settings.labelEn : settings.labelPl)?.trim() ||
     t("post.takeaways.title");
+
+  const clean: readonly string[] = isPlaceholder
+    ? PLACEHOLDER_TEXTS[lang].slice(0, Math.max(1, Math.min(7, placeholderCount)))
+    : realClean;
 
   const variant = variantOverride ?? settings.variant;
 
@@ -96,10 +130,19 @@ export function KeyTakeaways({
       aria-label={label}
       // Stabilne "key-takeaways" - referencowane przez SpeakableSpecification
       // w JSON-LD (src/lib/seo/meta.ts). Nie zmieniać nazwy.
-      className={`key-takeaways key-takeaways--${variant} my-10 ${className ?? ""}`}
+      className={`key-takeaways key-takeaways--${variant} my-10 ${
+        isPlaceholder ? "key-takeaways--placeholder opacity-70" : ""
+      } ${className ?? ""}`}
       style={styleVars as React.CSSProperties}
       data-variant={variant}
+      data-placeholder={isPlaceholder ? "true" : undefined}
+      aria-hidden={isPlaceholder ? "true" : undefined}
     >
+      {isPlaceholder && (
+        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-dashed border-current/30 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
+          {lang === "en" ? "Placeholder - fill in the takeaways" : "Placeholder - uzupełnij punkty"}
+        </div>
+      )}
       {variant === "card" ? (
         <div className="key-takeaways__card rounded-2xl p-6 md:p-8">
           <div className="flex items-start gap-4">
