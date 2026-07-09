@@ -493,7 +493,7 @@ export function JoinUsForm({
 
   if (state === "ok") {
     return (
-      <section className={cn(containerCls, className)} aria-live="polite">
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-live="polite">{bgStyleTag}
         <div className="flex items-center gap-3 text-foreground">
           <Check className="w-5 h-5 text-emerald-500" />
           <p className="text-sm font-medium">{okText}</p>
@@ -904,7 +904,7 @@ export function JoinUsForm({
 
   if (variant === "split") {
     return (
-      <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
         {disabledNotice && <div className="md:col-span-2">{disabledNotice}</div>}
         <div>
           <h3
@@ -953,7 +953,7 @@ export function JoinUsForm({
       "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #141414) 100%)";
     const overlayAlpha = Math.min(100, Math.max(0, imageOverlay)) / 100;
     return (
-      <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
         {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
         {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy.
             aspectRatio + object-fit + object-position pozwalają operatorowi
@@ -1044,7 +1044,7 @@ export function JoinUsForm({
 
 
   return (
-    <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
+    <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
       {disabledNotice}
       <h3
         id="joinus-heading"
