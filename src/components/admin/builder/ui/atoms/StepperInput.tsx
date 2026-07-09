@@ -3,8 +3,8 @@
 // to px when empty. Also handles ArrowUp/ArrowDown keys (Shift = ±10).
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
-import { ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StepperButtons } from "./StepperButtons";
 
 interface Props {
   value: string | undefined;
@@ -63,26 +63,7 @@ export function StepperInput({
           }
         }}
       />
-      <div className="absolute right-0 top-0 h-8 w-5 flex flex-col border-l border-input">
-        <button
-          type="button"
-          aria-label="Zwiększ"
-          onClick={() => bump(step)}
-          className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent rounded-tr-md transition-colors"
-          tabIndex={-1}
-        >
-          <ChevronUp className="h-3 w-3" strokeWidth={2.5} />
-        </button>
-        <button
-          type="button"
-          aria-label="Zmniejsz"
-          onClick={() => bump(-step)}
-          className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent rounded-br-md border-t border-input transition-colors"
-          tabIndex={-1}
-        >
-          <ChevronDown className="h-3 w-3" strokeWidth={2.5} />
-        </button>
-      </div>
+      <StepperButtons onIncrement={() => bump(step)} onDecrement={() => bump(-step)} />
     </div>
   );
 }

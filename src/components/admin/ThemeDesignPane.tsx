@@ -18,10 +18,9 @@ import {
   Youtube,
   Linkedin,
   Mail,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
+import { NumberInput, StepperInput } from "@/components/admin/builder/ui/atoms";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -794,22 +793,23 @@ export function ThemeDesignPane() {
             <TdColorField section="listIndex" field="colorDark" mode={previewMode} draft={draft} setColor={setColor} />
           </Field>
           <Field label="Przezroczystość (0 - 1)">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
+            <NumberInput
+              step={0.01}
+              min={0}
+              max={1}
               value={draft.listIndex.opacity}
-              onChange={(e) =>
-                set("listIndex", { opacity: Math.max(0, Math.min(1, Number(e.target.value) || 0)) })
+              onChange={(value) =>
+                set("listIndex", { opacity: Math.max(0, Math.min(1, value ?? 0)) })
               }
             />
           </Field>
           <Field label="Grubość">
-            <Input
-              type="number"
+            <NumberInput
               value={draft.listIndex.weight}
-              onChange={(e) => set("listIndex", { weight: Number(e.target.value) || 800 })}
+              onChange={(value) => set("listIndex", { weight: value ?? 800 })}
+              min={100}
+              max={1000}
+              step={100}
             />
           </Field>
         </Grid>
@@ -857,23 +857,21 @@ export function ThemeDesignPane() {
             onChange={(v) => setCDraft({ ...cDraft, pauseOnHover: v })}
           />
           <Field label="Czas slajdu (ms)">
-            <Input
-              type="number"
+            <NumberInput
               min={1000}
               max={30000}
               step={500}
               value={cDraft.intervalMs}
-              onChange={(e) => setCDraft({ ...cDraft, intervalMs: Number(e.target.value) })}
+              onChange={(value) => setCDraft({ ...cDraft, intervalMs: value ?? 1000 })}
             />
           </Field>
           <Field label="Czas przejścia (ms)">
-            <Input
-              type="number"
+            <NumberInput
               min={100}
               max={3000}
               step={50}
               value={cDraft.speedMs}
-              onChange={(e) => setCDraft({ ...cDraft, speedMs: Number(e.target.value) })}
+              onChange={(value) => setCDraft({ ...cDraft, speedMs: value ?? 100 })}
             />
           </Field>
           <Field label="Typ przejścia">
@@ -1618,57 +1616,12 @@ function Preview({ children }: { children: React.ReactNode }) {
   );
 }
 
-
 function PxStepper({ value, onChange, step = 1, min = 0, max = 999 }: { value: string; onChange: (v: string) => void; step?: number; min?: number; max?: number }) {
-  const n = Number(String(value).replace(/px$/, "")) || 0;
-  const clamp = (x: number) => Math.max(min, Math.min(max, x));
-  const commit = (x: number) => onChange(`${clamp(x)}px`);
-  return (
-    <div className="relative">
-      <Input
-        type="number"
-        value={n}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => commit(Number(e.target.value) || 0)}
-        className="pr-7"
-      />
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col">
-        <button type="button" aria-label="Zwiększ" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => commit(n + step)}>
-          <ChevronUp className="w-3 h-3" />
-        </button>
-        <button type="button" aria-label="Zmniejsz" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => commit(n - step)}>
-          <ChevronDown className="w-3 h-3" />
-        </button>
-      </div>
-    </div>
-  );
+  return <StepperInput value={value} onChange={(next) => onChange(next ?? `${min}px`)} step={step} min={min} max={max} />;
 }
 
 function NumStepper({ value, onChange, step = 100, min = 0, max = 9999 }: { value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number }) {
-  const clamp = (x: number) => Math.max(min, Math.min(max, x));
-  return (
-    <div className="relative">
-      <Input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(clamp(Number(e.target.value) || 0))}
-        className="pr-7"
-      />
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col">
-        <button type="button" aria-label="Zwiększ" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => onChange(clamp(value + step))}>
-          <ChevronUp className="w-3 h-3" />
-        </button>
-        <button type="button" aria-label="Zmniejsz" className="h-3.5 w-5 flex items-center justify-center hover:bg-muted rounded-sm" onClick={() => onChange(clamp(value - step))}>
-          <ChevronDown className="w-3 h-3" />
-        </button>
-      </div>
-    </div>
-  );
+  return <NumberInput value={value} onChange={(next) => onChange(next ?? min)} step={step} min={min} max={max} />;
 }
 
 

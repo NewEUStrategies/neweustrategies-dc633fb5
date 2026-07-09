@@ -1,6 +1,7 @@
 // Atomic Design - Atoms barrel.
 export { ColorField } from "./ColorField";
 export { PropField } from "./PropField";
+export { StepperButtons } from "./StepperButtons";
 export { StepperInput } from "./StepperInput";
 export { Row } from "./Row";
 export { ColorInput } from "./ColorInput";
