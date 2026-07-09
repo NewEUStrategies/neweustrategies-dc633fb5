@@ -222,9 +222,42 @@ function precomputeFootnotes(
   fn: FootnoteCollector,
   out: Map<string, string>,
 ): void {
+  // Field-level key convention (kept flat so a single Map serves every block):
+  //   paragraph/html:  `${id}`
+  //   heading:         `${id}:text`
+  //   quote:           `${id}:text`, `${id}:cite`
+  //   list:            `${id}:item:${i}`
+  //   table:           `${id}:cell:${r}:${c}`
+  const process = (raw: unknown): string | null => {
+    if (!hasFn(raw)) return null;
+    return replaceFootnotes(sanitize(raw), fn);
+  };
   for (const b of blocks) {
     if (b.type === "paragraph" || b.type === "html") {
       out.set(b.id, replaceFootnotes(sanitize(String(b.data.html ?? "")), fn));
+    } else if (b.type === "heading") {
+      const v = process(b.data.text);
+      if (v !== null) out.set(`${b.id}:text`, v);
+    } else if (b.type === "quote") {
+      const t = process(b.data.text);
+      if (t !== null) out.set(`${b.id}:text`, t);
+      const c = process(b.data.cite);
+      if (c !== null) out.set(`${b.id}:cite`, c);
+    } else if (b.type === "list") {
+      const items = Array.isArray(b.data.items) ? (b.data.items as unknown[]) : [];
+      items.forEach((it, i) => {
+        const v = process(it);
+        if (v !== null) out.set(`${b.id}:item:${i}`, v);
+      });
+    } else if (b.type === "table") {
+      const rows = Array.isArray(b.data.rows) ? (b.data.rows as unknown[]) : [];
+      rows.forEach((r, ri) => {
+        if (!Array.isArray(r)) return;
+        r.forEach((c, ci) => {
+          const v = process(c);
+          if (v !== null) out.set(`${b.id}:cell:${ri}:${ci}`, v);
+        });
+      });
     } else if (b.type === "columns") {
       precomputeFootnotes(readBlocksArray(b.data.left), fn, out);
       precomputeFootnotes(readBlocksArray(b.data.right), fn, out);
@@ -236,6 +269,7 @@ function precomputeFootnotes(
     }
   }
 }
+
 
 function alignClass(b: Block): string {
   const a = b.style?.align;
