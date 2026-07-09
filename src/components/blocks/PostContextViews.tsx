@@ -253,6 +253,71 @@ export function AuthorBioView({
     );
   }
 
+  if (variant === "split") {
+    const contactHref = author.contactEmail ? `mailto:${author.contactEmail}` : null;
+    return (
+      <aside
+        className={`not-prose overflow-hidden rounded-[6px] border border-border bg-card shadow-sm ${cls ?? ""}`}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          {showAvatar && (
+            <div className="flex items-center justify-center bg-primary/90 p-6">
+              <div className={avatarSize}>{avatar}</div>
+            </div>
+          )}
+          <div className="p-5 md:p-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3
+                className="text-lg md:text-xl font-bold text-primary m-0 leading-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {displayNameEl}
+              </h3>
+              {author.jobTitle && (
+                <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                  {author.jobTitle}
+                </span>
+              )}
+            </div>
+            {bio && (
+              <p className="text-sm text-muted-foreground m-0 leading-relaxed line-clamp-3">
+                {bio}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {contactHref && (
+                <a
+                  href={contactHref}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  <Mail width={14} height={14} aria-hidden />
+                  {t.contact}
+                </a>
+              )}
+              {profileHref && (
+                <AppLink
+                  href={profileHref}
+                  className="inline-flex items-center gap-2 rounded-full border border-primary text-primary px-4 py-2 text-xs font-semibold hover:bg-primary/10 transition-colors"
+                >
+                  <UserPlus width={14} height={14} aria-hidden />
+                  {t.follow}
+                </AppLink>
+              )}
+            </div>
+            {(socialIcons || (showPostsCount && postsCount !== null)) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                {socialIcons ?? <span />}
+                {showPostsCount && postsCount !== null && (
+                  <span className="text-[11px] text-muted-foreground">{t.posts(postsCount)}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   // card
   return (
     <aside
