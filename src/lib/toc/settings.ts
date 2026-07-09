@@ -29,6 +29,9 @@ export const TocDefaultsSchema = z
     columns: z.enum(TOC_COLUMNS).default("col-1"),
     /** Po którym akapicie treści wstawić ToC. 0 = na górze, -1 = ukryj w treści (tylko sidebar). */
     position: z.number().int().min(-1).max(20).default(3),
+    /** Czy pokazywać ToC bezpośrednio w treści (pod przyciskiem odsłuchu, nad ContentRenderer).
+     *  Domyślnie `false` — ToC jest widoczny tylko w prawym sidebarze. */
+    showInBody: z.boolean().default(false),
     minHeadings: z.number().int().min(1).max(20).default(3),
     /** Minimalny poziom pobieranych nagłówków (1 = H1, 2 = H2, ...). */
     minLevel: z.number().int().min(1).max(6).default(2),
@@ -63,6 +66,7 @@ export const TocOverrideSchema = z
     layout: z.enum(TOC_LAYOUTS).nullable().default(null),
     columns: z.enum(TOC_COLUMNS).nullable().default(null),
     position: z.number().int().min(-1).max(20).nullable().default(null),
+    showInBody: z.boolean().nullable().default(null),
     sticky: z.boolean().nullable().default(null),
   })
   .partial()
@@ -83,6 +87,7 @@ export function mergeTocSettings(
     layout: override.layout ?? defaults.layout,
     columns: override.columns ?? defaults.columns,
     position: override.position ?? defaults.position,
+    showInBody: override.showInBody ?? defaults.showInBody,
     sticky: override.sticky ?? defaults.sticky,
   };
 }

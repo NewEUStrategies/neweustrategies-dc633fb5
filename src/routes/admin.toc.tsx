@@ -294,6 +294,26 @@ function TocAdmin() {
               </div>
               <Switch checked={draft.sticky} onCheckedChange={(v) => update("sticky", v)} />
             </label>
+
+            <label className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">
+                  {t("admin.toc.showInBody", {
+                    defaultValue: "Pokaż ToC w treści (pod przyciskiem odsłuchu)",
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {t("admin.toc.showInBody.hint", {
+                    defaultValue:
+                      "Domyślnie wyłączone - ToC jest widoczny tylko w prawym sidebarze.",
+                  })}
+                </p>
+              </div>
+              <Switch
+                checked={draft.showInBody}
+                onCheckedChange={(v) => update("showInBody", v)}
+              />
+            </label>
           </section>
 
           <section className="space-y-3 pt-3 border-t border-border">

@@ -67,6 +67,9 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
+import { PostListenBar } from "@/components/post/PostListenBar";
+import { InlineToc } from "@/components/post/InlineToc";
+import { useTocDefaults, type TocOverride } from "@/lib/toc/settings";
 
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import {
@@ -401,6 +404,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
   const accessRule = data.access;
   const { data: globalLayoutSettings } = usePostLayoutSettings();
+  const tocDefaults = useTocDefaults();
   useRecordPostView(isPost ? it.id : null, postAuthor?.id ?? null);
 
   // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
@@ -548,13 +552,33 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             const isTextPost =
               isPost && postFormat !== "audio" && postFormat !== "video";
             const hasBullets = takeaways.length > 0;
-            if (!hasBullets && !isTextPost) return null;
+            const tocOverride = (post?.toc_override ?? null) as TocOverride | null;
+            const readMinutes = post?.read_minutes ?? null;
             return (
-              <KeyTakeaways
-                items={takeaways}
-                variantOverride={it.takeaways_variant ?? undefined}
-                withPlaceholders={!hasBullets && isTextPost}
-              />
+              <>
+                {(hasBullets || isTextPost) && (
+                  <KeyTakeaways
+                    items={takeaways}
+                    variantOverride={it.takeaways_variant ?? undefined}
+                    withPlaceholders={!hasBullets && isTextPost}
+                  />
+                )}
+                {isPost && isTextPost && (
+                  <PostListenBar
+                    postId={it.id}
+                    lang={lang}
+                    readMinutes={readMinutes}
+                  />
+                )}
+                {isPost && (
+                  <InlineToc
+                    blocksDoc={blocksDoc}
+                    defaults={tocDefaults}
+                    override={tocOverride}
+                    lang={lang}
+                  />
+                )}
+              </>
             );
           })()}
           <ContentRenderer

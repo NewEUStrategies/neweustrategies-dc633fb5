@@ -111,6 +111,7 @@ export interface PostData extends PageData {
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
   author_id: string | null;
+  toc_override: Record<string, unknown> | null;
 }
 
 interface AuthorProfileOverlay {
@@ -341,7 +342,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
             supabase
               .from("posts")
               .select(
-                `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, custom_meta, related_override, author_id, ${SEO_FIELDS_SELECT}`,
+                `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, toc_override, custom_meta, related_override, author_id, ${SEO_FIELDS_SELECT}`,
               )
               .eq("id", hit.post_id)
               .maybeSingle(),
