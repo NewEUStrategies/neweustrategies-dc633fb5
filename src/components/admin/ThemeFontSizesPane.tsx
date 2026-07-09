@@ -353,8 +353,5 @@ function PreviewSample() {
   );
 }
 
-/** Extract properties inside `:root{...}` (before any @media block). */
-function extractRootBody(css: string): string {
-  const match = css.match(/:root\{([^}]*)\}/);
-  return match?.[1] ?? "";
-}
+
+
