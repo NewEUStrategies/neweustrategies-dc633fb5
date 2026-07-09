@@ -37,6 +37,7 @@ import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { estimateReadingMinutes } from "@/lib/readingTime";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
+import { usePasswordUnlock } from "@/hooks/usePasswordUnlock";
 import {
   isGatedMode,
   hasRenderableBody,
