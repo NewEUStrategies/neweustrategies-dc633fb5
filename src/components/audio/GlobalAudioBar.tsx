@@ -165,9 +165,10 @@ export function GlobalAudioBar() {
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               ) : playing ? (
-                <Pause className="h-5 w-5" aria-hidden />
+                <Pause className="h-5 w-5" aria-hidden strokeWidth={2.5} />
               ) : (
-                <Play className="h-5 w-5 translate-x-[1px]" aria-hidden />
+                <Play className="h-5 w-5 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
+
               )}
             </button>
 

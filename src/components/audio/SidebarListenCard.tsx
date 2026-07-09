@@ -159,7 +159,7 @@ export function SidebarListenCard({
           ) : playing ? (
             <Pause className="h-4 w-4" aria-hidden />
           ) : (
-            <Play className="h-4 w-4 translate-x-[1px]" aria-hidden fill="currentColor" />
+            <Play className="h-4 w-4 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
           )}
         </button>
 
