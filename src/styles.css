@@ -3141,8 +3141,10 @@ textarea::placeholder {
 }
 .key-takeaways .key-takeaways__ghost-title,
 h2.key-takeaways__ghost-title {
-  color: var(--kt-title, currentColor);
-  opacity: 0.18;
+  /* Kolor bierzemy z aktualnego tekstu wpisu i mieszamy z transparent,
+     przez co napis jest widoczny zarówno na jasnym, jak i ciemnym tle,
+     bez zależności od .dark. */
+  color: color-mix(in oklab, currentColor 18%, transparent);
   /* 2.5x powiększenie względem poprzedniego rozmiaru. !important, żeby
      ominąć globalne `.cms-post-h2` / `--td-bh-*` tokeny nadpisujące h2. */
   font-size: clamp(8.75rem, 40vw, 27.5rem) !important;
@@ -3159,12 +3161,6 @@ h2.key-takeaways__ghost-title {
 .key-takeaways .key-takeaways__ghost-title::first-letter,
 h2.key-takeaways__ghost-title::first-letter {
   color: var(--kt-accent, #4f46e5);
-  opacity: 1;
-}
-.dark .key-takeaways .key-takeaways__ghost-title,
-.dark h2.key-takeaways__ghost-title {
-  color: var(--kt-title-dark, #ffffff);
-  opacity: 0.14;
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
