@@ -1214,25 +1214,35 @@ a:has(.cms-post-title):focus {
   line-height: 1.4;
 }
 
-/* Smaller widget headings (h2/h3) site-wide for post cards & widget tiles */
+/* Widget headings (h2/h3) inside builder canvases and rendered widgets:
+   przyjmujemy typografię z Theme Design (`--td-bh-*`), zamiast twardych px.
+   Fallback zachowuje historyczne wartości 17/15 px na wypadek braku tokenów. */
 :is([data-builder-renderer], [data-visual-canvas]) h2:not(.cms-post-title),
 .cms-widget h2:not(.cms-post-title) {
-  font-size: 17px;
+  font-size: var(--td-bh-size, 17px);
+  font-weight: var(--td-bh-weight, 700);
+  color: var(--td-bh-color, inherit);
+  text-transform: var(--td-bh-transform, none);
+  letter-spacing: var(--td-bh-spacing, 0);
   line-height: 1.25;
 }
 :is([data-builder-renderer], [data-visual-canvas]) h3:not(.cms-post-title),
 .cms-widget h3:not(.cms-post-title) {
-  font-size: 15px;
+  font-size: calc(var(--td-bh-size, 17px) - 2px);
+  font-weight: var(--td-bh-weight, 700);
+  color: var(--td-bh-color, inherit);
+  text-transform: var(--td-bh-transform, none);
+  letter-spacing: var(--td-bh-spacing, 0);
   line-height: 1.3;
 }
 @media (max-width: 640px) {
   :is([data-builder-renderer], [data-visual-canvas]) h2:not(.cms-post-title),
   .cms-widget h2:not(.cms-post-title) {
-    font-size: 15px;
+    font-size: calc(var(--td-bh-size, 17px) - 2px);
   }
   :is([data-builder-renderer], [data-visual-canvas]) h3:not(.cms-post-title),
   .cms-widget h3:not(.cms-post-title) {
-    font-size: 14px;
+    font-size: calc(var(--td-bh-size, 17px) - 3px);
   }
 }
 
