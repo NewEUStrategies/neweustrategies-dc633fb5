@@ -774,6 +774,8 @@ const PageCore = z.object({
     .optional(),
   header_override: z.string().max(64).nullable().optional(),
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
+  takeaways_pl: z.array(z.string().max(500)).max(7).optional(),
+  takeaways_en: z.array(z.string().max(500)).max(7).optional(),
   ...SeoBlock,
 });
 
