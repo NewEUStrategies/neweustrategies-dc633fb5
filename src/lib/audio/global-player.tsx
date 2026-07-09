@@ -395,7 +395,9 @@ export function useGlobalAudioPlayer(): GlobalPlayerContextValue {
       duration: 0,
       progress: 0,
       error: null,
+      tts: INITIAL_TTS,
       isActive: () => false,
+
       loadAndPlay: async () => {},
       toggle: async () => {},
       seek: () => {},
