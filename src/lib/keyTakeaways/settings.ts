@@ -47,6 +47,9 @@ export const KeyTakeawaysSettingsSchema = z
         textDark: COLOR.default("#e5e7eb"),
         title: COLOR.default("#111827"),
         titleDark: COLOR.default("#ffffff"),
+        border: COLOR.default("transparent"),
+        borderDark: COLOR.default("transparent"),
+        borderWidth: z.number().min(0).max(8).default(0),
       })
       .default({}),
   })
