@@ -18,13 +18,19 @@ const PX = z
   .transform((v) => (typeof v === "number" ? `${v}px` : v));
 const COLOR = z.string().min(1);
 
+// All color defaults inherit — in order — from the sibling Theme Options
+// tabs (Global kolory, Tła motywu, Przyciski, Pola tekstowe, Kolory ikon,
+// Kolory linków, Kolory pól tekstowych) via `--gc-*` CSS variables, with a
+// themed shadcn token as a last-resort fallback. Global Colors already emit
+// per-mode `.dark` overrides, so Theme Design values automatically flip in
+// dark mode without any explicit override.
 const ThemeDesignSchema = z
   .object({
     blockHeading: z
       .object({
         fontSize: PX.default("18px"),
         fontWeight: z.number().min(100).max(900).default(700),
-        color: COLOR.default("var(--foreground)"),
+        color: COLOR.default("var(--gc-body-text, var(--foreground))"),
         textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
         letterSpacing: PX.default("0px"),
         marginBottom: PX.default("16px"),
@@ -41,9 +47,10 @@ const ThemeDesignSchema = z
       .default({}),
     readMoreButton: z
       .object({
+        // Inherits from the "Przyciski" tab.
         bgColor: COLOR.default("transparent"),
-        color: COLOR.default("var(--brand)"),
-        borderColor: COLOR.default("var(--brand)"),
+        color: COLOR.default("var(--gc-btn-bg, var(--brand))"),
+        borderColor: COLOR.default("var(--gc-btn-bg, var(--brand))"),
         radius: PX.default("9999px"),
         paddingX: PX.default("16px"),
         paddingY: PX.default("8px"),
@@ -54,8 +61,9 @@ const ThemeDesignSchema = z
       .default({}),
     metaInfo: z
       .object({
+        // Inherits from "Kolory pól tekstowych" (muted body text).
         fontSize: PX.default("13px"),
-        color: COLOR.default("var(--muted-foreground)"),
+        color: COLOR.default("var(--gc-body-text-muted, var(--muted-foreground))"),
         uppercase: z.boolean().default(false),
         gap: PX.default("12px"),
         separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
@@ -63,12 +71,15 @@ const ThemeDesignSchema = z
       .default({}),
     toolbarButton: z
       .object({
-        bgColor: COLOR.default("var(--muted)"),
-        color: COLOR.default("var(--foreground)"),
-        hoverBgColor: COLOR.default("color-mix(in oklab, var(--muted) 70%, transparent)"),
-        hoverColor: COLOR.default("var(--foreground)"),
-        activeBgColor: COLOR.default("#fa9346"),
-        activeColor: COLOR.default("#ffffff"),
+        // Toolbar surface inherits from "Pola tekstowe"; active state from "Przyciski".
+        bgColor: COLOR.default("var(--gc-input-bg, var(--muted))"),
+        color: COLOR.default("var(--gc-body-text, var(--foreground))"),
+        hoverBgColor: COLOR.default(
+          "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
+        ),
+        hoverColor: COLOR.default("var(--gc-body-text, var(--foreground))"),
+        activeBgColor: COLOR.default("var(--gc-btn-bg, #fa9346)"),
+        activeColor: COLOR.default("var(--gc-btn-text, #ffffff)"),
         radius: PX.default("6px"),
         paddingX: PX.default("8px"),
         paddingY: PX.default("6px"),
@@ -77,19 +88,22 @@ const ThemeDesignSchema = z
       .default({}),
     modeSwitcher: z
       .object({
-        trackBg: COLOR.default("var(--muted)"),
-        trackBorder: COLOR.default("var(--border)"),
-        inactiveColor: COLOR.default("var(--muted-foreground)"),
-        activeBg: COLOR.default("var(--background)"),
-        activeColor: COLOR.default("var(--foreground)"),
+        // Track = "Pola tekstowe", inactive = "Kolory pól tekstowych" muted,
+        // active surface = "Tła motywu", active text = body text.
+        trackBg: COLOR.default("var(--gc-input-bg, var(--muted))"),
+        trackBorder: COLOR.default("var(--gc-input-border, var(--border))"),
+        inactiveColor: COLOR.default("var(--gc-body-text-muted, var(--muted-foreground))"),
+        activeBg: COLOR.default("var(--gc-surface-bg, var(--background))"),
+        activeColor: COLOR.default("var(--gc-body-text, var(--foreground))"),
         radius: PX.default("6px"),
         showLabel: z.boolean().default(true),
       })
       .default({}),
     socialIcons: z
       .object({
-        color: COLOR.default("var(--foreground)"),
-        hoverColor: COLOR.default("#fa9346"),
+        // Inherits from "Kolory ikon".
+        color: COLOR.default("var(--gc-icon, var(--foreground))"),
+        hoverColor: COLOR.default("var(--gc-icon-hover, var(--brand))"),
         bgColor: COLOR.default("transparent"),
         hoverBgColor: COLOR.default("transparent"),
         size: PX.default("18px"),
@@ -103,8 +117,8 @@ const ThemeDesignSchema = z
       .object({
         // Global defaults for "numbered" / "ranked" post-list variants.
         // Used when the individual widget does not override colors.
-        colorLight: COLOR.default("#231f20"),
-        colorDark: COLOR.default("#fa9346"),
+        colorLight: COLOR.default("var(--gc-body-text, #231f20)"),
+        colorDark: COLOR.default("var(--gc-highlight, #fa9346)"),
         opacity: z.number().min(0).max(1).default(0.18),
         weight: z.number().min(100).max(900).default(800),
       })
@@ -112,6 +126,7 @@ const ThemeDesignSchema = z
     postTitle: z
       .object({
         // Unified title styling shared by every post card / list / slider / grid widget.
+        // Inherits body text color; hover follows "Kolory linków".
         fontFamily: z
           .string()
           .default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
@@ -119,21 +134,22 @@ const ThemeDesignSchema = z
         fontSizeSm: PX.default("14px"),
         fontWeight: z.number().min(100).max(900).default(600),
         lineHeight: z.union([z.number(), z.string()]).default(1.3),
-        color: COLOR.default("var(--foreground)"),
-        hoverColor: COLOR.default("var(--brand)"),
+        color: COLOR.default("var(--gc-body-text, var(--foreground))"),
+        hoverColor: COLOR.default("var(--gc-link-hover, var(--brand))"),
         textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
         letterSpacing: PX.default("0px"),
       })
       .default({}),
     postExcerpt: z
       .object({
+        // Inherits from "Kolory pól tekstowych" (muted body text).
         fontFamily: z
           .string()
           .default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
         fontSize: PX.default("13px"),
         fontWeight: z.number().min(100).max(900).default(400),
         lineHeight: z.union([z.number(), z.string()]).default(1.5),
-        color: COLOR.default("var(--muted-foreground)"),
+        color: COLOR.default("var(--gc-body-text-muted, var(--muted-foreground))"),
         marginTop: PX.default("6px"),
       })
       .default({}),
