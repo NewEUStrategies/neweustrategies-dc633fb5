@@ -631,6 +631,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             }
             content={
               <>
+                {merged.quick_view_info && (
+                  <QuickViewInfoBar
+                    lang={lang}
+                    readMinutes={post.read_minutes}
+                    publishedAt={it.published_at}
+                    updatedAt={it.updated_at}
+                    primaryCategory={postCategories[0]}
+                  />
+                )}
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
                   <RelatedPostsAfterParagraph
