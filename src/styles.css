@@ -3124,6 +3124,34 @@ textarea::placeholder {
   background: var(--kt-accent, #4f46e5);
 }
 
+/* Wariant "ghost" - wielki, półprzezroczysty nagłówek za listą punktów.
+   Rozmiar tytułu skaluje się z clamp() i celowo wychodzi wizualnie
+   nad tekst (z-index niższy), a lista jest ostro czytelna na wierzchu. */
+.key-takeaways--ghost {
+  padding-top: clamp(1.5rem, 4vw, 3rem);
+}
+.key-takeaways__ghost-title {
+  color: var(--kt-title, #111827);
+  opacity: 0.14;
+  font-size: clamp(2.5rem, 9vw, 6rem);
+  z-index: 0;
+}
+.dark .key-takeaways__ghost-title {
+  color: var(--kt-title-dark, #ffffff);
+  opacity: 0.10;
+}
+.key-takeaways--ghost .key-takeaways__list {
+  color: var(--kt-text, #1f2937);
+}
+.dark .key-takeaways--ghost .key-takeaways__list {
+  color: var(--kt-text-dark, #e5e7eb);
+}
+.key-takeaways__ghost-item + .key-takeaways__ghost-item {
+  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #4f46e5) 22%, transparent);
+  padding-top: 1rem;
+}
+
+
 /* -------------------------------------------------------------
  * Global font-size tokens (admin: Theme options > Font sizes)
  * Provided by <ThemeFontSizesStyle /> as :root --fs-*, --lh-*,
