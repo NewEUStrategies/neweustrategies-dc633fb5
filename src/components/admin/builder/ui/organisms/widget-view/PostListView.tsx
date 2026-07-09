@@ -471,7 +471,7 @@ export function PostListView({
             {title(lead)}
           </h3>
           {excerpt(lead) && (
-            <p className="cms-post-excerpt mt-2 line-clamp-3 text-muted-foreground" style={eStyle}>
+            <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
               {excerpt(lead)}
             </p>
           )}
@@ -544,7 +544,7 @@ export function PostListView({
               </h4>
               {excerpt(p) && (
                 <p
-                  className="cms-post-excerpt mt-1.5 line-clamp-2 text-muted-foreground"
+                  className="cms-post-excerpt mt-1.5 line-clamp-2"
                   style={eStyle}
                 >
                   {excerpt(p)}
@@ -650,7 +650,7 @@ function PostCard({
         </h4>
         {excerpt && (
           <p
-            className="cms-post-excerpt text-muted-foreground line-clamp-2 mt-1.5"
+            className="cms-post-excerpt line-clamp-2 mt-1.5"
             style={excerptStyle}
           >
             {excerpt}
@@ -678,7 +678,7 @@ function PostCard({
           {title}
         </h4>
         {excerpt && (
-          <p className="cms-post-excerpt text-muted-foreground line-clamp-2" style={excerptStyle}>
+          <p className="cms-post-excerpt line-clamp-2" style={excerptStyle}>
             {excerpt}
           </p>
         )}
