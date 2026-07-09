@@ -452,25 +452,6 @@ export function FloatingShareBar({
           </nav>
         )}
 
-        {/* Bottom status: % read + current section */}
-        {hasToc && (
-          <div className="border-t border-border/70 px-3 py-2 bg-muted/30">
-            <div className="flex items-baseline justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-semibold text-foreground tabular-nums shrink-0">
-                {pct}% <span className="text-muted-foreground font-normal">{t.read}</span>
-              </span>
-              <span className="text-[11px] text-muted-foreground truncate text-right min-w-0">
-                {currentTitle}
-              </span>
-            </div>
-            <div className="h-[3px] w-full bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-brand transition-[width] duration-150"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Share + Actions card - visually distinct, premium */}
         <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 m-3 mt-2">
