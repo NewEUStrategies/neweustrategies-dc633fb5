@@ -303,9 +303,7 @@ export function FloatingShareBar({
   };
 
   const onPdf = (): void => {
-    toast.info(t.pdfHint);
-    // Defer so toast paints before the blocking print dialog
-    window.setTimeout(() => window.print(), 120);
+    window.print();
   };
 
   // "Save for later": signed-in users persist to their account (user_bookmarks,
