@@ -28,6 +28,14 @@ export interface PostSidebarRendererProps {
   tags?: Array<{ slug: string; name: string }>;
   /** Optional override layout id stored on the post. */
   layoutId?: string | null;
+  /** Metadane odsłuchu - jeśli obecne, w readingu pojawi się widget audio TTS. */
+  listen?: {
+    postId: string;
+    title: string;
+    author?: string | null;
+    authorHref?: string | null;
+    readMinutes?: number | null;
+  } | null;
 }
 
 export function PostSidebarRenderer(props: PostSidebarRendererProps) {
@@ -51,7 +59,7 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
 }
 
 function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps) {
-  const { widget, postId, postTitle, lang, tags } = props;
+  const { widget, postId, postTitle, lang, tags, listen } = props;
   switch (widget.type) {
     case "reading-panel": {
       const cfg: ReadingPanelSettings = {
@@ -70,6 +78,7 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
           lang={lang}
           variant="sidebar"
           settings={cfg}
+          listen={listen ?? null}
         />
       );
     }
