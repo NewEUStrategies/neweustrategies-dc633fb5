@@ -183,6 +183,30 @@ function TocAdmin() {
               </div>
               <div>
                 <Label className="text-xs">
+                  {t("admin.toc.minLevel", { defaultValue: "Min. poziom nagłówka" })}
+                </Label>
+                <Select
+                  value={String(draft.minLevel)}
+                  onValueChange={(v) => update("minLevel", parseInt(v, 10))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem
+                        key={n}
+                        value={String(n)}
+                        disabled={n > draft.maxLevel}
+                      >
+                        H{n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">
                   {t("admin.toc.maxLevel", { defaultValue: "Maks. poziom nagłówka" })}
                 </Label>
                 <Select
@@ -193,8 +217,12 @@ function TocAdmin() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[2, 3, 4, 5, 6].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem
+                        key={n}
+                        value={String(n)}
+                        disabled={n < draft.minLevel}
+                      >
                         H{n}
                       </SelectItem>
                     ))}
