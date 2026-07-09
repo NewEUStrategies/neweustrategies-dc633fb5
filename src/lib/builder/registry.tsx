@@ -267,6 +267,7 @@ export const WIDGETS: WidgetDef[] = [
       variant: "split",
       bgLight: "",
       bgDark: "",
+      perkIconColor: "",
       showInterests: "1",
       title_pl: "",
       title_en: "",
