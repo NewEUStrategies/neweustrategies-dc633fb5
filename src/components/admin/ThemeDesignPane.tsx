@@ -1156,7 +1156,113 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
   );
 }
 
+/** Default inheritance token per (section, field). When the user clicks
+ *  "Dziedzicz" we reset the value to this token (light mode) or clear the
+ *  dark override (dark mode). These tokens already flip automatically with
+ *  the site's global light/dark scheme, so inheritance from
+ *  Kolory linków / Kolory ikon / Pola tekstowe / Kolory pól tekstowych is
+ *  effectively free. */
+const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> = {
+  blockHeading: { color: { token: "var(--foreground)", hint: "Tekst globalny" } },
+  readMoreButton: {
+    bgColor: { token: "transparent", hint: "Przezroczyste" },
+    color: { token: "var(--brand)", hint: "Kolor marki" },
+    borderColor: { token: "var(--brand)", hint: "Kolor marki" },
+  },
+  metaInfo: { color: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" } },
+  toolbarButton: {
+    bgColor: { token: "var(--muted)", hint: "Tło pól tekstowych" },
+    color: { token: "var(--foreground)", hint: "Tekst globalny" },
+    hoverBgColor: { token: "var(--accent)", hint: "Akcent (hover)" },
+    hoverColor: { token: "var(--foreground)", hint: "Tekst globalny" },
+    activeBgColor: { token: "var(--brand)", hint: "Kolor marki" },
+    activeColor: { token: "var(--brand-foreground)", hint: "Tekst na marce" },
+  },
+  modeSwitcher: {
+    trackBg: { token: "var(--muted)", hint: "Tło pól tekstowych" },
+    trackBorder: { token: "var(--border)", hint: "Obramowanie" },
+    inactiveColor: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" },
+    activeBg: { token: "var(--background)", hint: "Tło globalne" },
+    activeColor: { token: "var(--foreground)", hint: "Tekst globalny" },
+  },
+  socialIcons: {
+    color: { token: "var(--foreground)", hint: "Kolor ikon" },
+    hoverColor: { token: "var(--brand)", hint: "Kolor marki" },
+    bgColor: { token: "transparent", hint: "Przezroczyste" },
+    hoverBgColor: { token: "var(--accent)", hint: "Akcent (hover)" },
+  },
+  listIndex: {
+    colorLight: { token: "var(--foreground)", hint: "Tekst globalny" },
+    colorDark: { token: "var(--brand)", hint: "Kolor marki" },
+  },
+  postTitle: {
+    color: { token: "var(--foreground)", hint: "Tekst globalny" },
+    hoverColor: { token: "var(--brand)", hint: "Link (hover)" },
+  },
+  postExcerpt: { color: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" } },
+};
+
+function TdColorField({
+  section,
+  field,
+  mode,
+  draft,
+  setColor,
+}: {
+  section: string;
+  field: string;
+  mode: "light" | "dark";
+  draft: ThemeDesign;
+  setColor: (section: string, field: string, value: string | null) => void;
+}) {
+  const lightVal = ((draft as unknown as Record<string, Record<string, unknown>>)[section]?.[
+    field
+  ] as string | undefined) ?? "";
+  const darkVal = (draft.darkOverrides?.[section]?.[field] as string | undefined) ?? "";
+  const value = mode === "light" ? lightVal : darkVal;
+  const inherit = INHERIT_DEFAULTS[section]?.[field];
+  const placeholder =
+    mode === "dark"
+      ? lightVal || inherit?.token || "auto"
+      : inherit?.token || "auto";
+
+  const reset = () => {
+    if (mode === "dark") setColor(section, field, null);
+    else setColor(section, field, inherit?.token ?? "");
+  };
+
+  return (
+    <div className="space-y-1">
+      <AdminColorPicker
+        value={value}
+        onChange={(v) => setColor(section, field, v ?? null)}
+        allowTransparent
+        placeholder={placeholder}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-muted-foreground truncate">
+          {mode === "dark" && !darkVal
+            ? `Dziedziczy z light (${lightVal || inherit?.hint || "auto"})`
+            : inherit
+              ? `Domyślnie: ${inherit.hint}`
+              : ""}
+        </span>
+        {(mode === "light" ? !!lightVal && lightVal !== inherit?.token : !!darkVal) && (
+          <button
+            type="button"
+            onClick={reset}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2"
+          >
+            ↩ Dziedzicz
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+
   return (
     <section className="space-y-3 rounded-lg border border-border bg-card p-5">
       <h2 className="text-base font-semibold">{title}</h2>
