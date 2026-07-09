@@ -312,7 +312,7 @@ export function AuthorBioView({
                 {displayNameEl}
               </h3>
               {author.jobTitle && (
-                <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                <span className="inline-flex items-center rounded-[6px] bg-primary/10 text-primary px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
                   {author.jobTitle}
                 </span>
               )}
@@ -326,7 +326,7 @@ export function AuthorBioView({
               {contactHref && (
                 <a
                   href={contactHref}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-[6px] bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors"
                 >
                   <Mail width={14} height={14} aria-hidden />
                   {t.contact}
@@ -335,7 +335,7 @@ export function AuthorBioView({
               {profileHref && (
                 <AppLink
                   href={profileHref}
-                  className="inline-flex items-center gap-2 rounded-full border border-primary text-primary px-4 py-2 text-xs font-semibold hover:bg-primary/10 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-[6px] border border-primary text-primary px-4 py-2 text-xs font-semibold hover:bg-primary/10 transition-colors"
                 >
                   <UserPlus width={14} height={14} aria-hidden />
                   {t.follow}
