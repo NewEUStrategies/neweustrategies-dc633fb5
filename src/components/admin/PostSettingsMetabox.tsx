@@ -174,6 +174,8 @@ export function PostSettingsMetabox({
               pl={takeawaysPl}
               en={takeawaysEn}
               onChange={onTakeawaysChange!}
+              variantOverride={takeawaysVariant}
+              onVariantChange={onTakeawaysVariantChange}
             />
           )}
         </div>
