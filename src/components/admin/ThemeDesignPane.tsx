@@ -78,9 +78,11 @@ export function ThemeDesignPane() {
   const { data: tdEn, isLoading: tdEnLoading } = useThemeDesignEn();
   const { data: langMode } = useThemeDesignLangMode();
   const { data: cd, isLoading: cdLoading } = useCarouselDefaults();
+  const { data: overlayData, isLoading: overlayLoading } = usePostLayoutSettings();
   const saveTd = useSaveThemeDesign();
   const saveLangMode = useSaveThemeDesignLangMode();
   const saveCd = useSaveCarouselDefaults();
+  const saveOverlay = useSavePostLayoutSettings();
 
   const mode: "shared" | "split" = langMode?.mode ?? "shared";
   // The language slot we are currently editing. In "shared" mode we always
@@ -91,6 +93,9 @@ export function ThemeDesignPane() {
   const [draftPl, setDraftPl] = useState<ThemeDesign | null>(null);
   const [draftEn, setDraftEn] = useState<ThemeDesign | null>(null);
   const [cDraft, setCDraft] = useState<CarouselDefaults | null>(null);
+  const [overlayDraft, setOverlayDraft] = useState<
+    NonNullable<typeof overlayData> | null
+  >(null);
   const [liveSync, setLiveSync] = useState<boolean>(false);
   const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
@@ -106,6 +111,9 @@ export function ThemeDesignPane() {
   useEffect(() => {
     if (cd && !cDraft) setCDraft(cd);
   }, [cd, cDraft]);
+  useEffect(() => {
+    if (overlayData && !overlayDraft) setOverlayDraft(overlayData);
+  }, [overlayData, overlayDraft]);
 
   const draft: ThemeDesign | null = activeLang === "en" ? draftEn : draftPl;
   const setDraft = (next: ThemeDesign) => {
@@ -119,7 +127,16 @@ export function ThemeDesignPane() {
   const livePreviewDraft = mode === "split" ? draft : draftPl;
   useLiveThemeDesignPreview(livePreviewDraft, liveSync, activeLang);
 
-  if (tdPlLoading || tdEnLoading || cdLoading || !draft || !cDraft || !draftPl) {
+  if (
+    tdPlLoading ||
+    tdEnLoading ||
+    cdLoading ||
+    overlayLoading ||
+    !draft ||
+    !cDraft ||
+    !draftPl ||
+    !overlayDraft
+  ) {
     return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
   }
 
@@ -157,6 +174,17 @@ export function ThemeDesignPane() {
       saveTd.mutate({ next: draftPl, lang: "pl" });
     }
     saveCd.mutate(cDraft);
+    // Overlay typography: only push the fields that actually changed vs. the
+    // server snapshot, so we don't overwrite unrelated columns.
+    if (overlayData && overlayDraft) {
+      const patch: Partial<typeof overlayData> = {};
+      for (const key of Object.keys(overlayDraft) as Array<keyof typeof overlayDraft>) {
+        if (overlayDraft[key] !== overlayData[key]) {
+          (patch as Record<string, unknown>)[key as string] = overlayDraft[key];
+        }
+      }
+      if (Object.keys(patch).length > 0) saveOverlay.mutate(patch);
+    }
   };
 
   return (
