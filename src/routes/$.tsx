@@ -67,7 +67,7 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
-import { PostListenBar } from "@/components/post/PostListenBar";
+// PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
 import { InlineToc } from "@/components/post/InlineToc";
 import { useTocDefaults, type TocOverride } from "@/lib/toc/settings";
 
