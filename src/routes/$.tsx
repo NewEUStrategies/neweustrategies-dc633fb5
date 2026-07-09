@@ -398,8 +398,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     blocks_data: (it as { blocks_data?: LocalizedBlocks | null }).blocks_data ?? null,
   };
   const needsUnlock = isGatedMode(accessRule?.mode) && !hasRenderableBody(ssrBody);
-  const unlocked = useUnlockedContent(isPost ? "post" : "page", it.id, needsUnlock);
-  const body = pickBody(ssrBody, unlocked);
+  const nonPasswordGate =
+    needsUnlock && accessRule?.mode !== "password" && (isPost || !isPost);
+  const unlocked = useUnlockedContent(isPost ? "post" : "page", it.id, nonPasswordGate);
+  // Password-gated entities take a separate unlock path (see Paywall below).
+  const pwdUnlock = usePasswordUnlock(
+    isPost ? "post" : "page",
+    it.id,
+    needsUnlock && accessRule?.mode === "password",
+  );
+  const body = pickBody(pickBody(ssrBody, unlocked), pwdUnlock.body);
 
   const rawDoc = parseBuilderDoc(body.builder_data);
   const rawHtml =

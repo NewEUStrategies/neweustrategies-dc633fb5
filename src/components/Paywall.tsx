@@ -21,6 +21,7 @@ const Lock = (props: React.SVGProps<SVGSVGElement>) => (
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney } from "@/hooks/useContentAccess";
@@ -31,6 +32,10 @@ type Props = {
   lang: "pl" | "en";
   /** Raw text content for auto-teaser when no manual teaser set */
   fallbackText?: string | null;
+  /** Fired by password mode after a successful verify with the unlocked body. */
+  onPasswordVerify?: (password: string) => Promise<boolean>;
+  /** Async loading indicator forwarded from the parent's password unlock hook. */
+  passwordVerifying?: boolean;
 };
 
 const T = {
@@ -39,6 +44,13 @@ const T = {
     membersDesc: "Zaloguj się lub załóż darmowe konto, aby kontynuować czytanie.",
     paidOnly: "Treść premium",
     paidDesc: "Wykup dostęp jednorazowy lub subskrypcję, aby przeczytać cały materiał.",
+    passwordOnly: "Treść zabezpieczona hasłem",
+    passwordDesc: "Wpisz hasło otrzymane od autora, aby odblokować pełny materiał.",
+    passwordPlaceholder: "Wprowadź hasło",
+    passwordSubmit: "Odblokuj",
+    passwordChecking: "Sprawdzanie...",
+    passwordWrong: "Nieprawidłowe hasło. Spróbuj ponownie.",
+    passwordHintLabel: "Podpowiedź:",
     signin: "Zaloguj się",
     signup: "Załóż konto",
     buy: "Kup dostęp",
@@ -55,6 +67,13 @@ const T = {
     membersDesc: "Sign in or create a free account to continue reading.",
     paidOnly: "Premium content",
     paidDesc: "Purchase one-time access or subscribe to read the full piece.",
+    passwordOnly: "Password-protected content",
+    passwordDesc: "Enter the password provided by the author to unlock the full piece.",
+    passwordPlaceholder: "Enter password",
+    passwordSubmit: "Unlock",
+    passwordChecking: "Checking...",
+    passwordWrong: "Wrong password. Please try again.",
+    passwordHintLabel: "Hint:",
     signin: "Sign in",
     signup: "Create account",
     buy: "Buy access",
@@ -68,11 +87,14 @@ const T = {
   },
 };
 
-export function Paywall({ rule, lang, fallbackText }: Props) {
+export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVerifying }: Props) {
   const { session } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [pwdError, setPwdError] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const t = T[lang];
   const teaser =
     (lang === "pl" ? rule.teaser_pl : rule.teaser_en) ||
@@ -89,6 +111,28 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
       .order("sort_order")
       .then(({ data }) => setPlans((data as AccessPlan[]) ?? []));
   }, [rule.plan_ids, rule.mode]);
+
+  // Load hint for password mode (never returns the hash).
+  useEffect(() => {
+    if (rule.mode !== "password" || !rule.entity_id) return;
+    supabase
+      .rpc("get_password_hint", {
+        _entity_type: rule.entity_type,
+        _entity_id: rule.entity_id,
+      })
+      .then(({ data }) => {
+        const row = Array.isArray(data) ? data[0] : null;
+        setHint((lang === "pl" ? row?.hint_pl : row?.hint_en) ?? null);
+      });
+  }, [rule.mode, rule.entity_type, rule.entity_id, lang]);
+
+  const submitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onPasswordVerify || !password.trim()) return;
+    const ok = await onPasswordVerify(password);
+    if (!ok) setPwdError(true);
+    else setPwdError(false);
+  };
 
   // One-time purchase of this single entity. Price is resolved + charged
   // server-side from the access rule; the webhook (or mock finaliser) grants the
@@ -138,14 +182,55 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
           {rule.mode === "members" ? <LogIn className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
         </div>
         <h2 className="font-display text-2xl font-bold mb-2">
-          {rule.mode === "members" ? t.membersOnly : t.paidOnly}
+          {rule.mode === "members"
+            ? t.membersOnly
+            : rule.mode === "password"
+              ? t.passwordOnly
+              : t.paidOnly}
         </h2>
         <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-          {rule.mode === "members" ? t.membersDesc : t.paidDesc}
+          {rule.mode === "members"
+            ? t.membersDesc
+            : rule.mode === "password"
+              ? t.passwordDesc
+              : t.paidDesc}
         </p>
 
+        {/* Password-protected */}
+        {rule.mode === "password" && (
+          <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-3">
+            {hint && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">{t.passwordHintLabel}</span> {hint}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                autoComplete="off"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (pwdError) setPwdError(false);
+                }}
+                placeholder={t.passwordPlaceholder}
+                aria-invalid={pwdError}
+                aria-label={t.passwordPlaceholder}
+              />
+              <Button type="submit" disabled={passwordVerifying || !password.trim()}>
+                {passwordVerifying ? t.passwordChecking : t.passwordSubmit}
+              </Button>
+            </div>
+            {pwdError && (
+              <p className="text-xs text-destructive" role="alert">
+                {t.passwordWrong}
+              </p>
+            )}
+          </form>
+        )}
+
         {/* Members-only / not logged in */}
-        {!session && (
+        {rule.mode !== "password" && !session && (
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link to="/login">
               <Button>

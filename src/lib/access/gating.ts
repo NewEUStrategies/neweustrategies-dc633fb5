@@ -21,7 +21,7 @@ export const EMPTY_BODY: BodyParts = {
 
 /** `true` for modes that require entitlement (everything except `public`). */
 export function isGatedMode(mode: AccessMode | null | undefined): boolean {
-  return mode === "members" || mode === "paid";
+  return mode === "members" || mode === "paid" || mode === "password";
 }
 
 function hasBuilderSections(value: unknown): boolean {
