@@ -56,6 +56,8 @@ export interface JoinUsFormProps {
   //     Można ustawić "transparent" żeby formularz "siedział" na tle strony.
   bgLight?: string;
   bgDark?: string;
+  /** Kolor ikony ✓ (Lucide `Check`) przy bulletpointach perks. Puste = domyślnie brand / white (dla wariantu split-image). */
+  perkIconColor?: string;
 
 
 
@@ -150,6 +152,7 @@ export function JoinUsForm({
   imageFit = "cover",
   bgLight,
   bgDark,
+  perkIconColor,
 
   title,
   subtitle,
@@ -931,15 +934,15 @@ export function JoinUsForm({
             data-edit-target="perkSize"
           >
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
               <span>{p1}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
               <span>{p2}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
               <span>{p3}</span>
             </li>
           </ul>
@@ -1023,15 +1026,15 @@ export function JoinUsForm({
               data-edit-target="perkSize"
             >
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
                 <span>{p1}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
                 <span>{p2}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" />
+                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
                 <span>{p3}</span>
               </li>
             </ul>

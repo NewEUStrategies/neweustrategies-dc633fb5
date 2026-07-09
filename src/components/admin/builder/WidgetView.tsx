@@ -846,6 +846,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           variant={variant}
           bgLight={getStr(c, "bgLight") || undefined}
           bgDark={getStr(c, "bgDark") || undefined}
+          perkIconColor={getStr(c, "perkIconColor") || undefined}
           imageUrl={imageUrl}
           imageAlt={imageAlt}
           imageAltEn={imageAltEn}

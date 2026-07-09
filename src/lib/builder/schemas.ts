@@ -928,8 +928,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
 
     // ----- Wygląd / tło (domyślnie: global colors, dopuszcza transparent) -----
-    { key: "bgLight", type: "color", label: "Tło (light mode)", hint: "Puste = tło z global colors. Możesz też ustawić transparent." },
-    { key: "bgDark", type: "color", label: "Tło (dark mode)", hint: "Puste = tło z global colors. Możesz też ustawić transparent." },
+    { key: "bgLight", type: "color", label: "Tło (light mode)", hint: "Puste = przezroczyste. Możesz wpisać var(--card) lub dowolny kolor." },
+    { key: "bgDark", type: "color", label: "Tło (dark mode)", hint: "Puste = przezroczyste. Możesz wpisać var(--card) lub dowolny kolor." },
+    { key: "perkIconColor", type: "color", label: "Kolor ikony ✓ (bulletpointy)", hint: "Ikona Lucide „Check\" - zmienia się tylko kolor, kształt pozostaje bez zmian. Puste = brand (lub biały w wariancie split-image)." },
 
 
     // --- Obszar grafiki (aktywny w wariancie "split-image")
