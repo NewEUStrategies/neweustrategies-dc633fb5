@@ -163,6 +163,41 @@ export function ThemeDesignPane() {
 
       <LivePostPreview draft={draft} previewLang={previewLang} onLangChange={setPreviewLang} />
 
+      <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
+        <span className="text-xs text-muted-foreground pl-1">Edytujesz kolory dla trybu:</span>
+        <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
+          <button
+            type="button"
+            onClick={() => setPreviewMode("light")}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm text-xs font-medium transition-colors",
+              previewMode === "light"
+                ? "bg-brand text-[color:var(--brand-foreground)] shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Sun className="h-3.5 w-3.5" /> Light
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewMode("dark")}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm text-xs font-medium transition-colors",
+              previewMode === "dark"
+                ? "bg-brand text-[color:var(--brand-foreground)] shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Moon className="h-3.5 w-3.5" /> Dark
+          </button>
+        </div>
+        <span className="text-[11px] text-muted-foreground ml-auto pr-1">
+          Puste pole = dziedziczenie z tokenów globalnych (Kolory linków / ikon / pól tekstowych).
+        </span>
+      </div>
+
+
+
 
       <Tabs defaultValue="block-heading" className="space-y-4">
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
