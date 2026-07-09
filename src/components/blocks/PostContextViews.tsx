@@ -13,7 +13,17 @@ import {
 import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { User, Mail, Globe, Twitter, Linkedin, Facebook, Instagram, Music } from "lucide-react";
+import {
+  User,
+  Mail,
+  Globe,
+  Twitter,
+  Linkedin,
+  Facebook,
+  Instagram,
+  Music,
+  UserPlus,
+} from "lucide-react";
 
 type Lang = "pl" | "en";
 
