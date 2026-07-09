@@ -2,6 +2,13 @@
 // render real values on public pages and sensible placeholders elsewhere.
 import { createContext, useContext, type ReactNode } from "react";
 
+export interface CustomAuthorSocial {
+  label: string;
+  url: string;
+  /** Optional custom icon URL (upload from Media Library). Fallback = lucide Link icon. */
+  iconUrl?: string;
+}
+
 export interface CurrentPostAuthor {
   id?: string;
   name?: string;
@@ -10,13 +17,18 @@ export interface CurrentPostAuthor {
   bio_pl?: string;
   bio_en?: string;
   jobTitle?: string;
+  company?: string;
   contactEmail?: string;
+  phone?: string;
+  /** X (dawniej Twitter). Zachowujemy `twitterUrl` dla kompatybilności wstecznej. */
+  xUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
   facebookUrl?: string;
   instagramUrl?: string;
   spotifyUrl?: string;
   websiteUrl?: string;
+  customSocials?: CustomAuthorSocial[];
 }
 
 interface CurrentPostCategory {

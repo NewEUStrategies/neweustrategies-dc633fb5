@@ -1336,14 +1336,21 @@ function BlockView({
             : v === "split"
               ? "split"
               : "card";
+      const inlineRaw = block.data.inlineAuthor;
+      const inlineAuthor =
+        inlineRaw && typeof inlineRaw === "object" && !Array.isArray(inlineRaw)
+          ? (inlineRaw as unknown as import("@/lib/builder/currentPostContext").CurrentPostAuthor)
+          : null;
+      const useInline = block.data.authorSource === "inline" && !!inlineAuthor?.name;
       return (
         <AuthorBioView
           showAvatar={block.data.showAvatar !== false}
           showSocial={block.data.showSocial !== false}
           showPostsCount={block.data.showPostsCount !== false}
           variant={variant}
+          authorOverride={useInline ? inlineAuthor : undefined}
           authorId={
-            typeof block.data.authorId === "string" && block.data.authorId
+            !useInline && typeof block.data.authorId === "string" && block.data.authorId
               ? block.data.authorId
               : undefined
           }
