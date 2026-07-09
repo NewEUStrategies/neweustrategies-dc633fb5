@@ -1328,8 +1328,14 @@ function BlockView({
       return <PostViewsView suffix={String(block.data.suffix ?? "")} lang={lang} cls={cls} />;
     case "author-bio": {
       const v = String(block.data.variant ?? "card");
-      const variant: "card" | "inline" | "minimal" =
-        v === "inline" ? "inline" : v === "minimal" ? "minimal" : "card";
+      const variant: "card" | "inline" | "minimal" | "split" =
+        v === "inline"
+          ? "inline"
+          : v === "minimal"
+            ? "minimal"
+            : v === "split"
+              ? "split"
+              : "card";
       return (
         <AuthorBioView
           showAvatar={block.data.showAvatar !== false}
