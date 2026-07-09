@@ -38,6 +38,9 @@ type Props = {
   passwordVerifying?: boolean;
 };
 
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 30;
+
 const T = {
   pl: {
     membersOnly: "Treść tylko dla zalogowanych",
@@ -49,7 +52,9 @@ const T = {
     passwordPlaceholder: "Wprowadź hasło",
     passwordSubmit: "Odblokuj",
     passwordChecking: "Sprawdzanie...",
-    passwordWrong: "Nieprawidłowe hasło. Spróbuj ponownie.",
+    passwordWrong: "Nieprawidłowe hasło.",
+    passwordAttemptsLeft: (n: number) => `Pozostało prób: ${n}`,
+    passwordLocked: (s: number) => `Zbyt wiele prób. Spróbuj ponownie za ${s} s.`,
     passwordHintLabel: "Podpowiedź:",
     signin: "Zaloguj się",
     signup: "Załóż konto",
@@ -72,7 +77,9 @@ const T = {
     passwordPlaceholder: "Enter password",
     passwordSubmit: "Unlock",
     passwordChecking: "Checking...",
-    passwordWrong: "Wrong password. Please try again.",
+    passwordWrong: "Wrong password.",
+    passwordAttemptsLeft: (n: number) => `Attempts left: ${n}`,
+    passwordLocked: (s: number) => `Too many attempts. Try again in ${s}s.`,
     passwordHintLabel: "Hint:",
     signin: "Sign in",
     signup: "Create account",
