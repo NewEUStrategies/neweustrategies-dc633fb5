@@ -145,40 +145,145 @@ export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
 export const THEME_DESIGN_DEFAULTS: ThemeDesign = ThemeDesignSchema.parse({});
 
 const KEY = "theme_design";
+const KEY_EN = "theme_design_en";
+const KEY_LANG_MODE = "theme_design_lang_mode";
 const QUERY_KEY = ["site_settings", KEY] as const;
+const QUERY_KEY_EN = ["site_settings", KEY_EN] as const;
+const QUERY_KEY_LANG_MODE = ["site_settings", KEY_LANG_MODE] as const;
+
+export type ThemeDesignLang = "pl" | "en";
+export type ThemeDesignLangMode = "shared" | "split";
+export interface ThemeDesignLangSettings {
+  mode: ThemeDesignLangMode;
+}
+export const THEME_DESIGN_LANG_DEFAULTS: ThemeDesignLangSettings = { mode: "shared" };
+
+function loadFromMap(map: Record<string, unknown>, key: string): ThemeDesign {
+  const raw = map[key] ?? {};
+  const merged = deepMerge(THEME_DESIGN_DEFAULTS, raw as Record<string, unknown>);
+  const parsed = ThemeDesignSchema.safeParse(merged);
+  return parsed.success ? parsed.data : THEME_DESIGN_DEFAULTS;
+}
 
 export function useThemeDesign() {
   return useQuery({
     queryKey: QUERY_KEY,
     queryFn: async ({ client }): Promise<ThemeDesign> => {
       const settings = await client.ensureQueryData(siteSettingsQueryOptions);
-      const raw = settings[KEY] ?? {};
-      const merged = deepMerge(THEME_DESIGN_DEFAULTS, raw as Record<string, unknown>);
-      const parsed = ThemeDesignSchema.safeParse(merged);
-      return parsed.success ? parsed.data : THEME_DESIGN_DEFAULTS;
+      return loadFromMap(settings as Record<string, unknown>, KEY);
     },
     staleTime: 5 * 60_000,
   });
 }
 
+export function useThemeDesignEn() {
+  return useQuery({
+    queryKey: QUERY_KEY_EN,
+    queryFn: async ({ client }): Promise<ThemeDesign> => {
+      const settings = await client.ensureQueryData(siteSettingsQueryOptions);
+      return loadFromMap(settings as Record<string, unknown>, KEY_EN);
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useThemeDesignLangMode() {
+  return useQuery({
+    queryKey: QUERY_KEY_LANG_MODE,
+    queryFn: async ({ client }): Promise<ThemeDesignLangSettings> => {
+      const settings = await client.ensureQueryData(siteSettingsQueryOptions);
+      const raw = (settings as Record<string, unknown>)[KEY_LANG_MODE];
+      const mode =
+        raw && typeof raw === "object" && (raw as { mode?: string }).mode === "split"
+          ? "split"
+          : "shared";
+      return { mode };
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Effective Theme Design for a UI language.
+ *  - shared mode: always returns the base (PL) row - one source of truth
+ *  - split mode + lang=en: returns the EN row, falling back to PL if EN empty */
+export function useThemeDesignFor(lang: ThemeDesignLang): ThemeDesign {
+  const pl = useThemeDesign().data ?? THEME_DESIGN_DEFAULTS;
+  const en = useThemeDesignEn().data ?? THEME_DESIGN_DEFAULTS;
+  const mode = useThemeDesignLangMode().data?.mode ?? "shared";
+  if (mode === "split" && lang === "en") return en;
+  return pl;
+}
+
 export function useSaveThemeDesign() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (next: ThemeDesign) => {
+    mutationFn: async ({ next, lang }: { next: ThemeDesign; lang?: ThemeDesignLang }) => {
+      const key = lang === "en" ? KEY_EN : KEY;
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: KEY, value: toJson(next) }, { onConflict: "key" });
+        .upsert({ key, value: toJson(next) }, { onConflict: "key" });
       if (error) throw error;
-      return next;
+      return { next, lang };
     },
-    onSuccess: (next) => {
-      qc.setQueryData(QUERY_KEY, next);
+    onSuccess: ({ next, lang }) => {
+      qc.setQueryData(lang === "en" ? QUERY_KEY_EN : QUERY_KEY, next);
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
-      toast.success("Zapisano Theme Design");
+      toast.success(lang === "en" ? "Zapisano Theme Design (EN)" : "Zapisano Theme Design");
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
   });
 }
+
+export function useSaveThemeDesignLangMode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (next: ThemeDesignLangSettings) => {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ key: KEY_LANG_MODE, value: toJson(next) }, { onConflict: "key" });
+      if (error) throw error;
+      return next;
+    },
+    onSuccess: (next) => {
+      qc.setQueryData(QUERY_KEY_LANG_MODE, next);
+      qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
+      toast.success(
+        next.mode === "split"
+          ? "Styl treści: osobno dla PL i EN"
+          : "Styl treści: wspólny dla PL i EN",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+  });
+}
+
+/** Optimistically mirror an in-progress draft into the react-query cache so
+ *  every consumer of useThemeDesign() / <ThemeDesignStyle /> reflects it live -
+ *  including the CMS builder canvases (Gutenberg + Elementor-style). Restores
+ *  the persisted value on unmount so unsaved drafts never leak. */
+export function useLiveThemeDesignPreview(
+  draft: ThemeDesign | null,
+  enabled: boolean,
+  lang: ThemeDesignLang = "pl",
+) {
+  const qc = useQueryClient();
+  const key = lang === "en" ? QUERY_KEY_EN : QUERY_KEY;
+  // Note: use useEffect via lazy import to keep this file framework-lean.
+  // Callers already run in a React tree.
+  useEffectLike(() => {
+    if (!enabled || !draft) return;
+    const prev = qc.getQueryData<ThemeDesign>(key);
+    qc.setQueryData(key, draft);
+    return () => {
+      if (prev) qc.setQueryData(key, prev);
+      else qc.invalidateQueries({ queryKey: key });
+    };
+    // draft object identity changes on every keystroke - that's the whole point
+  }, [enabled, draft, lang, qc, key]);
+}
+
+// Tiny wrapper so this module doesn't need a top-level React import.
+import { useEffect as useEffectLike } from "react";
 
 /** Normalizes legacy shadcn-style `hsl(var(--x))` / `hsl(var(--x) / .5)` wrappers
  *  to bare `var(--x)` - our design tokens now hold ready-to-use color values
