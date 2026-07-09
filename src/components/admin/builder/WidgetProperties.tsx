@@ -862,6 +862,25 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Link widgetu
+            </h4>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              Cały widget staje się klikalny - wybierz URL zewnętrzny, wpis, stronę
+              lub plik z Biblioteki mediów.
+            </p>
+            <LinkPicker
+              value={widget.advanced?.link}
+              lang={lang}
+              onChange={(link) =>
+                setAdvanced((a) => {
+                  a.link = link;
+                })
+              }
+            />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Custom CSS
             </h4>
             <Textarea
@@ -876,6 +895,7 @@ export function WidgetProperties({
               placeholder=".my-class { color: red; }"
             />
           </section>
+
         </TabsContent>
       </Tabs>
     </div>
