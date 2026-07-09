@@ -21,7 +21,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Linkedin,
-  Twitter,
+  // Twitter removed
   Phone,
   Heart,
 } from "lucide-react";
@@ -463,7 +463,7 @@ function ProfileInline() {
 
                   {/* X / Twitter */}
                   <ContactRow
-                    icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
+                    icon={<BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />}
                     ariaLabel="X"
                   >
                     {editable ? (
@@ -830,7 +830,7 @@ function CenteredHero({
                   aria-label="X"
                   className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
                 >
-                  <Twitter className="h-3.5 w-3.5" />
+                  <XIcon className="h-3.5 w-3.5" />
                 </a>
               )}
             </div>

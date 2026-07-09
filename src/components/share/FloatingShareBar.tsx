@@ -3,7 +3,7 @@
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Twitter,
+  // Twitter removed
   Facebook,
   Linkedin,
   Mail,
@@ -230,11 +230,11 @@ export function FloatingShareBar({
   const enc = encodeURIComponent;
   const u = href || "";
   const links = useMemo(() => {
-    const all: { id: SocialKey; label: string; icon: typeof Twitter; href: string }[] = [
+    const all: { id: SocialKey; label: string; icon: typeof XIcon; href: string }[] = [
       {
         id: "x",
         label: t.x,
-        icon: Twitter,
+        icon: XIcon,
         href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}`,
       },
       {

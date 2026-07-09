@@ -11,7 +11,7 @@ import {
   Clock,
   Eye,
   Facebook,
-  Twitter,
+  // Twitter removed
   Linkedin,
   MessageCircle,
   Send,
@@ -169,7 +169,7 @@ type Network = "facebook" | "x" | "linkedin" | "whatsapp" | "telegram" | "email"
 
 const NETWORK_META: Record<Network, { label: string; Icon: typeof Facebook; color: string }> = {
   facebook: { label: "Facebook", Icon: Facebook, color: "bg-[#1877F2] text-white" },
-  x: { label: "X", Icon: Twitter, color: "bg-foreground text-background" },
+  x: { label: "X", Icon: XIcon, color: "bg-foreground text-background" },
   linkedin: { label: "LinkedIn", Icon: Linkedin, color: "bg-[#0A66C2] text-white" },
   whatsapp: { label: "WhatsApp", Icon: MessageCircle, color: "bg-[#25D366] text-white" },
   telegram: { label: "Telegram", Icon: Send, color: "bg-[#229ED9] text-white" },

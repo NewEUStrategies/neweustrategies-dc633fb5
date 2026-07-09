@@ -24,7 +24,7 @@ import {
   Briefcase,
   MapPin,
   Globe,
-  Twitter,
+  // Twitter removed - use XIcon
   Linkedin,
   Facebook,
   Instagram,
@@ -246,8 +246,8 @@ function UserDetail() {
               value={data.website_url}
             />
             <SocialRow
-              icon={<Twitter className="w-4 h-4" />}
-              label="Twitter / X"
+              icon={<XIcon className="w-4 h-4" />}
+              label="X"
               value={data.twitter_url}
             />
             <SocialRow

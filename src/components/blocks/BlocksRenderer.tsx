@@ -29,7 +29,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Facebook,
-  Twitter,
+  // Twitter removed
   Instagram,
   Youtube,
   Linkedin,
@@ -1102,8 +1102,8 @@ function BlockView({
       if (raw.length === 0) return null;
       const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
         facebook: Facebook,
-        x: Twitter,
-        twitter: Twitter,
+        x: XIcon,
+        twitter: XIcon,
         instagram: Instagram,
         youtube: Youtube,
         linkedin: Linkedin,
