@@ -3124,21 +3124,29 @@ textarea::placeholder {
   background: var(--kt-accent, #4f46e5);
 }
 
-/* Wariant "ghost" - wielki, półprzezroczysty nagłówek za listą punktów.
-   Rozmiar tytułu skaluje się z clamp() i celowo wychodzi wizualnie
-   nad tekst (z-index niższy), a lista jest ostro czytelna na wierzchu. */
+/* Wariant "ghost" - wielki, półprzezroczysty nagłówek renderowany ZA listą.
+   Tytuł jest absolutnie pozycjonowany w tym samym punkcie startowym co lista
+   (top:0), ma niski z-index i duży rozmiar, przez co punkty listy wizualnie
+   przecinają go w połowie. Overflow:hidden na kontenerze przycina tekst,
+   który zawsze idzie w jednym wierszu (whitespace-nowrap). */
 .key-takeaways--ghost {
-  padding-top: clamp(1.5rem, 4vw, 3rem);
+  padding: 0;
+}
+.key-takeaways--ghost .key-takeaways__ghost {
+  min-height: clamp(4rem, 12vw, 8rem);
+  overflow: hidden;
 }
 .key-takeaways__ghost-title {
   color: var(--kt-title, #111827);
-  opacity: 0.14;
-  font-size: clamp(2.5rem, 9vw, 6rem);
+  opacity: 0.12;
+  font-size: clamp(3rem, 12vw, 8rem);
+  letter-spacing: -0.02em;
   z-index: 0;
+  transform: translateY(-0.15em);
 }
 .dark .key-takeaways__ghost-title {
   color: var(--kt-title-dark, #ffffff);
-  opacity: 0.10;
+  opacity: 0.09;
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
@@ -3148,8 +3156,8 @@ textarea::placeholder {
 }
 .key-takeaways__ghost-item + .key-takeaways__ghost-item {
   border-top: 1px solid color-mix(in oklab, var(--kt-accent, #4f46e5) 22%, transparent);
-  padding-top: 1rem;
 }
+
 
 
 /* -------------------------------------------------------------
