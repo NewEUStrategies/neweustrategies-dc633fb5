@@ -1,10 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 type NavKey =
   | "overview"
   | "account"
+  | "author"
   | "social"
   | "interests"
   | "bookmarks"
@@ -20,6 +22,7 @@ type NavItem = { to: string; key: NavKey };
 const MAIN: NavItem[] = [
   { to: "/profile", key: "overview" },
   { to: "/profile/account", key: "account" },
+  { to: "/profile/author", key: "author" },
   { to: "/profile/social", key: "social" },
   { to: "/profile/interests", key: "interests" },
   { to: "/profile/bookmarks", key: "bookmarks" },
@@ -37,6 +40,9 @@ const FINANCE: NavItem[] = [
 export function ProfileNav() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const { roles } = useAuth();
+  const canAuthor = roles.some((r) => r === "author" || r === "admin" || r === "super_admin");
+  const visibleMain = canAuthor ? MAIN : MAIN.filter((i) => i.key !== "author");
 
   const isActive = (to: string) =>
     pathname === to || (to !== "/profile" && pathname.startsWith(to));
@@ -69,7 +75,7 @@ export function ProfileNav() {
 
   return (
     <nav className="flex flex-col gap-0.5" aria-label={t("profile.title")}>
-      {MAIN.map(renderItem)}
+      {visibleMain.map(renderItem)}
       <div className="my-3 h-px bg-border/70" role="separator" />
       {FINANCE.map(renderItem)}
     </nav>

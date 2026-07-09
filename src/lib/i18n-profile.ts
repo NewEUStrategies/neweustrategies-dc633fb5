@@ -9,6 +9,7 @@ const pl = {
     nav: {
       overview: "Przegląd",
       account: "Konto",
+      author: "Profil autora",
       social: "Media społecznościowe",
       interests: "Zainteresowania",
       bookmarks: "Zapisane materiały",
@@ -251,6 +252,7 @@ const en: typeof pl = {
     nav: {
       overview: "Overview",
       account: "Account",
+      author: "Author profile",
       social: "Social media",
       interests: "Interests",
       bookmarks: "Saved items",

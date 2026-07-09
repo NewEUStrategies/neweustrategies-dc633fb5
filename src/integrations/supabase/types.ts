@@ -247,6 +247,83 @@ export type Database = {
         }
         Relationships: []
       }
+      author_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          company: string | null
+          contact_email: string | null
+          created_at: string
+          custom_socials: Json
+          facebook_url: string | null
+          id: string
+          instagram_url: string | null
+          is_public: boolean
+          job_title: string | null
+          linkedin_url: string | null
+          phone: string | null
+          spotify_url: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          website_url: string | null
+          x_url: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          company?: string | null
+          contact_email?: string | null
+          created_at?: string
+          custom_socials?: Json
+          facebook_url?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_public?: boolean
+          job_title?: string | null
+          linkedin_url?: string | null
+          phone?: string | null
+          spotify_url?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+          x_url?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          company?: string | null
+          contact_email?: string | null
+          created_at?: string
+          custom_socials?: Json
+          facebook_url?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_public?: boolean
+          job_title?: string | null
+          linkedin_url?: string | null
+          phone?: string | null
+          spotify_url?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+          x_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "author_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null
