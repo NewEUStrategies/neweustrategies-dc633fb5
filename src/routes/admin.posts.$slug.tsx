@@ -63,6 +63,7 @@ import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
+import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
 import { toast } from "sonner";
 import {
   invalidateWidgetCaches,
