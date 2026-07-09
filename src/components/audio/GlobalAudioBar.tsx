@@ -1,10 +1,22 @@
 // Trwały bottom bar globalnego odtwarzacza audio. Renderowany raz w __root,
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Loader2, Download, Play, Pause, X, Share2 } from "@/lib/lucide-shim";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+
+function ActionTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className="rounded-[6px] text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const COPY = {
   pl: {
@@ -250,44 +262,50 @@ export function GlobalAudioBar() {
 
             {/* Actions */}
             <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => void onDownload()}
-                disabled={downloading || loading}
-                aria-label={downloading ? t.downloading : t.download}
-                title={t.download}
-                className={[
-                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
-                  "text-muted-foreground hover:text-brand hover:bg-muted transition",
-                  "disabled:opacity-60 disabled:cursor-not-allowed",
-                  FOCUS_RING,
-                ].join(" ")}
-              >
-                {downloading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Download className="h-4 w-4" aria-hidden />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => void onShare()}
-                aria-label={t.share}
-                title={t.share}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-brand hover:bg-muted transition ${FOCUS_RING}`}
-              >
-                <Share2 className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={() => player.close()}
-                aria-label={t.close}
-                title={t.close}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-muted transition ${FOCUS_RING}`}
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
+              <TooltipProvider delayDuration={200}>
+                <ActionTip label={downloading ? t.downloading : t.download}>
+                  <button
+                    type="button"
+                    onClick={() => void onDownload()}
+                    disabled={downloading || loading}
+                    aria-label={downloading ? t.downloading : t.download}
+                    className={[
+                      "inline-flex h-9 w-9 items-center justify-center rounded-[6px]",
+                      "text-muted-foreground hover:text-brand hover:bg-muted transition",
+                      "disabled:opacity-60 disabled:cursor-not-allowed",
+                      FOCUS_RING,
+                    ].join(" ")}
+                  >
+                    {downloading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Download className="h-4 w-4" aria-hidden />
+                    )}
+                  </button>
+                </ActionTip>
+                <ActionTip label={t.share}>
+                  <button
+                    type="button"
+                    onClick={() => void onShare()}
+                    aria-label={t.share}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-brand hover:bg-muted transition ${FOCUS_RING}`}
+                  >
+                    <Share2 className="h-4 w-4" aria-hidden />
+                  </button>
+                </ActionTip>
+                <ActionTip label={t.close}>
+                  <button
+                    type="button"
+                    onClick={() => player.close()}
+                    aria-label={t.close}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-destructive hover:bg-muted transition ${FOCUS_RING}`}
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                </ActionTip>
+              </TooltipProvider>
             </div>
+
           </div>
         </div>
       </div>
