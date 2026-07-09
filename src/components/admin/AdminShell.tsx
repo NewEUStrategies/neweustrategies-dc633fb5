@@ -255,6 +255,18 @@ function AdminShellInner({
                   defaultValue: lang === "pl" ? "Autorzy" : "Authors",
                 }),
               },
+              ...(isSuperAdmin
+                ? [
+                    {
+                      to: "/admin/login-settings",
+                      icon: Lock,
+                      label: t("admin.nav.loginSettings", {
+                        defaultValue:
+                          lang === "pl" ? "Strona logowania" : "Login page",
+                      }),
+                    },
+                  ]
+                : []),
               { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
             ],
           },
