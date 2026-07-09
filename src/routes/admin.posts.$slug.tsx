@@ -63,6 +63,7 @@ import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
+import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
 import { toast } from "sonner";
 import {
   invalidateWidgetCaches,
@@ -1084,65 +1085,42 @@ function EditPost() {
               <section className="flex-1 min-w-0">
                 <div className="bg-card border border-border rounded-lg p-5 md:p-6 space-y-5">
                   {detailsTab === "general" && (
-                    <>
-                      <div>
-                        <h2 className="text-lg font-display font-semibold mb-1">Ogólne</h2>
-                        <p className="text-xs text-muted-foreground">
-                          Uzupełnij tytuł i opis w obu językach. Po zapisaniu przejdź do kroku „Treść”, by
-                          edytować treść właściwą.
-                        </p>
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>
-                            {t("admin.posts.titleCol")}{" "}
-                            <span className="text-[10px] text-muted-foreground">(PL)</span>
-                          </Label>
-                          <Input
-                            value={form.title_pl}
-                            onChange={(e) => set("title_pl", e.target.value)}
-                            className="text-lg font-display"
-                            placeholder="Tytuł po polsku"
-                          />
-                        </div>
-                        <div>
-                          <Label>
-                            {t("admin.posts.titleCol")}{" "}
-                            <span className="text-[10px] text-muted-foreground">(EN)</span>
-                          </Label>
-                          <Input
-                            value={form.title_en}
-                            onChange={(e) => set("title_en", e.target.value)}
-                            className="text-lg font-display"
-                            placeholder="Title in English"
-                          />
-                        </div>
-                        <div>
-                          <Label>
-                            {t("admin.posts.excerpt")}{" "}
-                            <span className="text-[10px] text-muted-foreground">(PL)</span>
-                          </Label>
-                          <Textarea
-                            value={form.excerpt_pl ?? ""}
-                            onChange={(e) => set("excerpt_pl", e.target.value)}
-                            rows={4}
-                            placeholder="Krótki opis wpisu po polsku"
-                          />
-                        </div>
-                        <div>
-                          <Label>
-                            {t("admin.posts.excerpt")}{" "}
-                            <span className="text-[10px] text-muted-foreground">(EN)</span>
-                          </Label>
-                          <Textarea
-                            value={form.excerpt_en ?? ""}
-                            onChange={(e) => set("excerpt_en", e.target.value)}
-                            rows={4}
-                            placeholder="Short excerpt in English"
-                          />
-                        </div>
-                      </div>
-                    </>
+                    <PostGeneralOverview
+                      entityId={id}
+                      titlePl={form.title_pl}
+                      titleEn={form.title_en}
+                      onTitlePlChange={(v) => set("title_pl", v)}
+                      onTitleEnChange={(v) => set("title_en", v)}
+                      excerptPl={form.excerpt_pl ?? ""}
+                      excerptEn={form.excerpt_en ?? ""}
+                      onExcerptPlChange={(v) => set("excerpt_pl", v)}
+                      onExcerptEnChange={(v) => set("excerpt_en", v)}
+                      status={form.status}
+                      slug={form.slug}
+                      coverImageUrl={form.cover_image_url}
+                      publishedAt={form.published_at}
+                      publishAt={form.publish_at}
+                      seoTitlePl={form.seo_title_pl}
+                      seoTitleEn={form.seo_title_en}
+                      seoDescriptionPl={form.seo_description_pl}
+                      seoDescriptionEn={form.seo_description_en}
+                      seoNoindex={form.seo_noindex}
+                      seoIssues={seoIssues}
+                      tocOverride={form.toc_override ?? null}
+                      takeawaysPl={form.takeaways_pl ?? []}
+                      takeawaysEn={form.takeaways_en ?? []}
+                      customMeta={form.custom_meta}
+                      relatedOverride={form.related_override}
+                      postFormat={(form.post_format ?? "standard") as PostFormat}
+                      layoutOverrides={form.layout_overrides}
+                      selectedCatNames={(allCats ?? [])
+                        .filter((c) => selectedCats.includes(c.id))
+                        .map((c) => (uiLang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en))}
+                      selectedTagNames={(allTags ?? [])
+                        .filter((tg) => selectedTags.includes(tg.id))
+                        .map((tg) => tg.name)}
+                      onNavigate={(tab) => setDetailsTab(tab)}
+                    />
                   )}
 
                   {detailsTab === "settings" && (
