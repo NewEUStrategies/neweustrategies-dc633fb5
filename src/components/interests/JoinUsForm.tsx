@@ -52,6 +52,13 @@ export interface JoinUsFormProps {
   /** Sposób dopasowania obrazu w kadrze (`object-fit`). Domyślnie "cover". */
   imageFit?: "cover" | "contain";
 
+  // --- Tło kontenera formularza. Puste = global colors (var(--card)).
+  //     Można ustawić "transparent" żeby formularz "siedział" na tle strony.
+  bgLight?: string;
+  bgDark?: string;
+
+
+
 
 
   // Headings / copy
