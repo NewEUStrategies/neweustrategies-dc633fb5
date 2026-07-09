@@ -26,6 +26,58 @@ export function SortableBlockItem(props: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.id,
   });
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [toolbarPos, setToolbarPos] = useState<{
+    left: number;
+    top: number;
+    placement: "top" | "bottom";
+  }>({ left: 0, top: 0, placement: "top" });
+
+  const setRefs = (node: HTMLDivElement | null) => {
+    setNodeRef(node);
+    containerRef.current = node;
+  };
+
+  useLayoutEffect(() => {
+    if (!props.active) return;
+    const container = containerRef.current;
+    const toolbar = toolbarRef.current;
+    if (!container || !toolbar) return;
+
+    const compute = () => {
+      const cRect = container.getBoundingClientRect();
+      const tRect = toolbar.getBoundingClientRect();
+      const margin = 8;
+      const vw = window.innerWidth;
+      // Prefer right-aligned to the container
+      let left = cRect.width - tRect.width - 4;
+      // Clamp within viewport horizontally relative to container origin
+      const absLeft = cRect.left + left;
+      if (absLeft < margin) left += margin - absLeft;
+      const absRight = cRect.left + left + tRect.width;
+      if (absRight > vw - margin) left -= absRight - (vw - margin);
+      // Vertical: place above unless not enough room, then below
+      const spaceAbove = cRect.top;
+      const placement: "top" | "bottom" =
+        spaceAbove < tRect.height + margin ? "bottom" : "top";
+      const top = placement === "top" ? -tRect.height - 4 : cRect.height + 4;
+      setToolbarPos({ left, top, placement });
+    };
+
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(container);
+    ro.observe(toolbar);
+    window.addEventListener("scroll", compute, true);
+    window.addEventListener("resize", compute);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", compute, true);
+      window.removeEventListener("resize", compute);
+    };
+  }, [props.active]);
+
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
