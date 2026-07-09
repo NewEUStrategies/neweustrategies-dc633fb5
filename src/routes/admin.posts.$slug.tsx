@@ -890,153 +890,241 @@ function EditPost() {
       <EditPresenceBanner entityType="post" entityId={id} />
 
       {step === "details" ? (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-5">
-            <div className="bg-card border border-border rounded-lg p-5 space-y-5">
-              <div>
-                <h2 className="text-lg font-display font-semibold mb-1">Szczegóły wpisu</h2>
-                <p className="text-xs text-muted-foreground">
-                  Uzupełnij tytuł i opis w obu językach. Po zapisaniu przejdź do kroku „Treść”, by
-                  edytować treść właściwą.
-                </p>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label>
-                    {t("admin.posts.titleCol")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(PL)</span>
-                  </Label>
-                  <Input
-                    value={form.title_pl}
-                    onChange={(e) => set("title_pl", e.target.value)}
-                    className="text-lg font-display"
-                    placeholder="Tytuł po polsku"
-                  />
-                </div>
-                <div>
-                  <Label>
-                    {t("admin.posts.titleCol")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(EN)</span>
-                  </Label>
-                  <Input
-                    value={form.title_en}
-                    onChange={(e) => set("title_en", e.target.value)}
-                    className="text-lg font-display"
-                    placeholder="Title in English"
-                  />
-                </div>
-                <div>
-                  <Label>
-                    {t("admin.posts.excerpt")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(PL)</span>
-                  </Label>
-                  <Textarea
-                    value={form.excerpt_pl ?? ""}
-                    onChange={(e) => set("excerpt_pl", e.target.value)}
-                    rows={4}
-                    placeholder="Krótki opis wpisu po polsku"
-                  />
-                </div>
-                <div>
-                  <Label>
-                    {t("admin.posts.excerpt")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(EN)</span>
-                  </Label>
-                  <Textarea
-                    value={form.excerpt_en ?? ""}
-                    onChange={(e) => set("excerpt_en", e.target.value)}
-                    rows={4}
-                    placeholder="Short excerpt in English"
-                  />
-                </div>
-              </div>
+        (() => {
+          const tabs: {
+            id: DetailsTab;
+            label: string;
+            icon: typeof SettingsIcon;
+            hint?: string;
+          }[] = [
+            { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
+            { id: "settings", label: "Ustawienia strony", icon: ListChecks, hint: "ToC · Ochrona · Dowiesz się" },
+            { id: "seo", label: "SEO i podgląd", icon: Search, hint: "Meta title/description, OG" },
+            { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
+            { id: "related", label: "Powiązane wpisy", icon: LinkIconLucide, hint: "Override" },
+            { id: "publish", label: "Publikacja", icon: SettingsIcon, hint: "Status, slug, cover" },
+            { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
+            { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
+            { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
+            { id: "revisions", label: "Historia zmian", icon: History },
+          ];
+          return (
+            <div className="flex flex-col md:flex-row gap-6">
+              <aside className="md:w-64 shrink-0">
+                <nav className="bg-card border border-border rounded-lg p-2 space-y-0.5 sticky top-4">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const active = detailsTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setDetailsTab(tab.id)}
+                        aria-current={active ? "page" : undefined}
+                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-start gap-2.5 ${
+                          active
+                            ? "bg-brand text-brand-foreground"
+                            : "text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-medium leading-tight">{tab.label}</span>
+                          {tab.hint && (
+                            <span
+                              className={`block text-[11px] leading-tight mt-0.5 ${
+                                active ? "text-brand-foreground/80" : "text-muted-foreground"
+                              }`}
+                            >
+                              {tab.hint}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </aside>
+              <section className="flex-1 min-w-0">
+                <div className="bg-card border border-border rounded-lg p-5 md:p-6 space-y-5">
+                  {detailsTab === "general" && (
+                    <>
+                      <div>
+                        <h2 className="text-lg font-display font-semibold mb-1">Ogólne</h2>
+                        <p className="text-xs text-muted-foreground">
+                          Uzupełnij tytuł i opis w obu językach. Po zapisaniu przejdź do kroku „Treść”, by
+                          edytować treść właściwą.
+                        </p>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <Label>
+                            {t("admin.posts.titleCol")}{" "}
+                            <span className="text-[10px] text-muted-foreground">(PL)</span>
+                          </Label>
+                          <Input
+                            value={form.title_pl}
+                            onChange={(e) => set("title_pl", e.target.value)}
+                            className="text-lg font-display"
+                            placeholder="Tytuł po polsku"
+                          />
+                        </div>
+                        <div>
+                          <Label>
+                            {t("admin.posts.titleCol")}{" "}
+                            <span className="text-[10px] text-muted-foreground">(EN)</span>
+                          </Label>
+                          <Input
+                            value={form.title_en}
+                            onChange={(e) => set("title_en", e.target.value)}
+                            className="text-lg font-display"
+                            placeholder="Title in English"
+                          />
+                        </div>
+                        <div>
+                          <Label>
+                            {t("admin.posts.excerpt")}{" "}
+                            <span className="text-[10px] text-muted-foreground">(PL)</span>
+                          </Label>
+                          <Textarea
+                            value={form.excerpt_pl ?? ""}
+                            onChange={(e) => set("excerpt_pl", e.target.value)}
+                            rows={4}
+                            placeholder="Krótki opis wpisu po polsku"
+                          />
+                        </div>
+                        <div>
+                          <Label>
+                            {t("admin.posts.excerpt")}{" "}
+                            <span className="text-[10px] text-muted-foreground">(EN)</span>
+                          </Label>
+                          <Textarea
+                            value={form.excerpt_en ?? ""}
+                            onChange={(e) => set("excerpt_en", e.target.value)}
+                            rows={4}
+                            placeholder="Short excerpt in English"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-              <PostSettingsMetabox
-                entityType="post"
-                entityId={id}
-                tocOverride={form.toc_override ?? null}
-                onTocOverrideChange={(next) => set("toc_override", next)}
-                takeawaysPl={form.takeaways_pl ?? []}
-                takeawaysEn={form.takeaways_en ?? []}
-                onTakeawaysChange={(lang, next) =>
-                  set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
-                }
-              />
+                  {detailsTab === "settings" && (
+                    <PostSettingsMetabox
+                      entityType="post"
+                      entityId={id}
+                      tocOverride={form.toc_override ?? null}
+                      onTocOverrideChange={(next) => set("toc_override", next)}
+                      takeawaysPl={form.takeaways_pl ?? []}
+                      takeawaysEn={form.takeaways_en ?? []}
+                      onTakeawaysChange={(lang, next) =>
+                        set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
+                      }
+                    />
+                  )}
 
+                  {detailsTab === "seo" && (
+                    <SeoPanel
+                      value={{
+                        seo_title_pl: form.seo_title_pl,
+                        seo_title_en: form.seo_title_en,
+                        seo_description_pl: form.seo_description_pl,
+                        seo_description_en: form.seo_description_en,
+                        seo_canonical_url: form.seo_canonical_url,
+                        seo_noindex: form.seo_noindex ?? false,
+                        seo_og_image_url: form.seo_og_image_url,
+                        og_image_generated_url: form.og_image_generated_url,
+                      }}
+                      onChange={(patch) =>
+                        history.set((f) => (f ? { ...f, ...patch } : f), {
+                          coalesceKey: Object.keys(patch).sort().join("|"),
+                        })
+                      }
+                      entity={{ kind: "post", id }}
+                      slug={form.slug}
+                      pathSourcePageId={form.parent_page_id}
+                      fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
+                      fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
+                      coverImageUrl={form.cover_image_url}
+                      ogKicker={allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null}
+                      onIssuesChange={setSeoIssues}
+                    />
+                  )}
 
-              <div className="rounded-lg border border-border p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Custom meta</h3>
-                  <Link to="/admin/custom-meta" className="text-xs text-brand underline">
-                    Edytuj definicje
-                  </Link>
+                  {detailsTab === "meta" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-display font-semibold">Custom meta</h2>
+                          <p className="text-xs text-muted-foreground">
+                            Wartości własnych pól dla tego wpisu.
+                          </p>
+                        </div>
+                        <Link to="/admin/custom-meta" className="text-xs text-brand underline">
+                          Edytuj definicje
+                        </Link>
+                      </div>
+                      <CustomMetaValuesEditor
+                        tenantId={tenantId}
+                        lang="pl"
+                        values={form.custom_meta}
+                        onChange={(next) => set("custom_meta", next)}
+                      />
+                    </div>
+                  )}
+
+                  {detailsTab === "related" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-display font-semibold">Powiązane wpisy - override</h2>
+                          <p className="text-xs text-muted-foreground">
+                            Nadpisuje globalną konfigurację dla tego wpisu.
+                          </p>
+                        </div>
+                        <Link to="/admin/related-posts" className="text-xs text-brand underline">
+                          Konfiguracja globalna
+                        </Link>
+                      </div>
+                      <RelatedOverrideEditor
+                        value={form.related_override}
+                        onChange={(next: Record<string, unknown> | null) => set("related_override", next)}
+                      />
+                    </div>
+                  )}
+
+                  {detailsTab === "publish" && <div className="space-y-4">{metaCard}</div>}
+
+                  {detailsTab === "layout" && <div className="space-y-4">{layoutCard}</div>}
+
+                  {detailsTab === "taxonomy" && (
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {catsCard}
+                      {tagsCard}
+                    </div>
+                  )}
+
+                  {detailsTab === "access" && (
+                    <AccessSettingsPane entityType="post" entityId={id} />
+                  )}
+
+                  {detailsTab === "revisions" && (
+                    <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
+                  )}
+
+                  <div className="flex justify-end pt-2 border-t border-border">
+                    <Button
+                      onClick={() => setStep("content")}
+                      disabled={!form.title_pl.trim() && !form.title_en.trim()}
+                    >
+                      Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
                 </div>
-                <CustomMetaValuesEditor
-                  tenantId={tenantId}
-                  lang="pl"
-                  values={form.custom_meta}
-                  onChange={(next) => set("custom_meta", next)}
-                />
-              </div>
-
-              <div className="rounded-lg border border-border p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Powiązane wpisy - override</h3>
-                  <Link to="/admin/related-posts" className="text-xs text-brand underline">
-                    Konfiguracja globalna
-                  </Link>
-                </div>
-                <RelatedOverrideEditor
-                  value={form.related_override}
-                  onChange={(next: Record<string, unknown> | null) => set("related_override", next)}
-                />
-              </div>
-
-              <SeoPanel
-                value={{
-                  seo_title_pl: form.seo_title_pl,
-                  seo_title_en: form.seo_title_en,
-                  seo_description_pl: form.seo_description_pl,
-                  seo_description_en: form.seo_description_en,
-                  seo_canonical_url: form.seo_canonical_url,
-                  seo_noindex: form.seo_noindex ?? false,
-                  seo_og_image_url: form.seo_og_image_url,
-                  og_image_generated_url: form.og_image_generated_url,
-                }}
-                onChange={(patch) =>
-                  history.set((f) => (f ? { ...f, ...patch } : f), {
-                    coalesceKey: Object.keys(patch).sort().join("|"),
-                  })
-                }
-                entity={{ kind: "post", id }}
-                slug={form.slug}
-                pathSourcePageId={form.parent_page_id}
-                fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
-                fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
-                coverImageUrl={form.cover_image_url}
-                ogKicker={allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null}
-                onIssuesChange={setSeoIssues}
-              />
-
-              <div className="flex justify-end pt-2 border-t border-border">
-                <Button
-                  onClick={() => setStep("content")}
-                  disabled={!form.title_pl.trim() && !form.title_en.trim()}
-                >
-                  Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
+              </section>
             </div>
-          </div>
-          <aside className="space-y-5">
-            {metaCard}
-            {layoutCard}
-            {catsCard}
-            {tagsCard}
-            <AccessSettingsPane entityType="post" entityId={id} />
-            <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
-          </aside>
-        </div>
+          );
+        })()
       ) : (
         <div className="space-y-5">
           <div className="flex items-center justify-between gap-3 bg-card border border-border rounded-lg p-2 pl-4">
