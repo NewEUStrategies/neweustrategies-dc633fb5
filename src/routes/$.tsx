@@ -65,6 +65,7 @@ import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
 import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
+import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
@@ -630,6 +631,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             }
             content={
               <>
+                {merged.quick_view_info && (
+                  <QuickViewInfoBar
+                    lang={lang}
+                    readMinutes={post.read_minutes}
+                    publishedAt={it.published_at}
+                    updatedAt={it.updated_at}
+                    primaryCategory={postCategories[0]}
+                  />
+                )}
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
                   <RelatedPostsAfterParagraph
