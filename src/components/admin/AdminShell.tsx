@@ -195,6 +195,13 @@ function AdminShellInner({
             defaultValue: lang === "pl" ? "Sekcja „Dowiesz się…”" : "Key takeaways",
           }),
         },
+        {
+          to: "/admin/toc",
+          icon: ListChecks,
+          label: t("admin.nav.toc", {
+            defaultValue: lang === "pl" ? "Spis treści (ToC)" : "Table of contents",
+          }),
+        },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
         ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
         ...(isSuperAdmin
