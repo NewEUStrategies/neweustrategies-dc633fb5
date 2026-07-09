@@ -95,6 +95,7 @@ interface PostForm {
   layout_overrides: LayoutOverrides | null;
   takeaways_pl: string[];
   takeaways_en: string[];
+  toc_override: import("@/lib/toc/settings").TocOverride | null;
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
   seo_title_pl: string | null;
