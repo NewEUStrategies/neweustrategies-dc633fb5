@@ -19,10 +19,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   TOC_DEFAULTS,
   TOC_LAYOUTS,
+  TOC_COLUMNS,
   useTocDefaults,
   useSaveTocDefaults,
   type TocDefaults,
   type TocLayout,
+  type TocColumns,
 } from "@/lib/toc/settings";
 
 export const Route = createFileRoute("/admin/toc")({
