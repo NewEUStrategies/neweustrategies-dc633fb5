@@ -72,7 +72,10 @@ function KeyTakeawaysAdmin() {
 
   const update = <K extends keyof KeyTakeawaysSettings>(k: K, v: KeyTakeawaysSettings[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
-  const updateColor = (k: keyof KeyTakeawaysSettings["colors"], v: string) =>
+  type ColorKey = {
+    [K in keyof KeyTakeawaysSettings["colors"]]: KeyTakeawaysSettings["colors"][K] extends string ? K : never;
+  }[keyof KeyTakeawaysSettings["colors"]];
+  const updateColor = (k: ColorKey, v: string) =>
     setDraft((d) => ({ ...d, colors: { ...d.colors, [k]: v } }));
 
   const resetAll = () => setDraft(KEY_TAKEAWAYS_DEFAULTS);
