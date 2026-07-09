@@ -646,6 +646,7 @@ function TakeawaysPreviewCard({
   lang,
   items,
   settings,
+  variantOverride,
   placeholderMsg,
   active,
   onActivate,
@@ -653,6 +654,7 @@ function TakeawaysPreviewCard({
   lang: "pl" | "en";
   items: string[];
   settings: ReturnType<typeof useKeyTakeawaysSettings>;
+  variantOverride?: "card" | "heading" | "ghost";
   placeholderMsg: string;
   active: boolean;
   onActivate: () => void;
@@ -692,6 +694,7 @@ function TakeawaysPreviewCard({
             <KeyTakeaways
               items={items}
               settingsOverride={settings}
+              variantOverride={variantOverride}
               langOverride={lang}
               className="my-0"
             />
