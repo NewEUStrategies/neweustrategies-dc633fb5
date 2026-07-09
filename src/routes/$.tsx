@@ -610,7 +610,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
-        <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
+        <main
+          style={outerMaxStyle}
+          className="flex-1 w-full mx-auto px-4 lg:px-8 py-10"
+        >
           <Breadcrumbs items={crumbs} />
           <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
           <PostLayoutRenderer
