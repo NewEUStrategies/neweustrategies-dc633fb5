@@ -490,7 +490,7 @@ function HeadingCounter({
 
 
 // ---------------- Takeaways tab ----------------
-function TakeawaysTab({
+export function TakeawaysTab({
   pl,
   en,
   onChange,
