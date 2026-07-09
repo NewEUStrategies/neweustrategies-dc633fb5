@@ -148,7 +148,11 @@ export function PostSettingsMetabox({
         {/* Panel */}
         <div className="p-4">
           {tab === "toc" && (
-            <TocTab override={tocOverride ?? null} onChange={onTocOverrideChange} />
+            <TocTab
+              override={tocOverride ?? null}
+              onChange={onTocOverrideChange}
+              postBlocks={postBlocks ?? null}
+            />
           )}
           {tab === "membership" && (
             <AccessSettingsPane
