@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import defaultLoginLight from "@/assets/login-illustration-light.jpg";
+import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
@@ -124,7 +126,8 @@ function LoginSettingsPage() {
                 onChange={(v) => update("hero_image_url_light", v)}
                 aspect="3 / 4"
                 previewBg="light"
-                hint="1200×1600 px · jasne tło, ciemne akcenty."
+                fallbackUrl={defaultLoginLight}
+                hint="1200×1600 px · jasne tło, ciemne akcenty. Domyślnie: wbudowana ilustracja."
               />
               <ImageField
                 label="Motyw ciemny"
@@ -133,7 +136,8 @@ function LoginSettingsPage() {
                 onChange={(v) => update("hero_image_url_dark", v)}
                 aspect="3 / 4"
                 previewBg="dark"
-                hint="1200×1600 px · ciemne tło, jasne akcenty."
+                fallbackUrl={defaultLoginDark}
+                hint="1200×1600 px · ciemne tło, jasne akcenty. Domyślnie: wbudowana ilustracja."
               />
             </div>
           </section>
@@ -259,6 +263,7 @@ function ImageField({
   aspect = "16 / 9",
   previewBg,
   icon,
+  fallbackUrl,
 }: {
   label: string;
   value: string;
@@ -267,6 +272,7 @@ function ImageField({
   aspect?: string;
   previewBg?: "light" | "dark";
   icon?: "light" | "dark";
+  fallbackUrl?: string;
 }) {
   const [open, setOpen] = useState(false);
   const bgClass =
@@ -276,6 +282,8 @@ function ImageField({
         ? "bg-neutral-50 border-neutral-200"
         : "bg-muted border-border";
   const IconEl = icon === "dark" ? Moon : icon === "light" ? Sun : null;
+  const displayUrl = value || fallbackUrl || "";
+  const isFallback = !value && Boolean(fallbackUrl);
 
   return (
     <div className="space-y-2">
@@ -298,13 +306,19 @@ function ImageField({
         className={`relative w-full rounded-lg border overflow-hidden ${bgClass} flex items-center justify-center`}
         style={{ aspectRatio: aspect }}
       >
-        {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={value}
-            alt={label}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+        {displayUrl ? (
+          <>
+            <img
+              src={displayUrl}
+              alt={label}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {isFallback && (
+              <span className="absolute top-2 left-2 z-10 rounded-full bg-black/70 text-white text-[10px] px-2 py-0.5 uppercase tracking-wider backdrop-blur">
+                Domyślna
+              </span>
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground text-xs">
             <ImageIcon className="w-6 h-6 opacity-60" />
