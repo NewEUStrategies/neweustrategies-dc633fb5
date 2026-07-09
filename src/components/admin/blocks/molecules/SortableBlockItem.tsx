@@ -48,7 +48,10 @@ export function SortableBlockItem(props: Props) {
         type="button"
         {...attributes}
         {...listeners}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onSelect();
+        }}
         title={t("blocks.actions.drag")}
         aria-label={t("blocks.actions.drag")}
         className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent cursor-grab active:cursor-grabbing"
