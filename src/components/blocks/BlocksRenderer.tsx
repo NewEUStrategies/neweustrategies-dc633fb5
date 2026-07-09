@@ -1,6 +1,9 @@
 // Publiczny renderer BlocksDoc. SSR-friendly, czysto prezentacyjny.
 
+import { useRef } from "react";
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
+import { FootnoteTooltips } from "@/components/Footnotes";
+import type { Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
