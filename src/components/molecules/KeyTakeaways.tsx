@@ -67,6 +67,9 @@ export function KeyTakeaways({
     "--kt-highlight": settings.highlight?.color ?? settings.colors.accent,
     "--kt-ghost-scale": String(sizeScale),
     "--kt-ghost-offset-y": `${offsetY}px`,
+    "--kt-border": settings.colors.border ?? "transparent",
+    "--kt-border-dark": settings.colors.borderDark ?? "transparent",
+    "--kt-border-width": `${settings.colors.borderWidth ?? 0}px`,
   };
 
   // Rozbij etykietę na tokeny (słowa i spacje) - dla wariantu ghost

@@ -72,7 +72,10 @@ function KeyTakeawaysAdmin() {
 
   const update = <K extends keyof KeyTakeawaysSettings>(k: K, v: KeyTakeawaysSettings[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
-  const updateColor = (k: keyof KeyTakeawaysSettings["colors"], v: string) =>
+  type ColorKey = {
+    [K in keyof KeyTakeawaysSettings["colors"]]: KeyTakeawaysSettings["colors"][K] extends string ? K : never;
+  }[keyof KeyTakeawaysSettings["colors"]];
+  const updateColor = (k: ColorKey, v: string) =>
     setDraft((d) => ({ ...d, colors: { ...d.colors, [k]: v } }));
 
   const resetAll = () => setDraft(KEY_TAKEAWAYS_DEFAULTS);
@@ -423,6 +426,38 @@ function KeyTakeawaysAdmin() {
                 label={isPL ? "Tekst (ciemny)" : "Text (dark)"}
                 value={draft.colors.textDark}
                 onChange={(v) => updateColor("textDark", v)}
+              />
+              <ColorRow
+                label={isPL ? "Obramowanie (jasny)" : "Border (light)"}
+                value={draft.colors.border ?? "transparent"}
+                onChange={(v) => updateColor("border", v)}
+              />
+              <ColorRow
+                label={isPL ? "Obramowanie (ciemny)" : "Border (dark)"}
+                value={draft.colors.borderDark ?? "transparent"}
+                onChange={(v) => updateColor("borderDark", v)}
+              />
+            </div>
+            <div className="mt-3">
+              <Label className="text-xs text-muted-foreground">
+                {isPL
+                  ? `Grubość obramowania (${draft.colors.borderWidth ?? 0}px)`
+                  : `Border width (${draft.colors.borderWidth ?? 0}px)`}
+              </Label>
+              <input
+                type="range"
+                min={0}
+                max={8}
+                step={1}
+                value={draft.colors.borderWidth ?? 0}
+                onChange={(e) =>
+                  update("colors", {
+                    ...draft.colors,
+                    borderWidth: Number(e.target.value),
+                  })
+                }
+                className="w-full mt-2 accent-primary"
+                aria-label={isPL ? "Grubość obramowania" : "Border width"}
               />
             </div>
           </section>

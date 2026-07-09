@@ -3086,10 +3086,12 @@ textarea::placeholder {
 .key-takeaways__card {
   background: var(--kt-bg, #eef1ff);
   color: var(--kt-text, #1f2937);
+  border: var(--kt-border-width, 0px) solid var(--kt-border, transparent);
 }
 .dark .key-takeaways__card {
   background: var(--kt-bg-dark, #1e2540);
   color: var(--kt-text-dark, #e5e7eb);
+  border-color: var(--kt-border-dark, transparent);
 }
 .key-takeaways__icon {
   width: 40px;
