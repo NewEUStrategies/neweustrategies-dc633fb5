@@ -6,8 +6,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DynamicIcon } from "lucide-react/dynamic";
-import type { IconName } from "lucide-react/dynamic";
+import { DynamicIcon, type IconName } from "@/lib/icons/DynamicIcon";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Save, RotateCcw, EyeOff, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
