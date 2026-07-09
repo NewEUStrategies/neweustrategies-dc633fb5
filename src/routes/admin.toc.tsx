@@ -387,7 +387,9 @@ function TocPreview({ settings, lang }: { settings: TocDefaults; lang: "pl" | "e
     );
   }
   const title = lang === "en" ? settings.titleEn : settings.titlePl;
-  const headings = SAMPLE_HEADINGS[lang].filter((h) => h.level <= settings.maxLevel);
+  const headings = SAMPLE_HEADINGS[lang].filter(
+    (h) => h.level >= settings.minLevel && h.level <= settings.maxLevel,
+  );
   const Tag = settings.ordered ? "ol" : "ul";
 
   const style = {
@@ -400,22 +402,39 @@ function TocPreview({ settings, lang }: { settings: TocDefaults; lang: "pl" | "e
     "--toc-accent": settings.colors.accent,
     background: settings.colors.bg,
     color: settings.colors.text,
-    border:
-      settings.layout === "inline" ? "none" : `1px solid ${settings.colors.border}`,
+    border: settings.layout === "inline" ? "none" : `1px solid ${settings.colors.border}`,
   } as React.CSSProperties;
 
+  const wrapperCls = [
+    "not-prose p-4",
+    settings.layout === "inline" ? "" : "rounded-lg",
+    settings.sticky ? "lg:sticky lg:top-24" : "",
+    settings.columns === "half" ? "md:max-w-[50%]" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const listCls = [
+    "pl-5 text-sm",
+    settings.ordered ? "list-decimal" : "list-disc",
+    settings.columns === "col-2"
+      ? "sm:columns-2 sm:gap-8 [&>li]:break-inside-avoid space-y-1.5"
+      : "space-y-1.5",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <nav
-      aria-label={title}
-      className={`not-prose ${settings.layout === "inline" ? "" : "rounded-lg"} p-4 ${settings.sticky ? "lg:sticky lg:top-24" : ""}`}
-      style={style}
-    >
+    <nav aria-label={title} className={wrapperCls} style={style}>
       <p className="text-[10px] uppercase tracking-wider mb-3 font-semibold opacity-70">
         {title}
       </p>
-      <Tag className={`space-y-1.5 ${settings.ordered ? "list-decimal" : "list-disc"} pl-5 text-sm`}>
+      <Tag className={listCls}>
         {headings.map((h) => (
-          <li key={h.anchor} style={{ marginLeft: (h.level - 2) * 12 }}>
+          <li
+            key={h.anchor}
+            style={{ marginLeft: (h.level - settings.minLevel) * 12 }}
+          >
             <a
               href={`#${h.anchor}`}
               className="hover:underline transition-colors"
