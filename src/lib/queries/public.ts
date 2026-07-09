@@ -97,14 +97,15 @@ export interface PageData {
   seo_noindex: boolean;
   seo_og_image_url: string | null;
   og_image_generated_url: string | null;
+  /** „Z tego materiału dowiesz się, że..." - dostępne również dla stron (max 7). */
+  takeaways_pl: string[];
+  takeaways_en: string[];
 }
 
 export interface PostData extends PageData {
   read_minutes: number | null;
   post_format: PostFormat;
   layout_overrides: LayoutOverrides | null;
-  takeaways_pl: string[];
-  takeaways_en: string[];
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
   author_id: string | null;
