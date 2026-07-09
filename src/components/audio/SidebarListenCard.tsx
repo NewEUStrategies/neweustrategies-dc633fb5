@@ -80,6 +80,25 @@ export function SidebarListenCard({
   const loading = isThis && player.status === "loading";
   const playing = isThis && player.status === "playing";
   const errored = isThis && player.status === "error";
+  const tts = player.tts;
+  const stageLabel = (() => {
+    switch (tts.stage) {
+      case "preparing":
+        return t.stagePreparing;
+      case "synthesizing":
+        return t.stageSynthesizing;
+      case "streaming":
+        return t.stageStreaming;
+      case "ready":
+        return t.stageReady;
+      case "cached":
+        return t.stageCached;
+      default:
+        return t.loading;
+    }
+  })();
+  const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
+
 
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
