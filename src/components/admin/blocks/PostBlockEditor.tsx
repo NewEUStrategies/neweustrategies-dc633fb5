@@ -142,7 +142,7 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
         </Tabs>
       </div>
 
-      <aside className="bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[calc(100vh-2rem)] flex flex-col">
+      <aside className="bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
         <BlockSidebar
           doc={history.doc}
           activeBlock={activeBlock}
