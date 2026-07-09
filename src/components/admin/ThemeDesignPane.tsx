@@ -1505,7 +1505,8 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
  *  the site's global light/dark scheme, so inheritance from
  *  Kolory linków / Kolory ikon / Pola tekstowe / Kolory pól tekstowych is
  *  effectively free. */
-const INHERIT_DEFAULTS = THEME_DESIGN_COLOR_INHERITANCE;
+const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> =
+  THEME_DESIGN_COLOR_INHERITANCE;
 
 function TdColorField({
   section,

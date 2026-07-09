@@ -288,12 +288,13 @@ function isLegacyInheritedColor(section: string, field: string, value: string): 
 }
 
 function normalizeLegacyInheritedColors(t: ThemeDesign): ThemeDesign {
-  for (const section of Object.keys(THEME_DESIGN_COLOR_INHERITANCE)) {
+  const inheritanceMap: Record<string, Record<string, { token: string; hint: string }>> = THEME_DESIGN_COLOR_INHERITANCE;
+  for (const section of Object.keys(inheritanceMap)) {
     const sectionRecord = t[section as keyof ThemeDesign] as Record<string, unknown>;
-    const inheritance = THEME_DESIGN_COLOR_INHERITANCE[section as keyof typeof THEME_DESIGN_COLOR_INHERITANCE];
+    const inheritance = inheritanceMap[section];
     for (const field of Object.keys(inheritance)) {
       const current = sectionRecord[field];
-      const target = inheritance[field as keyof typeof inheritance].token;
+      const target = inheritance[field].token;
       if (
         typeof current === "string" &&
         canonicalColorValue(current) !== canonicalColorValue(target) &&
