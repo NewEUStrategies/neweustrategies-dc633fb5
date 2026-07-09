@@ -1174,14 +1174,30 @@ function EditPost() {
                       tocOverride={form.toc_override ?? null}
                       onTocOverrideChange={(next) => set("toc_override", next)}
                       postBlocks={form.blocks_data ?? null}
-                      takeawaysPl={form.takeaways_pl ?? []}
-                      takeawaysEn={form.takeaways_en ?? []}
-                      takeawaysVariant={form.takeaways_variant ?? null}
-                      onTakeawaysChange={(lang, next) =>
-                        set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
-                      }
-                      onTakeawaysVariantChange={(next) => set("takeaways_variant", next)}
+                      hideTakeawaysTab
                     />
+                  )}
+
+                  {detailsTab === "takeaways" && (
+                    <section className="rounded-xl border border-border bg-card overflow-hidden">
+                      <header className="px-4 py-3 border-b border-border bg-muted/30">
+                        <h3 className="text-sm font-semibold">Dowiesz się…</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Kluczowe punkty wpisu w PL i EN. Wybierz wariant wizualny lub zostaw globalny.
+                        </p>
+                      </header>
+                      <div className="p-4">
+                        <TakeawaysTab
+                          pl={form.takeaways_pl ?? []}
+                          en={form.takeaways_en ?? []}
+                          onChange={(lang, next) =>
+                            set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
+                          }
+                          variantOverride={form.takeaways_variant ?? null}
+                          onVariantChange={(next) => set("takeaways_variant", next)}
+                        />
+                      </div>
+                    </section>
                   )}
 
                   {detailsTab === "seo" && (
