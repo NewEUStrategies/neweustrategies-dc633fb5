@@ -601,7 +601,13 @@ function TakeawaysTab({
             Podgląd na żywo (obie wersje językowe)
           </h5>
           <span className="text-[10px] text-muted-foreground">
-            Wariant globalny: <span className="font-mono">{ktSettings.variant}</span>
+            Aktywny wariant:{" "}
+            <span className="font-mono">{effectiveVariant}</span>
+            {variantOverride && (
+              <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold uppercase text-primary">
+                override
+              </span>
+            )}
           </span>
         </div>
 
