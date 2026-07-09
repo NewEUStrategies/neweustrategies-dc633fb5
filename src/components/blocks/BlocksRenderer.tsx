@@ -347,12 +347,19 @@ function BlockView({
       const explicit = block.data.anchor ? String(block.data.anchor) : "";
       const id = explicit || (text ? slugify(text) : undefined);
       const Tag = `h${level}` as "h2" | "h3" | "h4";
+      const withFn = fnHtml.get(`${block.id}:text`);
+      if (withFn !== undefined) {
+        return (
+          <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: withFn }} />
+        );
+      }
       return (
         <Tag id={id} className={cls}>
           {text}
         </Tag>
       );
     }
+
     case "image": {
       // Sanitize author-supplied URLs: image src restricted to http(s)/data:image/
       // relative, link href restricted to safe schemes (drops javascript: etc.).
