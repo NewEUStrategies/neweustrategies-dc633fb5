@@ -271,6 +271,7 @@ function RootComponent() {
           <ContentAreaStyle />
           <ThemeOptionsStyle />
           <ThemeDesignStyle />
+          <ThemeFontSizesStyle />
           <ErrorBoundary>
             <SiteChrome>
               <Suspense fallback={<RouteLoadingSkeleton />}>
