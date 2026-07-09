@@ -648,7 +648,7 @@ function EditPost() {
         <CoverImagePicker
           label={t("admin.posts.cover")}
           value={form.cover_image_url ?? ""}
-          onChange={(v) => set("cover_image_url", v || null)}
+          onChange={(v: string) => set("cover_image_url", v || null)}
         />
       </div>
     </SidebarSection>
