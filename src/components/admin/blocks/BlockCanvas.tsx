@@ -233,32 +233,42 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <div className="block-canvas space-y-0.5" data-builder-renderer data-cms-content>
           <BlockInserter onInsert={(b) => insertAt(0, b)} />
-          {blocks.map((b, idx) => (
-            <div key={b.id}>
-              <SortableBlockItem
-                id={b.id}
-                index={idx}
-                total={blocks.length}
-                active={b.id === activeId}
-                onSelect={() => onSelect(b.id)}
-                onMove={(dir) => move(idx, dir)}
-                onDuplicate={() => duplicate(idx)}
-                onRemove={() => remove(idx)}
-              >
-                <BlockRenderer
-                  block={b}
-                  isActive={b.id === activeId}
-                  onChange={(n) => replaceBlock(b.id, n)}
-                  onTransform={(replacement) => replaceWith(b.id, replacement)}
-                  onInsertAfter={(blk) => insertAt(idx + 1, blk)}
-                  onDeleteEmpty={() => {
-                    if (blocks.length > 1) remove(idx);
-                  }}
-                />
-              </SortableBlockItem>
-              <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
-            </div>
-          ))}
+          {blocks.map((b, idx) => {
+            const variants = getBlockVariants(b.type);
+            const currentVariant =
+              typeof b.data.variant === "string" ? (b.data.variant as string) : undefined;
+            return (
+              <div key={b.id}>
+                <SortableBlockItem
+                  id={b.id}
+                  index={idx}
+                  total={blocks.length}
+                  active={b.id === activeId}
+                  onSelect={() => onSelect(b.id)}
+                  onMove={(dir) => move(idx, dir)}
+                  onDuplicate={() => duplicate(idx)}
+                  onRemove={() => remove(idx)}
+                  variants={variants}
+                  currentVariant={currentVariant}
+                  onVariantChange={(v) =>
+                    replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
+                  }
+                >
+                  <BlockRenderer
+                    block={b}
+                    isActive={b.id === activeId}
+                    onChange={(n) => replaceBlock(b.id, n)}
+                    onTransform={(replacement) => replaceWith(b.id, replacement)}
+                    onInsertAfter={(blk) => insertAt(idx + 1, blk)}
+                    onDeleteEmpty={() => {
+                      if (blocks.length > 1) remove(idx);
+                    }}
+                  />
+                </SortableBlockItem>
+                <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
+              </div>
+            );
+          })}
         </div>
       </SortableContext>
     </DndContext>
