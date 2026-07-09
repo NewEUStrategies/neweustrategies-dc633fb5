@@ -85,20 +85,32 @@ export function ThemeDesignPane() {
       </p>
 
       <Tabs defaultValue="block-heading" className="space-y-4">
-        <TabsList className="flex flex-wrap h-auto gap-1 justify-start">
-          <TabsTrigger value="block-heading">Nagłówki bloków</TabsTrigger>
-          <TabsTrigger value="thumbnail">Miniatury</TabsTrigger>
-          <TabsTrigger value="read-more">Czytaj więcej</TabsTrigger>
-          <TabsTrigger value="meta">Meta wpisu</TabsTrigger>
-          <TabsTrigger value="toolbar">Toolbar</TabsTrigger>
-          <TabsTrigger value="mode-switch">Tryb jasny/ciemny</TabsTrigger>
-          <TabsTrigger value="social">Social</TabsTrigger>
-          <TabsTrigger value="post-title">Tytuły wpisów</TabsTrigger>
-          <TabsTrigger value="post-excerpt">Excerpt</TabsTrigger>
-          <TabsTrigger value="list-index">Numeracja list</TabsTrigger>
-          <TabsTrigger value="carousel">Karuzela</TabsTrigger>
-          <TabsTrigger value="overlay">Overlay wpisu</TabsTrigger>
-        </TabsList>
+        <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
+          <TabsList className="flex flex-wrap h-auto gap-1.5 justify-start bg-transparent p-0">
+            {[
+              { v: "block-heading",  label: "Nagłówki bloków" },
+              { v: "thumbnail",      label: "Miniatury" },
+              { v: "read-more",      label: "Czytaj więcej" },
+              { v: "meta",           label: "Meta wpisu" },
+              { v: "toolbar",        label: "Toolbar" },
+              { v: "mode-switch",    label: "Tryb jasny/ciemny" },
+              { v: "social",         label: "Social" },
+              { v: "post-title",     label: "Tytuły wpisów" },
+              { v: "post-excerpt",   label: "Excerpt" },
+              { v: "list-index",     label: "Numeracja list" },
+              { v: "carousel",       label: "Karuzela" },
+              { v: "overlay",        label: "Overlay wpisu" },
+            ].map((t) => (
+              <TabsTrigger
+                key={t.v}
+                value={t.v}
+                className="h-8 px-3 rounded-md text-xs font-medium bg-muted/40 border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted transition-colors data-[state=active]:bg-brand data-[state=active]:text-[color:var(--brand-foreground)] data-[state=active]:border-brand data-[state=active]:shadow-sm"
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         <TabsContent value="block-heading" className="mt-0">
 <Section title="Nagłówki bloków">

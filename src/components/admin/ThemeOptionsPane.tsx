@@ -1741,9 +1741,9 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
       <div
         className="rounded-md border p-4 flex flex-col gap-2 min-h-[110px] transition-all"
         style={{
-          background: isDark ? "#131822" : "#F8F6F4",
+          background: isDark ? "#141414" : "#F8F6F4",
           borderColor: active ? "#FA9346" : isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-          color: isDark ? "#e5e7eb" : "#1b1f27",
+          color: isDark ? "#e5e7eb" : "#1f1f1f",
           boxShadow: active ? "0 0 0 2px rgba(250,147,70,0.25)" : undefined,
         }}
       >
@@ -1768,7 +1768,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
             className="group relative w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
             style={{
               background: isDark
-                ? "radial-gradient(circle at 30% 30%, #1b1f27 0%, #131822 70%)"
+                ? "radial-gradient(circle at 30% 30%, #1f1f1f 0%, #141414 70%)"
                 : "radial-gradient(circle at 30% 30%, #fff7e0 0%, #ffd27a 70%)",
               boxShadow: isDark
                 ? "inset 0 0 8px rgba(255,255,255,0.08), 0 0 12px rgba(120,150,255,0.25)"

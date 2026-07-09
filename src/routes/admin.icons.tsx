@@ -493,7 +493,7 @@ function VariantSlot({
     }
   };
 
-  const bg = mode === "dark" ? "#131822" : mode === "light" ? "#f8f6f4" : undefined;
+  const bg = mode === "dark" ? "#141414" : mode === "light" ? "#f8f6f4" : undefined;
 
   return (
     <div className="space-y-1">

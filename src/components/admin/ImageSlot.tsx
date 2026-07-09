@@ -64,7 +64,7 @@ export function ImageSlot({
           className={`rounded-md border border-border p-2 flex items-center justify-center min-h-[80px] ${previewMode === "auto" ? "bg-muted/30" : ""}`}
           style={{
             background:
-              previewMode === "dark" ? "#131822" : previewMode === "light" ? "#f8f6f4" : undefined,
+              previewMode === "dark" ? "#141414" : previewMode === "light" ? "#f8f6f4" : undefined,
           }}
           data-preview-mode={previewMode}
         >
