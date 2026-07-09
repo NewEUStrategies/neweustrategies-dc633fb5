@@ -1,75 +1,88 @@
-# Metabox „Foxiz-style” w edytorze wpisów i stron
-
 ## Cel
-W szczegółach wpisu i strony pojawia się **jednolity metabox** z zakładkami po lewej i panelem po prawej — dokładnie tak jak w Foxiz („Single Page Settings"). Każda zakładka to nadpisanie globalnej opcji z Theme Options dla tego jednego wpisu/strony. Trzy funkcjonalne zakładki na start:
 
-1. **Ogólne** — header, breadcrumbs, szerokość, wyłączenie „Featured area"
-2. **Spis treści (ToC)** — enable/disable per wpis + layout + pozycja wyświetlenia
-3. **Ochrona treści (Membership)** — reguła dostępu wybrana z `access_plans` (już jest osobno — przeniesiemy do zakładki)
-4. **Kluczowe punkty** — edytor punktów PL/EN z podpowiedzią długości („max 1 zdanie na punkt, ok. 90-160 znaków, jedna myśl")
+W panelu **Ustawienia motywu** (`ThemeOptionsPane`) etykieta "Style treści" ma zostać zamieniona na **"Rozmiary czcionek" / "Font sizes"**, a wewnątrz pojawi się nowa, spójna z resztą admina, sekcja globalnych rozmiarów typografii.
 
-## Zakres — pliki
+Ponieważ obecna zakładka "Style treści" (`ThemeDesignPane`) już zawiera bardzo dużo ustawień niezwiązanych z rozmiarami czcionek (nagłówki bloków, "read more", meta, mode switch, karuzele, socials itp.), rozdzielam ją od nowej sekcji, żeby niczego nie stracić i utrzymać jasną nawigację.
 
-### DB (jedna migracja)
-- Dodać `posts.toc_override jsonb` (nullable): `{ enabled: bool, layout: "boxed" | "inline" | "sticky", position: number }`. `null` = użyj globalnej konfiguracji.
-- Dodać `pages.toc_override jsonb` (analogicznie).
-- Kolumny `takeaways_pl/en`, `content_access`, `access_plans` już istnieją — nic nie ruszamy.
+## Zmiany UI/nawigacja
 
-### Globalne ustawienia ToC (nowe)
-- `site_settings.toc_defaults` — schemat Zod, hook `useTocDefaults`, zapisywanie. Pola: `enabledDefault`, `layout`, `position`, `minHeadings`, `maxLevel`, `sticky`, `title_pl`, `title_en`, kolory (tło, akcent, tekst — light + dark).
-- Nowa strona admina `/admin/toc` z formularzem po lewej i live-preview po prawej. Wpisujemy do menu w grupie *Design*.
+- W `SECTIONS` w `src/components/admin/ThemeOptionsPane.tsx`:
+  - Zmieniam ID i label istniejącego wpisu `design` -> `font_sizes` (`themeOptions.sections.fontSizes`) i tam ląduje nowa sekcja rozmiarów czcionek (to jest element, który user zaznaczył).
+  - Dotychczasowy pełny `ThemeDesignPane` (nagłówki bloków, karuzele itp.) trafia pod nowe ID `design_advanced` z etykietą "Style treści (zaawansowane)" / "Advanced content styling", tuż obok - żeby zachować dostęp do wszystkich obecnych ustawień bez zmian.
+- Dodaję tłumaczenia PL/EN: `themeOptions.sections.fontSizes` = "Rozmiary czcionek" / "Font sizes", oraz odpowiednie stringi do nowej sekcji.
 
-### UI metaboxa (współdzielony komponent)
-- Nowy `src/components/admin/PostSettingsMetabox.tsx` — układ 2-kolumnowy:
-  - lewa kolumna: pionowy switcher zakładek (Foxiz-style — ikona + label, aktywna zielona)
-  - prawa kolumna: panel z aktywną zakładką
-  - variant `entity: "post" | "page"` kontroluje, które zakładki są dostępne (strony nie mają takeaways / membership per default; ale można włączyć)
-- Zakładki jako sub-komponenty:
-  - `MetaboxGeneralTab` — layout/breadcrumb/header (nadpisania globalnych — reużywamy istniejące pola `layout_overrides`)
-  - `MetaboxTocTab` — per-post override (`enabled`, `layout`, `position`, `sticky`) + link do globalnej strony admina
-  - `MetaboxMembershipTab` — opakowanie istniejącego `AccessSettingsPane`
-  - `MetaboxTakeawaysTab` — istniejący `TakeawaysEditor` + **inline hint** z zalecaną długością (licznik znaków per punkt, kolor ostrzeżenia gdy > 200)
+## Nowa sekcja "Rozmiary czcionek"
 
-### Integracja w edytorach
-- `src/routes/admin.posts.$slug.tsx`: usuwamy oddzielny `TakeawaysEditor`, `AccessSettingsPane` z sidebara i zastępujemy jednym `<PostSettingsMetabox entityType="post" ... />` w sekcji „Szczegóły wpisu". Sygnatura wywołania: przekazuje bieżący form snapshot + settery.
-- `src/routes/admin.pages.$slug.tsx`: analogicznie, ale bez zakładki Takeaways.
+Nowy komponent `ThemeFontSizesPane` z formularzem po lewej + live preview po prawej (spójne z ToC/Key Takeaways). Kontrolki:
 
-### Auto-ToC w renderze publicznym
-- `src/routes/$.tsx`: jeżeli `toc_override.enabled` (lub globalny default) i wpis ma ≥ N nagłówków — wstrzykiwać `<TocBlockView>` we wskazanej pozycji (po N akapicie / na górze / w sticky w sidebarze) z tytułem PL/EN i stylami z tokenów.
-- Fallback: jeżeli w treści już jest ręczny widget ToC, auto-ToC się nie duplikuje.
+Typografia bazowa:
+- Body (px + line-height)
+- Small / caption
+- Lead (wprowadzenie)
+- Blockquote
+- Code / inline code
 
-### Zalecana długość takeaways
-- `KeyTakeawaysHint` — komponent z licznikiem PL/EN, ostrzeżenie: „Rekomendacja: jedno zdanie, 90-160 znaków, jedna myśl na punkt" + kolor:
-  - < 40 znaków: żółte („zbyt krótkie")
-  - 40-200: zielone
-  - > 200: pomarańczowe („rozbij na kilka punktów")
-- Ograniczenie miękkie, nie blokuje zapisu.
+Nagłówki (dwie kolumny: **desktop** + **mobile**, wspólna waga i line-height):
+- H1, H2, H3, H4, H5, H6 - font-size (px), line-height, letter-spacing, font-weight, textTransform
 
-### i18n
-- Nowe klucze: `admin.metabox.*` (tabs: general/toc/membership/takeaways), `admin.toc.*`, `post.takeaways.lengthHint`.
+Wszystko jako liczby (px) z użyciem istniejącego atomu `NumberInput` / `StepperInput` z buildera. Sekcja "Reset do domyślnych" i przyciski Save (spójne z pozostałymi zakładkami motywu).
 
-### Testy
-- `PostSettingsMetabox.test.tsx` — renderuje wszystkie zakładki dla `post`, ukrywa Takeaways dla `page`.
-- `manualToc.test.ts` — dopisujemy scenariusz auto-injection na podstawie `toc_override`.
+## Model danych
 
-## Poza zakresem (na później)
-- Header override per-post/page (screen 5 Foxiz) — obecny system `post_layout_settings` już to obsługuje w innym miejscu; nie duplikujemy.
-- Overrides dla Site Footer / SEO Optimized / Ads per-post — już są w innych panelach; można zlinkować z metaboxa w kolejnym kroku.
-- Analytics ilu użytkowników scrolluje ToC — feature request.
+- Nowe site_setting: `font_sizes` (JSONB), schema Zod z bezpiecznymi defaultami:
 
-## Migracja — SQL (skrót)
-```sql
-ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS toc_override jsonb;
-ALTER TABLE public.pages ADD COLUMN IF NOT EXISTS toc_override jsonb;
-COMMENT ON COLUMN public.posts.toc_override IS 'Per-post override for global ToC settings; null = inherit.';
-COMMENT ON COLUMN public.pages.toc_override IS 'Per-page override for global ToC settings; null = inherit.';
+```text
+{
+  body:   { size: 16, lineHeight: 1.6 },
+  small:  { size: 13, lineHeight: 1.5 },
+  lead:   { size: 18, lineHeight: 1.6 },
+  blockquote: { size: 18, lineHeight: 1.55 },
+  code:   { size: 14 },
+  headings: {
+    h1: { desktop: 40, mobile: 30, lineHeight: 1.15, letterSpacing: 0, weight: 800, transform: 'none' },
+    h2: { desktop: 32, mobile: 26, ... },
+    h3: { desktop: 26, mobile: 22, ... },
+    h4: { desktop: 22, mobile: 19, ... },
+    h5: { desktop: 18, mobile: 17, ... },
+    h6: { desktop: 16, mobile: 15, ... }
+  }
+}
 ```
-Bez GRANT-ów — istniejące polityki i uprawnienia na tabelach zostają nietknięte (tylko dodajemy kolumnę).
 
-## Kolejność wdrożenia
-1. Migracja DB (kolumny `toc_override`).
-2. `toc_defaults` w `site_settings` + `/admin/toc` z live preview.
-3. `PostSettingsMetabox` + zakładki + integracja w obu edytorach.
-4. Auto-ToC injection w rendererze publicznym.
-5. Hint długości + licznik w Takeaways.
-6. i18n + testy.
+- Hook `useFontSizes` + `useSaveFontSizes` w `src/lib/theme/fontSizes.ts` (analogicznie do `themeDesign`).
+- Nowy plik `src/components/ThemeFontSizesStyle.tsx` (mount w root layoucie, obok istniejącego `ThemeDesignStyle`) wypuszcza globalne zmienne CSS:
+
+```text
+:root {
+  --fs-body, --lh-body, --fs-small, --fs-lead, --fs-blockquote, --fs-code,
+  --fs-h1, --fs-h2, --fs-h3, --fs-h4, --fs-h5, --fs-h6,
+  --lh-h1..h6, --ls-h1..h6, --fw-h1..h6, --tt-h1..h6
+}
+@media (max-width: 768px) { :root { --fs-h1..h6: mobile values } }
+```
+
+## Propagacja tokenów
+
+- W `src/styles.css` mapuję `h1..h6`, `body`, `.lead`, `blockquote`, `code`, `.cms-post-content h1..h6` do nowych zmiennych (`font-size: var(--fs-h1)` itd.) z fallbackiem do obecnych wartości, żeby nie zepsuć istniejącego wyglądu. Zachowuję priorytet nadpisań per-wpis (`--td-*`), które już istnieją.
+- Renderer bloków treści (`BlocksRenderer`) już czyta klasy `.cms-*` - nowe zmienne zaczną obowiązywać automatycznie.
+
+## i18n
+
+- Nowe klucze w `src/lib/locale/pl.ts` i `en.ts`:
+  - `themeOptions.sections.fontSizes`
+  - `themeOptions.sections.contentStylingAdvanced`
+  - `themeOptions.fontSizes.*` (etykiety pól, opisy, sekcje)
+
+## Bezpieczeństwo / typy
+
+- Zero `any`, pełna walidacja Zod, sanity clampy (H1 12-96 px, body 12-24 px itd.), krok 1 px.
+- Zapis idzie przez istniejący RLS'owy zapis `site_settings` (bez zmian w bazie/migracjach).
+
+## Testy
+
+- `src/lib/theme/__tests__/fontSizes.test.ts`: walidacja defaultów, clampów i generowanego CSS.
+- Test renderu `ThemeFontSizesPane`: podstawowe kontrolki + reset przywraca defaulty.
+
+## Weryfikacja
+
+Po wdrożeniu: build, typecheck, oraz szybki podgląd zakładki "Rozmiary czcionek" w admin motywu (live preview typografii + wpływ na stronę wpisu).

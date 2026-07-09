@@ -3123,3 +3123,83 @@ textarea::placeholder {
 .key-takeaways__bullet {
   background: var(--kt-accent, #4f46e5);
 }
+
+/* -------------------------------------------------------------
+ * Global font-size tokens (admin: Theme options > Font sizes)
+ * Provided by <ThemeFontSizesStyle /> as :root --fs-*, --lh-*,
+ * --ls-*, --fw-*, --tt-* variables (H1-H6 sizes swap at the
+ * configured mobile breakpoint via a media query in the same style).
+ * These utilities let content surfaces consume the tokens with
+ * sensible fallbacks so nothing breaks before a save.
+ * ------------------------------------------------------------- */
+.cms-post-content h1,
+.cms-post-content .cms-h1 {
+  font-size: var(--fs-h1, 2.5rem);
+  line-height: var(--lh-h1, 1.15);
+  letter-spacing: var(--ls-h1, -0.5px);
+  font-weight: var(--fw-h1, 800);
+  text-transform: var(--tt-h1, none);
+}
+.cms-post-content h2,
+.cms-post-content .cms-h2 {
+  font-size: var(--fs-h2, 2rem);
+  line-height: var(--lh-h2, 1.2);
+  letter-spacing: var(--ls-h2, -0.25px);
+  font-weight: var(--fw-h2, 700);
+  text-transform: var(--tt-h2, none);
+}
+.cms-post-content h3,
+.cms-post-content .cms-h3 {
+  font-size: var(--fs-h3, 1.625rem);
+  line-height: var(--lh-h3, 1.25);
+  letter-spacing: var(--ls-h3, 0);
+  font-weight: var(--fw-h3, 700);
+  text-transform: var(--tt-h3, none);
+}
+.cms-post-content h4,
+.cms-post-content .cms-h4 {
+  font-size: var(--fs-h4, 1.375rem);
+  line-height: var(--lh-h4, 1.3);
+  letter-spacing: var(--ls-h4, 0);
+  font-weight: var(--fw-h4, 700);
+  text-transform: var(--tt-h4, none);
+}
+.cms-post-content h5,
+.cms-post-content .cms-h5 {
+  font-size: var(--fs-h5, 1.125rem);
+  line-height: var(--lh-h5, 1.4);
+  letter-spacing: var(--ls-h5, 0);
+  font-weight: var(--fw-h5, 600);
+  text-transform: var(--tt-h5, none);
+}
+.cms-post-content h6,
+.cms-post-content .cms-h6 {
+  font-size: var(--fs-h6, 1rem);
+  line-height: var(--lh-h6, 1.45);
+  letter-spacing: var(--ls-h6, 0.5px);
+  font-weight: var(--fw-h6, 600);
+  text-transform: var(--tt-h6, uppercase);
+}
+.cms-post-content p,
+.cms-post-content .cms-body {
+  font-size: var(--fs-body, 1rem);
+  line-height: var(--lh-body, 1.65);
+}
+.cms-post-content .cms-lead,
+.cms-post-content .lead {
+  font-size: var(--fs-lead, 1.125rem);
+  line-height: var(--lh-lead, 1.6);
+}
+.cms-post-content blockquote {
+  font-size: var(--fs-blockquote, 1.125rem);
+  line-height: var(--lh-blockquote, 1.55);
+}
+.cms-post-content small,
+.cms-post-content .cms-small {
+  font-size: var(--fs-small, 0.8125rem);
+  line-height: var(--lh-small, 1.5);
+}
+.cms-post-content code,
+.cms-post-content .cms-code {
+  font-size: var(--fs-code, 0.875rem);
+}

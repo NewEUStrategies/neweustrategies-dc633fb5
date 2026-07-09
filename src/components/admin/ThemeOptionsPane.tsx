@@ -36,10 +36,12 @@ import {
   MousePointerClick,
   Pencil,
   Brush,
+  Heading1,
   Palette,
 } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { ThemeDesignPane } from "@/components/admin/ThemeDesignPane";
+import { ThemeFontSizesPane } from "@/components/admin/ThemeFontSizesPane";
 import { ThemeBackgroundsPane } from "@/components/admin/ThemeBackgroundsPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
@@ -281,7 +283,8 @@ const SECTIONS = [
   { id: "icon_colors", labelKey: "themeOptions.sections.iconColors", icon: Palette },
   { id: "link_colors", labelKey: "themeOptions.sections.linkColors", icon: Palette },
 
-  { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
+  { id: "font_sizes", labelKey: "themeOptions.sections.fontSizes", icon: Heading1 },
+  { id: "design", labelKey: "themeOptions.sections.contentStylingAdvanced", icon: Brush },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
@@ -377,6 +380,8 @@ export function ThemeOptionsPane() {
             title={t("themeOptions.sections.linkColors")}
             description={t("themeOptions.linkColorsDescription")}
           />
+        ) : active === "font_sizes" ? (
+          <ThemeFontSizesPane />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
