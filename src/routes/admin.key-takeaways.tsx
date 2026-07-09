@@ -133,9 +133,26 @@ function KeyTakeawaysAdmin() {
             <Label className="text-sm font-semibold mb-2 block">
               {isPL ? "Wariant wizualny" : "Visual variant"}
             </Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["card", "heading"] as KeyTakeawaysVariant[]).map((v) => {
+            <div className="grid grid-cols-3 gap-2">
+              {(["card", "heading", "ghost"] as KeyTakeawaysVariant[]).map((v) => {
                 const active = draft.variant === v;
+                const meta =
+                  v === "card"
+                    ? {
+                        badge: isPL ? "Wariant A" : "Variant A",
+                        desc: isPL ? "Karta z ikoną + numeracja" : "Card with icon + numbered",
+                      }
+                    : v === "heading"
+                      ? {
+                          badge: isPL ? "Wariant B" : "Variant B",
+                          desc: isPL ? "Duży nagłówek + kropki" : "Bold heading + bullets",
+                        }
+                      : {
+                          badge: isPL ? "Wariant C" : "Variant C",
+                          desc: isPL
+                            ? "Nagłówek za tekstem (ghost)"
+                            : "Ghost heading behind text",
+                        };
                 return (
                   <button
                     key={v}
@@ -149,27 +166,14 @@ function KeyTakeawaysAdmin() {
                     }`}
                   >
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                      {v === "card"
-                        ? isPL
-                          ? "Wariant A"
-                          : "Variant A"
-                        : isPL
-                          ? "Wariant B"
-                          : "Variant B"}
+                      {meta.badge}
                     </div>
-                    <div className="text-sm font-medium">
-                      {v === "card"
-                        ? isPL
-                          ? "Karta z ikoną + numeracja"
-                          : "Card with icon + numbered"
-                        : isPL
-                          ? "Duży nagłówek + kropki"
-                          : "Bold heading + bullets"}
-                    </div>
+                    <div className="text-sm font-medium">{meta.desc}</div>
                   </button>
                 );
               })}
             </div>
+
           </section>
 
           {/* Etykiety */}
@@ -307,6 +311,7 @@ function KeyTakeawaysAdmin() {
                 <TabsList>
                   <TabsTrigger value="card">A</TabsTrigger>
                   <TabsTrigger value="heading">B</TabsTrigger>
+                  <TabsTrigger value="ghost">C</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -329,7 +334,16 @@ function KeyTakeawaysAdmin() {
                 langOverride={previewLang}
               />
             </TabsContent>
+            <TabsContent value="ghost" className="mt-0">
+              <KeyTakeaways
+                items={SAMPLE_ITEMS[previewLang]}
+                settingsOverride={draft}
+                variantOverride="ghost"
+                langOverride={previewLang}
+              />
+            </TabsContent>
           </Tabs>
+
 
           <div className="mt-6 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
             {isPL

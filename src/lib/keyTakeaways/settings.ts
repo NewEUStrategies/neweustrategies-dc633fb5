@@ -11,7 +11,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 
 const COLOR = z.string().min(1);
 
-export const KEY_TAKEAWAYS_VARIANTS = ["card", "heading"] as const;
+export const KEY_TAKEAWAYS_VARIANTS = ["card", "heading", "ghost"] as const;
 export type KeyTakeawaysVariant = (typeof KEY_TAKEAWAYS_VARIANTS)[number];
 
 export const KeyTakeawaysSettingsSchema = z
