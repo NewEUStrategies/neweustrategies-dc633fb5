@@ -234,7 +234,7 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
 
         {/* Password-protected */}
         {rule.mode === "password" && (
-          <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-3">
+          <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-2.5">
             {hint && (
               <p className="text-xs text-muted-foreground">
                 <span className="font-medium">{t.passwordHintLabel}</span> {hint}
@@ -252,16 +252,48 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                 placeholder={t.passwordPlaceholder}
                 aria-invalid={pwdError}
                 aria-label={t.passwordPlaceholder}
+                disabled={passwordVerifying || locked}
+                className={pwdError ? "border-destructive focus-visible:ring-destructive/40" : ""}
               />
-              <Button type="submit" disabled={passwordVerifying || !password.trim()}>
-                {passwordVerifying ? t.passwordChecking : t.passwordSubmit}
+              <Button
+                type="submit"
+                disabled={passwordVerifying || locked || !password.trim()}
+                className="min-w-[92px]"
+              >
+                {passwordVerifying ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin"
+                      aria-hidden="true"
+                    />
+                    {t.passwordChecking}
+                  </span>
+                ) : (
+                  t.passwordSubmit
+                )}
               </Button>
             </div>
-            {pwdError && (
-              <p className="text-xs text-destructive" role="alert">
-                {t.passwordWrong}
-              </p>
-            )}
+            {locked ? (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
+                <Lock className="h-3.5 w-3.5 shrink-0" />
+                <span>{t.passwordLocked(secondsLeft)}</span>
+              </div>
+            ) : pwdError ? (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
+                <span className="font-medium">{t.passwordWrong}</span>
+                {attemptsLeft > 0 && (
+                  <span className="tabular-nums opacity-80">
+                    {t.passwordAttemptsLeft(attemptsLeft)}
+                  </span>
+                )}
+              </div>
+            ) : null}
           </form>
         )}
 
