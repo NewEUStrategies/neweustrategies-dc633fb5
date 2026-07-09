@@ -251,6 +251,76 @@ function EditPost() {
     | "revisions";
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("general");
 
+  // Inline creation of categories / tags
+  const [newCatPl, setNewCatPl] = useState("");
+  const [newCatEn, setNewCatEn] = useState("");
+  const [newTagName, setNewTagName] = useState("");
+  const [taxonomyBusy, setTaxonomyBusy] = useState<"cat" | "tag" | null>(null);
+  const slugify = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80);
+  const addCategory = async () => {
+    const pl = newCatPl.trim();
+    const en = newCatEn.trim() || pl;
+    if (!pl) {
+      toast.error("Podaj nazwę PL kategorii");
+      return;
+    }
+    setTaxonomyBusy("cat");
+    try {
+      const slug = slugify(pl) || slugify(en) || `cat-${Date.now()}`;
+      const { data, error } = await supabase
+        .from("categories")
+        .insert({ tenant_id: tenantId, name_pl: pl, name_en: en, slug })
+        .select("id, name_pl, name_en")
+        .single();
+      if (error) throw error;
+      if (data) {
+        setSelectedCats((s) => [...s, data.id]);
+        setNewCatPl("");
+        setNewCatEn("");
+        await qc.invalidateQueries({ queryKey: ["categories", tenantId] });
+        toast.success(`Dodano kategorię: ${data.name_pl}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTaxonomyBusy(null);
+    }
+  };
+  const addTag = async () => {
+    const name = newTagName.trim();
+    if (!name) {
+      toast.error("Podaj nazwę tagu");
+      return;
+    }
+    setTaxonomyBusy("tag");
+    try {
+      const slug = slugify(name) || `tag-${Date.now()}`;
+      const { data, error } = await supabase
+        .from("tags")
+        .insert({ tenant_id: tenantId, name, slug })
+        .select("id, name")
+        .single();
+      if (error) throw error;
+      if (data) {
+        setSelectedTags((s) => [...s, data.id]);
+        setNewTagName("");
+        await qc.invalidateQueries({ queryKey: ["tags", tenantId] });
+        toast.success(`Dodano tag: ${data.name}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTaxonomyBusy(null);
+    }
+  };
+
   useEffect(() => {
     if (post) history.reset(post);
   }, [post, history.reset]);
