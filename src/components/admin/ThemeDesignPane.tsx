@@ -1148,7 +1148,12 @@ function LivePostPreview({
       <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(scopedCss) }} />
 
       <div
-        className={cn("theme-design-live-preview p-6 transition-colors", isDark && "dark")}
+        data-builder-renderer="theme-design-preview"
+        data-device="desktop"
+        className={cn(
+          "theme-design-live-preview cms-widget p-6 transition-colors",
+          isDark && "dark",
+        )}
         style={rootStyle}
       >
         <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-widest opacity-60 font-semibold">
