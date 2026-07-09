@@ -416,7 +416,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         description: "Kolor obramowania sidebaru i separatorów.",
         hasDark: true,
         defaultLight: "#e5e7eb",
-        defaultDark: "#1f2a44",
+        defaultDark: "#1f1f1f",
         overrides: ["--sidebar-border"],
       },
       {

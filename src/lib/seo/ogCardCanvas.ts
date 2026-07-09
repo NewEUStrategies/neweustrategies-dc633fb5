@@ -40,7 +40,7 @@ async function renderOgCard(input: OgCardInput): Promise<Blob> {
   // Background + subtle depth gradient.
   const gradient = ctx.createLinearGradient(0, 0, OG_CARD_WIDTH, OG_CARD_HEIGHT);
   gradient.addColorStop(0, OG_CARD_COLORS.background);
-  gradient.addColorStop(1, "#1B2230");
+  gradient.addColorStop(1, "#1a1a1a");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, OG_CARD_WIDTH, OG_CARD_HEIGHT);
 

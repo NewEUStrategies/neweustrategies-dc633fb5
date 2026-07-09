@@ -54,11 +54,11 @@ const GAP = 8;
 const MISSING_GRACE_MS = 1200;
 
 const chrome = {
-  bg: "#10151d",
+  bg: "#141414",
   border: "rgba(250, 147, 70, 0.9)",
   text: "#f8fafc",
   dim: "#cbd5e1",
-  inputBg: "#1f2733",
+  inputBg: "#1f1f1f",
   inputBorder: "rgba(255,255,255,0.22)",
 } as const;
 

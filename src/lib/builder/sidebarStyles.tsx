@@ -162,7 +162,7 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
     },
     "style-6": {
       wrap: { background: "color-mix(in oklab, var(--muted) 40%, transparent)" },
-      aside: { background: "#0b0b12", borderRight: "1px solid #1f1f2b" },
+      aside: { background: "#0f0f0f", borderRight: "1px solid #1f1f1f" },
       brand: { color: "#ffffff" },
       item: { color: "#c7c9d1", margin: "0 6px" },
       itemActive: {

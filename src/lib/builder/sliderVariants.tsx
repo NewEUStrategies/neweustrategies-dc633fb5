@@ -405,8 +405,8 @@ const SHARED_STYLES = `
   box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .eh-slider .eh-side-nav.eh-nav-glass:hover { background: color-mix(in oklab, var(--nav-bg, #ffffff) 32%, transparent); border-color: color-mix(in oklab, var(--nav-bg, #ffffff) 60%, transparent); }
-.eh-slider .eh-side-nav.eh-nav-solid { background: var(--nav-bg, #111827); }
-.eh-slider .eh-side-nav.eh-nav-solid:hover { background: color-mix(in oklab, var(--nav-bg, #111827) 85%, #fff 15%); }
+.eh-slider .eh-side-nav.eh-nav-solid { background: var(--nav-bg, #141414); }
+.eh-slider .eh-side-nav.eh-nav-solid:hover { background: color-mix(in oklab, var(--nav-bg, #141414) 85%, #fff 15%); }
 .eh-slider .eh-side-nav.eh-nav-outline { background: transparent; border: 2px solid var(--nav-bg, #ffffff); }
 .eh-slider .eh-side-nav.eh-nav-outline:hover { background: color-mix(in oklab, var(--nav-bg, #ffffff) 15%, transparent); }
 .eh-slider .eh-side-nav.eh-nav-soft {
@@ -416,7 +416,7 @@ const SHARED_STYLES = `
 }
 .eh-slider .eh-side-nav.eh-nav-soft:hover { background: color-mix(in oklab, var(--nav-bg, #ffffff) 38%, transparent); }
 .eh-slider .eh-side-nav.eh-nav-gradient {
-  background: linear-gradient(135deg, var(--nav-bg, #111827), color-mix(in oklab, var(--nav-bg, #111827) 55%, #000 45%));
+  background: linear-gradient(135deg, var(--nav-bg, #141414), color-mix(in oklab, var(--nav-bg, #141414) 55%, #000 45%));
 }
 .eh-slider .eh-side-nav.eh-nav-gradient:hover { filter: brightness(1.12); }
 .eh-slider .eh-side-nav.eh-nav-shadow {

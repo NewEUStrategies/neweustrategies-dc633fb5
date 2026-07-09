@@ -138,8 +138,8 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
           </PropField>
           <PropField label="Kolor tekstu">
             <AdminColorPicker
-              value={readStr(c.panelText) || "#0f172a"}
-              onChange={(v) => setContent("panelText", v ?? "#0f172a")}
+              value={readStr(c.panelText) || "#141414"}
+              onChange={(v) => setContent("panelText", v ?? "#141414")}
               allowTransparent={false}
               allowReset={false}
             />
