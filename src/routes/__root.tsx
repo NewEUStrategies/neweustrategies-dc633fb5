@@ -44,6 +44,8 @@ import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import type { HeaderSettings } from "../components/Header";
 import { SiteChrome } from "../components/SiteChrome";
+import { GlobalAudioPlayerProvider } from "../lib/audio/global-player";
+import { GlobalAudioBar } from "../components/audio/GlobalAudioBar";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 
 // Non-critical overlays: not visible at first paint (they open on trigger/delay),
