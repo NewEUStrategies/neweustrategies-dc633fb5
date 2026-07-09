@@ -368,7 +368,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         supabase
           .from("pages")
           .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, ${SEO_FIELDS_SELECT}`,
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, takeaways_pl, takeaways_en, ${SEO_FIELDS_SELECT}`,
           )
           .eq("id", hit.page_id)
           .maybeSingle(),
