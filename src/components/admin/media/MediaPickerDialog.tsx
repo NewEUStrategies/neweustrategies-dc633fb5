@@ -45,9 +45,78 @@ export function MediaPickerDialog({
   title?: string;
 }) {
   const tenantId = useRequiredTenant();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const registerUpload = useServerFn(registerMediaUpload);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
   const [pickedUrl, setPickedUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const acceptAttr = accept === "image" ? "image/*" : undefined;
+
+  const handleFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const list = Array.from(files);
+      if (!list.length) return;
+      if (!user) {
+        toast.error("Musisz być zalogowany");
+        return;
+      }
+      setUploading(true);
+      let lastUrl: string | null = null;
+      try {
+        for (const file of list) {
+          if (accept === "image" && !file.type.startsWith("image/")) {
+            toast.error(`Pominięto ${file.name} - to nie jest obraz`);
+            continue;
+          }
+          const ext = (file.name.split(".").pop() ?? "bin")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+          const path = `${tenantId}/${user.id}/${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("media")
+            .upload(path, file, { contentType: file.type });
+          if (upErr) throw upErr;
+          const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
+          await registerUpload({
+            data: {
+              storagePath: path,
+              filename: file.name,
+              mimeType: file.type,
+              sizeBytes: file.size,
+              publicUrl: urlData.publicUrl,
+            },
+          });
+          lastUrl = urlData.publicUrl;
+        }
+        toast.success(list.length > 1 ? `Wgrano ${list.length} plików` : "Wgrano plik");
+        await qc.invalidateQueries({ queryKey: ["media-picker", tenantId, accept] });
+        if (lastUrl) setPickedUrl(lastUrl);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [accept, qc, registerUpload, tenantId, user],
+  );
+
+  const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) void handleFiles(e.target.files);
+  };
+
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
+  };
 
   const { data } = useQuery({
     queryKey: ["media-picker", tenantId, accept],
