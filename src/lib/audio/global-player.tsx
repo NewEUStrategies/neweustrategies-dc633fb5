@@ -117,6 +117,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [tts, setTts] = useState<TtsProgress>(INITIAL_TTS);
+
 
   // Lazy audio element - tworzymy w efekcie, żeby nie ruszać `Audio` w SSR.
   useEffect(() => {
