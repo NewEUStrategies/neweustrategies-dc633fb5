@@ -234,7 +234,7 @@ export function MediaPickerDialog({
             <div className="text-center text-muted-foreground text-sm py-10">
               {uploading
                 ? "Trwa wgrywanie…"
-                : "Brak pasujących plików. Przeciągnij pliki tutaj lub kliknij „Wgraj z dysku"."}
+                : "Brak pasujących plików. Przeciągnij pliki tutaj lub użyj przycisku „Wgraj z dysku”."}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
