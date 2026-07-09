@@ -404,6 +404,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
   const accessRule = data.access;
   const { data: globalLayoutSettings } = usePostLayoutSettings();
+  const tocDefaults = useTocDefaults();
   useRecordPostView(isPost ? it.id : null, postAuthor?.id ?? null);
 
   // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
