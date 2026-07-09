@@ -78,9 +78,11 @@ export function ThemeDesignPane() {
   const { data: tdEn, isLoading: tdEnLoading } = useThemeDesignEn();
   const { data: langMode } = useThemeDesignLangMode();
   const { data: cd, isLoading: cdLoading } = useCarouselDefaults();
+  const { data: overlayData, isLoading: overlayLoading } = usePostLayoutSettings();
   const saveTd = useSaveThemeDesign();
   const saveLangMode = useSaveThemeDesignLangMode();
   const saveCd = useSaveCarouselDefaults();
+  const saveOverlay = useSavePostLayoutSettings();
 
   const mode: "shared" | "split" = langMode?.mode ?? "shared";
   // The language slot we are currently editing. In "shared" mode we always
@@ -91,6 +93,9 @@ export function ThemeDesignPane() {
   const [draftPl, setDraftPl] = useState<ThemeDesign | null>(null);
   const [draftEn, setDraftEn] = useState<ThemeDesign | null>(null);
   const [cDraft, setCDraft] = useState<CarouselDefaults | null>(null);
+  const [overlayDraft, setOverlayDraft] = useState<
+    NonNullable<typeof overlayData> | null
+  >(null);
   const [liveSync, setLiveSync] = useState<boolean>(false);
   const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
@@ -106,6 +111,9 @@ export function ThemeDesignPane() {
   useEffect(() => {
     if (cd && !cDraft) setCDraft(cd);
   }, [cd, cDraft]);
+  useEffect(() => {
+    if (overlayData && !overlayDraft) setOverlayDraft(overlayData);
+  }, [overlayData, overlayDraft]);
 
   const draft: ThemeDesign | null = activeLang === "en" ? draftEn : draftPl;
   const setDraft = (next: ThemeDesign) => {
@@ -119,7 +127,16 @@ export function ThemeDesignPane() {
   const livePreviewDraft = mode === "split" ? draft : draftPl;
   useLiveThemeDesignPreview(livePreviewDraft, liveSync, activeLang);
 
-  if (tdPlLoading || tdEnLoading || cdLoading || !draft || !cDraft || !draftPl) {
+  if (
+    tdPlLoading ||
+    tdEnLoading ||
+    cdLoading ||
+    overlayLoading ||
+    !draft ||
+    !cDraft ||
+    !draftPl ||
+    !overlayDraft
+  ) {
     return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
   }
 
@@ -157,6 +174,17 @@ export function ThemeDesignPane() {
       saveTd.mutate({ next: draftPl, lang: "pl" });
     }
     saveCd.mutate(cDraft);
+    // Overlay typography: only push the fields that actually changed vs. the
+    // server snapshot, so we don't overwrite unrelated columns.
+    if (overlayData && overlayDraft) {
+      const patch: Partial<typeof overlayData> = {};
+      for (const key of Object.keys(overlayDraft) as Array<keyof typeof overlayDraft>) {
+        if (overlayDraft[key] !== overlayData[key]) {
+          (patch as Record<string, unknown>)[key as string] = overlayDraft[key];
+        }
+      }
+      if (Object.keys(patch).length > 0) saveOverlay.mutate(patch);
+    }
   };
 
   return (
@@ -897,12 +925,15 @@ export function ThemeDesignPane() {
 </TabsContent>
 
         <TabsContent value="overlay" className="mt-0">
-          <OverlayTypographyTab />
+          <OverlayTypographyTab draft={overlayDraft} onChange={setOverlayDraft} />
         </TabsContent>
       </Tabs>
 
       <div className="flex gap-2 pt-2">
-        <Button onClick={saveAll} disabled={saveTd.isPending || saveCd.isPending}>
+        <Button
+          onClick={saveAll}
+          disabled={saveTd.isPending || saveCd.isPending || saveOverlay.isPending}
+        >
           <Save className="w-4 h-4 mr-1.5" /> Zapisz wszystko
         </Button>
         <Button
@@ -1645,17 +1676,15 @@ function NumStepper({ value, onChange, step = 100, min = 0, max = 9999 }: { valu
 }
 
 
-function OverlayTypographyTab() {
-  const { data, isLoading } = usePostLayoutSettings();
-  const save = useSavePostLayoutSettings();
-  if (isLoading || !data) {
-    return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
-  }
-  const patch = (p: Partial<typeof data>) => {
-    save.mutate(p, {
-      onSuccess: () => toast.success("Zapisano rozmiary overlay"),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Błąd zapisu"),
-    });
+function OverlayTypographyTab({
+  draft,
+  onChange,
+}: {
+  draft: NonNullable<ReturnType<typeof usePostLayoutSettings>["data"]>;
+  onChange: (next: NonNullable<ReturnType<typeof usePostLayoutSettings>["data"]>) => void;
+}) {
+  const patch = (p: Partial<typeof draft>) => {
+    onChange({ ...draft, ...p });
   };
   const Row = ({
     label,
@@ -1674,8 +1703,8 @@ function OverlayTypographyTab() {
             <div key={bp} className="space-y-1">
               <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">{bpLabel}</Label>
               <NumStepper
-                value={data[key] as number}
-                onChange={(v) => patch({ [key]: v } as Partial<typeof data>)}
+                value={draft[key] as number}
+                onChange={(v) => patch({ [key]: v } as Partial<typeof draft>)}
                 step={1}
                 min={8}
                 max={200}
@@ -1694,7 +1723,8 @@ function OverlayTypographyTab() {
         <p className="text-xs text-muted-foreground mt-1">
           Rozmiary czcionek (px) dla tytułu, podtytułu i meta (autor / data / czas czytania) renderowanych na cover photo
           oraz w klasycznym nagłówku wpisu. Wartości są responsywne per breakpoint i synchronizowane z ustawieniami w
-          <code className="mx-1">/admin/post-layouts</code>. Zmiana zapisuje się natychmiast.
+          <code className="mx-1">/admin/post-layouts</code>. Zmiany są trzymane w wersji roboczej i zapisują się dopiero
+          po kliknięciu „Zapisz wszystko".
         </p>
       </div>
       <div className="space-y-4">
