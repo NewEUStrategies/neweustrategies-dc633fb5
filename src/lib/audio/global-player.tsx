@@ -196,13 +196,10 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
 
   const download = useCallback(
     async (meta?: AudioTrackMeta) => {
-      // Determine target: explicit meta wins, else currently loaded track.
-      const target = meta ?? track;
+      const target: AudioTrackMeta | AudioTrackState | null = meta ?? track;
       if (!target) return;
-      const url =
-        "blobUrl" in target && target.blobUrl
-          ? target.blobUrl
-          : await fetchBlob(target.postId, target.lang);
+      const existingBlob = (target as AudioTrackState).blobUrl;
+      const url = existingBlob ?? (await fetchBlob(target.postId, target.lang));
       const a = document.createElement("a");
       a.href = url;
       a.download = `${sanitizeFilename(target.title)}.mp3`;
@@ -212,6 +209,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     },
     [track, fetchBlob],
   );
+
 
 
   const isActive = useCallback(
