@@ -3150,7 +3150,7 @@ h2.key-takeaways__ghost-title {
   top: 0;
   margin: 0;
   padding: 0;
-  transform: translateY(calc(1.375rem - 50%));
+  transform: translateY(calc(1.375rem - 50% + var(--kt-ghost-offset-y, 0px)));
 }
 /* Każde słowo etykiety renderujemy w <span>; wymuś dziedziczenie rozmiaru
    i wagi, żeby żadne słowo (nawet podświetlone) nie zmieniło metryk. */
