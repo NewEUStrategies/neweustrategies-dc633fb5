@@ -44,6 +44,13 @@ import {
   FileText,
   Settings as SettingsIcon,
   Layers,
+  Search,
+  Tag as TagIcon,
+  Lock,
+  History,
+  Link2,
+  Database,
+  ListChecks,
 } from "@/lib/lucide-shim";
 import { ChevronDown } from "lucide-react";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
