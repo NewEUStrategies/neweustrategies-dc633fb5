@@ -925,12 +925,15 @@ export function ThemeDesignPane() {
 </TabsContent>
 
         <TabsContent value="overlay" className="mt-0">
-          <OverlayTypographyTab />
+          <OverlayTypographyTab draft={overlayDraft} onChange={setOverlayDraft} />
         </TabsContent>
       </Tabs>
 
       <div className="flex gap-2 pt-2">
-        <Button onClick={saveAll} disabled={saveTd.isPending || saveCd.isPending}>
+        <Button
+          onClick={saveAll}
+          disabled={saveTd.isPending || saveCd.isPending || saveOverlay.isPending}
+        >
           <Save className="w-4 h-4 mr-1.5" /> Zapisz wszystko
         </Button>
         <Button
