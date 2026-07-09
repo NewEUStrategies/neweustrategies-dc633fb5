@@ -1510,7 +1510,7 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
   if (kind === "none") return null;
   const ch = kind === "dot" ? "•" : kind === "slash" ? "/" : "|";
   return (
-    <span aria-hidden className="opacity-60">
+    <span aria-hidden className="cms-meta-sep opacity-60">
       {ch}
     </span>
   );
