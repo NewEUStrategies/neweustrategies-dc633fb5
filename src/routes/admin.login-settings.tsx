@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import defaultLoginLight from "@/assets/login-illustration-light.jpg";
+import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
