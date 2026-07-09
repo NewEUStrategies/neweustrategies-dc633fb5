@@ -308,6 +308,8 @@ export const en = {
         iconColors: "Icon Colors",
         linkColors: "Link Colors",
         contentStyling: "Content Styling",
+        fontSizes: "Font sizes",
+        contentStylingAdvanced: "Content styling (advanced)",
       },
       inputColorsDescription:
         "Set background, text, placeholder, border, and hover/focus colors for input fields - for both light and dark mode.",
