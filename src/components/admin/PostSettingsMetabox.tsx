@@ -508,6 +508,53 @@ function TakeawaysTab({
         globalHref="/admin/key-takeaways"
       />
 
+      {/* Per-wpis nadpisanie wariantu wizualnego (opcjonalne) */}
+      {onVariantChange && (
+        <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Wariant wizualny
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Globalny:{" "}
+              <span className="font-mono">{ktSettings.variant}</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {(
+              [
+                { id: null, label: "Globalny", desc: "Użyj ustawienia globalnego" },
+                { id: "card", label: "A", desc: "Karta" },
+                { id: "heading", label: "B", desc: "Nagłówek + kropki" },
+                { id: "ghost", label: "C", desc: "Ghost" },
+              ] as const
+            ).map((opt) => {
+              const on = (variantOverride ?? null) === opt.id;
+              return (
+                <button
+                  key={String(opt.id)}
+                  type="button"
+                  onClick={() => onVariantChange(opt.id)}
+                  aria-pressed={on}
+                  className={cn(
+                    "rounded-md border px-2 py-1.5 text-left transition",
+                    on
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:bg-muted",
+                  )}
+                  title={opt.desc}
+                >
+                  <div className="text-[11px] font-semibold">{opt.label}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    {opt.desc}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <Tabs value={active} onValueChange={(v) => setActive(v === "en" ? "en" : "pl")}>
         <TabsList>
           <TabsTrigger value="pl">
