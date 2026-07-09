@@ -58,6 +58,20 @@ import {
 } from "@/lib/theme/carouselDefaults";
 import { Languages, Eye, EyeOff } from "lucide-react";
 
+type PreviewSection =
+  | "block-heading"
+  | "thumbnail"
+  | "read-more"
+  | "meta"
+  | "toolbar"
+  | "mode-switch"
+  | "social"
+  | "post-title"
+  | "post-excerpt"
+  | "list-index"
+  | "carousel"
+  | "overlay";
+
 export function ThemeDesignPane() {
   const { data: tdPl, isLoading: tdPlLoading } = useThemeDesign();
   const { data: tdEn, isLoading: tdEnLoading } = useThemeDesignEn();
@@ -79,6 +93,7 @@ export function ThemeDesignPane() {
   const [liveSync, setLiveSync] = useState<boolean>(false);
   const [previewLang, setPreviewLang] = useState<ThemeDesignLang>("pl");
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
+  const [activeTab, setActiveTab] = useState<PreviewSection>("block-heading");
 
 
   useEffect(() => {
@@ -167,6 +182,7 @@ export function ThemeDesignPane() {
         onLangChange={setPreviewLang}
         previewMode={previewMode}
         onModeChange={setPreviewMode}
+        activeTab={activeTab}
       />
 
       <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
@@ -205,7 +221,7 @@ export function ThemeDesignPane() {
 
 
 
-      <Tabs defaultValue="block-heading" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PreviewSection)} className="space-y-4">
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
           <TabsList className="flex flex-wrap h-auto gap-1.5 justify-start bg-transparent p-0">
             {[
@@ -1012,12 +1028,14 @@ function LivePostPreview({
   onLangChange,
   previewMode,
   onModeChange,
+  activeTab,
 }: {
   draft: ThemeDesign;
   previewLang: ThemeDesignLang;
   onLangChange: (l: ThemeDesignLang) => void;
   previewMode: "light" | "dark";
   onModeChange: (m: "light" | "dark") => void;
+  activeTab: PreviewSection;
 }) {
   // Scope the generated tokens to the preview root so unsaved values do not
   // leak into the rest of the admin chrome. `themeDesignToCss` emits `:root{}`
@@ -1130,16 +1148,237 @@ function LivePostPreview({
       <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(scopedCss) }} />
 
       <div
-        className={cn("theme-design-live-preview p-6 space-y-6 transition-colors", isDark && "dark")}
+        className={cn("theme-design-live-preview p-6 transition-colors", isDark && "dark")}
         style={rootStyle}
       >
-        {/* ==== Row 1: Cover / Overlay + Hero card ==== */}
-        <div className="grid md:grid-cols-[1.2fr_1fr] gap-6">
-          {/* Gutenberg-style cover overlay */}
-          <article className="space-y-2">
-            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
-              Cover / Overlay
+        <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-widest opacity-60 font-semibold">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
+          <span>Podgląd zakładki: {tabTitle(activeTab, previewLang)}</span>
+        </div>
+
+        {activeTab === "block-heading" && (
+          <div className="space-y-3">
+            <h2 className="cms-block-heading">{copy.eyebrow}</h2>
+            <h2 className="cms-block-heading">{copy.listHeader}</h2>
+          </div>
+        )}
+
+        {activeTab === "thumbnail" && (
+          <div className="grid sm:grid-cols-2 gap-6 max-w-xl">
+            <div
+              className="cms-thumb relative overflow-hidden"
+              style={{
+                aspectRatio: draft.thumbnail.aspectRatio,
+                background: "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
+              }}
+            >
+              <span
+                className="absolute left-3 top-3 rounded-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
+              >
+                {copy.category}
+              </span>
             </div>
+            <div
+              className="cms-thumb relative overflow-hidden"
+              style={{
+                aspectRatio: draft.thumbnail.aspectRatio,
+                background: "linear-gradient(135deg, #2b3550 0%, #0f172a 100%)",
+              }}
+            />
+          </div>
+        )}
+
+        {activeTab === "read-more" && (
+          <div className="flex flex-wrap items-center gap-4">
+            <button type="button" className="cms-read-more inline-flex items-center gap-1 border">
+              {copy.readMore}
+              {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
+            </button>
+            <button type="button" className="cms-read-more inline-flex items-center gap-1 border opacity-70">
+              {copy.readMore}
+            </button>
+          </div>
+        )}
+
+        {activeTab === "meta" && (
+          <div
+            className="cms-meta-info inline-flex flex-wrap items-center"
+            style={{ gap: draft.metaInfo.gap }}
+          >
+            <span>{copy.author}</span>
+            <SepPreview kind={draft.metaInfo.separator} />
+            <span>{copy.published}</span>
+            <SepPreview kind={draft.metaInfo.separator} />
+            <span>{copy.read}</span>
+          </div>
+        )}
+
+        {activeTab === "toolbar" && (
+          <div className="space-y-2">
+            <div
+              className="inline-flex items-center gap-1 rounded-md p-1"
+              style={{ background: "color-mix(in oklab, currentColor 6%, transparent)" }}
+            >
+              <ToolbarBtnPreview t={draft} icon="B" />
+              <ToolbarBtnPreview t={draft} icon="I" />
+              <ToolbarBtnPreview t={draft} icon="U" active />
+              <ToolbarBtnPreview t={draft} icon="•" />
+              <ToolbarBtnPreview t={draft} icon="⧉" />
+            </div>
+            <p className="text-[10px] opacity-60">
+              Aktywny stan: 3-ci od lewej (podświetlony akcentem).
+            </p>
+          </div>
+        )}
+
+        {activeTab === "mode-switch" && (
+          <div
+            className="inline-flex p-0.5 border"
+            style={{
+              background: "var(--td-ms-track-bg, transparent)",
+              borderColor: "var(--td-ms-track-border, currentColor)",
+              borderRadius: draft.modeSwitcher.radius,
+            }}
+          >
+            {copy.modeItems.map((m, i) => {
+              const active = i === (isDark ? 2 : 0);
+              return (
+                <span
+                  key={m}
+                  className="px-3 py-1.5 text-[12px] font-medium transition-colors"
+                  style={{
+                    background: active ? "var(--td-ms-active-bg, transparent)" : "transparent",
+                    color: active
+                      ? "var(--td-ms-active-color, currentColor)"
+                      : "var(--td-ms-inactive, currentColor)",
+                    borderRadius: `calc(${draft.modeSwitcher.radius} - 2px)`,
+                  }}
+                >
+                  {m}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {activeTab === "social" && (
+          <div
+            className="inline-flex items-center"
+            style={{ gap: draft.socialIcons.gap }}
+          >
+            {[Facebook, Instagram, Youtube, Linkedin, Mail].map((Ico, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center justify-center"
+                style={{
+                  background: "var(--td-si-bg, transparent)",
+                  color: "var(--td-si-color, currentColor)",
+                  padding: `${draft.socialIcons.paddingY} ${draft.socialIcons.paddingX}`,
+                  borderRadius: draft.socialIcons.radius,
+                }}
+              >
+                <Ico
+                  style={{
+                    width: draft.socialIcons.size,
+                    height: draft.socialIcons.size,
+                  }}
+                />
+              </span>
+            ))}
+          </div>
+        )}
+
+        {activeTab === "post-title" && (
+          <div className="space-y-3 max-w-2xl">
+            <h3 className="cms-post-title">
+              <a href="#" onClick={(e) => e.preventDefault()}>
+                {copy.title}
+              </a>
+            </h3>
+            <h3 className="cms-post-title" style={{ fontSize: "15px" }}>
+              {copy.items[0]}
+            </h3>
+          </div>
+        )}
+
+        {activeTab === "post-excerpt" && (
+          <p className="cms-post-excerpt max-w-2xl">{copy.excerpt}</p>
+        )}
+
+        {activeTab === "list-index" && (
+          <ol className="grid sm:grid-cols-3 gap-4 max-w-3xl">
+            {copy.items.map((item, i) => (
+              <li
+                key={item}
+                className="flex items-start gap-3 pb-3 border-b"
+                style={{ borderColor: "color-mix(in oklab, currentColor 12%, transparent)" }}
+              >
+                <span
+                  className="font-display tabular-nums leading-none shrink-0"
+                  style={{
+                    fontSize: "44px",
+                    fontWeight: draft.listIndex.weight,
+                    color: isDark ? draft.listIndex.colorDark : draft.listIndex.colorLight,
+                    opacity: draft.listIndex.opacity,
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="cms-post-title"
+                  style={{ fontSize: "15px" }}
+                >
+                  {item}
+                </a>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {activeTab === "carousel" && (
+          <div className="space-y-3">
+            <div className="flex gap-4 overflow-hidden">
+              {[0, 1, 2].map((i) => (
+                <article key={i} className="w-56 shrink-0 space-y-2">
+                  <div
+                    className="cms-thumb relative overflow-hidden"
+                    style={{
+                      aspectRatio: draft.thumbnail.aspectRatio,
+                      background:
+                        i % 2
+                          ? "linear-gradient(135deg, #2b3550 0%, #0f172a 100%)"
+                          : "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
+                    }}
+                  />
+                  <h3 className="cms-post-title" style={{ fontSize: "14px" }}>
+                    {copy.items[i] ?? copy.title}
+                  </h3>
+                </article>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="h-1.5 rounded-full"
+                  style={{
+                    width: i === 0 ? 20 : 8,
+                    background:
+                      i === 0
+                        ? "var(--brand, currentColor)"
+                        : "color-mix(in oklab, currentColor 25%, transparent)",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "overlay" && (
+          <article className="max-w-2xl">
             <div
               className="cms-thumb relative overflow-hidden"
               style={{
@@ -1148,7 +1387,6 @@ function LivePostPreview({
                   "linear-gradient(135deg, #fa9346 0%, #b0552a 55%, #3a1e10 100%)",
               }}
             >
-              {/* Dark scrim for legibility */}
               <div
                 aria-hidden
                 className="absolute inset-0"
@@ -1183,176 +1421,11 @@ function LivePostPreview({
                   <span>{copy.author}</span>
                   <SepPreview kind={draft.metaInfo.separator} />
                   <span>{copy.published}</span>
-                  <SepPreview kind={draft.metaInfo.separator} />
-                  <span>{copy.read}</span>
                 </div>
               </div>
             </div>
           </article>
-
-          {/* Standard post card */}
-          <article className="space-y-3">
-            <h2 className="cms-block-heading">{copy.eyebrow}</h2>
-            <div
-              className="cms-thumb relative overflow-hidden"
-              style={{
-                aspectRatio: draft.thumbnail.aspectRatio,
-                background: "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
-              }}
-            >
-              <span
-                className="absolute left-3 top-3 rounded-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
-                style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
-              >
-                {copy.category}
-              </span>
-            </div>
-            <h3 className="cms-post-title">
-              <a href="#" onClick={(e) => e.preventDefault()}>
-                {copy.title}
-              </a>
-            </h3>
-            <p className="cms-post-excerpt">{copy.excerpt}</p>
-            <div
-              className="cms-meta-info inline-flex flex-wrap items-center"
-              style={{ gap: draft.metaInfo.gap }}
-            >
-              <span>{copy.author}</span>
-              <SepPreview kind={draft.metaInfo.separator} />
-              <span>{copy.published}</span>
-              <SepPreview kind={draft.metaInfo.separator} />
-              <span>{copy.read}</span>
-            </div>
-            <div>
-              <button type="button" className="cms-read-more inline-flex items-center gap-1 border">
-                {copy.readMore}
-                {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
-              </button>
-            </div>
-          </article>
-        </div>
-
-        {/* ==== Row 2: Toolbar + Mode switcher + Social icons + Ranked list ==== */}
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Toolbar buttons */}
-          <div className="space-y-2">
-            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
-              {copy.toolbar}
-            </div>
-            <div
-              className="inline-flex items-center gap-1 rounded-md p-1"
-              style={{ background: "color-mix(in oklab, currentColor 6%, transparent)" }}
-            >
-              <ToolbarBtnPreview t={draft} icon="B" />
-              <ToolbarBtnPreview t={draft} icon="I" />
-              <ToolbarBtnPreview t={draft} icon="U" active />
-              <ToolbarBtnPreview t={draft} icon="•" />
-              <ToolbarBtnPreview t={draft} icon="⧉" />
-            </div>
-            <p className="text-[10px] opacity-60">
-              Aktywny stan: 3-ci od lewej (podświetlony akcentem).
-            </p>
-          </div>
-
-          {/* Mode switcher */}
-          <div className="space-y-2">
-            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
-              {copy.modeSwitcher}
-            </div>
-            <div
-              className="inline-flex p-0.5 border"
-              style={{
-                background: "var(--td-ms-track-bg, transparent)",
-                borderColor: "var(--td-ms-track-border, currentColor)",
-                borderRadius: draft.modeSwitcher.radius,
-              }}
-            >
-              {copy.modeItems.map((m, i) => {
-                const active = i === (isDark ? 2 : 0);
-                return (
-                  <span
-                    key={m}
-                    className="px-3 py-1.5 text-[12px] font-medium transition-colors"
-                    style={{
-                      background: active ? "var(--td-ms-active-bg, transparent)" : "transparent",
-                      color: active
-                        ? "var(--td-ms-active-color, currentColor)"
-                        : "var(--td-ms-inactive, currentColor)",
-                      borderRadius: `calc(${draft.modeSwitcher.radius} - 2px)`,
-                    }}
-                  >
-                    {m}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Social icons */}
-          <div className="space-y-2">
-            <div className="text-[10px] uppercase tracking-widest opacity-60 font-semibold">
-              {copy.social}
-            </div>
-            <div
-              className="inline-flex items-center"
-              style={{ gap: draft.socialIcons.gap }}
-            >
-              {[Facebook, Instagram, Youtube, Linkedin, Mail].map((Ico, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center justify-center"
-                  style={{
-                    background: "var(--td-si-bg, transparent)",
-                    color: "var(--td-si-color, currentColor)",
-                    padding: `${draft.socialIcons.paddingY} ${draft.socialIcons.paddingX}`,
-                    borderRadius: draft.socialIcons.radius,
-                  }}
-                >
-                  <Ico
-                    style={{
-                      width: draft.socialIcons.size,
-                      height: draft.socialIcons.size,
-                    }}
-                  />
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ==== Row 3: Ranked list ==== */}
-        <aside className="space-y-3">
-          <h2 className="cms-block-heading">{copy.listHeader}</h2>
-          <ol className="grid sm:grid-cols-3 gap-4">
-            {copy.items.map((item, i) => (
-              <li
-                key={item}
-                className="flex items-start gap-3 pb-3 border-b"
-                style={{ borderColor: "color-mix(in oklab, currentColor 12%, transparent)" }}
-              >
-                <span
-                  className="font-display tabular-nums leading-none shrink-0"
-                  style={{
-                    fontSize: "44px",
-                    fontWeight: draft.listIndex.weight,
-                    color: isDark ? draft.listIndex.colorDark : draft.listIndex.colorLight,
-                    opacity: draft.listIndex.opacity,
-                  }}
-                >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="cms-post-title"
-                  style={{ fontSize: "15px" }}
-                >
-                  {item}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </aside>
+        )}
       </div>
     </div>
   );
@@ -1387,6 +1460,24 @@ function ToolbarBtnPreview({
       {icon}
     </span>
   );
+}
+
+function tabTitle(t: PreviewSection, lang: ThemeDesignLang): string {
+  const map: Record<PreviewSection, [string, string]> = {
+    "block-heading": ["Nagłówki bloków", "Block headings"],
+    thumbnail: ["Miniatury", "Thumbnails"],
+    "read-more": ["Czytaj więcej", "Read more"],
+    meta: ["Meta wpisu", "Post meta"],
+    toolbar: ["Toolbar", "Toolbar"],
+    "mode-switch": ["Tryb jasny/ciemny", "Light/Dark mode"],
+    social: ["Social", "Social"],
+    "post-title": ["Tytuły wpisów", "Post titles"],
+    "post-excerpt": ["Excerpt", "Excerpt"],
+    "list-index": ["Numeracja list", "List index"],
+    carousel: ["Karuzela", "Carousel"],
+    overlay: ["Overlay wpisu", "Post overlay"],
+  };
+  return map[t][lang === "en" ? 1 : 0];
 }
 
 function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
