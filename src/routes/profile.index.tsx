@@ -462,7 +462,7 @@ function ProfileInline() {
                     )}
                   </ContactRow>
 
-                  {/* X / Twitter */}
+                  {/* X */}
                   <ContactRow
                     icon={<BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />}
                     ariaLabel="X"

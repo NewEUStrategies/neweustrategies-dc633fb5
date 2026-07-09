@@ -391,7 +391,7 @@ function SocialPage() {
                         name="x"
                         fallback={XIcon}
                         className="h-3.5 w-3.5"
-                        alt="X / Twitter"
+                        alt="X"
                       />
                       {t("profile.social.twitter")}
                     </span>
