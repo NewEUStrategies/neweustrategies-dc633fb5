@@ -27,6 +27,11 @@ export interface AuthSettings {
   hero_subtitle_en: string;
   hero_image_url_light: string;
   hero_image_url_dark: string;
+  // Per-mode illustrations (fallback to hero_image_url_* when empty)
+  signup_image_url_light: string;
+  signup_image_url_dark: string;
+  reset_image_url_light: string;
+  reset_image_url_dark: string;
   // Legal links
   privacy_url: string;
   terms_url: string;
@@ -60,6 +65,10 @@ export const AUTH_DEFAULTS: AuthSettings = {
   hero_subtitle_en: "Strategy. Insight. Influence. - one account, full ecosystem.",
   hero_image_url_light: "",
   hero_image_url_dark: "",
+  signup_image_url_light: "",
+  signup_image_url_dark: "",
+  reset_image_url_light: "",
+  reset_image_url_dark: "",
   privacy_url: "/polityka-prywatnosci",
   terms_url: "/regulamin",
   show_language_switcher: true,

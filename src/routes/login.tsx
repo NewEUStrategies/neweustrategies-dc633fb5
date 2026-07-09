@@ -168,10 +168,29 @@ function LoginPage() {
     }
   };
 
-  const illustration =
-    theme === "dark"
-      ? settings.hero_image_url_dark || settings.hero_image_url_light || illustrationDark
-      : settings.hero_image_url_light || settings.hero_image_url_light || illustrationLight;
+  const illustration = (() => {
+    const isDark = theme === "dark";
+    const defaultImg = isDark ? illustrationDark : illustrationLight;
+    const heroFallback =
+      (isDark ? settings.hero_image_url_dark : settings.hero_image_url_light) ||
+      settings.hero_image_url_light ||
+      defaultImg;
+    if (mode === "signup") {
+      return (
+        (isDark ? settings.signup_image_url_dark : settings.signup_image_url_light) ||
+        settings.signup_image_url_light ||
+        heroFallback
+      );
+    }
+    if (mode === "reset") {
+      return (
+        (isDark ? settings.reset_image_url_dark : settings.reset_image_url_light) ||
+        settings.reset_image_url_light ||
+        heroFallback
+      );
+    }
+    return heroFallback;
+  })();
 
   return (
     <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8">
