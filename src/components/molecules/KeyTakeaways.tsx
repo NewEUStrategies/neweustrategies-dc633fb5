@@ -148,16 +148,19 @@ export function KeyTakeaways({
         <div className="key-takeaways__ghost relative isolate">
           <h2
             aria-hidden="true"
-            className="key-takeaways__ghost-title font-display font-black tracking-tight leading-[0.85] pointer-events-none select-none absolute inset-x-0 top-0 whitespace-nowrap overflow-hidden"
+            className="key-takeaways__ghost-title font-display font-black tracking-tight pointer-events-none select-none absolute inset-x-0 top-0 whitespace-nowrap"
           >
-            {label}
+            {labelParts.head ? (
+              <span className="key-takeaways__ghost-title-hl">{labelParts.head}</span>
+            ) : null}
+            {labelParts.tail}
           </h2>
           <h2 className="sr-only">{label}</h2>
           <ul className="key-takeaways__list relative z-10 space-y-0">
             {clean.map((bullet, i) => (
               <li
                 key={i}
-                className="key-takeaways__ghost-item flex items-start gap-3 text-base md:text-lg leading-relaxed py-4"
+                className="key-takeaways__ghost-item flex items-start gap-3 text-base md:text-lg leading-relaxed py-2"
               >
                 <span
                   className="key-takeaways__bullet mt-2 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
