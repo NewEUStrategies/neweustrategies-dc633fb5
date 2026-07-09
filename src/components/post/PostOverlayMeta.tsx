@@ -67,7 +67,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
       {author && name && (
         <span className="inline-flex items-center gap-1.5">
-          <UserIcon className="w-3.5 h-3.5 opacity-80" aria-hidden />
+          <UserIcon className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" aria-hidden />
           <span className="opacity-80">{t.by}</span>
           {authorHref ? (
             <AppLink href={authorHref} className="font-medium">
@@ -85,7 +85,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className="w-3.5 h-3.5 opacity-80"
+            className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
             aria-hidden
           >
             <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -97,7 +97,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
       )}
       {readMinutes && readMinutes > 0 ? (
         <span className="inline-flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 opacity-80" aria-hidden />
+          <Clock className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" aria-hidden />
           <span>{t.read(readMinutes)}</span>
         </span>
       ) : (
