@@ -186,12 +186,55 @@ export function MediaPickerDialog({
               </option>
             ))}
           </select>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={acceptAttr}
+            className="hidden"
+            onChange={onInputChange}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Wgrywanie…
+              </>
+            ) : (
+              <>
+                <Upload className="w-3.5 h-3.5 mr-1" /> Wgraj z dysku
+              </>
+            )}
+          </Button>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto -mx-2 px-2">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={`relative max-h-[60vh] overflow-y-auto -mx-2 px-2 rounded-md transition-colors ${
+            dragOver ? "outline outline-2 outline-dashed outline-primary/60 bg-primary/5" : ""
+          }`}
+        >
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-medium text-primary bg-background/70 backdrop-blur-sm rounded-md">
+              <Upload className="w-4 h-4 mr-2" /> Upuść pliki, aby wgrać
+            </div>
+          )}
           {!filtered.length ? (
             <div className="text-center text-muted-foreground text-sm py-10">
-              Brak pasujących plików.
+              {uploading
+                ? "Trwa wgrywanie…"
+                : "Brak pasujących plików. Przeciągnij pliki tutaj lub kliknij „Wgraj z dysku"."}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
