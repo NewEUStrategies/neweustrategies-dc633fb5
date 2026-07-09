@@ -159,7 +159,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
             showAvatar={showAvatar}
             showSocial={showSocial}
             showPostsCount={showPostsCount}
-            variant={variant as "card" | "inline" | "minimal"}
+            variant={variant as "card" | "inline" | "minimal" | "split"}
             authorId={selectedAuthorId || undefined}
           />
         </CurrentPostProvider>
