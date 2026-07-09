@@ -342,6 +342,19 @@ export function FloatingShareBar({
 
   return (
     <>
+      {isSidebar && listen && (
+        <div className="mb-4">
+          <SidebarListenCard
+            postId={listen.postId}
+            lang={lang}
+            title={listen.title}
+            author={listen.author ?? null}
+            authorHref={listen.authorHref ?? null}
+            readMinutes={listen.readMinutes ?? null}
+            postHref={href || undefined}
+          />
+        </div>
+      )}
       <aside
         ref={railRef}
         data-floating-share
