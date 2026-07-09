@@ -399,28 +399,55 @@ function BlockView({
       const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [];
       const ordered = Boolean(block.data.ordered);
       const Tag = ordered ? "ol" : "ul";
+      const kept = items
+        .map((it, i) => ({ it, i }))
+        .filter(({ it }) => Boolean(it));
       return (
         <Tag
           className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}
         >
-          {items.filter(Boolean).map((it, i) => (
-            <li key={i} className="my-0 pl-1">
-              {it}
-            </li>
-          ))}
+          {kept.map(({ it, i }) => {
+            const withFn = fnHtml.get(`${block.id}:item:${i}`);
+            return withFn !== undefined ? (
+              <li
+                key={i}
+                className="my-0 pl-1"
+                dangerouslySetInnerHTML={{ __html: withFn }}
+              />
+            ) : (
+              <li key={i} className="my-0 pl-1">
+                {it}
+              </li>
+            );
+          })}
         </Tag>
       );
     }
     case "quote": {
       const text = String(block.data.text ?? "");
       const cite = String(block.data.cite ?? "");
+      const textFn = fnHtml.get(`${block.id}:text`);
+      const citeFn = fnHtml.get(`${block.id}:cite`);
       return (
         <blockquote className={cls}>
-          <p>{text}</p>
-          {cite && <cite className="text-sm text-muted-foreground">- {cite}</cite>}
+          {textFn !== undefined ? (
+            <p dangerouslySetInnerHTML={{ __html: textFn }} />
+          ) : (
+            <p>{text}</p>
+          )}
+          {cite &&
+            (citeFn !== undefined ? (
+              <cite
+                className="text-sm text-muted-foreground"
+                dangerouslySetInnerHTML={{ __html: `- ${citeFn}` }}
+              />
+            ) : (
+              <cite className="text-sm text-muted-foreground">- {cite}</cite>
+            ))}
         </blockquote>
       );
     }
+
     case "code": {
       const code = String(block.data.code ?? "");
       const lang = String(block.data.lang ?? "");
