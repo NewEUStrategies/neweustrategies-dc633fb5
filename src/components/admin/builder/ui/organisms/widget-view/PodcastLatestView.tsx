@@ -61,7 +61,7 @@ export function PodcastLatestView({ c, lang }: Props) {
           <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title">
             {podcastTitle(p, lang)}
           </Link>
-          <p className="cms-post-excerpt text-muted-foreground line-clamp-3">
+          <p className="cms-post-excerpt line-clamp-3">
             {lang === "en" ? p.excerpt_en || p.excerpt_pl : p.excerpt_pl || p.excerpt_en}
           </p>
           {showPlayer && (
@@ -106,7 +106,7 @@ export function PodcastLatestView({ c, lang }: Props) {
               >
                 {podcastTitle(p, lang)}
               </Link>
-              <div className="cms-post-excerpt text-muted-foreground">
+              <div className="cms-post-excerpt">
                 {formatDuration(p.duration_seconds)}
               </div>
             </div>
@@ -155,7 +155,7 @@ export function PodcastLatestView({ c, lang }: Props) {
             >
               {podcastTitle(p, lang)}
             </Link>
-            <div className="cms-post-excerpt text-muted-foreground">
+            <div className="cms-post-excerpt">
               {formatDuration(p.duration_seconds)}
             </div>
             {showPlayer && (
