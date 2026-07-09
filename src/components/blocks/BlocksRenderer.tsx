@@ -549,32 +549,37 @@ function BlockView({
       );
       const header = Boolean(block.data.header);
       if (rows.length === 0) return null;
-      const [head, ...body] = header ? [rows[0], ...rows.slice(1)] : [null, ...rows];
+      // Preserve original row indices so footnote keys (`${id}:cell:${ri}:${ci}`)
+      // stay aligned with precomputeFootnotes.
+      const headIdx = header ? 0 : -1;
+      const head = header ? rows[0] : null;
+      const body = header ? rows.slice(1).map((r, i) => ({ r, ri: i + 1 })) : rows.map((r, i) => ({ r, ri: i }));
+      const renderCell = (Tag: "th" | "td", ri: number, ci: number, c: string) => {
+        const withFn = fnHtml.get(`${block.id}:cell:${ri}:${ci}`);
+        return withFn !== undefined ? (
+          <Tag key={ci} dangerouslySetInnerHTML={{ __html: withFn }} />
+        ) : (
+          <Tag key={ci}>{c}</Tag>
+        );
+      };
       return (
         <div className={`overflow-x-auto ${cls}`}>
           <table>
             {head && (
               <thead>
-                <tr>
-                  {head.map((c, i) => (
-                    <th key={i}>{c}</th>
-                  ))}
-                </tr>
+                <tr>{head.map((c, ci) => renderCell("th", headIdx, ci, c))}</tr>
               </thead>
             )}
             <tbody>
-              {body.map((r, i) => (
-                <tr key={i}>
-                  {r.map((c, j) => (
-                    <td key={j}>{c}</td>
-                  ))}
-                </tr>
+              {body.map(({ r, ri }) => (
+                <tr key={ri}>{r.map((c, ci) => renderCell("td", ri, ci, c))}</tr>
               ))}
             </tbody>
           </table>
         </div>
       );
     }
+
     case "button": {
       const label = String(block.data.label ?? "");
       const href = safeUrl(String(block.data.href ?? "#"));
