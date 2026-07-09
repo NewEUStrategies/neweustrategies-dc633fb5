@@ -13,7 +13,17 @@ import {
 import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { User, Mail, Globe, Twitter, Linkedin, Facebook, Instagram, Music } from "lucide-react";
+import {
+  User,
+  Mail,
+  Globe,
+  Twitter,
+  Linkedin,
+  Facebook,
+  Instagram,
+  Music,
+  UserPlus,
+} from "lucide-react";
 
 type Lang = "pl" | "en";
 
@@ -23,12 +33,16 @@ const L = {
     posts: (n: number) => `${n} ${n === 1 ? "wpis" : n < 5 ? "wpisy" : "wpisów"}`,
     related: "Powiązane wpisy",
     viewProfile: "Zobacz profil",
+    contact: "Kontakt",
+    follow: "Obserwuj",
   },
   en: {
     about: "About the author",
     posts: (n: number) => `${n} ${n === 1 ? "post" : "posts"}`,
     related: "Related posts",
     viewProfile: "View profile",
+    contact: "Contact",
+    follow: "Follow",
   },
 } as const;
 
@@ -38,7 +52,7 @@ interface AuthorBioProps {
   showAvatar?: boolean;
   showSocial?: boolean;
   showPostsCount?: boolean;
-  variant?: "card" | "inline" | "minimal";
+  variant?: "card" | "inline" | "minimal" | "split";
   lang?: Lang;
   cls?: string;
   /** Explicit author id - overrides the author from the current post context. */
@@ -135,18 +149,29 @@ export function AuthorBioView({
     socials.push({ key: "website", href: author.websiteUrl, label: t.viewProfile, Icon: Globe });
   }
 
+  const isSplit = variant === "split";
   const avatarSize =
-    variant === "card" ? "w-24 h-24" : variant === "inline" ? "w-16 h-16" : "w-11 h-11";
+    variant === "card"
+      ? "w-24 h-24"
+      : variant === "inline"
+        ? "w-16 h-16"
+        : isSplit
+          ? "w-full aspect-square max-w-[220px]"
+          : "w-11 h-11";
+  // 6px rounding for split variant; circular for the rest.
+  const avatarShape = isSplit ? "rounded-[6px]" : "rounded-full";
   const avatar = showAvatar ? (
     author.avatarUrl ? (
       <OptimizedImage
         src={author.avatarUrl}
         alt={author.name}
-        className="rounded-full object-cover w-full h-full ring-2 ring-border"
-        sizes="96px"
+        className={`${avatarShape} object-cover w-full h-full ${isSplit ? "shadow-sm" : "ring-2 ring-border"}`}
+        sizes={isSplit ? "220px" : "96px"}
       />
     ) : (
-      <div className="w-full h-full rounded-full bg-muted flex items-center justify-center text-muted-foreground ring-2 ring-border">
+      <div
+        className={`w-full h-full ${avatarShape} bg-muted flex items-center justify-center text-muted-foreground ${isSplit ? "shadow-sm" : "ring-2 ring-border"}`}
+      >
         <User className="w-1/2 h-1/2" aria-hidden />
       </div>
     )
@@ -225,6 +250,71 @@ export function AuthorBioView({
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (variant === "split") {
+    const contactHref = author.contactEmail ? `mailto:${author.contactEmail}` : null;
+    return (
+      <aside
+        className={`not-prose overflow-hidden rounded-[6px] border border-border bg-card shadow-sm ${cls ?? ""}`}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          {showAvatar && (
+            <div className="flex items-center justify-center bg-primary/90 p-6">
+              <div className={avatarSize}>{avatar}</div>
+            </div>
+          )}
+          <div className="p-5 md:p-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3
+                className="text-lg md:text-xl font-bold text-primary m-0 leading-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {displayNameEl}
+              </h3>
+              {author.jobTitle && (
+                <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                  {author.jobTitle}
+                </span>
+              )}
+            </div>
+            {bio && (
+              <p className="text-sm text-muted-foreground m-0 leading-relaxed line-clamp-3">
+                {bio}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {contactHref && (
+                <a
+                  href={contactHref}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  <Mail width={14} height={14} aria-hidden />
+                  {t.contact}
+                </a>
+              )}
+              {profileHref && (
+                <AppLink
+                  href={profileHref}
+                  className="inline-flex items-center gap-2 rounded-full border border-primary text-primary px-4 py-2 text-xs font-semibold hover:bg-primary/10 transition-colors"
+                >
+                  <UserPlus width={14} height={14} aria-hidden />
+                  {t.follow}
+                </AppLink>
+              )}
+            </div>
+            {(socialIcons || (showPostsCount && postsCount !== null)) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                {socialIcons ?? <span />}
+                {showPostsCount && postsCount !== null && (
+                  <span className="text-[11px] text-muted-foreground">{t.posts(postsCount)}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
     );
   }
 

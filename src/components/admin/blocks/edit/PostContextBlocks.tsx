@@ -117,6 +117,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           onChange={(e) => set({ variant: e.target.value })}
         >
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
+          <option value="split">Split (kolorowy panel)</option>
           <option value="inline">Inline</option>
           <option value="minimal">Minimalna</option>
         </AdminSelect>
@@ -138,7 +139,14 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 
       <div className="pt-2 border-t border-border/60 space-y-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Podgląd - {variant === "card" ? "Karta" : variant === "inline" ? "Inline" : "Minimalna"}
+          Podgląd -{" "}
+          {variant === "card"
+            ? "Karta"
+            : variant === "split"
+              ? "Split"
+              : variant === "inline"
+                ? "Inline"
+                : "Minimalna"}
           {!selectedAuthorId && <span className="ml-1 italic normal-case">(przykładowe dane)</span>}
         </div>
         <CurrentPostProvider
@@ -151,7 +159,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
             showAvatar={showAvatar}
             showSocial={showSocial}
             showPostsCount={showPostsCount}
-            variant={variant as "card" | "inline" | "minimal"}
+            variant={variant as "card" | "inline" | "minimal" | "split"}
             authorId={selectedAuthorId || undefined}
           />
         </CurrentPostProvider>
@@ -159,12 +167,18 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         <details className="text-[11px] text-muted-foreground">
           <summary className="cursor-pointer select-none">Zobacz pozostałe warianty</summary>
           <div className="mt-3 space-y-4">
-            {(["card", "inline", "minimal"] as const)
+            {(["card", "split", "inline", "minimal"] as const)
               .filter((v) => v !== variant)
               .map((v) => (
                 <div key={v} className="space-y-1">
                   <div className="text-[10px] uppercase tracking-wide">
-                    {v === "card" ? "Karta" : v === "inline" ? "Inline" : "Minimalna"}
+                    {v === "card"
+                      ? "Karta"
+                      : v === "split"
+                        ? "Split"
+                        : v === "inline"
+                          ? "Inline"
+                          : "Minimalna"}
                   </div>
                   <CurrentPostProvider
                     value={{
