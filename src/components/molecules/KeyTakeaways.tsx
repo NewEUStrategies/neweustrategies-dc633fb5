@@ -52,6 +52,7 @@ export function KeyTakeaways({
   const variant = variantOverride ?? settings.variant;
 
   // Zestaw CSS variables (light + dark) - dark wchodzi w życie przez `.dark &`.
+  const sizeScale = Math.max(0.5, Math.min(3, settings.highlight?.sizeScale ?? 1));
   const styleVars: Record<string, string> = {
     "--kt-bg": settings.colors.bg,
     "--kt-bg-dark": settings.colors.bgDark,
@@ -63,28 +64,24 @@ export function KeyTakeaways({
     "--kt-title": settings.colors.title,
     "--kt-title-dark": settings.colors.titleDark,
     "--kt-highlight": settings.highlight?.color ?? settings.colors.accent,
+    "--kt-ghost-scale": String(sizeScale),
   };
 
-  // Rozbij etykietę na "pierwsze N słów + reszta" na potrzeby wariantu ghost.
-  const highlightCount = Math.max(0, Math.min(3, settings.highlight?.words ?? 0));
-  const labelParts = (() => {
-    if (highlightCount <= 0) return { head: "", tail: label };
-    const tokens = label.split(/(\s+)/); // zachowaj spacje
-    let words = 0;
-    let cut = 0;
-    for (let i = 0; i < tokens.length; i++) {
-      if (tokens[i] && !/^\s+$/.test(tokens[i])) {
-        words += 1;
-        if (words === highlightCount) {
-          cut = i + 1;
-          break;
-        }
+  // Rozbij etykietę na tokeny (słowa i spacje) - dla wariantu ghost
+  // renderujemy każde słowo osobno, żeby móc podświetlać wybrane pozycje.
+  const highlightIdx = new Set(settings.highlight?.indices ?? []);
+  const labelTokens = (() => {
+    const parts = label.split(/(\s+)/);
+    let wordIdx = 0;
+    return parts.map((piece) => {
+      const isWhitespace = /^\s+$/.test(piece);
+      if (isWhitespace || piece.length === 0) {
+        return { text: piece, isWord: false, index: -1 };
       }
-    }
-    return {
-      head: tokens.slice(0, cut).join(""),
-      tail: tokens.slice(cut).join(""),
-    };
+      const idx = wordIdx;
+      wordIdx += 1;
+      return { text: piece, isWord: true, index: idx };
+    });
   })();
 
   const iconName = (settings.icon || "Search") as IconName;
@@ -150,10 +147,18 @@ export function KeyTakeaways({
             aria-hidden="true"
             className="key-takeaways__ghost-title font-display font-black tracking-tight pointer-events-none select-none absolute inset-x-0 top-0 whitespace-nowrap"
           >
-            {labelParts.head ? (
-              <span className="key-takeaways__ghost-title-hl">{labelParts.head}</span>
-            ) : null}
-            {labelParts.tail}
+            {labelTokens.map((tok, i) => {
+              if (!tok.isWord) return <span key={i}>{tok.text}</span>;
+              const on = highlightIdx.has(tok.index);
+              return (
+                <span
+                  key={i}
+                  className={on ? "key-takeaways__ghost-title-hl" : undefined}
+                >
+                  {tok.text}
+                </span>
+              );
+            })}
           </h2>
           <h2 className="sr-only">{label}</h2>
           <ul className="key-takeaways__list relative z-10 space-y-0">

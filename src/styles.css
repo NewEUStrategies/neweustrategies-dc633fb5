@@ -3140,10 +3140,9 @@ textarea::placeholder {
 h2.key-takeaways__ghost-title {
   /* Bardzo transparentny - napis ledwo majaczy pod tekstem. */
   color: color-mix(in oklab, currentColor 11%, transparent);
-  /* 2.5x powiększenie względem standardowego H2. !important, żeby ominąć
-     globalne `.cms-post-h2` / `--td-bh-*` tokeny. */
-  font-size: clamp(3rem, 7vw, 5.5rem) !important;
-  /* line-height 1.15 daje zapas na descendery (g, y, j, p) - nie są przycinane. */
+  /* Rozmiar bazowy + mnożnik z ustawień (var --kt-ghost-scale, default 1).
+     !important, żeby ominąć globalne `.cms-post-h2` / `--td-bh-*` tokeny. */
+  font-size: calc(clamp(3rem, 7vw, 5.5rem) * var(--kt-ghost-scale, 1)) !important;
   line-height: 1.15 !important;
   letter-spacing: -0.03em;
   font-weight: 900;
@@ -3151,12 +3150,19 @@ h2.key-takeaways__ghost-title {
   top: 0;
   margin: 0;
   padding: 0;
-  /* Środek tytułu wypada w środku pierwszej linii listy (~1.375rem od
-     góry listy), przez co pierwszy bullet w całości nachodzi na napis. */
   transform: translateY(calc(1.375rem - 50%));
 }
-/* Podświetlone pierwsze N słów - kolor definiowany przez użytkownika,
-   ale z tą samą transparentnością co reszta napisu ghost. */
+/* Każde słowo etykiety renderujemy w <span>; wymuś dziedziczenie rozmiaru
+   i wagi, żeby żadne słowo (nawet podświetlone) nie zmieniło metryk. */
+.key-takeaways .key-takeaways__ghost-title > span,
+h2.key-takeaways__ghost-title > span {
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+}
+/* Podświetlone słowa - tylko kolor się zmienia, transparentność ta sama. */
 .key-takeaways .key-takeaways__ghost-title .key-takeaways__ghost-title-hl,
 h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #4f46e5)) 22%, transparent);

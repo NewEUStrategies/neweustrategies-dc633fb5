@@ -199,46 +199,53 @@ function KeyTakeawaysAdmin() {
             </div>
           </section>
 
-          {/* Podświetlenie pierwszych N słów (dotyczy głównie wariantu ghost) */}
-          <section className="space-y-2">
+          {/* Podświetlenie wybranych słów + rozmiar napisu (wariant Ghost) */}
+          <section className="space-y-3">
             <Label className="text-sm font-semibold">
               {isPL ? "Podświetlenie słów (wariant Ghost)" : "Word highlight (Ghost variant)"}
             </Label>
             <p className="text-xs text-muted-foreground">
               {isPL
-                ? "Wybrana liczba pierwszych słów etykiety zostanie pokolorowana wybranym kolorem - z zachowaniem tej samej transparentności co reszta napisu."
-                : "The first N words of the label are painted with the picked color, keeping the same transparency as the rest of the ghost text."}
+                ? "Kliknij słowa etykiety, które mają być pokolorowane. Wszystkie zachowują ten sam rozmiar i transparentność - zmienia się tylko kolor."
+                : "Click the label words that should be tinted. All words keep the same size and transparency - only the color changes."}
             </p>
-            <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  {isPL ? "Liczba słów" : "Word count"}
-                </Label>
-                <div className="flex gap-1 mt-1">
-                  {[0, 1, 2, 3].map((n) => {
-                    const active = (draft.highlight?.words ?? 0) === n;
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() =>
-                          update("highlight", {
-                            words: n,
-                            color: draft.highlight?.color ?? draft.colors.accent,
-                          })
-                        }
-                        className={`flex-1 h-9 rounded-md border text-sm font-medium transition ${
-                          active
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border hover:bg-muted"
-                        }`}
-                      >
-                        {n === 0 ? (isPL ? "Off" : "Off") : n}
-                      </button>
-                    );
-                  })}
-                </div>
+
+            {/* Toggle-chipy per słowo etykiety PL (indeksy słów są wspólne dla PL/EN). */}
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                {isPL ? "Słowa do podświetlenia" : "Words to highlight"}
+              </Label>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {(draft.labelPl || "").split(/\s+/).filter(Boolean).map((word, idx) => {
+                  const indices = draft.highlight?.indices ?? [];
+                  const on = indices.includes(idx);
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() =>
+                        update("highlight", {
+                          ...draft.highlight,
+                          indices: on
+                            ? indices.filter((i) => i !== idx)
+                            : [...indices, idx].sort((a, b) => a - b),
+                        })
+                      }
+                      className={`h-8 px-3 rounded-md border text-xs font-medium transition ${
+                        on
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:bg-muted"
+                      }`}
+                      aria-pressed={on}
+                    >
+                      {word}
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground">
                   {isPL ? "Kolor" : "Color"}
@@ -248,13 +255,33 @@ function KeyTakeawaysAdmin() {
                     value={draft.highlight?.color ?? draft.colors.accent}
                     onChange={(v) =>
                       update("highlight", {
-                        words: draft.highlight?.words ?? 1,
+                        ...draft.highlight,
                         color: v ?? draft.colors.accent,
                       })
                     }
                     ariaLabel={isPL ? "Kolor podświetlenia" : "Highlight color"}
                   />
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {isPL ? `Rozmiar napisu (${(draft.highlight?.sizeScale ?? 1).toFixed(2)}x)` : `Text size (${(draft.highlight?.sizeScale ?? 1).toFixed(2)}x)`}
+                </Label>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={3}
+                  step={0.05}
+                  value={draft.highlight?.sizeScale ?? 1}
+                  onChange={(e) =>
+                    update("highlight", {
+                      ...draft.highlight,
+                      sizeScale: Number(e.target.value),
+                    })
+                  }
+                  className="w-full mt-2 accent-primary"
+                  aria-label={isPL ? "Rozmiar napisu ghost" : "Ghost text size"}
+                />
               </div>
             </div>
           </section>
