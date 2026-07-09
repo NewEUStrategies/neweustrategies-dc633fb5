@@ -31,8 +31,9 @@ export const Route = createFileRoute("/admin/toc")({
   component: TocAdmin,
 });
 
-const SAMPLE_HEADINGS: Record<"pl" | "en", { level: 2 | 3; text: string; anchor: string }[]> = {
+const SAMPLE_HEADINGS: Record<"pl" | "en", { level: 1 | 2 | 3; text: string; anchor: string }[]> = {
   pl: [
+    { level: 1, text: "Główny temat opracowania", anchor: "glowny-temat" },
     { level: 2, text: "Wprowadzenie", anchor: "wprowadzenie" },
     { level: 2, text: "Kluczowe czynniki", anchor: "kluczowe-czynniki" },
     { level: 3, text: "Kontekst geopolityczny", anchor: "kontekst" },
@@ -40,6 +41,7 @@ const SAMPLE_HEADINGS: Record<"pl" | "en", { level: 2 | 3; text: string; anchor:
     { level: 2, text: "Wnioski", anchor: "wnioski" },
   ],
   en: [
+    { level: 1, text: "Main topic of the article", anchor: "main-topic" },
     { level: 2, text: "Introduction", anchor: "introduction" },
     { level: 2, text: "Key factors", anchor: "key-factors" },
     { level: 3, text: "Geopolitical context", anchor: "context" },
