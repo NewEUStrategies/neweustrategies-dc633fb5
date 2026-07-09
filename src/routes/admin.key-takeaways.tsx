@@ -210,40 +210,53 @@ function KeyTakeawaysAdmin() {
                 : "Click the label words that should be tinted. All words keep the same size and transparency - only the color changes."}
             </p>
 
-            {/* Toggle-chipy per słowo etykiety PL (indeksy słów są wspólne dla PL/EN). */}
-            <div>
-              <Label className="text-xs text-muted-foreground">
-                {isPL ? "Słowa do podświetlenia" : "Words to highlight"}
-              </Label>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {(draft.labelPl || "").split(/\s+/).filter(Boolean).map((word, idx) => {
-                  const indices = draft.highlight?.indices ?? [];
-                  const on = indices.includes(idx);
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() =>
-                        update("highlight", {
-                          ...draft.highlight,
-                          indices: on
-                            ? indices.filter((i) => i !== idx)
-                            : [...indices, idx].sort((a, b) => a - b),
-                        })
-                      }
-                      className={`h-8 px-3 rounded-md border text-xs font-medium transition ${
-                        on
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:bg-muted"
-                      }`}
-                      aria-pressed={on}
-                    >
-                      {word}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Toggle-chipy per słowo - PL i EN dzielą tę samą listę indeksów. */}
+            {(["pl", "en"] as const).map((locale) => {
+              const source = locale === "pl" ? draft.labelPl : draft.labelEn;
+              const words = (source || "").split(/\s+/).filter(Boolean);
+              if (words.length === 0) return null;
+              return (
+                <div key={locale}>
+                  <Label className="text-xs text-muted-foreground">
+                    {locale === "pl"
+                      ? isPL
+                        ? "Słowa do podświetlenia (PL)"
+                        : "Words to highlight (PL)"
+                      : isPL
+                        ? "Słowa do podświetlenia (EN)"
+                        : "Words to highlight (EN)"}
+                  </Label>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {words.map((word, idx) => {
+                      const indices = draft.highlight?.indices ?? [];
+                      const on = indices.includes(idx);
+                      return (
+                        <button
+                          key={`${locale}-${idx}`}
+                          type="button"
+                          onClick={() =>
+                            update("highlight", {
+                              ...draft.highlight,
+                              indices: on
+                                ? indices.filter((i) => i !== idx)
+                                : [...indices, idx].sort((a, b) => a - b),
+                            })
+                          }
+                          className={`h-8 px-3 rounded-md border text-xs font-medium transition ${
+                            on
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border hover:bg-muted"
+                          }`}
+                          aria-pressed={on}
+                        >
+                          {word}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
