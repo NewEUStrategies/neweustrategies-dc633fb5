@@ -101,7 +101,7 @@ export function KeyTakeaways({
         <div className="key-takeaways__card rounded-2xl p-6 md:p-8">
           <div className="flex items-start gap-4">
             <div
-              className="key-takeaways__icon shrink-0 flex items-center justify-center rounded-full"
+              className="key-takeaways__icon shrink-0 flex items-center justify-center rounded-[6px]"
               aria-hidden="true"
             >
               <DynamicIcon name={iconName} size={20} />
