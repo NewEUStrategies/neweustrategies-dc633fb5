@@ -111,6 +111,7 @@ export interface PostData extends PageData {
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
   author_id: string | null;
+  toc_override: Record<string, unknown> | null;
 }
 
 interface AuthorProfileOverlay {
