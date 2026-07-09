@@ -767,7 +767,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
 
   // Pages: pick template (default/full_width/landing/archive_listing/contact).
   const tpl = findPageTemplate(page.template_type ?? "default");
-  const pageMaxW = tpl.fullWidth ? "max-w-none" : "max-w-[1200px]";
+  const pageFullWidth = tpl.fullWidth;
   const parentPath = data.crumbs
     .slice(0, -1)
     .map((c) => c.slug)
@@ -803,7 +803,12 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       data-page-template={tpl.id}
       data-page-header-override={page.header_override ?? "default"}
     >
-      <main className={`flex-1 ${pageMaxW} w-full mx-auto px-4 lg:px-8 py-10`}>{pageBody}</main>
+      <main
+        style={pageFullWidth ? undefined : outerMaxStyle}
+        className={`flex-1 ${pageFullWidth ? "max-w-none" : ""} w-full mx-auto px-4 lg:px-8 py-10`}
+      >
+        {pageBody}
+      </main>
       <FooterSlideup pageType={adPageType} pageId={it.id} />
     </div>
   );
