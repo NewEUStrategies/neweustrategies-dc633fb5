@@ -3,7 +3,24 @@
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
 import { useMemo } from "react";
-import { Loader2, Headphones, Download, Play, Pause } from "@/lib/lucide-shim";
+import { Loader2, Download, Play, Pause } from "@/lib/lucide-shim";
+
+const HeadphonesIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 14v-2a9 9 0 0 1 18 0v2" />
+    <path d="M21 14a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3v4Z" />
+    <path d="M3 14a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H3v4Z" />
+  </svg>
+);
 import {
   formatAudioTime,
   useGlobalAudioPlayer,
