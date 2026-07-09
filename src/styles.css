@@ -258,6 +258,20 @@
   color: inherit;
 }
 
+/* Admin: pola liczbowe często mają własne kontrolki +/- lub dedykowane
+   przyciski góra/dół. Ukrywamy natywne spin-buttony przeglądarki, żeby nie
+   renderowały się podwójne strzałki w panelach i zakładkach administracyjnych. */
+.admin-compact input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.admin-compact input[type="number"]::-webkit-outer-spin-button,
+.admin-compact input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Admin scope - ujednolicone stylowanie natywnych kontrolek formularza
    (select, input, textarea) w edytorze bloków (Gutenberg-like), żeby
    dropdowny, popupy i pola wejściowe pasowały do design systemu zamiast
