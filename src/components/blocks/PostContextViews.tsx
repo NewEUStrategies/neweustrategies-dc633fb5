@@ -149,18 +149,29 @@ export function AuthorBioView({
     socials.push({ key: "website", href: author.websiteUrl, label: t.viewProfile, Icon: Globe });
   }
 
+  const isSplit = variant === "split";
   const avatarSize =
-    variant === "card" ? "w-24 h-24" : variant === "inline" ? "w-16 h-16" : "w-11 h-11";
+    variant === "card"
+      ? "w-24 h-24"
+      : variant === "inline"
+        ? "w-16 h-16"
+        : isSplit
+          ? "w-full aspect-square max-w-[220px]"
+          : "w-11 h-11";
+  // 6px rounding for split variant; circular for the rest.
+  const avatarShape = isSplit ? "rounded-[6px]" : "rounded-full";
   const avatar = showAvatar ? (
     author.avatarUrl ? (
       <OptimizedImage
         src={author.avatarUrl}
         alt={author.name}
-        className="rounded-full object-cover w-full h-full ring-2 ring-border"
-        sizes="96px"
+        className={`${avatarShape} object-cover w-full h-full ${isSplit ? "shadow-sm" : "ring-2 ring-border"}`}
+        sizes={isSplit ? "220px" : "96px"}
       />
     ) : (
-      <div className="w-full h-full rounded-full bg-muted flex items-center justify-center text-muted-foreground ring-2 ring-border">
+      <div
+        className={`w-full h-full ${avatarShape} bg-muted flex items-center justify-center text-muted-foreground ${isSplit ? "shadow-sm" : "ring-2 ring-border"}`}
+      >
         <User className="w-1/2 h-1/2" aria-hidden />
       </div>
     )
