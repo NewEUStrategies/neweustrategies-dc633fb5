@@ -30,6 +30,7 @@ import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
+import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
 import { ConsentBanner } from "../components/ConsentBanner";
 import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect";
 import { ErrorBoundary } from "../components/ErrorBoundary";
