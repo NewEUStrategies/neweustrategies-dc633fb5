@@ -456,9 +456,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const maxW = "max-w-[1200px]";
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
-  const takeaways: readonly string[] = post
-    ? ((lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? [])
-    : [];
+  const takeaways: readonly string[] =
+    (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
 
   const currentPostCtx: CurrentPostCtx = {
     kind: isPost ? "post" : "page",
