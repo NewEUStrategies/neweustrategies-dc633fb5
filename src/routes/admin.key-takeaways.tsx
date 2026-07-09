@@ -333,8 +333,8 @@ function KeyTakeawaysAdmin() {
 
           <div className="mt-6 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
             {isPL
-              ? "Podgląd renderuje ten sam komponent co strona publiczna wpisu (nad treścią). Punkty listy pochodzą z pól „Z tego materiału dowiesz się..." w edytorze konkretnego wpisu (PL / EN)."
-              : "Preview renders the exact same component used on public posts (above content). Bullet points come from the "From this article you'll learn..." fields in each post's editor (PL / EN)."}
+              ? "Podgląd renderuje ten sam komponent co strona publiczna wpisu (nad treścią). Punkty listy pochodzą z pól \u201eZ tego materiału dowiesz się...\u201d w edytorze konkretnego wpisu (PL / EN)."
+              : "Preview renders the exact same component used on public posts (above content). Bullet points come from the \u201cFrom this article you'll learn...\u201d fields in each post's editor (PL / EN)."}
           </div>
         </div>
       </div>
