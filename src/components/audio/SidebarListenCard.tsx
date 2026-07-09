@@ -35,6 +35,11 @@ const COPY = {
     seek: "Przewiń materiał",
     approx: "ok. {min} min",
     loading: "Generuję audio…",
+    stagePreparing: "Przygotowuję tekst",
+    stageSynthesizing: "ElevenLabs syntezuje głos",
+    stageStreaming: "Pobieram audio",
+    stageReady: "Gotowe",
+    stageCached: "Z pamięci podręcznej",
   },
   en: {
     label: "Listen to this article",
@@ -48,7 +53,13 @@ const COPY = {
     seek: "Seek audio",
     approx: "~{min} min",
     loading: "Generating audio…",
+    stagePreparing: "Preparing text",
+    stageSynthesizing: "ElevenLabs synthesizing voice",
+    stageStreaming: "Streaming audio",
+    stageReady: "Ready",
+    stageCached: "From cache",
   },
+
 } as const;
 
 const FOCUS_RING =
