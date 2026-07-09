@@ -621,6 +621,7 @@ function TakeawaysTab({
               lang="pl"
               items={cleanPl}
               settings={ktSettings}
+              variantOverride={effectiveVariant}
               placeholderMsg="Brak punktów w polskiej wersji."
               active={active === "pl"}
               onActivate={() => setActive("pl")}
@@ -629,6 +630,7 @@ function TakeawaysTab({
               lang="en"
               items={cleanEn}
               settings={ktSettings}
+              variantOverride={effectiveVariant}
               placeholderMsg="No bullets in the English version."
               active={active === "en"}
               onActivate={() => setActive("en")}
