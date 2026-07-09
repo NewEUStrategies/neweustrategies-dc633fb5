@@ -11,19 +11,25 @@ const COPY = {
     play: "Odtwórz",
     pause: "Pauza",
     download: "Pobierz MP3",
+    downloading: "Pobieram audio…",
+    downloadFailed: "Nie udało się pobrać audio",
     share: "Udostępnij link do artykułu",
-    close: "Zamknij",
-    goToArticle: "Otwórz artykuł",
+    close: "Zamknij odtwarzacz",
+    seek: "Przewiń materiał",
     copied: "Skopiowano link do artykułu",
+    region: "Odtwarzacz audio",
   },
   en: {
     play: "Play",
     pause: "Pause",
     download: "Download MP3",
+    downloading: "Downloading audio…",
+    downloadFailed: "Download failed",
     share: "Share article link",
-    close: "Close",
-    goToArticle: "Open article",
+    close: "Close player",
+    seek: "Seek audio",
     copied: "Article link copied",
+    region: "Audio player",
   },
 } as const;
 
@@ -44,9 +50,14 @@ const HeadphonesIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export function GlobalAudioBar() {
   const player = useGlobalAudioPlayer();
   const [mounted, setMounted] = useState(false);
+  const [scrub, setScrub] = useState<number | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -58,39 +69,54 @@ export function GlobalAudioBar() {
   const t = COPY[track.lang];
   const loading = player.status === "loading";
   const playing = player.status === "playing";
+  const duration = player.duration || 0;
+  const displayTime = scrub ?? player.currentTime;
+  const displayPct = duration > 0 ? (displayTime / duration) * 100 : 0;
 
-  const onSeek = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = ((e.clientX - rect.left) / rect.width) * 100;
-    player.seekPct(pct);
+  const commitSeek = (v: number) => {
+    player.seek(v);
+    setScrub(null);
+  };
+
+  const onDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await player.download();
+    } catch {
+      toast.error(t.downloadFailed);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const onShare = async () => {
+    // Zawsze udostępniamy link do materiału (artykułu), nie plik audio.
     const url = new URL(track.postHref, window.location.origin).toString();
+    const shareData = { title: track.title, url } as ShareData;
     try {
-      if (navigator.share) {
-        await navigator.share({ title: track.title, url });
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share(shareData);
         return;
       }
-    } catch {
-      /* user anulował */
+    } catch (err) {
+      // Użytkownik anulował — nie fallbackujemy.
+      if (err instanceof DOMException && err.name === "AbortError") return;
     }
     try {
       await navigator.clipboard.writeText(url);
       toast.success(t.copied);
     } catch {
-      /* noop */
+      // Ostateczny fallback: prompt.
+      window.prompt(t.share, url);
     }
   };
 
   return (
     <div
       role="region"
-      aria-label={t.play}
-      className={[
-        "fixed inset-x-0 bottom-0 z-[70]",
-        "pointer-events-none",
-      ].join(" ")}
+      aria-label={t.region}
+      className="fixed inset-x-0 bottom-0 z-[70] pointer-events-none"
     >
       <div className="pointer-events-auto mx-auto max-w-[1400px] px-3 pb-3 sm:px-5 sm:pb-4">
         <div
@@ -102,10 +128,10 @@ export function GlobalAudioBar() {
           ].join(" ")}
         >
           {/* Progress line na górze */}
-          <div className="absolute inset-x-0 top-0 h-[3px] bg-muted/50">
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-muted/50" aria-hidden>
             <div
               className="h-full bg-brand transition-[width] duration-150"
-              style={{ width: `${player.progress}%` }}
+              style={{ width: `${displayPct}%` }}
             />
           </div>
 
@@ -116,18 +142,20 @@ export function GlobalAudioBar() {
               onClick={() => void player.toggle()}
               disabled={loading}
               aria-label={playing ? t.pause : t.play}
+              aria-pressed={playing}
               className={[
                 "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
                 "bg-brand text-brand-foreground shadow-md",
                 "hover:brightness-110 active:scale-95 transition disabled:opacity-70",
+                FOCUS_RING,
               ].join(" ")}
             >
               {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               ) : playing ? (
-                <Pause className="h-5 w-5" />
+                <Pause className="h-5 w-5" aria-hidden />
               ) : (
-                <Play className="h-5 w-5 translate-x-[1px]" />
+                <Play className="h-5 w-5 translate-x-[1px]" aria-hidden />
               )}
             </button>
 
@@ -137,7 +165,11 @@ export function GlobalAudioBar() {
                 <HeadphonesIcon className="h-3.5 w-3.5 shrink-0 text-brand" />
                 <a
                   href={track.postHref}
-                  className="text-[13px] sm:text-sm font-semibold text-foreground truncate hover:text-brand transition-colors"
+                  className={[
+                    "text-[13px] sm:text-sm font-semibold text-foreground truncate",
+                    "hover:text-brand transition-colors rounded-sm",
+                    FOCUS_RING,
+                  ].join(" ")}
                   title={track.title}
                 >
                   {track.title}
@@ -148,7 +180,7 @@ export function GlobalAudioBar() {
                     {track.authorHref ? (
                       <a
                         href={track.authorHref}
-                        className="hover:text-foreground transition-colors"
+                        className={`hover:text-foreground transition-colors rounded-sm ${FOCUS_RING}`}
                       >
                         {track.author}
                       </a>
@@ -158,28 +190,60 @@ export function GlobalAudioBar() {
                   </span>
                 )}
               </div>
+
               <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9 text-right">
-                  {formatAudioTime(player.currentTime)}
-                </span>
-                <button
-                  type="button"
-                  onClick={onSeek}
-                  aria-label="Seek"
-                  className="relative h-1.5 flex-1 rounded-full bg-muted overflow-hidden cursor-pointer group"
+                <span
+                  className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9 text-right"
+                  aria-hidden
                 >
+                  {formatAudioTime(displayTime)}
+                </span>
+
+                {/* Slider (natywny range dla pełnej a11y + klawiatury) */}
+                <div
+                  className={[
+                    "relative h-4 flex-1 flex items-center group",
+                    "rounded-full",
+                    "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
+                  ].join(" ")}
+                >
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-muted" />
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-brand"
-                    style={{ width: `${player.progress}%` }}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-brand"
+                    style={{ width: `${displayPct}%` }}
                   />
                   <div
                     className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-brand shadow ring-2 ring-background opacity-0 group-hover:opacity-100 transition"
-                    style={{ left: `calc(${player.progress}% - 6px)` }}
+                    style={{ left: `calc(${displayPct}% - 6px)` }}
                     aria-hidden
                   />
-                </button>
-                <span className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9">
-                  {formatAudioTime(player.duration)}
+                  <input
+                    type="range"
+                    min={0}
+                    max={duration || 0}
+                    step={0.1}
+                    value={displayTime}
+                    disabled={duration <= 0}
+                    onChange={(e) => setScrub(Number(e.target.value))}
+                    onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                    onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                    onBlur={(e) => {
+                      if (scrub !== null) commitSeek(Number(e.target.value));
+                    }}
+                    aria-label={t.seek}
+                    aria-valuemin={0}
+                    aria-valuemax={Math.max(duration, 0)}
+                    aria-valuenow={Math.floor(displayTime)}
+                    aria-valuetext={`${formatAudioTime(displayTime)} / ${formatAudioTime(duration)}`}
+                    className="absolute inset-0 w-full h-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <span
+                  className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9"
+                  aria-hidden
+                >
+                  {formatAudioTime(duration)}
                 </span>
               </div>
             </div>
@@ -188,30 +252,40 @@ export function GlobalAudioBar() {
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => void player.download()}
-                aria-label={t.download}
+                onClick={() => void onDownload()}
+                disabled={downloading || loading}
+                aria-label={downloading ? t.downloading : t.download}
                 title={t.download}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-brand hover:bg-muted transition"
+                className={[
+                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                  "text-muted-foreground hover:text-brand hover:bg-muted transition",
+                  "disabled:opacity-60 disabled:cursor-not-allowed",
+                  FOCUS_RING,
+                ].join(" ")}
               >
-                <Download className="h-4 w-4" />
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Download className="h-4 w-4" aria-hidden />
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => void onShare()}
                 aria-label={t.share}
                 title={t.share}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-brand hover:bg-muted transition"
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-brand hover:bg-muted transition ${FOCUS_RING}`}
               >
-                <Share2 className="h-4 w-4" />
+                <Share2 className="h-4 w-4" aria-hidden />
               </button>
               <button
                 type="button"
                 onClick={() => player.close()}
                 aria-label={t.close}
                 title={t.close}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-muted transition"
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-muted transition ${FOCUS_RING}`}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
           </div>
