@@ -10,20 +10,32 @@ import {
   authorProfileByIdQueryOptions,
   relatedPostsBlockQueryOptions,
 } from "@/lib/queries/blocks";
-import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
+import {
+  useCurrentPostCtx,
+  type CurrentPostAuthor,
+  type CustomAuthorSocial,
+} from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import {
   User,
   Mail,
+  Phone,
   Globe,
-  Twitter,
   Linkedin,
   Facebook,
   Instagram,
   Music,
+  Link as LinkIcon,
   UserPlus,
 } from "lucide-react";
+
+// X (dawniej Twitter) - własny logotyp. Lucide nie zawiera ikony X.
+const XIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
+    <path d="M18.244 2H21.5l-7.51 8.583L23 22h-6.938l-5.44-6.62L4.28 22H1.02l8.036-9.187L1 2h7.084l4.926 6.02L18.244 2Zm-2.43 18h1.858L7.29 4H5.316l10.498 16Z" />
+  </svg>
+);
 
 type Lang = "pl" | "en";
 
@@ -89,6 +101,7 @@ export function AuthorBioView({
           bio_en: fetched.bio_en ?? undefined,
           jobTitle: fetched.job_title ?? undefined,
           contactEmail: undefined,
+          xUrl: fetched.twitter_url ?? undefined,
           twitterUrl: fetched.twitter_url ?? undefined,
           linkedinUrl: fetched.linkedin_url ?? undefined,
           facebookUrl: fetched.facebook_url ?? undefined,
@@ -103,20 +116,23 @@ export function AuthorBioView({
   });
   const postsCount = postsCountData ?? null;
 
-  if (!author?.name) {
-    return (
-      <div className={cls}>
-        <span className="text-xs text-muted-foreground italic">[author-bio]</span>
-      </div>
-    );
-  }
+  // Bez placeholderów: jeśli autor nie jest ustawiony, blok znika (nie mrugają
+  // przykładowe dane na produkcji).
+  if (!author?.name) return null;
 
   const bio =
     (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "";
   const profileHref = author.slug ? `/author/${author.slug}` : null;
 
   type IconCmp = ComponentType<SVGProps<SVGSVGElement>>;
-  const socials: Array<{ key: string; href: string; label: string; Icon: IconCmp }> = [];
+  interface SocialItem {
+    key: string;
+    href: string;
+    label: string;
+    Icon?: IconCmp;
+    iconUrl?: string;
+  }
+  const socials: SocialItem[] = [];
   if (author.contactEmail) {
     socials.push({
       key: "email",
@@ -125,29 +141,38 @@ export function AuthorBioView({
       Icon: Mail,
     });
   }
-  if (author.twitterUrl) {
-    socials.push({ key: "twitter", href: author.twitterUrl, label: "X / Twitter", Icon: Twitter });
+  if (author.phone) {
+    const tel = author.phone.replace(/\s+/g, "");
+    socials.push({ key: "phone", href: `tel:${tel}`, label: author.phone, Icon: Phone });
   }
-  if (author.linkedinUrl) {
+  const xHref = author.xUrl ?? author.twitterUrl;
+  if (xHref) socials.push({ key: "x", href: xHref, label: "X", Icon: XIcon });
+  if (author.linkedinUrl)
     socials.push({ key: "linkedin", href: author.linkedinUrl, label: "LinkedIn", Icon: Linkedin });
-  }
-  if (author.facebookUrl) {
+  if (author.facebookUrl)
     socials.push({ key: "facebook", href: author.facebookUrl, label: "Facebook", Icon: Facebook });
-  }
-  if (author.instagramUrl) {
+  if (author.instagramUrl)
     socials.push({
       key: "instagram",
       href: author.instagramUrl,
       label: "Instagram",
       Icon: Instagram,
     });
-  }
-  if (author.spotifyUrl) {
+  if (author.spotifyUrl)
     socials.push({ key: "spotify", href: author.spotifyUrl, label: "Spotify", Icon: Music });
-  }
-  if (author.websiteUrl) {
+  if (author.websiteUrl)
     socials.push({ key: "website", href: author.websiteUrl, label: t.viewProfile, Icon: Globe });
-  }
+  // Własne linki (custom platforms) - ikona z uploadu użytkownika, fallback: LinkIcon.
+  (author.customSocials ?? []).forEach((s: CustomAuthorSocial, i) => {
+    if (!s.url) return;
+    socials.push({
+      key: `custom-${i}`,
+      href: s.url,
+      label: s.label || s.url,
+      Icon: s.iconUrl ? undefined : LinkIcon,
+      iconUrl: s.iconUrl,
+    });
+  });
 
   const isSplit = variant === "split";
   const avatarSize =
@@ -158,8 +183,8 @@ export function AuthorBioView({
         : isSplit
           ? "w-full aspect-square max-w-[220px]"
           : "w-11 h-11";
-  // 6px rounding for split variant; circular for the rest.
-  const avatarShape = isSplit ? "rounded-[6px]" : "rounded-full";
+  // Ujednolicone zaokrąglenie 7px dla wszystkich wariantów (avatar + social).
+  const avatarShape = "rounded-[7px]";
   const avatar = showAvatar ? (
     author.avatarUrl ? (
       <OptimizedImage
@@ -179,17 +204,30 @@ export function AuthorBioView({
 
   const socialIcons = showSocial && socials.length > 0 && (
     <div className="flex items-center gap-1.5 flex-wrap">
-      {socials.map(({ key, href, label, Icon }) => (
+      {socials.map(({ key, href, label, Icon, iconUrl }) => (
         <a
           key={key}
           href={href}
-          target={href.startsWith("mailto:") ? undefined : "_blank"}
-          rel={href.startsWith("mailto:") ? undefined : "noreferrer"}
+          target={href.startsWith("mailto:") || href.startsWith("tel:") ? undefined : "_blank"}
+          rel={href.startsWith("mailto:") || href.startsWith("tel:") ? undefined : "noreferrer"}
           aria-label={label}
           title={label}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 hover:bg-muted transition-colors"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-[7px] border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 hover:bg-muted transition-colors overflow-hidden"
         >
-          <Icon width={14} height={14} aria-hidden />
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt=""
+              width={14}
+              height={14}
+              className="object-contain"
+              loading="lazy"
+            />
+          ) : Icon ? (
+            <Icon width={14} height={14} aria-hidden />
+          ) : (
+            <LinkIcon width={14} height={14} aria-hidden />
+          )}
         </a>
       ))}
     </div>
