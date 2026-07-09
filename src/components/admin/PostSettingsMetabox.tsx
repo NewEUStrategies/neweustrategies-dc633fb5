@@ -87,11 +87,12 @@ export function PostSettingsMetabox({
   onTakeawaysChange,
   takeawaysVariant = null,
   onTakeawaysVariantChange,
+  hideTakeawaysTab = false,
 }: PostSettingsMetaboxProps) {
   const { t } = useTranslation();
   // Zarówno wpisy jak i strony mogą korzystać z sekcji „Dowiesz się, że...";
   // jedynym warunkiem jest podanie handlera zmiany przez rodzica.
-  const showTakeaways = !!onTakeawaysChange;
+  const showTakeaways = !!onTakeawaysChange && !hideTakeawaysTab;
   const [tab, setTab] = useState<TabKey>("toc");
 
   const tabs: { id: TabKey; icon: typeof ListOrdered; label: string }[] = [
