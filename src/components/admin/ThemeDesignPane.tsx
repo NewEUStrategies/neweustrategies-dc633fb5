@@ -1400,16 +1400,6 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
 }
 
 
-function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
-  if (kind === "none") return null;
-  const ch = kind === "dot" ? "•" : kind === "slash" ? "/" : "|";
-  return (
-    <span aria-hidden className="opacity-60">
-      {ch}
-    </span>
-  );
-}
-
 /** Default inheritance token per (section, field). When the user clicks
  *  "Dziedzicz" we reset the value to this token (light mode) or clear the
  *  dark override (dark mode). These tokens already flip automatically with
