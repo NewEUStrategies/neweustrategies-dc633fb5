@@ -440,8 +440,8 @@ function AdminShellInner({
             isEditRoute
               ? "p-2"
               : isThemeOptions
-                ? "max-w-6xl mr-auto ml-0 py-4 lg:py-6 pl-3 lg:pl-4 pr-4 lg:pr-6"
-                : "max-w-6xl mx-auto p-4 lg:p-6"
+                ? "w-full py-4 lg:py-6 pl-3 lg:pl-4 pr-4 lg:pr-6"
+                : "w-full px-3 py-4 lg:px-5 lg:py-6"
           }
         >
           {children}
