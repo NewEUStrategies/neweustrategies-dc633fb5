@@ -120,8 +120,43 @@ export function SortableBlockItem(props: Props) {
         <div
           ref={toolbarRef}
           style={{ left: toolbarPos.left, top: toolbarPos.top }}
-          className="absolute flex items-center gap-0.5 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5"
+          className="absolute flex items-center gap-1 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5"
         >
+          {props.variants && props.variants.length > 1 && props.onVariantChange && (
+            <>
+              <div
+                className="flex items-center gap-0.5"
+                role="group"
+                aria-label={t("blocks.actions.variant", { defaultValue: "Wariant" })}
+              >
+                {props.variants.map((v) => {
+                  const isCurrent = v.key === props.currentVariant;
+                  return (
+                    <button
+                      key={v.key}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isCurrent) props.onVariantChange!(v.key);
+                      }}
+                      aria-pressed={isCurrent}
+                      title={v.label}
+                      className={`px-2 h-6 text-[11px] font-medium rounded transition-colors ${
+                        isCurrent
+                          ? "bg-foreground text-background"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+            </>
+          )}
+
+
 
           <IconButton
             disabled={props.index === 0}
