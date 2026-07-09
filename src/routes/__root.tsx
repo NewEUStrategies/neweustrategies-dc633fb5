@@ -275,11 +275,14 @@ function RootComponent() {
           <ThemeDesignStyle />
           <ThemeFontSizesStyle />
           <ErrorBoundary>
-            <SiteChrome>
-              <Suspense fallback={<RouteLoadingSkeleton />}>
-                <Outlet />
-              </Suspense>
-            </SiteChrome>
+            <GlobalAudioPlayerProvider>
+              <SiteChrome>
+                <Suspense fallback={<RouteLoadingSkeleton />}>
+                  <Outlet />
+                </Suspense>
+              </SiteChrome>
+              <GlobalAudioBar />
+            </GlobalAudioPlayerProvider>
           </ErrorBoundary>
           <ConsentBanner />
           <Suspense fallback={null}>
