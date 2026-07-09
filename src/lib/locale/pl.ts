@@ -309,6 +309,8 @@ export const pl = {
         iconColors: "Kolory ikon",
         linkColors: "Kolory linków",
         contentStyling: "Style treści",
+        fontSizes: "Rozmiary czcionek",
+        contentStylingAdvanced: "Style treści (zaawansowane)",
       },
       inputColorsDescription:
         "Ustaw kolory tła, tekstu, placeholdera, obramowania oraz stanów hover/focus pól tekstowych - dla trybu jasnego i ciemnego.",
