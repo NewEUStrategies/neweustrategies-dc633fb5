@@ -934,13 +934,18 @@ function EditPost() {
                 </div>
               </div>
 
-              <TakeawaysEditor
-                pl={form.takeaways_pl ?? []}
-                en={form.takeaways_en ?? []}
-                onChange={(lang, next) =>
+              <PostSettingsMetabox
+                entityType="post"
+                entityId={id}
+                tocOverride={form.toc_override ?? null}
+                onTocOverrideChange={(next) => set("toc_override", next)}
+                takeawaysPl={form.takeaways_pl ?? []}
+                takeawaysEn={form.takeaways_en ?? []}
+                onTakeawaysChange={(lang, next) =>
                   set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
                 }
               />
+
 
               <div className="rounded-lg border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between">
