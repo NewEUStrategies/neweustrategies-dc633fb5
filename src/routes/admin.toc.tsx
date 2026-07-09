@@ -241,6 +241,50 @@ function TocAdmin() {
               </label>
             </div>
 
+            <div>
+              <Label className="text-xs">
+                {t("admin.toc.columns", { defaultValue: "Kolumny spisu treści" })}
+              </Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {TOC_COLUMNS.map((c) => {
+                  const label =
+                    c === "col-1" ? "1 kolumna" : c === "col-2" ? "2 kolumny" : "Połowa";
+                  const desc =
+                    c === "col-1"
+                      ? "Pełna szerokość"
+                      : c === "col-2"
+                        ? "Podział na 2 kolumny"
+                        : "50% szerokości treści";
+                  const active = draft.columns === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => update("columns", c as TocColumns)}
+                      aria-pressed={active}
+                      className={`flex flex-col gap-1 rounded-md border px-2 py-2.5 text-left transition-colors ${
+                        active
+                          ? "border-brand bg-brand/10 text-brand"
+                          : "border-border bg-background hover:border-brand/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-medium">
+                        <div
+                          className={`grid gap-0.5 ${c === "col-2" ? "grid-cols-2" : "grid-cols-1"} ${c === "half" ? "w-3" : "w-5"}`}
+                          aria-hidden="true"
+                        >
+                          <span className="h-2 rounded-sm bg-current opacity-70" />
+                          {c === "col-2" && <span className="h-2 rounded-sm bg-current opacity-70" />}
+                        </div>
+                        {label}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <label className="flex items-center justify-between gap-3">
               <div className="text-sm font-medium">
                 {t("admin.toc.sticky", { defaultValue: "Sticky przy scrollu" })}
