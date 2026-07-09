@@ -142,8 +142,20 @@ export function PostLayoutRenderer({
             {/* Ciemna nakładka - taka sama recepta jak w podglądzie edytora
                 (gradient + radial vignetta), żeby tytuł/excerpt były czytelne
                 niezależnie od zdjęcia. */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]" />
+            <div
+              className={
+                isFullBleed
+                  ? "absolute inset-0 bg-gradient-to-b from-black/30 via-black/25 to-black/60"
+                  : "absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90"
+              }
+            />
+            <div
+              className={
+                isFullBleed
+                  ? "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.28)_75%)]"
+                  : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]"
+              }
+            />
             {overlayMetaCard}
           </div>
         </div>
