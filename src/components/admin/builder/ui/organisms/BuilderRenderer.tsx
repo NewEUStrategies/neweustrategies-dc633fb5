@@ -637,7 +637,6 @@ const RenderColumn = memo(function RenderColumn({
             >
               <RenderErrorBoundary label={`widget:${w.type}:${w.id}`}>
                 <div className="relative w-full h-full">
-                  <WidgetView node={w} lang={lang} device={device} />
                   {w.advanced?.link?.url && (
                     <a
                       href={w.advanced.link.url}
@@ -652,18 +651,21 @@ const RenderColumn = memo(function RenderColumn({
                       aria-label={w.advanced.link.ariaLabel ?? undefined}
                       className="absolute inset-0 z-0"
                       data-widget-link="1"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <span className="sr-only">
                         {w.advanced.link.ariaLabel ?? w.advanced.link.refLabel ?? w.advanced.link.url}
                       </span>
                     </a>
                   )}
+                  <div className={w.advanced?.link?.url ? "relative z-10 pointer-events-none [&_a,&_button,&_input,&_select,&_textarea,&_video,&_audio,&_iframe,&_[role=button],&_[tabindex]]:pointer-events-auto" : "contents"}>
+                    <WidgetView node={w} lang={lang} device={device} />
+                  </div>
                 </div>
               </RenderErrorBoundary>
             </div>
           );
         };
+
 
         if (g.inline) {
           return (
