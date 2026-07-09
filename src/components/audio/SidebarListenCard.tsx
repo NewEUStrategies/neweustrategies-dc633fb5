@@ -113,14 +113,14 @@ export function SidebarListenCard({
     if (downloading) return;
     setDownloading(true);
     try {
-      if (!isThis) await player.loadAndPlay(meta);
-      await player.download();
+      await player.download(meta);
     } catch {
       toast.error(t.downloadFailed);
     } finally {
       setDownloading(false);
     }
   };
+
 
   const currentLabel = formatAudioTime(displayTime);
   const totalLabel = duration > 0 ? formatAudioTime(duration) : approxMin ? t.approx.replace("{min}", String(approxMin)) : "--:--";

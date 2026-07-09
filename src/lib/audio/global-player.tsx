@@ -44,7 +44,7 @@ interface GlobalPlayerContextValue {
   seek: (seconds: number) => void;
   seekPct: (pct: number) => void;
   close: () => void;
-  download: () => Promise<void>;
+  download: (meta?: AudioTrackMeta) => Promise<void>;
 }
 
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
@@ -194,16 +194,23 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     setError(null);
   }, []);
 
-  const download = useCallback(async () => {
-    if (!track) return;
-    const url = track.blobUrl;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${sanitizeFilename(track.title)}.mp3`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }, [track]);
+  const download = useCallback(
+    async (meta?: AudioTrackMeta) => {
+      const target: AudioTrackMeta | AudioTrackState | null = meta ?? track;
+      if (!target) return;
+      const existingBlob = (target as AudioTrackState).blobUrl;
+      const url = existingBlob ?? (await fetchBlob(target.postId, target.lang));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${sanitizeFilename(target.title)}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    },
+    [track, fetchBlob],
+  );
+
+
 
   const isActive = useCallback(
     (postId: string, lang: "pl" | "en") =>
