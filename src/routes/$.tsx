@@ -37,6 +37,7 @@ import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { estimateReadingMinutes } from "@/lib/readingTime";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
+import { usePasswordUnlock } from "@/hooks/usePasswordUnlock";
 import {
   isGatedMode,
   hasRenderableBody,
@@ -398,8 +399,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     blocks_data: (it as { blocks_data?: LocalizedBlocks | null }).blocks_data ?? null,
   };
   const needsUnlock = isGatedMode(accessRule?.mode) && !hasRenderableBody(ssrBody);
-  const unlocked = useUnlockedContent(isPost ? "post" : "page", it.id, needsUnlock);
-  const body = pickBody(ssrBody, unlocked);
+  const nonPasswordGate = needsUnlock && accessRule?.mode !== "password";
+  const unlocked = useUnlockedContent(isPost ? "post" : "page", it.id, nonPasswordGate);
+  // Password-gated entities take a separate unlock path (see Paywall below).
+  const pwdUnlock = usePasswordUnlock(
+    isPost ? "post" : "page",
+    it.id,
+    needsUnlock && accessRule?.mode === "password",
+  );
+  const body = pickBody(pickBody(ssrBody, unlocked), pwdUnlock.body);
 
   const rawDoc = parseBuilderDoc(body.builder_data);
   const rawHtml =
@@ -496,7 +504,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const contentBlock = (
     <div ref={articleRef} className="article-body">
       {accessRule && showPaywall ? (
-        <Paywall rule={accessRule} lang={lang} fallbackText={excerpt} />
+        <Paywall
+          rule={accessRule}
+          lang={lang}
+          fallbackText={excerpt}
+          onPasswordVerify={pwdUnlock.verify}
+          passwordVerifying={pwdUnlock.loading}
+        />
       ) : (
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}

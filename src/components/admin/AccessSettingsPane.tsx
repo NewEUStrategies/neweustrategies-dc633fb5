@@ -22,6 +22,13 @@ import { toast } from "sonner";
 
 type Props = { entityType: AccessEntityType; entityId: string | null };
 
+type PasswordState = {
+  hasPassword: boolean;
+  newPassword: string;
+  hintPl: string;
+  hintEn: string;
+};
+
 export function AccessSettingsPane({ entityType, entityId }: Props) {
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   const [rule, setRule] = useState<Partial<ContentAccessRule>>({
@@ -31,6 +38,12 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
     one_time_currency: "PLN",
     teaser_pl: "",
     teaser_en: "",
+  });
+  const [pwd, setPwd] = useState<PasswordState>({
+    hasPassword: false,
+    newPassword: "",
+    hintPl: "",
+    hintEn: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,13 +62,24 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
           : Promise.resolve({ data: null }),
       ]);
       setPlans((pl as AccessPlan[]) ?? []);
-      if (r) setRule(r as ContentAccessRule);
+      if (r) {
+        setRule(r as ContentAccessRule);
+        setPwd({
+          hasPassword: !!(r as { password_hash?: string | null }).password_hash,
+          newPassword: "",
+          hintPl: (r as { password_hint_pl?: string | null }).password_hint_pl ?? "",
+          hintEn: (r as { password_hint_en?: string | null }).password_hint_en ?? "",
+        });
+      }
       setLoading(false);
     })();
   }, [entityType, entityId]);
 
   const save = async () => {
     if (!entityId) return toast.error("Najpierw zapisz treść, aby ustawić dostęp.");
+    if (rule.mode === "password" && !pwd.hasPassword && !pwd.newPassword.trim()) {
+      return toast.error('Ustaw hasło dla trybu „Hasło”.');
+    }
     setSaving(true);
     const payload = {
       entity_type: entityType,
@@ -66,13 +90,54 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       one_time_currency: rule.one_time_currency || "PLN",
       teaser_pl: rule.teaser_pl ?? null,
       teaser_en: rule.teaser_en ?? null,
+      password_hint_pl: rule.mode === "password" ? pwd.hintPl || null : null,
+      password_hint_en: rule.mode === "password" ? pwd.hintEn || null : null,
     };
     const { error } = await supabase
       .from("content_access")
       .upsert(payload, { onConflict: "entity_type,entity_id" });
+    if (error) {
+      setSaving(false);
+      return toast.error(error.message);
+    }
+
+    // Password mutations run through SECURITY DEFINER RPCs so the plaintext is
+    // bcrypt-hashed server-side and never stored in the base upsert path.
+    if (rule.mode === "password" && pwd.newPassword.trim()) {
+      const { error: rpcErr } = await supabase.rpc("admin_set_content_password", {
+        _entity_type: entityType,
+        _entity_id: entityId,
+        _password: pwd.newPassword,
+        _hint_pl: pwd.hintPl || "",
+        _hint_en: pwd.hintEn || "",
+      });
+      if (rpcErr) {
+        setSaving(false);
+        return toast.error(rpcErr.message);
+      }
+      setPwd((s) => ({ ...s, hasPassword: true, newPassword: "" }));
+    } else if (rule.mode !== "password" && pwd.hasPassword) {
+      // Leaving password mode clears the stored hash so it can't be reused later.
+      await supabase.rpc("admin_clear_content_password", {
+        _entity_type: entityType,
+        _entity_id: entityId,
+      });
+      setPwd({ hasPassword: false, newPassword: "", hintPl: "", hintEn: "" });
+    }
+
     setSaving(false);
-    if (error) toast.error(error.message);
-    else toast.success("Zapisano dostęp");
+    toast.success("Zapisano dostęp");
+  };
+
+  const clearPassword = async () => {
+    if (!entityId) return;
+    const { error } = await supabase.rpc("admin_clear_content_password", {
+      _entity_type: entityType,
+      _entity_id: entityId,
+    });
+    if (error) return toast.error(error.message);
+    setPwd({ hasPassword: false, newPassword: "", hintPl: "", hintEn: "" });
+    toast.success("Hasło usunięte");
   };
 
   const togglePlan = (id: string) => {
@@ -104,9 +169,54 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             <SelectItem value="public">Publiczny - wszyscy widzą</SelectItem>
             <SelectItem value="members">Tylko zalogowani (members-only)</SelectItem>
             <SelectItem value="paid">Płatny (plan lub zakup jednorazowy)</SelectItem>
+            <SelectItem value="password">Hasło - dostęp po wpisaniu hasła</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {rule.mode === "password" && (
+        <div className="space-y-3 border border-border rounded-md p-3 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">
+              {pwd.hasPassword ? "Hasło jest ustawione" : "Ustaw hasło"}
+            </Label>
+            {pwd.hasPassword && (
+              <Button size="sm" variant="ghost" onClick={clearPassword}>
+                Usuń hasło
+              </Button>
+            )}
+          </div>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={pwd.newPassword}
+            onChange={(e) => setPwd({ ...pwd, newPassword: e.target.value })}
+            placeholder={pwd.hasPassword ? "Nowe hasło (opcjonalnie - zmień)" : "Wpisz hasło"}
+            className="h-9"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Hasło jest hashowane po stronie serwera (bcrypt) - nigdy nie trafia w postaci jawnej do bazy ani do przeglądarki.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Podpowiedź PL (opcjonalna)</Label>
+              <Input
+                value={pwd.hintPl}
+                onChange={(e) => setPwd({ ...pwd, hintPl: e.target.value })}
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Podpowiedź EN (opcjonalna)</Label>
+              <Input
+                value={pwd.hintEn}
+                onChange={(e) => setPwd({ ...pwd, hintEn: e.target.value })}
+                className="h-9"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {rule.mode === "paid" && (
         <>

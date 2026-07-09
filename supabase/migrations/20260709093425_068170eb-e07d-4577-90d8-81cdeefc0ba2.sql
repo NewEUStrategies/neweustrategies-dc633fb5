@@ -1,0 +1,1 @@
+ALTER TYPE public.access_mode ADD VALUE IF NOT EXISTS 'password';

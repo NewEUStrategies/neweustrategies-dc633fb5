@@ -801,6 +801,9 @@ export type Database = {
           mode: Database["public"]["Enums"]["access_mode"]
           one_time_currency: string | null
           one_time_price_cents: number | null
+          password_hash: string | null
+          password_hint_en: string | null
+          password_hint_pl: string | null
           plan_ids: string[]
           teaser_en: string | null
           teaser_pl: string | null
@@ -815,6 +818,9 @@ export type Database = {
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
+          password_hash?: string | null
+          password_hint_en?: string | null
+          password_hint_pl?: string | null
           plan_ids?: string[]
           teaser_en?: string | null
           teaser_pl?: string | null
@@ -829,6 +835,9 @@ export type Database = {
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
+          password_hash?: string | null
+          password_hint_en?: string | null
+          password_hint_pl?: string | null
           plan_ids?: string[]
           teaser_en?: string | null
           teaser_pl?: string | null
@@ -3935,6 +3944,13 @@ export type Database = {
       }
     }
     Functions: {
+      admin_clear_content_password: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+        }
+        Returns: undefined
+      }
       admin_get_user: {
         Args: { _user_id: string }
         Returns: {
@@ -3987,6 +4003,16 @@ export type Database = {
           updated_at: string
           website_url: string
         }[]
+      }
+      admin_set_content_password: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _hint_en: string
+          _hint_pl: string
+          _password: string
+        }
+        Returns: undefined
       }
       admin_update_user_avatar: {
         Args: { _avatar_url: string; _user_id: string }
@@ -4146,6 +4172,16 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_password_hint: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+        }
+        Returns: {
+          hint_en: string
+          hint_pl: string
+        }[]
       }
       get_post_for_edit: {
         Args: { _slug: string }
@@ -4341,6 +4377,20 @@ export type Database = {
         }[]
       }
       unaccent: { Args: { "": string }; Returns: string }
+      verify_content_password: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _password: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          content_en: string
+          content_pl: string
+          ok: boolean
+        }[]
+      }
       web_vitals_daily_p75: {
         Args: { p_since: string; p_tenant: string }
         Returns: {
@@ -4353,7 +4403,7 @@ export type Database = {
     }
     Enums: {
       access_entity_type: "post" | "page" | "media"
-      access_mode: "public" | "members" | "paid"
+      access_mode: "public" | "members" | "paid" | "password"
       ad_page_type:
         | "all"
         | "home"
@@ -4539,7 +4589,7 @@ export const Constants = {
   public: {
     Enums: {
       access_entity_type: ["post", "page", "media"],
-      access_mode: ["public", "members", "paid"],
+      access_mode: ["public", "members", "paid", "password"],
       ad_page_type: [
         "all",
         "home",

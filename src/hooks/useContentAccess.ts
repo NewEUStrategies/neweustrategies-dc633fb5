@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 export type AccessEntityType = "post" | "page" | "media";
-export type AccessMode = "public" | "members" | "paid";
+export type AccessMode = "public" | "members" | "paid" | "password";
 
 export interface ContentAccessRule {
   id: string;
@@ -15,6 +15,10 @@ export interface ContentAccessRule {
   one_time_currency: string | null;
   teaser_pl: string | null;
   teaser_en: string | null;
+  /** Presence flag — the hash itself is never selected client-side. */
+  password_hash?: string | null;
+  password_hint_pl?: string | null;
+  password_hint_en?: string | null;
 }
 
 export interface AccessState {
