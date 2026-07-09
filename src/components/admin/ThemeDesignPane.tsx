@@ -46,6 +46,7 @@ import {
   useLiveThemeDesignPreview,
   themeDesignToCss,
   THEME_DESIGN_DEFAULTS,
+  THEME_DESIGN_COLOR_INHERITANCE,
   type ThemeDesign,
   type ThemeDesignLang,
 } from "@/lib/theme/themeDesign";
@@ -1043,6 +1044,7 @@ function LivePostPreview({
   const scopedCss = useMemo(() => {
     const base = themeDesignToCss(draft);
     return base
+      .replace(":root,.light{", ".theme-design-live-preview,.theme-design-live-preview.light{")
       .replace(":root{", ".theme-design-live-preview{")
       .replace(".dark{", ".theme-design-live-preview.dark{");
   }, [draft]);
@@ -1086,9 +1088,10 @@ function LivePostPreview({
       };
 
   const isDark = previewMode === "dark";
-  const rootStyle: CSSProperties = isDark
-    ? { background: "#0f0f0f", color: "#f8f6f4" }
-    : { background: "#ffffff", color: "#0f0f0f" };
+  const rootStyle: CSSProperties = {
+    background: "var(--gc-body-bg, var(--background))",
+    color: "var(--gc-body-text, var(--foreground))",
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -1152,7 +1155,7 @@ function LivePostPreview({
         data-device="desktop"
         className={cn(
           "theme-design-live-preview cms-widget p-6 transition-colors",
-          isDark && "dark",
+          isDark ? "dark" : "light",
         )}
         style={rootStyle}
       >
@@ -1502,66 +1505,8 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
  *  the site's global light/dark scheme, so inheritance from
  *  Kolory linków / Kolory ikon / Pola tekstowe / Kolory pól tekstowych is
  *  effectively free. */
-const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> = {
-  blockHeading: {
-    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
-  },
-  readMoreButton: {
-    bgColor: { token: "transparent", hint: "Przezroczyste" },
-    color: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
-    borderColor: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
-  },
-  metaInfo: {
-    color: {
-      token: "var(--gc-body-text-muted, var(--muted-foreground))",
-      hint: "Kolory pól tekstowych (muted)",
-    },
-  },
-  toolbarButton: {
-    bgColor: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
-    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
-    hoverBgColor: {
-      token: "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
-      hint: "Pola tekstowe - hover",
-    },
-    hoverColor: {
-      token: "var(--gc-body-text, var(--foreground))",
-      hint: "Kolory pól tekstowych",
-    },
-    activeBgColor: { token: "var(--gc-btn-bg, #fa9346)", hint: "Przyciski - tło" },
-    activeColor: { token: "var(--gc-btn-text, #ffffff)", hint: "Przyciski - tekst" },
-  },
-  modeSwitcher: {
-    trackBg: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
-    trackBorder: { token: "var(--gc-input-border, var(--border))", hint: "Pola tekstowe - obramowanie" },
-    inactiveColor: {
-      token: "var(--gc-body-text-muted, var(--muted-foreground))",
-      hint: "Kolory pól tekstowych (muted)",
-    },
-    activeBg: { token: "var(--gc-surface-bg, var(--background))", hint: "Tła motywu - surface" },
-    activeColor: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
-  },
-  socialIcons: {
-    color: { token: "var(--gc-icon, var(--foreground))", hint: "Kolory ikon" },
-    hoverColor: { token: "var(--gc-icon-hover, var(--brand))", hint: "Kolory ikon - hover" },
-    bgColor: { token: "transparent", hint: "Przezroczyste" },
-    hoverBgColor: { token: "transparent", hint: "Przezroczyste" },
-  },
-  listIndex: {
-    colorLight: { token: "var(--gc-body-text, #231f20)", hint: "Kolory pól tekstowych" },
-    colorDark: { token: "var(--gc-highlight, #fa9346)", hint: "Global kolory - highlight" },
-  },
-  postTitle: {
-    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
-    hoverColor: { token: "var(--gc-link-hover, var(--brand))", hint: "Kolory linków - hover" },
-  },
-  postExcerpt: {
-    color: {
-      token: "var(--gc-body-text-muted, var(--muted-foreground))",
-      hint: "Kolory pól tekstowych (muted)",
-    },
-  },
-};
+const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> =
+  THEME_DESIGN_COLOR_INHERITANCE;
 
 function TdColorField({
   section,
@@ -1582,6 +1527,7 @@ function TdColorField({
   const darkVal = (draft.darkOverrides?.[section]?.[field] as string | undefined) ?? "";
   const value = mode === "light" ? lightVal : darkVal;
   const inherit = INHERIT_DEFAULTS[section]?.[field];
+  const inheritedValue = mode === "dark" ? lightVal || inherit?.token : inherit?.token;
   const placeholder =
     mode === "dark"
       ? lightVal || inherit?.token || "auto"
@@ -1596,8 +1542,9 @@ function TdColorField({
     <div className="space-y-1">
       <AdminColorPicker
         value={value}
-        onChange={(v) => setColor(section, field, v ?? null)}
+        onChange={(v) => setColor(section, field, v ?? (mode === "light" ? inherit?.token ?? null : null))}
         allowTransparent
+        inheritedValue={inheritedValue}
         placeholder={placeholder}
       />
       <div className="flex items-center justify-between gap-2">
