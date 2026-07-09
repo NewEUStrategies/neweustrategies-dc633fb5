@@ -81,10 +81,76 @@ export function mergeTocSettings(
     ...defaults,
     enabled: override.enabled ?? defaults.enabled,
     layout: override.layout ?? defaults.layout,
+    columns: override.columns ?? defaults.columns,
     position: override.position ?? defaults.position,
     sticky: override.sticky ?? defaults.sticky,
   };
 }
+
+// ---------- Heading extraction ----------
+
+export interface HeadingItem {
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  text: string;
+  anchor: string;
+}
+
+export interface HeadingCounts {
+  h1: number;
+  h2: number;
+  h3: number;
+  h4: number;
+  h5: number;
+  h6: number;
+  total: number;
+}
+
+export function slugifyHeading(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Wyciąga nagłówki H1-H6 z dokumentu blockowego. */
+export function extractHeadingsFromBlocks(
+  doc: BlocksDoc | null | undefined,
+): HeadingItem[] {
+  if (!doc?.blocks?.length) return [];
+  const items: HeadingItem[] = [];
+  for (const b of doc.blocks as Block[]) {
+    if (b.type !== "heading") continue;
+    const rawLevel = Number(b.data.level ?? 2);
+    const level = (Math.min(6, Math.max(1, rawLevel)) as HeadingItem["level"]);
+    const text = String(b.data.text ?? "").trim();
+    if (!text) continue;
+    const anchor = String(b.data.anchor ?? "") || slugifyHeading(text);
+    items.push({ level, text, anchor });
+  }
+  return items;
+}
+
+export function countHeadings(items: HeadingItem[]): HeadingCounts {
+  const c: HeadingCounts = { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0, total: 0 };
+  for (const h of items) {
+    c[`h${h.level}` as `h${1 | 2 | 3 | 4 | 5 | 6}`] += 1;
+    c.total += 1;
+  }
+  return c;
+}
+
+/** Skrót używany w metaboxach: liczy H1/H2/H3 dla obu języków wpisu. */
+export function countPostHeadings(
+  localized: LocalizedBlocks | null | undefined,
+): { pl: HeadingCounts; en: HeadingCounts } {
+  return {
+    pl: countHeadings(extractHeadingsFromBlocks(localized?.pl)),
+    en: countHeadings(extractHeadingsFromBlocks(localized?.en)),
+  };
+}
+
 
 export function useTocDefaults(): TocDefaults {
   const raw = useSiteSetting<TocDefaults>(TOC_SETTING_KEY, TOC_DEFAULTS);
