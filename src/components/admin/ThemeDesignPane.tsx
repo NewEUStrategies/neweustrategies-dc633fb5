@@ -1221,7 +1221,11 @@ function LivePostPreview({
         {activeTab === "meta" && (
           <div
             className="cms-meta-info inline-flex flex-wrap items-center"
-            style={{ gap: draft.metaInfo.gap }}
+            style={{
+              gap: draft.metaInfo.gap,
+              fontSize: draft.metaInfo.fontSize,
+              textTransform: draft.metaInfo.uppercase ? "uppercase" : "none",
+            }}
           >
             <span>{copy.author}</span>
             <SepPreview kind={draft.metaInfo.separator} />
@@ -1433,7 +1437,12 @@ function LivePostPreview({
                 </p>
                 <div
                   className="cms-meta-info inline-flex flex-wrap items-center"
-                  style={{ gap: draft.metaInfo.gap, color: "rgba(255,255,255,.85)" }}
+                  style={{
+                    gap: draft.metaInfo.gap,
+                    fontSize: draft.metaInfo.fontSize,
+                    textTransform: draft.metaInfo.uppercase ? "uppercase" : "none",
+                    color: "rgba(255,255,255,.85)",
+                  }}
                 >
                   <span>{copy.author}</span>
                   <SepPreview kind={draft.metaInfo.separator} />
@@ -1501,7 +1510,7 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
   if (kind === "none") return null;
   const ch = kind === "dot" ? "•" : kind === "slash" ? "/" : "|";
   return (
-    <span aria-hidden className="opacity-60">
+    <span aria-hidden className="cms-meta-sep opacity-60">
       {ch}
     </span>
   );

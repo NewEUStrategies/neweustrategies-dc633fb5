@@ -520,6 +520,17 @@ export function themeDesignToCss(t: ThemeDesign): string {
   light.push(`--td-meta-size:${t.metaInfo.fontSize};`);
   light.push(`--td-meta-transform:${t.metaInfo.uppercase ? "uppercase" : "none"};`);
   light.push(`--td-meta-gap:${t.metaInfo.gap};`);
+  light.push(
+    `--td-meta-sep:${
+      t.metaInfo.separator === "none"
+        ? '""'
+        : t.metaInfo.separator === "slash"
+          ? '"/"'
+          : t.metaInfo.separator === "pipe"
+            ? '"|"'
+            : '"\\2022"'
+    };`,
+  );
   light.push(`--td-tb-radius:${t.toolbarButton.radius};`);
   light.push(`--td-tb-px:${t.toolbarButton.paddingX};`);
   light.push(`--td-tb-py:${t.toolbarButton.paddingY};`);
