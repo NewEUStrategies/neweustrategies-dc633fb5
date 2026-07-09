@@ -3232,10 +3232,11 @@ input:focus::placeholder,
 textarea:focus::placeholder,
 input:focus::-webkit-input-placeholder,
 textarea:focus::-webkit-input-placeholder {
-  opacity: 0;
-  color: transparent;
-  transition: opacity 120ms ease-out;
+  opacity: 0 !important;
+  color: transparent !important;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
 }
+
 input::placeholder,
 textarea::placeholder {
   transition: opacity 120ms ease-out;
