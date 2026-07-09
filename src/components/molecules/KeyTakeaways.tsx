@@ -108,7 +108,12 @@ export function KeyTakeaways({
 
   // Rozbij etykietę na tokeny (słowa i spacje) - dla wariantu ghost
   // renderujemy każde słowo osobno, żeby móc podświetlać wybrane pozycje.
-  const highlightIdx = new Set(settings.highlight?.indices ?? []);
+  const perLangIndices =
+    lang === "en" ? settings.highlight?.indicesEn : settings.highlight?.indicesPl;
+  const legacyIndices = settings.highlight?.indices ?? [];
+  const activeIndices =
+    perLangIndices && perLangIndices.length > 0 ? perLangIndices : legacyIndices;
+  const highlightIdx = new Set(activeIndices);
   const labelTokens = (() => {
     const parts = label.split(/(\s+)/);
     let wordIdx = 0;

@@ -24,13 +24,17 @@ export const KeyTakeawaysSettingsSchema = z
     numbered: z.boolean().default(true),
     /**
      * Wariant "ghost": podświetlenie wybranych słów etykiety.
-     * `indices` - 0-based pozycje słów (te same dla PL/EN, bo tłumaczenia
-     * są równoległe). `color` zachowuje transparentność napisu ghost.
+     * `indicesPl` / `indicesEn` - 0-based pozycje słów, wybierane niezależnie
+     * per język (PL i EN mogą mieć inną liczbę i kolejność słów).
+     * `indices` (legacy) - używane jako fallback, gdy per-language listy są puste.
+     * `color` zachowuje transparentność napisu ghost.
      * `sizeScale` - mnożnik rozmiaru napisu (1 = domyślnie).
      */
     highlight: z
       .object({
         indices: z.array(z.number().int().min(0).max(20)).default([]),
+        indicesPl: z.array(z.number().int().min(0).max(20)).default([]),
+        indicesEn: z.array(z.number().int().min(0).max(20)).default([]),
         color: COLOR.default("#4f46e5"),
         sizeScale: z.number().min(0.5).max(3).default(1),
         offsetY: z.number().min(-200).max(200).default(0),

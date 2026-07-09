@@ -218,6 +218,7 @@ function KeyTakeawaysAdmin() {
               const source = locale === "pl" ? draft.labelPl : draft.labelEn;
               const words = (source || "").split(/\s+/).filter(Boolean);
               if (words.length === 0) return null;
+              const key = locale === "pl" ? "indicesPl" : "indicesEn";
               return (
                 <div key={locale}>
                   <Label className="text-xs text-muted-foreground">
@@ -231,7 +232,7 @@ function KeyTakeawaysAdmin() {
                   </Label>
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     {words.map((word, idx) => {
-                      const indices = draft.highlight?.indices ?? [];
+                      const indices = draft.highlight?.[key] ?? [];
                       const on = indices.includes(idx);
                       return (
                         <button
@@ -240,7 +241,7 @@ function KeyTakeawaysAdmin() {
                           onClick={() =>
                             update("highlight", {
                               ...draft.highlight,
-                              indices: on
+                              [key]: on
                                 ? indices.filter((i) => i !== idx)
                                 : [...indices, idx].sort((a, b) => a - b),
                             })
