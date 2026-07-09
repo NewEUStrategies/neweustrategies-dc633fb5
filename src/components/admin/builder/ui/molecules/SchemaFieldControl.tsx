@@ -162,9 +162,9 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             value={value}
             onChange={(v) => setContent(field.key, v ?? "")}
             ariaLabel={field.label}
-            allowTransparent={false}
+            allowTransparent={true}
             allowReset={true}
-            placeholder="#RRGGBB lub puste"
+            placeholder="dziedziczy z global colors (lub transparent)"
           />
         </PropField>
       );
