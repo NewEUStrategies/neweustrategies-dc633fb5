@@ -215,8 +215,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
-      "--cf-bg-light": bgLight || "var(--card)",
-      "--cf-bg-dark": bgDark || bgLight || "var(--card)",
+      "--cf-bg-light": bgLight || "transparent",
+      "--cf-bg-dark": bgDark || bgLight || "transparent",
       "--cf-radius": `${radiusPx}px`,
       "--cf-padding": `${paddingPx}px`,
     };
