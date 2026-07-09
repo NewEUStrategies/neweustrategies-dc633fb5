@@ -101,11 +101,32 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [pwdError, setPwdError] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [lockUntil, setLockUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [hint, setHint] = useState<string | null>(null);
   const t = T[lang];
   const teaser =
     (lang === "pl" ? rule.teaser_pl : rule.teaser_en) ||
     (fallbackText ? buildAutoTeaser(fallbackText) : "");
+
+  const locked = lockUntil !== null && now < lockUntil;
+  const secondsLeft = locked ? Math.ceil(((lockUntil ?? 0) - now) / 1000) : 0;
+  const attemptsLeft = Math.max(0, MAX_ATTEMPTS - attempts);
+
+  // Tick every second while locked to update countdown, then release.
+  useEffect(() => {
+    if (!locked) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [locked]);
+  useEffect(() => {
+    if (lockUntil !== null && now >= lockUntil) {
+      setLockUntil(null);
+      setAttempts(0);
+      setPwdError(false);
+    }
+  }, [now, lockUntil]);
 
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   useEffect(() => {
@@ -135,15 +156,23 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!onPasswordVerify || !password.trim()) return;
+    if (!onPasswordVerify || !password.trim() || passwordVerifying || locked) return;
     const ok = await onPasswordVerify(password);
-    if (!ok) setPwdError(true);
-    else setPwdError(false);
+    if (ok) {
+      setPwdError(false);
+      setAttempts(0);
+      return;
+    }
+    const next = attempts + 1;
+    setAttempts(next);
+    setPwdError(true);
+    setPassword("");
+    if (next >= MAX_ATTEMPTS) {
+      setLockUntil(Date.now() + LOCKOUT_SECONDS * 1000);
+      setNow(Date.now());
+    }
   };
 
-  // One-time purchase of this single entity. Price is resolved + charged
-  // server-side from the access rule; the webhook (or mock finaliser) grants the
-  // user_purchases row that has_content_access reads.
   const buyableEntity = rule.entity_type === "post" || rule.entity_type === "page";
   const startOneTime = async () => {
     if (!session) return;
