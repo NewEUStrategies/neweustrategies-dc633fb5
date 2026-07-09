@@ -311,77 +311,104 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-bh-weight:${t.blockHeading.fontWeight};`);
   v.push(`--td-bh-color:${t.blockHeading.color};`);
   v.push(`--td-bh-transform:${t.blockHeading.textTransform};`);
-  v.push(`--td-bh-spacing:${t.blockHeading.letterSpacing};`);
-  v.push(`--td-bh-mb:${t.blockHeading.marginBottom};`);
-  // Thumbnail
-  v.push(`--td-thumb-radius:${t.thumbnail.radius};`);
-  v.push(`--td-thumb-ratio:${t.thumbnail.aspectRatio};`);
-  v.push(`--td-thumb-shadow:${shadow(t.thumbnail.shadow)};`);
-  // Read more
-  v.push(`--td-rm-bg:${t.readMoreButton.bgColor};`);
-  v.push(`--td-rm-color:${t.readMoreButton.color};`);
-  v.push(`--td-rm-border:${t.readMoreButton.borderColor};`);
-  v.push(`--td-rm-radius:${t.readMoreButton.radius};`);
-  v.push(`--td-rm-px:${t.readMoreButton.paddingX};`);
-  v.push(`--td-rm-py:${t.readMoreButton.paddingY};`);
-  v.push(`--td-rm-weight:${t.readMoreButton.fontWeight};`);
-  v.push(`--td-rm-transform:${t.readMoreButton.uppercase ? "uppercase" : "none"};`);
-  // Meta
-  v.push(`--td-meta-size:${t.metaInfo.fontSize};`);
-  v.push(`--td-meta-color:${t.metaInfo.color};`);
-  v.push(`--td-meta-transform:${t.metaInfo.uppercase ? "uppercase" : "none"};`);
-  v.push(`--td-meta-gap:${t.metaInfo.gap};`);
-  // Toolbar buttons (undo/redo, device, lang)
-  v.push(`--td-tb-bg:${t.toolbarButton.bgColor};`);
-  v.push(`--td-tb-color:${t.toolbarButton.color};`);
-  v.push(`--td-tb-hover-bg:${t.toolbarButton.hoverBgColor};`);
-  v.push(`--td-tb-hover-color:${t.toolbarButton.hoverColor};`);
-  v.push(`--td-tb-active-bg:${t.toolbarButton.activeBgColor};`);
-  v.push(`--td-tb-active-color:${t.toolbarButton.activeColor};`);
-  v.push(`--td-tb-radius:${t.toolbarButton.radius};`);
-  v.push(`--td-tb-px:${t.toolbarButton.paddingX};`);
-  v.push(`--td-tb-py:${t.toolbarButton.paddingY};`);
-  v.push(`--td-tb-size:${t.toolbarButton.size};`);
-  // Mode switcher (light/dark segmented)
-  v.push(`--td-ms-track-bg:${t.modeSwitcher.trackBg};`);
-  v.push(`--td-ms-track-border:${t.modeSwitcher.trackBorder};`);
-  v.push(`--td-ms-inactive:${t.modeSwitcher.inactiveColor};`);
-  v.push(`--td-ms-active-bg:${t.modeSwitcher.activeBg};`);
-  v.push(`--td-ms-active-color:${t.modeSwitcher.activeColor};`);
-  v.push(`--td-ms-radius:${t.modeSwitcher.radius};`);
-  // Social icons
-  v.push(`--td-si-color:${t.socialIcons.color};`);
-  v.push(`--td-si-hover-color:${t.socialIcons.hoverColor};`);
-  v.push(`--td-si-bg:${t.socialIcons.bgColor};`);
-  v.push(`--td-si-hover-bg:${t.socialIcons.hoverBgColor};`);
-  v.push(`--td-si-size:${t.socialIcons.size};`);
-  v.push(`--td-si-gap:${t.socialIcons.gap};`);
-  v.push(`--td-si-radius:${t.socialIcons.radius};`);
-  v.push(`--td-si-px:${t.socialIcons.paddingX};`);
-  v.push(`--td-si-py:${t.socialIcons.paddingY};`);
-  // List index (numbered / ranked variant)
-  v.push(`--td-li-light:${t.listIndex.colorLight};`);
-  v.push(`--td-li-dark:${t.listIndex.colorDark};`);
-  v.push(`--td-li-opacity:${t.listIndex.opacity};`);
-  v.push(`--td-li-weight:${t.listIndex.weight};`);
-  // Unified post title
-  v.push(`--td-pt-family:${t.postTitle.fontFamily};`);
-  v.push(`--td-pt-size:${t.postTitle.fontSize};`);
-  v.push(`--td-pt-size-sm:${t.postTitle.fontSizeSm};`);
-  v.push(`--td-pt-weight:${t.postTitle.fontWeight};`);
-  v.push(`--td-pt-lh:${t.postTitle.lineHeight};`);
-  v.push(`--td-pt-color:${t.postTitle.color};`);
-  v.push(`--td-pt-hover:${t.postTitle.hoverColor};`);
-  v.push(`--td-pt-transform:${t.postTitle.textTransform};`);
-  v.push(`--td-pt-spacing:${t.postTitle.letterSpacing};`);
-  // Unified post excerpt
-  v.push(`--td-pe-family:${t.postExcerpt.fontFamily};`);
-  v.push(`--td-pe-size:${t.postExcerpt.fontSize};`);
-  v.push(`--td-pe-weight:${t.postExcerpt.fontWeight};`);
-  v.push(`--td-pe-lh:${t.postExcerpt.lineHeight};`);
-  v.push(`--td-pe-color:${t.postExcerpt.color};`);
-  v.push(`--td-pe-mt:${t.postExcerpt.marginTop};`);
-  return normalizeColor(`:root{${v.join("")}}`);
+/** Serializes the design tokens to CSS variables under `:root` for light mode,
+ *  plus a `.dark` selector block for any per-field dark overrides. Empty
+ *  overrides fall through to the light value (which itself may reference a
+ *  themed token such as `var(--foreground)` that already flips with the site's
+ *  global dark scheme). */
+export function themeDesignToCss(t: ThemeDesign): string {
+  const light: string[] = [];
+  const dark: string[] = [];
+
+  // Map: section.field -> css var name. Only color-typed fields need dark.
+  const colorVars: Array<[keyof ThemeDesign, string, string]> = [
+    ["blockHeading", "color", "--td-bh-color"],
+    ["readMoreButton", "bgColor", "--td-rm-bg"],
+    ["readMoreButton", "color", "--td-rm-color"],
+    ["readMoreButton", "borderColor", "--td-rm-border"],
+    ["metaInfo", "color", "--td-meta-color"],
+    ["toolbarButton", "bgColor", "--td-tb-bg"],
+    ["toolbarButton", "color", "--td-tb-color"],
+    ["toolbarButton", "hoverBgColor", "--td-tb-hover-bg"],
+    ["toolbarButton", "hoverColor", "--td-tb-hover-color"],
+    ["toolbarButton", "activeBgColor", "--td-tb-active-bg"],
+    ["toolbarButton", "activeColor", "--td-tb-active-color"],
+    ["modeSwitcher", "trackBg", "--td-ms-track-bg"],
+    ["modeSwitcher", "trackBorder", "--td-ms-track-border"],
+    ["modeSwitcher", "inactiveColor", "--td-ms-inactive"],
+    ["modeSwitcher", "activeBg", "--td-ms-active-bg"],
+    ["modeSwitcher", "activeColor", "--td-ms-active-color"],
+    ["socialIcons", "color", "--td-si-color"],
+    ["socialIcons", "hoverColor", "--td-si-hover-color"],
+    ["socialIcons", "bgColor", "--td-si-bg"],
+    ["socialIcons", "hoverBgColor", "--td-si-hover-bg"],
+    ["listIndex", "colorLight", "--td-li-light"],
+    ["listIndex", "colorDark", "--td-li-dark"],
+    ["postTitle", "color", "--td-pt-color"],
+    ["postTitle", "hoverColor", "--td-pt-hover"],
+    ["postExcerpt", "color", "--td-pe-color"],
+  ];
+
+  // Static (non-color) tokens.
+  light.push(`--td-bh-size:${t.blockHeading.fontSize};`);
+  light.push(`--td-bh-weight:${t.blockHeading.fontWeight};`);
+  light.push(`--td-bh-transform:${t.blockHeading.textTransform};`);
+  light.push(`--td-bh-spacing:${t.blockHeading.letterSpacing};`);
+  light.push(`--td-bh-mb:${t.blockHeading.marginBottom};`);
+  light.push(`--td-thumb-radius:${t.thumbnail.radius};`);
+  light.push(`--td-thumb-ratio:${t.thumbnail.aspectRatio};`);
+  light.push(`--td-thumb-shadow:${shadow(t.thumbnail.shadow)};`);
+  light.push(`--td-rm-radius:${t.readMoreButton.radius};`);
+  light.push(`--td-rm-px:${t.readMoreButton.paddingX};`);
+  light.push(`--td-rm-py:${t.readMoreButton.paddingY};`);
+  light.push(`--td-rm-weight:${t.readMoreButton.fontWeight};`);
+  light.push(`--td-rm-transform:${t.readMoreButton.uppercase ? "uppercase" : "none"};`);
+  light.push(`--td-meta-size:${t.metaInfo.fontSize};`);
+  light.push(`--td-meta-transform:${t.metaInfo.uppercase ? "uppercase" : "none"};`);
+  light.push(`--td-meta-gap:${t.metaInfo.gap};`);
+  light.push(`--td-tb-radius:${t.toolbarButton.radius};`);
+  light.push(`--td-tb-px:${t.toolbarButton.paddingX};`);
+  light.push(`--td-tb-py:${t.toolbarButton.paddingY};`);
+  light.push(`--td-tb-size:${t.toolbarButton.size};`);
+  light.push(`--td-ms-radius:${t.modeSwitcher.radius};`);
+  light.push(`--td-si-size:${t.socialIcons.size};`);
+  light.push(`--td-si-gap:${t.socialIcons.gap};`);
+  light.push(`--td-si-radius:${t.socialIcons.radius};`);
+  light.push(`--td-si-px:${t.socialIcons.paddingX};`);
+  light.push(`--td-si-py:${t.socialIcons.paddingY};`);
+  light.push(`--td-li-opacity:${t.listIndex.opacity};`);
+  light.push(`--td-li-weight:${t.listIndex.weight};`);
+  light.push(`--td-pt-family:${t.postTitle.fontFamily};`);
+  light.push(`--td-pt-size:${t.postTitle.fontSize};`);
+  light.push(`--td-pt-size-sm:${t.postTitle.fontSizeSm};`);
+  light.push(`--td-pt-weight:${t.postTitle.fontWeight};`);
+  light.push(`--td-pt-lh:${t.postTitle.lineHeight};`);
+  light.push(`--td-pt-transform:${t.postTitle.textTransform};`);
+  light.push(`--td-pt-spacing:${t.postTitle.letterSpacing};`);
+  light.push(`--td-pe-family:${t.postExcerpt.fontFamily};`);
+  light.push(`--td-pe-size:${t.postExcerpt.fontSize};`);
+  light.push(`--td-pe-weight:${t.postExcerpt.fontWeight};`);
+  light.push(`--td-pe-lh:${t.postExcerpt.lineHeight};`);
+  light.push(`--td-pe-mt:${t.postExcerpt.marginTop};`);
+
+  // Color tokens - light from the section, dark from overrides when present.
+  for (const [section, field, cssVar] of colorVars) {
+    const sec = t[section] as Record<string, unknown>;
+    const lightVal = sec?.[field];
+    if (typeof lightVal === "string" && lightVal.length > 0) {
+      light.push(`${cssVar}:${lightVal};`);
+    }
+    const darkVal = t.darkOverrides?.[section as string]?.[field];
+    if (typeof darkVal === "string" && darkVal.length > 0) {
+      dark.push(`${cssVar}:${darkVal};`);
+    }
+  }
+
+  const parts = [`:root{${light.join("")}}`];
+  if (dark.length > 0) {
+    parts.push(`.dark{${dark.join("")}}`);
+  }
+  return normalizeColor(parts.join(""));
 }
 
 function shadow(level: "none" | "sm" | "md" | "lg"): string {
@@ -396,3 +423,4 @@ function shadow(level: "none" | "sm" | "md" | "lg"): string {
       return "none";
   }
 }
+
