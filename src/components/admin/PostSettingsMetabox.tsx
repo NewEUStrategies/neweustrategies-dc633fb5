@@ -403,6 +403,20 @@ function TocTab({
         />
       </RowOverride>
 
+      <RowOverride
+        label={t("admin.metabox.toc.showInBody", {
+          defaultValue: "Pokaż ToC w treści (pod przyciskiem odsłuchu)",
+        })}
+        globalValue={defaults.showInBody ? "widoczny" : "tylko sidebar"}
+        overridden={value.showInBody !== null && value.showInBody !== undefined}
+        onClear={() => patch({ showInBody: null })}
+      >
+        <Switch
+          checked={value.showInBody ?? defaults.showInBody}
+          onCheckedChange={(v) => patch({ showInBody: v })}
+        />
+      </RowOverride>
+
       {isOverridden && (
         <button
           type="button"
