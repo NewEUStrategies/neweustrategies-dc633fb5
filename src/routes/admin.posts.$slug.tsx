@@ -644,19 +644,11 @@ function EditPost() {
         />
       </div>
       <div>
-        <Label>{t("admin.posts.cover")}</Label>
-        <Input
+        <CoverImagePicker
+          label={t("admin.posts.cover")}
           value={form.cover_image_url ?? ""}
-          onChange={(e) => set("cover_image_url", e.target.value)}
-          placeholder="https://..."
+          onChange={(v) => set("cover_image_url", v || null)}
         />
-        {form.cover_image_url && (
-          <img
-            src={form.cover_image_url}
-            alt=""
-            className="mt-2 rounded w-full h-24 object-cover"
-          />
-        )}
       </div>
     </SidebarSection>
   );
