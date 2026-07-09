@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronUp, ChevronDown, Copy, Trash2, GripVertical } from "@/lib/lucide-shim";
 import { IconButton } from "../atoms/IconButton";
 
+import type { BlockVariantOption } from "@/lib/blocks/variants";
 
 interface Props {
   id: string;
@@ -18,6 +19,9 @@ interface Props {
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  variants?: BlockVariantOption[] | null;
+  currentVariant?: string;
+  onVariantChange?: (v: string) => void;
   children: ReactNode;
 }
 
