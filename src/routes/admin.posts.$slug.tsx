@@ -233,6 +233,18 @@ function EditPost() {
   // Two-step flow: "details" shows metadata + titles + descriptions in both
   // languages; "content" opens the actual editor (builder / rich text).
   const [step, setStep] = useState<"details" | "content">("details");
+  type DetailsTab =
+    | "general"
+    | "settings"
+    | "seo"
+    | "meta"
+    | "related"
+    | "publish"
+    | "layout"
+    | "taxonomy"
+    | "access"
+    | "revisions";
+  const [detailsTab, setDetailsTab] = useState<DetailsTab>("general");
 
   useEffect(() => {
     if (post) history.reset(post);
