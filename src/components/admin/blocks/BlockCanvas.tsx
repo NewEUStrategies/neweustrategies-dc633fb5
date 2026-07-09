@@ -21,6 +21,7 @@ import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { BlockInserter } from "./BlockInserter";
 import { SortableBlockItem } from "./molecules/SortableBlockItem";
+import { getBlockVariants } from "@/lib/blocks/variants";
 import { ParagraphBlock } from "./edit/Paragraph";
 import { HeadingBlock } from "./edit/Heading";
 import { ImageBlock } from "./edit/Image";
