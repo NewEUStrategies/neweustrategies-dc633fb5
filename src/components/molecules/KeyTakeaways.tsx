@@ -135,9 +135,11 @@ export function KeyTakeaways({
                 className="flex items-start gap-3 text-base lg:text-lg leading-relaxed"
               >
                 <span
-                  className="key-takeaways__bullet mt-2.5 inline-block h-2 w-2 shrink-0 rounded-full"
+                  className="shrink-0 inline-flex items-center justify-center h-[1lh]"
                   aria-hidden="true"
-                />
+                >
+                  <span className="key-takeaways__bullet inline-block h-2 w-2 rounded-full" />
+                </span>
                 <span>{bullet}</span>
               </li>
             ))}
