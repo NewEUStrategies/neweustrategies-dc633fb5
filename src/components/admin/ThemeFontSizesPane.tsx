@@ -44,10 +44,13 @@ export function ThemeFontSizesPane() {
     if (data) setDraft(data);
   }, [data]);
 
-  const previewCss = useMemo(
-    () => `.font-sizes-preview{${extractRootBody(fontSizesToCss(draft))}}`,
-    [draft],
-  );
+  // Live preview: emit the draft tokens at :root scope so the whole app
+  // (this pane's preview card, block editor canvas, any open article) reflects
+  // typography changes instantly, without saving or reloading. This <style>
+  // renders after <ThemeFontSizesStyle /> in the DOM, so same-specificity
+  // cascade wins and takes precedence until the pane unmounts or the draft
+  // is saved.
+  const previewCss = useMemo(() => fontSizesToCss(draft), [draft]);
 
   const setHeading = <K extends keyof FontSizesSettings["headings"]["h1"]>(
     level: HeadingLevel,
@@ -253,7 +256,7 @@ export function ThemeFontSizesPane() {
 
         {/* PREVIEW */}
         <div className="lg:sticky lg:top-4 h-fit">
-          <div className="rounded-lg border border-border p-6 bg-background font-sizes-preview">
+          <div className="rounded-lg border border-border p-6 bg-background">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">
               {isPL ? "Podgląd" : "Preview"}
             </div>
@@ -350,8 +353,5 @@ function PreviewSample() {
   );
 }
 
-/** Extract properties inside `:root{...}` (before any @media block). */
-function extractRootBody(css: string): string {
-  const match = css.match(/:root\{([^}]*)\}/);
-  return match?.[1] ?? "";
-}
+
+
