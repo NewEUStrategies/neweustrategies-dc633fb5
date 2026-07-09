@@ -78,7 +78,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
   const save = async () => {
     if (!entityId) return toast.error("Najpierw zapisz treść, aby ustawić dostęp.");
     if (rule.mode === "password" && !pwd.hasPassword && !pwd.newPassword.trim()) {
-      return toast.error("Ustaw hasło dla trybu „Hasło".");
+      return toast.error('Ustaw hasło dla trybu „Hasło”.');
     }
     setSaving(true);
     const payload = {
