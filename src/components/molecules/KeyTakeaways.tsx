@@ -119,21 +119,22 @@ export function KeyTakeaways({
           </ul>
         </div>
       ) : (
-        // "ghost": duży, półprzezroczysty nagłówek za tekstem, lista z kropką
-        // akcentu na wierzchu. Wzorowane na Foxiz-style "You will find out that".
+        // "ghost": wielki, półprzezroczysty nagłówek renderowany ZA listą
+        // (z-index 0), lista siedzi na nim (z-index 10) i wizualnie ją
+        // przecina. Wzorowane na Foxiz "You will find out that".
         <div className="key-takeaways__ghost relative isolate">
           <h2
             aria-hidden="true"
-            className="key-takeaways__ghost-title font-display font-black tracking-tight leading-[0.95] pointer-events-none select-none absolute inset-x-0 -top-1 sm:-top-2 md:-top-3 whitespace-normal break-words"
+            className="key-takeaways__ghost-title font-display font-black tracking-tight leading-[0.85] pointer-events-none select-none absolute inset-x-0 top-0 whitespace-nowrap overflow-hidden"
           >
             {label}
           </h2>
           <h2 className="sr-only">{label}</h2>
-          <ul className="key-takeaways__list relative z-10 space-y-4 pt-4 sm:pt-6 md:pt-8">
+          <ul className="key-takeaways__list relative z-10 space-y-0">
             {clean.map((bullet, i) => (
               <li
                 key={i}
-                className="key-takeaways__ghost-item flex items-start gap-3 text-base md:text-lg leading-relaxed pb-4"
+                className="key-takeaways__ghost-item flex items-start gap-3 text-base md:text-lg leading-relaxed py-4"
               >
                 <span
                   className="key-takeaways__bullet mt-2 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
