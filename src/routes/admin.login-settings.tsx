@@ -114,7 +114,7 @@ function LoginSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Obraz po prawej stronie formularza logowania. Dwie wersje – dla jasnego i ciemnego
                 motywu – zapewniają kontrast i czytelność. <br />
-                Zalecane wymiary: <strong>1200 × 1600 px</strong> (portret 3:4), minimum 800 × 1200
+                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do karty hero), minimum 1200 × 900
                 px. Format WebP/JPG, waga do 400 KB. Focal point centralnie lub po prawej.
               </p>
             </header>
@@ -124,20 +124,20 @@ function LoginSettingsPage() {
                 icon="light"
                 value={s.hero_image_url_light}
                 onChange={(v) => update("hero_image_url_light", v)}
-                aspect="3 / 4"
+                aspect="4 / 3"
                 previewBg="light"
                 fallbackUrl={defaultLoginLight}
-                hint="1200×1600 px · jasne tło, ciemne akcenty. Domyślnie: wbudowana ilustracja."
+                hint="1600×1200 px (4:3) · jasne tło, ciemne akcenty. Domyślnie: wbudowana ilustracja."
               />
               <ImageField
                 label="Motyw ciemny"
                 icon="dark"
                 value={s.hero_image_url_dark}
                 onChange={(v) => update("hero_image_url_dark", v)}
-                aspect="3 / 4"
+                aspect="4 / 3"
                 previewBg="dark"
                 fallbackUrl={defaultLoginDark}
-                hint="1200×1600 px · ciemne tło, jasne akcenty. Domyślnie: wbudowana ilustracja."
+                hint="1600×1200 px (4:3) · ciemne tło, jasne akcenty. Domyślnie: wbudowana ilustracja."
               />
             </div>
           </section>
@@ -148,7 +148,7 @@ function LoginSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Widoczne po kliknięciu „Zapomniałeś hasła?". Jeśli puste – używana jest ilustracja
                 logowania. <br />
-                Zalecane wymiary: <strong>1200 × 1600 px</strong> (portret 3:4), format WebP/JPG, waga
+                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3), format WebP/JPG, waga
                 do 400 KB.
               </p>
             </header>
@@ -158,18 +158,18 @@ function LoginSettingsPage() {
                 icon="light"
                 value={s.reset_image_url_light}
                 onChange={(v) => update("reset_image_url_light", v)}
-                aspect="3 / 4"
+                aspect="4 / 3"
                 previewBg="light"
-                hint="1200×1600 px · opcjonalnie. Fallback: ilustracja logowania."
+                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
               />
               <ImageField
                 label="Motyw ciemny"
                 icon="dark"
                 value={s.reset_image_url_dark}
                 onChange={(v) => update("reset_image_url_dark", v)}
-                aspect="3 / 4"
+                aspect="4 / 3"
                 previewBg="dark"
-                hint="1200×1600 px · opcjonalnie. Fallback: ilustracja logowania."
+                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
               />
             </div>
           </section>
@@ -288,7 +288,7 @@ function LoginSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Obraz po prawej stronie formularza rejestracji. Jeśli puste – używana jest
                 ilustracja logowania. <br />
-                Zalecane wymiary: <strong>1200 × 1600 px</strong> (portret 3:4), minimum 800 × 1200
+                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do karty hero), minimum 1200 × 900
                 px. Format WebP/JPG, waga do 400 KB.
               </p>
             </header>
@@ -298,18 +298,18 @@ function LoginSettingsPage() {
                 icon="light"
                 value={s.signup_image_url_light}
                 onChange={(v) => update("signup_image_url_light", v)}
-                aspect="3 / 4"
+                aspect="4 / 3"
                 previewBg="light"
-                hint="1200×1600 px · opcjonalnie. Fallback: ilustracja logowania."
+                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
               />
               <ImageField
                 label="Motyw ciemny"
                 icon="dark"
                 value={s.signup_image_url_dark}
                 onChange={(v) => update("signup_image_url_dark", v)}
-                aspect="3 / 4"
+                aspect="4 / 3"
                 previewBg="dark"
-                hint="1200×1600 px · opcjonalnie. Fallback: ilustracja logowania."
+                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
               />
             </div>
           </section>
