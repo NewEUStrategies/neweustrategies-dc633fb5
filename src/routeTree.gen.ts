@@ -95,6 +95,7 @@ import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
+import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
 import { Route as AdminSuperMobileDrawerRouteImport } from './routes/admin.super.mobile-drawer'
@@ -556,6 +557,11 @@ const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   path: '/api/public/vitals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPostTtsRoute = ApiPublicPostTtsRouteImport.update({
+  id: '/api/public/post-tts',
+  path: '/api/public/post-tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   id: '/api/public/client-errors',
   path: '/api/public/client-errors',
@@ -811,6 +817,7 @@ export interface FileRoutesByFullPath {
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -922,6 +929,7 @@ export interface FileRoutesByTo {
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
@@ -1039,6 +1047,7 @@ export interface FileRoutesById {
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -1157,6 +1166,7 @@ export interface FileRouteTypes {
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
     | '/api/public/client-errors'
+    | '/api/public/post-tts'
     | '/api/public/vitals'
     | '/admin/newsletter/'
     | '/admin/settings/'
@@ -1268,6 +1278,7 @@ export interface FileRouteTypes {
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
     | '/api/public/client-errors'
+    | '/api/public/post-tts'
     | '/api/public/vitals'
     | '/admin/newsletter'
     | '/admin/settings'
@@ -1384,6 +1395,7 @@ export interface FileRouteTypes {
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
     | '/api/public/client-errors'
+    | '/api/public/post-tts'
     | '/api/public/vitals'
     | '/admin/newsletter/'
     | '/admin/settings/'
@@ -1425,6 +1437,7 @@ export interface RootRouteChildren {
   BlogIndexRoute: typeof BlogIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
+  ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
@@ -2034,6 +2047,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVitalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/post-tts': {
+      id: '/api/public/post-tts'
+      path: '/api/public/post-tts'
+      fullPath: '/api/public/post-tts'
+      preLoaderRoute: typeof ApiPublicPostTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/client-errors': {
       id: '/api/public/client-errors'
       path: '/api/public/client-errors'
@@ -2512,6 +2532,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogIndexRoute: BlogIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
+  ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
