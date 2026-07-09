@@ -376,6 +376,22 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             first_name: string | null;
             last_name: string | null;
             avatar_url: string | null;
+            author_profile?: {
+              avatar_url: string | null;
+              job_title: string | null;
+              company: string | null;
+              bio_pl: string | null;
+              bio_en: string | null;
+              contact_email: string | null;
+              phone: string | null;
+              website_url: string | null;
+              x_url: string | null;
+              linkedin_url: string | null;
+              facebook_url: string | null;
+              instagram_url: string | null;
+              spotify_url: string | null;
+              custom_socials: Array<{ label: string; url: string; iconUrl?: string }>;
+            } | null;
           } | null;
         }
       ).author ?? null)
