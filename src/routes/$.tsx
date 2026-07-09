@@ -505,7 +505,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const contentBlock = (
     <div ref={articleRef} className="article-body">
       {accessRule && showPaywall ? (
-        <Paywall rule={accessRule} lang={lang} fallbackText={excerpt} />
+        <Paywall
+          rule={accessRule}
+          lang={lang}
+          fallbackText={excerpt}
+          onPasswordVerify={pwdUnlock.verify}
+          passwordVerifying={pwdUnlock.loading}
+        />
       ) : (
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
