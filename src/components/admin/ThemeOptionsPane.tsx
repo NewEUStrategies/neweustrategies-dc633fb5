@@ -283,7 +283,8 @@ const SECTIONS = [
   { id: "icon_colors", labelKey: "themeOptions.sections.iconColors", icon: Palette },
   { id: "link_colors", labelKey: "themeOptions.sections.linkColors", icon: Palette },
 
-  { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
+  { id: "font_sizes", labelKey: "themeOptions.sections.fontSizes", icon: Heading1 },
+  { id: "design", labelKey: "themeOptions.sections.contentStylingAdvanced", icon: Brush },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
