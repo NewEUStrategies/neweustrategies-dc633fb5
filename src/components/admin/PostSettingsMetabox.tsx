@@ -174,25 +174,58 @@ export function PostSettingsMetabox({
 }
 
 // ---------------- ToC tab ----------------
+
+const COLUMN_OPTIONS: {
+  value: TocColumns;
+  icon: typeof Columns2;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    value: "col-1",
+    icon: AlignJustify,
+    label: "1 kolumna",
+    desc: "Pełna szerokość, klasyczny układ",
+  },
+  {
+    value: "col-2",
+    icon: Columns2,
+    label: "2 kolumny",
+    desc: "Pełna szerokość, długie ToC dzielone",
+  },
+  {
+    value: "half",
+    icon: Rows2,
+    label: "Połowa",
+    desc: "50% szerokości treści",
+  },
+];
+
 function TocTab({
   override,
   onChange,
+  postBlocks,
 }: {
   override: TocOverride | null;
   onChange: (next: TocOverride | null) => void;
+  postBlocks: LocalizedBlocks | null;
 }) {
   const { t } = useTranslation();
   const defaults = useTocDefaults();
 
+  const counts = useMemo(() => countPostHeadings(postBlocks), [postBlocks]);
+
   const value = override ?? {};
   const patch = (p: Partial<NonNullable<TocOverride>>) => {
     const merged = { ...value, ...p };
-    // Jeżeli wszystkie pola są null - wyczyść override.
     const allEmpty = Object.values(merged).every((v) => v === null || v === undefined);
     onChange(allEmpty ? null : merged);
   };
 
-  const isOverridden = !!override && Object.values(override).some((v) => v !== null && v !== undefined);
+  const isOverridden =
+    !!override && Object.values(override).some((v) => v !== null && v !== undefined);
+
+  const effectiveColumns: TocColumns = value.columns ?? defaults.columns;
 
   return (
     <div className="space-y-4">
@@ -203,6 +236,14 @@ function TocTab({
             "Dziedziczy z globalnych ustawień. Nadpisz tylko to, co ma być inne dla tego wpisu.",
         })}
         globalHref="/admin/toc"
+      />
+
+      {/* Live heading counter - z tekstu wpisu, dla PL/EN */}
+      <HeadingCounter
+        pl={counts.pl}
+        en={counts.en}
+        minLevel={defaults.minLevel}
+        maxLevel={defaults.maxLevel}
       />
 
       <RowOverride
@@ -218,7 +259,7 @@ function TocTab({
       </RowOverride>
 
       <RowOverride
-        label={t("admin.metabox.toc.layout", { defaultValue: "Układ" })}
+        label={t("admin.metabox.toc.layout", { defaultValue: "Wygląd karty" })}
         globalValue={defaults.layout}
         overridden={!!value.layout}
         onClear={() => patch({ layout: null })}
@@ -239,6 +280,58 @@ function TocTab({
           </SelectContent>
         </Select>
       </RowOverride>
+
+      {/* Kolumny - trzy opcje w formie segmented control */}
+      <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Label className="text-sm font-medium">Kolumny spisu treści</Label>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Globalnie:{" "}
+              <span className="font-mono">
+                {COLUMN_OPTIONS.find((o) => o.value === defaults.columns)?.label}
+              </span>
+              {value.columns != null && (
+                <button
+                  type="button"
+                  onClick={() => patch({ columns: null })}
+                  className="ml-2 text-brand hover:underline"
+                >
+                  wyczyść nadpisanie
+                </button>
+              )}
+            </p>
+          </div>
+        </div>
+        <div
+          className="grid grid-cols-3 gap-2"
+          role="radiogroup"
+          aria-label="Układ kolumnowy ToC"
+        >
+          {COLUMN_OPTIONS.map(({ value: v, icon: Icon, label, desc }) => {
+            const active = effectiveColumns === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => patch({ columns: v })}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-center transition-colors",
+                  active
+                    ? "border-brand bg-brand/10 text-brand"
+                    : "border-border bg-background hover:border-brand/50 hover:bg-muted",
+                )}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-xs font-medium">{label}</span>
+                <span className="text-[10px] leading-tight text-muted-foreground">{desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <RowOverride
         label={t("admin.metabox.toc.position", {
@@ -284,6 +377,77 @@ function TocTab({
     </div>
   );
 }
+
+// Kompaktowy licznik nagłówków - PL/EN, z podświetleniem poziomów spoza zakresu.
+function HeadingCounter({
+  pl,
+  en,
+  minLevel,
+  maxLevel,
+}: {
+  pl: HeadingCounts;
+  en: HeadingCounts;
+  minLevel: number;
+  maxLevel: number;
+}) {
+  const rows: { icon: typeof Heading1; level: 1 | 2 | 3; label: string }[] = [
+    { icon: Heading1, level: 1, label: "H1" },
+    { icon: Heading2, level: 2, label: "H2" },
+    { icon: Heading3, level: 3, label: "H3" },
+  ];
+  const cell = (c: HeadingCounts, level: 1 | 2 | 3) => {
+    const inRange = level >= minLevel && level <= maxLevel;
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded font-mono text-[11px] tabular-nums",
+          inRange
+            ? c[`h${level}`] > 0
+              ? "bg-brand/15 text-brand"
+              : "bg-muted text-muted-foreground"
+            : "bg-muted/40 text-muted-foreground/60 line-through",
+        )}
+        title={inRange ? "Poziom w zakresie ToC" : "Poziom poza zakresem - nie trafi do ToC"}
+      >
+        {c[`h${level}`]}
+      </span>
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-background/60 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Wykryte nagłówki w treści
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          Zakres ToC: <span className="font-mono">H{minLevel}-H{maxLevel}</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-1.5">
+        <span />
+        <span className="text-[10px] font-medium text-muted-foreground uppercase">PL</span>
+        <span className="text-[10px] font-medium text-muted-foreground uppercase">EN</span>
+        {rows.map(({ icon: Icon, level, label }) => (
+          <div key={level} className="contents">
+            <div className="flex items-center gap-1.5 text-xs text-foreground/80">
+              <Icon className="w-3.5 h-3.5" />
+              <span className="font-medium">{label}</span>
+            </div>
+            <div>{cell(pl, level)}</div>
+            <div>{cell(en, level)}</div>
+          </div>
+        ))}
+      </div>
+      {pl.total === 0 && en.total === 0 && (
+        <p className="text-[10px] text-muted-foreground italic mt-2">
+          Brak nagłówków w edytorze bloków. Dodaj H1/H2/H3, aby ToC wygenerował się automatycznie.
+        </p>
+      )}
+    </div>
+  );
+}
+
 
 // ---------------- Takeaways tab ----------------
 function TakeawaysTab({
