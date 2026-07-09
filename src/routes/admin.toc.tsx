@@ -340,7 +340,7 @@ function TocAdmin() {
                   <Label className="text-[10px] text-muted-foreground">{label}</Label>
                   <AdminColorPicker
                     value={draft.colors[key]}
-                    onChange={(v) => updateColor(key, v ?? "")}
+                    onChange={(v: string | undefined) => updateColor(key, v ?? "")}
                     ariaLabel={label}
                   />
                 </div>
