@@ -128,8 +128,8 @@ export function PostLayoutRenderer({
       <div className={`relative ${isFullBleed ? "-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}>
         <div className="relative mb-8">
           <div
-            className={`relative ${heightClass} ${isFullBleed ? "" : "rounded-lg"} overflow-hidden bg-neutral-900`}
-            style={aspectStyle}
+            className={`relative ${heightClass} overflow-hidden bg-neutral-900`}
+            style={{ ...aspectStyle, borderRadius: "6px" }}
           >
             <OptimizedImage
               src={coverImageUrl}
