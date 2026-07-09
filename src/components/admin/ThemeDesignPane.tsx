@@ -58,6 +58,20 @@ import {
 } from "@/lib/theme/carouselDefaults";
 import { Languages, Eye, EyeOff } from "lucide-react";
 
+type PreviewSection =
+  | "block-heading"
+  | "thumbnail"
+  | "read-more"
+  | "meta"
+  | "toolbar"
+  | "mode-switch"
+  | "social"
+  | "post-title"
+  | "post-excerpt"
+  | "list-index"
+  | "carousel"
+  | "overlay";
+
 export function ThemeDesignPane() {
   const { data: tdPl, isLoading: tdPlLoading } = useThemeDesign();
   const { data: tdEn, isLoading: tdEnLoading } = useThemeDesignEn();
