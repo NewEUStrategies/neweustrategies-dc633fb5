@@ -139,7 +139,14 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 
       <div className="pt-2 border-t border-border/60 space-y-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Podgląd - {variant === "card" ? "Karta" : variant === "inline" ? "Inline" : "Minimalna"}
+          Podgląd -{" "}
+          {variant === "card"
+            ? "Karta"
+            : variant === "split"
+              ? "Split"
+              : variant === "inline"
+                ? "Inline"
+                : "Minimalna"}
           {!selectedAuthorId && <span className="ml-1 italic normal-case">(przykładowe dane)</span>}
         </div>
         <CurrentPostProvider
