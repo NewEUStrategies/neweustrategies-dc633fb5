@@ -23,14 +23,16 @@ export const KeyTakeawaysSettingsSchema = z
     labelEn: z.string().default("From this article you will learn..."),
     numbered: z.boolean().default(true),
     /**
-     * Wariant "ghost": podświetlenie pierwszych N słów etykiety wybranym
-     * kolorem (0 = wyłączone, 1-3 = ile słów pokolorować). Kolor
-     * zachowuje ustaloną transparentność napisu ghost.
+     * Wariant "ghost": podświetlenie wybranych słów etykiety.
+     * `indices` - 0-based pozycje słów (te same dla PL/EN, bo tłumaczenia
+     * są równoległe). `color` zachowuje transparentność napisu ghost.
+     * `sizeScale` - mnożnik rozmiaru napisu (1 = domyślnie).
      */
     highlight: z
       .object({
-        words: z.number().int().min(0).max(3).default(1),
+        indices: z.array(z.number().int().min(0).max(20)).default([]),
         color: COLOR.default("#4f46e5"),
+        sizeScale: z.number().min(0.5).max(3).default(1),
       })
       .default({}),
     colors: z
