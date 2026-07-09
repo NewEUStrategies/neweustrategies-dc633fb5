@@ -3139,26 +3139,32 @@ textarea::placeholder {
   overflow-x: clip;
   overflow-y: visible;
 }
-.key-takeaways__ghost-title {
-  color: var(--kt-title, #111827);
-  opacity: 0.13;
-  /* 2.5x powiększenie względem poprzedniego rozmiaru. */
-  font-size: clamp(8.75rem, 40vw, 27.5rem);
+.key-takeaways .key-takeaways__ghost-title,
+h2.key-takeaways__ghost-title {
+  color: var(--kt-title, currentColor);
+  opacity: 0.18;
+  /* 2.5x powiększenie względem poprzedniego rozmiaru. !important, żeby
+     ominąć globalne `.cms-post-h2` / `--td-bh-*` tokeny nadpisujące h2. */
+  font-size: clamp(8.75rem, 40vw, 27.5rem) !important;
+  line-height: 1 !important;
   letter-spacing: -0.04em;
-  line-height: 1;
+  font-weight: 900;
   z-index: 0;
   top: 0;
+  margin: 0;
   /* Dolna krawędź napisu równa z dolną krawędzią pierwszej linii listy.
      Pierwszy <li> ma py-4 (1rem) + line-height ~1.75rem = ~2.75rem. */
   transform: translateY(calc(2.75rem - 100%));
 }
-.key-takeaways__ghost-title::first-letter {
+.key-takeaways .key-takeaways__ghost-title::first-letter,
+h2.key-takeaways__ghost-title::first-letter {
   color: var(--kt-accent, #4f46e5);
   opacity: 1;
 }
-.dark .key-takeaways__ghost-title {
+.dark .key-takeaways .key-takeaways__ghost-title,
+.dark h2.key-takeaways__ghost-title {
   color: var(--kt-title-dark, #ffffff);
-  opacity: 0.09;
+  opacity: 0.14;
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
