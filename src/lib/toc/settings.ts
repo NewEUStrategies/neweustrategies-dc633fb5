@@ -66,6 +66,7 @@ export const TocOverrideSchema = z
     layout: z.enum(TOC_LAYOUTS).nullable().default(null),
     columns: z.enum(TOC_COLUMNS).nullable().default(null),
     position: z.number().int().min(-1).max(20).nullable().default(null),
+    showInBody: z.boolean().nullable().default(null),
     sticky: z.boolean().nullable().default(null),
   })
   .partial()
@@ -86,6 +87,7 @@ export function mergeTocSettings(
     layout: override.layout ?? defaults.layout,
     columns: override.columns ?? defaults.columns,
     position: override.position ?? defaults.position,
+    showInBody: override.showInBody ?? defaults.showInBody,
     sticky: override.sticky ?? defaults.sticky,
   };
 }
