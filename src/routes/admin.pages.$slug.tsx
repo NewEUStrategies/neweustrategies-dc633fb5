@@ -83,6 +83,8 @@ interface PageForm {
   template_type: PageTemplateType;
   header_override: string | null;
   toc_override: import("@/lib/toc/settings").TocOverride | null;
+  takeaways_pl: string[];
+  takeaways_en: string[];
   seo_title_pl: string | null;
   seo_title_en: string | null;
   seo_description_pl: string | null;
