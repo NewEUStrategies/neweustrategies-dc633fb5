@@ -197,6 +197,9 @@ export function JoinUsForm({
   buttonSize,
   consentSize,
 }: JoinUsFormProps) {
+  const jusId = useId();
+  const hasCustomBg = Boolean(bgLight || bgDark);
+
 
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
