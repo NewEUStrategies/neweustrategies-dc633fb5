@@ -1462,6 +1462,24 @@ function ToolbarBtnPreview({
   );
 }
 
+function tabTitle(t: PreviewSection, lang: ThemeDesignLang): string {
+  const map: Record<PreviewSection, [string, string]> = {
+    "block-heading": ["Nagłówki bloków", "Block headings"],
+    thumbnail: ["Miniatury", "Thumbnails"],
+    "read-more": ["Czytaj więcej", "Read more"],
+    meta: ["Meta wpisu", "Post meta"],
+    toolbar: ["Toolbar", "Toolbar"],
+    "mode-switch": ["Tryb jasny/ciemny", "Light/Dark mode"],
+    social: ["Social", "Social"],
+    "post-title": ["Tytuły wpisów", "Post titles"],
+    "post-excerpt": ["Excerpt", "Excerpt"],
+    "list-index": ["Numeracja list", "List index"],
+    carousel: ["Karuzela", "Carousel"],
+    overlay: ["Overlay wpisu", "Post overlay"],
+  };
+  return map[t][lang === "en" ? 1 : 0];
+}
+
 function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
   if (kind === "none") return null;
   const ch = kind === "dot" ? "•" : kind === "slash" ? "/" : "|";
