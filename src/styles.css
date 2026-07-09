@@ -3130,24 +3130,31 @@ textarea::placeholder {
    przecinają go w połowie. Overflow:hidden na kontenerze przycina tekst,
    który zawsze idzie w jednym wierszu (whitespace-nowrap). */
 .key-takeaways--ghost {
-  padding: 0;
+  /* Robimy miejsce nad listą na całą wysokość ghost tytułu tak, by dolna
+     krawędź tytułu mogła się zrównać z dolną krawędzią pierwszej linijki
+     pierwszego punktu (~2.75rem od góry listy). */
+  padding-top: calc(clamp(8.75rem, 40vw, 27.5rem) - 2.75rem);
 }
 .key-takeaways--ghost .key-takeaways__ghost {
-  min-height: clamp(3rem, 8vw, 5rem);
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 .key-takeaways__ghost-title {
   color: var(--kt-title, #111827);
   opacity: 0.13;
-  font-size: clamp(3.5rem, 16vw, 11rem);
-  letter-spacing: -0.03em;
-  line-height: 0.9;
+  /* 2.5x powiększenie względem poprzedniego rozmiaru. */
+  font-size: clamp(8.75rem, 40vw, 27.5rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
   z-index: 0;
   top: 0;
-  /* Wyśrodkuj napis pionowo względem pierwszej linii listy: przesuwamy
-     tytuł w górę o ~40% jego wysokości, tak by jego środek pokrył się
-     ze środkiem pierwszego wiersza tekstu. */
-  transform: translateY(-38%);
+  /* Dolna krawędź napisu równa z dolną krawędzią pierwszej linii listy.
+     Pierwszy <li> ma py-4 (1rem) + line-height ~1.75rem = ~2.75rem. */
+  transform: translateY(calc(2.75rem - 100%));
+}
+.key-takeaways__ghost-title::first-letter {
+  color: var(--kt-accent, #4f46e5);
+  opacity: 1;
 }
 .dark .key-takeaways__ghost-title {
   color: var(--kt-title-dark, #ffffff);
