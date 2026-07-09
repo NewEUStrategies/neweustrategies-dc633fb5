@@ -102,6 +102,7 @@ interface PostForm {
   layout_overrides: LayoutOverrides | null;
   takeaways_pl: string[];
   takeaways_en: string[];
+  takeaways_variant: "card" | "heading" | "ghost" | null;
   toc_override: import("@/lib/toc/settings").TocOverride | null;
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
@@ -376,6 +377,7 @@ function EditPost() {
             layout_overrides: snapshot.layout_overrides,
             takeaways_pl: snapshot.takeaways_pl ?? [],
             takeaways_en: snapshot.takeaways_en ?? [],
+            takeaways_variant: snapshot.takeaways_variant ?? null,
             toc_override: snapshot.toc_override ?? null,
             custom_meta: snapshot.custom_meta ?? null,
             related_override: snapshot.related_override ?? null,
@@ -1132,9 +1134,11 @@ function EditPost() {
                       postBlocks={form.blocks_data ?? null}
                       takeawaysPl={form.takeaways_pl ?? []}
                       takeawaysEn={form.takeaways_en ?? []}
+                      takeawaysVariant={form.takeaways_variant ?? null}
                       onTakeawaysChange={(lang, next) =>
                         set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
                       }
+                      onTakeawaysVariantChange={(next) => set("takeaways_variant", next)}
                     />
                   )}
 

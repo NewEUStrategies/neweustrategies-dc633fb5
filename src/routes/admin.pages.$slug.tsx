@@ -85,6 +85,7 @@ interface PageForm {
   toc_override: import("@/lib/toc/settings").TocOverride | null;
   takeaways_pl: string[];
   takeaways_en: string[];
+  takeaways_variant: "card" | "heading" | "ghost" | null;
   seo_title_pl: string | null;
   seo_title_en: string | null;
   seo_description_pl: string | null;
@@ -193,6 +194,7 @@ function EditPage() {
             toc_override: snapshot.toc_override ?? null,
             takeaways_pl: snapshot.takeaways_pl ?? [],
             takeaways_en: snapshot.takeaways_en ?? [],
+            takeaways_variant: snapshot.takeaways_variant ?? null,
             seo_title_pl: snapshot.seo_title_pl,
             seo_title_en: snapshot.seo_title_en,
             seo_description_pl: snapshot.seo_description_pl,
@@ -636,9 +638,11 @@ function EditPage() {
                 onTocOverrideChange={(next) => set("toc_override", next)}
                 takeawaysPl={form.takeaways_pl ?? []}
                 takeawaysEn={form.takeaways_en ?? []}
+                takeawaysVariant={form.takeaways_variant ?? null}
                 onTakeawaysChange={(lang, next) =>
                   set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
                 }
+                onTakeawaysVariantChange={(next) => set("takeaways_variant", next)}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">

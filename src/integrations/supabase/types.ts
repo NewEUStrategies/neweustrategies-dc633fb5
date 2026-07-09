@@ -1870,6 +1870,7 @@ export type Database = {
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
           takeaways_pl: string[]
+          takeaways_variant: string | null
           template_id: string | null
           template_type: string
           tenant_id: string
@@ -1908,6 +1909,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
           takeaways_pl?: string[]
+          takeaways_variant?: string | null
           template_id?: string | null
           template_type?: string
           tenant_id: string
@@ -1946,6 +1948,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
           takeaways_pl?: string[]
+          takeaways_variant?: string | null
           template_id?: string | null
           template_type?: string
           tenant_id?: string
@@ -2630,6 +2633,7 @@ export type Database = {
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
           takeaways_pl: string[]
+          takeaways_variant: string | null
           template_id: string | null
           tenant_id: string
           title_en: string
@@ -2672,6 +2676,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
           takeaways_pl?: string[]
+          takeaways_variant?: string | null
           template_id?: string | null
           tenant_id: string
           title_en?: string
@@ -2714,6 +2719,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
           takeaways_pl?: string[]
+          takeaways_variant?: string | null
           template_id?: string | null
           tenant_id?: string
           title_en?: string
@@ -4166,6 +4172,7 @@ export type Database = {
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
           takeaways_pl: string[]
+          takeaways_variant: string | null
           template_id: string | null
           template_type: string
           tenant_id: string
@@ -4228,6 +4235,7 @@ export type Database = {
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
           takeaways_pl: string[]
+          takeaways_variant: string | null
           template_id: string | null
           tenant_id: string
           title_en: string

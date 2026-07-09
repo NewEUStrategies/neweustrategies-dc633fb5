@@ -100,6 +100,8 @@ export interface PageData {
   /** „Z tego materiału dowiesz się, że..." - dostępne również dla stron (max 7). */
   takeaways_pl: string[];
   takeaways_en: string[];
+  /** Per-wpis nadpisanie wariantu wizualnego sekcji (`null` = użyj globalnego). */
+  takeaways_variant: "card" | "heading" | "ghost" | null;
 }
 
 export interface PostData extends PageData {
@@ -176,7 +178,7 @@ export const homePageQueryOptions = () =>
         // is never read through direct body-column selects. Excerpts + SEO
         // overrides are included so the homepage head() (src/routes/index.tsx)
         // resolves the static page's own SEO fields like any other page.
-        const cols = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, takeaways_pl, takeaways_en, ${SEO_FIELDS_SELECT}`;
+        const cols = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, takeaways_pl, takeaways_en, takeaways_variant, ${SEO_FIELDS_SELECT}`;
 
         let row: Record<string, unknown> | null = null;
         if (reading.homepage_mode === "static_page") {
@@ -321,7 +323,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
             supabase
               .from("posts")
               .select(
-                `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override, author_id, ${SEO_FIELDS_SELECT}`,
+                `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, custom_meta, related_override, author_id, ${SEO_FIELDS_SELECT}`,
               )
               .eq("id", hit.post_id)
               .maybeSingle(),
@@ -368,7 +370,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         supabase
           .from("pages")
           .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, takeaways_pl, takeaways_en, ${SEO_FIELDS_SELECT}`,
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, takeaways_pl, takeaways_en, takeaways_variant, ${SEO_FIELDS_SELECT}`,
           )
           .eq("id", hit.page_id)
           .maybeSingle(),

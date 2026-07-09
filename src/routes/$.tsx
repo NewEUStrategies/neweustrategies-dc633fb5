@@ -511,7 +511,12 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
-          {takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
+          {takeaways.length > 0 && (
+            <KeyTakeaways
+              items={takeaways}
+              variantOverride={it.takeaways_variant ?? undefined}
+            />
+          )}
           <ContentRenderer
             editor={it.editor}
             builderDoc={doc}

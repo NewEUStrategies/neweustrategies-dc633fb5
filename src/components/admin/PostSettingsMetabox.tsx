@@ -62,6 +62,9 @@ export interface PostSettingsMetaboxProps {
   takeawaysPl?: string[];
   takeawaysEn?: string[];
   onTakeawaysChange?: (lang: "pl" | "en", next: string[]) => void;
+  /** Per-wpis wariant sekcji „Dowiesz się…". `null` = użyj globalnego. */
+  takeawaysVariant?: "card" | "heading" | "ghost" | null;
+  onTakeawaysVariantChange?: (next: "card" | "heading" | "ghost" | null) => void;
 }
 
 type TabKey = "toc" | "membership" | "takeaways";
