@@ -126,7 +126,8 @@ function LoginSettingsPage() {
                 onChange={(v) => update("hero_image_url_light", v)}
                 aspect="3 / 4"
                 previewBg="light"
-                hint="1200×1600 px · jasne tło, ciemne akcenty."
+                fallbackUrl={defaultLoginLight}
+                hint="1200×1600 px · jasne tło, ciemne akcenty. Domyślnie: wbudowana ilustracja."
               />
               <ImageField
                 label="Motyw ciemny"
@@ -135,7 +136,8 @@ function LoginSettingsPage() {
                 onChange={(v) => update("hero_image_url_dark", v)}
                 aspect="3 / 4"
                 previewBg="dark"
-                hint="1200×1600 px · ciemne tło, jasne akcenty."
+                fallbackUrl={defaultLoginDark}
+                hint="1200×1600 px · ciemne tło, jasne akcenty. Domyślnie: wbudowana ilustracja."
               />
             </div>
           </section>
