@@ -207,7 +207,7 @@ export function ThemeDesignPane() {
 
 
 
-      <Tabs defaultValue="block-heading" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PreviewSection)} className="space-y-4">
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
           <TabsList className="flex flex-wrap h-auto gap-1.5 justify-start bg-transparent p-0">
             {[
