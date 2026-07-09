@@ -1503,43 +1503,64 @@ function SepPreview({ kind }: { kind: ThemeDesign["metaInfo"]["separator"] }) {
  *  Kolory linków / Kolory ikon / Pola tekstowe / Kolory pól tekstowych is
  *  effectively free. */
 const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> = {
-  blockHeading: { color: { token: "var(--foreground)", hint: "Tekst globalny" } },
+  blockHeading: {
+    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+  },
   readMoreButton: {
     bgColor: { token: "transparent", hint: "Przezroczyste" },
-    color: { token: "var(--brand)", hint: "Kolor marki" },
-    borderColor: { token: "var(--brand)", hint: "Kolor marki" },
+    color: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
+    borderColor: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
   },
-  metaInfo: { color: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" } },
+  metaInfo: {
+    color: {
+      token: "var(--gc-body-text-muted, var(--muted-foreground))",
+      hint: "Kolory pól tekstowych (muted)",
+    },
+  },
   toolbarButton: {
-    bgColor: { token: "var(--muted)", hint: "Tło pól tekstowych" },
-    color: { token: "var(--foreground)", hint: "Tekst globalny" },
-    hoverBgColor: { token: "var(--accent)", hint: "Akcent (hover)" },
-    hoverColor: { token: "var(--foreground)", hint: "Tekst globalny" },
-    activeBgColor: { token: "var(--brand)", hint: "Kolor marki" },
-    activeColor: { token: "var(--brand-foreground)", hint: "Tekst na marce" },
+    bgColor: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
+    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+    hoverBgColor: {
+      token: "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
+      hint: "Pola tekstowe - hover",
+    },
+    hoverColor: {
+      token: "var(--gc-body-text, var(--foreground))",
+      hint: "Kolory pól tekstowych",
+    },
+    activeBgColor: { token: "var(--gc-btn-bg, #fa9346)", hint: "Przyciski - tło" },
+    activeColor: { token: "var(--gc-btn-text, #ffffff)", hint: "Przyciski - tekst" },
   },
   modeSwitcher: {
-    trackBg: { token: "var(--muted)", hint: "Tło pól tekstowych" },
-    trackBorder: { token: "var(--border)", hint: "Obramowanie" },
-    inactiveColor: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" },
-    activeBg: { token: "var(--background)", hint: "Tło globalne" },
-    activeColor: { token: "var(--foreground)", hint: "Tekst globalny" },
+    trackBg: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
+    trackBorder: { token: "var(--gc-input-border, var(--border))", hint: "Pola tekstowe - obramowanie" },
+    inactiveColor: {
+      token: "var(--gc-body-text-muted, var(--muted-foreground))",
+      hint: "Kolory pól tekstowych (muted)",
+    },
+    activeBg: { token: "var(--gc-surface-bg, var(--background))", hint: "Tła motywu - surface" },
+    activeColor: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
   },
   socialIcons: {
-    color: { token: "var(--foreground)", hint: "Kolor ikon" },
-    hoverColor: { token: "var(--brand)", hint: "Kolor marki" },
+    color: { token: "var(--gc-icon, var(--foreground))", hint: "Kolory ikon" },
+    hoverColor: { token: "var(--gc-icon-hover, var(--brand))", hint: "Kolory ikon - hover" },
     bgColor: { token: "transparent", hint: "Przezroczyste" },
-    hoverBgColor: { token: "var(--accent)", hint: "Akcent (hover)" },
+    hoverBgColor: { token: "transparent", hint: "Przezroczyste" },
   },
   listIndex: {
-    colorLight: { token: "var(--foreground)", hint: "Tekst globalny" },
-    colorDark: { token: "var(--brand)", hint: "Kolor marki" },
+    colorLight: { token: "var(--gc-body-text, #231f20)", hint: "Kolory pól tekstowych" },
+    colorDark: { token: "var(--gc-highlight, #fa9346)", hint: "Global kolory - highlight" },
   },
   postTitle: {
-    color: { token: "var(--foreground)", hint: "Tekst globalny" },
-    hoverColor: { token: "var(--brand)", hint: "Link (hover)" },
+    color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
+    hoverColor: { token: "var(--gc-link-hover, var(--brand))", hint: "Kolory linków - hover" },
   },
-  postExcerpt: { color: { token: "var(--muted-foreground)", hint: "Tekst pomocniczy" } },
+  postExcerpt: {
+    color: {
+      token: "var(--gc-body-text-muted, var(--muted-foreground))",
+      hint: "Kolory pól tekstowych (muted)",
+    },
+  },
 };
 
 function TdColorField({
