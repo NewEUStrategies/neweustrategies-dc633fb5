@@ -636,11 +636,35 @@ const RenderColumn = memo(function RenderColumn({
               }}
             >
               <RenderErrorBoundary label={`widget:${w.type}:${w.id}`}>
-                <WidgetView node={w} lang={lang} device={device} />
+                <div className="relative w-full h-full">
+                  <WidgetView node={w} lang={lang} device={device} />
+                  {w.advanced?.link?.url && (
+                    <a
+                      href={w.advanced.link.url}
+                      target={w.advanced.link.target ?? "_self"}
+                      rel={[
+                        w.advanced.link.target === "_blank" ? "noopener noreferrer" : "",
+                        w.advanced.link.nofollow ? "nofollow" : "",
+                        w.advanced.link.rel ?? "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
+                      aria-label={w.advanced.link.ariaLabel ?? undefined}
+                      className="absolute inset-0 z-0"
+                      data-widget-link="1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="sr-only">
+                        {w.advanced.link.ariaLabel ?? w.advanced.link.refLabel ?? w.advanced.link.url}
+                      </span>
+                    </a>
+                  )}
+                </div>
               </RenderErrorBoundary>
             </div>
           );
         };
+
         if (g.inline) {
           return (
             <div
