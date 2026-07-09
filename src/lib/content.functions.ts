@@ -773,6 +773,7 @@ const PageCore = z.object({
     .enum(["default", "full_width", "landing", "archive_listing", "contact"])
     .optional(),
   header_override: z.string().max(64).nullable().optional(),
+  toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
   ...SeoBlock,
 });
 
