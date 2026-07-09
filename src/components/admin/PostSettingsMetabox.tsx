@@ -532,7 +532,7 @@ export function TakeawaysTab({
         })}
         hint={t("admin.metabox.takeaways.hint", {
           defaultValue:
-            "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-160 znaków na punkt.",
+            "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-200 znaków ze spacjami na punkt (limit można przekroczyć).",
         })}
         globalHref="/admin/key-takeaways"
       />
