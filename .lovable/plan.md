@@ -1,88 +1,74 @@
-## Cel
+# Nowa kolejność sekcji pod overlay cover
 
-W panelu **Ustawienia motywu** (`ThemeOptionsPane`) etykieta "Style treści" ma zostać zamieniona na **"Rozmiary czcionek" / "Font sizes"**, a wewnątrz pojawi się nowa, spójna z resztą admina, sekcja globalnych rozmiarów typografii.
-
-Ponieważ obecna zakładka "Style treści" (`ThemeDesignPane`) już zawiera bardzo dużo ustawień niezwiązanych z rozmiarami czcionek (nagłówki bloków, "read more", meta, mode switch, karuzele, socials itp.), rozdzielam ją od nowej sekcji, żeby niczego nie stracić i utrzymać jasną nawigację.
-
-## Zmiany UI/nawigacja
-
-- W `SECTIONS` w `src/components/admin/ThemeOptionsPane.tsx`:
-  - Zmieniam ID i label istniejącego wpisu `design` -> `font_sizes` (`themeOptions.sections.fontSizes`) i tam ląduje nowa sekcja rozmiarów czcionek (to jest element, który user zaznaczył).
-  - Dotychczasowy pełny `ThemeDesignPane` (nagłówki bloków, karuzele itp.) trafia pod nowe ID `design_advanced` z etykietą "Style treści (zaawansowane)" / "Advanced content styling", tuż obok - żeby zachować dostęp do wszystkich obecnych ustawień bez zmian.
-- Dodaję tłumaczenia PL/EN: `themeOptions.sections.fontSizes` = "Rozmiary czcionek" / "Font sizes", oraz odpowiednie stringi do nowej sekcji.
-
-## Nowa sekcja "Rozmiary czcionek"
-
-Nowy komponent `ThemeFontSizesPane` z formularzem po lewej + live preview po prawej (spójne z ToC/Key Takeaways). Kontrolki:
-
-Typografia bazowa:
-- Body (px + line-height)
-- Small / caption
-- Lead (wprowadzenie)
-- Blockquote
-- Code / inline code
-
-Nagłówki (dwie kolumny: **desktop** + **mobile**, wspólna waga i line-height):
-- H1, H2, H3, H4, H5, H6 - font-size (px), line-height, letter-spacing, font-weight, textTransform
-
-Wszystko jako liczby (px) z użyciem istniejącego atomu `NumberInput` / `StepperInput` z buildera. Sekcja "Reset do domyślnych" i przyciski Save (spójne z pozostałymi zakładkami motywu).
-
-## Model danych
-
-- Nowe site_setting: `font_sizes` (JSONB), schema Zod z bezpiecznymi defaultami:
+Kolejność pod overlay-em okładki dla wpisów tekstowych:
 
 ```text
-{
-  body:   { size: 16, lineHeight: 1.6 },
-  small:  { size: 13, lineHeight: 1.5 },
-  lead:   { size: 18, lineHeight: 1.6 },
-  blockquote: { size: 18, lineHeight: 1.55 },
-  code:   { size: 14 },
-  headings: {
-    h1: { desktop: 40, mobile: 30, lineHeight: 1.15, letterSpacing: 0, weight: 800, transform: 'none' },
-    h2: { desktop: 32, mobile: 26, ... },
-    h3: { desktop: 26, mobile: 22, ... },
-    h4: { desktop: 22, mobile: 19, ... },
-    h5: { desktop: 18, mobile: 17, ... },
-    h6: { desktop: 16, mobile: 15, ... }
-  }
-}
+[Overlay cover + tytuł]
+  │
+  ▼
+1. Key Takeaways ("Dowiesz się…")         ← już wdrożone
+2. Odsłuch materiału (ElevenLabs TTS)     ← NOWE, publiczne
+3. Spis treści in-body (opcjonalny)       ← NOWE, off by default
+4. Treść wpisu (ContentRenderer)
 ```
 
-- Hook `useFontSizes` + `useSaveFontSizes` w `src/lib/theme/fontSizes.ts` (analogicznie do `themeDesign`).
-- Nowy plik `src/components/ThemeFontSizesStyle.tsx` (mount w root layoucie, obok istniejącego `ThemeDesignStyle`) wypuszcza globalne zmienne CSS:
+Sidebar-owy ToC po prawej stronie zostaje bez zmian (domyślny sposób pokazywania ToC).
 
-```text
-:root {
-  --fs-body, --lh-body, --fs-small, --fs-lead, --fs-blockquote, --fs-code,
-  --fs-h1, --fs-h2, --fs-h3, --fs-h4, --fs-h5, --fs-h6,
-  --lh-h1..h6, --ls-h1..h6, --fw-h1..h6, --tt-h1..h6
-}
-@media (max-width: 768px) { :root { --fs-h1..h6: mobile values } }
+## Zakres
+
+### 1. ElevenLabs - podpięcie connectora + publiczny endpoint TTS
+- Zlinkuj istniejący connector `elevenlabs` do projektu (secret `ELEVENLABS_API_KEY` server-side).
+- Nowy publiczny endpoint `src/routes/api/public/post-tts.ts`:
+  - `POST { postId, lang }` - bez wymogu roli staff (obecny `/api/tts` jest tylko staff).
+  - Ładuje tekst z DB przez `supabaseAdmin` (server-only), buduje bezpieczny `plain text` z `blocks_data`/`content_pl|en` (bez HTML), obcina do 5000 znaków.
+  - Rate-limit per IP + per postId (reużyj `rateLimit` z `src/lib/server/rate-limit.server.ts`).
+  - Cache: hash(text+voice+model) → jeśli w `storage` bucket `tts-cache` audio jest, oddaj signed URL (mniej palenia ElevenLabs). W v1 wystarczy zwrócić `audio/mpeg` binarnie z `Cache-Control: public, max-age=31536000, immutable`.
+  - Voice/model whitelist (jak w istniejącym `/api/tts`).
+- Wymuszona lokalizacja modelu: PL/EN → `eleven_multilingual_v2`.
+
+### 2. `PostListenBar` (nowy komponent)
+- `src/components/post/PostListenBar.tsx` - premium przycisk "Posłuchaj artykułu · ~X min" + play/pause + progress + volume.
+- Fetch strumienia z `/api/public/post-tts` przez `fetch().blob()` (zgodnie z `elevenlabs-tts`), odtwarzanie przez `HTMLAudioElement`.
+- Estymacja czasu na podstawie `read_minutes` × 1.15 (audio jest wolniejsze niż czytanie).
+- SSR-safe (żadnego `window` na module scope), i18n PL/EN, tokeny z design systemu.
+- Widoczne tylko gdy `post_format ∈ {standard, gallery}` (nie audio/video - te mają własne playery).
+
+### 3. Inline ToC pod przyciskiem odsłuchu
+- Rozszerzenie `TocDefaults` o `showInBody: boolean` (default `false`) i `TocOverride.showInBody` (nullable).
+  - `src/lib/toc/settings.ts` - zod schema + migracja (istniejące wartości bez pola dostają `false`, więc domyślnie tylko sidebar - zgodnie z zapisem: "by default zawsze widoczny w sidebarze po prawej").
+- W `admin.toc.tsx` + `PostSettingsMetabox.tsx` toggle "Pokaż w treści (pod przyciskiem odsłuchu)" - per wpis nadpisanie globalu.
+- W `src/routes/$.tsx` (contentBlock) renderuj `<TocBlockView>` na podstawie `mergeTocSettings(defaults, override).showInBody === true` oraz gdy `blocksDoc` daje ≥ `minHeadings` nagłówków. Sidebar ToC (jeżeli już istnieje) zostaje bez zmian.
+
+### 4. Kolejność w `$.tsx` (contentBlock)
+```tsx
+{keyTakeawaysNode}              // 1
+{listenBarNode}                 // 2 (jeśli tekstowy)
+{inlineTocNode}                 // 3 (jeśli showInBody)
+<ContentRenderer … />           // 4
+<FootnotesList … />
 ```
 
-## Propagacja tokenów
+## Bezpieczeństwo / rate-limit
 
-- W `src/styles.css` mapuję `h1..h6`, `body`, `.lead`, `blockquote`, `code`, `.cms-post-content h1..h6` do nowych zmiennych (`font-size: var(--fs-h1)` itd.) z fallbackiem do obecnych wartości, żeby nie zepsuć istniejącego wyglądu. Zachowuję priorytet nadpisań per-wpis (`--td-*`), które już istnieją.
-- Renderer bloków treści (`BlocksRenderer`) już czyta klasy `.cms-*` - nowe zmienne zaczną obowiązywać automatycznie.
+- Endpoint publiczny → agresywny rate-limit (np. 3/min i 15/h per IP; per postId 30/h globalnie), zwrot 429 z `Retry-After`.
+- Twarda whitelist voice/model, twardy limit `MAX_CHARS = 5000`.
+- Brak logowania treści; log tylko `postId, lang, ip_hash, bytes`.
+- CORS: same-origin.
+- Response cache header + `ETag` z hashu treści.
 
-## i18n
+## Pliki do zmiany / utworzenia
 
-- Nowe klucze w `src/lib/locale/pl.ts` i `en.ts`:
-  - `themeOptions.sections.fontSizes`
-  - `themeOptions.sections.contentStylingAdvanced`
-  - `themeOptions.fontSizes.*` (etykiety pól, opisy, sekcje)
+- **Zmiana**: `src/lib/toc/settings.ts`, `src/routes/admin.toc.tsx`, `src/components/admin/PostSettingsMetabox.tsx`, `src/routes/$.tsx`.
+- **Nowe**:
+  - `src/routes/api/public/post-tts.ts`
+  - `src/components/post/PostListenBar.tsx`
+  - `src/components/post/InlineToc.tsx` (adapter na `TocBlockView` biorący `blocksDoc` + settings).
+- **i18n**: `src/lib/i18n-*.ts` (klucze `post.listen.*`, `post.toc.inline.*`).
 
-## Bezpieczeństwo / typy
+## Poza zakresem (tej iteracji)
 
-- Zero `any`, pełna walidacja Zod, sanity clampy (H1 12-96 px, body 12-24 px itd.), krok 1 px.
-- Zapis idzie przez istniejący RLS'owy zapis `site_settings` (bez zmian w bazie/migracjach).
+- Cache audio w Storage (możliwe później - v1 gra bez cachowania).
+- Cross-linkowanie audio do playera w Reading List.
+- Wariant "audio-only feed" (RSS podcast).
 
-## Testy
-
-- `src/lib/theme/__tests__/fontSizes.test.ts`: walidacja defaultów, clampów i generowanego CSS.
-- Test renderu `ThemeFontSizesPane`: podstawowe kontrolki + reset przywraca defaulty.
-
-## Weryfikacja
-
-Po wdrożeniu: build, typecheck, oraz szybki podgląd zakładki "Rozmiary czcionek" w admin motywu (live preview typografii + wpływ na stronę wpisu).
+Zatwierdź, wtedy wdrażam.
