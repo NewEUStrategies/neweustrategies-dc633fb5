@@ -295,7 +295,7 @@ export function AuthorBioView({
     const contactHref = author.contactEmail ? `mailto:${author.contactEmail}` : null;
     return (
       <aside
-        className={`not-prose overflow-hidden rounded-[6px] border border-border bg-card shadow-sm ${cls ?? ""}`}
+        className={`not-prose overflow-hidden rounded-[7px] border border-border bg-card shadow-sm ${cls ?? ""}`}
       >
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           {showAvatar && (
