@@ -128,19 +128,19 @@ export function SidebarListenCard({
   return (
     <aside
       aria-label={t.label}
-      className="group/card relative rounded-[6px] border border-border/70 bg-card p-5 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.35)] transition-shadow hover:shadow-[0_14px_36px_-16px_rgba(0,0,0,0.4)]"
+      className="group/card relative rounded-[6px] border border-border/60 bg-card/60 p-4"
     >
       {/* Section label */}
-      <div className="flex items-center gap-3 mb-5">
-        <h3 className="text-[10px] font-black tracking-[0.25em] uppercase text-muted-foreground whitespace-nowrap">
+      <div className="flex items-center gap-2 mb-3">
+        <h3 className="text-[10px] font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
           {t.label}
         </h3>
-        <div className="h-px flex-1 bg-border" />
+        <div className="h-px flex-1 bg-border/60" />
       </div>
 
       {/* Main row: play + time/progress */}
-      <div className="flex items-center gap-4">
-        {/* Play button with soft glow */}
+      <div className="flex items-center gap-3">
+        {/* Play button - subtle */}
         <button
           type="button"
           onClick={onPrimary}
@@ -148,62 +148,45 @@ export function SidebarListenCard({
           aria-label={playing ? t.pause : t.play}
           aria-pressed={playing}
           className={[
-            "relative shrink-0 group/btn",
+            "relative shrink-0 flex h-9 w-9 items-center justify-center rounded-[6px]",
+            "bg-brand text-brand-foreground transition-all",
+            "hover:brightness-110 active:scale-95 disabled:opacity-70",
             FOCUS_RING,
-            "rounded-[6px]",
           ].join(" ")}
         >
-          <span
-            aria-hidden
-            className={[
-              "absolute -inset-1 rounded-full blur-md transition-opacity",
-              playing
-                ? "bg-brand/40 opacity-100 animate-pulse"
-                : "bg-brand/25 opacity-70 group-hover/btn:opacity-100",
-            ].join(" ")}
-          />
-          <span
-            className={[
-              "relative flex h-14 w-14 items-center justify-center rounded-full",
-              "bg-brand text-brand-foreground shadow-lg shadow-brand/40",
-              "transition-transform active:scale-95 group-hover/btn:brightness-110",
-              loading ? "opacity-80" : "",
-            ].join(" ")}
-          >
-            {loading ? (
-              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-            ) : playing ? (
-              <Pause className="h-6 w-6" aria-hidden />
-            ) : (
-              <Play className="h-6 w-6 translate-x-[1px]" aria-hidden fill="currentColor" />
-            )}
-          </span>
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : playing ? (
+            <Pause className="h-4 w-4" aria-hidden />
+          ) : (
+            <Play className="h-4 w-4 translate-x-[1px]" aria-hidden fill="currentColor" />
+          )}
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2 mb-2.5">
-            <span className="text-lg font-bold tracking-tight tabular-nums text-foreground">
+          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+            <span className="text-xs font-medium tabular-nums text-foreground">
               {showProgress ? currentLabel : loading ? "…" : "00:00"}
             </span>
-            <span className="text-[11px] font-bold tabular-nums tracking-wide text-muted-foreground">
+            <span className="text-[10px] tabular-nums text-muted-foreground">
               / {totalLabel}
             </span>
           </div>
 
           {/* Slider */}
-          <div className="relative h-4 flex items-center">
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-[6px] bg-muted" />
+          <div className="relative h-3 flex items-center">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-[6px] bg-muted" />
             <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-[6px] bg-brand transition-[width] duration-150"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-[3px] rounded-[6px] bg-brand/80 transition-[width] duration-150"
               style={{ width: `${displayPct}%` }}
             />
             <div
               aria-hidden
               className={[
-                "absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background border-2 border-brand shadow-md transition-transform",
+                "absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-[6px] bg-brand transition-transform",
                 showProgress ? "scale-0 group-hover/card:scale-100" : "scale-0",
               ].join(" ")}
-              style={{ left: `calc(${displayPct}% - 6px)` }}
+              style={{ left: `calc(${displayPct}% - 5px)` }}
             />
             <input
               type="range"
@@ -230,7 +213,7 @@ export function SidebarListenCard({
       </div>
 
       {/* Footer: download + status/retry */}
-      <div className="mt-5 pt-4 flex items-center justify-between border-t border-border/60">
+      <div className="mt-3 pt-3 flex items-center justify-between border-t border-border/50">
         <button
           type="button"
           onClick={() => void onDownload()}
@@ -238,22 +221,21 @@ export function SidebarListenCard({
           aria-label={downloading ? t.downloading : t.download}
           title={t.download}
           className={[
-            "group/dl inline-flex items-center gap-2 rounded-[6px] text-muted-foreground",
+            "inline-flex items-center gap-1.5 rounded-[6px] text-muted-foreground",
             "hover:text-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
             FOCUS_RING,
           ].join(" ")}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-muted/60 group-hover/dl:bg-brand/10 transition-colors">
-            {downloading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            ) : (
-              <Download className="h-3.5 w-3.5" aria-hidden />
-            )}
-          </span>
-          <span className="text-[10px] font-extrabold tracking-[0.2em] uppercase">
+          {downloading ? (
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          ) : (
+            <Download className="h-3 w-3" aria-hidden />
+          )}
+          <span className="text-[10px] font-semibold tracking-[0.15em] uppercase">
             {t.download}
           </span>
         </button>
+
 
         {errored ? (
           <button
