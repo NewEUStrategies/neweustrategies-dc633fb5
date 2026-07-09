@@ -853,8 +853,8 @@ function EditPost() {
   );
 
   const catsCard = (
-    <div className="bg-card border border-border rounded-lg p-4">
-      <Label className="mb-2 block">{t("admin.nav.categories")}</Label>
+    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <Label className="block">{t("admin.nav.categories")}</Label>
       <div className="space-y-1 max-h-48 overflow-auto">
         {allCats?.map((c) => (
           <label key={c.id} className="flex items-center gap-2 text-sm">
@@ -874,12 +874,51 @@ function EditPost() {
           <p className="text-xs text-muted-foreground">{t("admin.posts.noCats")}</p>
         )}
       </div>
+      <div className="pt-3 border-t border-border space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">Dodaj nową kategorię</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            value={newCatPl}
+            onChange={(e) => setNewCatPl(e.target.value)}
+            placeholder="Nazwa (PL)"
+            className="h-8 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addCategory();
+              }
+            }}
+          />
+          <Input
+            value={newCatEn}
+            onChange={(e) => setNewCatEn(e.target.value)}
+            placeholder="Name (EN)"
+            className="h-8 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addCategory();
+              }
+            }}
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full h-8"
+          onClick={() => void addCategory()}
+          disabled={taxonomyBusy === "cat" || !newCatPl.trim()}
+        >
+          {taxonomyBusy === "cat" ? "Dodawanie..." : "+ Dodaj kategorię"}
+        </Button>
+      </div>
     </div>
   );
 
   const tagsCard = (
-    <div className="bg-card border border-border rounded-lg p-4">
-      <Label className="mb-2 block">{t("admin.nav.tags")}</Label>
+    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <Label className="block">{t("admin.nav.tags")}</Label>
       <div className="flex flex-wrap gap-1.5 max-h-48 overflow-auto">
         {allTags?.map((tg) => {
           const active = selectedTags.includes(tg.id);
@@ -899,6 +938,33 @@ function EditPost() {
         {!allTags?.length && (
           <p className="text-xs text-muted-foreground">{t("admin.posts.noTags")}</p>
         )}
+      </div>
+      <div className="pt-3 border-t border-border space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">Dodaj nowy tag</p>
+        <div className="flex gap-2">
+          <Input
+            value={newTagName}
+            onChange={(e) => setNewTagName(e.target.value)}
+            placeholder="Nazwa tagu"
+            className="h-8 text-sm flex-1"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addTag();
+              }
+            }}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={() => void addTag()}
+            disabled={taxonomyBusy === "tag" || !newTagName.trim()}
+          >
+            {taxonomyBusy === "tag" ? "..." : "+ Dodaj"}
+          </Button>
+        </div>
       </div>
     </div>
   );
