@@ -1,8 +1,8 @@
 // Foxiz-style metabox z zakładkami w edytorze wpisów i stron.
 // - Zakładki po lewej (pionowo, jak w Foxiz "Single Page Settings")
 // - Panel po prawej
-// - Zakładki: Spis treści (ToC), Ochrona treści (Membership), Kluczowe punkty
-// - Wariant "page" ukrywa zakładkę Kluczowych punktów.
+// - Zakładki: Spis treści (ToC), Ochrona treści (Membership), „Dowiesz się, że..."
+// - Sekcja „Dowiesz się, że..." dostępna dla wpisów i stron (max 7 punktów).
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
