@@ -504,7 +504,21 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             [postAuthor.first_name, postAuthor.last_name].filter(Boolean).join(" ") ||
             undefined,
           slug: postAuthor.slug ?? undefined,
-          avatarUrl: postAuthor.avatar_url ?? undefined,
+          avatarUrl:
+            postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? undefined,
+          jobTitle: postAuthor.author_profile?.job_title ?? undefined,
+          company: postAuthor.author_profile?.company ?? undefined,
+          bio_pl: postAuthor.author_profile?.bio_pl ?? undefined,
+          bio_en: postAuthor.author_profile?.bio_en ?? undefined,
+          contactEmail: postAuthor.author_profile?.contact_email ?? undefined,
+          phone: postAuthor.author_profile?.phone ?? undefined,
+          websiteUrl: postAuthor.author_profile?.website_url ?? undefined,
+          xUrl: postAuthor.author_profile?.x_url ?? undefined,
+          linkedinUrl: postAuthor.author_profile?.linkedin_url ?? undefined,
+          facebookUrl: postAuthor.author_profile?.facebook_url ?? undefined,
+          instagramUrl: postAuthor.author_profile?.instagram_url ?? undefined,
+          spotifyUrl: postAuthor.author_profile?.spotify_url ?? undefined,
+          customSocials: postAuthor.author_profile?.custom_socials ?? undefined,
         }
       : null,
     tags: postTags ?? [],
