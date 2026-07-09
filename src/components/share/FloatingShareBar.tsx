@@ -26,6 +26,7 @@ import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
+import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
 
 type Lang = "pl" | "en";
 
@@ -48,6 +49,14 @@ interface Props {
   variant?: "rail" | "sidebar";
   /** CMS-driven config: which sub-features and social platforms to show. */
   settings?: Partial<ReadingPanelSettings>;
+  /** Włącza widget odsłuchu (TTS) nad Spisem Treści. Tylko dla wpisów tekstowych. */
+  listen?: {
+    postId: string;
+    title: string;
+    author?: string | null;
+    authorHref?: string | null;
+    readMinutes?: number | null;
+  } | null;
 }
 
 interface TocItem {
@@ -126,6 +135,7 @@ export function FloatingShareBar({
   showAfter = 240,
   variant = "rail",
   settings,
+  listen,
 }: Props) {
   const cfg: ReadingPanelSettings = useMemo(
     () => ({
@@ -332,6 +342,19 @@ export function FloatingShareBar({
 
   return (
     <>
+      {isSidebar && listen && (
+        <div className="mb-4">
+          <SidebarListenCard
+            postId={listen.postId}
+            lang={lang}
+            title={listen.title}
+            author={listen.author ?? null}
+            authorHref={listen.authorHref ?? null}
+            readMinutes={listen.readMinutes ?? null}
+            postHref={href || undefined}
+          />
+        </div>
+      )}
       <aside
         ref={railRef}
         data-floating-share

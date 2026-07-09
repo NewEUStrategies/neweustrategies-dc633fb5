@@ -67,7 +67,7 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
-import { PostListenBar } from "@/components/post/PostListenBar";
+// PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
 import { InlineToc } from "@/components/post/InlineToc";
 import { useTocDefaults, type TocOverride } from "@/lib/toc/settings";
 
@@ -563,13 +563,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     withPlaceholders={!hasBullets && isTextPost}
                   />
                 )}
-                {isPost && isTextPost && (
-                  <PostListenBar
-                    postId={it.id}
-                    lang={lang}
-                    readMinutes={readMinutes}
-                  />
-                )}
+                {/* Widget odsłuchu został przeniesiony do sidebar (nad "Spis treści"). */}
                 {isPost && (
                   <InlineToc
                     blocksDoc={blocksDoc}
@@ -666,6 +660,24 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     layoutId={
                       (post as unknown as { sidebar_layout_id?: string | null })
                         .sidebar_layout_id ?? null
+                    }
+                    listen={
+                      format !== "audio" && format !== "video"
+                        ? {
+                            postId: post.id,
+                            title,
+                            author:
+                              postAuthor?.display_name ||
+                              [postAuthor?.first_name, postAuthor?.last_name]
+                                .filter(Boolean)
+                                .join(" ") ||
+                              null,
+                            authorHref: postAuthor?.slug
+                              ? `/author/${postAuthor.slug}`
+                              : null,
+                            readMinutes: post.read_minutes ?? null,
+                          }
+                        : null
                     }
                   />
                 ) : (
