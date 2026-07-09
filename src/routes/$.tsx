@@ -542,8 +542,11 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       ) : (
         <>
           {(() => {
+            const postFormat = isPost
+              ? ((it as { post_format?: string }).post_format ?? "standard")
+              : null;
             const isTextPost =
-              isPost && it.post_format !== "audio" && it.post_format !== "video";
+              isPost && postFormat !== "audio" && postFormat !== "video";
             const hasBullets = takeaways.length > 0;
             if (!hasBullets && !isTextPost) return null;
             return (
