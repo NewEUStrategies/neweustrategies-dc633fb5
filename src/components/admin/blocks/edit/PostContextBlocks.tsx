@@ -1,13 +1,19 @@
 // Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
 import { AuthorBioView } from "@/components/blocks/PostContextViews";
+import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Plus, Trash2, Upload, X as XClose, ExternalLink } from "lucide-react";
 import {
   CurrentPostProvider,
   PLACEHOLDER_POST_CTX,
   type CurrentPostAuthor,
+  type CustomAuthorSocial,
 } from "@/lib/builder/currentPostContext";
 import { supabase } from "@/integrations/supabase/client";
 
