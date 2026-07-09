@@ -114,7 +114,8 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora. */
+/** Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora.
+ *  Emituje `data-fn="N"` na <a>, żeby zadziałał wspólny <FootnoteTooltips>. */
 function replaceFootnotes(html: string, fn: FootnoteCollector): string {
   return html.replace(/\[fn\]([\s\S]*?)\[\/fn\]/g, (_m, content: string) => {
     const text = content.trim();
@@ -122,8 +123,13 @@ function replaceFootnotes(html: string, fn: FootnoteCollector): string {
     fn.notes.push(text);
     const n = fn.notes.length;
     const safeTitle = escapeHtml(text.replace(/<[^>]+>/g, ""));
-    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" title="${safeTitle}" class="text-primary no-underline hover:underline">[${n}]</a></sup>`;
+    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" data-fn="${n}" title="${safeTitle}" aria-describedby="footnotes-heading" class="text-primary no-underline hover:underline">[${n}]</a></sup>`;
   });
+}
+
+/** Czy dany string zawiera choć jeden shortcode [fn]…[/fn]. */
+function hasFn(v: unknown): v is string {
+  return typeof v === "string" && v.includes("[fn]");
 }
 
 /** Zamienia treść przypisu z plain/markdown na czysty tekst dla listy końcowej. */
@@ -132,6 +138,7 @@ function renderFootnoteHtml(text: string): string {
 }
 
 export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
+  const articleRef = useRef<HTMLElement | null>(null);
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
@@ -142,9 +149,14 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   const fn: FootnoteCollector = { notes: [] };
   const fnHtml = new Map<string, string>();
   precomputeFootnotes(safe.blocks, fn, fnHtml);
+  const tooltipNotes: Footnote[] = fn.notes.map((html, i) => ({ id: i + 1, html }));
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
-    <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
+    <article
+      ref={articleRef}
+      className="blocks-content prose prose-lg dark:prose-invert max-w-none"
+      lang={lang}
+    >
       {safe.blocks.map((b) => (
         // Per-block isolation, mirroring the builder's per-widget boundary: one
         // malformed block degrades to nothing (prod) / a diagnostic (dev) instead
@@ -170,6 +182,9 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
           <ol data-footnotes-list className="space-y-2 pl-5 list-decimal">
             {fn.notes.map((n, i) => (
               <li key={i} id={`fn-${i + 1}`}>
+                <span data-fn-marker className="sr-only">
+                  [{i + 1}]
+                </span>
                 <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n) }} />{" "}
                 <a
                   href={`#fnref-${i + 1}`}
@@ -185,9 +200,13 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
           </ol>
         </section>
       )}
+      {tooltipNotes.length > 0 && (
+        <FootnoteTooltips notes={tooltipNotes} containerRef={articleRef} />
+      )}
     </article>
   );
 }
+
 
 /**
  * Walk blocks in render order (columns: left then right), transforming the
