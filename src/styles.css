@@ -1031,8 +1031,13 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-meta-color, var(--muted-foreground));
   text-transform: var(--td-meta-transform, none);
 }
-.cms-meta-info > * + *::before {
-  content: "•";
+/* Auto-separator between adjacent meta children. Uses --td-meta-sep so the
+   admin "Separator" setting (dot / slash / pipe / none) drives production +
+   CMS canvases the same way. Skipped when a manual separator element sits
+   between siblings (e.g. `.cms-meta-sep` used in some canvases and admin
+   previews) to avoid double-rendering. */
+.cms-meta-info > *:not(.cms-meta-sep) + *:not(.cms-meta-sep)::before {
+  content: var(--td-meta-sep, "\2022");
   margin-right: var(--td-meta-gap, 12px);
   opacity: 0.6;
 }
