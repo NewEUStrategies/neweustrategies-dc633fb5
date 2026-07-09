@@ -3138,11 +3138,12 @@ textarea::placeholder {
 }
 .key-takeaways__ghost-title {
   color: var(--kt-title, #111827);
-  opacity: 0.12;
-  font-size: clamp(3rem, 12vw, 8rem);
-  letter-spacing: -0.02em;
+  opacity: 0.13;
+  font-size: clamp(3.5rem, 16vw, 11rem);
+  letter-spacing: -0.03em;
   z-index: 0;
-  transform: translateY(-0.15em);
+  top: 50%;
+  transform: translateY(-50%);
 }
 .dark .key-takeaways__ghost-title {
   color: var(--kt-title-dark, #ffffff);
