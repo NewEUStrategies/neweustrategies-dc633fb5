@@ -3130,11 +3130,13 @@ textarea::placeholder {
    przecinają go w połowie. Overflow:hidden na kontenerze przycina tekst,
    który zawsze idzie w jednym wierszu (whitespace-nowrap). */
 .key-takeaways--ghost {
-  padding: 0;
+  /* Robimy miejsce nad listą na całą wysokość ghost tytułu tak, by dolna
+     krawędź tytułu mogła się zrównać z dolną krawędzią pierwszej linijki
+     pierwszego punktu (~2.75rem od góry listy). */
+  padding-top: calc(clamp(8.75rem, 40vw, 27.5rem) - 2.75rem);
 }
 .key-takeaways--ghost .key-takeaways__ghost {
-  min-height: clamp(3rem, 8vw, 5rem);
-  overflow: hidden;
+  overflow: visible;
 }
 .key-takeaways__ghost-title {
   color: var(--kt-title, #111827);
