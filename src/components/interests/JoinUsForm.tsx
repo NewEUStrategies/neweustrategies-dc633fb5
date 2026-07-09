@@ -148,6 +148,8 @@ export function JoinUsForm({
   imagePosition = "center",
   imageAspect,
   imageFit = "cover",
+  bgLight,
+  bgDark,
 
   title,
   subtitle,
