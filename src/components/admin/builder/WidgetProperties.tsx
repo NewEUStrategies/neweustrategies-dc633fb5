@@ -47,6 +47,7 @@ import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 import { AccessControl } from "./ui/molecules/AccessControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
+import { LinkPicker } from "./ui/molecules/LinkPicker";
 
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import {
