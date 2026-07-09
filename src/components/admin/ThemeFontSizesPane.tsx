@@ -44,10 +44,13 @@ export function ThemeFontSizesPane() {
     if (data) setDraft(data);
   }, [data]);
 
-  const previewCss = useMemo(
-    () => `.font-sizes-preview{${extractRootBody(fontSizesToCss(draft))}}`,
-    [draft],
-  );
+  // Live preview: emit the draft tokens at :root scope so the whole app
+  // (this pane's preview card, block editor canvas, any open article) reflects
+  // typography changes instantly, without saving or reloading. This <style>
+  // renders after <ThemeFontSizesStyle /> in the DOM, so same-specificity
+  // cascade wins and takes precedence until the pane unmounts or the draft
+  // is saved.
+  const previewCss = useMemo(() => fontSizesToCss(draft), [draft]);
 
   const setHeading = <K extends keyof FontSizesSettings["headings"]["h1"]>(
     level: HeadingLevel,
