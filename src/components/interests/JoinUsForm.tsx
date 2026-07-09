@@ -472,7 +472,10 @@ export function JoinUsForm({
   // Kontener: domyślnie `bg-card` (global colors); gdy operator ustawi
   // `bgLight`/`bgDark` (w tym "transparent") - drop `bg-card` i użyj CSS
   // vars ze scoped <style> poniżej.
-  const bgClass = hasCustomBg ? "" : "bg-card";
+  // Kontener: domyślnie tło przezroczyste (formularz "siedzi" na tle strony /
+  // sekcji). Operator może w każdej chwili nadpisać `bgLight` / `bgDark`
+  // (np. `var(--card)` żeby wrócić do global colors, dowolny hex, gradient).
+  const bgClass = hasCustomBg ? "" : "bg-transparent";
   const containerCls =
     (variant === "inline"
       ? "border-t border-b border-border py-6"
