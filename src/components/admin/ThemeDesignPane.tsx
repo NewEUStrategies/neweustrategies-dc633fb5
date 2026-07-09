@@ -2,7 +2,8 @@
 // "Read more" buttons, meta info, toolbar buttons, mode switcher, social icons
 // + global slider/carousel defaults.
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { cn } from "@/lib/utils";
 import {
   Save,
   Sun,
