@@ -541,12 +541,19 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
-          {takeaways.length > 0 && (
-            <KeyTakeaways
-              items={takeaways}
-              variantOverride={it.takeaways_variant ?? undefined}
-            />
-          )}
+          {(() => {
+            const isTextPost =
+              isPost && it.post_format !== "audio" && it.post_format !== "video";
+            const hasBullets = takeaways.length > 0;
+            if (!hasBullets && !isTextPost) return null;
+            return (
+              <KeyTakeaways
+                items={takeaways}
+                variantOverride={it.takeaways_variant ?? undefined}
+                withPlaceholders={!hasBullets && isTextPost}
+              />
+            );
+          })()}
           <ContentRenderer
             editor={it.editor}
             builderDoc={doc}
