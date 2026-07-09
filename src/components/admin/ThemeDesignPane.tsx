@@ -224,7 +224,7 @@ export function ThemeDesignPane() {
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PreviewSection)} className="space-y-4">
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
-          <TabsList className="flex flex-wrap h-auto gap-1.5 justify-start bg-transparent p-0">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 h-auto gap-1.5 bg-transparent p-0">
             {[
               { v: "block-heading",  label: "Nagłówki bloków" },
               { v: "thumbnail",      label: "Miniatury" },
@@ -242,7 +242,7 @@ export function ThemeDesignPane() {
               <TabsTrigger
                 key={t.v}
                 value={t.v}
-                className="h-8 px-3 rounded-md text-xs font-medium bg-muted/40 border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted transition-colors data-[state=active]:bg-brand data-[state=active]:text-[color:var(--brand-foreground)] data-[state=active]:border-brand data-[state=active]:shadow-sm"
+                className="w-full h-9 px-3 rounded-none text-xs font-medium bg-muted/40 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors data-[state=active]:bg-brand data-[state=active]:text-[color:var(--brand-foreground)] data-[state=active]:border-brand data-[state=active]:shadow-sm"
               >
                 {t.label}
               </TabsTrigger>
