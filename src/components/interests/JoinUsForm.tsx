@@ -56,6 +56,8 @@ export interface JoinUsFormProps {
   //     Można ustawić "transparent" żeby formularz "siedział" na tle strony.
   bgLight?: string;
   bgDark?: string;
+  /** Kolor ikony ✓ (Lucide `Check`) przy bulletpointach perks. Puste = domyślnie brand / white (dla wariantu split-image). */
+  perkIconColor?: string;
 
 
 
