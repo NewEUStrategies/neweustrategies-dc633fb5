@@ -123,8 +123,21 @@ export function ThemeDesignPane() {
       <p className="text-sm text-muted-foreground">
         Globalne style dla nagłówków bloków, miniatur, przycisku „Czytaj więcej” oraz informacji
         meta. Wartości są aplikowane jako zmienne CSS (<code>--td-*</code>) i nadpisują domyślny
-        wygląd kart i widgetów.
+        wygląd kart i widgetów - w tym w kanwach builderów CMS (Gutenberg + Elementor).
       </p>
+
+      <I18nAndLiveToolbar
+        mode={mode}
+        onModeChange={(m) => saveLangMode.mutate({ mode: m })}
+        editLang={editLang}
+        onEditLangChange={setEditLang}
+        liveSync={liveSync}
+        onLiveSyncChange={setLiveSync}
+        savingMode={saveLangMode.isPending}
+      />
+
+      <LivePostPreview draft={draft} previewLang={previewLang} onLangChange={setPreviewLang} />
+
 
       <Tabs defaultValue="block-heading" className="space-y-4">
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
