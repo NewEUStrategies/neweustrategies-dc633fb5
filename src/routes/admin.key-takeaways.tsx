@@ -283,6 +283,41 @@ function KeyTakeawaysAdmin() {
                   aria-label={isPL ? "Rozmiar napisu ghost" : "Ghost text size"}
                 />
               </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {isPL
+                    ? `Przesunięcie w pionie (${draft.highlight?.offsetY ?? 0}px)`
+                    : `Vertical offset (${draft.highlight?.offsetY ?? 0}px)`}
+                </Label>
+                <input
+                  type="range"
+                  min={-200}
+                  max={200}
+                  step={1}
+                  value={draft.highlight?.offsetY ?? 0}
+                  onChange={(e) =>
+                    update("highlight", {
+                      ...draft.highlight,
+                      offsetY: Number(e.target.value),
+                    })
+                  }
+                  className="w-full mt-2 accent-primary"
+                  aria-label={isPL ? "Przesunięcie etykiety w pionie" : "Label vertical offset"}
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                  <span>-200</span>
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground"
+                    onClick={() =>
+                      update("highlight", { ...draft.highlight, offsetY: 0 })
+                    }
+                  >
+                    0
+                  </button>
+                  <span>+200</span>
+                </div>
+              </div>
             </div>
           </section>
 
