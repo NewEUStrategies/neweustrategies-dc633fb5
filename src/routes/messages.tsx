@@ -141,6 +141,31 @@ function MessagesInner() {
                 </label>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+                {/* Pinned bot simulator - always available, local-only. */}
+                <button
+                  type="button"
+                  onClick={() => openConversation(BOT_ID)}
+                  aria-pressed={selected === BOT_ID}
+                  className={cn(
+                    "mb-1 flex w-full items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
+                    selected === BOT_ID && "bg-muted",
+                  )}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                    aria-hidden
+                  >
+                    <Bot className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold">
+                      {t("chat.bot.name")}
+                    </span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {t("chat.bot.subtitle")}
+                    </span>
+                  </span>
+                </button>
                 {conversationsQ.isLoading ? (
                   <p className="p-6 text-center text-sm text-muted-foreground">
                     {t("common.loading", { defaultValue: "..." })}
