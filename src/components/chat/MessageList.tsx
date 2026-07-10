@@ -209,7 +209,14 @@ export function MessageList(props: MessageListProps) {
         {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
           const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
           return (
-            <div key={message.id} className={cn(groupStart && index > 0 && "mt-2")}>
+            <div
+              key={message.id}
+              data-message-id={message.id}
+              className={cn(
+                "rounded-xl transition-colors duration-500",
+                groupStart && index > 0 && "mt-2",
+              )}
+            >
               {newDay && (
                 <div className="flex items-center justify-center py-2.5">
                   <span className="rounded-full bg-muted/70 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -237,6 +244,7 @@ export function MessageList(props: MessageListProps) {
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDiscardFailed={onDiscardFailed}
+                onJumpToReply={jumpToMessage}
               />
             </div>
           );
