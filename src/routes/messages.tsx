@@ -114,7 +114,57 @@ function MessagesInner() {
 
   return (
     <div className="container mx-auto max-w-6xl px-2 py-4 sm:px-4 sm:py-6">
-      <div className="flex h-[calc(100dvh-210px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+      <div
+        role="tablist"
+        aria-label={t("chat.messages")}
+        className="mb-3 inline-flex items-center gap-1 rounded-[8px] border border-border/60 bg-muted/40 p-1 text-sm"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "chats"}
+          onClick={() => setActiveView("chats")}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
+            activeView === "chats"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <MessagesSquare className="h-3.5 w-3.5" aria-hidden />
+          {t("chat.messages")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "notifications"}
+          onClick={() => setActiveView("notifications")}
+          className={cn(
+            "relative inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
+            activeView === "notifications"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Bell className="h-3.5 w-3.5" aria-hidden />
+          {t("notifications.title", { defaultValue: "Powiadomienia" })}
+          {unreadNotif > 0 && (
+            <span
+              className="ml-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+              aria-label={t("notifications.unread", { count: unreadNotif })}
+            >
+              {unreadNotif > 99 ? "99+" : unreadNotif}
+            </span>
+          )}
+        </button>
+      </div>
+      <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+        {activeView === "notifications" ? (
+          <div className="w-full min-w-0">
+            <NotificationsCenter />
+          </div>
+        ) : (
+          <>
         {/* Left pane: conversation list */}
         <aside
           className={cn(
