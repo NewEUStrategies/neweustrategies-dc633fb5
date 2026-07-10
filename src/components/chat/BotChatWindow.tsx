@@ -124,42 +124,56 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
           <p className="truncate text-sm font-semibold">{t("chat.bot.name")}</p>
           <p className="truncate text-[11px] text-muted-foreground">{t("chat.bot.subtitle")}</p>
         </div>
-        <div
-          role="tablist"
-          aria-label={t("chat.bot.name")}
-          className="inline-flex items-center gap-0.5 rounded-[6px] border border-border/60 bg-muted/40 p-0.5"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "variants"}
-            onClick={() => setMode("variants")}
-            title={t("chat.bot.modeVariantsHint")}
-            className={cn(
-              "rounded-[4px] px-2 py-1 text-[11px] font-medium transition-colors",
-              mode === "variants"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
+        <TooltipProvider delayDuration={150}>
+          <div
+            role="tablist"
+            aria-label={t("chat.bot.name")}
+            className="inline-flex items-center gap-0.5 rounded-[6px] border border-border/60 bg-muted/40 p-0.5"
           >
-            {t("chat.bot.modeVariants")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "echo"}
-            onClick={() => setMode("echo")}
-            title={t("chat.bot.modeEchoHint")}
-            className={cn(
-              "rounded-[4px] px-2 py-1 text-[11px] font-medium transition-colors",
-              mode === "echo"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t("chat.bot.modeEcho")}
-          </button>
-        </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "variants"}
+                  onClick={() => setMode("variants")}
+                  className={cn(
+                    "rounded-[4px] px-2 py-1 text-[11px] font-medium transition-colors",
+                    mode === "variants"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t("chat.bot.modeVariants")}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-[11px] leading-snug">
+                {t("chat.bot.modeVariantsHint")}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "echo"}
+                  onClick={() => setMode("echo")}
+                  className={cn(
+                    "rounded-[4px] px-2 py-1 text-[11px] font-medium transition-colors",
+                    mode === "echo"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t("chat.bot.modeEcho")}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-[11px] leading-snug">
+                {t("chat.bot.modeEchoHint")}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
         <button
           type="button"
           onClick={clear}
