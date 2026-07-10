@@ -148,11 +148,12 @@ export function useSendMessage() {
   return useMutation({
     mutationFn: async (input: SendMessageInput): Promise<MessageRow> => {
       if (!user) throw new Error("chat: auth required");
+      if (!tenantId) throw new Error("chat: tenant not resolved");
       const { data, error } = await supabase
         .from("messages")
         .insert({
           conversation_id: input.conversationId,
-          tenant_id: tenantId ?? "",
+          tenant_id: tenantId,
           sender_id: user.id,
           kind: input.kind,
           body: input.body ?? null,
@@ -168,7 +169,7 @@ export function useSendMessage() {
       return data;
     },
     onMutate: async (input) => {
-      if (!user) return { tempId: "", conversationId: input.conversationId };
+      if (!user || !tenantId) return { tempId: "", conversationId: input.conversationId };
       const key = chatKeys.messages(user.id, input.conversationId);
       // No cached history yet (first send raced the initial fetch): leave the
       // in-flight fetch alone - cancelling it and seeding a one-message cache
@@ -182,7 +183,7 @@ export function useSendMessage() {
       const optimistic: ChatMessage = {
         id: tempId,
         conversation_id: input.conversationId,
-        tenant_id: tenantId ?? "",
+        tenant_id: tenantId,
         sender_id: user.id,
         kind: input.kind,
         body: input.body ?? null,
@@ -374,6 +375,7 @@ export function useToggleReaction(conversationId: string) {
   return useMutation({
     mutationFn: async (input: { messageId: string; emoji: string; current?: string | null }) => {
       if (!user) throw new Error("chat: auth required");
+      if (!tenantId) throw new Error("chat: tenant not resolved");
       if (input.current === input.emoji) {
         // Same emoji again -> remove the reaction.
         const { error } = await supabase
@@ -397,7 +399,7 @@ export function useToggleReaction(conversationId: string) {
       const { error } = await supabase.from("message_reactions").insert({
         message_id: input.messageId,
         conversation_id: conversationId,
-        tenant_id: tenantId ?? "",
+        tenant_id: tenantId,
         user_id: user.id,
         emoji: input.emoji,
       });
@@ -406,7 +408,7 @@ export function useToggleReaction(conversationId: string) {
     // Optimistic: the tap lands instantly; the realtime echo (or the error
     // rollback below) reconciles the authoritative state.
     onMutate: async (input) => {
-      if (!user) return;
+      if (!user || !tenantId) return;
       const key = chatKeys.reactions(user.id, conversationId);
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<ReactionsData>(key);
@@ -418,7 +420,7 @@ export function useToggleReaction(conversationId: string) {
             id: `optimistic-${input.messageId}-${user.id}`,
             message_id: input.messageId,
             conversation_id: conversationId,
-            tenant_id: tenantId ?? "",
+            tenant_id: tenantId,
             user_id: user.id,
             emoji: input.emoji,
             created_at: new Date().toISOString(),

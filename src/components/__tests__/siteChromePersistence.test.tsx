@@ -53,6 +53,10 @@ vi.mock("@/components/RouteProgress", () => ({
   RouteProgress: () => null,
 }));
 
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ user: null, tenantId: null }),
+}));
+
 let currentPath = "/";
 
 vi.mock("@tanstack/react-router", () => ({
