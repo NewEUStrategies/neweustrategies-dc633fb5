@@ -333,11 +333,15 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     >
       <div className={cn("flex max-w-[78%] flex-col", mine ? "items-end" : "items-start")}>
         {repliedMessage && (
-          <div
+          <button
+            type="button"
+            onClick={() => onJumpToReply?.(repliedMessage.id)}
             className={cn(
-              "mb-0.5 max-w-full truncate rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground",
-              mine ? "text-right" : "text-left",
+              "mb-0.5 max-w-full truncate rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              mine ? "text-right self-end" : "text-left self-start",
             )}
+            aria-label={t("chat.jumpToReplied", { defaultValue: "Przejdź do oryginalnej wiadomości" })}
+            title={t("chat.jumpToReplied", { defaultValue: "Przejdź do oryginalnej wiadomości" })}
           >
             <span className="font-medium">
               {t("chat.replyToMessage")} {repliedAuthorName ?? ""}
@@ -348,7 +352,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                 : (repliedMessage.body ??
                   (repliedMessage.kind === "image" ? t("chat.photo") : t("chat.file")))}
             </span>
-          </div>
+          </button>
         )}
         {content}
         <ReactionChips
