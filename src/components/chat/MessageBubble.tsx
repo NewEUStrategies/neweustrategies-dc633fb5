@@ -34,6 +34,8 @@ export interface MessageBubbleProps {
   onEdit: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
+  /** Scroll/jump to the quoted original message (if still in the loaded window). */
+  onJumpToReply?: (messageId: string) => void;
 }
 
 type ReceiptState = "pending" | "sent" | "delivered" | "read";
