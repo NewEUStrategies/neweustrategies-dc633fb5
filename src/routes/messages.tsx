@@ -123,19 +123,21 @@ function MessagesInner() {
             <NewChatSearch onOpened={openConversation} />
           ) : (
             <>
-              <div className="relative px-2 pb-2">
-                <Search
-                  className="pointer-events-none absolute left-5 top-1/2 -mt-1 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <input
-                  type="text"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  placeholder={t("chat.searchConversations")}
-                  aria-label={t("chat.searchConversations")}
-                  className="h-10 w-full rounded-[6px] border border-input bg-muted/40 pl-10 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
+              <div className="px-2 pb-2">
+                <label className="relative block">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <input
+                    type="text"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    placeholder={t("chat.searchConversations")}
+                    aria-label={t("chat.searchConversations")}
+                    className="h-10 w-full rounded-[6px] border border-input bg-muted/40 pl-10 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </label>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
                 {conversationsQ.isLoading ? (
