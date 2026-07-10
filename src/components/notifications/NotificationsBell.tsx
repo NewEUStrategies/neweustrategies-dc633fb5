@@ -156,9 +156,19 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             </div>
           ) : (
             <ul className="divide-y divide-border/60">
-              {items.map((n) => {
+              {groups.map((g) => {
+                const n = g.latest;
                 const IconCmp = resolveIcon(n.icon) ?? LucideIcons.Circle;
-                const isUnread = !n.read_at;
+                const groupUnread = g.unreadCount;
+                const isUnread = groupUnread > 0;
+                const extra = g.items.length - 1;
+                const title =
+                  g.isConversation && !g.isSingle
+                    ? t("notifications.grouped.messagesFrom", {
+                        name: pickTitle(n, lang),
+                        defaultValue: `Messages from ${pickTitle(n, lang)}`,
+                      })
+                    : pickTitle(n, lang);
                 const inner = (
                   <div className="flex items-start gap-2.5 px-3 py-2.5">
                     <div
@@ -178,13 +188,15 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                             isUnread ? "font-semibold" : "font-medium text-muted-foreground",
                           ].join(" ")}
                         >
-                          {pickTitle(n, lang)}
+                          {title}
                         </span>
-                        {isUnread && (
+                        {groupUnread > 0 && (
                           <span
-                            className="h-1.5 w-1.5 rounded-full bg-primary shrink-0"
-                            aria-hidden
-                          />
+                            className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground"
+                            aria-label={t("notifications.unread", { count: groupUnread })}
+                          >
+                            {groupUnread > 99 ? "99+" : groupUnread}
+                          </span>
                         )}
                       </div>
                       {pickBody(n, lang) && (
@@ -192,18 +204,73 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           {pickBody(n, lang)}
                         </p>
                       )}
-                      <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                        {relTime(n.created_at, lang)}
+                      <div className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                        <span>{relTime(n.created_at, lang)}</span>
+                        {extra > 0 && (
+                          <span aria-hidden>
+                            {t("notifications.grouped.moreMessages", {
+                              count: extra,
+                              defaultValue: `+${extra} more`,
+                            })}
+                          </span>
+                        )}
                       </div>
+                    </div>
+                    <div
+                      className="ml-1 flex shrink-0 items-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isUnread ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            g.items.forEach((it) => {
+                              if (!it.read_at) markOne.mutate(it.id);
+                            });
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={t("notifications.markRead", {
+                            defaultValue: "Oznacz jako przeczytane",
+                          })}
+                          title={t("notifications.markRead", {
+                            defaultValue: "Oznacz jako przeczytane",
+                          })}
+                        >
+                          <LucideIcons.Check className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            unreadOne.mutate(g.latest.id);
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={t("notifications.markUnread", {
+                            defaultValue: "Oznacz jako nieprzeczytane",
+                          })}
+                          title={t("notifications.markUnread", {
+                            defaultValue: "Oznacz jako nieprzeczytane",
+                          })}
+                        >
+                          <LucideIcons.Mail className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
                 const onClick = () => {
-                  if (isUnread) markOne.mutate(n.id);
+                  // Clicking the row navigates and marks all wrapped rows read.
+                  g.items.forEach((it) => {
+                    if (!it.read_at) markOne.mutate(it.id);
+                  });
                   setOpen(false);
                 };
                 return (
-                  <li key={n.id}>
+                  <li key={g.key}>
                     {n.href ? (
                       <a
                         href={n.href}
@@ -216,7 +283,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                       <button
                         type="button"
                         onClick={onClick}
-                        className="w-full text-left hover:bg-muted/50 transition-colors"
+                        className="block w-full text-left hover:bg-muted/50 transition-colors"
                       >
                         {inner}
                       </button>
@@ -227,6 +294,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             </ul>
           )}
         </div>
+
+
 
         <div className="border-t border-border/60 p-2">
           <Link
