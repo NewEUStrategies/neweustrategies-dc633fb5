@@ -192,16 +192,16 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
               >
                 <div
                   className={cn(
-                    "max-w-[75%] rounded-[10px] px-3 py-1.5 text-[13px] leading-snug",
+                    "max-w-[75%] rounded-[10px] px-3 py-1.5 text-[13px] font-normal leading-snug tracking-normal",
                     m.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-foreground",
                   )}
                 >
-                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                  <p className="whitespace-pre-wrap break-words font-normal">{m.body}</p>
                   <p
                     className={cn(
-                      "mt-0.5 text-[10px] tabular-nums",
+                      "mt-0.5 text-[10px] font-normal tabular-nums",
                       m.role === "user"
                         ? "text-primary-foreground/70"
                         : "text-muted-foreground/70",
