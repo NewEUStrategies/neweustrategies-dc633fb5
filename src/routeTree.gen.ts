@@ -37,7 +37,6 @@ import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
-import { Route as ProfileNotificationsRouteImport } from './routes/profile.notifications'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
@@ -47,6 +46,7 @@ import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as MessagesNotificationsRouteImport } from './routes/messages.notifications'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -267,11 +267,6 @@ const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => ProfileRoute,
 } as any)
-const ProfileNotificationsRoute = ProfileNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => ProfileRoute,
-} as any)
 const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
   id: '/interests',
   path: '/interests',
@@ -316,6 +311,11 @@ const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
   getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesNotificationsRoute = MessagesNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => MessagesRoute,
 } as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
@@ -728,7 +728,7 @@ export interface FileRoutesByFullPath {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
-  '/messages': typeof MessagesRoute
+  '/messages': typeof MessagesRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/pricing': typeof PricingRoute
@@ -785,6 +785,7 @@ export interface FileRoutesByFullPath {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/messages/notifications': typeof MessagesNotificationsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
@@ -794,7 +795,6 @@ export interface FileRoutesByFullPath {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
-  '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -846,7 +846,7 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
-  '/messages': typeof MessagesRoute
+  '/messages': typeof MessagesRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/pricing': typeof PricingRoute
@@ -899,6 +899,7 @@ export interface FileRoutesByTo {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/messages/notifications': typeof MessagesNotificationsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
@@ -908,7 +909,6 @@ export interface FileRoutesByTo {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
-  '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -962,7 +962,7 @@ export interface FileRoutesById {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
-  '/messages': typeof MessagesRoute
+  '/messages': typeof MessagesRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/pricing': typeof PricingRoute
@@ -1019,6 +1019,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/messages/notifications': typeof MessagesNotificationsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
@@ -1028,7 +1029,6 @@ export interface FileRoutesById {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
-  '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1140,6 +1140,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/messages/notifications'
     | '/newsletter/confirm'
     | '/podcast/$slug'
     | '/post/$slug'
@@ -1149,7 +1150,6 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/follows'
     | '/profile/interests'
-    | '/profile/notifications'
     | '/profile/orders'
     | '/profile/personality'
     | '/profile/security'
@@ -1254,6 +1254,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/messages/notifications'
     | '/newsletter/confirm'
     | '/podcast/$slug'
     | '/post/$slug'
@@ -1263,7 +1264,6 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/follows'
     | '/profile/interests'
-    | '/profile/notifications'
     | '/profile/orders'
     | '/profile/personality'
     | '/profile/security'
@@ -1373,6 +1373,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/messages/notifications'
     | '/newsletter/confirm'
     | '/podcast/$slug'
     | '/post/$slug'
@@ -1382,7 +1383,6 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/follows'
     | '/profile/interests'
-    | '/profile/notifications'
     | '/profile/orders'
     | '/profile/personality'
     | '/profile/security'
@@ -1436,7 +1436,7 @@ export interface RootRouteChildren {
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
-  MessagesRoute: typeof MessagesRoute
+  MessagesRoute: typeof MessagesRouteWithChildren
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
   PricingRoute: typeof PricingRoute
@@ -1667,13 +1667,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileOrdersRouteImport
       parentRoute: typeof ProfileRoute
     }
-    '/profile/notifications': {
-      id: '/profile/notifications'
-      path: '/notifications'
-      fullPath: '/profile/notifications'
-      preLoaderRoute: typeof ProfileNotificationsRouteImport
-      parentRoute: typeof ProfileRoute
-    }
     '/profile/interests': {
       id: '/profile/interests'
       path: '/interests'
@@ -1736,6 +1729,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/newsletter/confirm'
       preLoaderRoute: typeof NewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/messages/notifications': {
+      id: '/messages/notifications'
+      path: '/notifications'
+      fullPath: '/messages/notifications'
+      preLoaderRoute: typeof MessagesNotificationsRouteImport
+      parentRoute: typeof MessagesRoute
     }
     '/checkout/success': {
       id: '/checkout/success'
@@ -2503,6 +2503,18 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface MessagesRouteChildren {
+  MessagesNotificationsRoute: typeof MessagesNotificationsRoute
+}
+
+const MessagesRouteChildren: MessagesRouteChildren = {
+  MessagesNotificationsRoute: MessagesNotificationsRoute,
+}
+
+const MessagesRouteWithChildren = MessagesRoute._addFileChildren(
+  MessagesRouteChildren,
+)
+
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileAuthorRoute: typeof ProfileAuthorRoute
@@ -2510,7 +2522,6 @@ interface ProfileRouteChildren {
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
-  ProfileNotificationsRoute: typeof ProfileNotificationsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
   ProfilePersonalityRoute: typeof ProfilePersonalityRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
@@ -2526,7 +2537,6 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileBookmarksRoute: ProfileBookmarksRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
-  ProfileNotificationsRoute: ProfileNotificationsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
   ProfilePersonalityRoute: ProfilePersonalityRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,
@@ -2546,7 +2556,7 @@ const rootRouteChildren: RootRouteChildren = {
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
-  MessagesRoute: MessagesRoute,
+  MessagesRoute: MessagesRouteWithChildren,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
   PricingRoute: PricingRoute,

@@ -27,7 +27,7 @@ import {
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
 
-export const Route = createFileRoute("/profile/notifications")({
+export const Route = createFileRoute("/messages/notifications")({
   component: NotificationsInboxPage,
 });
 
