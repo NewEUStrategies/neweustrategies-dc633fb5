@@ -12,6 +12,7 @@ import {
   Bot,
   Check,
   CheckCheck,
+  Images,
   Reply,
   SendHorizontal,
   SmilePlus,
@@ -21,6 +22,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { QUICK_REACTIONS } from "@/lib/chat/emojiQuick";
+import { ChatMediaPanel } from "./ChatMediaPanel";
 import { cn } from "@/lib/utils";
 
 type BotMode = "echo" | "variants";
@@ -66,6 +68,7 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
   const [reactions, setReactions] = useState<Readonly<Record<string, string>>>({});
   const [replyingTo, setReplyingTo] = useState<BotMessage | null>(null);
   const [reactOpenId, setReactOpenId] = useState<string | null>(null);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastBotReplyRef = useRef<string | undefined>(undefined);
@@ -222,6 +225,19 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
           </div>
           <button
             type="button"
+            onClick={() => setMediaOpen((v) => !v)}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              mediaOpen && "bg-muted text-foreground",
+            )}
+            aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+            aria-pressed={mediaOpen}
+            title={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+          >
+            <Images className="h-4 w-4" aria-hidden />
+          </button>
+          <button
+            type="button"
             onClick={clear}
             disabled={messages.length === 0 && !typing}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
@@ -231,6 +247,9 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
             <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </header>
+
+        <div className="flex min-h-0 flex-1 flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
 
         {/* Messages */}
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -491,6 +510,17 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
             <SendHorizontal className="h-4 w-4" aria-hidden />
           </button>
         </form>
+          </div>
+          {mediaOpen && (
+            <ChatMediaPanel
+              conversationId="bot-local"
+              enabled={false}
+              onClose={() => setMediaOpen(false)}
+              className="w-[220px] shrink-0"
+              localRows={[]}
+            />
+          )}
+        </div>
       </div>
     </TooltipProvider>
   );
