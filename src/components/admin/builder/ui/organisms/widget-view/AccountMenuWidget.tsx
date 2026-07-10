@@ -5,7 +5,7 @@
 //   - style panelu: tło, kolor tekstu, akcent, zaokrąglenie, szerokość
 //   - presety profilu (/profile, /profile/bookmarks, ...) + strony z DB pages + URL custom
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
-import { useMemo, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useMemo, useState, type CSSProperties } from "react";
 import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +18,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
+
+// Lazy: the chat bundle (incl. its i18n resources) loads only for signed-in
+// users, keeping the guest header untouched and the widget graph decoupled.
+const ChatBell = lazy(() =>
+  import("@/components/chat/ChatBell").then((m) => ({ default: m.ChatBell })),
+);
 
 type Lang = "pl" | "en";
 
@@ -108,6 +114,20 @@ export const ACCOUNT_PRESETS: Array<{
     label_pl: "Obserwowane",
     label_en: "Following",
     icon: "Heart",
+  },
+  {
+    key: "messages",
+    href: "/messages",
+    label_pl: "Wiadomości",
+    label_en: "Messages",
+    icon: "MessageCircle",
+  },
+  {
+    key: "people",
+    href: "/people",
+    label_pl: "Osoby",
+    label_en: "People",
+    icon: "Users",
   },
   {
     key: "interests",
@@ -458,6 +478,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
 
   return (
     <div className="inline-flex items-center gap-1">
+      {session ? (
+        <Suspense fallback={null}>
+          <ChatBell />
+        </Suspense>
+      ) : null}
       {session ? <NotificationsBell /> : null}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>

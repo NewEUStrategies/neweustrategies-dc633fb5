@@ -1,9 +1,16 @@
 import { useRouterState } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+
+// Floating chat dock (Messenger-style). Lazy: signed-out visitors and the
+// first paint never pay for the chat bundle; the component renders nothing
+// until hydration + auth resolve anyway.
+const ChatDock = lazy(() =>
+  import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
+);
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
@@ -32,12 +39,20 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
 
+  const chatDock =
+    isAdmin || isLogin ? null : (
+      <Suspense fallback={null}>
+        <ChatDock />
+      </Suspense>
+    );
+
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
         <ImpersonationBanner />
         <RouteProgress />
         {children}
+        {chatDock}
       </>
     );
   }
@@ -51,6 +66,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
+      {chatDock}
     </div>
   );
 }

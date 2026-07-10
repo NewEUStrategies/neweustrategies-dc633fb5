@@ -18,7 +18,11 @@ import {
 } from "@/components/ui/select";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
+import { Switch } from "@/components/ui/switch";
+import { Eye, EyeOff } from "lucide-react";
+import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { toast } from "sonner";
+import "@/lib/i18n-chat";
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
@@ -44,6 +48,61 @@ interface ProfileRow {
 const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
 const MAX_AVATAR = 2 * 1024 * 1024;
 const MAX_COVER = 5 * 1024 * 1024;
+
+function PrivacyVisibilitySection() {
+  const { t } = useTranslation();
+  const discoverableQ = useDiscoverable();
+  const setDiscoverable = useSetDiscoverable();
+  const on = discoverableQ.data ?? false;
+
+  return (
+    <section
+      className={
+        "grid gap-2 rounded-lg border px-4 py-3 " +
+        (on ? "border-border/60 bg-muted/30" : "border-[var(--brand)]/40 bg-[var(--brand)]/5")
+      }
+    >
+      <h3 className="text-sm font-semibold text-foreground/80">{t("profilePrivacy.section")}</h3>
+      <div className="flex items-start gap-3">
+        {on ? (
+          <Eye
+            className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+            aria-hidden
+          />
+        ) : (
+          <EyeOff className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" aria-hidden />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">
+            {t("profilePrivacy.discoverableLabel")}
+          </p>
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">
+            {t("profilePrivacy.discoverableHint")}
+          </p>
+          <p className="mt-1 text-[11px] leading-snug text-muted-foreground/80">
+            {t("profilePrivacy.externalNote")}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <Switch
+            checked={on}
+            disabled={discoverableQ.isLoading || setDiscoverable.isPending}
+            onCheckedChange={(next) =>
+              setDiscoverable.mutate(next, {
+                onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                onError: () => toast.error(t("profilePrivacy.saveError")),
+              })
+            }
+            aria-label={t("profilePrivacy.discoverableLabel")}
+          />
+          <span className="hidden text-xs font-medium sm:inline">
+            {on ? t("profilePrivacy.discoverableOn") : t("profilePrivacy.discoverableOff")}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function AccountPage() {
   const { t } = useTranslation();
@@ -231,6 +290,12 @@ function AccountPage() {
         </CardHeader>
         <CardContent>
           <form className="grid gap-5" onSubmit={save}>
+            {/* Privacy & visibility - deliberately first and highlighted:
+                the user must clearly see and control whether their profile is
+                indexed by the internal people search. External access (anon
+                visitors, crawlers) is always blocked regardless. */}
+            <PrivacyVisibilitySection />
+
             {/* Personal */}
             <section className="grid gap-4">
               <h3 className="text-sm font-semibold text-foreground/80">
