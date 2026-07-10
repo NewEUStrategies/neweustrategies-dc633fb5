@@ -86,7 +86,7 @@ function SearchPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={t("search.placeholder")}
-              className="pl-9"
+              className="icon-input"
               autoFocus
             />
           </div>
