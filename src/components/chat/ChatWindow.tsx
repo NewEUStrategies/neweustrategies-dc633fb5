@@ -366,6 +366,7 @@ export function ChatWindow(props: ChatWindowProps) {
             {peerOnline ? t("chat.online") : t("chat.offline")}
           </div>
         </div>
+        {mediaToggle}
         {onMinimize && (
           <button
             type="button"
