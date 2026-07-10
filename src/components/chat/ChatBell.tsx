@@ -122,7 +122,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
             type="button"
             onClick={() => setMode(mode === "new" ? "list" : "new")}
             className={cn(
-              "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              "inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               mode === "new" && "bg-muted text-foreground",
             )}
             aria-label={t("chat.newMessage")}
