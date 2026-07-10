@@ -2776,6 +2776,16 @@ textarea::placeholder {
   color: var(--gc-input-placeholder-dark, oklch(0.58 0 0));
 }
 
+/* Keep typed text and placeholders clear of auth field icons. The shared
+   widget baseline sets padding-inline later than utilities, so these explicit
+   directional rules intentionally take precedence. */
+input.auth-icon-input {
+  padding-left: 2.75rem !important;
+}
+input.auth-icon-input-with-action {
+  padding-right: 2.75rem !important;
+}
+
 /* ============================================================
    Widget alignment bridge: text-align (Styl panel → dropdown
    „Wyrównanie") → block-level flex justify dla WSZYSTKICH flex-rzędów
