@@ -6,7 +6,6 @@ type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
 type NewsletterPopupLayout = "stacked" | "split";
 export type NewsletterMode = "off" | "inline" | "popup" | "both";
 
-
 export interface NewsletterMailingList {
   id: string;
   label_pl: string;
@@ -65,7 +64,6 @@ export interface NewsletterSettings {
   sender_email: string | null;
 }
 
-
 export function defaultNewsletterSettings(): NewsletterSettings {
   return {
     tenant_id: "",
@@ -117,7 +115,6 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     sender_email: null,
   };
 }
-
 
 export function useNewsletterSettings() {
   return useQuery({

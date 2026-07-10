@@ -23,8 +23,6 @@ import {
   type CustomField,
 } from "@/lib/builder/formFields";
 
-
-
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
 
@@ -167,7 +165,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   };
   const P = {
     firstName: readI18nOverride(data, "firstNamePlaceholder", lang, lang === "pl" ? "Jan" : "John"),
-    lastName: readI18nOverride(data, "lastNamePlaceholder", lang, lang === "pl" ? "Kowalski" : "Doe"),
+    lastName: readI18nOverride(
+      data,
+      "lastNamePlaceholder",
+      lang,
+      lang === "pl" ? "Kowalski" : "Doe",
+    ),
     email: readI18nOverride(data, "emailPlaceholder", lang, "name@example.com"),
     phone: readI18nOverride(data, "phonePlaceholder", lang, ""),
     company: readI18nOverride(data, "companyPlaceholder", lang, ""),
@@ -178,7 +181,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     () => parseCustomFields(data.customFields),
     [data.customFields],
   );
-
 
   const columns = Math.max(1, Math.min(3, num(data, "columns", 2)));
   const buttonAlign = s(data, "buttonAlign", "left") as "left" | "center" | "right" | "full";
@@ -212,7 +214,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const buttonFontSize = num(data, "buttonFontSize", 0);
   const consentSize = num(data, "consentSize", 0);
 
-
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
       "--cf-bg-light": bgLight || "transparent",
@@ -237,16 +238,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       rules.push(`${scope} .cf-title{font-size:${titleSize}px !important;line-height:1.2;}`);
     if (descriptionSize > 0)
       rules.push(`${scope} .cf-subtitle{font-size:${descriptionSize}px !important;}`);
-    if (labelSize > 0)
-      rules.push(`${scope} .cf-field-label{font-size:${labelSize}px !important;}`);
+    if (labelSize > 0) rules.push(`${scope} .cf-field-label{font-size:${labelSize}px !important;}`);
     if (placeholderSize > 0)
       rules.push(
         `${scope} :is(input.cf-input,select.cf-input){height:44px;font-size:${placeholderSize}px !important;line-height:1 !important;padding-top:0 !important;padding-bottom:0 !important;}${scope} textarea.cf-input{font-size:${placeholderSize}px !important;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px !important;}`,
       );
     if (buttonFontSize > 0)
       rules.push(`${scope} .cf-submit{font-size:${buttonFontSize}px !important;}`);
-    if (consentSize > 0)
-      rules.push(`${scope} .cf-consent{font-size:${consentSize}px !important;}`);
+    if (consentSize > 0) rules.push(`${scope} .cf-consent{font-size:${consentSize}px !important;}`);
     return rules.join("");
   }, [formId, titleSize, descriptionSize, labelSize, placeholderSize, buttonFontSize, consentSize]);
 
@@ -269,8 +268,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       });
     }
   });
-
-
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -437,8 +434,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         </div>
       )}
 
-
-
       <form onSubmit={onSubmit} data-cf-id={formId} className="cf-inner relative" noValidate>
         {(iconUrl || title || subtitle) && (
           <header className="space-y-2 mb-4">
@@ -468,7 +463,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field label={L.firstName} required={requireFirstName} error={errors.firstName} className={widthCls(1)}>
+            <Field
+              label={L.firstName}
+              required={requireFirstName}
+              error={errors.firstName}
+              className={widthCls(1)}
+            >
               <input
                 name="firstName"
                 required={requireFirstName}
@@ -480,7 +480,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showLastName && (
-            <Field label={L.lastName} required={requireLastName} error={errors.lastName} className={widthCls(1)}>
+            <Field
+              label={L.lastName}
+              required={requireLastName}
+              error={errors.lastName}
+              className={widthCls(1)}
+            >
               <input
                 name="lastName"
                 required={requireLastName}
@@ -511,7 +516,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
 
           {showPhone && (
-            <Field label={L.phone} required={requirePhone} error={errors.phone} className={widthCls(1)}>
+            <Field
+              label={L.phone}
+              required={requirePhone}
+              error={errors.phone}
+              className={widthCls(1)}
+            >
               <input
                 name="phone"
                 type="tel"
@@ -524,7 +534,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showCompany && (
-            <Field label={L.company} required={requireCompany} error={errors.company} className={widthCls(1)}>
+            <Field
+              label={L.company}
+              required={requireCompany}
+              error={errors.company}
+              className={widthCls(1)}
+            >
               <input
                 name="company"
                 required={requireCompany}
@@ -536,7 +551,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showSubject && (
-            <Field label={L.subject} required={requireSubject} error={errors.subject} className={widthCls(columns === 3 ? 3 : 2)}>
+            <Field
+              label={L.subject}
+              required={requireSubject}
+              error={errors.subject}
+              className={widthCls(columns === 3 ? 3 : 2)}
+            >
               <input
                 name="subject"
                 required={requireSubject}
@@ -587,7 +607,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             if (f.type === "select") {
               return (
                 <Field key={f.id} label={label} required={f.required} error={err} className={span}>
-                  <select name={name} required={f.required} aria-required={f.required || undefined} className="cf-input" defaultValue="">
+                  <select
+                    name={name}
+                    required={f.required}
+                    aria-required={f.required || undefined}
+                    className="cf-input"
+                    defaultValue=""
+                  >
                     <option value="" disabled>
                       {placeholder || (lang === "pl" ? "Wybierz..." : "Select...")}
                     </option>
@@ -629,7 +655,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               </Field>
             );
           })}
-
 
           {/* Inline-right button slot inside grid */}
           {buttonPosition === "inline-right" && (

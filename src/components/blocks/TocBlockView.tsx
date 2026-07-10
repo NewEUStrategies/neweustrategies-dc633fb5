@@ -49,9 +49,7 @@ export function TocBlockView({
   const listCls = [
     "m-0 pl-5 text-sm",
     ordered ? "list-decimal" : "list-disc",
-    columns === "col-2"
-      ? "sm:columns-2 sm:gap-8 [&>li]:break-inside-avoid space-y-1"
-      : "space-y-1",
+    columns === "col-2" ? "sm:columns-2 sm:gap-8 [&>li]:break-inside-avoid space-y-1" : "space-y-1",
   ]
     .filter(Boolean)
     .join(" ");

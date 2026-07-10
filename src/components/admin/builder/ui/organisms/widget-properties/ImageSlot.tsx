@@ -53,14 +53,7 @@ function validateUrl(raw: string): string | null {
   }
 }
 
-export function ImageSlot({
-  label,
-  icon,
-  value,
-  onChange,
-  hint,
-  maxSizeMb = 8,
-}: Props) {
+export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);

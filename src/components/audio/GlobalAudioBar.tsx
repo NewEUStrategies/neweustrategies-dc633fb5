@@ -168,7 +168,6 @@ export function GlobalAudioBar() {
                 <Pause className="h-5 w-5" aria-hidden strokeWidth={2.5} />
               ) : (
                 <Play className="h-5 w-5 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
-
               )}
             </button>
 
@@ -306,7 +305,6 @@ export function GlobalAudioBar() {
                 </ActionTip>
               </TooltipProvider>
             </div>
-
           </div>
         </div>
       </div>

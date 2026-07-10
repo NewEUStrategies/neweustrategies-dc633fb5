@@ -235,13 +235,37 @@ function ImageUrlField({
   );
 }
 
-
 // Kompaktowa paleta presetow - dopasowana do design tokens projektu.
 const COLOR_PRESETS: string[] = [
-  "#000000", "#0a0a0a", "#1a1a1a", "#333333", "#666666", "#999999", "#cccccc", "#ffffff",
-  "#f97316", "#ea580c", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#14b8a6",
-  "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
-  "#ef4444", "#dc2626", "#b91c1c", "#7f1d1d", "transparent",
+  "#000000",
+  "#0a0a0a",
+  "#1a1a1a",
+  "#333333",
+  "#666666",
+  "#999999",
+  "#cccccc",
+  "#ffffff",
+  "#f97316",
+  "#ea580c",
+  "#f59e0b",
+  "#eab308",
+  "#84cc16",
+  "#22c55e",
+  "#10b981",
+  "#14b8a6",
+  "#06b6d4",
+  "#0ea5e9",
+  "#3b82f6",
+  "#6366f1",
+  "#8b5cf6",
+  "#a855f7",
+  "#d946ef",
+  "#ec4899",
+  "#ef4444",
+  "#dc2626",
+  "#b91c1c",
+  "#7f1d1d",
+  "transparent",
 ];
 
 interface Props {
@@ -368,10 +392,16 @@ function SectionProps({
                   value={media.position}
                   onValueChange={(v) => onPatchSectionMedia({ position: v as "left" | "right" })}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="left">{lang === "pl" ? "Lewa (50%)" : "Left (50%)"}</SelectItem>
-                    <SelectItem value="right">{lang === "pl" ? "Prawa (50%)" : "Right (50%)"}</SelectItem>
+                    <SelectItem value="left">
+                      {lang === "pl" ? "Lewa (50%)" : "Left (50%)"}
+                    </SelectItem>
+                    <SelectItem value="right">
+                      {lang === "pl" ? "Prawa (50%)" : "Right (50%)"}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-muted-foreground mt-1">
@@ -453,7 +483,9 @@ function SectionProps({
             value={st.align ?? "left"}
             onValueChange={(v) => onPatchSection({ align: v as "left" | "center" })}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="left">{lang === "pl" ? "Lewo" : "Left"}</SelectItem>
               <SelectItem value="center">{lang === "pl" ? "Srodek" : "Center"}</SelectItem>
@@ -504,7 +536,9 @@ function LayoutPicker({
                 {opt.ratio.map((r, i) => (
                   <div
                     key={i}
-                    className={active ? "bg-primary/60 rounded-sm" : "bg-muted-foreground/40 rounded-sm"}
+                    className={
+                      active ? "bg-primary/60 rounded-sm" : "bg-muted-foreground/40 rounded-sm"
+                    }
                     style={{ flex: r }}
                   />
                 ))}
@@ -517,7 +551,6 @@ function LayoutPicker({
     </div>
   );
 }
-
 
 function I18nField({
   label,
@@ -582,7 +615,6 @@ function ColorInput({
   );
 }
 
-
 function WidgetProps({
   selected,
   onPatch,
@@ -595,15 +627,23 @@ function WidgetProps({
       const w = selected as NlHeadingWidget;
       return (
         <div className="space-y-4">
-          <I18nField label="Tekst" value={w.text} onChange={(text) => onPatch({ text } as Partial<NlWidget>)} />
+          <I18nField
+            label="Tekst"
+            value={w.text}
+            onChange={(text) => onPatch({ text } as Partial<NlWidget>)}
+          />
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>Poziom</Label>
               <Select
                 value={String(w.level)}
-                onValueChange={(v) => onPatch({ level: Number(v) as 1 | 2 | 3 | 4 } as Partial<NlWidget>)}
+                onValueChange={(v) =>
+                  onPatch({ level: Number(v) as 1 | 2 | 3 | 4 } as Partial<NlWidget>)
+                }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4].map((l) => (
                     <SelectItem key={l} value={String(l)}>
@@ -617,9 +657,13 @@ function WidgetProps({
               <Label>Wyrownanie</Label>
               <Select
                 value={w.align ?? "left"}
-                onValueChange={(v) => onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)}
+                onValueChange={(v) =>
+                  onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)
+                }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="left">Lewo</SelectItem>
                   <SelectItem value="center">Srodek</SelectItem>
@@ -628,7 +672,11 @@ function WidgetProps({
               </Select>
             </div>
           </div>
-          <ColorInput label="Kolor" value={w.color} onChange={(v) => onPatch({ color: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Kolor"
+            value={w.color}
+            onChange={(v) => onPatch({ color: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -636,14 +684,22 @@ function WidgetProps({
       const w = selected as NlParagraphWidget;
       return (
         <div className="space-y-4">
-          <I18nField label="Tresc (HTML)" value={w.html} onChange={(html) => onPatch({ html } as Partial<NlWidget>)} multiline html />
+          <I18nField
+            label="Tresc (HTML)"
+            value={w.html}
+            onChange={(html) => onPatch({ html } as Partial<NlWidget>)}
+            multiline
+            html
+          />
           <div>
             <Label>Rozmiar</Label>
             <Select
               value={w.size ?? "md"}
               onValueChange={(v) => onPatch({ size: v as "sm" | "md" | "lg" } as Partial<NlWidget>)}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="sm">Maly</SelectItem>
                 <SelectItem value="md">Sredni</SelectItem>
@@ -651,7 +707,11 @@ function WidgetProps({
               </SelectContent>
             </Select>
           </div>
-          <ColorInput label="Kolor" value={w.color} onChange={(v) => onPatch({ color: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Kolor"
+            value={w.color}
+            onChange={(v) => onPatch({ color: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -670,19 +730,28 @@ function WidgetProps({
           </div>
           <div>
             <Label>Tekst alt</Label>
-            <Input value={w.alt ?? ""} onChange={(e) => onPatch({ alt: e.target.value } as Partial<NlWidget>)} />
+            <Input
+              value={w.alt ?? ""}
+              onChange={(e) => onPatch({ alt: e.target.value } as Partial<NlWidget>)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>Proporcje</Label>
               <Select
                 value={w.aspect ?? "16/9"}
-                onValueChange={(v) => onPatch({ aspect: v as NlImageWidget["aspect"] } as Partial<NlWidget>)}
+                onValueChange={(v) =>
+                  onPatch({ aspect: v as NlImageWidget["aspect"] } as Partial<NlWidget>)
+                }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {(["16/7", "16/9", "1/1", "4/3", "auto"] as const).map((a) => (
-                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -710,10 +779,16 @@ function WidgetProps({
               min={1}
               max={12}
               value={w.thickness ?? 1}
-              onChange={(e) => onPatch({ thickness: Number(e.target.value) || 1 } as Partial<NlWidget>)}
+              onChange={(e) =>
+                onPatch({ thickness: Number(e.target.value) || 1 } as Partial<NlWidget>)
+              }
             />
           </div>
-          <ColorInput label="Kolor" value={w.color} onChange={(v) => onPatch({ color: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Kolor"
+            value={w.color}
+            onChange={(v) => onPatch({ color: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -736,8 +811,16 @@ function WidgetProps({
       const w = selected as NlEmailFieldWidget;
       return (
         <div className="space-y-3">
-          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
-          <I18nField label="Placeholder" value={w.placeholder} onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)} />
+          <I18nField
+            label="Etykieta"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Placeholder"
+            value={w.placeholder}
+            onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)}
+          />
           <p className="text-[11px] text-muted-foreground">Pole e-mail jest zawsze wymagane.</p>
         </div>
       );
@@ -750,9 +833,13 @@ function WidgetProps({
             <Label>Nazwa pola</Label>
             <Select
               value={w.name}
-              onValueChange={(v) => onPatch({ name: v as NlTextFieldWidget["name"] } as Partial<NlWidget>)}
+              onValueChange={(v) =>
+                onPatch({ name: v as NlTextFieldWidget["name"] } as Partial<NlWidget>)
+              }
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="firstName">Imie</SelectItem>
                 <SelectItem value="lastName">Nazwisko</SelectItem>
@@ -763,8 +850,16 @@ function WidgetProps({
               </SelectContent>
             </Select>
           </div>
-          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
-          <I18nField label="Placeholder" value={w.placeholder} onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)} />
+          <I18nField
+            label="Etykieta"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Placeholder"
+            value={w.placeholder}
+            onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)}
+          />
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -782,9 +877,18 @@ function WidgetProps({
         <div className="space-y-3">
           <div>
             <Label>Klucz zgody</Label>
-            <Input value={w.key} onChange={(e) => onPatch({ key: e.target.value } as Partial<NlWidget>)} />
+            <Input
+              value={w.key}
+              onChange={(e) => onPatch({ key: e.target.value } as Partial<NlWidget>)}
+            />
           </div>
-          <I18nField label="Tresc (HTML)" value={w.html} onChange={(html) => onPatch({ html } as Partial<NlWidget>)} multiline html />
+          <I18nField
+            label="Tresc (HTML)"
+            value={w.html}
+            onChange={(html) => onPatch({ html } as Partial<NlWidget>)}
+            multiline
+            html
+          />
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -800,7 +904,11 @@ function WidgetProps({
       const w = selected as NlSubmitWidget;
       return (
         <div className="space-y-3">
-          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <I18nField
+            label="Etykieta"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -809,14 +917,29 @@ function WidgetProps({
             />
             Pelna szerokosc
           </label>
-          <ColorInput label="Tlo" value={w.bg} onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)} />
-          <ColorInput label="Tekst" value={w.fg} onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Tlo"
+            value={w.bg}
+            onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)}
+          />
+          <ColorInput
+            label="Tekst"
+            value={w.fg}
+            onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
     case "success-message": {
       const w = selected as NlSuccessMessageWidget;
-      return <I18nField label="Komunikat" value={w.text} onChange={(text) => onPatch({ text } as Partial<NlWidget>)} multiline />;
+      return (
+        <I18nField
+          label="Komunikat"
+          value={w.text}
+          onChange={(text) => onPatch({ text } as Partial<NlWidget>)}
+          multiline
+        />
+      );
     }
     case "field.select": {
       const w = selected as NlSelectWidget;
@@ -824,41 +947,86 @@ function WidgetProps({
         <div className="space-y-3">
           <div>
             <Label>Nazwa (klucz meta)</Label>
-            <Input value={w.name} onChange={(e) => onPatch({ name: e.target.value } as Partial<NlWidget>)} />
+            <Input
+              value={w.name}
+              onChange={(e) => onPatch({ name: e.target.value } as Partial<NlWidget>)}
+            />
           </div>
-          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
-          <I18nField label="Placeholder" value={w.placeholder} onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)} />
+          <I18nField
+            label="Etykieta"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Placeholder"
+            value={w.placeholder}
+            onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)}
+          />
           <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={!!w.required} onChange={(e) => onPatch({ required: e.target.checked } as Partial<NlWidget>)} />
+            <input
+              type="checkbox"
+              checked={!!w.required}
+              onChange={(e) => onPatch({ required: e.target.checked } as Partial<NlWidget>)}
+            />
             Wymagane
           </label>
           <div className="space-y-2">
             <Label>Opcje</Label>
             {w.options.map((o, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1 items-center">
-                <Input value={o.value} placeholder="value" onChange={(e) => {
-                  const next = [...w.options]; next[i] = { ...o, value: e.target.value };
-                  onPatch({ options: next } as Partial<NlWidget>);
-                }} />
-                <Input value={o.labelPl} placeholder="PL" onChange={(e) => {
-                  const next = [...w.options]; next[i] = { ...o, labelPl: e.target.value };
-                  onPatch({ options: next } as Partial<NlWidget>);
-                }} />
-                <Input value={o.labelEn} placeholder="EN" onChange={(e) => {
-                  const next = [...w.options]; next[i] = { ...o, labelEn: e.target.value };
-                  onPatch({ options: next } as Partial<NlWidget>);
-                }} />
-                <button type="button" className="text-destructive text-xs px-2" onClick={() => {
-                  const next = w.options.filter((_, j) => j !== i);
-                  onPatch({ options: next } as Partial<NlWidget>);
-                }}>×</button>
+                <Input
+                  value={o.value}
+                  placeholder="value"
+                  onChange={(e) => {
+                    const next = [...w.options];
+                    next[i] = { ...o, value: e.target.value };
+                    onPatch({ options: next } as Partial<NlWidget>);
+                  }}
+                />
+                <Input
+                  value={o.labelPl}
+                  placeholder="PL"
+                  onChange={(e) => {
+                    const next = [...w.options];
+                    next[i] = { ...o, labelPl: e.target.value };
+                    onPatch({ options: next } as Partial<NlWidget>);
+                  }}
+                />
+                <Input
+                  value={o.labelEn}
+                  placeholder="EN"
+                  onChange={(e) => {
+                    const next = [...w.options];
+                    next[i] = { ...o, labelEn: e.target.value };
+                    onPatch({ options: next } as Partial<NlWidget>);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="text-destructive text-xs px-2"
+                  onClick={() => {
+                    const next = w.options.filter((_, j) => j !== i);
+                    onPatch({ options: next } as Partial<NlWidget>);
+                  }}
+                >
+                  ×
+                </button>
               </div>
             ))}
             <button
               type="button"
               className="text-xs px-2 py-1 rounded border border-dashed border-border hover:border-primary"
-              onClick={() => onPatch({ options: [...w.options, { value: `opt${w.options.length + 1}`, labelPl: "", labelEn: "" }] } as Partial<NlWidget>)}
-            >+ dodaj opcje</button>
+              onClick={() =>
+                onPatch({
+                  options: [
+                    ...w.options,
+                    { value: `opt${w.options.length + 1}`, labelPl: "", labelEn: "" },
+                  ],
+                } as Partial<NlWidget>)
+              }
+            >
+              + dodaj opcje
+            </button>
           </div>
         </div>
       );
@@ -867,11 +1035,22 @@ function WidgetProps({
       const w = selected as NlMailingListsWidget;
       return (
         <div className="space-y-3">
-          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <I18nField
+            label="Etykieta"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
           <div>
             <Label>Tryb</Label>
-            <Select value={w.display ?? "checkboxes"} onValueChange={(v) => onPatch({ display: v as "select" | "checkboxes" } as Partial<NlWidget>)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={w.display ?? "checkboxes"}
+              onValueChange={(v) =>
+                onPatch({ display: v as "select" | "checkboxes" } as Partial<NlWidget>)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="checkboxes">Checkboxy</SelectItem>
                 <SelectItem value="select">Lista rozwijana</SelectItem>
@@ -879,10 +1058,16 @@ function WidgetProps({
             </Select>
           </div>
           <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={!!w.required} onChange={(e) => onPatch({ required: e.target.checked } as Partial<NlWidget>)} />
+            <input
+              type="checkbox"
+              checked={!!w.required}
+              onChange={(e) => onPatch({ required: e.target.checked } as Partial<NlWidget>)}
+            />
             Wymagane
           </label>
-          <p className="text-[11px] text-muted-foreground">Listy zarzadzasz w Overview - Ustawienia logiki.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Listy zarzadzasz w Overview - Ustawienia logiki.
+          </p>
         </div>
       );
     }
@@ -890,15 +1075,33 @@ function WidgetProps({
       const w = selected as NlSocialProofWidget;
       return (
         <div className="space-y-3">
-          <I18nField label="Tekst (uzyj {count})" value={w.text} onChange={(text) => onPatch({ text } as Partial<NlWidget>)} />
+          <I18nField
+            label="Tekst (uzyj {count})"
+            value={w.text}
+            onChange={(text) => onPatch({ text } as Partial<NlWidget>)}
+          />
           <div>
             <Label>Minimalna liczba (fallback)</Label>
-            <Input type="number" min={0} value={w.fallbackCount ?? 0} onChange={(e) => onPatch({ fallbackCount: Number(e.target.value) || 0 } as Partial<NlWidget>)} />
+            <Input
+              type="number"
+              min={0}
+              value={w.fallbackCount ?? 0}
+              onChange={(e) =>
+                onPatch({ fallbackCount: Number(e.target.value) || 0 } as Partial<NlWidget>)
+              }
+            />
           </div>
           <div>
             <Label>Wyrownanie</Label>
-            <Select value={w.align ?? "center"} onValueChange={(v) => onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={w.align ?? "center"}
+              onValueChange={(v) =>
+                onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="left">Lewo</SelectItem>
                 <SelectItem value="center">Srodek</SelectItem>
@@ -921,16 +1124,40 @@ function WidgetProps({
         <div className="space-y-3">
           <div>
             <Label>Deadline</Label>
-            <Input type="datetime-local" value={dtLocal} onChange={(e) => {
-              const iso = e.target.value ? new Date(e.target.value).toISOString() : w.deadline;
-              onPatch({ deadline: iso } as Partial<NlWidget>);
-            }} />
+            <Input
+              type="datetime-local"
+              value={dtLocal}
+              onChange={(e) => {
+                const iso = e.target.value ? new Date(e.target.value).toISOString() : w.deadline;
+                onPatch({ deadline: iso } as Partial<NlWidget>);
+              }}
+            />
           </div>
-          <ColorInput label="Akcent" value={w.accent} onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)} />
-          <I18nField label="Dni" value={w.labelDays} onChange={(labelDays) => onPatch({ labelDays } as Partial<NlWidget>)} />
-          <I18nField label="Godziny" value={w.labelHours} onChange={(labelHours) => onPatch({ labelHours } as Partial<NlWidget>)} />
-          <I18nField label="Minuty" value={w.labelMinutes} onChange={(labelMinutes) => onPatch({ labelMinutes } as Partial<NlWidget>)} />
-          <I18nField label="Sekundy" value={w.labelSeconds} onChange={(labelSeconds) => onPatch({ labelSeconds } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Akcent"
+            value={w.accent}
+            onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Dni"
+            value={w.labelDays}
+            onChange={(labelDays) => onPatch({ labelDays } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Godziny"
+            value={w.labelHours}
+            onChange={(labelHours) => onPatch({ labelHours } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Minuty"
+            value={w.labelMinutes}
+            onChange={(labelMinutes) => onPatch({ labelMinutes } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Sekundy"
+            value={w.labelSeconds}
+            onChange={(labelSeconds) => onPatch({ labelSeconds } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -938,7 +1165,11 @@ function WidgetProps({
       const w = selected as NlCtaButtonWidget;
       return (
         <div className="space-y-3">
-          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <I18nField
+            label="Etykieta"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
           <div>
             <Label>URL</Label>
             <Input
@@ -951,9 +1182,13 @@ function WidgetProps({
             <Label>Target</Label>
             <Select
               value={w.target ?? "_self"}
-              onValueChange={(v) => onPatch({ target: v as "_self" | "_blank" } as Partial<NlWidget>)}
+              onValueChange={(v) =>
+                onPatch({ target: v as "_self" | "_blank" } as Partial<NlWidget>)
+              }
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_self">Ta sama karta</SelectItem>
                 <SelectItem value="_blank">Nowa karta</SelectItem>
@@ -964,9 +1199,13 @@ function WidgetProps({
             <Label>Wyrownanie</Label>
             <Select
               value={w.align ?? "center"}
-              onValueChange={(v) => onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)}
+              onValueChange={(v) =>
+                onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)
+              }
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="left">Do lewej</SelectItem>
                 <SelectItem value="center">Wysrodkowany</SelectItem>
@@ -982,8 +1221,16 @@ function WidgetProps({
             />
             <span>Pelna szerokosc</span>
           </label>
-          <ColorInput label="Tlo" value={w.bg} onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)} />
-          <ColorInput label="Tekst" value={w.fg} onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Tlo"
+            value={w.bg}
+            onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)}
+          />
+          <ColorInput
+            label="Tekst"
+            value={w.fg}
+            onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -1000,22 +1247,38 @@ function WidgetProps({
               maxLength={64}
             />
           </div>
-          <I18nField label="Podpis" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
-          <I18nField label="Komunikat po kopiowaniu" value={w.copiedLabel} onChange={(copiedLabel) => onPatch({ copiedLabel } as Partial<NlWidget>)} />
+          <I18nField
+            label="Podpis"
+            value={w.label}
+            onChange={(label) => onPatch({ label } as Partial<NlWidget>)}
+          />
+          <I18nField
+            label="Komunikat po kopiowaniu"
+            value={w.copiedLabel}
+            onChange={(copiedLabel) => onPatch({ copiedLabel } as Partial<NlWidget>)}
+          />
           <div>
             <Label>Styl</Label>
             <Select
               value={w.style ?? "dashed"}
-              onValueChange={(v) => onPatch({ style: v as "boxed" | "dashed" } as Partial<NlWidget>)}
+              onValueChange={(v) =>
+                onPatch({ style: v as "boxed" | "dashed" } as Partial<NlWidget>)
+              }
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="dashed">Przerywana ramka</SelectItem>
                 <SelectItem value="boxed">Pelna ramka</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <ColorInput label="Akcent" value={w.accent} onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Akcent"
+            value={w.accent}
+            onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -1027,9 +1290,13 @@ function WidgetProps({
             <Label>Wariant</Label>
             <Select
               value={w.variant}
-              onValueChange={(v) => onPatch({ variant: v as NlCloseButtonWidget["variant"] } as Partial<NlWidget>)}
+              onValueChange={(v) =>
+                onPatch({ variant: v as NlCloseButtonWidget["variant"] } as Partial<NlWidget>)
+              }
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="icon-x">Ikona X</SelectItem>
                 <SelectItem value="icon-chevron">Ikona strzalka</SelectItem>
@@ -1041,9 +1308,13 @@ function WidgetProps({
             <Label>Pozycja</Label>
             <Select
               value={w.position}
-              onValueChange={(v) => onPatch({ position: v as NlCloseButtonWidget["position"] } as Partial<NlWidget>)}
+              onValueChange={(v) =>
+                onPatch({ position: v as NlCloseButtonWidget["position"] } as Partial<NlWidget>)
+              }
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="top-right">Rog gorny prawy</SelectItem>
                 <SelectItem value="inline">W tresci sekcji</SelectItem>
@@ -1068,8 +1339,16 @@ function WidgetProps({
               className="h-8 text-xs"
             />
           </div>
-          <ColorInput label="Tlo" value={w.bg} onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)} />
-          <ColorInput label="Ikona / tekst" value={w.fg} onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)} />
+          <ColorInput
+            label="Tlo"
+            value={w.bg}
+            onChange={(v) => onPatch({ bg: v } as Partial<NlWidget>)}
+          />
+          <ColorInput
+            label="Ikona / tekst"
+            value={w.fg}
+            onChange={(v) => onPatch({ fg: v } as Partial<NlWidget>)}
+          />
         </div>
       );
     }
@@ -1096,12 +1375,10 @@ function DocProps({
     <div className="space-y-2">
       <Label>{lang === "pl" ? "Uklad sekcji" : "Section layout"}</Label>
       <div className="grid grid-cols-2 gap-1.5">
-        {(
-          [
-            { v: "single" as const, label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
-            { v: "1-1" as const, label: "1 / 2", ratio: [1, 1] },
-          ]
-        ).map((opt) => {
+        {[
+          { v: "single" as const, label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
+          { v: "1-1" as const, label: "1 / 2", ratio: [1, 1] },
+        ].map((opt) => {
           const active = currentLayout === opt.v;
           return (
             <button
@@ -1120,7 +1397,9 @@ function DocProps({
                 {opt.ratio.map((r, i) => (
                   <div
                     key={i}
-                    className={active ? "bg-primary/60 rounded-sm" : "bg-muted-foreground/40 rounded-sm"}
+                    className={
+                      active ? "bg-primary/60 rounded-sm" : "bg-muted-foreground/40 rounded-sm"
+                    }
                     style={{ flex: r }}
                   />
                 ))}
@@ -1159,8 +1438,13 @@ function DocProps({
       </p>
       <div>
         <Label>Uklad</Label>
-        <Select value={p.layout ?? "stacked"} onValueChange={(v) => onPatchPopup({ layout: v as "stacked" | "split" })}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+        <Select
+          value={p.layout ?? "stacked"}
+          onValueChange={(v) => onPatchPopup({ layout: v as "stacked" | "split" })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="stacked">Klasyczny (okladka u gory)</SelectItem>
             <SelectItem value="split">Split (grafika z lewej)</SelectItem>
@@ -1177,9 +1461,24 @@ function DocProps({
           />
         </div>
       )}
-      <ColorInput label="Tlo popupu" value={p.bg} onChange={(v) => onPatchPopup({ bg: v ?? undefined })} fallback="#0a0a0a" />
-      <ColorInput label="Kolor tekstu" value={p.fg} onChange={(v) => onPatchPopup({ fg: v ?? undefined })} fallback="#ffffff" />
-      <ColorInput label="Kolor akcentu" value={p.accent} onChange={(v) => onPatchPopup({ accent: v ?? undefined })} fallback="#f97316" />
+      <ColorInput
+        label="Tlo popupu"
+        value={p.bg}
+        onChange={(v) => onPatchPopup({ bg: v ?? undefined })}
+        fallback="#0a0a0a"
+      />
+      <ColorInput
+        label="Kolor tekstu"
+        value={p.fg}
+        onChange={(v) => onPatchPopup({ fg: v ?? undefined })}
+        fallback="#ffffff"
+      />
+      <ColorInput
+        label="Kolor akcentu"
+        value={p.accent}
+        onChange={(v) => onPatchPopup({ accent: v ?? undefined })}
+        fallback="#f97316"
+      />
       <div>
         <Label>Overlay (rgba)</Label>
         <Input

@@ -704,7 +704,9 @@ function CenteredHero({
               {t("profile.account.coverPlaceholder")}
             </div>
             <span className="text-[10px] text-muted-foreground/70">
-              {lang === "pl" ? "Zalecane: 1600 × 400 px (4:1), JPG/PNG, do 5 MB" : "Recommended: 1600 × 400 px (4:1), JPG/PNG, up to 5 MB"}
+              {lang === "pl"
+                ? "Zalecane: 1600 × 400 px (4:1), JPG/PNG, do 5 MB"
+                : "Recommended: 1600 × 400 px (4:1), JPG/PNG, up to 5 MB"}
             </span>
           </div>
         )}

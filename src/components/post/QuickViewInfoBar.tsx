@@ -1,7 +1,10 @@
 import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-type Category = { slug: string; name_pl?: string | null; name_en?: string | null } | null | undefined;
+type Category =
+  | { slug: string; name_pl?: string | null; name_en?: string | null }
+  | null
+  | undefined;
 
 interface Props {
   lang: "pl" | "en";
@@ -29,7 +32,9 @@ export function QuickViewInfoBar({
     : null;
 
   const displayDate = updatedAt || publishedAt || null;
-  const isUpdated = Boolean(updatedAt && publishedAt && new Date(updatedAt) > new Date(publishedAt));
+  const isUpdated = Boolean(
+    updatedAt && publishedAt && new Date(updatedAt) > new Date(publishedAt),
+  );
   const dateText = displayDate
     ? new Date(displayDate).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
         year: "numeric",

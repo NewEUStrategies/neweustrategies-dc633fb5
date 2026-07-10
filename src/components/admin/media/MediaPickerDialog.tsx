@@ -73,9 +73,7 @@ export function MediaPickerDialog({
             toast.error(`Pominięto ${file.name} - to nie jest obraz`);
             continue;
           }
-          const ext = (file.name.split(".").pop() ?? "bin")
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, "");
+          const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
           const path = `${tenantId}/${user.id}/${Date.now()}-${Math.random()
             .toString(36)
             .slice(2)}.${ext}`;

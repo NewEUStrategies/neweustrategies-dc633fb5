@@ -59,7 +59,6 @@ const COPY = {
     stageReady: "Ready",
     stageCached: "From cache",
   },
-
 } as const;
 
 const FOCUS_RING =
@@ -99,7 +98,6 @@ export function SidebarListenCard({
   })();
   const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
 
-
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -112,9 +110,7 @@ export function SidebarListenCard({
       authorHref: authorHref ?? null,
       postHref:
         postHref ??
-        (typeof window !== "undefined"
-          ? window.location.pathname + window.location.search
-          : "/"),
+        (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/"),
     }),
     [postId, lang, title, author, authorHref, postHref],
   );
@@ -151,9 +147,13 @@ export function SidebarListenCard({
     }
   };
 
-
   const currentLabel = formatAudioTime(displayTime);
-  const totalLabel = duration > 0 ? formatAudioTime(duration) : approxMin ? t.approx.replace("{min}", String(approxMin)) : "--:--";
+  const totalLabel =
+    duration > 0
+      ? formatAudioTime(duration)
+      : approxMin
+        ? t.approx.replace("{min}", String(approxMin))
+        : "--:--";
 
   return (
     <aside
@@ -198,9 +198,7 @@ export function SidebarListenCard({
             <span className="text-xs font-medium tabular-nums text-foreground">
               {showProgress ? currentLabel : loading ? "…" : "00:00"}
             </span>
-            <span className="text-[10px] tabular-nums text-muted-foreground">
-              / {totalLabel}
-            </span>
+            <span className="text-[10px] tabular-nums text-muted-foreground">/ {totalLabel}</span>
           </div>
 
           {/* Slider */}
@@ -266,7 +264,6 @@ export function SidebarListenCard({
           </span>
         </button>
 
-
         {errored ? (
           <button
             type="button"
@@ -287,7 +284,6 @@ export function SidebarListenCard({
             </span>
           </div>
         ) : null}
-
       </div>
     </aside>
   );

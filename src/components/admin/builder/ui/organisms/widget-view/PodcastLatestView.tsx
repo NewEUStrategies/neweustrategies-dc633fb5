@@ -106,9 +106,7 @@ export function PodcastLatestView({ c, lang }: Props) {
               >
                 {podcastTitle(p, lang)}
               </Link>
-              <div className="cms-post-excerpt">
-                {formatDuration(p.duration_seconds)}
-              </div>
+              <div className="cms-post-excerpt">{formatDuration(p.duration_seconds)}</div>
             </div>
           </li>
         ))}
@@ -155,9 +153,7 @@ export function PodcastLatestView({ c, lang }: Props) {
             >
               {podcastTitle(p, lang)}
             </Link>
-            <div className="cms-post-excerpt">
-              {formatDuration(p.duration_seconds)}
-            </div>
+            <div className="cms-post-excerpt">{formatDuration(p.duration_seconds)}</div>
             {showPlayer && (
               <PodcastPlayer
                 src={p.audio_url}

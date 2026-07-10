@@ -7,7 +7,15 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
@@ -58,10 +66,6 @@ export interface JoinUsFormProps {
   bgDark?: string;
   /** Kolor ikony ✓ (Lucide `Check`) przy bulletpointach perks. Puste = domyślnie brand / white (dla wariantu split-image). */
   perkIconColor?: string;
-
-
-
-
 
   // Headings / copy
   title?: string;
@@ -125,7 +129,6 @@ export interface JoinUsFormProps {
   buttonSize?: number;
   consentSize?: number;
 }
-
 
 type ExtraKey =
   | "firstName"
@@ -203,7 +206,6 @@ export function JoinUsForm({
   const jusId = useId();
   const hasCustomBg = Boolean(bgLight || bgDark);
 
-
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const { data: nl } = useNewsletterSettings();
@@ -248,8 +250,7 @@ export function JoinUsForm({
     };
   }, [dropOpen]);
   const cfList = customFields ?? [];
-  const setCustom = (id: string, v: string) =>
-    setCustomValues((prev) => ({ ...prev, [id]: v }));
+  const setCustom = (id: string, v: string) => setCustomValues((prev) => ({ ...prev, [id]: v }));
 
   const useSplitName = showFirstName || showLastName;
 
@@ -262,14 +263,11 @@ export function JoinUsForm({
     const cats = catalog.data?.categories ?? [];
     const tags = catalog.data?.tags ?? [];
     const all = [...cats, ...tags];
-    const allow = (interestSlugs ?? [])
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
+    const allow = (interestSlugs ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean);
     if (!allow.length) return all;
     const set = new Set(allow);
     return all.filter((it) => set.has(it.slug.toLowerCase()));
   }, [catalog.data, interestSlugs]);
-
 
   const togglePick = (id: string) => {
     setPicked((prev) => {
@@ -283,8 +281,7 @@ export function JoinUsForm({
   const newsletterDisabled = !!nl && !nl.enabled;
   if (newsletterDisabled && !inBuilder) return null;
 
-  const updateExtra = (k: ExtraKey, v: string) =>
-    setExtra((prev) => ({ ...prev, [k]: v }));
+  const updateExtra = (k: ExtraKey, v: string) => setExtra((prev) => ({ ...prev, [k]: v }));
 
   // Client-side "wymagane" enforcement — mirror of the server-side policy.
   const requiredMap: Record<string, boolean> = {
@@ -339,9 +336,7 @@ export function JoinUsForm({
     }
     if (showInterests && requireInterests && allItems.length > 0 && picked.size === 0) {
       setErrMsg(
-        lang === "en"
-          ? "Please pick at least one topic."
-          : "Wybierz co najmniej jeden temat.",
+        lang === "en" ? "Please pick at least one topic." : "Wybierz co najmniej jeden temat.",
       );
       setState("err");
       return;
@@ -356,7 +351,6 @@ export function JoinUsForm({
       setState("err");
       return;
     }
-
 
     try {
       const nlText =
@@ -415,7 +409,6 @@ export function JoinUsForm({
       return;
     }
 
-
     if (showInterests && allItems.length) {
       const catIds = new Set(catalog.data?.categories.map((c) => c.id) ?? []);
       const tagIds = new Set(catalog.data?.tags.map((c) => c.id) ?? []);
@@ -461,8 +454,7 @@ export function JoinUsForm({
   const okText = successText || t("joinUs.success");
   const phName = namePlaceholder || t("joinUs.name");
   const phEmail = emailPlaceholder || t("joinUs.email");
-  const phFirst =
-    firstNamePlaceholder || (lang === "en" ? "First name" : "Imię");
+  const phFirst = firstNamePlaceholder || (lang === "en" ? "First name" : "Imię");
   const phLast = lastNamePlaceholder || (lang === "en" ? "Last name" : "Nazwisko");
   const phPosition =
     positionPlaceholder || (lang === "en" ? "Position (LinkedIn)" : "Stanowisko (LinkedIn)");
@@ -490,16 +482,16 @@ export function JoinUsForm({
     ` join-us-shell join-us-shell--${variant}`;
 
   const bgStyleTag = hasCustomBg ? (
-    <style>{
-      `[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
-      `.dark [data-jus-id="${jusId}"]{background:${bgDark || bgLight || "var(--card)"} !important;}`
-    }</style>
+    <style>
+      {`[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
+        `.dark [data-jus-id="${jusId}"]{background:${bgDark || bgLight || "var(--card)"} !important;}`}
+    </style>
   ) : null;
-
 
   if (state === "ok") {
     return (
-      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-live="polite">{bgStyleTag}
+      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-live="polite">
+        {bgStyleTag}
         <div className="flex items-center gap-3 text-foreground">
           <Check className="w-5 h-5 text-emerald-500" />
           <p className="text-sm font-medium">{okText}</p>
@@ -523,7 +515,6 @@ export function JoinUsForm({
   // public visitors never see which fields are required until they submit and
   // the server/client validation reports what is missing.
   const withMark = (label: string, _req: boolean) => label;
-
 
   // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
   // Rendered into a single 2-col grid; when the count is odd, the last item spans both columns
@@ -635,10 +626,8 @@ export function JoinUsForm({
     );
   }
 
-
   const form = (
     <form onSubmit={submit} className="space-y-3" noValidate>
-
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
@@ -704,8 +693,7 @@ export function JoinUsForm({
       {extraFields.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
           {extraFields.map((el, i) => {
-            const isLastOdd =
-              i === extraFields.length - 1 && extraFields.length % 2 === 1;
+            const isLastOdd = i === extraFields.length - 1 && extraFields.length % 2 === 1;
             return isLastOdd ? (
               <div key={`wrap-${i}`} className="sm:col-span-2">
                 {el}
@@ -716,7 +704,6 @@ export function JoinUsForm({
           })}
         </div>
       )}
-
 
       {cfList.length > 0 && (
         <CustomFieldsRenderer
@@ -741,7 +728,6 @@ export function JoinUsForm({
             {null}
           </p>
 
-
           {interestsDisplay === "droplist" ? (
             <div className="space-y-2">
               {/* Selected pills row */}
@@ -758,9 +744,7 @@ export function JoinUsForm({
                         <button
                           type="button"
                           onClick={() => togglePick(it.id)}
-                          aria-label={
-                            lang === "en" ? `Remove ${it.label}` : `Usuń ${it.label}`
-                          }
+                          aria-label={lang === "en" ? `Remove ${it.label}` : `Usuń ${it.label}`}
                           className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:opacity-80"
                         >
                           <X className="h-3 w-3" />
@@ -863,7 +847,6 @@ export function JoinUsForm({
         </div>
       )}
 
-
       <button
         type="submit"
         disabled={state === "loading"}
@@ -890,8 +873,6 @@ export function JoinUsForm({
     </form>
   );
 
-
-
   const titleStyle = titleSize ? { fontSize: `${titleSize}px` } : undefined;
   const descStyle = { fontSize: descriptionSize ? `${descriptionSize}px` : "14px" } as const;
   const perkStyle = { fontSize: perkSize ? `${perkSize}px` : "14px" } as const;
@@ -910,7 +891,12 @@ export function JoinUsForm({
 
   if (variant === "split") {
     return (
-      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
+      <section
+        data-jus-id={jusId}
+        className={cn(containerCls, className)}
+        aria-labelledby="joinus-heading"
+      >
+        {bgStyleTag}
         {disabledNotice && <div className="md:col-span-2">{disabledNotice}</div>}
         <div>
           <h3
@@ -934,15 +920,24 @@ export function JoinUsForm({
             data-edit-target="perkSize"
           >
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
+              <Check
+                className="w-4 h-4 mt-0.5 text-brand shrink-0"
+                style={perkIconColor ? { color: perkIconColor } : undefined}
+              />
               <span>{p1}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
+              <Check
+                className="w-4 h-4 mt-0.5 text-brand shrink-0"
+                style={perkIconColor ? { color: perkIconColor } : undefined}
+              />
               <span>{p2}</span>
             </li>
             <li className="flex items-start gap-2">
-              <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
+              <Check
+                className="w-4 h-4 mt-0.5 text-brand shrink-0"
+                style={perkIconColor ? { color: perkIconColor } : undefined}
+              />
               <span>{p3}</span>
             </li>
           </ul>
@@ -959,7 +954,12 @@ export function JoinUsForm({
       "linear-gradient(135deg, color-mix(in oklab, var(--color-brand, #2563eb) 90%, transparent) 0%, color-mix(in oklab, var(--color-brand, #2563eb) 40%, #141414) 100%)";
     const overlayAlpha = Math.min(100, Math.max(0, imageOverlay)) / 100;
     return (
-      <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
+      <section
+        data-jus-id={jusId}
+        className={cn(containerCls, className)}
+        aria-labelledby="joinus-heading"
+      >
+        {bgStyleTag}
         {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
         {/* Lewa kolumna: obraz + gradient fallback + overlay + kontent tekstowy.
             aspectRatio + object-fit + object-position pozwalają operatorowi
@@ -970,9 +970,7 @@ export function JoinUsForm({
             "relative overflow-hidden",
             // Bez zdefiniowanego aspect-ratio zachowujemy dotychczasowe minima,
             // żeby obraz zawsze wypełniał kolumnę obok formularza.
-            !imageAspect || imageAspect === "auto"
-              ? "min-h-[220px] md:min-h-[380px]"
-              : undefined,
+            !imageAspect || imageAspect === "auto" ? "min-h-[220px] md:min-h-[380px]" : undefined,
           )}
           style={{
             ...(imageAspect && imageAspect !== "auto"
@@ -1026,15 +1024,24 @@ export function JoinUsForm({
               data-edit-target="perkSize"
             >
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
+                <Check
+                  className="w-4 h-4 mt-0.5 text-white shrink-0"
+                  style={perkIconColor ? { color: perkIconColor } : undefined}
+                />
                 <span>{p1}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
+                <Check
+                  className="w-4 h-4 mt-0.5 text-white shrink-0"
+                  style={perkIconColor ? { color: perkIconColor } : undefined}
+                />
                 <span>{p2}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-white shrink-0" style={perkIconColor ? { color: perkIconColor } : undefined} />
+                <Check
+                  className="w-4 h-4 mt-0.5 text-white shrink-0"
+                  style={perkIconColor ? { color: perkIconColor } : undefined}
+                />
                 <span>{p3}</span>
               </li>
             </ul>
@@ -1046,11 +1053,13 @@ export function JoinUsForm({
     );
   }
 
-
-
-
   return (
-    <section data-jus-id={jusId} className={cn(containerCls, className)} aria-labelledby="joinus-heading">{bgStyleTag}
+    <section
+      data-jus-id={jusId}
+      className={cn(containerCls, className)}
+      aria-labelledby="joinus-heading"
+    >
+      {bgStyleTag}
       {disabledNotice}
       <h3
         id="joinus-heading"
@@ -1073,4 +1082,3 @@ export function JoinUsForm({
     </section>
   );
 }
-

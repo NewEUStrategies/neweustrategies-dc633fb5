@@ -78,7 +78,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
   const save = async () => {
     if (!entityId) return toast.error("Najpierw zapisz treść, aby ustawić dostęp.");
     if (rule.mode === "password" && !pwd.hasPassword && !pwd.newPassword.trim()) {
-      return toast.error('Ustaw hasło dla trybu „Hasło”.');
+      return toast.error("Ustaw hasło dla trybu „Hasło”.");
     }
     setSaving(true);
     const payload = {
@@ -195,7 +195,8 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             className="h-9"
           />
           <p className="text-[11px] text-muted-foreground">
-            Hasło jest hashowane po stronie serwera (bcrypt) - nigdy nie trafia w postaci jawnej do bazy ani do przeglądarki.
+            Hasło jest hashowane po stronie serwera (bcrypt) - nigdy nie trafia w postaci jawnej do
+            bazy ani do przeglądarki.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>

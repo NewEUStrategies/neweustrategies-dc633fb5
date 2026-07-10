@@ -76,7 +76,7 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
 
   switch (widget.type) {
     case "heading": {
-      const H = (`h${widget.level}` as unknown) as keyof React.JSX.IntrinsicElements;
+      const H = `h${widget.level}` as unknown as keyof React.JSX.IntrinsicElements;
       return (
         <H
           className={
@@ -112,7 +112,9 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
           src={widget.url}
           alt={widget.alt ?? ""}
           className={"w-full object-cover " + (widget.rounded ? "rounded-lg" : "")}
-          style={{ aspectRatio: widget.aspect === "auto" ? undefined : widget.aspect?.replace("/", " / ") }}
+          style={{
+            aspectRatio: widget.aspect === "auto" ? undefined : widget.aspect?.replace("/", " / "),
+          }}
         />
       ) : (
         <ImagePlaceholder widget={widget} lang={lang} />
@@ -173,9 +175,7 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
       return (
         <button
           type="button"
-          className={
-            "px-4 py-2 rounded text-sm font-medium " + (widget.fullWidth ? "w-full" : "")
-          }
+          className={"px-4 py-2 rounded text-sm font-medium " + (widget.fullWidth ? "w-full" : "")}
           style={{
             backgroundColor: widget.bg ?? "var(--primary)",
             color: widget.fg ?? "var(--primary-foreground)",
@@ -197,7 +197,10 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
             {pick(widget.label)}
             {widget.required && <span className="text-destructive ml-0.5">*</span>}
           </span>
-          <select disabled className="w-full px-3 py-2 rounded border border-input bg-background/60 text-sm">
+          <select
+            disabled
+            className="w-full px-3 py-2 rounded border border-input bg-background/60 text-sm"
+          >
             <option>{pick(widget.placeholder)}</option>
             {widget.options.map((o) => (
               <option key={o.value}>{lang === "pl" ? o.labelPl : o.labelEn}</option>
@@ -234,7 +237,10 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
       const cell = (n: number, l: string) => (
-        <div className="text-center px-2 py-1 rounded" style={{ backgroundColor: widget.accent ?? "var(--muted)" }}>
+        <div
+          className="text-center px-2 py-1 rounded"
+          style={{ backgroundColor: widget.accent ?? "var(--muted)" }}
+        >
           <div className="text-lg font-bold leading-none">{String(n).padStart(2, "0")}</div>
           <div className="text-[9px] uppercase tracking-wider opacity-80">{l}</div>
         </div>
@@ -250,11 +256,18 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
     }
     case "cta-button": {
       const wrapAlign =
-        widget.align === "left" ? "justify-start" : widget.align === "right" ? "justify-end" : "justify-center";
+        widget.align === "left"
+          ? "justify-start"
+          : widget.align === "right"
+            ? "justify-end"
+            : "justify-center";
       return (
         <div className={"flex " + wrapAlign}>
           <span
-            className={"inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium " + (widget.fullWidth ? "w-full" : "")}
+            className={
+              "inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium " +
+              (widget.fullWidth ? "w-full" : "")
+            }
             style={{
               backgroundColor: widget.bg ?? "var(--primary)",
               color: widget.fg ?? "var(--primary-foreground)",
@@ -284,7 +297,10 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
           </div>
           <span
             className="text-[10px] px-2 py-1 rounded font-medium shrink-0"
-            style={{ backgroundColor: widget.accent ?? "var(--primary)", color: "var(--primary-foreground)" }}
+            style={{
+              backgroundColor: widget.accent ?? "var(--primary)",
+              color: "var(--primary-foreground)",
+            }}
           >
             {lang === "pl" ? "Kopiuj" : "Copy"}
           </span>
@@ -292,8 +308,10 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
       );
     case "close-button": {
       const size = widget.size ?? 32;
-      const text = widget.variant === "text" ? pick(widget.label ?? { pl: "Zamknij", en: "Close" }) : null;
-      const glyph = widget.variant === "icon-chevron" ? "‹" : widget.variant === "icon-x" ? "✕" : text;
+      const text =
+        widget.variant === "text" ? pick(widget.label ?? { pl: "Zamknij", en: "Close" }) : null;
+      const glyph =
+        widget.variant === "icon-chevron" ? "‹" : widget.variant === "icon-x" ? "✕" : text;
       const isCorner = widget.position === "top-right";
       return (
         <div className={isCorner ? "flex justify-end" : "flex justify-center"}>

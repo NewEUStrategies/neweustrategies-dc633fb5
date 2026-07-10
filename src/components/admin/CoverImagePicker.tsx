@@ -11,7 +11,15 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Link as LinkIcon, X, Monitor, Tablet, Smartphone } from "@/lib/lucide-shim";
+import {
+  Upload,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  X,
+  Monitor,
+  Tablet,
+  Smartphone,
+} from "@/lib/lucide-shim";
 
 type DevicePreview = "desktop" | "tablet" | "mobile";
 

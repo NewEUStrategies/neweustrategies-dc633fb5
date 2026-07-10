@@ -12,12 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
-import type {
-  NlDoc,
-  NlWidget,
-  NlLang,
-  NlSection,
-} from "@/lib/newsletter-builder/types";
+import type { NlDoc, NlWidget, NlLang, NlSection } from "@/lib/newsletter-builder/types";
 import type { NewsletterSettings, NewsletterMailingList } from "@/hooks/useNewsletterSettings";
 
 interface Props {
@@ -30,7 +25,10 @@ interface Props {
 const pickI = (v: { pl: string; en: string }, lang: NlLang) => (lang === "pl" ? v.pl : v.en);
 
 const REQUIRED_TXT: Record<NlLang, string> = { pl: "Pole wymagane", en: "Required field" };
-const EMAIL_TXT: Record<NlLang, string> = { pl: "Niepoprawny adres e-mail.", en: "Invalid email address." };
+const EMAIL_TXT: Record<NlLang, string> = {
+  pl: "Niepoprawny adres e-mail.",
+  en: "Invalid email address.",
+};
 const NAME_TXT: Record<NlLang, string> = {
   pl: "Dozwolone litery, spacja i myslnik (2-80 znakow).",
   en: "Letters, space and hyphen only (2-80 chars).",
@@ -110,7 +108,9 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
     const fd = new FormData(e.currentTarget);
 
     const errs: Record<string, string> = {};
-    const email = String(fd.get("email") ?? "").trim().toLowerCase();
+    const email = String(fd.get("email") ?? "")
+      .trim()
+      .toLowerCase();
     if (!email) errs.email = REQUIRED_TXT[lang];
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = EMAIL_TXT[lang];
 
@@ -174,7 +174,10 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         if (w.required && !on) errs[w.key] = REQUIRED_TXT[lang];
         if (on) consents.push({ key: w.key, text: pickI(w.html, lang), given: true, lang });
       } else if (w.type === "field.mailing-lists") {
-        const lists = fd.getAll(`ml_${w.id}`).map((v) => String(v)).filter(Boolean);
+        const lists = fd
+          .getAll(`ml_${w.id}`)
+          .map((v) => String(v))
+          .filter(Boolean);
         if (w.required && lists.length === 0) errs[`ml_${w.id}`] = REQUIRED_TXT[lang];
         if (lists.length) meta.mailing_lists = lists.join(",");
       }
@@ -203,10 +206,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
           name: [firstName, lastName].filter(Boolean).join(" ") || undefined,
           language: lang,
           source,
-          formName: pickI(
-            { pl: settings.heading_pl, en: settings.heading_en },
-            lang,
-          ),
+          formName: pickI({ pl: settings.heading_pl, en: settings.heading_en }, lang),
           consents,
           meta: Object.keys(meta).length ? meta : undefined,
           requiredFields: requiredFields.length ? requiredFields : undefined,
@@ -226,9 +226,12 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
 
   if (state === "ok") {
     const successWidget = flatWidgets.find((w) => w.type === "success-message");
-    const successText = successWidget && successWidget.type === "success-message"
-      ? pickI(successWidget.text, lang)
-      : lang === "pl" ? settings.success_message_pl : settings.success_message_en;
+    const successText =
+      successWidget && successWidget.type === "success-message"
+        ? pickI(successWidget.text, lang)
+        : lang === "pl"
+          ? settings.success_message_pl
+          : settings.success_message_en;
     return (
       <div className="text-sm font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-md p-3 border border-emerald-500/20">
         {successText}
@@ -249,9 +252,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
           tick={tick}
         />
       ))}
-      {state === "err" && errMsg && (
-        <p className="text-xs text-destructive">{errMsg}</p>
-      )}
+      {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
     </form>
   );
 }
@@ -394,12 +395,17 @@ function SectionRenderer({
 
 function widgetErrorKey(w: NlWidget): string {
   switch (w.type) {
-    case "field.email": return "email";
+    case "field.email":
+      return "email";
     case "field.text":
-    case "field.select": return w.name;
-    case "field.checkbox": return w.key;
-    case "field.mailing-lists": return `ml_${w.id}`;
-    default: return w.id;
+    case "field.select":
+      return w.name;
+    case "field.checkbox":
+      return w.key;
+    case "field.mailing-lists":
+      return `ml_${w.id}`;
+    default:
+      return w.id;
   }
 }
 
@@ -423,12 +429,18 @@ function RuntimeWidget({
   void tick; // rerender countdown
   switch (w.type) {
     case "heading": {
-      const H = (`h${w.level}` as unknown) as keyof React.JSX.IntrinsicElements;
+      const H = `h${w.level}` as unknown as keyof React.JSX.IntrinsicElements;
       return (
         <H
           className={
             "font-display leading-tight " +
-            (w.level === 1 ? "text-3xl" : w.level === 2 ? "text-2xl" : w.level === 3 ? "text-xl" : "text-lg")
+            (w.level === 1
+              ? "text-3xl"
+              : w.level === 2
+                ? "text-2xl"
+                : w.level === 3
+                  ? "text-xl"
+                  : "text-lg")
           }
           style={{ textAlign: w.align ?? "left", color: w.color ?? undefined }}
         >
@@ -439,7 +451,10 @@ function RuntimeWidget({
     case "paragraph":
       return (
         <p
-          className={"leading-relaxed [&_a]:underline " + (w.size === "sm" ? "text-xs" : w.size === "lg" ? "text-base" : "text-sm")}
+          className={
+            "leading-relaxed [&_a]:underline " +
+            (w.size === "sm" ? "text-xs" : w.size === "lg" ? "text-base" : "text-sm")
+          }
           style={{ color: w.color ?? undefined }}
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(pickI(w.html, lang)) }}
         />
@@ -455,28 +470,54 @@ function RuntimeWidget({
         />
       ) : null;
     case "divider":
-      return <hr style={{ borderTopWidth: `${w.thickness ?? 1}px`, borderColor: w.color ?? "currentColor", opacity: 0.4 }} />;
+      return (
+        <hr
+          style={{
+            borderTopWidth: `${w.thickness ?? 1}px`,
+            borderColor: w.color ?? "currentColor",
+            opacity: 0.4,
+          }}
+        />
+      );
     case "spacer":
       return <div aria-hidden="true" style={{ height: `${w.size}px` }} />;
     case "field.email":
       return (
         <FieldWrap label={pickI(w.label, lang)} required error={error}>
-          <input name="email" type="email" required placeholder={pickI(w.placeholder, lang)} className={INPUT_CLS} maxLength={254} />
+          <input
+            name="email"
+            type="email"
+            required
+            placeholder={pickI(w.placeholder, lang)}
+            className={INPUT_CLS}
+            maxLength={254}
+          />
         </FieldWrap>
       );
     case "field.text":
       return (
         <FieldWrap label={pickI(w.label, lang)} required={w.required} error={error}>
-          <input name={w.name} type="text" required={w.required} placeholder={pickI(w.placeholder, lang)} className={INPUT_CLS} maxLength={200} />
+          <input
+            name={w.name}
+            type="text"
+            required={w.required}
+            placeholder={pickI(w.placeholder, lang)}
+            className={INPUT_CLS}
+            maxLength={200}
+          />
         </FieldWrap>
       );
     case "field.select":
       return (
         <FieldWrap label={pickI(w.label, lang)} required={w.required} error={error}>
           <select name={w.name} required={w.required} className={INPUT_CLS} defaultValue="">
-            <option value="" disabled>{pickI(w.placeholder, lang)}</option>
+            <option value="" disabled>
+              {pickI(w.placeholder, lang)}
+            </option>
             {w.options.map((o) => (
-              <option key={o.value} value={o.value}>{lang === "pl" ? o.labelPl : o.labelEn}</option>
+              <option key={o.value} value={o.value}>
+                {lang === "pl" ? o.labelPl : o.labelEn}
+              </option>
             ))}
           </select>
         </FieldWrap>
@@ -495,16 +536,22 @@ function RuntimeWidget({
         </div>
       );
     case "field.mailing-lists": {
-      const restricted = w.listIds?.length ? mailingLists.filter((l) => w.listIds!.includes(l.id)) : mailingLists;
+      const restricted = w.listIds?.length
+        ? mailingLists.filter((l) => w.listIds!.includes(l.id))
+        : mailingLists;
       if (restricted.length === 0) return null;
       const name = `ml_${w.id}`;
       if (w.display === "select") {
         return (
           <FieldWrap label={pickI(w.label, lang)} required={w.required} error={error}>
             <select name={name} required={w.required} className={INPUT_CLS} defaultValue="">
-              <option value="" disabled>{lang === "pl" ? "Wybierz..." : "Choose..."}</option>
+              <option value="" disabled>
+                {lang === "pl" ? "Wybierz..." : "Choose..."}
+              </option>
               {restricted.map((l) => (
-                <option key={l.id} value={l.id}>{lang === "pl" ? l.label_pl : l.label_en}</option>
+                <option key={l.id} value={l.id}>
+                  {lang === "pl" ? l.label_pl : l.label_en}
+                </option>
               ))}
             </select>
           </FieldWrap>
@@ -530,8 +577,14 @@ function RuntimeWidget({
       return (
         <button
           type="submit"
-          className={"px-4 py-2 rounded text-sm font-medium transition-opacity hover:opacity-90 " + (w.fullWidth ? "w-full" : "")}
-          style={{ backgroundColor: w.bg ?? "var(--primary)", color: w.fg ?? "var(--primary-foreground)" }}
+          className={
+            "px-4 py-2 rounded text-sm font-medium transition-opacity hover:opacity-90 " +
+            (w.fullWidth ? "w-full" : "")
+          }
+          style={{
+            backgroundColor: w.bg ?? "var(--primary)",
+            color: w.fg ?? "var(--primary-foreground)",
+          }}
         >
           {pickI(w.label, lang)}
         </button>
@@ -540,8 +593,18 @@ function RuntimeWidget({
       return null; // rendered po sukcesie
     case "social-proof": {
       const count = liveCount ?? w.fallbackCount ?? 0;
-      const text = pickI(w.text, lang).replace("{count}", count.toLocaleString(lang === "pl" ? "pl-PL" : "en-US"));
-      return <div className="text-xs font-medium text-muted-foreground" style={{ textAlign: w.align ?? "center" }}>{text}</div>;
+      const text = pickI(w.text, lang).replace(
+        "{count}",
+        count.toLocaleString(lang === "pl" ? "pl-PL" : "en-US"),
+      );
+      return (
+        <div
+          className="text-xs font-medium text-muted-foreground"
+          style={{ textAlign: w.align ?? "center" }}
+        >
+          {text}
+        </div>
+      );
     }
     case "countdown": {
       const diff = Math.max(0, new Date(w.deadline).getTime() - Date.now());
@@ -550,8 +613,13 @@ function RuntimeWidget({
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
       const cell = (n: number, l: string) => (
-        <div className="text-center px-2 py-2 rounded" style={{ backgroundColor: w.accent ?? "var(--muted)" }}>
-          <div className="text-xl font-bold leading-none tabular-nums">{String(n).padStart(2, "0")}</div>
+        <div
+          className="text-center px-2 py-2 rounded"
+          style={{ backgroundColor: w.accent ?? "var(--muted)" }}
+        >
+          <div className="text-xl font-bold leading-none tabular-nums">
+            {String(n).padStart(2, "0")}
+          </div>
           <div className="text-[10px] uppercase tracking-wider opacity-80 mt-1">{l}</div>
         </div>
       );
@@ -566,16 +634,25 @@ function RuntimeWidget({
     }
     case "cta-button": {
       const wrapAlign =
-        w.align === "left" ? "justify-start" : w.align === "right" ? "justify-end" : "justify-center";
+        w.align === "left"
+          ? "justify-start"
+          : w.align === "right"
+            ? "justify-end"
+            : "justify-center";
       const safeHref =
-        typeof w.url === "string" && /^(https?:|mailto:|tel:|\/)/i.test(w.url.trim()) ? w.url.trim() : "#";
+        typeof w.url === "string" && /^(https?:|mailto:|tel:|\/)/i.test(w.url.trim())
+          ? w.url.trim()
+          : "#";
       return (
         <div className={"flex " + wrapAlign}>
           <a
             href={safeHref}
             target={w.target ?? "_self"}
             rel={w.target === "_blank" ? "noopener noreferrer" : undefined}
-            className={"inline-flex items-center justify-center px-4 py-2.5 rounded text-sm font-medium transition-opacity hover:opacity-90 " + (w.fullWidth ? "w-full" : "")}
+            className={
+              "inline-flex items-center justify-center px-4 py-2.5 rounded text-sm font-medium transition-opacity hover:opacity-90 " +
+              (w.fullWidth ? "w-full" : "")
+            }
             style={{
               backgroundColor: w.bg ?? "var(--primary)",
               color: w.fg ?? "var(--primary-foreground)",
@@ -590,7 +667,8 @@ function RuntimeWidget({
       return <CouponWidgetView widget={w} lang={lang} />;
     case "close-button": {
       const size = w.size ?? 32;
-      const text = w.variant === "text" ? pickI(w.label ?? { pl: "Zamknij", en: "Close" }, lang) : null;
+      const text =
+        w.variant === "text" ? pickI(w.label ?? { pl: "Zamknij", en: "Close" }, lang) : null;
       const glyph = w.variant === "icon-chevron" ? "‹" : w.variant === "icon-x" ? "✕" : text;
       const isCorner = w.position === "top-right";
       const btn = (

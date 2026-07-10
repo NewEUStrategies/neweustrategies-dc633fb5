@@ -98,7 +98,6 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
     };
   }, [qc]);
 
-
   return query;
 }
 

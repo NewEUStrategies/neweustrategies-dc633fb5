@@ -255,9 +255,8 @@ export function PostGeneralOverview({
 
   const layoutOverridesCount = useMemo(() => {
     if (!layoutOverrides) return 0;
-    return Object.values(layoutOverrides).filter(
-      (v) => v !== undefined && v !== null && v !== "",
-    ).length;
+    return Object.values(layoutOverrides).filter((v) => v !== undefined && v !== null && v !== "")
+      .length;
   }, [layoutOverrides]);
 
   const accessMode = accessRule?.mode ?? "public";
@@ -349,7 +348,8 @@ export function PostGeneralOverview({
         <Chip tone={excerptFilled ? "ok" : "muted"}>Zajawki {excerptFilled ? "✓" : "opc."}</Chip>
         <Chip tone={coverImageUrl ? "ok" : "muted"}>Cover {coverImageUrl ? "✓" : "brak"}</Chip>
         <Chip tone={blockingSeo > 0 ? "danger" : warnSeo > 0 ? "warn" : "ok"}>
-          SEO {blockingSeo > 0 ? `${blockingSeo} błędów` : warnSeo > 0 ? `${warnSeo} ostrzeżeń` : "OK"}
+          SEO{" "}
+          {blockingSeo > 0 ? `${blockingSeo} błędów` : warnSeo > 0 ? `${warnSeo} ostrzeżeń` : "OK"}
         </Chip>
         {seoNoindex && <Chip tone="warn">noindex</Chip>}
         <Chip tone={accessMode === "public" ? "muted" : "brand"}>Dostęp: {accessLabel}</Chip>
@@ -385,21 +385,10 @@ export function PostGeneralOverview({
           }
           tone={blockingSeo > 0 ? "warn" : "default"}
         >
-          <Row
-            label="Meta title (PL)"
-            value={`${(seoTitlePl ?? "").length} / 60`}
-          />
-          <Row
-            label="Meta desc. (PL)"
-            value={`${(seoDescriptionPl ?? "").length} / 160`}
-          />
+          <Row label="Meta title (PL)" value={`${(seoTitlePl ?? "").length} / 60`} />
+          <Row label="Meta desc. (PL)" value={`${(seoDescriptionPl ?? "").length} / 160`} />
           <Row label="Indexowanie" value={seoNoindex ? "noindex" : "index, follow"} />
-          <Row
-            label="EN"
-            value={
-              seoTitleEn || seoDescriptionEn ? "uzupełnione" : "z zajawki"
-            }
-          />
+          <Row label="EN" value={seoTitleEn || seoDescriptionEn ? "uzupełnione" : "z zajawki"} />
         </Tile>
 
         <Tile
@@ -435,17 +424,12 @@ export function PostGeneralOverview({
           onClick={() => onNavigate("access")}
           icon={Lock}
           title={titles.access}
-          badge={
-            <Chip tone={accessMode === "public" ? "muted" : "brand"}>{accessLabel}</Chip>
-          }
+          badge={<Chip tone={accessMode === "public" ? "muted" : "brand"}>{accessLabel}</Chip>}
         >
           <Row label="Tryb" value={accessLabel} />
           {accessMode === "paid" && (
             <>
-              <Row
-                label="Plany"
-                value={`${(accessRule?.plan_ids ?? []).length} wybrane`}
-              />
+              <Row label="Plany" value={`${(accessRule?.plan_ids ?? []).length} wybrane`} />
               {accessRule?.one_time_price_cents ? (
                 <Row
                   label="Cena jednorazowa"
@@ -455,10 +439,7 @@ export function PostGeneralOverview({
             </>
           )}
           {accessMode === "password" && (
-            <Row
-              label="Hasło"
-              value={accessRule?.password_hash ? "ustawione ✓" : "brak"}
-            />
+            <Row label="Hasło" value={accessRule?.password_hash ? "ustawione ✓" : "brak"} />
           )}
         </Tile>
 
@@ -479,9 +460,7 @@ export function PostGeneralOverview({
                 {n}
               </Chip>
             ))}
-            {selectedCatNames.length > 4 && (
-              <Chip>+{selectedCatNames.length - 4}</Chip>
-            )}
+            {selectedCatNames.length > 4 && <Chip>+{selectedCatNames.length - 4}</Chip>}
             {selectedCatNames.length === 0 && (
               <span className="text-[11px] italic">brak kategorii</span>
             )}
@@ -490,9 +469,7 @@ export function PostGeneralOverview({
             {selectedTagNames.slice(0, 5).map((n) => (
               <Chip key={n}>#{n}</Chip>
             ))}
-            {selectedTagNames.length > 5 && (
-              <Chip>+{selectedTagNames.length - 5}</Chip>
-            )}
+            {selectedTagNames.length > 5 && <Chip>+{selectedTagNames.length - 5}</Chip>}
             {selectedTagNames.length === 0 && (
               <span className="text-[11px] italic">brak tagów</span>
             )}
@@ -508,9 +485,7 @@ export function PostGeneralOverview({
           <Row label="Format" value={postFormat} />
           <Row
             label="Overrides"
-            value={
-              layoutOverridesCount === 0 ? "brak" : `${layoutOverridesCount} pól`
-            }
+            value={layoutOverridesCount === 0 ? "brak" : `${layoutOverridesCount} pól`}
           />
         </Tile>
 
@@ -518,16 +493,9 @@ export function PostGeneralOverview({
           onClick={() => onNavigate("meta")}
           icon={Database}
           title={titles.meta}
-          badge={
-            <Chip tone={customMetaCount > 0 ? "brand" : "muted"}>
-              {customMetaCount}
-            </Chip>
-          }
+          badge={<Chip tone={customMetaCount > 0 ? "brand" : "muted"}>{customMetaCount}</Chip>}
         >
-          <Row
-            label="Wypełnione pola"
-            value={customMetaCount === 0 ? "brak" : customMetaCount}
-          />
+          <Row label="Wypełnione pola" value={customMetaCount === 0 ? "brak" : customMetaCount} />
         </Tile>
 
         <Tile

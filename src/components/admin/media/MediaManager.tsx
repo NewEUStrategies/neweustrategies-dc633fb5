@@ -325,9 +325,7 @@ export function MediaManager() {
       const folder = normalizePath(targetFolder);
       try {
         for (const file of files) {
-          const ext = (file.name.split(".").pop() ?? "bin")
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, "");
+          const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
           const path = `${tenantId}/${user.id}/${Date.now()}-${Math.random()
             .toString(36)
             .slice(2)}.${ext}`;
@@ -664,11 +662,7 @@ export function MediaManager() {
   };
 
   // ---------- Context menu ----------
-  const openContext = (
-    e: ReactMouseEvent,
-    target: ContextMenuState["target"],
-    id?: string,
-  ) => {
+  const openContext = (e: ReactMouseEvent, target: ContextMenuState["target"], id?: string) => {
     e.preventDefault();
     e.stopPropagation();
     if (target === "file" && id && !selectedIds.has(id)) {
@@ -714,13 +708,7 @@ export function MediaManager() {
           <Upload className="w-4 h-4 mr-1.5" />
           {busy ? "…" : t("admin.media.upload", { defaultValue: "Wgraj" })}
         </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={onFilesPicked}
-        />
+        <input ref={fileInputRef} type="file" multiple hidden onChange={onFilesPicked} />
         <Button size="sm" variant="outline" onClick={() => setNewFolderOpen(true)}>
           <FolderPlus className="w-4 h-4 mr-1.5" />
           {t("admin.media.newFolder", { defaultValue: "Nowy folder" })}
@@ -890,9 +878,12 @@ export function MediaManager() {
                     count: selectedIds.size,
                     defaultValue: `Zaznaczono: ${selectedIds.size}`,
                   })
-                : `${filesInCurrent.length + currentFolderChildren.length} ${t("admin.media.items", {
-                    defaultValue: "elementów",
-                  })}`}
+                : `${filesInCurrent.length + currentFolderChildren.length} ${t(
+                    "admin.media.items",
+                    {
+                      defaultValue: "elementów",
+                    },
+                  )}`}
             </span>
           </div>
 
@@ -996,9 +987,7 @@ export function MediaManager() {
       <Dialog open={newFolderOpen} onOpenChange={(o) => !o && setNewFolderOpen(false)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {t("admin.media.newFolder", { defaultValue: "Nowy folder" })}
-            </DialogTitle>
+            <DialogTitle>{t("admin.media.newFolder", { defaultValue: "Nowy folder" })}</DialogTitle>
           </DialogHeader>
           <Input
             autoFocus
@@ -1094,10 +1083,7 @@ export function MediaManager() {
         </DialogContent>
       </Dialog>
 
-      <MediaPreviewDialog
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-      />
+      <MediaPreviewDialog file={previewFile} onClose={() => setPreviewFile(null)} />
     </div>
   );
 
@@ -1640,11 +1626,7 @@ function InfoPanel({
   imgSize: { w: number; h: number } | null;
 }) {
   if (!target) {
-    return (
-      <p className="text-muted-foreground">
-        Zaznacz jeden plik, aby zobaczyć szczegóły.
-      </p>
-    );
+    return <p className="text-muted-foreground">Zaznacz jeden plik, aby zobaczyć szczegóły.</p>;
   }
   return (
     <div className="space-y-3">
@@ -1667,10 +1649,7 @@ function InfoPanel({
         <Row label="Rozmiar" value={formatBytes(target.size_bytes)} />
         {imgSize && <Row label="Wymiary" value={`${imgSize.w} × ${imgSize.h} px`} />}
         <Row label="Folder" value={target.folder_path} />
-        <Row
-          label="Utworzono"
-          value={new Date(target.created_at).toLocaleString()}
-        />
+        <Row label="Utworzono" value={new Date(target.created_at).toLocaleString()} />
         <Row label="ID" value={target.id} mono />
       </div>
       <div className="pt-2 border-t border-border space-y-1">
@@ -1702,34 +1681,42 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 }
 
 // ---------- Preview Dialog ----------
-function MediaPreviewDialog({
-  file,
-  onClose,
-}: {
-  file: MediaRow | null;
-  onClose: () => void;
-}) {
+function MediaPreviewDialog({ file, onClose }: { file: MediaRow | null; onClose: () => void }) {
   const { t } = useTranslation();
   const mime = file?.mime_type ?? "";
   const url = file?.public_url ?? "";
   const ext = file ? extOf(file.filename).toLowerCase() : "";
 
-  const kind: "image" | "video" | "audio" | "pdf" | "text" | "office" | "other" =
-    !file
-      ? "other"
-      : mime.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"].includes(ext)
-        ? "image"
-        : mime.startsWith("video/") || ["mp4", "webm", "mov", "m4v", "ogv"].includes(ext)
-          ? "video"
-          : mime.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a", "flac"].includes(ext)
-            ? "audio"
-            : mime === "application/pdf" || ext === "pdf"
-              ? "pdf"
-              : mime.startsWith("text/") || ["txt", "md", "csv", "json", "log", "xml", "html", "css", "js", "ts", "tsx", "jsx"].includes(ext)
-                ? "text"
-                : ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"].includes(ext)
-                  ? "office"
-                  : "other";
+  const kind: "image" | "video" | "audio" | "pdf" | "text" | "office" | "other" = !file
+    ? "other"
+    : mime.startsWith("image/") ||
+        ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"].includes(ext)
+      ? "image"
+      : mime.startsWith("video/") || ["mp4", "webm", "mov", "m4v", "ogv"].includes(ext)
+        ? "video"
+        : mime.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a", "flac"].includes(ext)
+          ? "audio"
+          : mime === "application/pdf" || ext === "pdf"
+            ? "pdf"
+            : mime.startsWith("text/") ||
+                [
+                  "txt",
+                  "md",
+                  "csv",
+                  "json",
+                  "log",
+                  "xml",
+                  "html",
+                  "css",
+                  "js",
+                  "ts",
+                  "tsx",
+                  "jsx",
+                ].includes(ext)
+              ? "text"
+              : ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"].includes(ext)
+                ? "office"
+                : "other";
 
   const [infoOpen, setInfoOpen] = useState(false);
   useEffect(() => {
@@ -1759,9 +1746,7 @@ function MediaPreviewDialog({
     <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-4 py-3 border-b border-border shrink-0 flex-row items-center justify-between gap-3 space-y-0">
-          <DialogTitle className="truncate text-sm min-w-0">
-            {file?.filename ?? ""}
-          </DialogTitle>
+          <DialogTitle className="truncate text-sm min-w-0">{file?.filename ?? ""}</DialogTitle>
           <Button
             type="button"
             size="sm"
@@ -1787,9 +1772,7 @@ function MediaPreviewDialog({
             {file && kind === "video" && (
               <video src={url} controls className="max-w-full max-h-full" />
             )}
-            {file && kind === "audio" && (
-              <audio src={url} controls className="w-[80%]" />
-            )}
+            {file && kind === "audio" && <audio src={url} controls className="w-[80%]" />}
             {file && kind === "pdf" && (
               <iframe
                 src={`${url}#toolbar=1`}
@@ -1847,9 +1830,7 @@ function MediaPreviewDialog({
                 )}
                 {usageQ.error && (
                   <p className="text-destructive">
-                    {usageQ.error instanceof Error
-                      ? usageQ.error.message
-                      : String(usageQ.error)}
+                    {usageQ.error instanceof Error ? usageQ.error.message : String(usageQ.error)}
                   </p>
                 )}
                 {!usageQ.isLoading && !usageQ.error && (usageQ.data?.items.length ?? 0) === 0 && (
@@ -1922,11 +1903,7 @@ function MediaPreviewDialog({
             </a>
           )}
           {file && (
-            <a
-              href={url}
-              download={file.filename}
-              className="inline-flex"
-            >
+            <a href={url} download={file.filename} className="inline-flex">
               <Button variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-1" />
                 {t("admin.download", { defaultValue: "Pobierz" })}

@@ -159,9 +159,7 @@ function CategoryColorsPage() {
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         {!ordered.length ? (
-          <div className="p-10 text-center text-muted-foreground text-sm">
-            {t("admin.empty")}
-          </div>
+          <div className="p-10 text-center text-muted-foreground text-sm">{t("admin.empty")}</div>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
@@ -170,9 +168,7 @@ function CategoryColorsPage() {
                   {t("admin.categoryColors.column.preview")}
                 </th>
                 <th className="text-left p-2">{t("admin.categoryColors.column.name")}</th>
-                <th className="text-left p-2 w-[200px]">
-                  {t("admin.categoryColors.column.slug")}
-                </th>
+                <th className="text-left p-2 w-[200px]">{t("admin.categoryColors.column.slug")}</th>
                 <th className="text-left p-2 w-[260px]">
                   {t("admin.categoryColors.column.color")}
                 </th>
@@ -228,7 +224,6 @@ function CategoryColorsPage() {
                         {dirty && (
                           <span className="text-[10px] text-brand font-semibold uppercase">●</span>
                         )}
-
                       </div>
                     </td>
                   </tr>

@@ -68,9 +68,7 @@ export const importNewsletterSubscribers = createServerFn({ method: "POST" })
         continue;
       }
       const displayName =
-        raw.displayName ||
-        [raw.firstName, raw.lastName].filter(Boolean).join(" ") ||
-        null;
+        raw.displayName || [raw.firstName, raw.lastName].filter(Boolean).join(" ") || null;
       const meta: Record<string, string> = {};
       if (raw.company) meta.company = raw.company;
 

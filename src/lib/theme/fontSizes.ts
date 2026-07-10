@@ -58,12 +58,54 @@ const FontSizesSchema = z
         h6: HeadingSchema,
       })
       .default({
-        h1: { desktop: 44, mobile: 32, lineHeight: 1.15, letterSpacing: -0.5, weight: 800, transform: "none" },
-        h2: { desktop: 34, mobile: 28, lineHeight: 1.2, letterSpacing: -0.25, weight: 700, transform: "none" },
-        h3: { desktop: 26, mobile: 22, lineHeight: 1.25, letterSpacing: 0, weight: 700, transform: "none" },
-        h4: { desktop: 22, mobile: 19, lineHeight: 1.3, letterSpacing: 0, weight: 700, transform: "none" },
-        h5: { desktop: 18, mobile: 17, lineHeight: 1.4, letterSpacing: 0, weight: 600, transform: "none" },
-        h6: { desktop: 16, mobile: 15, lineHeight: 1.45, letterSpacing: 0.5, weight: 600, transform: "uppercase" },
+        h1: {
+          desktop: 44,
+          mobile: 32,
+          lineHeight: 1.15,
+          letterSpacing: -0.5,
+          weight: 800,
+          transform: "none",
+        },
+        h2: {
+          desktop: 34,
+          mobile: 28,
+          lineHeight: 1.2,
+          letterSpacing: -0.25,
+          weight: 700,
+          transform: "none",
+        },
+        h3: {
+          desktop: 26,
+          mobile: 22,
+          lineHeight: 1.25,
+          letterSpacing: 0,
+          weight: 700,
+          transform: "none",
+        },
+        h4: {
+          desktop: 22,
+          mobile: 19,
+          lineHeight: 1.3,
+          letterSpacing: 0,
+          weight: 700,
+          transform: "none",
+        },
+        h5: {
+          desktop: 18,
+          mobile: 17,
+          lineHeight: 1.4,
+          letterSpacing: 0,
+          weight: 600,
+          transform: "none",
+        },
+        h6: {
+          desktop: 16,
+          mobile: 15,
+          lineHeight: 1.45,
+          letterSpacing: 0.5,
+          weight: 600,
+          transform: "uppercase",
+        },
       }),
     mobileBreakpoint: clamp(360, 1024).default(768),
   })
@@ -74,7 +116,14 @@ export type HeadingLevel = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
 export const FONT_SIZES_DEFAULTS: FontSizesSettings = FontSizesSchema.parse({});
 
-export const HEADING_LEVELS: readonly HeadingLevel[] = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
+export const HEADING_LEVELS: readonly HeadingLevel[] = [
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+] as const;
 
 function loadFromMap(map: Record<string, unknown>): FontSizesSettings {
   const raw = map[FONT_SIZES_KEY] ?? {};

@@ -405,11 +405,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     };
     const channel = supabase
       .channel("admin-crm-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "crm_leads" },
-        invalidateAll,
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "crm_leads" }, invalidateAll)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "crm_consent_log" },
@@ -425,20 +421,15 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         { event: "*", schema: "public", table: "newsletter_subscribers" },
         invalidateAll,
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "crm_lead_notes" },
-        () => {
-          const id = openIdRef.current;
-          if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
-        },
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "crm_lead_notes" }, () => {
+        const id = openIdRef.current;
+        if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, [qc]);
-
 
   const onExport = async () => {
     const r = await exportCrmLeadsCsv({
@@ -499,11 +490,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <span
             className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
             aria-live="polite"
-            title={
-              lastLiveAt
-                ? new Date(lastLiveAt).toLocaleTimeString()
-                : undefined
-            }
+            title={lastLiveAt ? new Date(lastLiveAt).toLocaleTimeString() : undefined}
           >
             <span
               className={
@@ -522,7 +509,6 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             {L.export}
           </Button>
         </div>
-
       </div>
 
       <div className="rounded-md border overflow-hidden">

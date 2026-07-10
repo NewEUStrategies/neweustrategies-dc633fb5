@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
-
 type Mode = "signin" | "signup";
 
 export function LoginPopup() {
@@ -36,7 +35,6 @@ export function LoginPopup() {
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState<{ title?: string; description?: string }>({});
-
 
   useEffect(() => {
     return onOpenLoginPopup((opts) => {
@@ -171,14 +169,21 @@ export function LoginPopup() {
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? (lang === "pl" ? "Ukryj hasło" : "Hide password") : (lang === "pl" ? "Pokaż hasło" : "Show password")}
+                aria-label={
+                  showPw
+                    ? lang === "pl"
+                      ? "Ukryj hasło"
+                      : "Hide password"
+                    : lang === "pl"
+                      ? "Pokaż hasło"
+                      : "Show password"
+                }
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
-
             {busy
               ? "…"
               : mode === "signin"

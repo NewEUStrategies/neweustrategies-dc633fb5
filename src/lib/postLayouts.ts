@@ -5,7 +5,6 @@
 // mapuje preset na klasy/elementy.
 import type React from "react";
 
-
 export type PostFormat = "standard" | "video" | "audio" | "gallery";
 
 interface RecommendedImageSize {
@@ -152,7 +151,6 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
   },
 ];
 
-
 export const VIDEO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({
   ...l,
   id: l.id.replace("layout-", "video-"),
@@ -256,7 +254,6 @@ export interface PostLayoutSettings {
   header_excerpt_size_md: number;
   header_excerpt_size_lg: number;
 }
-
 
 /** Zwraca efektywną wartość hasSidebar (override -> preset default). */
 export function effectiveHasSidebar(
@@ -383,7 +380,6 @@ export function headerTypographyStyle(
     ["--header-excerpt-lg" as string]: `${s.header_excerpt_size_lg}px`,
   };
 }
-
 
 /** Łączy globalne ustawienia z overridem konkretnego wpisu. */
 export function mergeOverrides(

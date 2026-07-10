@@ -30,7 +30,16 @@ import {
 import { Upload, FileText } from "lucide-react";
 import { importNewsletterSubscribers } from "@/lib/newsletter-admin.functions";
 
-type FieldKey = "email" | "firstName" | "lastName" | "displayName" | "language" | "status" | "company" | "source" | "";
+type FieldKey =
+  | "email"
+  | "firstName"
+  | "lastName"
+  | "displayName"
+  | "language"
+  | "status"
+  | "company"
+  | "source"
+  | "";
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   email: "E-mail (wymagane)",
@@ -53,18 +62,30 @@ function parseCsv(text: string): { header: string[]; rows: string[][] } {
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (inQ) {
-      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (c === '"') inQ = false;
+      if (c === '"' && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (c === '"') inQ = false;
       else field += c;
     } else {
       if (c === '"') inQ = true;
-      else if (c === delim) { cur.push(field); field = ""; }
-      else if (c === "\n") { cur.push(field); field = ""; lines.push(cur); cur = []; }
-      else if (c === "\r") { /* skip */ }
-      else field += c;
+      else if (c === delim) {
+        cur.push(field);
+        field = "";
+      } else if (c === "\n") {
+        cur.push(field);
+        field = "";
+        lines.push(cur);
+        cur = [];
+      } else if (c === "\r") {
+        /* skip */
+      } else field += c;
     }
   }
-  if (field.length || cur.length) { cur.push(field); lines.push(cur); }
+  if (field.length || cur.length) {
+    cur.push(field);
+    lines.push(cur);
+  }
   const nonEmpty = lines.filter((r) => r.some((v) => v.trim().length));
   const header = nonEmpty[0] ?? [];
   return { header, rows: nonEmpty.slice(1) };
@@ -101,7 +122,8 @@ export function ImportCsvDialog({
 
   const parsed = useMemo(() => (csvText ? parseCsv(csvText) : null), [csvText]);
   const emailIdx = mapping.indexOf("email");
-  const validRows = parsed?.rows.filter((r) => emailIdx >= 0 && /.+@.+\..+/.test(r[emailIdx] ?? "")) ?? [];
+  const validRows =
+    parsed?.rows.filter((r) => emailIdx >= 0 && /.+@.+\..+/.test(r[emailIdx] ?? "")) ?? [];
 
   const onFile = async (f: File) => {
     setFile(f);
@@ -133,8 +155,9 @@ export function ImportCsvDialog({
         lastName: row.lastName || undefined,
         displayName: row.displayName || undefined,
         language: (row.language === "en" ? "en" : "pl") as "pl" | "en",
-        status: (row.status === "pending" || row.status === "unsubscribed" ? row.status : "subscribed") as
-          | "subscribed" | "pending" | "unsubscribed",
+        status: (row.status === "pending" || row.status === "unsubscribed"
+          ? row.status
+          : "subscribed") as "subscribed" | "pending" | "unsubscribed",
         source: row.source || undefined,
         company: row.company || undefined,
       };
@@ -160,7 +183,13 @@ export function ImportCsvDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) reset();
+        onOpenChange(o);
+      }}
+    >
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Import subskrybentow z CSV</DialogTitle>
@@ -190,7 +219,9 @@ export function ImportCsvDialog({
               <span className="text-muted-foreground">
                 ({parsed.rows.length} wierszy, {validRows.length} z poprawnym e-mailem)
               </span>
-              <Button size="sm" variant="ghost" className="ml-auto" onClick={reset}>Zmien plik</Button>
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={reset}>
+                Zmien plik
+              </Button>
             </div>
 
             <div>
@@ -198,7 +229,12 @@ export function ImportCsvDialog({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                 {parsed.header.map((h, i) => (
                   <div key={i} className="grid grid-cols-[1fr_1fr] gap-2 items-center">
-                    <div className="text-xs font-mono px-2 py-1 rounded bg-muted truncate" title={h}>{h || `col_${i + 1}`}</div>
+                    <div
+                      className="text-xs font-mono px-2 py-1 rounded bg-muted truncate"
+                      title={h}
+                    >
+                      {h || `col_${i + 1}`}
+                    </div>
                     <Select
                       value={mapping[i] ?? ""}
                       onValueChange={(v) => {
@@ -207,10 +243,14 @@ export function ImportCsvDialog({
                         setMapping(next);
                       }}
                     >
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => (
-                          <SelectItem key={k || "skip"} value={k}>{FIELD_LABELS[k]}</SelectItem>
+                          <SelectItem key={k || "skip"} value={k}>
+                            {FIELD_LABELS[k]}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -231,7 +271,9 @@ export function ImportCsvDialog({
               </div>
               <div className="p-3 space-y-1 text-xs font-mono">
                 {validRows.slice(0, 5).map((r, i) => (
-                  <div key={i} className="truncate">{r[emailIdx]}</div>
+                  <div key={i} className="truncate">
+                    {r[emailIdx]}
+                  </div>
                 ))}
                 {validRows.length === 0 && <div className="text-muted-foreground">-</div>}
               </div>
@@ -240,8 +282,13 @@ export function ImportCsvDialog({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Anuluj</Button>
-          <Button onClick={doImport} disabled={busy || !parsed || emailIdx < 0 || validRows.length === 0}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Anuluj
+          </Button>
+          <Button
+            onClick={doImport}
+            disabled={busy || !parsed || emailIdx < 0 || validRows.length === 0}
+          >
             {busy ? "Importowanie..." : `Importuj ${validRows.length}`}
           </Button>
         </DialogFooter>

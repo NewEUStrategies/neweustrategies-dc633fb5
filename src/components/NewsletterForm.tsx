@@ -40,7 +40,12 @@ function BuilderInlineWrapper({
       : "border-t border-b border-border py-8";
   return (
     <section className={containerCls + " nl-shell nl-shell--" + variant} aria-label="Newsletter">
-      <NewsletterDocRenderer doc={settings.inline_doc} settings={settings} lang={lang} source={source} />
+      <NewsletterDocRenderer
+        doc={settings.inline_doc}
+        settings={settings}
+        lang={lang}
+        source={source}
+      />
     </section>
   );
 }
@@ -124,14 +129,34 @@ export function NewsletterForm({
   // Labels / placeholders (widget override > sensible defaults).
   const L = {
     firstName: readI18nOverride(cfg, "firstNameLabel", lang, lang === "en" ? "First name" : "Imię"),
-    lastName: readI18nOverride(cfg, "lastNameLabel", lang, lang === "en" ? "Last name" : "Nazwisko"),
+    lastName: readI18nOverride(
+      cfg,
+      "lastNameLabel",
+      lang,
+      lang === "en" ? "Last name" : "Nazwisko",
+    ),
     email: readI18nOverride(cfg, "emailLabel", lang, lang === "en" ? "Email" : "E-mail"),
     company: readI18nOverride(cfg, "companyLabel", lang, lang === "en" ? "Company" : "Firma"),
   };
   const P = {
-    firstName: readI18nOverride(cfg, "firstNamePlaceholder", lang, lang === "en" ? "First name" : "Imię"),
-    lastName: readI18nOverride(cfg, "lastNamePlaceholder", lang, lang === "en" ? "Last name" : "Nazwisko"),
-    email: readI18nOverride(cfg, "emailPlaceholder", lang, lang === "en" ? "your@email.com" : "twoj@email.com"),
+    firstName: readI18nOverride(
+      cfg,
+      "firstNamePlaceholder",
+      lang,
+      lang === "en" ? "First name" : "Imię",
+    ),
+    lastName: readI18nOverride(
+      cfg,
+      "lastNamePlaceholder",
+      lang,
+      lang === "en" ? "Last name" : "Nazwisko",
+    ),
+    email: readI18nOverride(
+      cfg,
+      "emailPlaceholder",
+      lang,
+      lang === "en" ? "your@email.com" : "twoj@email.com",
+    ),
     company: readI18nOverride(cfg, "companyPlaceholder", lang, lang === "en" ? "Company" : "Firma"),
     name: lang === "en" ? "Name (optional)" : "Imię (opcjonalnie)",
   };
@@ -171,9 +196,7 @@ export function NewsletterForm({
           : "Wyrażam zgodę na otrzymywanie newslettera i przetwarzanie mojego adresu e-mail w tym celu.");
 
       const displayName =
-        [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") ||
-        name.trim() ||
-        undefined;
+        [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || name.trim() || undefined;
 
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
@@ -238,12 +261,20 @@ export function NewsletterForm({
       {state === "ok" ? (
         <p className="text-sm font-medium text-foreground bg-muted rounded p-3">{success}</p>
       ) : (
-        <form onSubmit={onSubmit} className={hasExtras ? "space-y-2" : "grid sm:grid-cols-[1fr_1fr_auto] gap-2"}>
+        <form
+          onSubmit={onSubmit}
+          className={hasExtras ? "space-y-2" : "grid sm:grid-cols-[1fr_1fr_auto] gap-2"}
+        >
           {hasExtras ? (
             <>
               <div className="grid sm:grid-cols-2 gap-2">
                 {showFirstName && (
-                  <FieldWrap label={L.firstName} required={requireFirstName} showMark={inBuilder} error={errors.firstName}>
+                  <FieldWrap
+                    label={L.firstName}
+                    required={requireFirstName}
+                    showMark={inBuilder}
+                    error={errors.firstName}
+                  >
                     <input
                       type="text"
                       value={firstName}
@@ -257,7 +288,12 @@ export function NewsletterForm({
                   </FieldWrap>
                 )}
                 {showLastName && (
-                  <FieldWrap label={L.lastName} required={requireLastName} showMark={inBuilder} error={errors.lastName}>
+                  <FieldWrap
+                    label={L.lastName}
+                    required={requireLastName}
+                    showMark={inBuilder}
+                    error={errors.lastName}
+                  >
                     <input
                       type="text"
                       value={lastName}
@@ -271,7 +307,12 @@ export function NewsletterForm({
                   </FieldWrap>
                 )}
                 {showCompany && (
-                  <FieldWrap label={L.company} required={requireCompany} showMark={inBuilder} error={errors.company}>
+                  <FieldWrap
+                    label={L.company}
+                    required={requireCompany}
+                    showMark={inBuilder}
+                    error={errors.company}
+                  >
                     <input
                       type="text"
                       value={company}
@@ -284,7 +325,12 @@ export function NewsletterForm({
                     />
                   </FieldWrap>
                 )}
-                <FieldWrap label={L.email} required={requireEmail} showMark={inBuilder} error={errors.email}>
+                <FieldWrap
+                  label={L.email}
+                  required={requireEmail}
+                  showMark={inBuilder}
+                  error={errors.email}
+                >
                   <input
                     type="email"
                     required={requireEmail}
@@ -297,7 +343,14 @@ export function NewsletterForm({
                   />
                 </FieldWrap>
                 {customFields.map((f) => (
-                  <CustomFieldRender key={f.id} field={f} lang={lang} err={errors[f.id]} inputCls={inputCls} showMark={inBuilder} />
+                  <CustomFieldRender
+                    key={f.id}
+                    field={f}
+                    lang={lang}
+                    err={errors[f.id]}
+                    inputCls={inputCls}
+                    showMark={inBuilder}
+                  />
                 ))}
               </div>
 
@@ -398,7 +451,12 @@ function CustomFieldRender({
     return (
       <div>
         <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
-          <input type="checkbox" name={name} className="mt-0.5" aria-required={field.required || undefined} />
+          <input
+            type="checkbox"
+            name={name}
+            className="mt-0.5"
+            aria-required={field.required || undefined}
+          />
           <span>
             {label}
             {null}
@@ -411,7 +469,13 @@ function CustomFieldRender({
   if (field.type === "select") {
     return (
       <FieldWrap label={label} required={field.required} showMark={showMark} error={err}>
-        <select name={name} required={field.required} aria-required={field.required || undefined} className={inputCls} defaultValue="">
+        <select
+          name={name}
+          required={field.required}
+          aria-required={field.required || undefined}
+          className={inputCls}
+          defaultValue=""
+        >
           <option value="" disabled>
             {placeholder || (lang === "pl" ? "Wybierz..." : "Select...")}
           </option>
@@ -453,4 +517,3 @@ function CustomFieldRender({
     </FieldWrap>
   );
 }
-

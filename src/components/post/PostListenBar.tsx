@@ -80,7 +80,8 @@ export function PostListenBar({ postId, lang, readMinutes }: PostListenBarProps)
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
 
-  const approxMinutes = readMinutes && readMinutes > 0 ? Math.max(1, Math.round(readMinutes * 1.15)) : null;
+  const approxMinutes =
+    readMinutes && readMinutes > 0 ? Math.max(1, Math.round(readMinutes * 1.15)) : null;
 
   useEffect(() => {
     return () => {
@@ -158,13 +159,7 @@ export function PostListenBar({ postId, lang, readMinutes }: PostListenBarProps)
     audio.currentTime = (pct / 100) * audio.duration;
   }, []);
 
-  const label = loading
-    ? t.loading
-    : playing
-      ? t.pause
-      : audioRef.current
-        ? t.resume
-        : t.listen;
+  const label = loading ? t.loading : playing ? t.pause : audioRef.current ? t.resume : t.listen;
 
   return (
     <div
@@ -226,11 +221,7 @@ export function PostListenBar({ postId, lang, readMinutes }: PostListenBarProps)
       {error && (
         <div className="flex items-center gap-3 text-xs text-destructive">
           <span>{error}</span>
-          <button
-            type="button"
-            onClick={fetchAudio}
-            className="underline hover:no-underline"
-          >
+          <button type="button" onClick={fetchAudio} className="underline hover:no-underline">
             {t.retry}
           </button>
         </div>

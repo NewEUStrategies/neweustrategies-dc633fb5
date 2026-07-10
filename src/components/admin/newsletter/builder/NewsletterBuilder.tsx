@@ -30,10 +30,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import {
-  useNewsletterSettings,
-  useSaveNewsletterSettings,
-} from "@/hooks/useNewsletterSettings";
+import { useNewsletterSettings, useSaveNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import type {
   NlDoc,
   NlWidget,
@@ -129,7 +126,11 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     });
   }, [settings, variant]);
 
-  const history = useUndoRedo<NlDoc>({ version: 1, variant, sections: [{ id: "s0", widgets: [] }] });
+  const history = useUndoRedo<NlDoc>({
+    version: 1,
+    variant,
+    sections: [{ id: "s0", widgets: [] }],
+  });
   const initedRef = useRef(false);
   useEffect(() => {
     if (initialDoc && !initedRef.current) {
@@ -172,14 +173,11 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
       })()
     : null;
   const selectedSection = selectedSectionId
-    ? doc.sections[findSectionIdx(selectedSectionId)] ?? null
+    ? (doc.sections[findSectionIdx(selectedSectionId)] ?? null)
     : null;
 
   // ------------- section mutators -------------
-  const patchSectionById = (
-    sectionId: string,
-    fn: (section: NlSection) => NlSection,
-  ) => {
+  const patchSectionById = (sectionId: string, fn: (section: NlSection) => NlSection) => {
     history.set((prev) => ({
       ...prev,
       sections: prev.sections.map((s) => (s.id === sectionId ? fn(s) : s)),
@@ -204,7 +202,11 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
   const setSectionLayout = (sectionId: string, layout: NlSectionLayout) => {
     patchSectionById(sectionId, (s) => {
       if (layout === "single") {
-        return { ...s, layout: "single", widgets: s.widgets.map((w) => ({ ...w, col: undefined })) };
+        return {
+          ...s,
+          layout: "single",
+          widgets: s.widgets.map((w) => ({ ...w, col: undefined })),
+        };
       }
       return {
         ...s,
@@ -229,7 +231,9 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
 
   const removeSection = (sectionId: string) => {
     if (doc.sections.length <= 1) {
-      toast.error(lang === "pl" ? "Musi zostac co najmniej jedna sekcja" : "At least one section required");
+      toast.error(
+        lang === "pl" ? "Musi zostac co najmniej jedna sekcja" : "At least one section required",
+      );
       return;
     }
     history.set((prev) => ({ ...prev, sections: prev.sections.filter((s) => s.id !== sectionId) }));
@@ -266,10 +270,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
   };
 
   // ------------- widget mutators -------------
-  const updateSectionWidgets = (
-    sectionId: string,
-    fn: (list: NlWidget[]) => NlWidget[],
-  ) => {
+  const updateSectionWidgets = (sectionId: string, fn: (list: NlWidget[]) => NlWidget[]) => {
     patchSectionById(sectionId, (s) => ({ ...s, widgets: fn(s.widgets) }));
   };
 
@@ -289,7 +290,8 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     if ((section.layout ?? "single") !== "single") w.col = col;
     updateSectionWidgets(sectionId, (list) => {
       const next = [...list];
-      const idx = typeof atIndex === "number" ? Math.max(0, Math.min(atIndex, next.length)) : next.length;
+      const idx =
+        typeof atIndex === "number" ? Math.max(0, Math.min(atIndex, next.length)) : next.length;
       next.splice(idx, 0, w);
       return next;
     });
@@ -400,7 +402,8 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     if (!activeLoc) return;
     const sourceSection = doc.sections[activeLoc.sectionIdx]!;
     const activeWidget = sourceSection.widgets[activeLoc.widgetIdx]!;
-    const newCol = targetLayout === "single" ? undefined : ((target.col ?? activeWidget.col ?? 0) as 0 | 1);
+    const newCol =
+      targetLayout === "single" ? undefined : ((target.col ?? activeWidget.col ?? 0) as 0 | 1);
 
     history.set((prev) => {
       // remove from source
@@ -447,7 +450,8 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
 
   // Realistyczne szerokosci podgladu - popup ma stala szerokosc jak w produkcji,
   // inline dostosowuje sie do dostepnej przestrzeni w kanwie.
-  const popupLayout = variant === "popup" ? (doc.popup?.layout ?? settings.popup_layout ?? "stacked") : null;
+  const popupLayout =
+    variant === "popup" ? (doc.popup?.layout ?? settings.popup_layout ?? "stacked") : null;
   const desktopPopupWidth = popupLayout === "split" ? 880 : 520;
   const canvasWidth =
     variant === "popup"
@@ -466,21 +470,34 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     variant === "popup"
       ? (doc.popup?.overlay ?? settings.popup_overlay_color ?? "rgba(0,0,0,0.7)")
       : undefined;
-  const popupRadius = variant === "popup" ? (doc.popup?.radius ?? settings.popup_border_radius_px ?? 16) : 0;
+  const popupRadius =
+    variant === "popup" ? (doc.popup?.radius ?? settings.popup_border_radius_px ?? 16) : 0;
   const draggingWidget = draggingWidgetId
-    ? doc.sections.flatMap((s) => s.widgets).find((w) => w.id === draggingWidgetId) ?? null
+    ? (doc.sections.flatMap((s) => s.widgets).find((w) => w.id === draggingWidgetId) ?? null)
     : null;
 
   const deviceLabel =
     device === "desktop"
-      ? lang === "pl" ? "Desktop" : "Desktop"
+      ? lang === "pl"
+        ? "Desktop"
+        : "Desktop"
       : device === "tablet"
         ? "Tablet"
         : "Mobile";
-  const canvasPxLabel = typeof canvasWidth === "number" ? `${canvasWidth}px` : lang === "pl" ? "pelna szerokosc" : "full width";
+  const canvasPxLabel =
+    typeof canvasWidth === "number"
+      ? `${canvasWidth}px`
+      : lang === "pl"
+        ? "pelna szerokosc"
+        : "full width";
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
       <div className="space-y-3">
         <header className="flex items-center justify-between gap-3 flex-wrap">
           <div>
@@ -488,7 +505,8 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
               {variant === "inline" ? "Inline builder" : "Popup builder"}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Przeciagnij widgety z lewego panelu do kanwy. Klikniecie widgetu lub sekcji otwiera panel wlasciwosci.
+              Przeciagnij widgety z lewego panelu do kanwy. Klikniecie widgetu lub sekcji otwiera
+              panel wlasciwosci.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -523,7 +541,10 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
 
         <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-3 min-h-[70vh]">
           <aside className="bg-card border border-border rounded-xl flex flex-col overflow-hidden max-h-[80vh]">
-            <div role="tablist" className="flex items-center gap-1 p-1 m-2 rounded-md bg-muted/50 border border-border/60">
+            <div
+              role="tablist"
+              className="flex items-center gap-1 p-1 m-2 rounded-md bg-muted/50 border border-border/60"
+            >
               <button
                 role="tab"
                 aria-selected={sideTab === "widgets"}
@@ -551,10 +572,16 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                 }
               >
                 {selectedWidget
-                  ? (lang === "pl" ? "Widget" : "Widget")
+                  ? lang === "pl"
+                    ? "Widget"
+                    : "Widget"
                   : selectedSection
-                    ? (lang === "pl" ? "Sekcja" : "Section")
-                    : (lang === "pl" ? "Dokument" : "Document")}
+                    ? lang === "pl"
+                      ? "Sekcja"
+                      : "Section"
+                    : lang === "pl"
+                      ? "Dokument"
+                      : "Document"}
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-3 pb-3">
@@ -566,7 +593,6 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                     if (sid) addWidget(type, sid, undefined, 0, preset);
                   }}
                 />
-
               ) : (
                 <PropertiesPanel
                   variant={variant}
@@ -607,190 +633,186 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
 
             <div
               className="p-6 overflow-y-auto max-h-[calc(80vh-2.5rem)]"
-              style={
-                variant === "popup"
-                  ? { backgroundColor: overlayBg }
-                  : undefined
-              }
+              style={variant === "popup" ? { backgroundColor: overlayBg } : undefined}
             >
-            <div
-              className={
-                "mx-auto transition-all space-y-4 " +
-                (variant === "popup"
-                  ? "shadow-2xl ring-1 ring-black/10 overflow-hidden"
-                  : device !== "desktop"
-                    ? "shadow-lg ring-1 ring-border/60 rounded-2xl bg-card"
-                    : "")
-              }
-              style={{
-                maxWidth: typeof canvasWidth === "number" ? `${canvasWidth}px` : canvasWidth,
-                width: typeof canvasWidth === "number" ? `${canvasWidth}px` : undefined,
-                borderRadius: variant === "popup" ? `${popupRadius}px` : undefined,
-                backgroundColor: variant === "popup" ? popupBg : undefined,
-              }}
-            >
-              {doc.sections.map((section, sIdx) => {
-                const isSelected = selectedSectionId === section.id;
-                const st = section.style ?? {};
-                return (
-                  <div key={section.id} className="space-y-2">
-                    <div
-                      className={
-                        "relative rounded-xl transition-all border-2 " +
-                        (isSelected
-                          ? "border-primary"
-                          : "border-transparent hover:border-primary/30")
-                      }
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedSectionId(section.id);
-                        setSelectedId(null);
-                      }}
-                    >
-                      {/* Section toolbar - inline (nie moze byc chowany przez overflow-hidden karty popupu) */}
-                      <div className="flex items-center gap-1 mb-2 bg-card border border-border rounded-md shadow-sm text-[10px] w-fit">
-                        <span className="px-2 py-1 text-muted-foreground uppercase tracking-wider">
-                          {lang === "pl" ? "Sekcja" : "Section"} {sIdx + 1}
-                        </span>
-                        <SectionBtn
-                          onClick={() => moveSection(section.id, -1)}
-                          disabled={sIdx === 0}
-                          label={lang === "pl" ? "W gore" : "Move up"}
-                        >
-                          <ArrowUp className="w-3 h-3" />
-                        </SectionBtn>
-                        <SectionBtn
-                          onClick={() => moveSection(section.id, 1)}
-                          disabled={sIdx === doc.sections.length - 1}
-                          label={lang === "pl" ? "W dol" : "Move down"}
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </SectionBtn>
-                        <SectionBtn
-                          onClick={() => duplicateSection(section.id)}
-                          label={lang === "pl" ? "Duplikuj sekcje" : "Duplicate"}
-                        >
-                          <Copy className="w-3 h-3" />
-                        </SectionBtn>
-                        <SectionBtn
-                          onClick={() => removeSection(section.id)}
-                          disabled={doc.sections.length <= 1}
-                          label={lang === "pl" ? "Usun sekcje" : "Delete"}
-                          danger
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </SectionBtn>
-                      </div>
-
-                      {(() => {
-                        const secLayout = section.layout ?? "single";
-                        const hasMedia = Boolean(section.media?.url);
-                        // single + media -> tlo; 1-1 + media -> kolumna 50%
-                        const bgAsBackground = hasMedia && secLayout === "single";
-                        const splitMedia = hasMedia && secLayout === "1-1";
-                        return (
-                          <div
-                            className="rounded-xl overflow-hidden"
-                            style={{
-                              backgroundColor:
-                                st.bg ??
-                                (variant === "popup"
-                                  ? "transparent"
-                                  : sIdx === 0
-                                    ? "var(--card)"
-                                    : "transparent"),
-                              color:
-                                st.fg ??
-                                (variant === "popup"
-                                  ? (doc.popup?.fg ?? settings.popup_text_color)
-                                  : undefined),
-                              borderRadius: st.radius != null ? `${st.radius}px` : undefined,
-                              backgroundImage: bgAsBackground
-                                ? `url(${section.media!.url})`
-                                : undefined,
-                              backgroundSize: bgAsBackground ? "cover" : undefined,
-                              backgroundPosition: bgAsBackground ? "center" : undefined,
-                              backgroundRepeat: bgAsBackground ? "no-repeat" : undefined,
-                              display: splitMedia ? "flex" : undefined,
-                              flexDirection: splitMedia ? "row" : undefined,
-                              alignItems: splitMedia ? "stretch" : undefined,
-                              minHeight: 160,
-                            }}
-                          >
-                            {splitMedia && section.media!.position === "left" && (
-                              <div
-                                aria-label={section.media!.alt ?? ""}
-                                style={{
-                                  flex: "0 0 50%",
-                                  alignSelf: "stretch",
-                                  backgroundImage: `url(${section.media!.url})`,
-                                  backgroundSize: "cover",
-                                  backgroundPosition: "center",
-                                  backgroundRepeat: "no-repeat",
-                                }}
-                              />
-                            )}
-                            <div
-                              className="min-h-[160px]"
-                              style={{
-                                flex: splitMedia ? "1 1 0%" : undefined,
-                                minWidth: 0,
-                                paddingTop: st.paddingY != null ? `${st.paddingY}px` : 16,
-                                paddingBottom: st.paddingY != null ? `${st.paddingY}px` : 16,
-                                paddingLeft: st.paddingX != null ? `${st.paddingX}px` : 16,
-                                paddingRight: st.paddingX != null ? `${st.paddingX}px` : 16,
-                              }}
-                            >
-                              <BuilderCanvas
-                                sectionId={section.id}
-                                widgets={section.widgets}
-                                lang={lang}
-                                layout={secLayout}
-                                selectedId={selectedId}
-                                onSelect={(id) => {
-                                  setSelectedId(id);
-                                  setSelectedSectionId(null);
-                                }}
-                                onRemove={removeWidget}
-                                onDuplicate={duplicateWidget}
-                              />
-                            </div>
-                            {splitMedia && section.media!.position === "right" && (
-                              <div
-                                aria-label={section.media!.alt ?? ""}
-                                style={{
-                                  flex: "0 0 50%",
-                                  alignSelf: "stretch",
-                                  backgroundImage: `url(${section.media!.url})`,
-                                  backgroundSize: "cover",
-                                  backgroundPosition: "center",
-                                  backgroundRepeat: "no-repeat",
-                                }}
-                              />
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Add-section between sections */}
-                    <div className="flex justify-center">
-                      <button
-                        type="button"
+              <div
+                className={
+                  "mx-auto transition-all space-y-4 " +
+                  (variant === "popup"
+                    ? "shadow-2xl ring-1 ring-black/10 overflow-hidden"
+                    : device !== "desktop"
+                      ? "shadow-lg ring-1 ring-border/60 rounded-2xl bg-card"
+                      : "")
+                }
+                style={{
+                  maxWidth: typeof canvasWidth === "number" ? `${canvasWidth}px` : canvasWidth,
+                  width: typeof canvasWidth === "number" ? `${canvasWidth}px` : undefined,
+                  borderRadius: variant === "popup" ? `${popupRadius}px` : undefined,
+                  backgroundColor: variant === "popup" ? popupBg : undefined,
+                }}
+              >
+                {doc.sections.map((section, sIdx) => {
+                  const isSelected = selectedSectionId === section.id;
+                  const st = section.style ?? {};
+                  return (
+                    <div key={section.id} className="space-y-2">
+                      <div
+                        className={
+                          "relative rounded-xl transition-all border-2 " +
+                          (isSelected
+                            ? "border-primary"
+                            : "border-transparent hover:border-primary/30")
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
-                          addSection(section.id);
+                          setSelectedSectionId(section.id);
+                          setSelectedId(null);
                         }}
-                        className="opacity-60 hover:opacity-100 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-primary flex items-center gap-1 px-2 py-1 rounded border border-dashed border-border/60 hover:border-primary/40 transition-all"
                       >
-                        <Plus className="w-3 h-3" />
-                        {lang === "pl" ? "Dodaj sekcje" : "Add section"}
-                      </button>
+                        {/* Section toolbar - inline (nie moze byc chowany przez overflow-hidden karty popupu) */}
+                        <div className="flex items-center gap-1 mb-2 bg-card border border-border rounded-md shadow-sm text-[10px] w-fit">
+                          <span className="px-2 py-1 text-muted-foreground uppercase tracking-wider">
+                            {lang === "pl" ? "Sekcja" : "Section"} {sIdx + 1}
+                          </span>
+                          <SectionBtn
+                            onClick={() => moveSection(section.id, -1)}
+                            disabled={sIdx === 0}
+                            label={lang === "pl" ? "W gore" : "Move up"}
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </SectionBtn>
+                          <SectionBtn
+                            onClick={() => moveSection(section.id, 1)}
+                            disabled={sIdx === doc.sections.length - 1}
+                            label={lang === "pl" ? "W dol" : "Move down"}
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </SectionBtn>
+                          <SectionBtn
+                            onClick={() => duplicateSection(section.id)}
+                            label={lang === "pl" ? "Duplikuj sekcje" : "Duplicate"}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </SectionBtn>
+                          <SectionBtn
+                            onClick={() => removeSection(section.id)}
+                            disabled={doc.sections.length <= 1}
+                            label={lang === "pl" ? "Usun sekcje" : "Delete"}
+                            danger
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </SectionBtn>
+                        </div>
+
+                        {(() => {
+                          const secLayout = section.layout ?? "single";
+                          const hasMedia = Boolean(section.media?.url);
+                          // single + media -> tlo; 1-1 + media -> kolumna 50%
+                          const bgAsBackground = hasMedia && secLayout === "single";
+                          const splitMedia = hasMedia && secLayout === "1-1";
+                          return (
+                            <div
+                              className="rounded-xl overflow-hidden"
+                              style={{
+                                backgroundColor:
+                                  st.bg ??
+                                  (variant === "popup"
+                                    ? "transparent"
+                                    : sIdx === 0
+                                      ? "var(--card)"
+                                      : "transparent"),
+                                color:
+                                  st.fg ??
+                                  (variant === "popup"
+                                    ? (doc.popup?.fg ?? settings.popup_text_color)
+                                    : undefined),
+                                borderRadius: st.radius != null ? `${st.radius}px` : undefined,
+                                backgroundImage: bgAsBackground
+                                  ? `url(${section.media!.url})`
+                                  : undefined,
+                                backgroundSize: bgAsBackground ? "cover" : undefined,
+                                backgroundPosition: bgAsBackground ? "center" : undefined,
+                                backgroundRepeat: bgAsBackground ? "no-repeat" : undefined,
+                                display: splitMedia ? "flex" : undefined,
+                                flexDirection: splitMedia ? "row" : undefined,
+                                alignItems: splitMedia ? "stretch" : undefined,
+                                minHeight: 160,
+                              }}
+                            >
+                              {splitMedia && section.media!.position === "left" && (
+                                <div
+                                  aria-label={section.media!.alt ?? ""}
+                                  style={{
+                                    flex: "0 0 50%",
+                                    alignSelf: "stretch",
+                                    backgroundImage: `url(${section.media!.url})`,
+                                    backgroundSize: "cover",
+                                    backgroundPosition: "center",
+                                    backgroundRepeat: "no-repeat",
+                                  }}
+                                />
+                              )}
+                              <div
+                                className="min-h-[160px]"
+                                style={{
+                                  flex: splitMedia ? "1 1 0%" : undefined,
+                                  minWidth: 0,
+                                  paddingTop: st.paddingY != null ? `${st.paddingY}px` : 16,
+                                  paddingBottom: st.paddingY != null ? `${st.paddingY}px` : 16,
+                                  paddingLeft: st.paddingX != null ? `${st.paddingX}px` : 16,
+                                  paddingRight: st.paddingX != null ? `${st.paddingX}px` : 16,
+                                }}
+                              >
+                                <BuilderCanvas
+                                  sectionId={section.id}
+                                  widgets={section.widgets}
+                                  lang={lang}
+                                  layout={secLayout}
+                                  selectedId={selectedId}
+                                  onSelect={(id) => {
+                                    setSelectedId(id);
+                                    setSelectedSectionId(null);
+                                  }}
+                                  onRemove={removeWidget}
+                                  onDuplicate={duplicateWidget}
+                                />
+                              </div>
+                              {splitMedia && section.media!.position === "right" && (
+                                <div
+                                  aria-label={section.media!.alt ?? ""}
+                                  style={{
+                                    flex: "0 0 50%",
+                                    alignSelf: "stretch",
+                                    backgroundImage: `url(${section.media!.url})`,
+                                    backgroundSize: "cover",
+                                    backgroundPosition: "center",
+                                    backgroundRepeat: "no-repeat",
+                                  }}
+                                />
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Add-section between sections */}
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addSection(section.id);
+                          }}
+                          className="opacity-60 hover:opacity-100 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-primary flex items-center gap-1 px-2 py-1 rounded border border-dashed border-border/60 hover:border-primary/40 transition-all"
+                        >
+                          <Plus className="w-3 h-3" />
+                          {lang === "pl" ? "Dodaj sekcje" : "Add section"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
             </div>
           </main>
         </div>
@@ -865,7 +887,10 @@ function DeviceSwitch({ value, onChange }: { value: Device; onChange: (d: Device
             type="button"
             aria-label={it.label}
             onClick={() => onChange(it.v)}
-            className={"p-1.5 rounded " + (active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            className={
+              "p-1.5 rounded " +
+              (active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")
+            }
           >
             <Icon className="w-4 h-4" />
           </button>
@@ -885,7 +910,9 @@ function LangSwitch({ value, onChange }: { value: NlLang; onChange: (l: NlLang) 
           onClick={() => onChange(l)}
           className={
             "px-2 py-1 text-xs rounded uppercase font-semibold " +
-            (value === l ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")
+            (value === l
+              ? "bg-background shadow-sm"
+              : "text-muted-foreground hover:text-foreground")
           }
         >
           {l}

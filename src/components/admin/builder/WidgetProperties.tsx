@@ -291,7 +291,6 @@ export function WidgetProperties({
       <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}
 .cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}`}</style>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-
         <div className="mb-1.5 px-0.5">
           <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
           <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
@@ -444,8 +443,6 @@ export function WidgetProperties({
               </div>
             </section>
           )}
-
-
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -602,7 +599,6 @@ export function WidgetProperties({
               </div>
             </section>
           )}
-
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -838,7 +834,6 @@ export function WidgetProperties({
             </p>
           </section>
 
-
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Motion
@@ -865,8 +860,8 @@ export function WidgetProperties({
               Link widgetu
             </h4>
             <p className="text-[10px] text-muted-foreground -mt-1">
-              Cały widget staje się klikalny - wybierz URL zewnętrzny, wpis, stronę
-              lub plik z Biblioteki mediów.
+              Cały widget staje się klikalny - wybierz URL zewnętrzny, wpis, stronę lub plik z
+              Biblioteki mediów.
             </p>
             <LinkPicker
               value={widget.advanced?.link}
@@ -895,7 +890,6 @@ export function WidgetProperties({
               placeholder=".my-class { color: red; }"
             />
           </section>
-
         </TabsContent>
       </Tabs>
     </div>

@@ -129,8 +129,7 @@ async function fnv1a(input: string): Promise<string> {
 export const Route = createFileRoute("/api/public/post-tts")({
   server: {
     handlers: {
-      OPTIONS: async () =>
-        new Response(null, { status: 204, headers: CORS_HEADERS }),
+      OPTIONS: async () => new Response(null, { status: 204, headers: CORS_HEADERS }),
       POST: async ({ request }) => {
         let body: PostTtsRequest;
         try {
@@ -143,8 +142,7 @@ export const Route = createFileRoute("/api/public/post-tts")({
         const lang: "pl" | "en" = body.lang === "en" ? "en" : "pl";
         const voiceId =
           body.voiceId && ALLOWED_VOICES.has(body.voiceId) ? body.voiceId : DEFAULT_VOICE;
-        const model =
-          body.model && ALLOWED_MODELS.has(body.model) ? body.model : DEFAULT_MODEL;
+        const model = body.model && ALLOWED_MODELS.has(body.model) ? body.model : DEFAULT_MODEL;
 
         if (!/^[0-9a-f-]{8,64}$/i.test(postId)) {
           return jsonError(400, "Invalid postId");
@@ -206,7 +204,8 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return jsonError(403, "Post not published");
         }
 
-        const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
+        const title =
+          lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
         const blocks = (post.blocks_data as LocalizedBlocks | null) ?? null;
         const doc = blocks ? (blocks[lang] ?? blocks.pl ?? blocks.en ?? null) : null;
         const fromBlocks = blocksToText(doc);

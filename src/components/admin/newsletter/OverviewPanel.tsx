@@ -243,9 +243,13 @@ export function OverviewPanel() {
               <Label>Trigger</Label>
               <Select
                 value={cur.popup_trigger}
-                onValueChange={(v) => upd({ popup_trigger: v as NewsletterSettings["popup_trigger"] })}
+                onValueChange={(v) =>
+                  upd({ popup_trigger: v as NewsletterSettings["popup_trigger"] })
+                }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="delay">Po opoznieniu</SelectItem>
                   <SelectItem value="scroll">Po przewinieciu %</SelectItem>
@@ -382,7 +386,13 @@ const MODE_OPTIONS: { value: NewsletterMode; title: string; desc: string; icon: 
   { value: "both", title: "Inline + popup", desc: "Oba warianty aktywne.", icon: MailCheck },
 ];
 
-function ModePicker({ mode, onChange }: { mode: NewsletterMode; onChange: (m: NewsletterMode) => void }) {
+function ModePicker({
+  mode,
+  onChange,
+}: {
+  mode: NewsletterMode;
+  onChange: (m: NewsletterMode) => void;
+}) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
       {MODE_OPTIONS.map((o) => {
@@ -425,7 +435,9 @@ function DualPreview({ settings }: { settings: NewsletterSettings }) {
           onClick={() => setLang("pl")}
           className={
             "px-2.5 py-1 text-xs rounded " +
-            (lang === "pl" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")
+            (lang === "pl"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground")
           }
         >
           PL
@@ -435,7 +447,9 @@ function DualPreview({ settings }: { settings: NewsletterSettings }) {
           onClick={() => setLang("en")}
           className={
             "px-2.5 py-1 text-xs rounded " +
-            (lang === "en" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")
+            (lang === "en"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground")
           }
         >
           EN
@@ -479,7 +493,9 @@ function PreviewFrame({
         <span
           className={
             "text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider " +
-            (active ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")
+            (active
+              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : "bg-muted text-muted-foreground")
           }
         >
           {active ? "aktywny" : "wylaczony"}
@@ -492,9 +508,7 @@ function PreviewFrame({
 
 function PopupPreview({ settings, lang }: { settings: NewsletterSettings; lang: "pl" | "en" }) {
   if (!settings.popup_enabled) {
-    return (
-      <p className="text-center text-sm text-muted-foreground py-16">Popup jest wylaczony.</p>
-    );
+    return <p className="text-center text-sm text-muted-foreground py-16">Popup jest wylaczony.</p>;
   }
 
   // Zsynchronizowane z /admin/newsletter/popup - renderujemy dokument z buildera
