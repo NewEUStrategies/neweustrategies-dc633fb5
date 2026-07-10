@@ -4,7 +4,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { Bot, MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { BotChatWindow } from "@/components/chat/BotChatWindow";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
@@ -18,6 +19,8 @@ import {
 } from "@/lib/chat/useConversations";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
+
+const BOT_ID = "bot-simulator";
 
 interface MessagesSearch {
   c?: string;
@@ -140,6 +143,31 @@ function MessagesInner() {
                 </label>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+                {/* Pinned bot simulator - always available, local-only. */}
+                <button
+                  type="button"
+                  onClick={() => openConversation(BOT_ID)}
+                  aria-pressed={selected === BOT_ID}
+                  className={cn(
+                    "mb-1 flex w-full items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
+                    selected === BOT_ID && "bg-muted",
+                  )}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                    aria-hidden
+                  >
+                    <Bot className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold">
+                      {t("chat.bot.name")}
+                    </span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {t("chat.bot.subtitle")}
+                    </span>
+                  </span>
+                </button>
                 {conversationsQ.isLoading ? (
                   <p className="p-6 text-center text-sm text-muted-foreground">
                     {t("common.loading", { defaultValue: "..." })}
@@ -183,7 +211,14 @@ function MessagesInner() {
 
         {/* Right pane: active thread */}
         <main className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
-          {selected ? (
+          {selected === BOT_ID ? (
+            <BotChatWindow
+              onBack={() => {
+                setSelected(null);
+                void navigate({ search: {}, replace: true });
+              }}
+            />
+          ) : selected ? (
             <ChatWindow
               key={selected}
               conversationId={selected}
