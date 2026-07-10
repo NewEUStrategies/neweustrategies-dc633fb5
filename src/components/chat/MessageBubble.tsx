@@ -121,6 +121,8 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     repliedMessage,
     repliedAuthorName,
     editable,
+    peerLastReadAt,
+    peerOnline,
     onReact,
     onReply,
     onEdit,
@@ -135,6 +137,9 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     !deleted && message.kind === "text" && !!message.body && isEmojiOnly(message.body);
   const myReaction = reactions.find((r) => r.user_id === myUserId)?.emoji ?? null;
   const timeTitle = clockTime(message.created_at, lang);
+  const receipt: ReceiptState | null = mine && !deleted
+    ? computeReceipt(message, peerLastReadAt, peerOnline)
+    : null;
 
   const actions = !deleted && !message.pending && !message.failed && (
     <div
