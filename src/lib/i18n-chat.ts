@@ -74,6 +74,21 @@ export const chatPl = {
       travel: "Podróże i miejsca",
       objects: "Przedmioty",
     },
+    bot: {
+      name: "Bot testowy",
+      subtitle: "Symulator rozmowy (tylko lokalnie)",
+      intro: "To bot testowy - odpowiada natychmiast, wiadomości nie są zapisywane.",
+      modeEcho: "Echo",
+      modeEchoHint: "Odpowiada Twoją wiadomością",
+      modeVariants: "Warianty",
+      modeVariantsHint: "Losowa z 3 odpowiedzi",
+      clear: "Wyczyść rozmowę",
+      variants: [
+        "Rozumiem. Rozwiń proszę myśl.",
+        "Ciekawe. Co masz na myśli?",
+        "Zgadzam się - kontynuuj.",
+      ],
+    },
   },
   people: {
     title: "Osoby",
