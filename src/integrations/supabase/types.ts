@@ -2086,6 +2086,62 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          auto_mark_on_open: boolean
+          created_at: string
+          enabled_comment: boolean
+          enabled_content: boolean
+          enabled_follow: boolean
+          enabled_message: boolean
+          enabled_security: boolean
+          enabled_subscription: boolean
+          enabled_system: boolean
+          group_by_conversation: boolean
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_mark_on_open?: boolean
+          created_at?: string
+          enabled_comment?: boolean
+          enabled_content?: boolean
+          enabled_follow?: boolean
+          enabled_message?: boolean
+          enabled_security?: boolean
+          enabled_subscription?: boolean
+          enabled_system?: boolean
+          group_by_conversation?: boolean
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_mark_on_open?: boolean
+          created_at?: string
+          enabled_comment?: boolean
+          enabled_content?: boolean
+          enabled_follow?: boolean
+          enabled_message?: boolean
+          enabled_security?: boolean
+          enabled_subscription?: boolean
+          enabled_system?: boolean
+          group_by_conversation?: boolean
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body_en: string | null
@@ -4605,6 +4661,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: undefined
       }
+      mark_notification_unread: { Args: { p_id: string }; Returns: undefined }
       member_conversation_ids: { Args: never; Returns: string[] }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
