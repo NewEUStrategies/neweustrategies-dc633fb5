@@ -151,6 +151,9 @@ export function useMarkNotificationsUnread() {
       void qc.invalidateQueries({ queryKey: countKey(user?.id) });
     },
   });
+}
+
+
 
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
