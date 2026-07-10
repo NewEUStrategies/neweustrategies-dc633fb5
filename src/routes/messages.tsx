@@ -4,12 +4,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bot, MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { Bell, Bot, MessagesSquare, Search, SquarePen, X } from "lucide-react";
 import { BotChatWindow } from "@/components/chat/BotChatWindow";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
+import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
@@ -17,20 +18,26 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useUnreadCount } from "@/lib/notifications/useNotifications";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
 const BOT_ID = "bot-simulator";
+type MessagesView = "chats" | "notifications";
 
 interface MessagesSearch {
   c?: string;
+  view?: MessagesView;
 }
 
 export const Route = createFileRoute("/messages")({
   component: MessagesPage,
   validateSearch: (search: Record<string, unknown>): MessagesSearch => {
     const c = typeof search.c === "string" && search.c.length > 0 ? search.c : undefined;
-    return { c };
+    const rawView = typeof search.view === "string" ? search.view : undefined;
+    const view: MessagesView | undefined =
+      rawView === "notifications" ? "notifications" : rawView === "chats" ? "chats" : undefined;
+    return { c, view };
   },
   head: () => ({
     meta: [{ title: "Wiadomości" }, { name: "robots", content: "noindex, nofollow" }],
