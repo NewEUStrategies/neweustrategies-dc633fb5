@@ -291,3 +291,36 @@ export function useUpdateNotificationPreferences() {
   });
 }
 
+/**
+ * Subscribe to realtime changes on this user's notification_preferences row.
+ * Ensures widgets (bell, center, chat) reflect toggles made in another tab or
+ * from another device within the same session, without a manual refresh.
+ */
+export function useNotificationPreferencesRealtime(): void {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    const channelName = `notif-prefs:${user.id}:${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notification_preferences",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: prefsKey(user.id) });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, qc]);
+}
+
+
