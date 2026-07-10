@@ -198,10 +198,12 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                       : "bg-muted text-foreground",
                   )}
                 >
-                  <p className="whitespace-pre-wrap break-words font-normal">{m.body}</p>
+                  <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
+                    {m.body}
+                  </p>
                   <p
                     className={cn(
-                      "mt-0.5 text-[10px] font-normal tabular-nums",
+                      "mt-0.5 text-[10px] font-normal leading-snug tabular-nums",
                       m.role === "user"
                         ? "text-primary-foreground/70"
                         : "text-muted-foreground/70",

@@ -235,10 +235,12 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
         )}
       >
-        <p className="whitespace-pre-wrap break-words font-normal">{message.body}</p>
+        <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
+          {message.body}
+        </p>
         <p
           className={cn(
-            "mt-0.5 text-[10px] font-normal tabular-nums",
+            "mt-0.5 text-[10px] font-normal leading-snug tabular-nums",
             mine ? "text-primary-foreground/70" : "text-muted-foreground/70",
           )}
         >
