@@ -228,9 +228,10 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            g.items.forEach((it) => {
-                              if (!it.read_at) markOne.mutate(it.id);
-                            });
+                            const ids = g.items
+                              .filter((it) => !it.read_at)
+                              .map((it) => it.id);
+                            if (ids.length > 0) markMany.mutate(ids);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={t("notifications.markRead", {
