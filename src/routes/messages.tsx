@@ -179,7 +179,7 @@ function MessagesInner() {
                     <button
                       type="button"
                       onClick={() => setMode("new")}
-                      className="mt-1 rounded-[6px] bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                      className="mt-1 rounded-[6px] bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
                     >
                       {t("chat.newMessage")}
                     </button>
