@@ -91,7 +91,7 @@ function MessagesInner() {
 
   return (
     <div className="container mx-auto max-w-6xl px-2 py-4 sm:px-4 sm:py-6">
-      <div className="flex h-[calc(100dvh-210px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+      <div className="flex h-[calc(100dvh-210px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-[6px] border border-border/60 bg-card shadow-sm">
         {/* Left pane: conversation list */}
         <aside
           className={cn(
@@ -134,7 +134,7 @@ function MessagesInner() {
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder={t("chat.searchConversations")}
                   aria-label={t("chat.searchConversations")}
-                  className="h-9 w-full rounded-full border border-input bg-muted/40 pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-9 w-full rounded-[6px] border border-input bg-muted/40 pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
@@ -149,7 +149,7 @@ function MessagesInner() {
                     <button
                       type="button"
                       onClick={() => setMode("new")}
-                      className="mt-1 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                      className="mt-1 rounded-[6px] bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
                     >
                       {t("chat.newMessage")}
                     </button>
@@ -194,7 +194,7 @@ function MessagesInner() {
             />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <span className="flex h-14 w-14 items-center justify-center rounded-[6px] bg-muted">
                 <MessageCircle className="h-6 w-6 text-muted-foreground" aria-hidden />
               </span>
               <p className="max-w-[260px] text-sm text-muted-foreground">

@@ -114,7 +114,7 @@ export function ChatDock() {
                 <button
                   type="button"
                   onClick={() => restore(id)}
-                  className="block rounded-full shadow-lg ring-1 ring-border/60 transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block rounded-[6px] shadow-lg ring-1 ring-border/60 transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={`${t("chat.open")}: ${profile?.display_name ?? ""}`}
                   title={profile?.display_name ?? t("chat.open")}
                 >
@@ -125,7 +125,7 @@ export function ChatDock() {
                     size="lg"
                   />
                   {unread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-background">
+                    <span className="absolute -top-0.5 -right-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-background">
                       {unread > 99 ? "99+" : unread}
                     </span>
                   )}

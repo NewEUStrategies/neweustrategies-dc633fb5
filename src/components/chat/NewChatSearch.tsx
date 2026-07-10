@@ -37,7 +37,7 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("chat.searchPeoplePlaceholder")}
           aria-label={t("chat.searchPeoplePlaceholder")}
-          className="h-8 w-full rounded-full border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-8 w-full rounded-[6px] border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
       <div className="max-h-[260px] overflow-y-auto px-1 pb-1">
@@ -65,7 +65,7 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
                       onError: () => toast.error(t("chat.startError")),
                     })
                   }
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/60 disabled:opacity-60"
+                  className="flex w-full items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-muted/60 disabled:opacity-60"
                 >
                   <ChatAvatar
                     name={person.display_name}

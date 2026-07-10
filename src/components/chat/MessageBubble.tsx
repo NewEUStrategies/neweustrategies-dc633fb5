@@ -32,12 +32,14 @@ export interface MessageBubbleProps {
   onDiscardFailed: (message: ChatMessage) => void;
 }
 
+// Design standard: every label/image/box in chat uses a 6px corner radius
+// (matching the 6px avatars); grouped bubbles tighten the shared edge to 3px.
 function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): string {
-  const base = "rounded-2xl";
+  const base = "rounded-[6px]";
   if (mine) {
-    return cn(base, !groupStart && "rounded-tr-md", !groupEnd && "rounded-br-md");
+    return cn(base, !groupStart && "rounded-tr-[3px]", !groupEnd && "rounded-br-[3px]");
   }
-  return cn(base, !groupStart && "rounded-tl-md", !groupEnd && "rounded-bl-md");
+  return cn(base, !groupStart && "rounded-tl-[3px]", !groupEnd && "rounded-bl-[3px]");
 }
 
 function ReactionChips({
@@ -74,7 +76,8 @@ function ReactionChips({
             type="button"
             onClick={() => onReact(emoji, myReaction)}
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-0.5 text-[11px] shadow-sm transition-colors",
+              "inline-flex items-center gap-0.5 rounded-[6px] border bg-background px-1.5 py-0.5 text-[11px] shadow-sm transition-colors",
+              "motion-safe:animate-in motion-safe:zoom-in-75 motion-safe:fade-in-0 motion-safe:duration-150",
               isMine ? "border-primary/50" : "border-border/60 hover:border-border",
             )}
           >
@@ -259,7 +262,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
         {repliedMessage && (
           <div
             className={cn(
-              "mb-0.5 max-w-full truncate rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground",
+              "mb-0.5 max-w-full truncate rounded-[6px] bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground",
               mine ? "text-right" : "text-left",
             )}
           >

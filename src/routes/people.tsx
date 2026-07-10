@@ -46,7 +46,7 @@ function DiscoverabilityBanner() {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border px-3 py-2.5",
+        "flex items-center gap-3 rounded-[6px] border px-3 py-2.5",
         on ? "border-border/60 bg-muted/30" : "border-[var(--brand)]/40 bg-[var(--brand)]/5",
       )}
     >
@@ -118,7 +118,7 @@ function PeopleInner() {
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("people.searchPlaceholder")}
           aria-label={t("people.searchPlaceholder")}
-          className="h-10 w-full rounded-full border border-input bg-muted/30 pl-10 pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full rounded-[6px] border border-input bg-muted/30 pl-10 pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 
@@ -131,11 +131,11 @@ function PeopleInner() {
       {peopleQ.isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-[72px] animate-pulse rounded-lg bg-muted/60" />
+            <div key={i} className="h-[72px] animate-pulse rounded-[6px] bg-muted/60" />
           ))}
         </div>
       ) : people.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border/70 p-10 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-[6px] border border-dashed border-border/70 p-10 text-center">
           <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
           <p className="text-sm text-muted-foreground">
             {query ? t("people.empty") : t("people.emptyDirectory")}
@@ -146,7 +146,7 @@ function PeopleInner() {
           {people.map((person) => (
             <li
               key={person.id}
-              className="flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-border"
+              className="flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border"
             >
               <ChatAvatar
                 name={person.display_name}
@@ -176,7 +176,7 @@ function PeopleInner() {
                     onError: () => toast.error(t("chat.startError")),
                   })
                 }
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                 aria-label={`${t("people.message")}: ${person.display_name}`}
               >
                 <MessageCircle className="h-3.5 w-3.5" aria-hidden />

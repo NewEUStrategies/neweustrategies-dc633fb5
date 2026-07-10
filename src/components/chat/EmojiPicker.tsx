@@ -34,7 +34,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
           role="option"
           aria-selected={false}
           onClick={() => onPick(entry.e)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-lg leading-none hover:bg-muted/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-8 w-8 items-center justify-center rounded-[6px] text-lg leading-none hover:bg-muted/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title={entry.k.split(" ").slice(0, 2).join(" ")}
         >
           {entry.e}
@@ -56,7 +56,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("chat.emojiSearch")}
           aria-label={t("chat.emojiSearch")}
-          className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-8 w-full rounded-[6px] border border-input bg-background pl-8 pr-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 
@@ -90,7 +90,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
               title={t(`chat.emojiCategories.${c.id}`)}
               onClick={() => setCategory(c.id)}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-md text-sm leading-none transition-colors",
+                "flex h-7 w-7 items-center justify-center rounded-[6px] text-sm leading-none transition-colors",
                 c.id === category ? "bg-muted" : "opacity-60 hover:opacity-100 hover:bg-muted/60",
               )}
             >
