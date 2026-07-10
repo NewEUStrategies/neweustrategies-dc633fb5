@@ -184,7 +184,7 @@ export function MessageList(props: MessageListProps) {
       aria-label={t("chat.messages")}
     >
       <div ref={topSentinelRef} aria-hidden />
-      {(() => null)()}
+      
       {hasOlder && (
         <div className="flex justify-center py-1.5">
           <span
