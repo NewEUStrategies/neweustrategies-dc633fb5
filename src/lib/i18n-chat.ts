@@ -173,6 +173,7 @@ export const chatEn = {
     reply: "Reply",
     replyingTo: "Replying to a message",
     replyToMessage: "In reply to:",
+    jumpToReplied: "Jump to original message",
     react: "Add reaction",
     you: "You",
     online: "Online",
