@@ -143,7 +143,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
             {views.length > 3 && (
               <div className="relative px-2 pt-2">
                 <Search
-                  className="pointer-events-none absolute left-4 top-1/2 mt-1 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-5 top-1/2 mt-1 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden
                 />
                 <input
@@ -152,7 +152,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder={t("chat.searchConversations")}
                   aria-label={t("chat.searchConversations")}
-                  className="h-8 w-full rounded-[6px] border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-9 w-full rounded-[6px] border border-input bg-muted/40 pl-10 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
             )}

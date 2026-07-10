@@ -47,7 +47,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
     <div className="flex w-[288px] max-w-[calc(100vw-32px)] flex-col">
       <div className="relative border-b border-border/60 p-2">
         <Search
-          className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute left-5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
           aria-hidden
         />
         <input
@@ -56,7 +56,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("chat.emojiSearch")}
           aria-label={t("chat.emojiSearch")}
-          className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-9 w-full rounded-[6px] border border-input bg-background pl-10 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 
