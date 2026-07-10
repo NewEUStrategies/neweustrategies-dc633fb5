@@ -358,6 +358,9 @@ export type WidgetType =
   | "icon"
   | "map"
   | "tts"
+  // Data visualization (engine: src/components/charts)
+  | "chart"
+  | "data-map"
   // Dynamic
   | "post-list"
   | "carousel"

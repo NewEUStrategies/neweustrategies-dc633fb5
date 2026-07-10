@@ -1,7 +1,7 @@
 // Closes dark-mode, EN-language-chrome, configured-site-logo and the remaining
 // SimpleWidgets data-path branches (PostsSlider filter combos, SearchButton).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -116,7 +116,7 @@ describe("dark-mode render paths", () => {
     expect(container).toBeTruthy();
   });
 
-  it("renders animated-heading with color invert + dark-featured-card colors in dark theme", () => {
+  it("renders animated-heading with color invert + dark-featured-card colors in dark theme", async () => {
     const heading = widget(
       "animated-heading",
       {
@@ -128,7 +128,9 @@ describe("dark-mode render paths", () => {
       },
       { dark: true },
     );
-    expect(heading.container.textContent).toContain("x");
+    // AnimatedHeadingRender ładuje się przez React.lazy (lazyWidgets) -
+    // treść pojawia się po rozwiązaniu chunku.
+    await waitFor(() => expect(heading.container.textContent).toContain("x"));
     const card = widget(
       "dark-featured-card",
       { title_pl: "T", badge_pl: "B", image: "https://cdn.example.com/c.jpg" },

@@ -1101,6 +1101,8 @@ export const pl = {
       countdown: "Odliczanie",
       calendar: "Kalendarz",
       map: "Mapa",
+      chart: "Wykres",
+      "data-map": "Mapa danych",
       "contact-form": "Formularz kontaktu",
       "social-icons": "Ikony społecznościowe",
       "share-buttons": "Udostępnianie",

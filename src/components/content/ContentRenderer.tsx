@@ -21,6 +21,7 @@ import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { enhanceContentImages } from "@/lib/content/enhanceImages";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
 
 interface Props {
@@ -78,7 +79,10 @@ export function ContentRenderer({
   return (
     <article
       className="single-post-content prose prose-lg dark:prose-invert max-w-none"
-      dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(html) }}
+      // enhanceContentImages runs AFTER the sanitizer (never instead of it):
+      // it only adds loading/decoding/srcset to <img> tags, closing the
+      // lazy-loading + responsive-candidates gap in imported WordPress bodies.
+      dangerouslySetInnerHTML={{ __html: enhanceContentImages(sanitizeMarkdownHtml(html)) }}
     />
   );
 }

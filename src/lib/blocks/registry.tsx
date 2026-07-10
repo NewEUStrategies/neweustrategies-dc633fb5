@@ -101,6 +101,8 @@ import {
   Table as ComparisonTableIcon,
   Image as BannerImageIcon,
   Film as VideoHeroIcon,
+  LineChart as ChartBlockIcon,
+  Globe2 as DataMapIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -1379,6 +1381,63 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       },
     }),
   },
+  chart: {
+    type: "chart",
+    label: "Wykres",
+    description: "Animowany, interaktywny wykres: linia, pole, kolumny, słupki, kołowy.",
+    icon: ChartBlockIcon,
+    category: "advanced",
+    create: () => ({
+      id: newBlockId(),
+      type: "chart",
+      data: {
+        kind: "bar",
+        title: "",
+        description: "",
+        unit: "",
+        categories: ["2021", "2022", "2023", "2024"],
+        series: [
+          { name: "Seria A", values: [12, 19, 14, 24], colorSlot: 1 },
+          { name: "Seria B", values: [8, 11, 13, 17], colorSlot: 2 },
+        ],
+        stacked: false,
+        height: 320,
+        showLegend: true,
+        showGrid: true,
+        showValues: false,
+        animate: true,
+        source: "",
+      },
+    }),
+  },
+  "data-map": {
+    type: "data-map",
+    label: "Mapa danych",
+    description: "Interaktywna choropleta Europy lub świata z wartościami per kraj.",
+    icon: DataMapIcon,
+    category: "advanced",
+    create: () => ({
+      id: newBlockId(),
+      type: "data-map",
+      data: {
+        region: "europe",
+        title: "",
+        description: "",
+        unit: "",
+        values: [
+          { id: "PL", value: 38 },
+          { id: "DE", value: 84 },
+          { id: "FR", value: 68 },
+          { id: "IT", value: 59 },
+          { id: "ES", value: 48 },
+          { id: "UA", value: 37 },
+        ],
+        showLegend: true,
+        animate: true,
+        source: "",
+      },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -1481,4 +1540,6 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "comparison-table",
   "banner-image",
   "video-hero",
+  "chart",
+  "data-map",
 ];

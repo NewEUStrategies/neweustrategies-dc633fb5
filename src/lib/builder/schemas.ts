@@ -458,6 +458,119 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
+  chart: [
+    {
+      key: "kind",
+      type: "select",
+      label: "Rodzaj wykresu",
+      options: [
+        { value: "bar", label: "kolumny" },
+        { value: "bar-horizontal", label: "słupki poziome" },
+        { value: "line", label: "linia" },
+        { value: "area", label: "pole (area)" },
+        { value: "pie", label: "kołowy" },
+        { value: "donut", label: "pierścień (donut)" },
+      ],
+    },
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
+    {
+      key: "data",
+      type: "textarea",
+      label: "Dane",
+      rows: 6,
+      hint: 'Pierwszy wiersz: "; Nazwa serii; Nazwa serii". Kolejne: "Kategoria; wartość; wartość". Separator ";", przecinek dziesiętny dozwolony.',
+    },
+    { key: "unit", type: "text", label: "Jednostka (np. %, mld EUR)" },
+    {
+      key: "stacked",
+      type: "select",
+      label: "Skumulowany (stacked)",
+      options: [
+        { value: "off", label: "nie" },
+        { value: "on", label: "tak" },
+      ],
+      visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
+    },
+    { key: "height", type: "number", label: "Wysokość (px)", min: 160, max: 640, step: 10 },
+    {
+      key: "showLegend",
+      type: "select",
+      label: "Legenda",
+      options: [
+        { value: "on", label: "tak" },
+        { value: "off", label: "nie" },
+      ],
+    },
+    {
+      key: "showGrid",
+      type: "select",
+      label: "Siatka",
+      options: [
+        { value: "on", label: "tak" },
+        { value: "off", label: "nie" },
+      ],
+    },
+    {
+      key: "showValues",
+      type: "select",
+      label: "Etykiety wartości",
+      options: [
+        { value: "off", label: "nie" },
+        { value: "on", label: "tak" },
+      ],
+    },
+    {
+      key: "animate",
+      type: "select",
+      label: "Animacja wejścia",
+      options: [
+        { value: "on", label: "tak" },
+        { value: "off", label: "nie" },
+      ],
+    },
+    { key: "source", type: "i18nText", label: "Źródło danych" },
+  ],
+  "data-map": [
+    {
+      key: "region",
+      type: "select",
+      label: "Region",
+      options: [
+        { value: "europe", label: "Europa" },
+        { value: "world", label: "Świat" },
+      ],
+    },
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
+    {
+      key: "data",
+      type: "textarea",
+      label: "Dane per kraj",
+      rows: 6,
+      hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).',
+    },
+    { key: "unit", type: "text", label: "Jednostka (np. %, mln)" },
+    {
+      key: "showLegend",
+      type: "select",
+      label: "Legenda",
+      options: [
+        { value: "on", label: "tak" },
+        { value: "off", label: "nie" },
+      ],
+    },
+    {
+      key: "animate",
+      type: "select",
+      label: "Animacja wejścia",
+      options: [
+        { value: "on", label: "tak" },
+        { value: "off", label: "nie" },
+      ],
+    },
+    { key: "source", type: "i18nText", label: "Źródło danych" },
+  ],
   tts: [
     {
       key: "source",
@@ -922,16 +1035,33 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "card", label: "karta" },
         { value: "split", label: "split (lewo: korzyści, prawo: formularz)" },
-        { value: "split-image", label: "split z grafiką (lewo: obraz + korzyści, prawo: formularz)" },
+        {
+          value: "split-image",
+          label: "split z grafiką (lewo: obraz + korzyści, prawo: formularz)",
+        },
         { value: "inline", label: "inline" },
       ],
     },
 
     // ----- Wygląd / tło (domyślnie: global colors, dopuszcza transparent) -----
-    { key: "bgLight", type: "color", label: "Tło (light mode)", hint: "Puste = przezroczyste. Możesz wpisać var(--card) lub dowolny kolor." },
-    { key: "bgDark", type: "color", label: "Tło (dark mode)", hint: "Puste = przezroczyste. Możesz wpisać var(--card) lub dowolny kolor." },
-    { key: "perkIconColor", type: "color", label: "Kolor ikony ✓ (bulletpointy)", hint: "Ikona Lucide „Check\" - zmienia się tylko kolor, kształt pozostaje bez zmian. Puste = brand (lub biały w wariancie split-image)." },
-
+    {
+      key: "bgLight",
+      type: "color",
+      label: "Tło (light mode)",
+      hint: "Puste = przezroczyste. Możesz wpisać var(--card) lub dowolny kolor.",
+    },
+    {
+      key: "bgDark",
+      type: "color",
+      label: "Tło (dark mode)",
+      hint: "Puste = przezroczyste. Możesz wpisać var(--card) lub dowolny kolor.",
+    },
+    {
+      key: "perkIconColor",
+      type: "color",
+      label: "Kolor ikony ✓ (bulletpointy)",
+      hint: 'Ikona Lucide „Check" - zmienia się tylko kolor, kształt pozostaje bez zmian. Puste = brand (lub biały w wariancie split-image).',
+    },
 
     // --- Obszar grafiki (aktywny w wariancie "split-image")
     {
@@ -941,7 +1071,11 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Wgraj plik z dysku (trafi do biblioteki mediów) albo wklej pełny URL. Puste = użyty zostanie gradient fallback.",
     },
     { key: "imageAlt", type: "text", label: "Grafika: alt (PL) - opis dla dostępności / SEO" },
-    { key: "imageAltEn", type: "text", label: "Grafika: alt (EN) - accessibility / SEO description" },
+    {
+      key: "imageAltEn",
+      type: "text",
+      label: "Grafika: alt (EN) - accessibility / SEO description",
+    },
 
     {
       key: "imageGradient",
@@ -987,7 +1121,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "contain", label: "contain - zmieść cały obraz (może zostać tło)" },
       ],
     },
-
 
     {
       key: "showInterests",
@@ -1185,11 +1318,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "descriptionSize", type: "number", label: "Rozmiar opisu (px)", min: 8, max: 48 },
     { key: "perkSize", type: "number", label: "Rozmiar bulletpointów (px)", min: 8, max: 32 },
     { key: "labelSize", type: "number", label: "Rozmiar etykiet (px)", min: 8, max: 24 },
-    { key: "placeholderSize", type: "number", label: "Rozmiar placeholderów / pól (px)", min: 8, max: 24 },
+    {
+      key: "placeholderSize",
+      type: "number",
+      label: "Rozmiar placeholderów / pól (px)",
+      min: 8,
+      max: 24,
+    },
     { key: "buttonSize", type: "number", label: "Rozmiar przycisku (px)", min: 8, max: 28 },
     { key: "consentSize", type: "number", label: "Rozmiar zgód / stopki (px)", min: 8, max: 20 },
   ],
-
 
   "customize-interests": [
     {
@@ -1479,11 +1617,29 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
 
     // ----- Rozmiary czcionek (px, puste = domyślne) -----
     { key: "titleSize", type: "number", label: "Rozmiar tytułu (px)", min: 10, max: 96 },
-    { key: "descriptionSize", type: "number", label: "Rozmiar opisu / podtytułu (px)", min: 8, max: 48 },
+    {
+      key: "descriptionSize",
+      type: "number",
+      label: "Rozmiar opisu / podtytułu (px)",
+      min: 8,
+      max: 48,
+    },
     { key: "labelSize", type: "number", label: "Rozmiar etykiet pól (px)", min: 8, max: 24 },
-    { key: "placeholderSize", type: "number", label: "Rozmiar placeholderów / pól (px)", min: 8, max: 24 },
+    {
+      key: "placeholderSize",
+      type: "number",
+      label: "Rozmiar placeholderów / pól (px)",
+      min: 8,
+      max: 24,
+    },
     { key: "buttonFontSize", type: "number", label: "Rozmiar przycisku (px)", min: 8, max: 28 },
-    { key: "consentSize", type: "number", label: "Rozmiar zgód / newsletter (px)", min: 8, max: 20 },
+    {
+      key: "consentSize",
+      type: "number",
+      label: "Rozmiar zgód / newsletter (px)",
+      min: 8,
+      max: 20,
+    },
   ],
 };
 
@@ -1540,8 +1696,7 @@ const customFieldsField: SchemaField = {
   type: "stringArray",
   rows: 8,
   label: "Dodatkowe pola (JSON, po jednym obiekcie na linię)",
-  hint:
-    'Przykład: {"id":"branza","type":"select","labelPl":"Branża","labelEn":"Industry","required":true,"options":[{"value":"fintech","labelPl":"Fintech","labelEn":"Fintech"}]}',
+  hint: 'Przykład: {"id":"branza","type":"select","labelPl":"Branża","labelEn":"Industry","required":true,"options":[{"value":"fintech","labelPl":"Fintech","labelEn":"Fintech"}]}',
 };
 
 // --- Push i18n label editors into existing join-us / contact-form schemas ---
@@ -1658,7 +1813,12 @@ pushLabelsFor("contact-form", [
   },
   { key: "redirectTo", type: "text", label: "Po zalogowaniu przekieruj do", placeholder: "/" },
   { key: "registerHref", type: "text", label: "URL do rejestracji", placeholder: "/register" },
-  { key: "forgotHref", type: "text", label: "URL do odzyskiwania hasła", placeholder: "/lost-password" },
+  {
+    key: "forgotHref",
+    type: "text",
+    label: "URL do odzyskiwania hasła",
+    placeholder: "/lost-password",
+  },
   customFieldsField,
 ];
 

@@ -44,6 +44,8 @@ import {
   FileText,
   SlidersHorizontal,
   UserPlus,
+  LineChart,
+  Globe2,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -142,6 +144,50 @@ export const WIDGETS: WidgetDef[] = [
     category: "media",
     icon: MapPin,
     defaults: () => ({ query: "Warszawa" }),
+  },
+  {
+    type: "chart",
+    label: "Wykres",
+    category: "dynamic",
+    icon: LineChart,
+    defaults: () => ({
+      kind: "bar",
+      title_pl: "",
+      title_en: "",
+      description_pl: "",
+      description_en: "",
+      unit: "",
+      // Format: pierwszy wiersz = nazwy serii, kolejne = kategoria; wartości.
+      data: "; Seria A; Seria B\n2021; 12; 8\n2022; 19; 11\n2023; 14; 13\n2024; 24; 17",
+      stacked: "off",
+      height: 320,
+      showLegend: "on",
+      showGrid: "on",
+      showValues: "off",
+      animate: "on",
+      source_pl: "",
+      source_en: "",
+    }),
+  },
+  {
+    type: "data-map",
+    label: "Mapa danych",
+    category: "dynamic",
+    icon: Globe2,
+    defaults: () => ({
+      region: "europe",
+      title_pl: "",
+      title_en: "",
+      description_pl: "",
+      description_en: "",
+      unit: "",
+      // Format: "KOD_ISO2; wartość" - jeden kraj na wiersz.
+      data: "PL; 38\nDE; 84\nFR; 68\nIT; 59\nES; 48\nUA; 37",
+      showLegend: "on",
+      animate: "on",
+      source_pl: "",
+      source_en: "",
+    }),
   },
   {
     type: "tts",
@@ -292,10 +338,6 @@ export const WIDGETS: WidgetDef[] = [
       requireInterests: "0",
       interestSlugs: [],
     }),
-
-
-
-
   },
   {
     type: "customize-interests",
@@ -1015,7 +1057,7 @@ export const WIDGETS: WidgetDef[] = [
       bgImage: "", // recommended 1600x900 px (hero 2400x1200)
       bgImageMobile: "", // recommended 800x1000 px
       bgOverlay: 0, // 0-100
-      
+
       iconUrl: "", // recommended 128x128 px
       recipient: "",
     }),

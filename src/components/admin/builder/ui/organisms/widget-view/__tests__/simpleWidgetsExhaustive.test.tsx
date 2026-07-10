@@ -193,9 +193,36 @@ describe("icon / video / gallery / map", () => {
     expect(renderNode("gallery", { images: [] }).container.textContent).toContain("brak zdjęć");
   });
 
-  it("renders a google map iframe", () => {
+  it("renders a google map iframe once the viewport approaches (deferred mount)", () => {
+    // DeferredFrame mounts the subframe only when the IntersectionObserver
+    // fires - stub one that reports intersection immediately.
+    const RealIO = globalThis.IntersectionObserver;
+    class ImmediateIO {
+      constructor(private cb: IntersectionObserverCallback) {}
+      observe(target: Element): void {
+        this.cb(
+          [{ isIntersecting: true, target } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        );
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    }
+    globalThis.IntersectionObserver = ImmediateIO as unknown as typeof IntersectionObserver;
+    try {
+      const { container } = renderNode("map", { query: "Kraków", ratio: "4/3" });
+      expect(container.querySelector("iframe")?.getAttribute("src")).toContain("maps.google");
+    } finally {
+      globalThis.IntersectionObserver = RealIO;
+    }
+  });
+
+  it("renders a box-reserving placeholder before the map frame scrolls near", () => {
     const { container } = renderNode("map", { query: "Kraków", ratio: "4/3" });
-    expect(container.querySelector("iframe")?.getAttribute("src")).toContain("maps.google");
+    expect(container.querySelector("iframe")).toBeNull();
   });
 });
 

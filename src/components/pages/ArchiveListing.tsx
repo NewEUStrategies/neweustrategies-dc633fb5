@@ -62,6 +62,7 @@ export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
             link="app"
             imageZoom
             titleClassName="text-lg"
+            viewTransitionId={r.id}
           />
         </li>
       ))}

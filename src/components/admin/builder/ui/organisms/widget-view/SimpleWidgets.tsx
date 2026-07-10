@@ -9,14 +9,17 @@ import {
   resolveAccentColor,
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
-import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+// Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
+// lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
+// które ich nie renderują).
+import type { SliderVariant } from "@/lib/builder/sliderVariants";
 import { sliderUsesPostsSource } from "@/lib/builder/sliderPostsQuery";
-import {
-  AnimatedHeadingRender,
-  type AnimatedHeadingConfig,
-  type AnimatedHeadingMode,
-  type AnimatedHeadingShape,
+import type {
+  AnimatedHeadingConfig,
+  AnimatedHeadingMode,
+  AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
+import { SliderRender, AnimatedHeadingRender } from "./lazyWidgets";
 import {
   COMPACT_ICON_BOX_SIZE,
   COMPACT_WIDGET_MIN_HEIGHT,
@@ -31,6 +34,7 @@ import { ContactFormView } from "@/components/blocks/ContactFormView";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
+import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { AuthFormWidget } from "./AuthFormWidget";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
@@ -485,10 +489,16 @@ export function renderSimpleWidget(
       const q = getStr(c, "query") || "Warszawa";
       const ratio = getStr(c, "ratio") || "16/9";
       const src = `https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
+      // Deferred mount: the Google Maps subframe used to load eagerly on every
+      // page containing this widget; now it mounts only near the viewport.
       return (
-        <div style={{ aspectRatio: ratio.replace("/", " / ") }}>
-          <iframe src={src} title="map" className="w-full h-full rounded border-0" />
-        </div>
+        <DeferredFrame
+          src={src}
+          title={q}
+          className="rounded overflow-hidden"
+          style={{ aspectRatio: ratio.replace("/", " / ") }}
+          placeholder={<LucideIcons.MapPin className="h-6 w-6" aria-hidden />}
+        />
       );
     }
     case "video": {

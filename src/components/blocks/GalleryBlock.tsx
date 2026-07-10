@@ -4,6 +4,13 @@
 import { useState } from "react";
 import { ImageLightbox } from "@/components/Lightbox";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { buildScaledImageUrl, isSupabaseStorageUrl } from "@/lib/cropSizes";
+
+/** Slajd lightboxa: przeskalowany wariant zamiast pełnego oryginału
+ *  (oryginały z aparatu potrafią mieć >10 MB; 1920 px starcza na 4K okno). */
+function lightboxSrc(url: string): string {
+  return isSupabaseStorageUrl(url) ? buildScaledImageUrl(url, 1920, 82) : url;
+}
 
 interface GalleryItem {
   url: string;
@@ -48,7 +55,11 @@ export function GalleryBlock({ images, className }: Props) {
       <ImageLightbox
         open={open}
         index={index}
-        slides={images.map((img) => ({ src: img.url, alt: img.alt, description: img.alt }))}
+        slides={images.map((img) => ({
+          src: lightboxSrc(img.url),
+          alt: img.alt,
+          description: img.alt,
+        }))}
         onClose={() => setOpen(false)}
         onIndexChange={setIndex}
       />

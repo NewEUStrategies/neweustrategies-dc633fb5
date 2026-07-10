@@ -38,6 +38,12 @@ interface PostListCardProps {
   link?: "router" | "app";
   /** Subtelny zoom okładki na hover (jak w archiwach). */
   imageZoom?: boolean;
+  /**
+   * Id wpisu dla morph-przejścia okładki (View Transitions API): karta i
+   * strona artykułu dostają tę samą nazwę `post-cover-<id>`, więc nawigacja
+   * płynnie "przenosi" okładkę z listy do nagłówka wpisu.
+   */
+  viewTransitionId?: string;
 }
 
 export function PostListCard({
@@ -48,6 +54,7 @@ export function PostListCard({
   priority = false,
   link = "router",
   imageZoom = true,
+  viewTransitionId,
 }: PostListCardProps) {
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
@@ -68,6 +75,9 @@ export function PostListCard({
           responsive
           sizes={CARD_IMAGE_SIZES}
           priority={priority}
+          style={
+            viewTransitionId ? { viewTransitionName: `post-cover-${viewTransitionId}` } : undefined
+          }
         />
       )}
       <div className="p-5">

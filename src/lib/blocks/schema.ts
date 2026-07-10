@@ -123,6 +123,8 @@ const BlockSchema = z
       "comparison-table",
       "banner-image",
       "video-hero",
+      "chart",
+      "data-map",
     ]),
     data: z.record(z.string(), JsonSchema),
     style: BlockStyleSchema.optional(),

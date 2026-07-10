@@ -115,7 +115,10 @@ export function OptimizedImage({
       width={width}
       height={height}
       loading={priority ? "eager" : "lazy"}
-      decoding={priority ? "sync" : "async"}
+      // async także dla priority: sync potrafi blokować główny wątek na czas
+      // dekodowania hero-coveru; eager + fetchPriority=high w pełni ustawiają
+      // priorytet sieciowy, a async pozwala malować resztę strony równolegle.
+      decoding="async"
       fetchPriority={priority ? "high" : "auto"}
       className={imgClassName}
       style={computedStyle}

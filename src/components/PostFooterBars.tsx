@@ -98,6 +98,7 @@ export function PostFooterBars({ settings, lang, tags, sources, via, author, pre
             <Link
               to="/$"
               params={{ _splat: `${prev.parent_path ?? ""}/${prev.slug}`.replace(/^\//, "") }}
+              preload="viewport"
               className="block p-4 rounded border border-border hover:bg-muted/40 transition"
             >
               <span className="text-xs text-muted-foreground">
@@ -112,6 +113,7 @@ export function PostFooterBars({ settings, lang, tags, sources, via, author, pre
             <Link
               to="/$"
               params={{ _splat: `${next.parent_path ?? ""}/${next.slug}`.replace(/^\//, "") }}
+              preload="viewport"
               className="block p-4 rounded border border-border hover:bg-muted/40 transition text-right"
             >
               <span className="text-xs text-muted-foreground">

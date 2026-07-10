@@ -112,7 +112,10 @@ export type BlockType =
   | "step-list"
   | "comparison-table"
   | "banner-image"
-  | "video-hero";
+  | "video-hero"
+  // Phase 5 - wizualizacja danych (silnik: src/components/charts)
+  | "chart"
+  | "data-map";
 
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 

@@ -1,22 +1,11 @@
-// Cienki wrapper na yet-another-react-lightbox z domyślną konfiguracją
-// i lazy-loadowanym CSS-em (link tag wstrzykiwany przy pierwszym mount).
-// SSR-friendly: właściwy renderer jest tylko po stronie klienta.
+// Cienki wrapper na yet-another-react-lightbox z domyślną konfiguracją.
+// CSS pakietu bundlowany przez Vite (ekstrakcja do chunku CSS) zamiast
+// ładowania z cdn.jsdelivr.net przy pierwszym otwarciu - zero zależności od
+// zewnętrznego CDN, zero błysku niestylowanego lightboxa i działa offline/
+// za restrykcyjnym CSP. SSR-friendly: renderer tylko po stronie klienta.
 import { useEffect, useState } from "react";
 import Lightbox, { type SlideImage } from "yet-another-react-lightbox";
-
-let cssInjected = false;
-
-function ensureLightboxCss() {
-  if (cssInjected || typeof document === "undefined") return;
-  cssInjected = true;
-  const id = "yarl-stylesheet";
-  if (document.getElementById(id)) return;
-  const link = document.createElement("link");
-  link.id = id;
-  link.rel = "stylesheet";
-  link.href = "https://cdn.jsdelivr.net/npm/yet-another-react-lightbox@3.32.0/dist/styles.min.css";
-  document.head.appendChild(link);
-}
+import "yet-another-react-lightbox/styles.css";
 
 interface Props {
   open: boolean;
@@ -30,10 +19,7 @@ export function ImageLightbox({ open, index, slides, onClose, onIndexChange }: P
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      ensureLightboxCss();
-      setReady(true);
-    }
+    if (open) setReady(true);
   }, [open]);
 
   if (!ready) return null;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
+import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -571,12 +572,15 @@ export function MapView({
   const linkHref = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`;
   return (
     <figure className={`rounded-2xl overflow-hidden border border-border bg-card ${cls ?? ""}`}>
-      <iframe
+      {/* Deferred mount: the OSM subframe boots its own document + JS, so it
+          only mounts when the reader scrolls near. The wrapper reserves the
+          exact final height - zero layout shift. */}
+      <DeferredFrame
         title={label || "Mapa"}
         src={src}
-        loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
-        style={{ width: "100%", height: `${Math.max(160, Math.min(800, height))}px`, border: 0 }}
+        style={{ height: `${Math.max(160, Math.min(800, height))}px` }}
+        placeholder={<MapPin className="h-6 w-6" aria-hidden />}
       />
       <figcaption className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">

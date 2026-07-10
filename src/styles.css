@@ -132,6 +132,35 @@
   --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.6 0.18 320);
   --hot: #fa9346;
+
+  /* ---- Wykresy (silnik SVG - src/components/charts) ----
+     Paleta kategoryczna 8 slotów o STAŁEJ kolejności (mechanizm bezpieczeństwa
+     CVD - kolejność maksymalizuje separację sąsiadów dla daltonizmu; zwalidowana
+     walidatorem OKLCH/Machado wobec powierzchni --card obu trybów). Sloty
+     przypisuje się sekwencyjnie serii 1..8 - nigdy "po obwodzie".
+     Ramp sekwencyjny (mapy-choroplety): jasny -> ciemny jeden odcień. */
+  --chart-1: #2a78d6;
+  --chart-2: #1baf7a;
+  --chart-3: #eda100;
+  --chart-4: #008300;
+  --chart-5: #4a3aa7;
+  --chart-6: #e34948;
+  --chart-7: #e87ba4;
+  --chart-8: #eb6834;
+  --chart-seq-min: #cde2fb;
+  --chart-seq-max: #0d366b;
+  --chart-grid: oklch(0.92 0.004 80);
+  --chart-axis: oklch(0.8 0.005 80);
+  /* Kolor etykiety WEWNĄTRZ wypełnienia slotu (dobrany kontrastem WCAG
+     do konkretnego odcienia - jedyny wyjątek od zasady "tekst w tokenach"). */
+  --chart-ink-1: #0b0b0b;
+  --chart-ink-2: #0b0b0b;
+  --chart-ink-3: #0b0b0b;
+  --chart-ink-4: #ffffff;
+  --chart-ink-5: #ffffff;
+  --chart-ink-6: #0b0b0b;
+  --chart-ink-7: #0b0b0b;
+  --chart-ink-8: #0b0b0b;
 }
 
 .dark {
@@ -163,6 +192,29 @@
   --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.65 0.18 320);
   --hot: #fa9346;
+
+  /* Wykresy - te same odcienie przeskalowane do ciemnej powierzchni --card
+     (#0f0f0f) i zwalidowane jako zestaw (pasmo OKLCH 0.48-0.67, kontrast >=3:1). */
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-3: #c98500;
+  --chart-4: #008300;
+  --chart-5: #9085e9;
+  --chart-6: #e66767;
+  --chart-7: #d55181;
+  --chart-8: #d95926;
+  --chart-seq-min: #16273f;
+  --chart-seq-max: #86b6ef;
+  --chart-grid: oklch(1 0 0 / 7%);
+  --chart-axis: oklch(1 0 0 / 16%);
+  --chart-ink-1: #0b0b0b;
+  --chart-ink-2: #0b0b0b;
+  --chart-ink-3: #0b0b0b;
+  --chart-ink-4: #ffffff;
+  --chart-ink-5: #0b0b0b;
+  --chart-ink-6: #0b0b0b;
+  --chart-ink-7: #0b0b0b;
+  --chart-ink-8: #0b0b0b;
 }
 
 @layer base {
@@ -1491,6 +1543,30 @@ select option {
   from {
     opacity: 0;
     transform: translateY(6px);
+  }
+}
+
+/* Reduced motion: kill EVERY view-transition animation, including the
+   per-post cover morph groups below - the UA default would still animate
+   named pairs even though our custom choreography is gated above. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* Shared-element morph: a post card's cover on a list and the article's
+   cover carry the same per-post view-transition-name (vt: post-cover-<id>).
+   The UA's default group animation then MORPHS the cover from the card into
+   the article header during navigation - the signature "app-like" hand-off.
+   Old/new snapshots crossfade with the same easing as the main content. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(*) {
+    animation-duration: 260ms;
+    animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
   }
 }
 
@@ -2971,6 +3047,169 @@ textarea::placeholder {
   line-height: 1.35;
 }
 
+
+/* ============================================================
+   Wykresy i mapy danych (silnik SVG - src/components/charts)
+   ------------------------------------------------------------
+   Kolory pochodzą WYŁĄCZNIE z tokenów --chart-* / --card / --border /
+   --muted-foreground, więc tryb ciemny i wymuszony jasny canvas buildera
+   działają automatycznie. Animacje wejścia odpala hook useRevealOnScroll:
+   SSR renderuje stan KOŃCOWY (crawler/no-JS widzi pełny wykres), klasa
+   .neh-armed pojawia się dopiero gdy element jest POZA viewportem, a
+   .neh-run uruchamia przejście przy wejściu w widok. Elementy widoczne
+   od razu przy załadowaniu nigdy nie są chowane - zero migotania.
+   ============================================================ */
+.neh-chart {
+  --neh-anim-ms: 900ms;
+  --neh-anim-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Linie: rysowanie pociągnięciem (dash-offset). Długość ścieżki jest
+   normalizowana przez pathLength="1" po stronie SVG. */
+.neh-chart .neh-line {
+  stroke-dasharray: none;
+}
+.neh-armed .neh-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.neh-run .neh-line {
+  transition: stroke-dashoffset var(--neh-anim-ms) var(--neh-anim-ease);
+  stroke-dashoffset: 0;
+}
+
+/* Pola (area), znaczniki punktów i etykiety: miękkie wejście. */
+.neh-armed .neh-fade {
+  opacity: 0;
+}
+.neh-run .neh-fade {
+  transition: opacity 600ms ease 350ms;
+  opacity: 1;
+}
+
+/* Słupki/kolumny rosną od linii bazowej. transform-box: fill-box +
+   transform-origin sprawiają, że każdy rect skaluje się od własnej krawędzi. */
+.neh-chart .neh-bar {
+  transform-box: fill-box;
+}
+.neh-armed .neh-bar {
+  transform: scaleY(0);
+  transform-origin: bottom;
+}
+.neh-armed .neh-bar-h {
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.neh-run .neh-bar,
+.neh-run .neh-bar-h {
+  transition: transform 700ms var(--neh-anim-ease);
+  transition-delay: calc(var(--neh-i, 0) * 40ms);
+  transform: scale(1);
+}
+
+/* Wykres kołowy: delikatny obrót całej tarczy + sekwencyjne wejście wycinków. */
+.neh-armed .neh-pie-group {
+  transform: rotate(-8deg) scale(0.96);
+  transform-origin: center;
+  opacity: 0;
+}
+.neh-run .neh-pie-group {
+  transition:
+    transform 700ms var(--neh-anim-ease),
+    opacity 500ms ease;
+  transform: rotate(0deg) scale(1);
+  opacity: 1;
+}
+
+/* Mapa-choropleta: kraje wchodzą falą przez opacity. */
+.neh-armed .neh-map-countries {
+  opacity: 0;
+}
+.neh-run .neh-map-countries {
+  transition: opacity 700ms ease;
+  opacity: 1;
+}
+.neh-chart .neh-country {
+  stroke: var(--card);
+  stroke-width: 0.6;
+  transition:
+    fill-opacity 160ms ease,
+    stroke-width 160ms ease;
+}
+.neh-chart .neh-country[data-active="true"] {
+  stroke: var(--foreground);
+  stroke-width: 1.2;
+}
+.neh-chart .neh-country:focus-visible {
+  outline: none;
+  stroke: var(--brand);
+  stroke-width: 1.4;
+}
+
+/* Crosshair i tooltip. Tooltip jest pozycjonowany translate3d z JS. */
+.neh-chart .neh-crosshair {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  pointer-events: none;
+}
+.neh-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  pointer-events: none;
+  min-width: 8rem;
+  max-width: 18rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  will-change: transform;
+}
+
+/* Interaktywne obszary trafień - większe niż znaczniki (>=24px). */
+.neh-chart .neh-hit {
+  fill: transparent;
+  stroke: none;
+  outline: none;
+  cursor: pointer;
+}
+.neh-chart .neh-hit:focus-visible {
+  fill: color-mix(in oklab, var(--brand) 12%, transparent);
+}
+.neh-chart .neh-hit[data-active="true"] {
+  fill: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+/* Reduced motion: stan końcowy natychmiast - żadnych przejść. */
+@media (prefers-reduced-motion: reduce) {
+  .neh-armed .neh-line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .neh-armed .neh-fade,
+  .neh-armed .neh-pie-group,
+  .neh-armed .neh-map-countries {
+    opacity: 1;
+    transform: none;
+  }
+  .neh-armed .neh-bar,
+  .neh-armed .neh-bar-h {
+    transform: scale(1);
+  }
+  .neh-run .neh-line,
+  .neh-run .neh-fade,
+  .neh-run .neh-bar,
+  .neh-run .neh-bar-h,
+  .neh-run .neh-pie-group,
+  .neh-run .neh-map-countries {
+    transition: none;
+  }
+}
 
 /* ============================================================
    Forced-light scope (builder canvas "Jasny" under a dark admin).

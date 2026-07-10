@@ -5,8 +5,9 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
+import { buildImageSrcSet } from "@/lib/cropSizes";
 import { useResolvedPostRefs } from "./contentRefs";
-import { supabase } from "@/integrations/supabase/client";
+import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
 import type { WidgetTypography } from "./types";
@@ -245,10 +246,6 @@ interface RenderProps {
   preview?: boolean;
 }
 
-interface FallbackPostImage {
-  cover_image_url: string | null;
-}
-
 interface ResilientSliderImageProps {
   src: string;
   fallbackSrc?: string;
@@ -295,16 +292,23 @@ function ResilientSliderImage({
   }, [displaySrc, fallback, onBrokenSource, originalSrc]);
 
   const visible = alwaysVisible || active;
+  // Responsive candidates for Supabase-storage covers: hero sliders previously
+  // downloaded the full-resolution original on every device - the single
+  // biggest LCP cost on slider homepages. buildImageSrcSet returns "" for
+  // non-transformable (external/fallback) URLs, so those keep plain `src`.
+  const srcSet = buildImageSrcSet(displaySrc);
   return (
     <img
       ref={imgRef}
       src={displaySrc}
+      srcSet={srcSet || undefined}
+      sizes={srcSet ? "100vw" : undefined}
       alt=""
       draggable={false}
       data-fill-image
       loading={priority ? "eager" : "lazy"}
       fetchPriority={priority && active ? "high" : "auto"}
-      decoding={priority && active ? "sync" : "async"}
+      decoding="async"
       className={className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"}
       style={{
         opacity: visible ? 1 : 0,
@@ -320,27 +324,6 @@ function ResilientSliderImage({
       }}
     />
   );
-}
-
-export function sliderFallbackImagesQueryOptions(fallbackCount: number) {
-  const count = Math.max(3, fallbackCount || 3);
-  return {
-    queryKey: ["builder-slider-fallback-images", count] as const,
-    queryFn: async (): Promise<string[]> => {
-      const { data } = await supabase
-        .from("posts")
-        .select("cover_image_url")
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .not("cover_image_url", "is", null)
-        .order("published_at", { ascending: false })
-        .limit(count);
-      return ((data ?? []) as FallbackPostImage[])
-        .map((row) => safeImageUrl(row.cover_image_url ?? ""))
-        .filter((src) => src.length > 0);
-    },
-    staleTime: 120_000,
-  };
 }
 
 // ------------------------------------------------------------------

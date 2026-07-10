@@ -125,20 +125,22 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 function RouteLoadingSkeleton() {
+  // skeleton-shimmer (styles.css) reads as active progress instead of an idle
+  // pulse - perceived speed during slow (>500ms) route transitions.
   return (
-    <main className="min-h-[55vh] w-full animate-pulse px-4 py-8 lg:px-8" aria-busy="true">
+    <main className="min-h-[55vh] w-full px-4 py-8 lg:px-8" aria-busy="true">
       <div className="mx-auto max-w-[1200px] space-y-6">
-        <div className="h-5 w-40 rounded bg-muted" />
-        <div className="h-10 w-2/3 max-w-2xl rounded bg-muted" />
+        <div className="skeleton-shimmer h-5 w-40 rounded" />
+        <div className="skeleton-shimmer h-10 w-2/3 max-w-2xl rounded" />
         <div className="grid gap-5 md:grid-cols-3">
           <div className="md:col-span-2 space-y-4">
-            <div className="aspect-[16/7] rounded-xl bg-muted" />
-            <div className="h-4 w-full rounded bg-muted" />
-            <div className="h-4 w-5/6 rounded bg-muted" />
+            <div className="skeleton-shimmer aspect-[16/7] rounded-xl" />
+            <div className="skeleton-shimmer h-4 w-full rounded" />
+            <div className="skeleton-shimmer h-4 w-5/6 rounded" />
           </div>
           <div className="space-y-3">
-            <div className="h-24 rounded-xl bg-muted" />
-            <div className="h-24 rounded-xl bg-muted" />
+            <div className="skeleton-shimmer h-24 rounded-xl" />
+            <div className="skeleton-shimmer h-24 rounded-xl" />
           </div>
         </div>
       </div>

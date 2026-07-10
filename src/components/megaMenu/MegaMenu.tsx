@@ -8,7 +8,12 @@ import { memo, useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "@/lib/lucide-shim";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
+import { buildImageSrcSet } from "@/lib/cropSizes";
 import { AppLink } from "@/components/atoms/AppLink";
+
+// Menu thumbnails render at most ~320px wide - without srcset they downloaded
+// full-resolution covers, which is what made hover-opened menus feel sluggish.
+const MENU_THUMB_WIDTHS = [160, 320, 480] as const;
 import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
 
 type MegaMenuLang = "pl" | "en";
@@ -307,6 +312,10 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
                   {p.cover ? (
                     <img
                       src={safeImageUrl(p.cover)}
+                      srcSet={
+                        buildImageSrcSet(safeImageUrl(p.cover), MENU_THUMB_WIDTHS) || undefined
+                      }
+                      sizes="(max-width: 768px) 45vw, 200px"
                       alt=""
                       loading="lazy"
                       decoding="async"
@@ -386,6 +395,7 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
         <div className={`${aspectCls} overflow-hidden bg-muted relative`} style={placeholderStyle}>
           <img
             src={img}
+            srcSet={buildImageSrcSet(img, MENU_THUMB_WIDTHS) || undefined}
             alt=""
             loading="lazy"
             decoding="async"

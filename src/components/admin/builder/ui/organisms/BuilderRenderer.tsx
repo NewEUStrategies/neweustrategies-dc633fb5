@@ -332,6 +332,55 @@ function ExperimentSection({
   );
 }
 
+/**
+ * Decorative section background video. Keeps autoplay semantics (no visual
+ * change), but preloads only metadata and pauses playback whenever the section
+ * leaves the viewport - offscreen background videos were silently burning
+ * bandwidth, decode time and battery on long builder pages.
+ */
+function SectionBackgroundVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            void el.play().catch(() => undefined);
+          } else {
+            el.pause();
+          }
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        zIndex: 0,
+      }}
+    />
+  );
+}
+
 const RenderSection = memo(function RenderSection({
   section,
   lang,
@@ -376,21 +425,7 @@ const RenderSection = memo(function RenderSection({
       style={wrapStyle}
     >
       {section.background?.type === "video" && videoUrl && (
-        <video
-          src={videoUrl}
-          autoPlay
-          muted
-          loop
-          playsInline
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            zIndex: 0,
-          }}
-        />
+        <SectionBackgroundVideo src={videoUrl} />
       )}
       <div style={overlayLayerStyle(section.overlay)} aria-hidden />
       <ShapeDivider s={section.shapeDividerTop} position="top" />
