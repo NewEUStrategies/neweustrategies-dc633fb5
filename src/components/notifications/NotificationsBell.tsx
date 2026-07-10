@@ -13,9 +13,10 @@ import {
   useNotifications,
   useNotificationsRealtime,
   useNotificationPreferences,
+  useNotificationPreferencesRealtime,
   useUnreadCount,
   useMarkAllNotificationsRead,
-  useMarkNotificationRead,
+  useMarkNotificationsRead,
   useMarkNotificationUnread,
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
