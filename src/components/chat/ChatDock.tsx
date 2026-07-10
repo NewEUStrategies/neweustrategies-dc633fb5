@@ -3,7 +3,7 @@
 // subscriptions. Mounted once in SiteChrome; renders nothing for guests,
 // on /messages (the full inbox owns the surface) and during SSR/hydration.
 import "@/lib/i18n-chat";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouterState } from "@tanstack/react-router";
 import { X } from "lucide-react";
@@ -17,7 +17,11 @@ import {
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
 import { ChatAvatar } from "./ChatAvatar";
-import { ChatWindow } from "./ChatWindow";
+
+// Lazy: the full message UI (list, bubbles, composer, attachments) loads only
+// when a window is actually opened - the dock itself needs just the badge/
+// chips layer on page load.
+const ChatWindow = lazy(() => import("./ChatWindow").then((m) => ({ default: m.ChatWindow })));
 
 function maxOpenWindows(): number {
   if (typeof window === "undefined") return 1;
@@ -142,16 +146,18 @@ export function ChatDock() {
       )}
 
       {/* Open windows */}
-      {openIds.map((id) => (
-        <ChatWindow
-          key={id}
-          conversationId={id}
-          variant="dock"
-          onClose={() => close(id)}
-          onMinimize={() => minimize(id)}
-          className="w-full sm:w-[330px]"
-        />
-      ))}
+      <Suspense fallback={null}>
+        {openIds.map((id) => (
+          <ChatWindow
+            key={id}
+            conversationId={id}
+            variant="dock"
+            onClose={() => close(id)}
+            onMinimize={() => minimize(id)}
+            className="w-full sm:w-[320px]"
+          />
+        ))}
+      </Suspense>
     </div>
   );
 }

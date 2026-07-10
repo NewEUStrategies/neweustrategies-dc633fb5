@@ -38,7 +38,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
   useChatListRealtime();
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
-  const unreadQ = useChatUnreadTotal();
+  const unread = useChatUnreadTotal();
 
   const views = useMemo(() => conversationsQ.data ?? [], [conversationsQ.data]);
   const peerIds = useMemo(
@@ -49,7 +49,6 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
 
   if (!user) return null;
 
-  const unread = unreadQ.data ?? 0;
   const peers = peersQ.data;
   const normalizedFilter = filter.trim().toLowerCase();
   const filtered = normalizedFilter

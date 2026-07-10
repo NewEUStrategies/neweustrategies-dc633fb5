@@ -2,7 +2,11 @@
 //  - "dock": floating Messenger-style popup window (bottom-right)
 //  - "page": fills the right pane of the /messages route
 // Owns the realtime channel, read receipts, typing state and mutations.
-import { useEffect, useMemo, useRef, useState } from "react";
+// Registers the chat i18n bundle for every surface that renders messages
+// (the /messages route must NOT import it at module top level - that would
+// pull the strings into the eager entry graph).
+import "@/lib/i18n-chat";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Minus, X } from "lucide-react";
 import {
@@ -31,9 +35,11 @@ import {
   useReactions,
   useSendMessage,
   useToggleReaction,
+  type SendMessageInput,
 } from "@/lib/chat/useMessages";
 import { toast } from "sonner";
 import { useOnlineUsers } from "@/lib/chat/presence";
+import { usePrefetchAttachmentUrls } from "@/lib/chat/attachments";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -42,6 +48,16 @@ import { ChatComposer } from "./ChatComposer";
 import { MessageList } from "./MessageList";
 
 const TYPING_VISIBLE_MS = 4000;
+const EMPTY_REACTIONS_MAP: ReadonlyMap<string, never[]> = new Map();
+
+// Reactive tab visibility - the read-receipt effect must re-run when the user
+// returns to the tab, not only when a dependency happens to change.
+function subscribeVisibility(callback: () => void) {
+  document.addEventListener("visibilitychange", callback);
+  return () => document.removeEventListener("visibilitychange", callback);
+}
+const getDocumentVisible = () => document.visibilityState === "visible";
+const getDocumentVisibleServer = () => false;
 
 export interface ChatWindowProps {
   conversationId: string;
@@ -105,7 +121,7 @@ export function ChatWindow(props: ChatWindowProps) {
 
   const messages: ChatMessage[] = useMemo(() => {
     const pages = messagesQ.data?.pages ?? [];
-    const flat = pages.flat();
+    const flat = pages.flatMap((page) => page.rows);
     // Pages are newest-first; render oldest -> newest and drop duplicates
     // (an optimistic row can coexist with its realtime twin for a frame).
     const seen = new Set<string>();
@@ -117,21 +133,45 @@ export function ChatWindow(props: ChatWindowProps) {
         ordered.push(m);
       }
     }
-    return ordered.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    // ISO-8601 sorts lexicographically; plain compare beats localeCompare.
+    return ordered.sort((a, b) =>
+      a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0,
+    );
   }, [messagesQ.data]);
 
-  // Read receipt: whenever the newest message is from the peer and this window
-  // is visible, mark the thread read (clears the badge + shows "seen" to them).
+  // One batched storage call signs every attachment in the loaded history.
+  const attachmentPaths = useMemo(
+    () =>
+      messages
+        .filter((m) => !!m.attachment_path && !m.deleted_at && !m.pending)
+        .map((m) => m.attachment_path as string),
+    [messages],
+  );
+  usePrefetchAttachmentUrls(attachmentPaths);
+
+  // Read receipt: whenever the newest message is from the peer and the tab is
+  // visible, mark the thread read (clears the badge + shows "seen" to them).
+  // Coalesced client-side per message id (the RPC also no-ops server-side when
+  // there is nothing new, so no realtime fanout happens for repeats). The
+  // visibility flag is reactive, so returning to a hidden tab marks pending
+  // unreads immediately.
+  const visible = useSyncExternalStore(
+    subscribeVisibility,
+    getDocumentVisible,
+    getDocumentVisibleServer,
+  );
   const lastMessage = messages[messages.length - 1];
   const unread = view?.me.unread_count ?? 0;
+  const lastMarkedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!user || !lastMessage) return;
-    if (document.visibilityState !== "visible") return;
+    if (!user || !lastMessage || !visible) return;
     if (lastMessage.sender_id !== user.id && unread > 0) {
+      if (lastMarkedRef.current === lastMessage.id) return;
+      lastMarkedRef.current = lastMessage.id;
       markRead.mutate(conversationId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage?.id, unread, conversationId, user?.id]);
+  }, [lastMessage?.id, unread, conversationId, user?.id, visible]);
 
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editTarget, setEditTarget] = useState<ChatMessage | null>(null);
@@ -143,6 +183,45 @@ export function ChatWindow(props: ChatWindowProps) {
     setDeleteTarget(null);
   }, [conversationId]);
 
+  // Stable handlers: MessageBubble is memoized, so these references must not
+  // change per render or the memo is defeated for the whole thread.
+  const uid = user?.id;
+  const { mutate: mutateReaction } = toggleReaction;
+  const handleReact = useCallback(
+    (message: ChatMessage, emoji: string, current: string | null) =>
+      mutateReaction({ messageId: message.id, emoji, current }),
+    [mutateReaction],
+  );
+  const handleReply = useCallback((message: ChatMessage) => {
+    setEditTarget(null);
+    setReplyTo(message);
+  }, []);
+  const handleEdit = useCallback((message: ChatMessage) => {
+    setReplyTo(null);
+    setEditTarget(message);
+  }, []);
+  const handleDelete = useCallback((message: ChatMessage) => setDeleteTarget(message), []);
+  const handleDiscardFailed = useCallback(
+    (message: ChatMessage) => discardFailed(message.id),
+    [discardFailed],
+  );
+  const canEdit = useCallback(
+    (message: ChatMessage) => (uid ? canEditMessage(message, uid) : false),
+    [uid],
+  );
+  const { fetchNextPage } = messagesQ;
+  const handleLoadOlder = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  const handleClearReply = useCallback(() => setReplyTo(null), []);
+  const handleCancelEdit = useCallback(() => setEditTarget(null), []);
+  const { mutate: mutateSend } = sendMessage;
+  const handleSend = useCallback((input: SendMessageInput) => mutateSend(input), [mutateSend]);
+  const { mutate: mutateEdit } = editMessage;
+  const handleSaveEdit = useCallback(
+    (messageId: string, body: string) =>
+      mutateEdit({ messageId, body }, { onError: () => toast.error(t("chat.editExpired")) }),
+    [mutateEdit, t],
+  );
+
   if (!user) return null;
 
   const peerTypingSafe = peerTyping && !!peerId;
@@ -153,28 +232,20 @@ export function ChatWindow(props: ChatWindowProps) {
         lang={lang}
         myUserId={user.id}
         messages={messages}
-        reactions={reactionsQ.data ?? new Map<string, never[]>()}
+        reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
         peerName={peerName}
         peerAvatarUrl={peerAvatar}
         peerLastReadAt={peerLastReadAt}
         peerTyping={peerTypingSafe}
         hasOlder={!!messagesQ.hasNextPage}
         loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
-        onLoadOlder={() => void messagesQ.fetchNextPage()}
-        onReact={(message, emoji, current) =>
-          toggleReaction.mutate({ messageId: message.id, emoji, current })
-        }
-        onReply={(message) => {
-          setEditTarget(null);
-          setReplyTo(message);
-        }}
-        onEdit={(message) => {
-          setReplyTo(null);
-          setEditTarget(message);
-        }}
-        onDelete={(message) => setDeleteTarget(message)}
-        onDiscardFailed={(message) => discardFailed(message.id)}
-        canEdit={(message) => canEditMessage(message, user.id)}
+        onLoadOlder={handleLoadOlder}
+        onReact={handleReact}
+        onReply={handleReply}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onDiscardFailed={handleDiscardFailed}
+        canEdit={canEdit}
       />
       <ChatComposer
         conversationId={conversationId}
@@ -182,15 +253,10 @@ export function ChatWindow(props: ChatWindowProps) {
         replyTo={replyTo}
         replyToAuthor={replyTo ? (replyTo.sender_id === user.id ? t("chat.you") : peerName) : null}
         editing={editTarget}
-        onClearReply={() => setReplyTo(null)}
-        onSend={(input) => sendMessage.mutate(input)}
-        onSaveEdit={(messageId, body) =>
-          editMessage.mutate(
-            { messageId, body },
-            { onError: () => toast.error(t("chat.editExpired")) },
-          )
-        }
-        onCancelEdit={() => setEditTarget(null)}
+        onClearReply={handleClearReply}
+        onSend={handleSend}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
         onTyping={sendTyping}
         autoFocus={autoFocus}
       />

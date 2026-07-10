@@ -1,7 +1,7 @@
 // Organism: message composer - auto-growing textarea, emoji picker,
 // attachments (images + documents, 30 MB) with upload progress, reply bar,
 // throttled typing broadcast. Enter sends, Shift+Enter breaks the line.
-import { useEffect, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Check,
@@ -28,7 +28,8 @@ import type { SendMessageInput } from "@/lib/chat/useMessages";
 import type { ChatMessage } from "@/lib/chat/types";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
-import { EmojiPicker } from "./EmojiPicker";
+// Lazy: the emoji dataset (~20 KB) loads only when the picker first opens.
+const EmojiPicker = lazy(() => import("./EmojiPicker").then((m) => ({ default: m.EmojiPicker })));
 
 const TYPING_THROTTLE_MS = 2500;
 const MAX_BODY_LENGTH = 8000;
@@ -48,7 +49,9 @@ export interface ChatComposerProps {
   autoFocus?: boolean;
 }
 
-export function ChatComposer(props: ChatComposerProps) {
+// Memoized: with stable callbacks from ChatWindow, keystrokes and typing
+// broadcasts in the thread above never re-render the composer subtree.
+export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const {
     conversationId,
     lang,
@@ -312,11 +315,15 @@ export function ChatComposer(props: ChatComposerProps) {
               sideOffset={8}
               className="w-auto overflow-hidden border-border/60 bg-popover p-0 shadow-xl"
             >
-              <EmojiPicker
-                onPick={(emoji) => {
-                  insertEmoji(emoji);
-                }}
-              />
+              <Suspense
+                fallback={<div className="h-[264px] w-[288px] animate-pulse bg-muted/40" />}
+              >
+                <EmojiPicker
+                  onPick={(emoji) => {
+                    insertEmoji(emoji);
+                  }}
+                />
+              </Suspense>
             </PopoverContent>
           </Popover>
         </div>
@@ -338,4 +345,4 @@ export function ChatComposer(props: ChatComposerProps) {
       </div>
     </div>
   );
-}
+});

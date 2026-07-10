@@ -15,7 +15,6 @@ import { useOnlineUsers } from "@/lib/chat/presence";
 import { usePeopleSearch, useStartConversation } from "@/lib/chat/useConversations";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { cn } from "@/lib/utils";
-import "@/lib/i18n-chat";
 
 export const Route = createFileRoute("/people")({
   component: PeoplePage,

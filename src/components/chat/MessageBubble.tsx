@@ -1,11 +1,13 @@
 // Molecule: single message bubble - Messenger-grade behaviors:
 // grouped corners, emoji-only enlargement, reply quoting, reactions with a
 // quick-reaction hover bar, unsend tombstone, pending/failed states.
-import { useState } from "react";
+// Memoized: callbacks are message-scoped and passed down UNBOUND (the bubble
+// supplies its own `message`), so long threads re-render only touched rows.
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emoji";
+import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
 import { clockTime, type ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -23,11 +25,11 @@ export interface MessageBubbleProps {
   repliedAuthorName?: string;
   /** Own text message within the 5-minute edit window. */
   editable: boolean;
-  onReact: (emoji: string, current: string | null) => void;
-  onReply: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onDiscardFailed: () => void;
+  onReact: (message: ChatMessage, emoji: string, current: string | null) => void;
+  onReply: (message: ChatMessage) => void;
+  onEdit: (message: ChatMessage) => void;
+  onDelete: (message: ChatMessage) => void;
+  onDiscardFailed: (message: ChatMessage) => void;
 }
 
 function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): string {
@@ -85,7 +87,7 @@ function ReactionChips({
   );
 }
 
-export function MessageBubble(props: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble(props: MessageBubbleProps) {
   const {
     message,
     mine,
@@ -143,7 +145,7 @@ export function MessageBubble(props: MessageBubbleProps) {
                 key={emoji}
                 type="button"
                 onClick={() => {
-                  onReact(emoji, myReaction);
+                  onReact(message, emoji, myReaction);
                   setReactOpen(false);
                 }}
                 className={cn(
@@ -160,7 +162,7 @@ export function MessageBubble(props: MessageBubbleProps) {
       </Popover>
       <button
         type="button"
-        onClick={onReply}
+        onClick={() => onReply(message)}
         className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         aria-label={t("chat.reply")}
         title={t("chat.reply")}
@@ -170,7 +172,7 @@ export function MessageBubble(props: MessageBubbleProps) {
       {editable && (
         <button
           type="button"
-          onClick={onEdit}
+          onClick={() => onEdit(message)}
           className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           aria-label={t("chat.editMessage")}
           title={t("chat.editMessage")}
@@ -181,7 +183,7 @@ export function MessageBubble(props: MessageBubbleProps) {
       {mine && (
         <button
           type="button"
-          onClick={onDelete}
+          onClick={() => onDelete(message)}
           className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           aria-label={t("chat.deleteMessage")}
           title={t("chat.deleteMessage")}
@@ -273,13 +275,18 @@ export function MessageBubble(props: MessageBubbleProps) {
           </div>
         )}
         {content}
-        <ReactionChips reactions={reactions} myUserId={myUserId} onReact={onReact} mine={mine} />
+        <ReactionChips
+          reactions={reactions}
+          myUserId={myUserId}
+          onReact={(emoji, current) => onReact(message, emoji, current)}
+          mine={mine}
+        />
         {message.failed && (
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-destructive">
             {t("chat.sendFailed")}
             <button
               type="button"
-              onClick={onDiscardFailed}
+              onClick={() => onDiscardFailed(message)}
               className="underline underline-offset-2"
             >
               {t("chat.discard")}
@@ -290,4 +297,4 @@ export function MessageBubble(props: MessageBubbleProps) {
       {actions}
     </div>
   );
-}
+});

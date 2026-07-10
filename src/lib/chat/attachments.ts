@@ -2,7 +2,8 @@
 // (bucket "chat-attachments": private, 30 MB cap, strict MIME allowlist).
 // The bucket + storage RLS enforce the same rules server-side; this module
 // exists so users get instant, translated feedback instead of storage errors.
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { chatKeys } from "./keys";
 
@@ -119,6 +120,41 @@ export async function uploadChatAttachment(params: {
 }
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1h; query refreshes well before expiry
+
+/**
+ * Batch-sign every not-yet-cached attachment of a thread in ONE storage call
+ * (instead of one createSignedUrl round-trip per attachment) and seed the
+ * per-path cache entries that useAttachmentUrl reads.
+ */
+export function usePrefetchAttachmentUrls(paths: ReadonlyArray<string>): void {
+  const qc = useQueryClient();
+  // Key is order-independent so pagination prepends don't retrigger the batch.
+  const pathsKey = [...paths].sort().join("\n");
+  useEffect(() => {
+    const missing = pathsKey
+      .split("\n")
+      .filter((p) => p.length > 0 && qc.getQueryData(chatKeys.attachmentUrl(p)) === undefined);
+    if (missing.length < 2) return; // a single miss is cheaper via the per-item query
+    let cancelled = false;
+    void supabase.storage
+      .from("chat-attachments")
+      .createSignedUrls(missing, SIGNED_URL_TTL_SECONDS)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        for (const item of data) {
+          if (item.path && item.signedUrl && !item.error) {
+            qc.setQueryData(chatKeys.attachmentUrl(item.path), item.signedUrl);
+          }
+        }
+      })
+      .catch(() => {
+        /* per-item queries remain the fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathsKey, qc]);
+}
 
 /**
  * Resolve a signed URL for a private attachment. Cached and refreshed before

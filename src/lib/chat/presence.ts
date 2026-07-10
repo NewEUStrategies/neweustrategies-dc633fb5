@@ -27,6 +27,20 @@ function syncFromChannel() {
       if (meta.user_id) next.add(meta.user_id);
     }
   }
+  // Presence join/leave events fire often (tab switches, reconnects). Only
+  // publish a new snapshot when membership actually changed - otherwise every
+  // chat surface (all open windows, the bell, the directory) re-renders for
+  // nothing.
+  if (next.size === onlineSnapshot.size) {
+    let same = true;
+    for (const id of next) {
+      if (!onlineSnapshot.has(id)) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return;
+  }
   onlineSnapshot = next;
   emit();
 }

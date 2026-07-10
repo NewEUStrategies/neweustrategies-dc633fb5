@@ -4,10 +4,12 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { useAuth } from "@/hooks/useAuth";
 
-// Floating chat dock (Messenger-style). Lazy: signed-out visitors and the
-// first paint never pay for the chat bundle; the component renders nothing
-// until hydration + auth resolve anyway.
+// Floating chat dock (Messenger-style). Lazy AND gated on an actual session
+// below: React.lazy fetches its chunk the moment the element renders, so the
+// element must not render for guests at all - otherwise every anonymous page
+// view downloads the chat code just to render null.
 const ChatDock = lazy(() =>
   import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
 );
@@ -35,12 +37,15 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       ),
     }),
   });
+  const { user } = useAuth();
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
 
+  // Auth-gated: guests never trigger the dynamic import (SSR + first client
+  // render agree on `null`, so hydration is unaffected).
   const chatDock =
-    isAdmin || isLogin ? null : (
+    !user || isAdmin || isLogin ? null : (
       <Suspense fallback={null}>
         <ChatDock />
       </Suspense>

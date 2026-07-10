@@ -3,7 +3,6 @@
 export const chatKeys = {
   all: ["chat"] as const,
   conversations: (uid: string | undefined) => ["chat", "conversations", uid ?? "anon"] as const,
-  unread: (uid: string | undefined) => ["chat", "unread", uid ?? "anon"] as const,
   messages: (uid: string | undefined, conversationId: string) =>
     ["chat", "messages", uid ?? "anon", conversationId] as const,
   reactions: (uid: string | undefined, conversationId: string) =>

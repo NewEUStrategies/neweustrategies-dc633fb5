@@ -18,7 +18,6 @@ import {
 } from "@/lib/chat/useConversations";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
-import "@/lib/i18n-chat";
 
 interface MessagesSearch {
   c?: string;

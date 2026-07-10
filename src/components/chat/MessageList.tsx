@@ -1,13 +1,17 @@
 // Organism: scrollable message history - day separators, message grouping,
 // infinite upward pagination with scroll anchoring, seen receipt and the
 // animated typing indicator. Pure presentation: data arrives via props.
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { crossesDay, dayLabel, sameGroup, type ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageBubble } from "./MessageBubble";
+
+// Stable empty-array identity so memoized bubbles without reactions never
+// see a "new" prop on unrelated updates.
+const NO_REACTIONS: ReactionRow[] = [];
 
 export interface MessageListProps {
   lang: ChatLang;
@@ -78,10 +82,39 @@ export function MessageList(props: MessageListProps) {
   const prevCountRef = useRef(messages.length);
 
   const dayWords = { today: t("chat.today"), yesterday: t("chat.yesterday") };
-  const byId = new Map(messages.map((m) => [m.id, m]));
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  // Day separators + Messenger-style grouping, derived once per messages
+  // change (crossesDay/sameGroup parse dates - keep them out of hot renders).
+  const rows = useMemo(
+    () =>
+      messages.map((message, index) => {
+        const prev = messages[index - 1];
+        const next = messages[index + 1];
+        const newDay = crossesDay(prev?.created_at, message.created_at);
+        const groupStart =
+          newDay ||
+          !prev ||
+          prev.sender_id !== message.sender_id ||
+          !sameGroup(prev.created_at, message.created_at);
+        const groupEnd =
+          !next ||
+          next.sender_id !== message.sender_id ||
+          crossesDay(message.created_at, next.created_at) ||
+          !sameGroup(message.created_at, next.created_at);
+        return { message, newDay, groupStart, groupEnd };
+      }),
+    [messages],
+  );
 
   // Newest own message that the peer has already read -> "seen" receipt.
-  const lastMine = [...messages].reverse().find((m) => m.sender_id === myUserId && !m.pending);
+  const lastMine = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m && m.sender_id === myUserId && !m.pending) return m;
+    }
+    return undefined;
+  }, [messages, myUserId]);
   const seen =
     !!lastMine &&
     !!peerLastReadAt &&
@@ -153,20 +186,7 @@ export function MessageList(props: MessageListProps) {
       )}
 
       <div className="flex flex-col gap-0.5">
-        {messages.map((message, index) => {
-          const prev = messages[index - 1];
-          const next = messages[index + 1];
-          const newDay = crossesDay(prev?.created_at, message.created_at);
-          const groupStart =
-            newDay ||
-            !prev ||
-            prev.sender_id !== message.sender_id ||
-            !sameGroup(prev.created_at, message.created_at);
-          const groupEnd =
-            !next ||
-            next.sender_id !== message.sender_id ||
-            crossesDay(message.created_at, next.created_at) ||
-            !sameGroup(message.created_at, next.created_at);
+        {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
           const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
           return (
             <div key={message.id} className={cn(groupStart && index > 0 && "mt-2")}>
@@ -183,18 +203,18 @@ export function MessageList(props: MessageListProps) {
                 lang={lang}
                 groupStart={groupStart}
                 groupEnd={groupEnd}
-                reactions={reactions.get(message.id) ?? []}
+                reactions={reactions.get(message.id) ?? NO_REACTIONS}
                 myUserId={myUserId}
                 repliedMessage={replied}
                 repliedAuthorName={
                   replied ? (replied.sender_id === myUserId ? t("chat.you") : peerName) : undefined
                 }
                 editable={canEdit(message)}
-                onReact={(emoji, current) => onReact(message, emoji, current)}
-                onReply={() => onReply(message)}
-                onEdit={() => onEdit(message)}
-                onDelete={() => onDelete(message)}
-                onDiscardFailed={() => onDiscardFailed(message)}
+                onReact={onReact}
+                onReply={onReply}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onDiscardFailed={onDiscardFailed}
               />
             </div>
           );

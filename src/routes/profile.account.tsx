@@ -22,7 +22,6 @@ import { Switch } from "@/components/ui/switch";
 import { Eye, EyeOff } from "lucide-react";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { toast } from "sonner";
-import "@/lib/i18n-chat";
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,

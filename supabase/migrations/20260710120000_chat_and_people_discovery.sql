@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS public.conversations (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- FK support for auth.users ON DELETE CASCADE.
+CREATE INDEX IF NOT EXISTS conversations_created_by_idx
+  ON public.conversations (created_by);
+
 CREATE TABLE IF NOT EXISTS public.conversation_participants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
@@ -62,8 +66,10 @@ CREATE TABLE IF NOT EXISTS public.conversation_participants (
 
 CREATE INDEX IF NOT EXISTS conversation_participants_user_idx
   ON public.conversation_participants (user_id, tenant_id, updated_at DESC);
-CREATE INDEX IF NOT EXISTS conversation_participants_conversation_idx
-  ON public.conversation_participants (conversation_id);
+-- No standalone (conversation_id) index: the UNIQUE (conversation_id, user_id)
+-- constraint below already serves those lookups; this table is the hottest
+-- write path (every message touches every member row), so each extra index
+-- costs real write amplification.
 
 CREATE TABLE IF NOT EXISTS public.messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -91,6 +97,14 @@ CREATE TABLE IF NOT EXISTS public.messages (
 
 CREATE INDEX IF NOT EXISTS messages_conversation_recent_idx
   ON public.messages (conversation_id, created_at DESC);
+-- FK support: reply targets are looked up on ON DELETE SET NULL cascades.
+CREATE INDEX IF NOT EXISTS messages_reply_to_idx
+  ON public.messages (reply_to_id)
+  WHERE reply_to_id IS NOT NULL;
+-- FK support for auth.users ON DELETE CASCADE (GDPR account deletion must not
+-- sequentially scan the whole message history).
+CREATE INDEX IF NOT EXISTS messages_sender_idx
+  ON public.messages (sender_id);
 
 CREATE TABLE IF NOT EXISTS public.message_reactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -106,9 +120,12 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
 
 CREATE INDEX IF NOT EXISTS message_reactions_conversation_idx
   ON public.message_reactions (conversation_id, created_at DESC);
+-- FK support for auth.users ON DELETE CASCADE.
+CREATE INDEX IF NOT EXISTS message_reactions_user_idx
+  ON public.message_reactions (user_id);
 
 -- ----------------------------------------------------------------------------
--- 3) Membership helper (SECURITY DEFINER avoids recursive RLS on participants)
+-- 3) Membership helpers (SECURITY DEFINER avoids recursive RLS on participants)
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.is_conversation_member(_conversation_id uuid, _user_id uuid)
 RETURNS boolean
@@ -121,6 +138,20 @@ AS $$
 $$;
 REVOKE EXECUTE ON FUNCTION public.is_conversation_member(uuid, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_conversation_member(uuid, uuid) TO authenticated, service_role;
+
+-- Set-returning variant for RLS: "conversation_id IN (SELECT
+-- member_conversation_ids())" is evaluated ONCE per statement (hashed
+-- InitPlan) instead of once per row, which matters for message history scans
+-- and for realtime event authorization. STABLE + no arguments = cacheable.
+CREATE OR REPLACE FUNCTION public.member_conversation_ids()
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT conversation_id FROM public.conversation_participants
+  WHERE user_id = auth.uid()
+$$;
+REVOKE EXECUTE ON FUNCTION public.member_conversation_ids() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.member_conversation_ids() TO authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
 -- 4) Grants + RLS
@@ -144,13 +175,20 @@ GRANT UPDATE (emoji) ON public.message_reactions TO authenticated;
 GRANT ALL ON public.message_reactions TO service_role;
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
 
+-- RLS performance notes (Supabase perf lints 0003/0006):
+--   * auth.uid() / current_tenant_id() are wrapped in scalar subselects so the
+--     planner evaluates them once per statement (InitPlan), not per row.
+--   * membership checks use the set-returning member_conversation_ids() with
+--     IN (...) - one hashed subplan per statement instead of one EXISTS probe
+--     per row. This also speeds up realtime (WAL) event authorization.
+
 -- conversations: members read; creation only via RPC (no INSERT policy).
 DROP POLICY IF EXISTS "conversations_member_select" ON public.conversations;
 CREATE POLICY "conversations_member_select" ON public.conversations
   FOR SELECT TO authenticated
   USING (
-    tenant_id = public.current_tenant_id()
-    AND public.is_conversation_member(id, auth.uid())
+    tenant_id = (SELECT public.current_tenant_id())
+    AND id IN (SELECT public.member_conversation_ids())
   );
 
 -- participants: any member of the conversation may read all its participant
@@ -159,8 +197,8 @@ DROP POLICY IF EXISTS "conversation_participants_member_select" ON public.conver
 CREATE POLICY "conversation_participants_member_select" ON public.conversation_participants
   FOR SELECT TO authenticated
   USING (
-    tenant_id = public.current_tenant_id()
-    AND public.is_conversation_member(conversation_id, auth.uid())
+    tenant_id = (SELECT public.current_tenant_id())
+    AND conversation_id IN (SELECT public.member_conversation_ids())
   );
 
 -- messages: members read; members send as themselves; senders may edit/unsend
@@ -169,53 +207,62 @@ DROP POLICY IF EXISTS "messages_member_select" ON public.messages;
 CREATE POLICY "messages_member_select" ON public.messages
   FOR SELECT TO authenticated
   USING (
-    tenant_id = public.current_tenant_id()
-    AND public.is_conversation_member(conversation_id, auth.uid())
+    tenant_id = (SELECT public.current_tenant_id())
+    AND conversation_id IN (SELECT public.member_conversation_ids())
   );
 
 DROP POLICY IF EXISTS "messages_member_insert" ON public.messages;
 CREATE POLICY "messages_member_insert" ON public.messages
   FOR INSERT TO authenticated
   WITH CHECK (
-    sender_id = auth.uid()
-    AND tenant_id = public.current_tenant_id()
-    AND public.is_conversation_member(conversation_id, auth.uid())
+    sender_id = (SELECT auth.uid())
+    AND tenant_id = (SELECT public.current_tenant_id())
+    AND conversation_id IN (SELECT public.member_conversation_ids())
   );
 
 DROP POLICY IF EXISTS "messages_sender_update" ON public.messages;
 CREATE POLICY "messages_sender_update" ON public.messages
   FOR UPDATE TO authenticated
-  USING (sender_id = auth.uid() AND tenant_id = public.current_tenant_id())
-  WITH CHECK (sender_id = auth.uid() AND tenant_id = public.current_tenant_id());
+  USING (sender_id = (SELECT auth.uid()) AND tenant_id = (SELECT public.current_tenant_id()))
+  WITH CHECK (sender_id = (SELECT auth.uid()) AND tenant_id = (SELECT public.current_tenant_id()));
 
 -- reactions: members read; users manage their own reaction.
 DROP POLICY IF EXISTS "message_reactions_member_select" ON public.message_reactions;
 CREATE POLICY "message_reactions_member_select" ON public.message_reactions
   FOR SELECT TO authenticated
   USING (
-    tenant_id = public.current_tenant_id()
-    AND public.is_conversation_member(conversation_id, auth.uid())
+    tenant_id = (SELECT public.current_tenant_id())
+    AND conversation_id IN (SELECT public.member_conversation_ids())
   );
 
 DROP POLICY IF EXISTS "message_reactions_own_insert" ON public.message_reactions;
 CREATE POLICY "message_reactions_own_insert" ON public.message_reactions
   FOR INSERT TO authenticated
   WITH CHECK (
-    user_id = auth.uid()
-    AND tenant_id = public.current_tenant_id()
-    AND public.is_conversation_member(conversation_id, auth.uid())
+    user_id = (SELECT auth.uid())
+    AND tenant_id = (SELECT public.current_tenant_id())
+    AND conversation_id IN (SELECT public.member_conversation_ids())
   );
 
 DROP POLICY IF EXISTS "message_reactions_own_update" ON public.message_reactions;
 CREATE POLICY "message_reactions_own_update" ON public.message_reactions
   FOR UPDATE TO authenticated
-  USING (user_id = auth.uid() AND tenant_id = public.current_tenant_id())
-  WITH CHECK (user_id = auth.uid() AND tenant_id = public.current_tenant_id());
+  USING (
+    user_id = (SELECT auth.uid())
+    AND tenant_id = (SELECT public.current_tenant_id())
+  )
+  WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND tenant_id = (SELECT public.current_tenant_id())
+  );
 
 DROP POLICY IF EXISTS "message_reactions_own_delete" ON public.message_reactions;
 CREATE POLICY "message_reactions_own_delete" ON public.message_reactions
   FOR DELETE TO authenticated
-  USING (user_id = auth.uid() AND tenant_id = public.current_tenant_id());
+  USING (
+    user_id = (SELECT auth.uid())
+    AND tenant_id = (SELECT public.current_tenant_id())
+  );
 
 -- ----------------------------------------------------------------------------
 -- 5) Triggers
@@ -346,7 +393,11 @@ CREATE TRIGGER messages_enforce_edit_window_trg
   BEFORE UPDATE ON public.messages
   FOR EACH ROW EXECUTE FUNCTION public.messages_enforce_edit_window();
 
--- Keep list previews truthful after an edit of the newest message.
+-- Keep list previews truthful after an edit of the newest message. Participant
+-- rows are touched ONLY when the preview actually changed (edit of an older
+-- message needs no list refresh - open windows already receive the message
+-- UPDATE via their conversation channel), avoiding realtime fanout to every
+-- member on every edit.
 CREATE OR REPLACE FUNCTION public.messages_after_edit()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -360,9 +411,11 @@ BEGIN
       AND last_message_at = NEW.created_at
       AND last_message_sender = NEW.sender_id;
 
-    UPDATE public.conversation_participants
-    SET updated_at = now()
-    WHERE conversation_id = NEW.conversation_id;
+    IF FOUND THEN
+      UPDATE public.conversation_participants
+      SET updated_at = now()
+      WHERE conversation_id = NEW.conversation_id;
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -389,9 +442,12 @@ BEGIN
       AND last_message_at = NEW.created_at
       AND last_message_sender = NEW.sender_id;
 
-    UPDATE public.conversation_participants
-    SET updated_at = now()
-    WHERE conversation_id = NEW.conversation_id;
+    -- Only fan out to member lists when the visible preview changed.
+    IF FOUND THEN
+      UPDATE public.conversation_participants
+      SET updated_at = now()
+      WHERE conversation_id = NEW.conversation_id;
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -559,17 +615,33 @@ REVOKE EXECUTE ON FUNCTION public.get_or_create_direct_conversation(uuid) FROM P
 GRANT EXECUTE ON FUNCTION public.get_or_create_direct_conversation(uuid) TO authenticated, service_role;
 
 -- Mark a conversation as read for the caller (resets the unread badge and
--- powers the peer's "seen" receipt).
+-- powers the peer's "seen" receipt). The WHERE guard makes repeats a no-op:
+-- the row is written only when something actually arrived after the last
+-- read, so an already-read thread produces no update and no realtime fanout.
 CREATE OR REPLACE FUNCTION public.mark_conversation_read(p_conversation_id uuid)
 RETURNS void
 LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public
 AS $$
-  UPDATE public.conversation_participants
+  UPDATE public.conversation_participants cp
   SET unread_count = 0,
       last_read_at = now(),
       updated_at = now()
-  WHERE conversation_id = p_conversation_id
-    AND user_id = auth.uid()
+  WHERE cp.conversation_id = p_conversation_id
+    AND cp.user_id = auth.uid()
+    AND (
+      cp.unread_count > 0
+      OR (
+        cp.last_read_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM public.conversations c
+          WHERE c.id = p_conversation_id AND c.last_message_at IS NOT NULL
+        )
+      )
+      OR cp.last_read_at < (
+        SELECT c.last_message_at FROM public.conversations c
+        WHERE c.id = p_conversation_id
+      )
+    )
 $$;
 REVOKE EXECUTE ON FUNCTION public.mark_conversation_read(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(uuid) TO authenticated, service_role;
@@ -577,8 +649,11 @@ GRANT EXECUTE ON FUNCTION public.mark_conversation_read(uuid) TO authenticated, 
 -- ----------------------------------------------------------------------------
 -- 7) Realtime
 -- ----------------------------------------------------------------------------
-ALTER TABLE public.messages REPLICA IDENTITY FULL;
-ALTER TABLE public.conversation_participants REPLICA IDENTITY FULL;
+-- Replica identity stays DEFAULT (primary key) for messages and participants:
+-- their realtime consumers only need NEW rows (INSERT/UPDATE filters match on
+-- the new record), and FULL would double WAL volume on the two hottest write
+-- paths. message_reactions keeps FULL because reactions are hard-DELETEd and
+-- the per-conversation filter must match against the OLD record.
 ALTER TABLE public.message_reactions REPLICA IDENTITY FULL;
 
 DO $$
@@ -633,13 +708,15 @@ SET public = EXCLUDED.public,
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+-- auth.uid()/current_tenant_id() wrapped in scalar subselects (InitPlan) so
+-- storage listings evaluate them once per statement, not per object row.
 DROP POLICY IF EXISTS "chat attachments member read" ON storage.objects;
 CREATE POLICY "chat attachments member read" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'chat-attachments'
     AND array_length(storage.foldername(name), 1) >= 3
-    AND public.is_conversation_member(((storage.foldername(name))[2])::uuid, auth.uid())
+    AND public.is_conversation_member(((storage.foldername(name))[2])::uuid, (SELECT auth.uid()))
   );
 
 DROP POLICY IF EXISTS "chat attachments member upload" ON storage.objects;
@@ -648,9 +725,9 @@ CREATE POLICY "chat attachments member upload" ON storage.objects
   WITH CHECK (
     bucket_id = 'chat-attachments'
     AND array_length(storage.foldername(name), 1) = 3
-    AND (storage.foldername(name))[1] = public.current_tenant_id()::text
-    AND (storage.foldername(name))[3] = auth.uid()::text
-    AND public.is_conversation_member(((storage.foldername(name))[2])::uuid, auth.uid())
+    AND (storage.foldername(name))[1] = (SELECT public.current_tenant_id()::text)
+    AND (storage.foldername(name))[3] = (SELECT auth.uid()::text)
+    AND public.is_conversation_member(((storage.foldername(name))[2])::uuid, (SELECT auth.uid()))
   );
 
 DROP POLICY IF EXISTS "chat attachments owner delete" ON storage.objects;
@@ -659,5 +736,5 @@ CREATE POLICY "chat attachments owner delete" ON storage.objects
   USING (
     bucket_id = 'chat-attachments'
     AND array_length(storage.foldername(name), 1) >= 3
-    AND (storage.foldername(name))[3] = auth.uid()::text
+    AND (storage.foldername(name))[3] = (SELECT auth.uid()::text)
   );

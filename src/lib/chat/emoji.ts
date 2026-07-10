@@ -1,5 +1,6 @@
 // Curated emoji dataset for the chat picker - dependency-free and compact
-// (~300 entries) so it ships in the lazy chat chunk without bloating the app.
+// (~300 entries). Imported ONLY by the lazy EmojiPicker so the dataset loads
+// on first picker open; the light helpers live in emojiQuick.ts.
 // Keywords mix EN + PL so search works in both languages.
 export interface EmojiEntry {
   /** The emoji itself. */
@@ -12,9 +13,6 @@ export interface EmojiCategory {
   id: "smileys" | "gestures" | "hearts" | "animals" | "food" | "activities" | "travel" | "objects";
   emojis: ReadonlyArray<EmojiEntry>;
 }
-
-/** Messenger-style quick reaction bar. */
-export const QUICK_REACTIONS: ReadonlyArray<string> = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export const EMOJI_CATEGORIES: ReadonlyArray<EmojiCategory> = [
   {
@@ -466,14 +464,4 @@ export function searchEmoji(query: string, limit = 48): EmojiEntry[] {
     }
   }
   return hits;
-}
-
-const EMOJI_ONLY_PATTERN =
-  /^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic})*|\s){1,12}$/u;
-
-/** True when a message consists of emoji only (rendered enlarged, Messenger-style). */
-export function isEmojiOnly(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return false;
-  return EMOJI_ONLY_PATTERN.test(trimmed);
 }
