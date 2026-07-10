@@ -1,7 +1,7 @@
 // Organism: scrollable message history - day separators, message grouping,
 // infinite upward pagination with scroll anchoring, seen receipt and the
 // animated typing indicator. Pure presentation: data arrives via props.
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { crossesDay, dayLabel, sameGroup, type ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
