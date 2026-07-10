@@ -5,7 +5,7 @@
 // supplies its own `message`), so long threads re-render only touched rows.
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
+import { Check, CheckCheck, Clock, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
 import { clockTime, type ChatLang } from "@/lib/chat/time";
@@ -25,11 +25,33 @@ export interface MessageBubbleProps {
   repliedAuthorName?: string;
   /** Own text message within the 5-minute edit window. */
   editable: boolean;
+  /** Peer's last_read_at - used for per-message read receipts (mine only). */
+  peerLastReadAt?: string | null;
+  /** Whether the peer is currently online - used to show "delivered" tick. */
+  peerOnline?: boolean;
   onReact: (message: ChatMessage, emoji: string, current: string | null) => void;
   onReply: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
+}
+
+type ReceiptState = "pending" | "sent" | "delivered" | "read";
+
+function computeReceipt(
+  message: ChatMessage,
+  peerLastReadAt: string | null | undefined,
+  peerOnline: boolean | undefined,
+): ReceiptState {
+  if (message.pending || message.failed) return "pending";
+  if (
+    peerLastReadAt &&
+    new Date(peerLastReadAt).getTime() >= new Date(message.created_at).getTime()
+  ) {
+    return "read";
+  }
+  if (peerOnline) return "delivered";
+  return "sent";
 }
 
 function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): string {
@@ -99,6 +121,8 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     repliedMessage,
     repliedAuthorName,
     editable,
+    peerLastReadAt,
+    peerOnline,
     onReact,
     onReply,
     onEdit,
@@ -113,6 +137,9 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     !deleted && message.kind === "text" && !!message.body && isEmojiOnly(message.body);
   const myReaction = reactions.find((r) => r.user_id === myUserId)?.emoji ?? null;
   const timeTitle = clockTime(message.created_at, lang);
+  const receipt: ReceiptState | null = mine && !deleted
+    ? computeReceipt(message, peerLastReadAt, peerOnline)
+    : null;
 
   const actions = !deleted && !message.pending && !message.failed && (
     <div
@@ -228,24 +255,66 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
       </div>
     );
   } else {
+    const bubbleStyle: React.CSSProperties = mine
+      ? {
+          background:
+            "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
+          color: "var(--chat-user-foreground)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+        }
+      : {};
     content = (
       <div
         className={cn(
           "max-w-full whitespace-pre-wrap break-words rounded-[10px] px-3 py-1.5 text-[13px] font-normal leading-snug tracking-normal",
-          mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+          !mine && "bg-muted text-foreground",
         )}
+        style={bubbleStyle}
       >
         <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
           {message.body}
         </p>
         <p
           className={cn(
-            "mt-0.5 text-[10px] font-normal leading-snug tabular-nums",
-            mine ? "text-primary-foreground/70" : "text-muted-foreground/70",
+            "mt-0.5 flex items-center gap-1 text-[10px] font-normal leading-snug tabular-nums",
+            mine ? "opacity-90 justify-end" : "text-muted-foreground/70",
           )}
         >
-          {timeTitle}
-          {message.edited_at && <span className="ml-1"> · {t("chat.edited")}</span>}
+          <span>{timeTitle}</span>
+          {message.edited_at && <span aria-hidden>·</span>}
+          {message.edited_at && <span>{t("chat.edited")}</span>}
+          {receipt && (
+            <span
+              className="ml-0.5 inline-flex items-center"
+              title={t(`chat.receipt.${receipt}`, {
+                defaultValue:
+                  receipt === "pending"
+                    ? "Wysyłanie..."
+                    : receipt === "sent"
+                      ? "Wysłano"
+                      : receipt === "delivered"
+                        ? "Dostarczono"
+                        : "Przeczytano",
+              })}
+              aria-label={t(`chat.receipt.${receipt}`, {
+                defaultValue: receipt,
+              })}
+            >
+              {receipt === "pending" ? (
+                <Clock className="h-3 w-3" aria-hidden />
+              ) : receipt === "sent" ? (
+                <Check className="h-3 w-3" aria-hidden />
+              ) : receipt === "delivered" ? (
+                <CheckCheck className="h-3 w-3" aria-hidden />
+              ) : (
+                <CheckCheck
+                  className="h-3 w-3"
+                  style={{ color: "var(--chat-user-tick-read)" }}
+                  aria-hidden
+                />
+              )}
+            </span>
+          )}
         </p>
       </div>
     );

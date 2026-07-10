@@ -236,6 +236,7 @@ export function ChatWindow(props: ChatWindowProps) {
         peerName={peerName}
         peerAvatarUrl={peerAvatar}
         peerLastReadAt={peerLastReadAt}
+        peerOnline={peerOnline}
         peerTyping={peerTypingSafe}
         hasOlder={!!messagesQ.hasNextPage}
         loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}

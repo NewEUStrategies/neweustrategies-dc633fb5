@@ -22,6 +22,7 @@ export interface MessageListProps {
   peerName: string;
   peerAvatarUrl: string | null;
   peerLastReadAt: string | null;
+  peerOnline?: boolean;
   peerTyping: boolean;
   hasOlder: boolean;
   loadingOlder: boolean;
@@ -63,6 +64,7 @@ export function MessageList(props: MessageListProps) {
     peerName,
     peerAvatarUrl,
     peerLastReadAt,
+    peerOnline,
     peerTyping,
     hasOlder,
     loadingOlder,
@@ -210,6 +212,8 @@ export function MessageList(props: MessageListProps) {
                   replied ? (replied.sender_id === myUserId ? t("chat.you") : peerName) : undefined
                 }
                 editable={canEdit(message)}
+                peerLastReadAt={peerLastReadAt}
+                peerOnline={peerOnline}
                 onReact={onReact}
                 onReply={onReply}
                 onEdit={onEdit}

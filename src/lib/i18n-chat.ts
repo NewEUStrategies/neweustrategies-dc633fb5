@@ -60,6 +60,12 @@ export const chatPl = {
     saveEdit: "Zapisz zmiany",
     cancelEdit: "Anuluj edycję",
     editExpired: "Edycja możliwa tylko przez 5 minut od wysłania.",
+    receipt: {
+      pending: "Wysyłanie...",
+      sent: "Wysłano",
+      delivered: "Dostarczono do odbiorcy",
+      read: "Przeczytano przez odbiorcę",
+    },
     open: "Otwórz czat",
     notDiscoverableHint:
       "Nie można rozpocząć rozmowy - ta osoba nie udostępnia profilu w wyszukiwarce.",
@@ -180,6 +186,12 @@ export const chatEn = {
     saveEdit: "Save changes",
     cancelEdit: "Cancel editing",
     editExpired: "Messages can only be edited within 5 minutes of sending.",
+    receipt: {
+      pending: "Sending...",
+      sent: "Sent",
+      delivered: "Delivered to recipient",
+      read: "Read by recipient",
+    },
     open: "Open chat",
     notDiscoverableHint: "Cannot start a conversation - this person's profile is not discoverable.",
     startError: "Could not open the conversation. Please try again.",
