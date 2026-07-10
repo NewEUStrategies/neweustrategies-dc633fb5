@@ -198,9 +198,9 @@ export const chatEn = {
       subtitle: "Conversation simulator (local only)",
       intro: "This is a test bot - it replies instantly, messages are not stored.",
       modeEcho: "Echo",
-      modeEchoHint: "Repeats your message",
+      modeEchoHint: "Echo mode - the bot repeats your message verbatim. Handy for testing bubble UI and long text.",
       modeVariants: "Variants",
-      modeVariantsHint: "Random of 3 replies",
+      modeVariantsHint: "Variants mode - the bot replies with one of 3 preset messages at random (no back-to-back repeats).",
       clear: "Clear chat",
       variants: [
         "Got it. Please elaborate.",
