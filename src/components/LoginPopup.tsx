@@ -15,7 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+
 
 type Mode = "signin" | "signup";
 
@@ -31,8 +33,10 @@ export function LoginPopup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState<{ title?: string; description?: string }>({});
+
 
   useEffect(() => {
     return onOpenLoginPopup((opts) => {
@@ -112,33 +116,69 @@ export function LoginPopup() {
 
         <form onSubmit={submit} className="space-y-3 mt-2">
           {mode === "signup" && (
-            <div>
-              <Label htmlFor="lp-name">{lang === "pl" ? "Imię" : "Name"}</Label>
-              <Input id="lp-name" value={name} onChange={(e) => setName(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label htmlFor="lp-name" className="text-sm">
+                {lang === "pl" ? "Imię" : "Name"}
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  id="lp-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={lang === "pl" ? "Jan" : "John"}
+                  className="pl-9"
+                />
+              </div>
             </div>
           )}
-          <div>
-            <Label htmlFor="lp-email">Email</Label>
-            <Input
-              id="lp-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <div className="space-y-1.5">
+            <Label htmlFor="lp-email" className="text-sm">
+              Email
+            </Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="lp-email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="pl-9"
+              />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="lp-pwd">{lang === "pl" ? "Hasło" : "Password"}</Label>
-            <Input
-              id="lp-pwd"
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+          <div className="space-y-1.5">
+            <Label htmlFor="lp-pwd" className="text-sm">
+              {lang === "pl" ? "Hasło" : "Password"}
+            </Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="lp-pwd"
+                type={showPw ? "text" : "password"}
+                required
+                minLength={6}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={lang === "pl" ? "min. 6 znaków" : "min. 6 characters"}
+                className="pl-9 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+                aria-label={showPw ? (lang === "pl" ? "Ukryj hasło" : "Hide password") : (lang === "pl" ? "Pokaż hasło" : "Show password")}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
+
             {busy
               ? "…"
               : mode === "signin"
