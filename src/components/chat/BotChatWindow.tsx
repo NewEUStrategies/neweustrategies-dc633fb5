@@ -7,7 +7,17 @@
 // all client-side.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, Reply, SendHorizontal, SmilePlus, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  Check,
+  CheckCheck,
+  Reply,
+  SendHorizontal,
+  SmilePlus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { QUICK_REACTIONS } from "@/lib/chat/emojiQuick";
