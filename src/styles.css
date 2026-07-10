@@ -2282,7 +2282,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .cf-shell .cf-input {
   display: block;
   width: 100%;
-  border: 1.5px solid var(--gc-input-border, var(--cf-border, var(--border)));
+  border: 1px solid var(--gc-input-border, var(--cf-border, var(--border)));
   background: var(--gc-input-bg, var(--background));
   border-radius: 8px;
   padding: 12px 14px;
