@@ -19,7 +19,7 @@ import {
   useMarkNotificationUnread,
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
-import { groupNotifications, type NotificationGroup } from "@/lib/notifications/grouping";
+import { groupNotifications } from "@/lib/notifications/grouping";
 
 type Lang = "pl" | "en";
 
