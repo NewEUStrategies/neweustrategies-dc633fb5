@@ -391,7 +391,7 @@ function SearchFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
           name="q"
           placeholder={placeholder}
           aria-label={placeholder}
-          className="w-full h-11 pl-10 pr-3 rounded-l-md border border-r-0 border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+          className="icon-input w-full h-11 pr-3 rounded-l-md border border-r-0 border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       <button
