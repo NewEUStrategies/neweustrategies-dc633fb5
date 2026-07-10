@@ -231,18 +231,20 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     content = (
       <div
         className={cn(
-          "max-w-full whitespace-pre-wrap break-words px-3 py-1.5 text-[13px] leading-relaxed",
+          "max-w-full whitespace-pre-wrap break-words rounded-[10px] px-3 py-1.5 text-[13px] font-normal leading-snug tracking-normal",
           mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
-          bubbleRadius(mine, groupStart, groupEnd),
         )}
-        title={timeTitle}
       >
-        {message.body}
-        {message.edited_at && (
-          <span className={cn("ml-1.5 text-[10px]", mine ? "opacity-70" : "text-muted-foreground")}>
-            ({t("chat.edited")})
-          </span>
-        )}
+        <p className="whitespace-pre-wrap break-words font-normal">{message.body}</p>
+        <p
+          className={cn(
+            "mt-0.5 text-[10px] font-normal tabular-nums",
+            mine ? "text-primary-foreground/70" : "text-muted-foreground/70",
+          )}
+        >
+          {timeTitle}
+          {message.edited_at && <span className="ml-1"> · {t("chat.edited")}</span>}
+        </p>
       </div>
     );
   }
