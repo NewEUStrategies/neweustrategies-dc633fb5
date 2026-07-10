@@ -4,7 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye, EyeOff, MessageCircle, Search, Users } from "lucide-react";
+import { Eye, EyeOff, MessagesSquare, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -179,7 +179,7 @@ function PeopleInner() {
                 className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                 aria-label={`${t("people.message")}: ${person.display_name}`}
               >
-                <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+                <MessagesSquare className="h-3.5 w-3.5" aria-hidden />
                 <span className="hidden sm:inline">{t("people.message")}</span>
               </button>
             </li>

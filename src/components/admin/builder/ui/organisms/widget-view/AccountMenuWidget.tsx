@@ -120,7 +120,7 @@ export const ACCOUNT_PRESETS: Array<{
     href: "/messages",
     label_pl: "Wiadomości",
     label_en: "Messages",
-    icon: "MessageCircle",
+    icon: "MessagesSquare",
   },
   {
     key: "people",

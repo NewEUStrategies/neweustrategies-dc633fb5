@@ -5,7 +5,7 @@
 import "@/lib/i18n-chat";
 import { useMemo, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Search, SquarePen, X } from "lucide-react";
+import { MessagesSquare, Search, SquarePen, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -81,15 +81,15 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="relative inline-flex h-8 w-8 items-center justify-center rounded-[6px] hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t("chat.messages")}
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <MessageCircle className="h-4 w-4" aria-hidden />
+          <MessagesSquare className="h-4 w-4" aria-hidden />
           {unread > 0 && (
             <span
-              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
+              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-[6px] bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
               aria-label={t("chat.unread", { count: unread })}
             >
               {unread > 99 ? "99+" : unread}
@@ -122,7 +122,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
             type="button"
             onClick={() => setMode(mode === "new" ? "list" : "new")}
             className={cn(
-              "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              "inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               mode === "new" && "bg-muted text-foreground",
             )}
             aria-label={t("chat.newMessage")}
@@ -152,7 +152,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder={t("chat.searchConversations")}
                   aria-label={t("chat.searchConversations")}
-                  className="h-8 w-full rounded-full border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-8 w-full rounded-[6px] border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
             )}
@@ -162,14 +162,22 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   {t("common.loading", { defaultValue: "..." })}
                 </p>
               ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 p-5 text-center">
-                  <MessageCircle className="h-5 w-5 text-muted-foreground/50" aria-hidden />
-                  <p className="text-xs text-muted-foreground">{t("chat.noConversations")}</p>
+                <div className="flex flex-col items-center gap-2.5 px-4 py-6 text-center">
+                  <span
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] bg-muted/60 text-muted-foreground"
+                    aria-hidden
+                  >
+                    <MessagesSquare className="h-4 w-4" />
+                  </span>
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    {t("chat.noConversations")}
+                  </p>
                   <button
                     type="button"
                     onClick={() => setMode("new")}
-                    className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                    className="inline-flex items-center gap-1.5 rounded-[6px] bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
                   >
+                    <SquarePen className="h-3 w-3" aria-hidden />
                     {t("chat.newMessage")}
                   </button>
                 </div>
@@ -200,7 +208,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
           <AppLink
             href="/messages"
             onClick={() => setOpen(false)}
-            className="flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium hover:bg-muted/60 transition-colors"
+            className="flex h-8 items-center justify-center gap-1.5 rounded-[6px] text-xs font-medium hover:bg-muted/60 transition-colors"
           >
             {t("chat.seeAll")}
           </AppLink>
