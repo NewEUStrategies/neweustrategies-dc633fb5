@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
@@ -29,9 +29,19 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       ),
     }),
   });
+  const { user } = useAuth();
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
+
+  // Auth-gated: guests never trigger the dynamic import (SSR + first client
+  // render agree on `null`, so hydration is unaffected).
+  const chatDock =
+    !user || isAdmin || isLogin ? null : (
+      <Suspense fallback={null}>
+        <ChatDock />
+      </Suspense>
+    );
 
   if (isAdmin || isLogin || ownChrome) {
     return (
@@ -40,6 +50,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         <ImpersonationBanner />
         <RouteProgress />
         {children}
+        {chatDock}
       </>
     );
   }
@@ -54,6 +65,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
+      {chatDock}
     </div>
   );
 }

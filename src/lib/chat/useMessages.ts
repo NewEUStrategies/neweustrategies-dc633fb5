@@ -1,0 +1,591 @@
+// Messages data layer for a single conversation: infinite history, optimistic
+// send, editing, unsend (soft delete), reactions and the per-conversation
+// realtime channel (messages + reactions + read receipts + typing broadcast).
+//
+// Pagination note: each page carries its own `nextCursor`, computed once at
+// fetch time. Realtime/optimistic cache patches mutate only `rows`, so they
+// can never corrupt hasNextPage (a length-based getNextPageParam would flip to
+// "no more pages" the moment a patch changed a page's length).
+import { useCallback, useEffect, useRef } from "react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
+  type UseQueryResult,
+  useQuery,
+} from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { chatKeys } from "./keys";
+import type { ChatMessage, MessageRow, ReactionRow } from "./types";
+
+const PAGE_SIZE = 40;
+
+export interface MessagesPage {
+  /** Newest-first rows of this page. */
+  rows: ChatMessage[];
+  /** Cursor for the next (older) page; null = end of history. */
+  nextCursor: string | null;
+}
+
+type MessagesData = InfiniteData<MessagesPage, string | null>;
+
+/** Newest-first pages; the UI flattens and reverses for display. */
+export function useMessages(
+  conversationId: string,
+  enabled: boolean,
+): UseInfiniteQueryResult<MessagesData> {
+  const { user } = useAuth();
+  return useInfiniteQuery({
+    queryKey: chatKeys.messages(user?.id, conversationId),
+    enabled: enabled && !!user,
+    staleTime: 30_000,
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }): Promise<MessagesPage> => {
+      let q = supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
+      if (pageParam) q = q.lt("created_at", pageParam);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = data ?? [];
+      return {
+        rows,
+        nextCursor: rows.length === PAGE_SIZE ? (rows[rows.length - 1]?.created_at ?? null) : null,
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  });
+}
+
+function singlePageData(message: ChatMessage): MessagesData {
+  return { pages: [{ rows: [message], nextCursor: null }], pageParams: [null] };
+}
+
+/**
+ * Upsert a message into the cached pages (newest first).
+ *  - Replaces the row with the same id (and drops a matching `replaceId`
+ *    optimistic twin so the realtime-echo-before-HTTP-response race can never
+ *    leave a duplicate).
+ *  - When the id is absent: prepends only if `insertIfMissing` - UPDATE-shaped
+ *    events for paginated-out rows must not teleport old messages to the top.
+ */
+function upsertMessageInCache(
+  data: MessagesData | undefined,
+  message: ChatMessage,
+  options: { replaceId?: string; insertIfMissing?: boolean } = {},
+): MessagesData | undefined {
+  if (!data) return data;
+  const { replaceId, insertIfMissing = true } = options;
+  let idExists = false;
+  for (const page of data.pages) {
+    if (page.rows.some((m) => m.id === message.id)) {
+      idExists = true;
+      break;
+    }
+  }
+  let found = false;
+  const pages = data.pages.map((page) => {
+    const rows: ChatMessage[] = [];
+    for (const current of page.rows) {
+      if (current.id === message.id) {
+        rows.push({ ...current, ...message, pending: false });
+        found = true;
+      } else if (replaceId && current.id === replaceId) {
+        // The server row is (or just became) present elsewhere - drop the
+        // optimistic twin instead of rewriting it into a duplicate.
+        if (idExists) continue;
+        rows.push({ ...current, ...message, pending: false });
+        found = true;
+      } else {
+        rows.push(current);
+      }
+    }
+    return { ...page, rows };
+  });
+  if (!found) {
+    if (!insertIfMissing) return data;
+    if (pages.length === 0) pages.push({ rows: [message], nextCursor: null });
+    else {
+      const first = pages[0];
+      if (first) pages[0] = { ...first, rows: [message, ...first.rows] };
+    }
+  }
+  return { ...data, pages };
+}
+
+function removeMessageFromCache(
+  data: MessagesData | undefined,
+  messageId: string,
+): MessagesData | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      rows: page.rows.filter((m) => m.id !== messageId),
+    })),
+  };
+}
+
+export interface SendMessageInput {
+  conversationId: string;
+  kind: "text" | "image" | "file";
+  body?: string;
+  attachment?: { path: string; name: string; mime: string; size: number };
+  replyToId?: string | null;
+}
+
+export function useSendMessage() {
+  const qc = useQueryClient();
+  const { user, tenantId } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: SendMessageInput): Promise<MessageRow> => {
+      if (!user) throw new Error("chat: auth required");
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: input.conversationId,
+          sender_id: user.id,
+          kind: input.kind,
+          body: input.body ?? null,
+          attachment_path: input.attachment?.path ?? null,
+          attachment_name: input.attachment?.name ?? null,
+          attachment_mime: input.attachment?.mime ?? null,
+          attachment_size: input.attachment?.size ?? null,
+          reply_to_id: input.replyToId ?? null,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onMutate: async (input) => {
+      if (!user) return { tempId: "", conversationId: input.conversationId };
+      const key = chatKeys.messages(user.id, input.conversationId);
+      // No cached history yet (first send raced the initial fetch): leave the
+      // in-flight fetch alone - cancelling it and seeding a one-message cache
+      // would blank the whole thread until the next refetch. onSuccess/realtime
+      // will surface the message once the history lands.
+      if (!qc.getQueryData<MessagesData>(key)) {
+        return { tempId: "", conversationId: input.conversationId };
+      }
+      await qc.cancelQueries({ queryKey: key });
+      const tempId = `pending-${crypto.randomUUID()}`;
+      const optimistic: ChatMessage = {
+        id: tempId,
+        conversation_id: input.conversationId,
+        tenant_id: tenantId ?? "",
+        sender_id: user.id,
+        kind: input.kind,
+        body: input.body ?? null,
+        attachment_path: input.attachment?.path ?? null,
+        attachment_name: input.attachment?.name ?? null,
+        attachment_mime: input.attachment?.mime ?? null,
+        attachment_size: input.attachment?.size ?? null,
+        reply_to_id: input.replyToId ?? null,
+        edited_at: null,
+        deleted_at: null,
+        created_at: new Date().toISOString(),
+        pending: true,
+      };
+      qc.setQueryData<MessagesData>(key, (old) => upsertMessageInCache(old, optimistic));
+      return { tempId, conversationId: input.conversationId };
+    },
+    onSuccess: (row, _input, ctx) => {
+      if (!user || !ctx) return;
+      const key = chatKeys.messages(user.id, ctx.conversationId);
+      const existing = qc.getQueryData<MessagesData>(key);
+      if (existing) {
+        qc.setQueryData<MessagesData>(key, (old) =>
+          upsertMessageInCache(old, row, { replaceId: ctx.tempId || undefined }),
+        );
+      } else {
+        qc.setQueryData<MessagesData>(key, singlePageData(row));
+      }
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user.id) });
+    },
+    onError: (_err, _input, ctx) => {
+      if (!user || !ctx?.tempId) return;
+      const key = chatKeys.messages(user.id, ctx.conversationId);
+      qc.setQueryData<MessagesData>(key, (old) => {
+        if (!old) return old;
+        const pages = old.pages.map((page) => ({
+          ...page,
+          rows: page.rows.map((m) =>
+            m.id === ctx.tempId ? { ...m, pending: false, failed: true } : m,
+          ),
+        }));
+        return { ...old, pages };
+      });
+    },
+  });
+}
+
+/** Edit window (mirrors the DB trigger): own text messages, 5 minutes. */
+export const EDIT_WINDOW_MS = 5 * 60 * 1000;
+
+export function canEditMessage(message: ChatMessage, myUserId: string): boolean {
+  return (
+    message.sender_id === myUserId &&
+    message.kind === "text" &&
+    !message.deleted_at &&
+    !message.pending &&
+    !message.failed &&
+    Date.now() - new Date(message.created_at).getTime() < EDIT_WINDOW_MS
+  );
+}
+
+/** Edit an own text message (server trigger re-checks the 5-minute window). */
+export function useEditMessage(conversationId: string) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { messageId: string; body: string }): Promise<MessageRow> => {
+      const { data, error } = await supabase
+        .from("messages")
+        .update({ body: input.body })
+        .eq("id", input.messageId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (row) => {
+      if (!user) return;
+      const key = chatKeys.messages(user.id, conversationId);
+      qc.setQueryData<MessagesData>(key, (old) =>
+        upsertMessageInCache(old, row, { insertIfMissing: false }),
+      );
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user.id) });
+    },
+  });
+}
+
+/** Unsend: wipes content, keeps a tombstone ("message deleted") in place. */
+export function useDeleteMessage(conversationId: string) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (messageId: string): Promise<MessageRow> => {
+      const { data, error } = await supabase
+        .from("messages")
+        .update({
+          deleted_at: new Date().toISOString(),
+          body: null,
+          attachment_path: null,
+          attachment_name: null,
+          attachment_mime: null,
+          attachment_size: null,
+        })
+        .eq("id", messageId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (row) => {
+      if (!user) return;
+      const key = chatKeys.messages(user.id, conversationId);
+      qc.setQueryData<MessagesData>(key, (old) =>
+        upsertMessageInCache(old, row, { insertIfMissing: false }),
+      );
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user.id) });
+    },
+  });
+}
+
+/** Remove a failed optimistic message from the cache (retry is a fresh send). */
+export function useDiscardFailedMessage(conversationId: string) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const uid = user?.id;
+  // Stable identity - consumed by memoized bubbles via ChatWindow callbacks.
+  return useCallback(
+    (messageId: string) => {
+      if (!uid) return;
+      const key = chatKeys.messages(uid, conversationId);
+      qc.setQueryData<MessagesData>(key, (old) => removeMessageFromCache(old, messageId));
+    },
+    [uid, conversationId, qc],
+  );
+}
+
+/** All reactions of a conversation, grouped by message id. */
+export function useReactions(
+  conversationId: string,
+  enabled: boolean,
+): UseQueryResult<ReadonlyMap<string, ReactionRow[]>> {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: chatKeys.reactions(user?.id, conversationId),
+    enabled: enabled && !!user,
+    staleTime: 30_000,
+    queryFn: async (): Promise<ReadonlyMap<string, ReactionRow[]>> => {
+      const { data, error } = await supabase
+        .from("message_reactions")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true })
+        .limit(2000);
+      if (error) throw error;
+      const grouped = new Map<string, ReactionRow[]>();
+      for (const row of data ?? []) {
+        const list = grouped.get(row.message_id);
+        if (list) list.push(row);
+        else grouped.set(row.message_id, [row]);
+      }
+      return grouped;
+    },
+  });
+}
+
+type ReactionsData = ReadonlyMap<string, ReactionRow[]>;
+
+/**
+ * Structural-sharing update of the reactions map: only the touched message's
+ * array gets a new identity, so memoized bubbles of other messages skip
+ * re-rendering entirely.
+ */
+function patchReactions(
+  old: ReactionsData | undefined,
+  messageId: string,
+  update: (list: ReactionRow[]) => ReactionRow[],
+): ReactionsData | undefined {
+  if (!old) return old;
+  const next = new Map(old);
+  const updated = update(old.get(messageId) ?? []);
+  if (updated.length === 0) next.delete(messageId);
+  else next.set(messageId, updated);
+  return next;
+}
+
+/** Messenger semantics: tap the same emoji to remove, another to switch. */
+export function useToggleReaction(conversationId: string) {
+  const qc = useQueryClient();
+  const { user, tenantId } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { messageId: string; emoji: string; current?: string | null }) => {
+      if (!user) throw new Error("chat: auth required");
+      if (input.current === input.emoji) {
+        // Same emoji again -> remove the reaction.
+        const { error } = await supabase
+          .from("message_reactions")
+          .delete()
+          .eq("message_id", input.messageId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+        return;
+      }
+      if (input.current) {
+        // Switch: update only the emoji column (column-level grant).
+        const { error } = await supabase
+          .from("message_reactions")
+          .update({ emoji: input.emoji })
+          .eq("message_id", input.messageId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await supabase.from("message_reactions").insert({
+        message_id: input.messageId,
+        conversation_id: conversationId,
+        tenant_id: tenantId ?? "",
+        user_id: user.id,
+        emoji: input.emoji,
+      });
+      if (error) throw error;
+    },
+    // Optimistic: the tap lands instantly; the realtime echo (or the error
+    // rollback below) reconciles the authoritative state.
+    onMutate: async (input) => {
+      if (!user) return;
+      const key = chatKeys.reactions(user.id, conversationId);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ReactionsData>(key);
+      qc.setQueryData<ReactionsData>(key, (old) =>
+        patchReactions(old, input.messageId, (list) => {
+          const without = list.filter((r) => r.user_id !== user.id);
+          if (input.current === input.emoji) return without;
+          const optimistic: ReactionRow = {
+            id: `optimistic-${input.messageId}-${user.id}`,
+            message_id: input.messageId,
+            conversation_id: conversationId,
+            tenant_id: tenantId ?? "",
+            user_id: user.id,
+            emoji: input.emoji,
+            created_at: new Date().toISOString(),
+          };
+          return [...without, optimistic];
+        }),
+      );
+      return { previous };
+    },
+    onError: (_err, _input, ctx) => {
+      if (!user || !ctx) return;
+      qc.setQueryData(chatKeys.reactions(user.id, conversationId), ctx.previous);
+    },
+  });
+}
+
+export interface TypingEvent {
+  userId: string;
+}
+
+/**
+ * One realtime channel per open conversation:
+ *  - messages INSERT/UPDATE  -> merge straight into the cache (no refetch lag)
+ *  - reactions changes       -> patch the reactions map from the payload
+ *  - participants UPDATE     -> refresh read receipts ("seen")
+ *  - broadcast "typing"      -> ephemeral typing indicator (no DB writes)
+ * Effect deps use the stable uid string (not the user object), so auth token
+ * refreshes do not tear the channel down; after a RE-subscribe the caches are
+ * invalidated once to recover any events dropped while the socket was down.
+ * Returns a stable `sendTyping` emitter for the composer.
+ */
+export function useConversationChannel(
+  conversationId: string,
+  enabled: boolean,
+  onTyping: (event: TypingEvent) => void,
+): { sendTyping: () => void } {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const uid = user?.id;
+  const onTypingRef = useRef(onTyping);
+  onTypingRef.current = onTyping;
+  const sendRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    if (!enabled || !uid) return;
+    let everSubscribed = false;
+    const channelName = `chat-conv:${conversationId}:${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const row = payload.new as MessageRow;
+          if (!row?.id) return;
+          const key = chatKeys.messages(uid, conversationId);
+          qc.setQueryData<MessagesData>(key, (old) => (old ? upsertMessageInCache(old, row) : old));
+          // No conversations invalidation here: the shared per-user list
+          // channel already fires for the same message (participants bump).
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const row = payload.new as MessageRow;
+          if (!row?.id) return;
+          const key = chatKeys.messages(uid, conversationId);
+          // Patch-only: an edit/unsend of a message that is paginated out of
+          // the cache must not be teleported to the top of the thread.
+          qc.setQueryData<MessagesData>(key, (old) =>
+            old ? upsertMessageInCache(old, row, { insertIfMissing: false }) : old,
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_reactions",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          // Patch the cached map from the event payload - no refetch of the
+          // whole reaction set per event. With RLS enabled Supabase strips
+          // DELETE payloads down to the primary key, so removals are located
+          // by scanning the (small, per-conversation) map for that id.
+          const key = chatKeys.reactions(uid, conversationId);
+          if (payload.eventType === "DELETE") {
+            const old = payload.old as Partial<ReactionRow>;
+            if (!old?.id) {
+              void qc.invalidateQueries({ queryKey: key });
+              return;
+            }
+            qc.setQueryData<ReactionsData>(key, (data) => {
+              if (!data) return data;
+              for (const [messageId, list] of data) {
+                if (list.some((r) => r.id === old.id)) {
+                  return patchReactions(data, messageId, (rows) =>
+                    rows.filter((r) => r.id !== old.id),
+                  );
+                }
+              }
+              return data;
+            });
+            return;
+          }
+          const row = payload.new as ReactionRow;
+          if (!row?.message_id) return;
+          qc.setQueryData<ReactionsData>(key, (data) =>
+            patchReactions(data, row.message_id, (list) => [
+              ...list.filter((r) => r.user_id !== row.user_id),
+              row,
+            ]),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "conversation_participants",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
+        },
+      )
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const data = payload.payload as TypingEvent | undefined;
+        if (data?.userId && data.userId !== uid) onTypingRef.current(data);
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          if (everSubscribed) {
+            // Recovered from a disconnect: events may have been dropped while
+            // the channel was down - resync both caches once.
+            void qc.invalidateQueries({ queryKey: chatKeys.messages(uid, conversationId) });
+            void qc.invalidateQueries({ queryKey: chatKeys.reactions(uid, conversationId) });
+            void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
+          }
+          everSubscribed = true;
+        }
+      });
+
+    sendRef.current = () => {
+      void channel.send({ type: "broadcast", event: "typing", payload: { userId: uid } });
+    };
+
+    return () => {
+      sendRef.current = () => {};
+      void supabase.removeChannel(channel);
+    };
+  }, [conversationId, enabled, uid, qc]);
+
+  // Stable identity so the (memoized) composer never re-renders because of it.
+  const sendTyping = useCallback(() => sendRef.current(), []);
+  return { sendTyping };
+}

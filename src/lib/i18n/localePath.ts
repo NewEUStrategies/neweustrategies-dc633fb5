@@ -56,6 +56,8 @@ const NON_LOCALIZED_PREFIXES: readonly string[] = [
   "/login",
   "/reading-list",
   "/newsletter",
+  "/messages",
+  "/people",
 ];
 // Note: /rss.xml is deliberately NOT here - the feed is language-addressed
 // like content ("/rss.xml" = PL, "/en/rss.xml" = EN).

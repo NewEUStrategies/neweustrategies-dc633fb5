@@ -41,6 +41,15 @@ export const Route = createFileRoute("/robots.txt")({
           "Disallow: /admin/",
           "Disallow: /login",
           "Disallow: /api/",
+          // Member-only surfaces: user profiles, chat and the people directory
+          // must never be crawled or indexed externally (they are also
+          // auth-gated + noindex, this is defense in depth).
+          "Disallow: /profile",
+          "Disallow: /profile/",
+          "Disallow: /messages",
+          "Disallow: /messages/",
+          "Disallow: /people",
+          "Disallow: /people/",
           "",
           ...aiCrawlerDirectives(settings),
         ];
