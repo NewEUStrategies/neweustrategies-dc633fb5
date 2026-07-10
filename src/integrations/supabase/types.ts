@@ -1001,6 +1001,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          direct_key: string | null
           id: string
           kind: string
           last_message_at: string | null
@@ -1008,10 +1009,12 @@ export type Database = {
           last_message_preview: string | null
           last_message_sender: string | null
           tenant_id: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
           created_by: string
+          direct_key?: string | null
           id?: string
           kind?: string
           last_message_at?: string | null
@@ -1019,10 +1022,12 @@ export type Database = {
           last_message_preview?: string | null
           last_message_sender?: string | null
           tenant_id: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string
+          direct_key?: string | null
           id?: string
           kind?: string
           last_message_at?: string | null
@@ -1030,6 +1035,7 @@ export type Database = {
           last_message_preview?: string | null
           last_message_sender?: string | null
           tenant_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -4570,6 +4576,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: undefined
       }
+      member_conversation_ids: { Args: never; Returns: string[] }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
         Args: {
