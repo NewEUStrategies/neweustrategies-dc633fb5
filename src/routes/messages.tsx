@@ -310,6 +310,8 @@ function MessagesInner() {
             </div>
           )}
         </main>
+          </>
+        )}
       </div>
     </div>
   );
