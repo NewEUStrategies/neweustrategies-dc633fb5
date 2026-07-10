@@ -20,6 +20,8 @@ import {
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
+const BOT_ID = "bot-simulator";
+
 interface MessagesSearch {
   c?: string;
 }
