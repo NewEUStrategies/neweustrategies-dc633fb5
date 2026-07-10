@@ -12,6 +12,7 @@ import {
   Bot,
   Check,
   CheckCheck,
+  Images,
   Reply,
   SendHorizontal,
   SmilePlus,
@@ -21,6 +22,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { QUICK_REACTIONS } from "@/lib/chat/emojiQuick";
+import { ChatMediaPanel } from "./ChatMediaPanel";
 import { cn } from "@/lib/utils";
 
 type BotMode = "echo" | "variants";
