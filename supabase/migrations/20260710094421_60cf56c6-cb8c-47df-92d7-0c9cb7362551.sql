@@ -1,0 +1,12 @@
+REVOKE EXECUTE ON FUNCTION public.messages_before_insert() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.message_reactions_before_insert() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.messages_after_insert() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.messages_enforce_edit_window() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.messages_after_edit() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.messages_after_soft_delete() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.messages_before_insert() TO service_role;
+GRANT EXECUTE ON FUNCTION public.message_reactions_before_insert() TO service_role;
+GRANT EXECUTE ON FUNCTION public.messages_after_insert() TO service_role;
+GRANT EXECUTE ON FUNCTION public.messages_enforce_edit_window() TO service_role;
+GRANT EXECUTE ON FUNCTION public.messages_after_edit() TO service_role;
+GRANT EXECUTE ON FUNCTION public.messages_after_soft_delete() TO service_role;
