@@ -114,6 +114,47 @@ export function useMarkNotificationRead() {
   });
 }
 
+/**
+ * Batch-mark a list of notification ids as read. Ignores ids that already
+ * had read_at. Used by group-level "mark whole conversation" quick actions.
+ */
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return 0;
+      const { data, error } = await supabase.rpc("mark_notifications_read", { p_ids: ids });
+      if (error) throw error;
+      return (data as number | null) ?? 0;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: countKey(user?.id) });
+    },
+  });
+}
+
+/** Batch-mark a list of notification ids as unread. */
+export function useMarkNotificationsUnread() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return 0;
+      const { data, error } = await supabase.rpc("mark_notifications_unread", { p_ids: ids });
+      if (error) throw error;
+      return (data as number | null) ?? 0;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: countKey(user?.id) });
+    },
+  });
+}
+
+
+
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -249,4 +290,37 @@ export function useUpdateNotificationPreferences() {
     },
   });
 }
+
+/**
+ * Subscribe to realtime changes on this user's notification_preferences row.
+ * Ensures widgets (bell, center, chat) reflect toggles made in another tab or
+ * from another device within the same session, without a manual refresh.
+ */
+export function useNotificationPreferencesRealtime(): void {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    const channelName = `notif-prefs:${user.id}:${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notification_preferences",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: prefsKey(user.id) });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, qc]);
+}
+
 

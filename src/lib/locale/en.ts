@@ -1585,8 +1585,13 @@ export const en = {
       all: "All",
       unread: "Unread",
       settings: "Settings",
+      allKinds: "All types",
     },
+    searchPlaceholder: "Search by title, sender...",
+    noMatches: "No results match your filters",
     markUnread: "Mark as unread",
+    markGroupRead: "Mark whole conversation as read",
+    markGroupUnread: "Mark whole conversation as unread",
     grouped: {
       messagesFrom: "Messages from {{name}}",
       moreMessages_one: "+{{count}} more message",

@@ -4,12 +4,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bot, MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { Bell, Bot, MessagesSquare, Search, SquarePen, X } from "lucide-react";
 import { BotChatWindow } from "@/components/chat/BotChatWindow";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
+import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
@@ -17,20 +18,26 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useUnreadCount } from "@/lib/notifications/useNotifications";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
 const BOT_ID = "bot-simulator";
+type MessagesView = "chats" | "notifications";
 
 interface MessagesSearch {
   c?: string;
+  view?: MessagesView;
 }
 
 export const Route = createFileRoute("/messages")({
   component: MessagesPage,
   validateSearch: (search: Record<string, unknown>): MessagesSearch => {
     const c = typeof search.c === "string" && search.c.length > 0 ? search.c : undefined;
-    return { c };
+    const rawView = typeof search.view === "string" ? search.view : undefined;
+    const view: MessagesView | undefined =
+      rawView === "notifications" ? "notifications" : rawView === "chats" ? "chats" : undefined;
+    return { c, view };
   },
   head: () => ({
     meta: [{ title: "Wiadomości" }, { name: "robots", content: "noindex, nofollow" }],
@@ -49,8 +56,21 @@ function MessagesInner() {
   const { t, i18n } = useTranslation();
   const lang: ChatLang = i18n.language === "en" ? "en" : "pl";
   const { user } = useAuth();
-  const { c } = Route.useSearch();
+  const { c, view } = Route.useSearch();
   const navigate = Route.useNavigate();
+  const activeView: MessagesView = view === "notifications" ? "notifications" : "chats";
+  const unreadNotifQ = useUnreadCount();
+  const unreadNotif = unreadNotifQ.data ?? 0;
+
+  const setActiveView = (v: MessagesView) => {
+    void navigate({
+      search: (prev: MessagesSearch) => ({
+        ...prev,
+        view: v === "chats" ? undefined : v,
+      }),
+      replace: true,
+    });
+  };
 
   useChatListRealtime();
   const online = useOnlineUsers();
@@ -94,7 +114,57 @@ function MessagesInner() {
 
   return (
     <div className="container mx-auto max-w-6xl px-2 py-4 sm:px-4 sm:py-6">
-      <div className="flex h-[calc(100dvh-210px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+      <div
+        role="tablist"
+        aria-label={t("chat.messages")}
+        className="mb-3 inline-flex items-center gap-1 rounded-[8px] border border-border/60 bg-muted/40 p-1 text-sm"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "chats"}
+          onClick={() => setActiveView("chats")}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
+            activeView === "chats"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <MessagesSquare className="h-3.5 w-3.5" aria-hidden />
+          {t("chat.messages")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "notifications"}
+          onClick={() => setActiveView("notifications")}
+          className={cn(
+            "relative inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
+            activeView === "notifications"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Bell className="h-3.5 w-3.5" aria-hidden />
+          {t("notifications.title", { defaultValue: "Powiadomienia" })}
+          {unreadNotif > 0 && (
+            <span
+              className="ml-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+              aria-label={t("notifications.unread", { count: unreadNotif })}
+            >
+              {unreadNotif > 99 ? "99+" : unreadNotif}
+            </span>
+          )}
+        </button>
+      </div>
+      <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+        {activeView === "notifications" ? (
+          <div className="w-full min-w-0">
+            <NotificationsCenter />
+          </div>
+        ) : (
+          <>
         {/* Left pane: conversation list */}
         <aside
           className={cn(
@@ -240,6 +310,8 @@ function MessagesInner() {
             </div>
           )}
         </main>
+          </>
+        )}
       </div>
     </div>
   );

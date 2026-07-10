@@ -4662,6 +4662,8 @@ export type Database = {
         Returns: undefined
       }
       mark_notification_unread: { Args: { p_id: string }; Returns: undefined }
+      mark_notifications_read: { Args: { p_ids: string[] }; Returns: number }
+      mark_notifications_unread: { Args: { p_ids: string[] }; Returns: number }
       member_conversation_ids: { Args: never; Returns: string[] }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {

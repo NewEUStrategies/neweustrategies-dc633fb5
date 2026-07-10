@@ -13,9 +13,10 @@ import {
   useNotifications,
   useNotificationsRealtime,
   useNotificationPreferences,
+  useNotificationPreferencesRealtime,
   useUnreadCount,
   useMarkAllNotificationsRead,
-  useMarkNotificationRead,
+  useMarkNotificationsRead,
   useMarkNotificationUnread,
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
@@ -68,11 +69,12 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
 
   // Always call hooks in the same order - even when unauth we render nothing.
   useNotificationsRealtime();
+  useNotificationPreferencesRealtime();
   const listQ = useNotifications({ limit: 20 });
   const countQ = useUnreadCount();
   const prefsQ = useNotificationPreferences();
   const markAll = useMarkAllNotificationsRead();
-  const markOne = useMarkNotificationRead();
+  const markMany = useMarkNotificationsRead();
   const unreadOne = useMarkNotificationUnread();
 
   if (!user) return null;
@@ -226,9 +228,10 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            g.items.forEach((it) => {
-                              if (!it.read_at) markOne.mutate(it.id);
-                            });
+                            const ids = g.items
+                              .filter((it) => !it.read_at)
+                              .map((it) => it.id);
+                            if (ids.length > 0) markMany.mutate(ids);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={t("notifications.markRead", {
@@ -264,9 +267,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                 );
                 const onClick = () => {
                   // Clicking the row navigates and marks all wrapped rows read.
-                  g.items.forEach((it) => {
-                    if (!it.read_at) markOne.mutate(it.id);
-                  });
+                  const ids = g.items.filter((it) => !it.read_at).map((it) => it.id);
+                  if (ids.length > 0) markMany.mutate(ids);
                   setOpen(false);
                 };
                 return (
@@ -299,7 +301,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
 
         <div className="border-t border-border/60 p-2">
           <Link
-            to="/messages/notifications"
+            to="/messages"
+            search={{ view: "notifications" }}
             onClick={() => setOpen(false)}
             className="flex items-center justify-center gap-1.5 h-8 rounded-md text-xs font-medium hover:bg-muted/60 transition-colors"
           >

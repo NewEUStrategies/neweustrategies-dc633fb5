@@ -17,7 +17,7 @@ type NavKey =
   | "orders"
   | "security";
 
-type NavItem = { to: string; key: NavKey };
+type NavItem = { to: string; key: NavKey; search?: Record<string, string> };
 
 const MAIN: NavItem[] = [
   { to: "/profile", key: "overview" },
@@ -26,7 +26,7 @@ const MAIN: NavItem[] = [
   { to: "/profile/social", key: "social" },
   { to: "/profile/interests", key: "interests" },
   { to: "/profile/bookmarks", key: "bookmarks" },
-  { to: "/messages/notifications", key: "notifications" },
+  { to: "/messages", search: { view: "notifications" }, key: "notifications" },
   { to: "/profile/follows", key: "follows" },
 ];
 
@@ -53,6 +53,7 @@ export function ProfileNav() {
       <Link
         key={item.to}
         to={item.to}
+        {...(item.search ? { search: item.search } : {})}
         aria-current={active ? "page" : undefined}
         className={cn(
           "group relative flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all",
