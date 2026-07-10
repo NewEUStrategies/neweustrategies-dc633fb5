@@ -342,7 +342,10 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                             : undefined
                         }
                       >
-                        <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
+                        <p
+                          className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal"
+                          style={mine ? { color: "var(--chat-user-foreground)" } : undefined}
+                        >
                           {m.body}
                         </p>
                         <p
