@@ -109,6 +109,23 @@ export function MessageList(props: MessageListProps) {
     [messages],
   );
 
+  // Scroll a message into view and briefly highlight it. Called from the
+  // reply-quote button on any bubble; noop if the target row has scrolled
+  // out of the loaded window (older pages will fetch on their own).
+  const jumpToMessage = useCallback((messageId: string) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const row = container.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    );
+    if (!row) return;
+    stickToBottomRef.current = false;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("chat-jump-flash");
+    window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
+  }, []);
+
+
   // Newest own message that the peer has already read -> "seen" receipt.
   const lastMine = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
