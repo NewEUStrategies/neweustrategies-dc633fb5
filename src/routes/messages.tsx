@@ -211,7 +211,14 @@ function MessagesInner() {
 
         {/* Right pane: active thread */}
         <main className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
-          {selected ? (
+          {selected === BOT_ID ? (
+            <BotChatWindow
+              onBack={() => {
+                setSelected(null);
+                void navigate({ search: {}, replace: true });
+              }}
+            />
+          ) : selected ? (
             <ChatWindow
               key={selected}
               conversationId={selected}
