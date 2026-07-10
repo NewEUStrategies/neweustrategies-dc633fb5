@@ -26,7 +26,7 @@ const MAIN: NavItem[] = [
   { to: "/profile/social", key: "social" },
   { to: "/profile/interests", key: "interests" },
   { to: "/profile/bookmarks", key: "bookmarks" },
-  { to: "/profile/notifications", key: "notifications" },
+  { to: "/messages/notifications", key: "notifications" },
   { to: "/profile/follows", key: "follows" },
 ];
 
