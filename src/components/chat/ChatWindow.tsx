@@ -360,6 +360,7 @@ export function ChatWindow(props: ChatWindowProps) {
       )}
       role="dialog"
       aria-label={`${t("chat.title")}: ${peerName}`}
+      data-active-conversation={conversationId}
     >
       <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
         <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
