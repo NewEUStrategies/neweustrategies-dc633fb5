@@ -381,32 +381,43 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
             <Label htmlFor="reg-name" className="text-sm">
               {L.name}
             </Label>
-            <Input
-              id="reg-name"
-              autoComplete="given-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="reg-name"
+                autoComplete="given-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={lang === "pl" ? "Jan" : "John"}
+                className="pl-9"
+              />
+            </div>
           </div>
         )}
         <div className="space-y-1.5">
           <Label htmlFor="reg-email" className="text-sm">
             {L.email}
           </Label>
-          <Input
-            id="reg-email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              id="reg-email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              className="pl-9"
+            />
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="reg-password" className="text-sm">
             {L.password}
           </Label>
           <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               id="reg-password"
               type={showPw ? "text" : "password"}
@@ -415,12 +426,14 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="pr-10"
+              placeholder={lang === "pl" ? "min. 8 znaków" : "min. 8 characters"}
+              className="pl-9 pr-10"
             />
             <button
               type="button"
               onClick={() => setShowPw((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label={showPw ? (lang === "pl" ? "Ukryj hasło" : "Hide password") : (lang === "pl" ? "Pokaż hasło" : "Show password")}
             >
               {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -431,17 +444,23 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
             <Label htmlFor="reg-confirm" className="text-sm">
               {L.confirm}
             </Label>
-            <Input
-              id="reg-confirm"
-              type={showPw ? "text" : "password"}
-              autoComplete="new-password"
-              required
-              minLength={8}
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="reg-confirm"
+                type={showPw ? "text" : "password"}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
+                className="pl-9"
+              />
+            </div>
           </div>
         )}
+
         {data.showNewsletterOptIn !== false && (
           <label className="widget-align-row flex w-full items-start gap-2 text-sm cursor-pointer leading-snug">
             <Checkbox
