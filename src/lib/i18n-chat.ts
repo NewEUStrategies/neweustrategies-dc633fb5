@@ -205,6 +205,13 @@ export const chatEn = {
     saveEdit: "Save changes",
     cancelEdit: "Cancel editing",
     editExpired: "Messages can only be edited within 5 minutes of sending.",
+    incoming: {
+      someone: "Someone",
+      open: "Open",
+      emptyBody: "...",
+      newMessageFrom: "New message from {{name}}",
+      pulseLabel: "You have new unread messages",
+    },
     receipt: {
       pending: "Sending...",
       sent: "Sent",
