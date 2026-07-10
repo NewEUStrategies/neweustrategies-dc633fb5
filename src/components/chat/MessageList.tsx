@@ -64,6 +64,7 @@ export function MessageList(props: MessageListProps) {
     peerName,
     peerAvatarUrl,
     peerLastReadAt,
+    peerOnline,
     peerTyping,
     hasOlder,
     loadingOlder,
