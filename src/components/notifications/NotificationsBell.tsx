@@ -12,11 +12,14 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useNotifications,
   useNotificationsRealtime,
+  useNotificationPreferences,
   useUnreadCount,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
+  useMarkNotificationUnread,
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
+import { groupNotifications, type NotificationGroup } from "@/lib/notifications/grouping";
 
 type Lang = "pl" | "en";
 
