@@ -118,7 +118,7 @@ function PeopleInner() {
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("people.searchPlaceholder")}
           aria-label={t("people.searchPlaceholder")}
-          className="h-10 w-full rounded-[6px] border border-input bg-muted/30 pl-[42px] pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 

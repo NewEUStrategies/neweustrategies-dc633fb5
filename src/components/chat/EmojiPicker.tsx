@@ -57,7 +57,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("chat.emojiSearch")}
             aria-label={t("chat.emojiSearch")}
-            className="h-9 w-full rounded-[6px] border border-input bg-background pl-[42px] pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-9 w-full rounded-[6px] border border-input bg-background !pl-[42px] pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
       </div>

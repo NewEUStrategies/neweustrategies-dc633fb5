@@ -135,7 +135,7 @@ function MessagesInner() {
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder={t("chat.searchConversations")}
                     aria-label={t("chat.searchConversations")}
-                    className="h-10 w-full rounded-[6px] border border-input bg-muted/40 pl-[42px] pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-10 w-full rounded-[6px] border border-input bg-muted/40 !pl-[42px] pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </label>
               </div>
