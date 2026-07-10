@@ -17,6 +17,7 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "./ConversationListItem";
@@ -36,6 +37,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
 
   // Hooks must run unconditionally; they no-op while signed out.
   useChatListRealtime();
+  useIncomingChatToasts();
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const unread = useChatUnreadTotal();
@@ -81,19 +83,32 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-8 w-8 items-center justify-center rounded-[6px] hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={t("chat.messages")}
+          className={cn(
+            "relative inline-flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            unread > 0 ? "text-primary hover:bg-primary/10" : "hover:bg-muted/60",
+          )}
+          aria-label={
+            unread > 0
+              ? `${t("chat.messages")} - ${t("chat.unread", { count: unread })}`
+              : t("chat.messages")
+          }
           aria-haspopup="dialog"
           aria-expanded={open}
         >
           <MessagesSquare className="h-4 w-4" aria-hidden />
           {unread > 0 && (
-            <span
-              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-[6px] bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
-              aria-label={t("chat.unread", { count: unread })}
-            >
-              {unread > 99 ? "99+" : unread}
-            </span>
+            <>
+              <span
+                className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex h-[16px] min-w-[16px] motion-safe:animate-ping rounded-[6px] bg-primary/60 opacity-70"
+                aria-hidden
+              />
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-[6px] bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
+                aria-label={t("chat.unread", { count: unread })}
+              >
+                {unread > 99 ? "99+" : unread}
+              </span>
+            </>
           )}
         </button>
       </PopoverTrigger>

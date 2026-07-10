@@ -321,7 +321,10 @@ export function ChatWindow(props: ChatWindowProps) {
 
   if (variant === "page") {
     return (
-      <div className={cn("flex h-full min-h-0 flex-col", className)}>
+      <div
+        className={cn("flex h-full min-h-0 flex-col", className)}
+        data-active-conversation={conversationId}
+      >
         <div className="flex items-center gap-2.5 border-b border-border/60 px-3 py-2">
           {onBack && (
             <button
@@ -357,6 +360,7 @@ export function ChatWindow(props: ChatWindowProps) {
       )}
       role="dialog"
       aria-label={`${t("chat.title")}: ${peerName}`}
+      data-active-conversation={conversationId}
     >
       <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
         <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
