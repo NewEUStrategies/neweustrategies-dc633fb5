@@ -1594,8 +1594,13 @@ export const pl = {
       all: "Wszystkie",
       unread: "Nieprzeczytane",
       settings: "Ustawienia",
+      allKinds: "Wszystkie typy",
     },
+    searchPlaceholder: "Szukaj po treści, nadawcy...",
+    noMatches: "Brak wyników dla zadanych filtrów",
     markUnread: "Oznacz jako nieprzeczytane",
+    markGroupRead: "Oznacz całą rozmowę jako przeczytaną",
+    markGroupUnread: "Oznacz całą rozmowę jako nieprzeczytaną",
     grouped: {
       messagesFrom: "Wiadomości od {{name}}",
       moreMessages_one: "+{{count}} kolejna wiadomość",
