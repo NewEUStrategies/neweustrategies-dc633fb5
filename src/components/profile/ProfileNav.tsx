@@ -53,6 +53,7 @@ export function ProfileNav() {
       <Link
         key={item.to}
         to={item.to}
+        {...(item.search ? { search: item.search } : {})}
         aria-current={active ? "page" : undefined}
         className={cn(
           "group relative flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all",
