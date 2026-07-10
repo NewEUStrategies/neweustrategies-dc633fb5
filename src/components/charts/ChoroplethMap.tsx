@@ -15,12 +15,8 @@
 // sam SVG dogrywa się po stronie klienta w miejsce shimmera o stałym aspekcie.
 import { useMemo, useState, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  GEO_ASSET_URL,
-  type DataMapConfig,
-  type GeoAsset,
-  type MapRegion,
-} from "@/lib/charts/types";
+import type { DataMapConfig, MapRegion } from "@/lib/charts/types";
+import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { formatChartValue, type ChartLang } from "@/lib/charts/format";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
@@ -78,17 +74,10 @@ export function ChoroplethMap({ config, lang, className }: DataMapProps) {
   const [active, setActive] = useState<ActiveCountry | null>(null);
 
   const geo = useQuery({
-    queryKey: ["public", "geo", config.region] as const,
-    queryFn: async (): Promise<GeoAsset> => {
-      const res = await fetch(GEO_ASSET_URL[config.region]);
-      if (!res.ok) throw new Error(`geo asset ${config.region}: HTTP ${res.status}`);
-      return (await res.json()) as GeoAsset;
-    },
-    // Zasób jest wersjonowany w nazwie pliku - nigdy nie twardnieje.
-    staleTime: Infinity,
-    gcTime: 24 * 60 * 60 * 1000,
+    ...geoAssetQueryOptions(config.region),
+    // Klient-only: SSR renderuje ramę + tabelę, SVG dogrywa się po hydracji
+    // (duży zasób nie podróżuje w dehydratowanym cache'u).
     enabled: typeof window !== "undefined",
-    retry: 1,
   });
 
   const valueById = useMemo(() => {

@@ -9,14 +9,17 @@ import {
   resolveAccentColor,
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
-import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+// Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
+// lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
+// które ich nie renderują).
+import type { SliderVariant } from "@/lib/builder/sliderVariants";
 import { sliderUsesPostsSource } from "@/lib/builder/sliderPostsQuery";
-import {
-  AnimatedHeadingRender,
-  type AnimatedHeadingConfig,
-  type AnimatedHeadingMode,
-  type AnimatedHeadingShape,
+import type {
+  AnimatedHeadingConfig,
+  AnimatedHeadingMode,
+  AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
+import { SliderRender, AnimatedHeadingRender } from "./lazyWidgets";
 import {
   COMPACT_ICON_BOX_SIZE,
   COMPACT_WIDGET_MIN_HEIGHT,

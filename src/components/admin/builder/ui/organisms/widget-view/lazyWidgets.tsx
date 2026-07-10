@@ -180,6 +180,35 @@ export function RichTextView(props: ComponentProps<typeof RichTextViewImpl>) {
   );
 }
 
+// The slider renderer is the single heaviest widget module (5 styled
+// variants, drag/autoplay machinery, ~53 KB source). Pages without a slider
+// never download it; SSR streaming keeps the hero HTML identical.
+const SliderRenderImpl = lazy(() =>
+  import("@/lib/builder/sliderVariants").then((m) => ({ default: m.SliderRender })),
+);
+export function SliderRender(props: ComponentProps<typeof SliderRenderImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <SliderRenderImpl {...props} />
+    </Suspense>
+  );
+}
+
+// Animated headings carry a large per-variant animation catalog; they animate
+// in anyway, so the deferred chunk is imperceptible.
+const AnimatedHeadingRenderImpl = lazy(() =>
+  import("@/lib/builder/animatedHeadingVariants").then((m) => ({
+    default: m.AnimatedHeadingRender,
+  })),
+);
+export function AnimatedHeadingRender(props: ComponentProps<typeof AnimatedHeadingRenderImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <AnimatedHeadingRenderImpl {...props} />
+    </Suspense>
+  );
+}
+
 // Data-viz widgets pull in the whole SVG chart engine (scales, tooltips,
 // choropleth) - split out so pages without charts never download it.
 const ChartWidgetViewImpl = lazy(() =>

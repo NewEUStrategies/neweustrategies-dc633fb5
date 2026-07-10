@@ -10,7 +10,9 @@ import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
-import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderVariants";
+// Z sliderFallbackQuery (nie sliderVariants): prefetch trafia do bundla
+// loadera każdej trasy i nie może ciągnąć całego renderera sliderów.
+import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import {
   sliderPostsLimit,
   sliderPostsQueryOptions,

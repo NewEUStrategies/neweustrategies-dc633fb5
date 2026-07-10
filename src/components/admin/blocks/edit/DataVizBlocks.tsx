@@ -14,13 +14,8 @@ import {
   parseChartConfig,
   parseDataMapConfig,
 } from "@/lib/charts/parse";
-import {
-  GEO_ASSET_URL,
-  MAX_SERIES,
-  type ChartKind,
-  type GeoAsset,
-  type MapRegion,
-} from "@/lib/charts/types";
+import { MAX_SERIES, type ChartKind, type MapRegion } from "@/lib/charts/types";
+import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
 
@@ -381,16 +376,7 @@ export function DataMapBlock({ block, onChange }: Props) {
 
   // Lista krajów z tego samego statycznego zasobu, który rysuje mapę -
   // zero dodatkowych danych w bundlu, opcje zawsze zgodne z geometrią.
-  const geo = useQuery({
-    queryKey: ["public", "geo", region] as const,
-    queryFn: async (): Promise<GeoAsset> => {
-      const res = await fetch(GEO_ASSET_URL[region]);
-      if (!res.ok) throw new Error(`geo asset ${region}: HTTP ${res.status}`);
-      return (await res.json()) as GeoAsset;
-    },
-    staleTime: Infinity,
-    gcTime: 24 * 60 * 60 * 1000,
-  });
+  const geo = useQuery(geoAssetQueryOptions(region));
   const countryOptions = useMemo(
     () =>
       (geo.data?.countries ?? [])

@@ -20,6 +20,8 @@ const SPLIT_WIDGETS = [
   "RichTextView",
   "ChartWidgetView",
   "DataMapWidgetView",
+  "SliderRender",
+  "AnimatedHeadingRender",
 ] as const;
 
 describe("lazyWidgets registry", () => {
