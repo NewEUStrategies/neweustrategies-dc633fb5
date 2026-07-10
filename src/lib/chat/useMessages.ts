@@ -592,3 +592,42 @@ export function useConversationChannel(
   const sendTyping = useCallback(() => sendRef.current(), []);
   return { sendTyping };
 }
+
+/** Attachment history for the media/files side panel. Newest first. */
+export interface ChatAttachmentRow {
+  readonly id: string;
+  readonly created_at: string;
+  readonly kind: "image" | "file";
+  readonly sender_id: string;
+  readonly attachment_path: string;
+  readonly attachment_name: string | null;
+  readonly attachment_mime: string | null;
+  readonly attachment_size: number | null;
+}
+
+export function useConversationAttachments(
+  conversationId: string,
+  enabled: boolean,
+): UseQueryResult<ChatAttachmentRow[]> {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: chatKeys.attachments(user?.id, conversationId),
+    enabled: enabled && !!user,
+    staleTime: 30_000,
+    queryFn: async (): Promise<ChatAttachmentRow[]> => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select(
+          "id, created_at, kind, sender_id, attachment_path, attachment_name, attachment_mime, attachment_size",
+        )
+        .eq("conversation_id", conversationId)
+        .not("attachment_path", "is", null)
+        .is("deleted_at", null)
+        .in("kind", ["image", "file"])
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as ChatAttachmentRow[];
+    },
+  });
+}

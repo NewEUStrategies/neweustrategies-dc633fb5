@@ -122,15 +122,37 @@ export function MessageList(props: MessageListProps) {
     !!peerLastReadAt &&
     new Date(peerLastReadAt).getTime() >= new Date(lastMine.created_at).getTime();
 
+  const topSentinelRef = useRef<HTMLDivElement | null>(null);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    if (el.scrollTop < 48 && hasOlder && !loadingOlder) {
-      prevHeightRef.current = el.scrollHeight;
-      onLoadOlder();
-    }
   };
+
+  // Auto-load older pages when the top sentinel enters the viewport. Beats a
+  // scrollTop threshold because it also fires for short histories that never
+  // reach the trigger distance and it keeps firing while the sentinel stays
+  // visible (fills tall viewports with successive pages).
+  useEffect(() => {
+    const el = scrollRef.current;
+    const sentinel = topSentinelRef.current;
+    if (!el || !sentinel || !hasOlder) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && hasOlder && !loadingOlder) {
+            prevHeightRef.current = el.scrollHeight;
+            onLoadOlder();
+            break;
+          }
+        }
+      },
+      { root: el, rootMargin: "120px 0px 0px 0px", threshold: 0 },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [hasOlder, loadingOlder, onLoadOlder]);
 
   // Keep the viewport anchored when older pages prepend above. The height
   // snapshot is taken only right before onLoadOlder fires, so a growth while
@@ -161,20 +183,15 @@ export function MessageList(props: MessageListProps) {
       aria-live="polite"
       aria-label={t("chat.messages")}
     >
+      <div ref={topSentinelRef} aria-hidden />
       {hasOlder && (
         <div className="flex justify-center py-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              const el = scrollRef.current;
-              if (el) prevHeightRef.current = el.scrollHeight;
-              onLoadOlder();
-            }}
-            disabled={loadingOlder}
-            className="rounded-full bg-muted px-3 py-1 text-[11px] text-muted-foreground hover:bg-muted/70 transition-colors disabled:opacity-50"
+          <span
+            className="rounded-full bg-muted px-3 py-1 text-[11px] text-muted-foreground"
+            aria-live="polite"
           >
             {loadingOlder ? t("common.loading", { defaultValue: "..." }) : t("chat.loadOlder")}
-          </button>
+          </span>
         </div>
       )}
 

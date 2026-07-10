@@ -8,7 +8,7 @@
 import "@/lib/i18n-chat";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Minus, X } from "lucide-react";
+import { ArrowLeft, Images, Minus, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +45,7 @@ import type { ChatMessage } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 import { ChatAvatar } from "./ChatAvatar";
 import { ChatComposer } from "./ChatComposer";
+import { ChatMediaPanel } from "./ChatMediaPanel";
 import { MessageList } from "./MessageList";
 
 const TYPING_VISIBLE_MS = 4000;
@@ -176,6 +177,7 @@ export function ChatWindow(props: ChatWindowProps) {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editTarget, setEditTarget] = useState<ChatMessage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
+  const [mediaOpen, setMediaOpen] = useState(false);
 
   useEffect(() => {
     setReplyTo(null);
@@ -226,8 +228,24 @@ export function ChatWindow(props: ChatWindowProps) {
 
   const peerTypingSafe = peerTyping && !!peerId;
 
-  const body = (
-    <>
+  const mediaToggle = (
+    <button
+      type="button"
+      onClick={() => setMediaOpen((v) => !v)}
+      className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        mediaOpen && "bg-muted text-foreground",
+      )}
+      aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+      aria-pressed={mediaOpen}
+      title={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+    >
+      <Images className="h-4 w-4" aria-hidden />
+    </button>
+  );
+
+  const mainCol = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MessageList
         lang={lang}
         myUserId={user.id}
@@ -261,6 +279,24 @@ export function ChatWindow(props: ChatWindowProps) {
         onTyping={sendTyping}
         autoFocus={autoFocus}
       />
+    </div>
+  );
+
+  const panel = mediaOpen ? (
+    <ChatMediaPanel
+      conversationId={conversationId}
+      enabled={mediaOpen}
+      onClose={() => setMediaOpen(false)}
+      className={variant === "dock" ? "w-[180px] shrink-0" : "w-[260px] shrink-0 md:w-[300px]"}
+    />
+  ) : null;
+
+  const body = (
+    <>
+      <div className="flex min-h-0 flex-1 flex-row">
+        {mainCol}
+        {panel}
+      </div>
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

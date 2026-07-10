@@ -11,4 +11,6 @@ export const chatKeys = {
     ["chat", "peers", uid ?? "anon", [...userIds].sort().join(",")] as const,
   people: (uid: string | undefined, q: string) => ["chat", "people", uid ?? "anon", q] as const,
   attachmentUrl: (path: string) => ["chat", "attachment-url", path] as const,
+  attachments: (uid: string | undefined, conversationId: string) =>
+    ["chat", "attachments", uid ?? "anon", conversationId] as const,
 };
