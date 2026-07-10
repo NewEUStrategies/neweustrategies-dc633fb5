@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { enhanceContentImages } from "../enhanceImages";
 
-const SUPA =
-  "https://unnltowbgszpdzwpawdu.supabase.co/storage/v1/object/public/media/covers/a.jpg";
+const SUPA = "https://unnltowbgszpdzwpawdu.supabase.co/storage/v1/object/public/media/covers/a.jpg";
 
 describe("enhanceContentImages", () => {
   it("adds lazy loading and async decoding to bare imgs", () => {

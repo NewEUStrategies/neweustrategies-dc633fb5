@@ -63,8 +63,7 @@ export function SortableBlockItem(props: Props) {
       if (absRight > vw - margin) left -= absRight - (vw - margin);
       // Vertical: place above unless not enough room, then below
       const spaceAbove = cRect.top;
-      const placement: "top" | "bottom" =
-        spaceAbove < tRect.height + margin ? "bottom" : "top";
+      const placement: "top" | "bottom" = spaceAbove < tRect.height + margin ? "bottom" : "top";
       const top = placement === "top" ? -tRect.height - 4 : cRect.height + 4;
       setToolbarPos({ left, top, placement });
     };
@@ -81,7 +80,6 @@ export function SortableBlockItem(props: Props) {
       window.removeEventListener("resize", compute);
     };
   }, [props.active]);
-
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -155,8 +153,6 @@ export function SortableBlockItem(props: Props) {
               <span aria-hidden className="mx-1 h-4 w-px bg-border" />
             </>
           )}
-
-
 
           <IconButton
             disabled={props.index === 0}

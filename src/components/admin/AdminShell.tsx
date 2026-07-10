@@ -74,6 +74,54 @@ const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
   sidebars: { style: "style-1" },
 };
 
+type SidebarRowButtonProps = {
+  icon?: React.ComponentType<{ className?: string }>;
+  label: ReactNode;
+  title?: string;
+  compact?: boolean;
+  tone?: "default" | "destructive" | "accent";
+  active?: boolean;
+  onClick: () => void;
+};
+
+// One shared row style for every icon+label action button in the sidebar
+// footer/extras list (theme toggle, language toggle, sign-out, extras items),
+// so the density/typography stays in one place instead of four near-identical
+// hand-rolled <button> blocks.
+export function SidebarRowButton({
+  icon: Icon,
+  label,
+  title,
+  compact,
+  tone = "default",
+  active = false,
+  onClick,
+}: SidebarRowButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      data-sidebar="menu-button"
+      className={cn(
+        "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-left transition",
+        tone === "destructive" && "text-destructive hover:bg-destructive/10",
+        tone === "accent" &&
+          (active
+            ? "border-l-2 border-brand bg-brand/10 text-brand font-medium"
+            : "border-l-2 border-transparent hover:bg-muted text-foreground"),
+        tone === "default" && "text-muted-foreground hover:bg-muted",
+      )}
+    >
+      {Icon && <Icon className="w-3 h-3 shrink-0" />}
+      <span className={cn("truncate", tone === "accent" && "flex-1", compact && "hidden")}>
+        {label}
+      </span>
+      {tone === "accent" && active && <ChevronRight className="w-3 h-3" />}
+    </button>
+  );
+}
+
 export function AdminShell({
   children,
   hideSidebar,
@@ -261,8 +309,7 @@ function AdminShellInner({
                       to: "/admin/login-settings",
                       icon: Lock,
                       label: t("admin.nav.loginSettings", {
-                        defaultValue:
-                          lang === "pl" ? "Strona logowania" : "Login page",
+                        defaultValue: lang === "pl" ? "Strona logowania" : "Login page",
                       }),
                     },
                   ]
@@ -374,27 +421,17 @@ function AdminShellInner({
                     {extras.title}
                   </div>
                 )}
-                {extras.items.map((it) => {
-                  const Icon = it.icon;
-                  const isActive = extras.activeId === it.id;
-                  return (
-                    <button
-                      key={it.id}
-                      type="button"
-                      onClick={() => extras.onSelect(it.id)}
-                      data-sidebar="menu-button"
-                      className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-left border-l-2 transition ${
-                        isActive
-                          ? "border-brand bg-brand/10 text-brand font-medium"
-                          : "border-transparent hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      {Icon && <Icon className="w-3 h-3 shrink-0" />}
-                      <span className={cn("flex-1 truncate", compact && "hidden")}>{it.label}</span>
-                      {isActive && <ChevronRight className="w-3 h-3" />}
-                    </button>
-                  );
-                })}
+                {extras.items.map((it) => (
+                  <SidebarRowButton
+                    key={it.id}
+                    icon={it.icon}
+                    label={it.label}
+                    compact={compact}
+                    tone="accent"
+                    active={extras.activeId === it.id}
+                    onClick={() => extras.onSelect(it.id)}
+                  />
+                ))}
               </div>
             )}
           </nav>
@@ -409,41 +446,33 @@ function AdminShellInner({
               <Home className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
             </Link>
-            <button
-              onClick={toggle}
+            <SidebarRowButton
+              icon={theme === "dark" ? Sun : Moon}
+              label={t("admin.theme")}
               title={t("admin.theme")}
-              data-sidebar="menu-button"
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
-            >
-              {theme === "dark" ? (
-                <Sun className="w-3 h-3 shrink-0" />
-              ) : (
-                <Moon className="w-3 h-3 shrink-0" />
-              )}
-              <span className={compact ? "hidden" : ""}>{t("admin.theme")}</span>
-            </button>
-            <button
-              onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
+              compact={compact}
+              onClick={toggle}
+            />
+            <SidebarRowButton
+              icon={Globe}
+              label={lang.startsWith("pl") ? "PL" : "EN"}
               title={lang.startsWith("pl") ? "PL" : "EN"}
-              data-sidebar="menu-button"
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
-            >
-              <Globe className="w-3 h-3 shrink-0" />
-              <span className={compact ? "hidden" : ""}>{lang.startsWith("pl") ? "PL" : "EN"}</span>
-            </button>
-            <button
-              onClick={handleSignOut}
+              compact={compact}
+              onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
+            />
+            <SidebarRowButton
+              icon={LogOut}
+              label={t("admin.signout")}
               title={t("admin.signout")}
-              data-sidebar="menu-button"
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-destructive hover:bg-destructive/10"
-            >
-              <LogOut className="w-3 h-3 shrink-0" />
-              <span className={compact ? "hidden" : ""}>{t("admin.signout")}</span>
-            </button>
+              compact={compact}
+              tone="destructive"
+              onClick={handleSignOut}
+            />
           </div>
         </aside>
       )}
       <main
+        id="main-content"
         className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}
         style={{ viewTransitionName: "admin-main" }}
       >

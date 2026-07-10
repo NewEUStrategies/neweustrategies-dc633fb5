@@ -107,13 +107,7 @@ function AuthorArchivePage() {
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 hover:text-brand"
                     >
-                      <BrandIcon
-                        name="x"
-                        fallback={XIcon}
-                        className="w-4 h-4"
-                        alt="X"
-                      />
-                      X
+                      <BrandIcon name="x" fallback={XIcon} className="w-4 h-4" alt="X" />X
                     </a>
                   )}
                   {author.linkedin_url && (

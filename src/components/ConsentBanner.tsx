@@ -2,11 +2,12 @@
 // CONSENT_VERSION. Decyzja jest zapamiętywana w localStorage oraz - po zalogowaniu -
 // synchronizowana do profiles.prefs.consent (per użytkownik / per tenant).
 // Stopka może otworzyć preferencje przez `openConsentPreferences()` lub event `consent-open-preferences`.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/consent";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Cats = Record<ConsentCategory, boolean>;
 
@@ -45,6 +46,11 @@ export function ConsentBanner() {
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { state, decided, mounted, save, acceptAll, rejectAll } = useConsent();
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const prefsPanelRef = useRef<HTMLDivElement>(null);
+  // Only the preferences dialog is truly modal (aria-modal="true"); the
+  // banner itself declares aria-modal="false" and must stay tabbable into
+  // the rest of the page, so it never gets a trap.
+  useFocusTrap(prefsPanelRef, prefsOpen);
   const [draft, setDraft] = useState<Cats>(() => ({
     necessary: true,
     functional: state?.categories.functional ?? true,
@@ -66,6 +72,15 @@ export function ConsentBanner() {
     window.addEventListener(OPEN_PREFS_EVENT, open);
     return () => window.removeEventListener(OPEN_PREFS_EVENT, open);
   }, [state]);
+
+  useEffect(() => {
+    if (!prefsOpen || !decided) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPrefsOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prefsOpen, decided]);
 
   // SSR-safe: nic nie renderuj do hydracji.
   if (!mounted) return null;
@@ -124,6 +139,7 @@ export function ConsentBanner() {
       }}
     >
       <div
+        ref={prefsPanelRef}
         className="w-full max-w-lg bg-card text-foreground rounded-xl border border-border shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >

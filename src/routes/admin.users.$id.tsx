@@ -246,11 +246,7 @@ function UserDetail() {
               label="Website"
               value={data.website_url}
             />
-            <SocialRow
-              icon={<XIcon className="w-4 h-4" />}
-              label="X"
-              value={data.twitter_url}
-            />
+            <SocialRow icon={<XIcon className="w-4 h-4" />} label="X" value={data.twitter_url} />
             <SocialRow
               icon={<Linkedin className="w-4 h-4" />}
               label="LinkedIn"

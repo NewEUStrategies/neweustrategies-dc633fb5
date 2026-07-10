@@ -17,7 +17,6 @@ import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { Image as ImageIcon } from "lucide-react";
 
-
 interface Props {
   field: SchemaFieldDef;
   lang: "pl" | "en";

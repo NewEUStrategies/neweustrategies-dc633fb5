@@ -4,6 +4,7 @@ import type * as React from "react";
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
 import { XIcon } from "@/components/atoms/XIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import {
   // Twitter removed
   Facebook,
@@ -29,6 +30,8 @@ import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
 
 type Lang = "pl" | "en";
+
+const enc = encodeURIComponent;
 
 interface Props {
   title: string;
@@ -154,6 +157,16 @@ export function FloatingShareBar({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const railRef = useRef<HTMLElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(sheetRef, mobileOpen);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
   const t = COPY[lang];
 
   // Re-read the URL when the article changes (entityId/title), not only on
@@ -239,10 +252,14 @@ export function FloatingShareBar({
     return () => obs.disconnect();
   }, [items]);
 
-  const enc = encodeURIComponent;
   const u = href || "";
   const links = useMemo(() => {
-    const all: { id: SocialKey; label: string; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
+    const all: {
+      id: SocialKey;
+      label: string;
+      icon: React.ComponentType<{ className?: string }>;
+      href: string;
+    }[] = [
       {
         id: "x",
         label: t.x,
@@ -452,7 +469,6 @@ export function FloatingShareBar({
           </nav>
         )}
 
-
         {/* Share + Actions card - visually distinct, premium */}
         <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 m-3 mt-2">
           <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
@@ -610,11 +626,15 @@ export function FloatingShareBar({
         aria-hidden={!mobileOpen}
       >
         <div
+          tabIndex={-1}
+          aria-hidden="true"
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         />
         <div
+          ref={sheetRef}
           role="dialog"
+          aria-modal={mobileOpen}
           aria-label={t.toc}
           className={[
             "absolute left-0 right-0 bottom-0",

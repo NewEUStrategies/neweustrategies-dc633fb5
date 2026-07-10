@@ -111,11 +111,7 @@ function ColumnDropZone({
         className={
           "space-y-2 rounded-lg transition-colors " +
           (columnLabel ? "border border-dashed p-2 min-h-[160px] " : "min-h-[120px] ") +
-          (isOver
-            ? "border-primary bg-primary/5"
-            : columnLabel
-              ? "border-border/50"
-              : "")
+          (isOver ? "border-primary bg-primary/5" : columnLabel ? "border-border/50" : "")
         }
       >
         {columnLabel && (

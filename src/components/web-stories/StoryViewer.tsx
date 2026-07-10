@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight, Pause, Play } from "@/lib/lucide-shim";
 import type { StoryPage } from "@/lib/web-stories/types";
 import { pageCaption, pageCtaLabel, pageTitle } from "@/lib/web-stories/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Props {
   pages: StoryPage[];
@@ -19,6 +20,8 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
   const rafRef = useRef<number | null>(null);
   const startedAtRef = useRef<number>(0);
   const elapsedAtPauseRef = useRef<number>(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true);
 
   const cur = pages[idx];
   const durationMs = Math.max(2, cur?.duration_seconds ?? 6) * 1000;
@@ -108,6 +111,7 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[100] bg-black text-white flex items-center justify-center"
       role="dialog"
       aria-modal="true"

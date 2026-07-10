@@ -278,7 +278,6 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }:
                         <span className="text-[8px] text-center leading-[1.05] text-foreground group-hover:text-brand line-clamp-2">
                           {w.label}
                         </span>
-
                       </div>
                     );
                   })}

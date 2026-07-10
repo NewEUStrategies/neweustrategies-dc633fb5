@@ -61,8 +61,7 @@ export const KeyTakeawaysSettingsSchema = z
 
 export type KeyTakeawaysSettings = z.infer<typeof KeyTakeawaysSettingsSchema>;
 
-export const KEY_TAKEAWAYS_DEFAULTS: KeyTakeawaysSettings =
-  KeyTakeawaysSettingsSchema.parse({});
+export const KEY_TAKEAWAYS_DEFAULTS: KeyTakeawaysSettings = KeyTakeawaysSettingsSchema.parse({});
 
 export const KEY_TAKEAWAYS_SETTING_KEY = "key_takeaways";
 
@@ -76,8 +75,6 @@ export function useKeyTakeawaysSettings(): KeyTakeawaysSettings {
   return parsed.success ? parsed.data : KEY_TAKEAWAYS_DEFAULTS;
 }
 
-
-
 /** Zapis ustawień. */
 export function useSaveKeyTakeawaysSettings() {
   const qc = useQueryClient();
@@ -85,10 +82,7 @@ export function useSaveKeyTakeawaysSettings() {
     mutationFn: async (next: KeyTakeawaysSettings) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert(
-          { key: KEY_TAKEAWAYS_SETTING_KEY, value: toJson(next) },
-          { onConflict: "key" },
-        );
+        .upsert({ key: KEY_TAKEAWAYS_SETTING_KEY, value: toJson(next) }, { onConflict: "key" });
       if (error) throw error;
       return next;
     },

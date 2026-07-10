@@ -7,7 +7,6 @@ import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
-
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
   id: string;
@@ -714,4 +713,3 @@ export function VisualCanvas({
     </div>
   );
 }
-

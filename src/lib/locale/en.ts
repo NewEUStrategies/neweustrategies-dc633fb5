@@ -7,6 +7,7 @@ export const en = {
   },
   nav: {
     newsletter: "Newsletter",
+    skipToContent: "Skip to content",
   },
   hero: {
     by: "By",

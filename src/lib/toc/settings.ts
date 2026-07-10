@@ -72,7 +72,6 @@ export const TocOverrideSchema = z
   .partial()
   .nullable();
 
-
 export type TocOverride = z.infer<typeof TocOverrideSchema>;
 
 /** Scala globalne z per-wpis override. */
@@ -120,15 +119,13 @@ export function slugifyHeading(s: string): string {
 }
 
 /** Wyciąga nagłówki H1-H6 z dokumentu blockowego. */
-export function extractHeadingsFromBlocks(
-  doc: BlocksDoc | null | undefined,
-): HeadingItem[] {
+export function extractHeadingsFromBlocks(doc: BlocksDoc | null | undefined): HeadingItem[] {
   if (!doc?.blocks?.length) return [];
   const items: HeadingItem[] = [];
   for (const b of doc.blocks as Block[]) {
     if (b.type !== "heading") continue;
     const rawLevel = Number(b.data.level ?? 2);
-    const level = (Math.min(6, Math.max(1, rawLevel)) as HeadingItem["level"]);
+    const level = Math.min(6, Math.max(1, rawLevel)) as HeadingItem["level"];
     const text = String(b.data.text ?? "").trim();
     if (!text) continue;
     const anchor = String(b.data.anchor ?? "") || slugifyHeading(text);
@@ -147,15 +144,15 @@ export function countHeadings(items: HeadingItem[]): HeadingCounts {
 }
 
 /** Skrót używany w metaboxach: liczy H1/H2/H3 dla obu języków wpisu. */
-export function countPostHeadings(
-  localized: LocalizedBlocks | null | undefined,
-): { pl: HeadingCounts; en: HeadingCounts } {
+export function countPostHeadings(localized: LocalizedBlocks | null | undefined): {
+  pl: HeadingCounts;
+  en: HeadingCounts;
+} {
   return {
     pl: countHeadings(extractHeadingsFromBlocks(localized?.pl)),
     en: countHeadings(extractHeadingsFromBlocks(localized?.en)),
   };
 }
-
 
 export function useTocDefaults(): TocDefaults {
   const raw = useSiteSetting<TocDefaults>(TOC_SETTING_KEY, TOC_DEFAULTS);
@@ -169,10 +166,7 @@ export function useSaveTocDefaults() {
     mutationFn: async (next: TocDefaults) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert(
-          { key: TOC_SETTING_KEY, value: toJson(next) },
-          { onConflict: "key" },
-        );
+        .upsert({ key: TOC_SETTING_KEY, value: toJson(next) }, { onConflict: "key" });
       if (error) throw error;
       return next;
     },

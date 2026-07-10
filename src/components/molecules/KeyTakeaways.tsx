@@ -76,8 +76,7 @@ export function KeyTakeaways({
   const lang: "pl" | "en" =
     langOverride ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
   const label =
-    (lang === "en" ? settings.labelEn : settings.labelPl)?.trim() ||
-    t("post.takeaways.title");
+    (lang === "en" ? settings.labelEn : settings.labelPl)?.trim() || t("post.takeaways.title");
 
   const clean: readonly string[] = isPlaceholder
     ? PLACEHOLDER_TEXTS[lang].slice(0, Math.max(1, Math.min(7, placeholderCount)))
@@ -178,10 +177,7 @@ export function KeyTakeaways({
           </h2>
           <ul className="key-takeaways__list space-y-3.5 border-t pt-5">
             {clean.map((bullet, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 text-base lg:text-lg leading-relaxed"
-              >
+              <li key={i} className="flex items-start gap-3 text-base lg:text-lg leading-relaxed">
                 <span
                   className="shrink-0 inline-flex items-center justify-center h-[1lh]"
                   aria-hidden="true"
@@ -206,10 +202,7 @@ export function KeyTakeaways({
               if (!tok.isWord) return <span key={i}>{tok.text}</span>;
               const on = highlightIdx.has(tok.index);
               return (
-                <span
-                  key={i}
-                  className={on ? "key-takeaways__ghost-title-hl" : undefined}
-                >
+                <span key={i} className={on ? "key-takeaways__ghost-title-hl" : undefined}>
                   {tok.text}
                 </span>
               );
@@ -237,4 +230,3 @@ export function KeyTakeaways({
     </aside>
   );
 }
-

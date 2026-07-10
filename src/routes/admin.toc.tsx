@@ -93,11 +93,7 @@ function TocAdmin() {
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
             {t("common.reset", { defaultValue: "Przywróć domyślne" })}
           </Button>
-          <Button
-            size="sm"
-            onClick={() => save.mutate(draft)}
-            disabled={!dirty || save.isPending}
-          >
+          <Button size="sm" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
             <Save className="w-3.5 h-3.5 mr-1.5" />
             {t("common.save", { defaultValue: "Zapisz" })}
           </Button>
@@ -123,20 +119,12 @@ function TocAdmin() {
                   })}
                 </div>
               </div>
-              <Switch
-                checked={draft.enabled}
-                onCheckedChange={(v) => update("enabled", v)}
-              />
+              <Switch checked={draft.enabled} onCheckedChange={(v) => update("enabled", v)} />
             </label>
 
             <div>
-              <Label className="text-xs">
-                {t("admin.toc.layout", { defaultValue: "Układ" })}
-              </Label>
-              <Select
-                value={draft.layout}
-                onValueChange={(v) => update("layout", v as TocLayout)}
-              >
+              <Label className="text-xs">{t("admin.toc.layout", { defaultValue: "Układ" })}</Label>
+              <Select value={draft.layout} onValueChange={(v) => update("layout", v as TocLayout)}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
@@ -197,11 +185,7 @@ function TocAdmin() {
                   </SelectTrigger>
                   <SelectContent>
                     {[1, 2, 3, 4, 5, 6].map((n) => (
-                      <SelectItem
-                        key={n}
-                        value={String(n)}
-                        disabled={n > draft.maxLevel}
-                      >
+                      <SelectItem key={n} value={String(n)} disabled={n > draft.maxLevel}>
                         H{n}
                       </SelectItem>
                     ))}
@@ -221,11 +205,7 @@ function TocAdmin() {
                   </SelectTrigger>
                   <SelectContent>
                     {[1, 2, 3, 4, 5, 6].map((n) => (
-                      <SelectItem
-                        key={n}
-                        value={String(n)}
-                        disabled={n < draft.minLevel}
-                      >
+                      <SelectItem key={n} value={String(n)} disabled={n < draft.minLevel}>
                         H{n}
                       </SelectItem>
                     ))}
@@ -237,10 +217,7 @@ function TocAdmin() {
                   <div className="text-sm font-medium">Numerowana</div>
                   <div className="text-[10px] text-muted-foreground">1. 2. 3. zamiast kropek</div>
                 </div>
-                <Switch
-                  checked={draft.ordered}
-                  onCheckedChange={(v) => update("ordered", v)}
-                />
+                <Switch checked={draft.ordered} onCheckedChange={(v) => update("ordered", v)} />
               </label>
             </div>
 
@@ -277,7 +254,9 @@ function TocAdmin() {
                           aria-hidden="true"
                         >
                           <span className="h-2 rounded-sm bg-current opacity-70" />
-                          {c === "col-2" && <span className="h-2 rounded-sm bg-current opacity-70" />}
+                          {c === "col-2" && (
+                            <span className="h-2 rounded-sm bg-current opacity-70" />
+                          )}
                         </div>
                         {label}
                       </div>
@@ -309,10 +288,7 @@ function TocAdmin() {
                   })}
                 </p>
               </div>
-              <Switch
-                checked={draft.showInBody}
-                onCheckedChange={(v) => update("showInBody", v)}
-              />
+              <Switch checked={draft.showInBody} onCheckedChange={(v) => update("showInBody", v)} />
             </label>
           </section>
 
@@ -375,7 +351,10 @@ function TocAdmin() {
             <div className="text-sm font-semibold">
               {t("admin.toc.preview", { defaultValue: "Podgląd" })}
             </div>
-            <Tabs value={previewLang} onValueChange={(v) => setPreviewLang(v === "en" ? "en" : "pl")}>
+            <Tabs
+              value={previewLang}
+              onValueChange={(v) => setPreviewLang(v === "en" ? "en" : "pl")}
+            >
               <TabsList>
                 <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
                 <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
@@ -439,15 +418,10 @@ function TocPreview({ settings, lang }: { settings: TocDefaults; lang: "pl" | "e
 
   return (
     <nav aria-label={title} className={wrapperCls} style={style}>
-      <p className="text-[10px] uppercase tracking-wider mb-3 font-semibold opacity-70">
-        {title}
-      </p>
+      <p className="text-[10px] uppercase tracking-wider mb-3 font-semibold opacity-70">{title}</p>
       <Tag className={listCls}>
         {headings.map((h) => (
-          <li
-            key={h.anchor}
-            style={{ marginLeft: (h.level - settings.minLevel) * 12 }}
-          >
+          <li key={h.anchor} style={{ marginLeft: (h.level - settings.minLevel) * 12 }}>
             <a
               href={`#${h.anchor}`}
               className="hover:underline transition-colors"
