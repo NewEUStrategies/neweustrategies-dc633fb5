@@ -79,9 +79,9 @@ export const chatPl = {
       subtitle: "Symulator rozmowy (tylko lokalnie)",
       intro: "To bot testowy - odpowiada natychmiast, wiadomości nie są zapisywane.",
       modeEcho: "Echo",
-      modeEchoHint: "Odpowiada Twoją wiadomością",
+      modeEchoHint: "Tryb Echo - bot powtarza dokładnie Twoją wiadomość. Przydatne do testów UI dymków i długich tekstów.",
       modeVariants: "Warianty",
-      modeVariantsHint: "Losowa z 3 odpowiedzi",
+      modeVariantsHint: "Tryb Warianty - bot odpowiada losowo jedną z 3 predefiniowanych wiadomości (bez powtórki po sobie).",
       clear: "Wyczyść rozmowę",
       variants: [
         "Rozumiem. Rozwiń proszę myśl.",
