@@ -5,6 +5,11 @@ import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
+import { useAuth } from "@/hooks/useAuth";
+
+const ChatDock = lazy(() =>
+  import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
+);
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route

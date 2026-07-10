@@ -956,6 +956,83 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_participants: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          last_read_at: string | null
+          tenant_id: string
+          unread_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_read_at?: string | null
+          tenant_id: string
+          unread_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_read_at?: string | null
+          tenant_id?: string
+          unread_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+          last_message_at: string | null
+          last_message_kind: string | null
+          last_message_preview: string | null
+          last_message_sender: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          kind?: string
+          last_message_at?: string | null
+          last_message_kind?: string | null
+          last_message_preview?: string | null
+          last_message_sender?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+          last_message_at?: string | null
+          last_message_kind?: string | null
+          last_message_preview?: string | null
+          last_message_sender?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       crm_companies: {
         Row: {
           aliases: Json
@@ -1536,6 +1613,117 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: []
+      }
+      message_reactions: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          attachment_mime: string | null
+          attachment_name: string | null
+          attachment_path: string | null
+          attachment_size: number | null
+          body: string | null
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          kind: string
+          reply_to_id: string | null
+          sender_id: string
+          tenant_id: string
+        }
+        Insert: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          body?: string | null
+          conversation_id: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          kind?: string
+          reply_to_id?: string | null
+          sender_id: string
+          tenant_id: string
+        }
+        Update: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          body?: string | null
+          conversation_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          kind?: string
+          reply_to_id?: string | null
+          sender_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mobile_drawer_configs: {
         Row: {
@@ -3154,6 +3342,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           current_company: string | null
+          discoverable: boolean
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -3184,6 +3373,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           current_company?: string | null
+          discoverable?: boolean
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -3214,6 +3404,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           current_company?: string | null
+          discoverable?: boolean
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -4166,6 +4357,17 @@ export type Database = {
         Args: { _form_type: string; _payload: Json; _tenant: string }
         Returns: string[]
       }
+      get_chat_peers: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          specialization: string
+        }[]
+      }
       get_entity_content: {
         Args: {
           _entity_id: string
@@ -4178,6 +4380,10 @@ export type Database = {
           content_pl: string
         }[]
       }
+      get_or_create_direct_conversation: {
+        Args: { p_peer_id: string }
+        Returns: string
+      }
       get_own_profile: {
         Args: never
         Returns: {
@@ -4189,6 +4395,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           current_company: string | null
+          discoverable: boolean
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -4345,6 +4552,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_conversation_member: {
+        Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
@@ -4354,6 +4565,10 @@ export type Database = {
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
+      }
+      mark_conversation_read: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
       }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
@@ -4420,6 +4635,17 @@ export type Database = {
         Returns: {
           page_id: string
           post_id: string
+        }[]
+      }
+      search_people: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          specialization: string
         }[]
       }
       search_posts: {
