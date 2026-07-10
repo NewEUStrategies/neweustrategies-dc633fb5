@@ -3581,3 +3581,15 @@ textarea::placeholder {
 [contenteditable][data-placeholder]:focus::before {
   content: "" !important;
 }
+
+/* Chat: brief flash when jumping to a quoted message (reply-to click). */
+@keyframes chat-jump-flash-kf {
+  0% { background-color: color-mix(in oklab, var(--chat-user-to, #ed6d1f) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+.chat-jump-flash {
+  animation: chat-jump-flash-kf 1.5s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-jump-flash { animation: none; background-color: transparent; }
+}
