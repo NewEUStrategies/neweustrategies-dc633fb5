@@ -33,8 +33,10 @@ export function LoginPopup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState<{ title?: string; description?: string }>({});
+
 
   useEffect(() => {
     return onOpenLoginPopup((opts) => {
