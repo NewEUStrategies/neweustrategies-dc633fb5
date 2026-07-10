@@ -267,9 +267,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                 );
                 const onClick = () => {
                   // Clicking the row navigates and marks all wrapped rows read.
-                  g.items.forEach((it) => {
-                    if (!it.read_at) markOne.mutate(it.id);
-                  });
+                  const ids = g.items.filter((it) => !it.read_at).map((it) => it.id);
+                  if (ids.length > 0) markMany.mutate(ids);
                   setOpen(false);
                 };
                 return (
