@@ -4,7 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Search, SquarePen, X } from "lucide-react";
+import { MessagesSquare, Search, SquarePen, X } from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
@@ -144,7 +144,7 @@ function MessagesInner() {
                   </p>
                 ) : filtered.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 p-6 text-center">
-                    <MessageCircle className="h-6 w-6 text-muted-foreground/50" aria-hidden />
+                    <MessagesSquare className="h-6 w-6 text-muted-foreground/50" aria-hidden />
                     <p className="text-sm text-muted-foreground">{t("chat.noConversations")}</p>
                     <button
                       type="button"
@@ -195,7 +195,7 @@ function MessagesInner() {
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                <MessageCircle className="h-6 w-6 text-muted-foreground" aria-hidden />
+                <MessagesSquare className="h-6 w-6 text-muted-foreground" aria-hidden />
               </span>
               <p className="max-w-[260px] text-sm text-muted-foreground">
                 {t("chat.noConversations")}
