@@ -115,7 +115,6 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
           role: "bot",
           body: reply,
           ts,
-          replyToId: userMsg.id,
         },
       ]);
       setTyping(false);
