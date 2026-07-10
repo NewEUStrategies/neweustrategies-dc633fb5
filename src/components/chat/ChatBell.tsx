@@ -208,7 +208,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
           <AppLink
             href="/messages"
             onClick={() => setOpen(false)}
-            className="flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium hover:bg-muted/60 transition-colors"
+            className="flex h-8 items-center justify-center gap-1.5 rounded-[6px] text-xs font-medium hover:bg-muted/60 transition-colors"
           >
             {t("chat.seeAll")}
           </AppLink>
