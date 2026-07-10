@@ -193,6 +193,21 @@ export const chatEn = {
       travel: "Travel & places",
       objects: "Objects",
     },
+    bot: {
+      name: "Test bot",
+      subtitle: "Conversation simulator (local only)",
+      intro: "This is a test bot - it replies instantly, messages are not stored.",
+      modeEcho: "Echo",
+      modeEchoHint: "Repeats your message",
+      modeVariants: "Variants",
+      modeVariantsHint: "Random of 3 replies",
+      clear: "Clear chat",
+      variants: [
+        "Got it. Please elaborate.",
+        "Interesting. What do you mean?",
+        "Agreed - keep going.",
+      ],
+    },
   },
   people: {
     title: "People",
