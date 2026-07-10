@@ -22,6 +22,7 @@ export interface MessageListProps {
   peerName: string;
   peerAvatarUrl: string | null;
   peerLastReadAt: string | null;
+  peerOnline?: boolean;
   peerTyping: boolean;
   hasOlder: boolean;
   loadingOlder: boolean;
