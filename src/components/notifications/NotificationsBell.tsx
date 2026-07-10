@@ -68,15 +68,19 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
 
   // Always call hooks in the same order - even when unauth we render nothing.
   useNotificationsRealtime();
-  const listQ = useNotifications({ limit: 10 });
+  const listQ = useNotifications({ limit: 20 });
   const countQ = useUnreadCount();
+  const prefsQ = useNotificationPreferences();
   const markAll = useMarkAllNotificationsRead();
   const markOne = useMarkNotificationRead();
+  const unreadOne = useMarkNotificationUnread();
 
   if (!user) return null;
 
   const items = listQ.data ?? [];
   const unread = countQ.data ?? 0;
+  const groupByConversation = prefsQ.data?.group_by_conversation ?? true;
+  const groups = groupNotifications(items, { groupByConversation });
 
   const panelStyle: CSSProperties = {
     width: panelWidth,
