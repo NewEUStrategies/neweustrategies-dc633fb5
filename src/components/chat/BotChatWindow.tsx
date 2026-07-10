@@ -148,6 +148,18 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
     window.setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
+  const jumpToMessage = useCallback((messageId: string) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const row = container.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    );
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("chat-jump-flash");
+    window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
+  }, []);
+
   return (
     <TooltipProvider delayDuration={150}>
       <div className="flex h-full flex-col">
