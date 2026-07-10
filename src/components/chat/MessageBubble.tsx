@@ -5,7 +5,7 @@
 // supplies its own `message`), so long threads re-render only touched rows.
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
+import { Check, CheckCheck, Clock, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
 import { clockTime, type ChatLang } from "@/lib/chat/time";
