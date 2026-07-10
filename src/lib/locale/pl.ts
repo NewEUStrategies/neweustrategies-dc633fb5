@@ -1593,6 +1593,37 @@ export const pl = {
     filters: {
       all: "Wszystkie",
       unread: "Nieprzeczytane",
+      settings: "Ustawienia",
+    },
+    markUnread: "Oznacz jako nieprzeczytane",
+    grouped: {
+      messagesFrom: "Wiadomości od {{name}}",
+      moreMessages_one: "+{{count}} kolejna wiadomość",
+      moreMessages_few: "+{{count}} kolejne wiadomości",
+      moreMessages_many: "+{{count}} kolejnych wiadomości",
+      moreMessages_other: "+{{count}} kolejnych wiadomości",
+    },
+    settings: {
+      title: "Ustawienia powiadomień",
+      subtitle: "Wybierz, jakie alerty trafiają do skrzynki i jak się zachowują.",
+      kindsHeader: "Typy powiadomień",
+      behaviourHeader: "Zachowanie domyślne",
+      autoMarkOnOpen: "Automatycznie oznaczaj wiadomości jako przeczytane po otwarciu czatu",
+      autoMarkOnOpenHint:
+        "Wyłącz, żeby powiadomienia o wiadomościach zostawały do ręcznego zamknięcia.",
+      groupByConversation: "Grupuj powiadomienia o wiadomościach wg rozmowy",
+      groupByConversationHint: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
+      kinds: {
+        message: "Wiadomości na czacie",
+        comment: "Komentarze",
+        follow: "Nowi obserwujący",
+        subscription: "Aktualizacje subskrypcji",
+        content: "Nowe treści",
+        system: "Ogłoszenia systemowe",
+        security: "Alerty bezpieczeństwa (zawsze włączone)",
+      },
+      saved: "Zapisano preferencje",
+      saveError: "Nie udało się zapisać preferencji",
     },
   },
 };

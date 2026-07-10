@@ -8,7 +8,41 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
-type NotificationKind = "system" | "comment" | "follow" | "subscription" | "content" | "security";
+export type NotificationKind =
+  | "system"
+  | "comment"
+  | "follow"
+  | "subscription"
+  | "content"
+  | "security"
+  | "message";
+
+export interface NotificationPreferences {
+  enabled_message: boolean;
+  enabled_comment: boolean;
+  enabled_follow: boolean;
+  enabled_subscription: boolean;
+  enabled_content: boolean;
+  enabled_system: boolean;
+  enabled_security: boolean;
+  auto_mark_on_open: boolean;
+  group_by_conversation: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  enabled_message: true,
+  enabled_comment: true,
+  enabled_follow: true,
+  enabled_subscription: true,
+  enabled_content: true,
+  enabled_system: true,
+  enabled_security: true,
+  auto_mark_on_open: true,
+  group_by_conversation: true,
+};
+
+const prefsKey = (uid: string | undefined) =>
+  ["notifications", "preferences", uid ?? "anon"] as const;
 
 const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
   ["notifications", uid ?? "anon", filter] as const;
@@ -149,3 +183,70 @@ export function useNotificationsRealtime(): void {
     };
   }, [user, qc]);
 }
+
+/** Toggle a single notification back to unread (RPC checks auth.uid()). */
+export function useMarkNotificationUnread() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("mark_notification_unread", { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: countKey(user?.id) });
+    },
+  });
+}
+
+/** Per-user notification preferences (upserted on first save). */
+export function useNotificationPreferences(): UseQueryResult<NotificationPreferences> {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: prefsKey(user?.id),
+    enabled: !!user,
+    queryFn: async (): Promise<NotificationPreferences> => {
+      const { data, error } = await supabase
+        .from("notification_preferences")
+        .select(
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation",
+        )
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data ?? {}) };
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpdateNotificationPreferences() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (patch: Partial<NotificationPreferences>) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile, error: pErr } = await supabase
+        .from("profiles")
+        .select("tenant_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (pErr) throw pErr;
+      if (!profile?.tenant_id) throw new Error("Profile tenant not found");
+      const { error } = await supabase.from("notification_preferences").upsert(
+        {
+          user_id: user.id,
+          tenant_id: profile.tenant_id,
+          ...patch,
+        },
+        { onConflict: "user_id" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: prefsKey(user?.id) });
+    },
+  });
+}
+
