@@ -3,7 +3,12 @@
   "sdk_version": "0.20.0",
   "path": "/mcp",
   "auth": {
-    "type": "none"
+    "type": "oauth",
+    "issuer": "https://unnltowbgszpdzwpawdu.supabase.co/auth/v1",
+    "resource_name": "NEW EU Strategies MCP",
+    "accepted_audiences": [
+      "authenticated"
+    ]
   },
   "mcp": {
     "server": {
