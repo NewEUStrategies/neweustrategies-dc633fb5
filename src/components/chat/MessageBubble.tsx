@@ -274,7 +274,10 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
         )}
         style={bubbleStyle}
       >
-        <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
+        <p
+          className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal"
+          style={mine ? { color: "var(--chat-user-foreground)" } : undefined}
+        >
           {message.body}
         </p>
         <p
