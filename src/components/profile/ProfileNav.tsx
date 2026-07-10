@@ -17,7 +17,7 @@ type NavKey =
   | "orders"
   | "security";
 
-type NavItem = { to: string; key: NavKey };
+type NavItem = { to: string; key: NavKey; search?: Record<string, string> };
 
 const MAIN: NavItem[] = [
   { to: "/profile", key: "overview" },
