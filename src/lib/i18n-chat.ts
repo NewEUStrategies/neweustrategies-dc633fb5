@@ -34,6 +34,7 @@ export const chatPl = {
     reply: "Odpowiedz",
     replyingTo: "Odpowiadasz na wiadomość",
     replyToMessage: "W odpowiedzi na:",
+    jumpToReplied: "Przejdź do oryginalnej wiadomości",
     react: "Dodaj reakcję",
     you: "Ty",
     online: "Dostępny/a",
