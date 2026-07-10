@@ -599,7 +599,7 @@ function PostCard({
   excerptStyle?: React.CSSProperties;
 }) {
   const isBoxed = variant === "boxed-grid";
-  const base = `${isBoxed ? "bg-card" : "bg-transparent"} border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
+  const base = `${isBoxed ? "bg-card" : "bg-transparent"} border border-border rounded-md overflow-hidden transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
