@@ -682,13 +682,12 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className={`block space-y-1 ${className ?? ""}`}>
-      <span className="cf-field-label text-xs font-semibold tracking-wide opacity-95">
+    <label className={`flex flex-col h-full ${className ?? ""}`}>
+      <span className="cf-field-label block text-xs font-semibold tracking-wide opacity-95 mb-1 min-h-[1.15rem] leading-[1.15rem] whitespace-nowrap overflow-hidden text-ellipsis">
         {label}
-        {null}
       </span>
-      {children}
-      {error && <span className="block text-[11px] text-destructive">{error}</span>}
+      <div className="mt-auto">{children}</div>
+      {error && <span className="block text-[11px] text-destructive mt-1">{error}</span>}
     </label>
   );
 }
