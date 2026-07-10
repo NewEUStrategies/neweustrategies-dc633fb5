@@ -152,6 +152,7 @@ export function useSendMessage() {
         .from("messages")
         .insert({
           conversation_id: input.conversationId,
+          tenant_id: tenantId ?? "",
           sender_id: user.id,
           kind: input.kind,
           body: input.body ?? null,

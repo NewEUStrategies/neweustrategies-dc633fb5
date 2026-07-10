@@ -959,8 +959,8 @@ export type Database = {
       conversation_participants: {
         Row: {
           conversation_id: string
+          created_at: string
           id: string
-          joined_at: string
           last_read_at: string | null
           tenant_id: string
           unread_count: number
@@ -969,8 +969,8 @@ export type Database = {
         }
         Insert: {
           conversation_id: string
+          created_at?: string
           id?: string
-          joined_at?: string
           last_read_at?: string | null
           tenant_id: string
           unread_count?: number
@@ -979,8 +979,8 @@ export type Database = {
         }
         Update: {
           conversation_id?: string
+          created_at?: string
           id?: string
-          joined_at?: string
           last_read_at?: string | null
           tenant_id?: string
           unread_count?: number
@@ -993,13 +993,6 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversation_participants_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -1044,15 +1037,7 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "conversations_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       crm_companies: {
         Row: {
@@ -1678,13 +1663,6 @@ export type Database = {
             referencedRelation: "messages"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "message_reactions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
         ]
       }
       messages: {
@@ -1718,7 +1696,7 @@ export type Database = {
           kind?: string
           reply_to_id?: string | null
           sender_id: string
-          tenant_id?: string
+          tenant_id: string
         }
         Update: {
           attachment_mime?: string | null
@@ -1749,13 +1727,6 @@ export type Database = {
             columns: ["reply_to_id"]
             isOneToOne: false
             referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "messages_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -4388,44 +4359,20 @@ export type Database = {
         Returns: string
       }
       current_tenant_id: { Args: never; Returns: string }
-      get_chat_peers: {
-        Args: { p_user_ids: string[] }
-        Returns: {
-          avatar_url: string | null
-          current_company: string | null
-          display_name: string
-          id: string
-          job_title: string | null
-          slug: string | null
-        }[]
-      }
-      get_or_create_direct_conversation: {
-        Args: { p_peer_id: string }
-        Returns: string
-      }
-      is_conversation_member: {
-        Args: { _conversation_id: string; _user_id: string }
-        Returns: boolean
-      }
-      mark_conversation_read: {
-        Args: { p_conversation_id: string }
-        Returns: undefined
-      }
-      search_people: {
-        Args: { p_limit?: number; p_query?: string }
-        Returns: {
-          avatar_url: string | null
-          current_company: string | null
-          display_name: string
-          id: string
-          job_title: string | null
-          slug: string | null
-          specialization: string | null
-        }[]
-      }
       enforce_form_field_policy: {
         Args: { _form_type: string; _payload: Json; _tenant: string }
         Returns: string[]
+      }
+      get_chat_peers: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          specialization: string
+        }[]
       }
       get_entity_content: {
         Args: {
@@ -4439,6 +4386,10 @@ export type Database = {
           content_pl: string
         }[]
       }
+      get_or_create_direct_conversation: {
+        Args: { p_peer_id: string }
+        Returns: string
+      }
       get_own_profile: {
         Args: never
         Returns: {
@@ -4450,6 +4401,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           current_company: string | null
+          discoverable: boolean
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -4606,6 +4558,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_conversation_member: {
+        Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
@@ -4616,6 +4572,11 @@ export type Database = {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
       }
+      mark_conversation_read: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
+      }
+      member_conversation_ids: { Args: never; Returns: string[] }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
         Args: {
@@ -4681,6 +4642,17 @@ export type Database = {
         Returns: {
           page_id: string
           post_id: string
+        }[]
+      }
+      search_people: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          specialization: string
         }[]
       }
       search_posts: {
