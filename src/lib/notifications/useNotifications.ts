@@ -114,6 +114,44 @@ export function useMarkNotificationRead() {
   });
 }
 
+/**
+ * Batch-mark a list of notification ids as read. Ignores ids that already
+ * had read_at. Used by group-level "mark whole conversation" quick actions.
+ */
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return 0;
+      const { data, error } = await supabase.rpc("mark_notifications_read", { p_ids: ids });
+      if (error) throw error;
+      return (data as number | null) ?? 0;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: countKey(user?.id) });
+    },
+  });
+}
+
+/** Batch-mark a list of notification ids as unread. */
+export function useMarkNotificationsUnread() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return 0;
+      const { data, error } = await supabase.rpc("mark_notifications_unread", { p_ids: ids });
+      if (error) throw error;
+      return (data as number | null) ?? 0;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: countKey(user?.id) });
+    },
+  });
+
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   const { user } = useAuth();
