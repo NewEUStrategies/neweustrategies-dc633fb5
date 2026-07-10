@@ -64,7 +64,7 @@ function MessagesInner() {
 
   const setActiveView = (v: MessagesView) => {
     void navigate({
-      search: (prev) => ({
+      search: (prev: MessagesSearch) => ({
         ...prev,
         view: v === "chats" ? undefined : v,
       }),
