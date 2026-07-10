@@ -37,6 +37,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
 
   // Hooks must run unconditionally; they no-op while signed out.
   useChatListRealtime();
+  useIncomingChatToasts();
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const unread = useChatUnreadTotal();
