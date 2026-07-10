@@ -126,6 +126,14 @@
   --ring: oklch(0.18 0 0);
   --brand: #fa9346;
   --brand-foreground: oklch(1 0 0);
+  /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
+     with a distinct hue from generic primary so dymki wyróżniają się w toku
+     rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
+  --chat-user-from: #fbaa6d;
+  --chat-user-to: #ed6d1f;
+  --chat-user-foreground: #ffffff;
+  --chat-user-tick: #ffffff;
+  --chat-user-tick-read: #7ee2ff;
   --cat-military: oklch(0.62 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
