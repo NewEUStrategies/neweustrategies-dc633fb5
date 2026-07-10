@@ -61,6 +61,13 @@ export const chatPl = {
     saveEdit: "Zapisz zmiany",
     cancelEdit: "Anuluj edycję",
     editExpired: "Edycja możliwa tylko przez 5 minut od wysłania.",
+    incoming: {
+      someone: "Ktoś",
+      open: "Otwórz",
+      emptyBody: "...",
+      newMessageFrom: "Nowa wiadomość od {{name}}",
+      pulseLabel: "Masz nowe nieprzeczytane wiadomości",
+    },
     receipt: {
       pending: "Wysyłanie...",
       sent: "Wysłano",
