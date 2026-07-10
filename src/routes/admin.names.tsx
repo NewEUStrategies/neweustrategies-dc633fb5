@@ -1111,7 +1111,7 @@ function AdminNamesPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={L ? "Szukaj imienia" : "Search names"}
-                className="pl-9"
+                className="icon-input"
               />
             </div>
             <Select
