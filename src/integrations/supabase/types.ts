@@ -1004,6 +1004,9 @@ export type Database = {
           id: string
           kind: string
           last_message_at: string | null
+          last_message_kind: string | null
+          last_message_preview: string | null
+          last_message_sender: string | null
           tenant_id: string
         }
         Insert: {
@@ -1012,6 +1015,9 @@ export type Database = {
           id?: string
           kind?: string
           last_message_at?: string | null
+          last_message_kind?: string | null
+          last_message_preview?: string | null
+          last_message_sender?: string | null
           tenant_id: string
         }
         Update: {
@@ -1020,6 +1026,9 @@ export type Database = {
           id?: string
           kind?: string
           last_message_at?: string | null
+          last_message_kind?: string | null
+          last_message_preview?: string | null
+          last_message_sender?: string | null
           tenant_id?: string
         }
         Relationships: []
@@ -4356,6 +4365,7 @@ export type Database = {
           display_name: string
           id: string
           job_title: string
+          specialization: string
         }[]
       }
       get_entity_content: {
@@ -4635,6 +4645,7 @@ export type Database = {
           display_name: string
           id: string
           job_title: string
+          specialization: string
         }[]
       }
       search_posts: {
