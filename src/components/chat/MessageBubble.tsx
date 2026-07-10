@@ -130,6 +130,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     onEdit,
     onDelete,
     onDiscardFailed,
+    onJumpToReply,
   } = props;
   const { t } = useTranslation();
   const [reactOpen, setReactOpen] = useState(false);
