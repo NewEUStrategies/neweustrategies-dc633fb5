@@ -1,7 +1,7 @@
 // Organism: scrollable message history - day separators, message grouping,
 // infinite upward pagination with scroll anchoring, seen receipt and the
 // animated typing indicator. Pure presentation: data arrives via props.
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { crossesDay, dayLabel, sameGroup, type ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
@@ -109,6 +109,23 @@ export function MessageList(props: MessageListProps) {
     [messages],
   );
 
+  // Scroll a message into view and briefly highlight it. Called from the
+  // reply-quote button on any bubble; noop if the target row has scrolled
+  // out of the loaded window (older pages will fetch on their own).
+  const jumpToMessage = useCallback((messageId: string) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const row = container.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    );
+    if (!row) return;
+    stickToBottomRef.current = false;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("chat-jump-flash");
+    window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
+  }, []);
+
+
   // Newest own message that the peer has already read -> "seen" receipt.
   const lastMine = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -184,6 +201,7 @@ export function MessageList(props: MessageListProps) {
       aria-label={t("chat.messages")}
     >
       <div ref={topSentinelRef} aria-hidden />
+      
       {hasOlder && (
         <div className="flex justify-center py-1.5">
           <span
@@ -208,7 +226,14 @@ export function MessageList(props: MessageListProps) {
         {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
           const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
           return (
-            <div key={message.id} className={cn(groupStart && index > 0 && "mt-2")}>
+            <div
+              key={message.id}
+              data-message-id={message.id}
+              className={cn(
+                "rounded-xl transition-colors duration-500",
+                groupStart && index > 0 && "mt-2",
+              )}
+            >
               {newDay && (
                 <div className="flex items-center justify-center py-2.5">
                   <span className="rounded-full bg-muted/70 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -236,6 +261,7 @@ export function MessageList(props: MessageListProps) {
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDiscardFailed={onDiscardFailed}
+                onJumpToReply={jumpToMessage}
               />
             </div>
           );

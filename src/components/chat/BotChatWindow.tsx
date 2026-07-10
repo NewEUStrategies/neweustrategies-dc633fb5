@@ -148,6 +148,18 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
     window.setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
+  const jumpToMessage = useCallback((messageId: string) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const row = container.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    );
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("chat-jump-flash");
+    window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
+  }, []);
+
   return (
     <TooltipProvider delayDuration={150}>
       <div className="flex h-full flex-col">
@@ -287,8 +299,9 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                 return (
                   <li
                     key={m.id}
+                    data-message-id={m.id}
                     className={cn(
-                      "group/msg flex w-full items-end gap-1.5",
+                      "group/msg flex w-full items-end gap-1.5 rounded-xl",
                       mine ? "flex-row-reverse" : "flex-row",
                     )}
                   >
@@ -296,18 +309,22 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                       className={cn("flex max-w-[78%] flex-col", mine ? "items-end" : "items-start")}
                     >
                       {replied && (
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => jumpToMessage(replied.id)}
                           className={cn(
-                            "mb-0.5 max-w-full truncate rounded-[8px] bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground",
-                            mine ? "text-right" : "text-left",
+                            "mb-0.5 max-w-full truncate rounded-[8px] bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            mine ? "text-right self-end" : "text-left self-start",
                           )}
+                          aria-label={t("chat.jumpToReplied")}
+                          title={t("chat.jumpToReplied")}
                         >
                           <span className="font-medium">
                             {t("chat.replyToMessage")}{" "}
                             {replied.role === "user" ? t("chat.you") : t("chat.bot.name")}
                           </span>{" "}
                           <span className="italic">{replied.body}</span>
-                        </div>
+                        </button>
                       )}
                       <div
                         className={cn(
