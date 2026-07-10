@@ -255,24 +255,66 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
       </div>
     );
   } else {
+    const bubbleStyle: React.CSSProperties = mine
+      ? {
+          background:
+            "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
+          color: "var(--chat-user-foreground)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+        }
+      : {};
     content = (
       <div
         className={cn(
           "max-w-full whitespace-pre-wrap break-words rounded-[10px] px-3 py-1.5 text-[13px] font-normal leading-snug tracking-normal",
-          mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+          !mine && "bg-muted text-foreground",
         )}
+        style={bubbleStyle}
       >
         <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
           {message.body}
         </p>
         <p
           className={cn(
-            "mt-0.5 text-[10px] font-normal leading-snug tabular-nums",
-            mine ? "text-primary-foreground/70" : "text-muted-foreground/70",
+            "mt-0.5 flex items-center gap-1 text-[10px] font-normal leading-snug tabular-nums",
+            mine ? "opacity-90 justify-end" : "text-muted-foreground/70",
           )}
         >
-          {timeTitle}
-          {message.edited_at && <span className="ml-1"> · {t("chat.edited")}</span>}
+          <span>{timeTitle}</span>
+          {message.edited_at && <span aria-hidden>·</span>}
+          {message.edited_at && <span>{t("chat.edited")}</span>}
+          {receipt && (
+            <span
+              className="ml-0.5 inline-flex items-center"
+              title={t(`chat.receipt.${receipt}`, {
+                defaultValue:
+                  receipt === "pending"
+                    ? "Wysyłanie..."
+                    : receipt === "sent"
+                      ? "Wysłano"
+                      : receipt === "delivered"
+                        ? "Dostarczono"
+                        : "Przeczytano",
+              })}
+              aria-label={t(`chat.receipt.${receipt}`, {
+                defaultValue: receipt,
+              })}
+            >
+              {receipt === "pending" ? (
+                <Clock className="h-3 w-3" aria-hidden />
+              ) : receipt === "sent" ? (
+                <Check className="h-3 w-3" aria-hidden />
+              ) : receipt === "delivered" ? (
+                <CheckCheck className="h-3 w-3" aria-hidden />
+              ) : (
+                <CheckCheck
+                  className="h-3 w-3"
+                  style={{ color: "var(--chat-user-tick-read)" }}
+                  aria-hidden
+                />
+              )}
+            </span>
+          )}
         </p>
       </div>
     );
