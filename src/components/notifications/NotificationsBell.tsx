@@ -299,7 +299,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
 
         <div className="border-t border-border/60 p-2">
           <Link
-            to="/messages/notifications"
+            to="/messages"
+            search={{ view: "notifications" }}
             onClick={() => setOpen(false)}
             className="flex items-center justify-center gap-1.5 h-8 rounded-md text-xs font-medium hover:bg-muted/60 transition-colors"
           >
