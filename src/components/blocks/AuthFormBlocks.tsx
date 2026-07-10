@@ -694,6 +694,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
               {L.password}
             </Label>
             <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="rs-password"
                 type={showPw ? "text" : "password"}
@@ -702,12 +703,14 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                 minLength={minLength}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pr-10"
+                placeholder={lang === "pl" ? `min. ${minLength} znaków` : `min. ${minLength} characters`}
+                className="pl-9 pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+                aria-label={showPw ? (lang === "pl" ? "Ukryj hasło" : "Hide password") : (lang === "pl" ? "Pokaż hasło" : "Show password")}
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -718,17 +721,23 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
               <Label htmlFor="rs-confirm" className="text-sm">
                 {L.confirm}
               </Label>
-              <Input
-                id="rs-confirm"
-                type={showPw ? "text" : "password"}
-                autoComplete="new-password"
-                required
-                minLength={minLength}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-              />
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  id="rs-confirm"
+                  type={showPw ? "text" : "password"}
+                  autoComplete="new-password"
+                  required
+                  minLength={minLength}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
+                  className="pl-9"
+                />
+              </div>
             </div>
           )}
+
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
           </Button>
