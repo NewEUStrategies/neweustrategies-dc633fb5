@@ -68,6 +68,7 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
   const [reactions, setReactions] = useState<Readonly<Record<string, string>>>({});
   const [replyingTo, setReplyingTo] = useState<BotMessage | null>(null);
   const [reactOpenId, setReactOpenId] = useState<string | null>(null);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastBotReplyRef = useRef<string | undefined>(undefined);
