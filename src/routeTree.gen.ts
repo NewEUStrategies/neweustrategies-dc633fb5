@@ -46,7 +46,7 @@ import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
-import { Route as MessagesNotificationsRouteImport } from './routes/messages.notifications'
+import { Route as MessagesNotificationsRouteImport } from './routes/messages_.notifications'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -313,9 +313,9 @@ const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesNotificationsRoute = MessagesNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => MessagesRoute,
+  id: '/messages_/notifications',
+  path: '/messages/notifications',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
@@ -728,7 +728,7 @@ export interface FileRoutesByFullPath {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
-  '/messages': typeof MessagesRouteWithChildren
+  '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/pricing': typeof PricingRoute
@@ -846,7 +846,7 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
-  '/messages': typeof MessagesRouteWithChildren
+  '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/pricing': typeof PricingRoute
@@ -962,7 +962,7 @@ export interface FileRoutesById {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
-  '/messages': typeof MessagesRouteWithChildren
+  '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/pricing': typeof PricingRoute
@@ -1019,7 +1019,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
-  '/messages/notifications': typeof MessagesNotificationsRoute
+  '/messages_/notifications': typeof MessagesNotificationsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
@@ -1373,7 +1373,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
-    | '/messages/notifications'
+    | '/messages_/notifications'
     | '/newsletter/confirm'
     | '/podcast/$slug'
     | '/post/$slug'
@@ -1436,7 +1436,7 @@ export interface RootRouteChildren {
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
-  MessagesRoute: typeof MessagesRouteWithChildren
+  MessagesRoute: typeof MessagesRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
   PricingRoute: typeof PricingRoute
@@ -1455,6 +1455,7 @@ export interface RootRouteChildren {
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
+  MessagesNotificationsRoute: typeof MessagesNotificationsRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
   PostSlugRoute: typeof PostSlugRoute
@@ -1730,12 +1731,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/messages/notifications': {
-      id: '/messages/notifications'
-      path: '/notifications'
+    '/messages_/notifications': {
+      id: '/messages_/notifications'
+      path: '/messages/notifications'
       fullPath: '/messages/notifications'
       preLoaderRoute: typeof MessagesNotificationsRouteImport
-      parentRoute: typeof MessagesRoute
+      parentRoute: typeof rootRouteImport
     }
     '/checkout/success': {
       id: '/checkout/success'
@@ -2503,18 +2504,6 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
-interface MessagesRouteChildren {
-  MessagesNotificationsRoute: typeof MessagesNotificationsRoute
-}
-
-const MessagesRouteChildren: MessagesRouteChildren = {
-  MessagesNotificationsRoute: MessagesNotificationsRoute,
-}
-
-const MessagesRouteWithChildren = MessagesRoute._addFileChildren(
-  MessagesRouteChildren,
-)
-
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileAuthorRoute: typeof ProfileAuthorRoute
@@ -2556,7 +2545,7 @@ const rootRouteChildren: RootRouteChildren = {
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
-  MessagesRoute: MessagesRouteWithChildren,
+  MessagesRoute: MessagesRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
   PricingRoute: PricingRoute,
@@ -2576,6 +2565,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
+  MessagesNotificationsRoute: MessagesNotificationsRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   PodcastSlugRoute: PodcastSlugRoute,
   PostSlugRoute: PostSlugRoute,
