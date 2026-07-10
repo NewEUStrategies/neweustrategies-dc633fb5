@@ -5,6 +5,15 @@ import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
+import { useAuth } from "@/hooks/useAuth";
+
+// Floating chat dock (Messenger-style). Lazy AND gated on an actual session
+// below: React.lazy fetches its chunk the moment the element renders, so the
+// element must not render for guests at all - otherwise every anonymous page
+// view downloads the chat code just to render null.
+const ChatDock = lazy(() =>
+  import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
+);
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
