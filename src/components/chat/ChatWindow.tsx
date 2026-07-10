@@ -321,7 +321,10 @@ export function ChatWindow(props: ChatWindowProps) {
 
   if (variant === "page") {
     return (
-      <div className={cn("flex h-full min-h-0 flex-col", className)}>
+      <div
+        className={cn("flex h-full min-h-0 flex-col", className)}
+        data-active-conversation={conversationId}
+      >
         <div className="flex items-center gap-2.5 border-b border-border/60 px-3 py-2">
           {onBack && (
             <button
