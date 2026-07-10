@@ -2776,15 +2776,33 @@ textarea::placeholder {
   color: var(--gc-input-placeholder-dark, oklch(0.58 0 0));
 }
 
-/* Keep typed text and placeholders clear of auth field icons. The shared
-   widget baseline sets padding-inline later than utilities, so these explicit
-   directional rules intentionally take precedence. */
-input.auth-icon-input {
-  padding-left: 2.75rem !important;
+/* Platform-wide icon-input padding. Applies to every field that has a leading
+   (and optional trailing) icon absolutely positioned inside the wrapper.
+   Padding is responsive: slightly tighter on mobile so the field still
+   comfortably fits Polish/English placeholders on 360px viewports, and
+   opens up on tablet/desktop. `!important` beats the shared widget
+   baseline that sets padding-inline later in the cascade. */
+input.auth-icon-input,
+input.icon-input,
+textarea.icon-input {
+  padding-left: 2.5rem !important;
 }
-input.auth-icon-input-with-action {
-  padding-right: 2.75rem !important;
+input.auth-icon-input-with-action,
+input.icon-input-with-action {
+  padding-right: 2.5rem !important;
 }
+@media (min-width: 640px) {
+  input.auth-icon-input,
+  input.icon-input,
+  textarea.icon-input {
+    padding-left: 2.75rem !important;
+  }
+  input.auth-icon-input-with-action,
+  input.icon-input-with-action {
+    padding-right: 2.75rem !important;
+  }
+}
+
 
 /* ============================================================
    Widget alignment bridge: text-align (Styl panel → dropdown
