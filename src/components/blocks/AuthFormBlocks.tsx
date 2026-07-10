@@ -184,7 +184,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={emailPlaceholder}
-              className="pl-9"
+              className="pl-10"
             />
           </div>
         </div>
@@ -202,7 +202,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={pwdPlaceholder}
-              className="pl-9 pr-10"
+              className="pl-10 pr-10"
             />
             {data.showShowPassword !== false && (
               <button
@@ -389,7 +389,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={lang === "pl" ? "Jan" : "John"}
-                className="pl-9"
+                className="pl-10"
               />
             </div>
           </div>
@@ -408,7 +408,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              className="pl-9"
+              className="pl-10"
             />
           </div>
         </div>
@@ -427,7 +427,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={lang === "pl" ? "min. 8 znaków" : "min. 8 characters"}
-              className="pl-9 pr-10"
+              className="pl-10 pr-10"
             />
             <button
               type="button"
@@ -455,7 +455,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
-                className="pl-9"
+                className="pl-10"
               />
             </div>
           </div>
@@ -578,7 +578,7 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="pl-9"
+                className="pl-10"
               />
             </div>
           </div>
@@ -704,7 +704,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={lang === "pl" ? `min. ${minLength} znaków` : `min. ${minLength} characters`}
-                className="pl-9 pr-10"
+                className="pl-10 pr-10"
               />
               <button
                 type="button"
@@ -732,7 +732,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
-                  className="pl-9"
+                  className="pl-10"
                 />
               </div>
             </div>

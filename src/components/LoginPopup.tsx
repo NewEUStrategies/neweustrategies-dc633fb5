@@ -127,7 +127,7 @@ export function LoginPopup() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={lang === "pl" ? "Jan" : "John"}
-                  className="pl-9"
+                  className="pl-10"
                 />
               </div>
             </div>
@@ -146,7 +146,7 @@ export function LoginPopup() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="pl-9"
+                className="pl-10"
               />
             </div>
           </div>
@@ -165,7 +165,7 @@ export function LoginPopup() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={lang === "pl" ? "min. 6 znaków" : "min. 6 characters"}
-                className="pl-9 pr-10"
+                className="pl-10 pr-10"
               />
               <button
                 type="button"
