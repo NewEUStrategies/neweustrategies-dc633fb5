@@ -227,7 +227,7 @@ function EntityPicker({
         .or(`title_pl.ilike.%${term}%,title_en.ilike.%${term}%,slug.ilike.%${term}%`)
         .eq("status", "published")
         .is("deleted_at", null)
-        .limit(12);
+        .limit(50);
       return (data as EntityRow[] | null) ?? [];
     },
   });
