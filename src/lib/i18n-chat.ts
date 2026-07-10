@@ -60,6 +60,12 @@ export const chatPl = {
     saveEdit: "Zapisz zmiany",
     cancelEdit: "Anuluj edycję",
     editExpired: "Edycja możliwa tylko przez 5 minut od wysłania.",
+    receipt: {
+      pending: "Wysyłanie...",
+      sent: "Wysłano",
+      delivered: "Dostarczono do odbiorcy",
+      read: "Przeczytano przez odbiorcę",
+    },
     open: "Otwórz czat",
     notDiscoverableHint:
       "Nie można rozpocząć rozmowy - ta osoba nie udostępnia profilu w wyszukiwarce.",
