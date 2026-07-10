@@ -325,6 +325,8 @@ export function LoginOutView({
           <img
             src={avatar}
             alt={name ?? email}
+            loading="lazy"
+            decoding="async"
             className="w-7 h-7 rounded-full object-cover border border-border"
           />
         ) : (

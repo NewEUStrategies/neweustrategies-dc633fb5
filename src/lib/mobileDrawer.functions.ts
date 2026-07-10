@@ -8,6 +8,7 @@
 //   ale wolimy jasny błąd zamiast enigmatycznego 42501).
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -24,6 +25,9 @@ function serverPublicClient() {
       persistSession: false,
       autoRefreshToken: false,
     },
+    // Host-awareness deklarowana w nagłówku pliku wymaga nagłówka
+    // x-tenant-host - bez tego RLS czyta konfigurację DOMYŚLNEGO tenanta.
+    global: { fetch: fetchWithTenantHost },
   });
 }
 

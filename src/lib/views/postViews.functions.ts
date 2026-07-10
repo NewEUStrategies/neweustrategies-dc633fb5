@@ -8,14 +8,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
+import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 // Anon client running UNDER RLS: public_tenant_id() (and with it
 // trending_posts + the "Public reads published posts" policy) resolves the
-// tenant of the site being browsed.
+// tenant of the site being browsed. fetchWithTenantHost dokleja x-tenant-host
+// z bieżącego żądania - bez niego public_tenant_id() zawsze zwraca
+// DOMYŚLNEGO tenanta (patrz tenant-host-fetch.ts).
 function client() {
   return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    global: { fetch: fetchWithTenantHost },
   });
 }
 
