@@ -25,11 +25,33 @@ export interface MessageBubbleProps {
   repliedAuthorName?: string;
   /** Own text message within the 5-minute edit window. */
   editable: boolean;
+  /** Peer's last_read_at - used for per-message read receipts (mine only). */
+  peerLastReadAt?: string | null;
+  /** Whether the peer is currently online - used to show "delivered" tick. */
+  peerOnline?: boolean;
   onReact: (message: ChatMessage, emoji: string, current: string | null) => void;
   onReply: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
+}
+
+type ReceiptState = "pending" | "sent" | "delivered" | "read";
+
+function computeReceipt(
+  message: ChatMessage,
+  peerLastReadAt: string | null | undefined,
+  peerOnline: boolean | undefined,
+): ReceiptState {
+  if (message.pending || message.failed) return "pending";
+  if (
+    peerLastReadAt &&
+    new Date(peerLastReadAt).getTime() >= new Date(message.created_at).getTime()
+  ) {
+    return "read";
+  }
+  if (peerOnline) return "delivered";
+  return "sent";
 }
 
 function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): string {
