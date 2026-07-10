@@ -152,7 +152,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder={t("chat.searchConversations")}
                   aria-label={t("chat.searchConversations")}
-                  className="h-8 w-full rounded-full border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-8 w-full rounded-[6px] border border-input bg-muted/40 pl-8 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
             )}
@@ -162,14 +162,22 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   {t("common.loading", { defaultValue: "..." })}
                 </p>
               ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 p-5 text-center">
-                  <MessageCircle className="h-5 w-5 text-muted-foreground/50" aria-hidden />
-                  <p className="text-xs text-muted-foreground">{t("chat.noConversations")}</p>
+                <div className="flex flex-col items-center gap-2.5 px-4 py-6 text-center">
+                  <span
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] bg-muted/60 text-muted-foreground"
+                    aria-hidden
+                  >
+                    <MessagesSquare className="h-4 w-4" />
+                  </span>
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    {t("chat.noConversations")}
+                  </p>
                   <button
                     type="button"
                     onClick={() => setMode("new")}
-                    className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                    className="inline-flex items-center gap-1.5 rounded-[6px] bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
                   >
+                    <SquarePen className="h-3 w-3" aria-hidden />
                     {t("chat.newMessage")}
                   </button>
                 </div>
