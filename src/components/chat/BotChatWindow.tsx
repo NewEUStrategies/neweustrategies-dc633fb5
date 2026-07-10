@@ -510,6 +510,17 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
             <SendHorizontal className="h-4 w-4" aria-hidden />
           </button>
         </form>
+          </div>
+          {mediaOpen && (
+            <ChatMediaPanel
+              conversationId="bot-local"
+              enabled={false}
+              onClose={() => setMediaOpen(false)}
+              className="w-[220px] shrink-0"
+              localRows={[]}
+            />
+          )}
+        </div>
       </div>
     </TooltipProvider>
   );
