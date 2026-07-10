@@ -212,6 +212,8 @@ export function MessageList(props: MessageListProps) {
                   replied ? (replied.sender_id === myUserId ? t("chat.you") : peerName) : undefined
                 }
                 editable={canEdit(message)}
+                peerLastReadAt={peerLastReadAt}
+                peerOnline={peerOnline}
                 onReact={onReact}
                 onReply={onReply}
                 onEdit={onEdit}
