@@ -3,7 +3,7 @@
 // - "split"   - grafika po lewej, formularz po prawej (jak konferencyjny landing)
 // Triggery: delay / scroll / exit-intent. Frequency gating w localStorage.
 // Mountowany globalnie w __root.tsx.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
@@ -11,6 +11,7 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 const LS_KEY = "nl_popup_last";
 
@@ -37,6 +38,8 @@ export function NewsletterPopup() {
   const { i18n } = useTranslation();
   const loc = useLocation();
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, open);
 
   const isPl = (i18n.language ?? "pl").startsWith("pl");
 
@@ -83,14 +86,23 @@ export function NewsletterPopup() {
     };
   }, [s, loc.pathname]);
 
-  if (!s?.popup_enabled || !open) return null;
-
-  const title = isPl ? s.popup_title_pl : s.popup_title_en;
-  const desc = isPl ? s.popup_description_pl : s.popup_description_en;
-  const close = () => {
+  const title = isPl ? s?.popup_title_pl : s?.popup_title_en;
+  const desc = isPl ? s?.popup_description_pl : s?.popup_description_en;
+  const close = useCallback(() => {
     markDismissed();
     setOpen(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
+
+  if (!s?.popup_enabled || !open) return null;
   const onSuccess = () => {
     markDismissed();
     setTimeout(() => setOpen(false), 1800);
@@ -123,6 +135,7 @@ export function NewsletterPopup() {
       onClick={close}
     >
       <div
+        ref={panelRef}
         className={
           split
             ? "relative w-full max-w-4xl my-4 max-h-[92vh] overflow-y-auto md:overflow-hidden shadow-2xl border border-white/10 grid grid-cols-1 md:grid-cols-2"

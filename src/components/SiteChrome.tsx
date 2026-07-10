@@ -4,6 +4,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
@@ -35,6 +36,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
+        {isAdmin && <SkipToContentLink />}
         <ImpersonationBanner />
         <RouteProgress />
         {children}
@@ -44,10 +46,11 @@ export function SiteChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <SkipToContentLink />
       <ImpersonationBanner />
       <RouteProgress />
       <Header />
-      <main className="flex-1" style={{ viewTransitionName: "site-main" }}>
+      <main id="main-content" className="flex-1" style={{ viewTransitionName: "site-main" }}>
         {children}
       </main>
       <Footer />

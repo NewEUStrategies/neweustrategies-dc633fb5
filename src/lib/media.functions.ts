@@ -354,6 +354,8 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
 // - bulk delete / move / duplicate (copy in storage)
 // ============================================================================
 
+// \x00-\x1f is intentional: rejects control characters in folder-name segments.
+// eslint-disable-next-line no-control-regex
 const FOLDER_PATH_RE = /^\/(?:[^/\\<>:"|?*\x00-\x1f]{1,64}\/)*$/u;
 
 function normalizeFolderPath(input: string): string {

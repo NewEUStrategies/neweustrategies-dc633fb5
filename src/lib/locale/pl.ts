@@ -7,6 +7,7 @@ export const pl = {
   },
   nav: {
     newsletter: "Newsletter",
+    skipToContent: "Przejdź do treści",
   },
   hero: {
     by: "Autor",
