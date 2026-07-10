@@ -249,11 +249,23 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
-              {messages.map((m) => {
+              {messages.map((m, idx) => {
                 const mine = m.role === "user";
                 const reaction = reactions[m.id];
                 const replied = m.replyToId ? messagesById.get(m.replyToId) : undefined;
                 const reactOpen = reactOpenId === m.id;
+                // Simulated receipt for user messages: read once bot replied
+                // to it (any later bot msg exists), delivered while typing,
+                // sent otherwise.
+                const hasLaterBot =
+                  mine && messages.slice(idx + 1).some((x) => x.role === "bot");
+                const receipt: "sent" | "delivered" | "read" | null = !mine
+                  ? null
+                  : hasLaterBot
+                    ? "read"
+                    : typing
+                      ? "delivered"
+                      : "sent";
                 return (
                   <li
                     key={m.id}
@@ -282,21 +294,48 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                       <div
                         className={cn(
                           "max-w-full rounded-[10px] px-3 py-1.5",
-                          mine
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground",
+                          !mine && "bg-muted text-foreground",
                         )}
+                        style={
+                          mine
+                            ? {
+                                background:
+                                  "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
+                                color: "var(--chat-user-foreground)",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                              }
+                            : undefined
+                        }
                       >
                         <p className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal">
                           {m.body}
                         </p>
                         <p
                           className={cn(
-                            "mt-0.5 text-[10px] font-normal leading-snug tabular-nums",
-                            mine ? "text-primary-foreground/70" : "text-muted-foreground/70",
+                            "mt-0.5 flex items-center gap-1 text-[10px] font-normal leading-snug tabular-nums",
+                            mine ? "opacity-90 justify-end" : "text-muted-foreground/70",
                           )}
                         >
-                          {formatTime(m.ts, lang)}
+                          <span>{formatTime(m.ts, lang)}</span>
+                          {receipt && (
+                            <span
+                              className="ml-0.5 inline-flex items-center"
+                              title={t(`chat.receipt.${receipt}`)}
+                              aria-label={t(`chat.receipt.${receipt}`)}
+                            >
+                              {receipt === "sent" ? (
+                                <Check className="h-3 w-3" aria-hidden />
+                              ) : receipt === "delivered" ? (
+                                <CheckCheck className="h-3 w-3" aria-hidden />
+                              ) : (
+                                <CheckCheck
+                                  className="h-3 w-3"
+                                  style={{ color: "var(--chat-user-tick-read)" }}
+                                  aria-hidden
+                                />
+                              )}
+                            </span>
+                          )}
                         </p>
                       </div>
                       {reaction && (
