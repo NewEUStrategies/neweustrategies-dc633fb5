@@ -186,6 +186,12 @@ export const chatEn = {
     saveEdit: "Save changes",
     cancelEdit: "Cancel editing",
     editExpired: "Messages can only be edited within 5 minutes of sending.",
+    receipt: {
+      pending: "Sending...",
+      sent: "Sent",
+      delivered: "Delivered to recipient",
+      read: "Read by recipient",
+    },
     open: "Open chat",
     notDiscoverableHint: "Cannot start a conversation - this person's profile is not discoverable.",
     startError: "Could not open the conversation. Please try again.",
