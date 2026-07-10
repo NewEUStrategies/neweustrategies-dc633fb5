@@ -144,7 +144,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
               <div className="px-2 pt-2">
                 <label className="relative block">
                   <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                     aria-hidden
                   />
                   <input
@@ -153,7 +153,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder={t("chat.searchConversations")}
                     aria-label={t("chat.searchConversations")}
-                    className="h-9 w-full rounded-[6px] border border-input bg-muted/40 pl-9 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-9 w-full rounded-[6px] border border-input bg-muted/40 pl-10 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </label>
               </div>
