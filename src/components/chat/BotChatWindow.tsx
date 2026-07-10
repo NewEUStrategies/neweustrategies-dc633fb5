@@ -225,6 +225,19 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
           </div>
           <button
             type="button"
+            onClick={() => setMediaOpen((v) => !v)}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              mediaOpen && "bg-muted text-foreground",
+            )}
+            aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+            aria-pressed={mediaOpen}
+            title={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+          >
+            <Images className="h-4 w-4" aria-hidden />
+          </button>
+          <button
+            type="button"
             onClick={clear}
             disabled={messages.length === 0 && !typing}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
@@ -234,6 +247,9 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
             <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </header>
+
+        <div className="flex min-h-0 flex-1 flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
 
         {/* Messages */}
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
