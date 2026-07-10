@@ -17,6 +17,7 @@ import {
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
+import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "./ConversationListItem";
