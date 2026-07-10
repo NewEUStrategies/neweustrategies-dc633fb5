@@ -167,10 +167,7 @@ export function PostSettingsMetabox({
             />
           )}
           {tab === "membership" && (
-            <AccessSettingsPane
-              entityType={entityType as AccessEntityType}
-              entityId={entityId}
-            />
+            <AccessSettingsPane entityType={entityType as AccessEntityType} entityId={entityId} />
           )}
           {tab === "takeaways" && showTakeaways && (
             <TakeawaysTab
@@ -343,11 +340,7 @@ function TocTab({
             </p>
           </div>
         </div>
-        <div
-          className="grid grid-cols-3 gap-2"
-          role="radiogroup"
-          aria-label="Układ kolumnowy ToC"
-        >
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Układ kolumnowy ToC">
           {COLUMN_OPTIONS.map(({ value: v, icon: Icon, label, desc }) => {
             const active = effectiveColumns === v;
             return (
@@ -475,7 +468,10 @@ function HeadingCounter({
           Wykryte nagłówki w treści
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Zakres ToC: <span className="font-mono">H{minLevel}-H{maxLevel}</span>
+          Zakres ToC:{" "}
+          <span className="font-mono">
+            H{minLevel}-H{maxLevel}
+          </span>
         </div>
       </div>
       <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-1.5">
@@ -502,7 +498,6 @@ function HeadingCounter({
   );
 }
 
-
 // ---------------- Takeaways tab ----------------
 export function TakeawaysTab({
   pl,
@@ -528,7 +523,11 @@ export function TakeawaysTab({
     next[idx] = value.slice(0, MAX_TAKEAWAY_LEN);
     onChange(active, next);
   };
-  const removeAt = (idx: number) => onChange(active, current.filter((_, i) => i !== idx));
+  const removeAt = (idx: number) =>
+    onChange(
+      active,
+      current.filter((_, i) => i !== idx),
+    );
   const add = () => {
     if (current.length >= MAX_TAKEAWAYS) return;
     onChange(active, [...current, ""]);
@@ -559,8 +558,7 @@ export function TakeawaysTab({
               Wariant wizualny
             </span>
             <span className="text-[10px] text-muted-foreground">
-              Globalny:{" "}
-              <span className="font-mono">{ktSettings.variant}</span>
+              Globalny: <span className="font-mono">{ktSettings.variant}</span>
             </span>
           </div>
           <div className="grid grid-cols-4 gap-1.5">
@@ -588,9 +586,7 @@ export function TakeawaysTab({
                   title={opt.desc}
                 >
                   <div className="text-[11px] font-semibold">{opt.label}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">
-                    {opt.desc}
-                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate">{opt.desc}</div>
                 </button>
               );
             })}
@@ -644,8 +640,7 @@ export function TakeawaysTab({
             Podgląd na żywo (obie wersje językowe)
           </h5>
           <span className="text-[10px] text-muted-foreground">
-            Aktywny wariant:{" "}
-            <span className="font-mono">{effectiveVariant}</span>
+            Aktywny wariant: <span className="font-mono">{effectiveVariant}</span>
             {variantOverride && (
               <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold uppercase text-primary">
                 override
@@ -723,15 +718,11 @@ function TakeawaysPreviewCard({
             {items.length}
           </span>
         </span>
-        {active && (
-          <span className="text-[10px] text-brand font-medium">edytowana</span>
-        )}
+        {active && <span className="text-[10px] text-brand font-medium">edytowana</span>}
       </div>
       <div className="p-3 max-h-[380px] overflow-y-auto bg-background">
         {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic text-center py-6">
-            {placeholderMsg}
-          </p>
+          <p className="text-xs text-muted-foreground italic text-center py-6">{placeholderMsg}</p>
         ) : (
           <div className="scale-[0.9] origin-top-left w-[111%]">
             <KeyTakeaways
@@ -761,13 +752,7 @@ function TakeawayRow({
 }) {
   const len = value.length;
   const status =
-    len === 0
-      ? "empty"
-      : len < RECOMMENDED_MIN
-        ? "short"
-        : len <= RECOMMENDED_MAX
-          ? "ok"
-          : "long";
+    len === 0 ? "empty" : len < RECOMMENDED_MIN ? "short" : len <= RECOMMENDED_MAX ? "ok" : "long";
   const statusColor = {
     empty: "text-muted-foreground",
     short: "text-yellow-600 dark:text-yellow-400",
@@ -801,13 +786,7 @@ function TakeawayRow({
           </span>
         </div>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onRemove}
-        aria-label="Usuń punkt"
-      >
+      <Button type="button" variant="ghost" size="sm" onClick={onRemove} aria-label="Usuń punkt">
         <Trash2 className="w-4 h-4 text-destructive" />
       </Button>
     </li>
@@ -862,11 +841,7 @@ function RowOverride({
         <div className="text-[10px] text-muted-foreground mt-0.5">
           Globalnie: <span className="font-mono">{globalValue}</span>
           {overridden && (
-            <button
-              type="button"
-              onClick={onClear}
-              className="ml-2 text-brand hover:underline"
-            >
+            <button type="button" onClick={onClear} className="ml-2 text-brand hover:underline">
               wyczyść nadpisanie
             </button>
           )}

@@ -184,7 +184,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={emailPlaceholder}
-              className="pl-10"
+              className="auth-icon-input"
             />
           </div>
         </div>
@@ -202,7 +202,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={pwdPlaceholder}
-              className="pl-10 pr-10"
+              className="auth-icon-input auth-icon-input-with-action"
             />
             {data.showShowPassword !== false && (
               <button
@@ -389,7 +389,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={lang === "pl" ? "Jan" : "John"}
-                className="pl-10"
+                className="auth-icon-input"
               />
             </div>
           </div>
@@ -408,7 +408,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              className="pl-10"
+              className="auth-icon-input"
             />
           </div>
         </div>
@@ -427,13 +427,21 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={lang === "pl" ? "min. 8 znaków" : "min. 8 characters"}
-              className="pl-10 pr-10"
+              className="auth-icon-input auth-icon-input-with-action"
             />
             <button
               type="button"
               onClick={() => setShowPw((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-              aria-label={showPw ? (lang === "pl" ? "Ukryj hasło" : "Hide password") : (lang === "pl" ? "Pokaż hasło" : "Show password")}
+              aria-label={
+                showPw
+                  ? lang === "pl"
+                    ? "Ukryj hasło"
+                    : "Hide password"
+                  : lang === "pl"
+                    ? "Pokaż hasło"
+                    : "Show password"
+              }
             >
               {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -455,7 +463,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
-                className="pl-10"
+                className="auth-icon-input"
               />
             </div>
           </div>
@@ -578,7 +586,7 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="pl-10"
+                className="auth-icon-input"
               />
             </div>
           </div>
@@ -703,14 +711,24 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                 minLength={minLength}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={lang === "pl" ? `min. ${minLength} znaków` : `min. ${minLength} characters`}
-                className="pl-10 pr-10"
+                placeholder={
+                  lang === "pl" ? `min. ${minLength} znaków` : `min. ${minLength} characters`
+                }
+                className="auth-icon-input auth-icon-input-with-action"
               />
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? (lang === "pl" ? "Ukryj hasło" : "Hide password") : (lang === "pl" ? "Pokaż hasło" : "Show password")}
+                aria-label={
+                  showPw
+                    ? lang === "pl"
+                      ? "Ukryj hasło"
+                      : "Hide password"
+                    : lang === "pl"
+                      ? "Pokaż hasło"
+                      : "Show password"
+                }
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -732,7 +750,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
-                  className="pl-10"
+                  className="auth-icon-input"
                 />
               </div>
             </div>

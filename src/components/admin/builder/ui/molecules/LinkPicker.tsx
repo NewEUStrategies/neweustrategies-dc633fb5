@@ -15,7 +15,14 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { PropField } from "../atoms/PropField";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
-import { ExternalLink, FileText, File as FileIcon, Image as ImageIcon, X, Search } from "lucide-react";
+import {
+  ExternalLink,
+  FileText,
+  File as FileIcon,
+  Image as ImageIcon,
+  X,
+  Search,
+} from "lucide-react";
 import type { WidgetLink, WidgetLinkKind } from "@/lib/builder/types";
 import { useTranslation } from "react-i18next";
 
@@ -95,9 +102,7 @@ export function LinkPicker({ value, onChange, lang }: Props) {
           kind="post"
           lang={lang}
           value={value?.kind === "post" ? value : undefined}
-          onPick={(url, id, label) =>
-            update({ url, kind: "post", refId: id, refLabel: label })
-          }
+          onPick={(url, id, label) => update({ url, kind: "post", refId: id, refLabel: label })}
           onClear={clear}
         />
       )}
@@ -107,9 +112,7 @@ export function LinkPicker({ value, onChange, lang }: Props) {
           kind="page"
           lang={lang}
           value={value?.kind === "page" ? value : undefined}
-          onPick={(url, id, label) =>
-            update({ url, kind: "page", refId: id, refLabel: label })
-          }
+          onPick={(url, id, label) => update({ url, kind: "page", refId: id, refLabel: label })}
           onClear={clear}
         />
       )}

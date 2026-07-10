@@ -387,12 +387,7 @@ function SocialPage() {
                 <div className="grid gap-2">
                   <FieldLabel htmlFor="twitter" tip={t("profile.social.tip.twitter")}>
                     <span className="inline-flex items-center gap-2">
-                      <BrandIcon
-                        name="x"
-                        fallback={XIcon}
-                        className="h-3.5 w-3.5"
-                        alt="X"
-                      />
+                      <BrandIcon name="x" fallback={XIcon} className="h-3.5 w-3.5" alt="X" />
                       {t("profile.social.twitter")}
                     </span>
                   </FieldLabel>

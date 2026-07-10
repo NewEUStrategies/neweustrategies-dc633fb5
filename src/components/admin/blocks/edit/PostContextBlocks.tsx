@@ -133,12 +133,7 @@ function InlineAuthorForm({
           )}
         </div>
         <div className="flex-1 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setPickAvatarOpen(true)}
-          >
+          <Button type="button" size="sm" variant="outline" onClick={() => setPickAvatarOpen(true)}>
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             {author.avatarUrl ? "Zmień zdjęcie" : "Wgraj zdjęcie"}
           </Button>
@@ -437,9 +432,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
             showSocial={showSocial}
             showPostsCount={showPostsCount}
             variant={variant as "card" | "inline" | "minimal" | "split"}
-            authorId={
-              !useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined
-            }
+            authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
             authorOverride={useInlinePreview ? inlineAuthor : undefined}
           />
         </CurrentPostProvider>

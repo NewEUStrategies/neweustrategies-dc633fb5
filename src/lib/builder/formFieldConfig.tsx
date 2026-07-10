@@ -14,14 +14,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
-export type CustomFieldType =
-  | "text"
-  | "email"
-  | "tel"
-  | "url"
-  | "textarea"
-  | "select"
-  | "checkbox";
+export type CustomFieldType = "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox";
 
 export interface CustomFieldOption {
   value: string;
@@ -121,10 +114,7 @@ export function resolveCustomFieldLabel(f: CustomFieldDef, lang: "pl" | "en"): s
   return secondary?.trim() || f.id;
 }
 
-export function resolveCustomFieldPlaceholder(
-  f: CustomFieldDef,
-  lang: "pl" | "en",
-): string {
+export function resolveCustomFieldPlaceholder(f: CustomFieldDef, lang: "pl" | "en"): string {
   const primary = lang === "en" ? f.placeholderEn : f.placeholderPl;
   if (primary && primary.trim()) return primary;
   const secondary = lang === "en" ? f.placeholderPl : f.placeholderEn;
@@ -137,9 +127,7 @@ export function validateCustomFields(
   fields: CustomFieldDef[],
   values: Record<string, string>,
 ): string[] {
-  return fields
-    .filter((f) => f.required && !(values[f.id] ?? "").trim())
-    .map((f) => f.id);
+  return fields.filter((f) => f.required && !(values[f.id] ?? "").trim()).map((f) => f.id);
 }
 
 interface RendererProps {
@@ -169,8 +157,7 @@ export function CustomFieldsRenderer({
   if (!stable.length) return null;
 
   const baseInput =
-    inputClassName ||
-    "px-3 py-2 rounded border border-input bg-background text-sm w-full";
+    inputClassName || "px-3 py-2 rounded border border-input bg-background text-sm w-full";
 
   return (
     <div className={cn("grid gap-2 sm:grid-cols-2", className)}>
@@ -263,7 +250,13 @@ export function CustomFieldsRenderer({
         }
 
         const inputType =
-          f.type === "email" ? "email" : f.type === "tel" ? "tel" : f.type === "url" ? "url" : "text";
+          f.type === "email"
+            ? "email"
+            : f.type === "tel"
+              ? "tel"
+              : f.type === "url"
+                ? "url"
+                : "text";
 
         return (
           <input
@@ -271,9 +264,7 @@ export function CustomFieldsRenderer({
             type={inputType}
             value={value}
             onChange={(e) => onChange(f.id, e.target.value)}
-            placeholder={
-              placeholder ? (f.required ? `${placeholder} *` : placeholder) : label
-            }
+            placeholder={placeholder ? (f.required ? `${placeholder} *` : placeholder) : label}
             required={f.required}
             aria-required={f.required || undefined}
             aria-label={label}

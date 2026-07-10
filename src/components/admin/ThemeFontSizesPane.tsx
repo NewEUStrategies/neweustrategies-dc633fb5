@@ -81,7 +81,9 @@ export function ThemeFontSizesPane() {
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
         <div className="min-w-0">
           <h3 className="font-display text-lg truncate">
-            {t("themeOptions.sections.fontSizes", { defaultValue: isPL ? "Rozmiary czcionek" : "Font sizes" })}
+            {t("themeOptions.sections.fontSizes", {
+              defaultValue: isPL ? "Rozmiary czcionek" : "Font sizes",
+            })}
           </h3>
           <p className="text-xs text-muted-foreground">
             {isPL
@@ -179,9 +181,7 @@ export function ThemeFontSizesPane() {
                       </Label>
                       <Select
                         value={draft.headings[level].transform}
-                        onValueChange={(v) =>
-                          setHeading(level, "transform", v as TextTransform)
-                        }
+                        onValueChange={(v) => setHeading(level, "transform", v as TextTransform)}
                       >
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue />
@@ -327,17 +327,80 @@ function BasePair({
 function PreviewSample() {
   return (
     <div className="space-y-3">
-      <h1 style={{ fontSize: "var(--fs-h1)", lineHeight: "var(--lh-h1)", letterSpacing: "var(--ls-h1)", fontWeight: "var(--fw-h1)", textTransform: "var(--tt-h1)" as never }}>Nagłówek H1</h1>
-      <h2 style={{ fontSize: "var(--fs-h2)", lineHeight: "var(--lh-h2)", letterSpacing: "var(--ls-h2)", fontWeight: "var(--fw-h2)", textTransform: "var(--tt-h2)" as never }}>Nagłówek H2</h2>
-      <h3 style={{ fontSize: "var(--fs-h3)", lineHeight: "var(--lh-h3)", letterSpacing: "var(--ls-h3)", fontWeight: "var(--fw-h3)", textTransform: "var(--tt-h3)" as never }}>Nagłówek H3</h3>
-      <h4 style={{ fontSize: "var(--fs-h4)", lineHeight: "var(--lh-h4)", letterSpacing: "var(--ls-h4)", fontWeight: "var(--fw-h4)", textTransform: "var(--tt-h4)" as never }}>Nagłówek H4</h4>
-      <h5 style={{ fontSize: "var(--fs-h5)", lineHeight: "var(--lh-h5)", letterSpacing: "var(--ls-h5)", fontWeight: "var(--fw-h5)", textTransform: "var(--tt-h5)" as never }}>Nagłówek H5</h5>
-      <h6 style={{ fontSize: "var(--fs-h6)", lineHeight: "var(--lh-h6)", letterSpacing: "var(--ls-h6)", fontWeight: "var(--fw-h6)", textTransform: "var(--tt-h6)" as never }}>Nagłówek H6</h6>
+      <h1
+        style={{
+          fontSize: "var(--fs-h1)",
+          lineHeight: "var(--lh-h1)",
+          letterSpacing: "var(--ls-h1)",
+          fontWeight: "var(--fw-h1)",
+          textTransform: "var(--tt-h1)" as never,
+        }}
+      >
+        Nagłówek H1
+      </h1>
+      <h2
+        style={{
+          fontSize: "var(--fs-h2)",
+          lineHeight: "var(--lh-h2)",
+          letterSpacing: "var(--ls-h2)",
+          fontWeight: "var(--fw-h2)",
+          textTransform: "var(--tt-h2)" as never,
+        }}
+      >
+        Nagłówek H2
+      </h2>
+      <h3
+        style={{
+          fontSize: "var(--fs-h3)",
+          lineHeight: "var(--lh-h3)",
+          letterSpacing: "var(--ls-h3)",
+          fontWeight: "var(--fw-h3)",
+          textTransform: "var(--tt-h3)" as never,
+        }}
+      >
+        Nagłówek H3
+      </h3>
+      <h4
+        style={{
+          fontSize: "var(--fs-h4)",
+          lineHeight: "var(--lh-h4)",
+          letterSpacing: "var(--ls-h4)",
+          fontWeight: "var(--fw-h4)",
+          textTransform: "var(--tt-h4)" as never,
+        }}
+      >
+        Nagłówek H4
+      </h4>
+      <h5
+        style={{
+          fontSize: "var(--fs-h5)",
+          lineHeight: "var(--lh-h5)",
+          letterSpacing: "var(--ls-h5)",
+          fontWeight: "var(--fw-h5)",
+          textTransform: "var(--tt-h5)" as never,
+        }}
+      >
+        Nagłówek H5
+      </h5>
+      <h6
+        style={{
+          fontSize: "var(--fs-h6)",
+          lineHeight: "var(--lh-h6)",
+          letterSpacing: "var(--ls-h6)",
+          fontWeight: "var(--fw-h6)",
+          textTransform: "var(--tt-h6)" as never,
+        }}
+      >
+        Nagłówek H6
+      </h6>
       <p style={{ fontSize: "var(--fs-body)", lineHeight: "var(--lh-body)" }}>
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce faucibus est nec justo tincidunt, ac aliquam
-        risus tincidunt.
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce faucibus est nec justo
+        tincidunt, ac aliquam risus tincidunt.
       </p>
-      <p style={{ fontSize: "var(--fs-lead)", lineHeight: "var(--lh-lead)" }} className="text-muted-foreground">
+      <p
+        style={{ fontSize: "var(--fs-lead)", lineHeight: "var(--lh-lead)" }}
+        className="text-muted-foreground"
+      >
         Wprowadzenie / lead - większa czcionka, świetna do pierwszego akapitu artykułu.
       </p>
       <blockquote
@@ -346,12 +409,13 @@ function PreviewSample() {
       >
         Blockquote - cytat wyróżniony z tekstu.
       </blockquote>
-      <p style={{ fontSize: "var(--fs-small)", lineHeight: "var(--lh-small)" }} className="text-muted-foreground">
-        Small / caption - drobny tekst pomocniczy. <code style={{ fontSize: "var(--fs-code)" }}>inline code</code>
+      <p
+        style={{ fontSize: "var(--fs-small)", lineHeight: "var(--lh-small)" }}
+        className="text-muted-foreground"
+      >
+        Small / caption - drobny tekst pomocniczy.{" "}
+        <code style={{ fontSize: "var(--fs-code)" }}>inline code</code>
       </p>
     </div>
   );
 }
-
-
-

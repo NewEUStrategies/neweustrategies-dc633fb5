@@ -276,9 +276,7 @@ function AuthorProfilePage() {
                     onClick={() => avatarInput.current?.click()}
                   >
                     <Upload className="mr-2 h-4 w-4" />
-                    {uploading
-                      ? t("profile.account.uploading")
-                      : t("profile.account.uploadAvatar")}
+                    {uploading ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
                   </Button>
                   {data.avatar_url && (
                     <Button
@@ -312,9 +310,7 @@ function AuthorProfilePage() {
               </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <FieldLabel htmlFor="job_title">
-                    {t("profile.account.jobTitle")}
-                  </FieldLabel>
+                  <FieldLabel htmlFor="job_title">{t("profile.account.jobTitle")}</FieldLabel>
                   <Input
                     id="job_title"
                     value={data.job_title ?? ""}
@@ -323,9 +319,7 @@ function AuthorProfilePage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <FieldLabel htmlFor="company">
-                    {t("profile.account.currentCompany")}
-                  </FieldLabel>
+                  <FieldLabel htmlFor="company">{t("profile.account.currentCompany")}</FieldLabel>
                   <Input
                     id="company"
                     value={data.company ?? ""}
@@ -470,7 +464,9 @@ function AuthorProfilePage() {
                       onChange={(e) => updateCustom(idx, { url: e.target.value })}
                     />
                     <Input
-                      placeholder={t("profile.author.iconUrl", { defaultValue: "URL ikony (opcjonalnie)" })}
+                      placeholder={t("profile.author.iconUrl", {
+                        defaultValue: "URL ikony (opcjonalnie)",
+                      })}
                       value={s.iconUrl ?? ""}
                       onChange={(e) => updateCustom(idx, { iconUrl: e.target.value })}
                     />

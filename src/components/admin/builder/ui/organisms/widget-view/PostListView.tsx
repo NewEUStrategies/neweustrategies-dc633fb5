@@ -543,10 +543,7 @@ export function PostListView({
                 {title(p)}
               </h4>
               {excerpt(p) && (
-                <p
-                  className="cms-post-excerpt mt-1.5 line-clamp-2"
-                  style={eStyle}
-                >
+                <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                   {excerpt(p)}
                 </p>
               )}
@@ -649,10 +646,7 @@ function PostCard({
           {title}
         </h4>
         {excerpt && (
-          <p
-            className="cms-post-excerpt line-clamp-2 mt-1.5"
-            style={excerptStyle}
-          >
+          <p className="cms-post-excerpt line-clamp-2 mt-1.5" style={excerptStyle}>
             {excerpt}
           </p>
         )}

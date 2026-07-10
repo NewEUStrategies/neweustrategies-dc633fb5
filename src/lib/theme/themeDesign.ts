@@ -43,7 +43,8 @@ export const THEME_DESIGN_COLOR_INHERITANCE = {
     bgColor: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
     color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
     hoverBgColor: {
-      token: "var(--gc-input-hover-bg, color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent))",
+      token:
+        "var(--gc-input-hover-bg, color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent))",
       hint: "Pola tekstowe - hover",
     },
     hoverColor: {
@@ -55,7 +56,10 @@ export const THEME_DESIGN_COLOR_INHERITANCE = {
   },
   modeSwitcher: {
     trackBg: { token: "var(--gc-input-bg, var(--muted))", hint: "Pola tekstowe - tło" },
-    trackBorder: { token: "var(--gc-input-border, var(--border))", hint: "Pola tekstowe - obramowanie" },
+    trackBorder: {
+      token: "var(--gc-input-border, var(--border))",
+      hint: "Pola tekstowe - obramowanie",
+    },
     inactiveColor: {
       token: "var(--gc-body-text-muted, var(--muted-foreground))",
       hint: "Kolory pól tekstowych (muted)",
@@ -135,9 +139,13 @@ const ThemeDesignSchema = z
         // Toolbar surface inherits from "Pola tekstowe"; active state from "Przyciski".
         bgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.bgColor.token),
         color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.color.token),
-        hoverBgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.hoverBgColor.token),
+        hoverBgColor: COLOR.default(
+          THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.hoverBgColor.token,
+        ),
         hoverColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.hoverColor.token),
-        activeBgColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.activeBgColor.token),
+        activeBgColor: COLOR.default(
+          THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.activeBgColor.token,
+        ),
         activeColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.toolbarButton.activeColor.token),
         radius: PX.default("6px"),
         paddingX: PX.default("8px"),
@@ -151,7 +159,9 @@ const ThemeDesignSchema = z
         // active surface = "Tła motywu", active text = body text.
         trackBg: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.trackBg.token),
         trackBorder: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.trackBorder.token),
-        inactiveColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.inactiveColor.token),
+        inactiveColor: COLOR.default(
+          THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.inactiveColor.token,
+        ),
         activeBg: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.activeBg.token),
         activeColor: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.modeSwitcher.activeColor.token),
         radius: PX.default("6px"),
@@ -217,12 +227,9 @@ const ThemeDesignSchema = z
     // the light value" (which itself may reference a global token like
     // var(--foreground) / var(--brand) / var(--gc-input-*), so dark mode of
     // the site's global tokens still kicks in automatically).
-    darkOverrides: z
-      .record(z.string(), z.record(z.string(), z.string()))
-      .default({}),
+    darkOverrides: z.record(z.string(), z.record(z.string(), z.string())).default({}),
   })
   .default({});
-
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
 
@@ -230,7 +237,14 @@ export const THEME_DESIGN_DEFAULTS: ThemeDesign = ThemeDesignSchema.parse({});
 
 const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> = {
   blockHeading: {
-    color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#231f20", "#1f2937", "oklch(0.18 0 0)"],
+    color: [
+      "var(--foreground)",
+      "hsl(var(--foreground))",
+      "#141414",
+      "#231f20",
+      "#1f2937",
+      "oklch(0.18 0 0)",
+    ],
   },
   readMoreButton: {
     bgColor: ["transparent"],
@@ -238,7 +252,13 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
     borderColor: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#fa9346", "#f59e0b"],
   },
   metaInfo: {
-    color: ["var(--muted-foreground)", "hsl(var(--muted-foreground))", "#6b7280", "#71717a", "#9ca3af"],
+    color: [
+      "var(--muted-foreground)",
+      "hsl(var(--muted-foreground))",
+      "#6b7280",
+      "#71717a",
+      "#9ca3af",
+    ],
   },
   toolbarButton: {
     bgColor: ["var(--muted)", "hsl(var(--muted))", "#f4f4ef", "#1f1f1f"],
@@ -254,7 +274,12 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
   modeSwitcher: {
     trackBg: ["var(--muted)", "hsl(var(--muted))", "#f4f4ef", "#1f1f1f"],
     trackBorder: ["var(--border)", "hsl(var(--border))", "#e2e8f0", "#1f1f1f"],
-    inactiveColor: ["var(--muted-foreground)", "hsl(var(--muted-foreground))", "#6b7280", "#9ca3af"],
+    inactiveColor: [
+      "var(--muted-foreground)",
+      "hsl(var(--muted-foreground))",
+      "#6b7280",
+      "#9ca3af",
+    ],
     activeBg: ["var(--background)", "hsl(var(--background))", "#ffffff", "#0f0f0f", "#141414"],
     activeColor: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff"],
   },
@@ -273,7 +298,13 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
     hoverColor: ["var(--brand)", "var(--primary)", "#fa9346", "#fdb078", "#f59e0b"],
   },
   postExcerpt: {
-    color: ["var(--muted-foreground)", "hsl(var(--muted-foreground))", "#6b7280", "#71717a", "#9ca3af"],
+    color: [
+      "var(--muted-foreground)",
+      "hsl(var(--muted-foreground))",
+      "#6b7280",
+      "#71717a",
+      "#9ca3af",
+    ],
   },
 };
 
@@ -288,7 +319,10 @@ function isLegacyInheritedColor(section: string, field: string, value: string): 
 }
 
 function normalizeLegacyInheritedColors(t: ThemeDesign): ThemeDesign {
-  const inheritanceMap: Record<string, Record<string, { token: string; hint: string }>> = THEME_DESIGN_COLOR_INHERITANCE;
+  const inheritanceMap: Record<
+    string,
+    Record<string, { token: string; hint: string }>
+  > = THEME_DESIGN_COLOR_INHERITANCE;
   for (const section of Object.keys(inheritanceMap)) {
     const sectionRecord = t[section as keyof ThemeDesign] as Record<string, unknown>;
     const inheritance = inheritanceMap[section];
@@ -304,7 +338,11 @@ function normalizeLegacyInheritedColors(t: ThemeDesign): ThemeDesign {
       }
       const overrideSection = t.darkOverrides?.[section];
       const override = overrideSection?.[field];
-      if (overrideSection && typeof override === "string" && isLegacyInheritedColor(section, field, override)) {
+      if (
+        overrideSection &&
+        typeof override === "string" &&
+        isLegacyInheritedColor(section, field, override)
+      ) {
         delete overrideSection[field];
       }
     }
@@ -622,4 +660,3 @@ function shadow(level: "none" | "sm" | "md" | "lg"): string {
       return "none";
   }
 }
-

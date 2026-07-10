@@ -12,10 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  resolveLeaveConfirmation,
-  subscribeLeaveConfirmation,
-} from "@/lib/unsavedChanges";
+import { resolveLeaveConfirmation, subscribeLeaveConfirmation } from "@/lib/unsavedChanges";
 
 export function UnsavedChangesGuardHost() {
   const { t } = useTranslation();
@@ -37,8 +34,7 @@ export function UnsavedChangesGuardHost() {
           </AlertDialogTitle>
           <AlertDialogDescription>
             {t("admin.unsavedChanges", {
-              defaultValue:
-                "Masz niezapisane zmiany - czy na pewno chcesz opuścić edytor?",
+              defaultValue: "Masz niezapisane zmiany - czy na pewno chcesz opuścić edytor?",
             })}
           </AlertDialogDescription>
         </AlertDialogHeader>

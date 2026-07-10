@@ -12,6 +12,7 @@ import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { useAuth } from "@/hooks/useAuth";
 import { X } from "@/lib/lucide-shim";
 import { isEmptyDocument, type Device } from "@/lib/builder/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import {
   evaluatePopupTargeting,
   isPopupFrequencyOk,
@@ -44,7 +45,7 @@ export function PopupHost() {
   // Popups already shown (or dismissed) in this app session - never re-trigger
   // on client-side navigation within the same visit.
   const shownRef = useRef<Set<string>>(new Set());
-  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -124,16 +125,16 @@ export function PopupHost() {
     });
   }, []);
 
-  // Escape closes; focus lands on the close button when the dialog opens.
+  // Escape closes; focus trap moves focus in on open and restores it on close.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
-    closeBtnRef.current?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
+  useFocusTrap(panelRef, !!open);
 
   if (!open) return null;
 
@@ -162,13 +163,13 @@ export function PopupHost() {
       onClick={s.closeOnOverlay ? close : undefined}
     >
       <div
+        ref={panelRef}
         className="relative max-h-[92vh] overflow-y-auto bg-background text-foreground shadow-2xl border border-border animate-in zoom-in-95"
         style={panelStyle}
         onClick={(e) => e.stopPropagation()}
       >
         {s.showCloseButton && (
           <button
-            ref={closeBtnRef}
             type="button"
             aria-label={lang === "pl" ? "Zamknij" : "Close"}
             onClick={close}

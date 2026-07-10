@@ -152,7 +152,7 @@ export function SubscribersPanel() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Szukaj po e-mailu lub imieniu"
-            className="pl-9"
+            className="icon-input"
           />
         </div>
         <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>

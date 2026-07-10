@@ -11,9 +11,7 @@ function toPascalIconKey(name: string): string {
     .split(/[-_\s]+/)
     .filter(Boolean);
   if (parts.length === 0) return "";
-  const pascal = parts
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
-    .join("");
+  const pascal = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("");
   return `${pascal}Icon`;
 }
 

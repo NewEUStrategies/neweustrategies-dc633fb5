@@ -14,7 +14,11 @@ type EntityType = "post" | "page";
  * refresh silently re-unlocks the same tab without asking again. It never
  * touches `localStorage`, so closing the tab wipes the cached password.
  */
-export function usePasswordUnlock(entityType: EntityType, entityId: string | null, enabled: boolean) {
+export function usePasswordUnlock(
+  entityType: EntityType,
+  entityId: string | null,
+  enabled: boolean,
+) {
   const storageKey = entityId ? `content-pwd:${entityType}:${entityId}` : null;
   const [body, setBody] = useState<BodyParts | null>(null);
   const [error, setError] = useState<string | null>(null);

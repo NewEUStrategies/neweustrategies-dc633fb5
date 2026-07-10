@@ -7,10 +7,34 @@ import { useTranslation } from "react-i18next";
 import { LayoutDashboard, Mail, Send, Users } from "lucide-react";
 
 const tabs = [
-  { to: "/admin/newsletter/overview", key: "overview", icon: LayoutDashboard, labelPl: "Podsumowanie", labelEn: "Overview" },
-  { to: "/admin/newsletter/inline", key: "inline", icon: Mail, labelPl: "Inline builder", labelEn: "Inline builder" },
-  { to: "/admin/newsletter/popup", key: "popup", icon: Send, labelPl: "Popup builder", labelEn: "Popup builder" },
-  { to: "/admin/newsletter/subscribers", key: "subscribers", icon: Users, labelPl: "Subskrybenci", labelEn: "Subscribers" },
+  {
+    to: "/admin/newsletter/overview",
+    key: "overview",
+    icon: LayoutDashboard,
+    labelPl: "Podsumowanie",
+    labelEn: "Overview",
+  },
+  {
+    to: "/admin/newsletter/inline",
+    key: "inline",
+    icon: Mail,
+    labelPl: "Inline builder",
+    labelEn: "Inline builder",
+  },
+  {
+    to: "/admin/newsletter/popup",
+    key: "popup",
+    icon: Send,
+    labelPl: "Popup builder",
+    labelEn: "Popup builder",
+  },
+  {
+    to: "/admin/newsletter/subscribers",
+    key: "subscribers",
+    icon: Users,
+    labelPl: "Subskrybenci",
+    labelEn: "Subscribers",
+  },
 ] as const;
 
 export function NewsletterSubNav() {
@@ -25,9 +49,7 @@ export function NewsletterSubNav() {
           <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
             <Mail className="w-4 h-4 text-primary" />
           </div>
-          <h1 className="font-display text-base sm:text-lg leading-none">
-            Newsletter
-          </h1>
+          <h1 className="font-display text-base sm:text-lg leading-none">Newsletter</h1>
         </div>
         <nav className="flex items-center gap-1 p-1 rounded-lg bg-muted/60 border border-border/60">
           {tabs.map((t) => {

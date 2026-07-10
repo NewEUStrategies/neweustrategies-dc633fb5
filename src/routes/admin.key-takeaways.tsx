@@ -68,12 +68,17 @@ function KeyTakeawaysAdmin() {
 
   const save = useSaveKeyTakeawaysSettings();
 
-  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(persisted), [draft, persisted]);
+  const dirty = useMemo(
+    () => JSON.stringify(draft) !== JSON.stringify(persisted),
+    [draft, persisted],
+  );
 
   const update = <K extends keyof KeyTakeawaysSettings>(k: K, v: KeyTakeawaysSettings[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
   type ColorKey = {
-    [K in keyof KeyTakeawaysSettings["colors"]]: KeyTakeawaysSettings["colors"][K] extends string ? K : never;
+    [K in keyof KeyTakeawaysSettings["colors"]]: KeyTakeawaysSettings["colors"][K] extends string
+      ? K
+      : never;
   }[keyof KeyTakeawaysSettings["colors"]];
   const updateColor = (k: ColorKey, v: string) =>
     setDraft((d) => ({ ...d, colors: { ...d.colors, [k]: v } }));
@@ -85,7 +90,9 @@ function KeyTakeawaysAdmin() {
       <header className="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            {isPL ? "Sekcja: \u201eZ tego artykułu dowiesz się\u2026\u201d" : "Section: \u201cFrom this article you will learn\u2026\u201d"}
+            {isPL
+              ? "Sekcja: \u201eZ tego artykułu dowiesz się\u2026\u201d"
+              : "Section: \u201cFrom this article you will learn\u2026\u201d"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             {isPL
@@ -152,9 +159,7 @@ function KeyTakeawaysAdmin() {
                         }
                       : {
                           badge: isPL ? "Wariant C" : "Variant C",
-                          desc: isPL
-                            ? "Nagłówek za tekstem (ghost)"
-                            : "Ghost heading behind text",
+                          desc: isPL ? "Nagłówek za tekstem (ghost)" : "Ghost heading behind text",
                         };
                 return (
                   <button
@@ -165,7 +170,9 @@ function KeyTakeawaysAdmin() {
                       setPreviewVariant(v);
                     }}
                     className={`text-left rounded-lg border p-3 transition ${
-                      active ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-foreground/30"
+                      active
+                        ? "border-primary ring-2 ring-primary/30"
+                        : "border-border hover:border-foreground/30"
                     }`}
                   >
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
@@ -176,7 +183,6 @@ function KeyTakeawaysAdmin() {
                 );
               })}
             </div>
-
           </section>
 
           {/* Etykiety */}
@@ -264,9 +270,7 @@ function KeyTakeawaysAdmin() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground">
-                  {isPL ? "Kolor" : "Color"}
-                </Label>
+                <Label className="text-xs text-muted-foreground">{isPL ? "Kolor" : "Color"}</Label>
                 <div className="mt-1">
                   <AdminColorPicker
                     value={draft.highlight?.color ?? draft.colors.accent}
@@ -282,7 +286,9 @@ function KeyTakeawaysAdmin() {
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">
-                  {isPL ? `Rozmiar napisu (${(draft.highlight?.sizeScale ?? 1).toFixed(2)}x)` : `Text size (${(draft.highlight?.sizeScale ?? 1).toFixed(2)}x)`}
+                  {isPL
+                    ? `Rozmiar napisu (${(draft.highlight?.sizeScale ?? 1).toFixed(2)}x)`
+                    : `Text size (${(draft.highlight?.sizeScale ?? 1).toFixed(2)}x)`}
                 </Label>
                 <input
                   type="range"
@@ -326,9 +332,7 @@ function KeyTakeawaysAdmin() {
                   <button
                     type="button"
                     className="underline hover:text-foreground"
-                    onClick={() =>
-                      update("highlight", { ...draft.highlight, offsetY: 0 })
-                    }
+                    onClick={() => update("highlight", { ...draft.highlight, offsetY: 0 })}
                   >
                     0
                   </button>
@@ -346,7 +350,8 @@ function KeyTakeawaysAdmin() {
             <div className="grid grid-cols-6 gap-1.5 mb-2">
               {ICON_CHOICES.map((name) => {
                 const active =
-                  draft.icon.toLowerCase() === name || draft.icon.toLowerCase() === name.replace(/-/g, "");
+                  draft.icon.toLowerCase() === name ||
+                  draft.icon.toLowerCase() === name.replace(/-/g, "");
                 return (
                   <button
                     key={name}
@@ -379,9 +384,7 @@ function KeyTakeawaysAdmin() {
 
           {/* Kolory */}
           <section>
-            <Label className="text-sm font-semibold mb-2 block">
-              {isPL ? "Kolory" : "Colors"}
-            </Label>
+            <Label className="text-sm font-semibold mb-2 block">{isPL ? "Kolory" : "Colors"}</Label>
             <div className="grid grid-cols-2 gap-3">
               <ColorRow
                 label={isPL ? "Tło (jasny)" : "Background (light)"}
@@ -515,7 +518,6 @@ function KeyTakeawaysAdmin() {
             </TabsContent>
           </Tabs>
 
-
           <div className="mt-6 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
             {isPL
               ? "Podgląd renderuje ten sam komponent co strona publiczna wpisu (nad treścią). Punkty listy pochodzą z pól \u201eZ tego materiału dowiesz się...\u201d w edytorze konkretnego wpisu (PL / EN)."
@@ -539,11 +541,7 @@ function ColorRow({
   return (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <AdminColorPicker
-        value={value}
-        onChange={(v) => onChange(v ?? "")}
-        ariaLabel={label}
-      />
+      <AdminColorPicker value={value} onChange={(v) => onChange(v ?? "")} ariaLabel={label} />
     </div>
   );
 }

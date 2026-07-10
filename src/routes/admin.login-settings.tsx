@@ -114,8 +114,9 @@ function LoginSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Obraz po prawej stronie formularza logowania. Dwie wersje – dla jasnego i ciemnego
                 motywu – zapewniają kontrast i czytelność. <br />
-                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do karty hero), minimum 1200 × 900
-                px. Format WebP/JPG, waga do 400 KB. Focal point centralnie lub po prawej.
+                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do
+                karty hero), minimum 1200 × 900 px. Format WebP/JPG, waga do 400 KB. Focal point
+                centralnie lub po prawej.
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
@@ -148,8 +149,8 @@ function LoginSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Widoczne po kliknięciu „Zapomniałeś hasła?". Jeśli puste – używana jest ilustracja
                 logowania. <br />
-                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3), format WebP/JPG, waga
-                do 400 KB.
+                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3), format WebP/JPG,
+                waga do 400 KB.
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
@@ -179,8 +180,8 @@ function LoginSettingsPage() {
               <h2 className="font-semibold text-base">Pełnoekranowe tło</h2>
               <p className="text-xs text-muted-foreground">
                 Używane, gdy formularz jest w trybie full-page. Zalecane wymiary:{" "}
-                <strong>1920 × 1080 px</strong> (16:9), format WebP, waga do 500 KB. Preferuj
-                obrazy z niskim kontrastem centralnym, żeby nie konkurowały z formularzem.
+                <strong>1920 × 1080 px</strong> (16:9), format WebP, waga do 500 KB. Preferuj obrazy
+                z niskim kontrastem centralnym, żeby nie konkurowały z formularzem.
               </p>
             </header>
             <ImageField
@@ -288,8 +289,8 @@ function LoginSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Obraz po prawej stronie formularza rejestracji. Jeśli puste – używana jest
                 ilustracja logowania. <br />
-                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do karty hero), minimum 1200 × 900
-                px. Format WebP/JPG, waga do 400 KB.
+                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do
+                karty hero), minimum 1200 × 900 px. Format WebP/JPG, waga do 400 KB.
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">

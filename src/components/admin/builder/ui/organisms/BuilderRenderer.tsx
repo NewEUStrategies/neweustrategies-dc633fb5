@@ -676,23 +676,33 @@ const RenderColumn = memo(function RenderColumn({
                     <a
                       href={w.advanced.link.url}
                       target={w.advanced.link.target ?? "_self"}
-                      rel={[
-                        w.advanced.link.target === "_blank" ? "noopener noreferrer" : "",
-                        w.advanced.link.nofollow ? "nofollow" : "",
-                        w.advanced.link.rel ?? "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ") || undefined}
+                      rel={
+                        [
+                          w.advanced.link.target === "_blank" ? "noopener noreferrer" : "",
+                          w.advanced.link.nofollow ? "nofollow" : "",
+                          w.advanced.link.rel ?? "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ") || undefined
+                      }
                       aria-label={w.advanced.link.ariaLabel ?? undefined}
                       className="absolute inset-0 z-0"
                       data-widget-link="1"
                     >
                       <span className="sr-only">
-                        {w.advanced.link.ariaLabel ?? w.advanced.link.refLabel ?? w.advanced.link.url}
+                        {w.advanced.link.ariaLabel ??
+                          w.advanced.link.refLabel ??
+                          w.advanced.link.url}
                       </span>
                     </a>
                   )}
-                  <div className={w.advanced?.link?.url ? "relative z-10 pointer-events-none [&_a,&_button,&_input,&_select,&_textarea,&_video,&_audio,&_iframe,&_[role=button],&_[tabindex]]:pointer-events-auto" : "contents"}>
+                  <div
+                    className={
+                      w.advanced?.link?.url
+                        ? "relative z-10 pointer-events-none [&_a,&_button,&_input,&_select,&_textarea,&_video,&_audio,&_iframe,&_[role=button],&_[tabindex]]:pointer-events-auto"
+                        : "contents"
+                    }
+                  >
                     <WidgetView node={w} lang={lang} device={device} />
                   </div>
                 </div>
@@ -700,7 +710,6 @@ const RenderColumn = memo(function RenderColumn({
             </div>
           );
         };
-
 
         if (g.inline) {
           return (

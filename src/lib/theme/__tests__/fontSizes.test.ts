@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  FONT_SIZES_DEFAULTS,
-  HEADING_LEVELS,
-  fontSizesToCss,
-} from "@/lib/theme/fontSizes";
+import { FONT_SIZES_DEFAULTS, HEADING_LEVELS, fontSizesToCss } from "@/lib/theme/fontSizes";
 
 describe("fontSizes", () => {
   it("provides sensible defaults for every heading", () => {

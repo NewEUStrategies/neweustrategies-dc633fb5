@@ -1043,14 +1043,24 @@ function EditPost() {
               label: "Treść",
               tabs: [
                 { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
-                { id: "takeaways", label: "Dowiesz się…", icon: ListChecks, hint: "Kluczowe punkty PL/EN + wariant" },
+                {
+                  id: "takeaways",
+                  label: "Dowiesz się…",
+                  icon: ListChecks,
+                  hint: "Kluczowe punkty PL/EN + wariant",
+                },
               ],
             },
             {
               id: "structure",
               label: "Struktura",
               tabs: [
-                { id: "settings", label: "Ustawienia strony", icon: SettingsIcon, hint: "Spis treści · Ochrona treści" },
+                {
+                  id: "settings",
+                  label: "Ustawienia strony",
+                  icon: SettingsIcon,
+                  hint: "Spis treści · Ochrona treści",
+                },
                 { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
                 { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
                 { id: "related", label: "Powiązane wpisy", icon: LinkIconLucide, hint: "Override" },
@@ -1060,7 +1070,12 @@ function EditPost() {
               id: "seo",
               label: "SEO i meta",
               tabs: [
-                { id: "seo", label: "SEO i podgląd", icon: Search, hint: "Meta title/description, OG" },
+                {
+                  id: "seo",
+                  label: "SEO i podgląd",
+                  icon: Search,
+                  hint: "Meta title/description, OG",
+                },
                 { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
               ],
             },
@@ -1068,16 +1083,19 @@ function EditPost() {
               id: "publication",
               label: "Publikacja",
               tabs: [
-                { id: "publish", label: "Publikacja", icon: SettingsIcon, hint: "Status, slug, cover" },
+                {
+                  id: "publish",
+                  label: "Publikacja",
+                  icon: SettingsIcon,
+                  hint: "Status, slug, cover",
+                },
                 { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
               ],
             },
             {
               id: "history",
               label: "Historia",
-              tabs: [
-                { id: "revisions", label: "Historia zmian", icon: History },
-              ],
+              tabs: [{ id: "revisions", label: "Historia zmian", icon: History }],
             },
           ];
           return (
@@ -1105,7 +1123,9 @@ function EditPost() {
                                   : "text-foreground hover:bg-muted"
                               }`}
                             >
-                              <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`} />
+                              <Icon
+                                className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`}
+                              />
                               <span className="flex-1 min-w-0">
                                 <span className="block font-medium leading-tight">{tab.label}</span>
                                 {tab.hint && (
@@ -1159,7 +1179,9 @@ function EditPost() {
                       layoutOverrides={form.layout_overrides}
                       selectedCatNames={(allCats ?? [])
                         .filter((c) => selectedCats.includes(c.id))
-                        .map((c) => (uiLang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en))}
+                        .map((c) =>
+                          uiLang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
+                        )}
                       selectedTagNames={(allTags ?? [])
                         .filter((tg) => selectedTags.includes(tg.id))
                         .map((tg) => tg.name)}
@@ -1183,7 +1205,8 @@ function EditPost() {
                       <header className="px-4 py-3 border-b border-border bg-muted/30">
                         <h3 className="text-sm font-semibold">Dowiesz się…</h3>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Kluczowe punkty wpisu w PL i EN. Wybierz wariant wizualny lub zostaw globalny.
+                          Kluczowe punkty wpisu w PL i EN. Wybierz wariant wizualny lub zostaw
+                          globalny.
                         </p>
                       </header>
                       <div className="p-4">
@@ -1254,7 +1277,9 @@ function EditPost() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h2 className="text-lg font-display font-semibold">Powiązane wpisy - override</h2>
+                          <h2 className="text-lg font-display font-semibold">
+                            Powiązane wpisy - override
+                          </h2>
                           <p className="text-xs text-muted-foreground">
                             Nadpisuje globalną konfigurację dla tego wpisu.
                           </p>
@@ -1265,7 +1290,9 @@ function EditPost() {
                       </div>
                       <RelatedOverrideEditor
                         value={form.related_override}
-                        onChange={(next: Record<string, unknown> | null) => set("related_override", next)}
+                        onChange={(next: Record<string, unknown> | null) =>
+                          set("related_override", next)
+                        }
                       />
                     </div>
                   )}
@@ -1286,7 +1313,11 @@ function EditPost() {
                   )}
 
                   {detailsTab === "revisions" && (
-                    <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
+                    <RevisionsCard
+                      entityType="post"
+                      entityId={id}
+                      onRestored={onRevisionRestored}
+                    />
                   )}
 
                   <div className="flex justify-end pt-2 border-t border-border">

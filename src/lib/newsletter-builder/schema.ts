@@ -9,7 +9,10 @@ const NlI18n = z.object({
   en: z.string().max(4000).default(""),
 });
 
-const BaseWidget = { id: z.string().min(1).max(64), col: z.union([z.literal(0), z.literal(1)]).optional() };
+const BaseWidget = {
+  id: z.string().min(1).max(64),
+  col: z.union([z.literal(0), z.literal(1)]).optional(),
+};
 
 export const NlWidgetSchema = z.discriminatedUnion("type", [
   z.object({
@@ -179,10 +182,7 @@ export const NlSectionSchema = z.object({
   // Dozwolone tylko "single" i "1-1". Legacy wartosci ("1-2", "2-1") sa
   // konwertowane do "1-1" dla zachowania kompatybilnosci danych.
   layout: z
-    .preprocess(
-      (v) => (v === "1-2" || v === "2-1" ? "1-1" : v),
-      z.enum(["single", "1-1"]),
-    )
+    .preprocess((v) => (v === "1-2" || v === "2-1" ? "1-1" : v), z.enum(["single", "1-1"]))
     .optional(),
   media: NlSectionMediaSchema.nullish(),
 });

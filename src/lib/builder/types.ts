@@ -199,7 +199,6 @@ export interface WidgetLink {
   ariaLabel?: string;
 }
 
-
 // ---------- Section-specific settings (Elementor-style) ----------
 
 export type ContentWidth = "boxed" | "full";

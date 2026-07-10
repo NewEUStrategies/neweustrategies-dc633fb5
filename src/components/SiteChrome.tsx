@@ -4,15 +4,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
-import { useAuth } from "@/hooks/useAuth";
-
-// Floating chat dock (Messenger-style). Lazy AND gated on an actual session
-// below: React.lazy fetches its chunk the moment the element renders, so the
-// element must not render for guests at all - otherwise every anonymous page
-// view downloads the chat code just to render null.
-const ChatDock = lazy(() =>
-  import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
-);
+import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
@@ -54,6 +46,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
+        {isAdmin && <SkipToContentLink />}
         <ImpersonationBanner />
         <RouteProgress />
         {children}
@@ -64,10 +57,11 @@ export function SiteChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <SkipToContentLink />
       <ImpersonationBanner />
       <RouteProgress />
       <Header />
-      <main className="flex-1" style={{ viewTransitionName: "site-main" }}>
+      <main id="main-content" className="flex-1" style={{ viewTransitionName: "site-main" }}>
         {children}
       </main>
       <Footer />

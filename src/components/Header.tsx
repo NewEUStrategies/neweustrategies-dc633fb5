@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { memo, Suspense, useEffect, useState } from "react";
+import { memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
@@ -17,6 +17,7 @@ import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type ThemeLogoCfg = {
   logo?: {
@@ -59,7 +60,9 @@ function HeaderInner() {
     : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
 
   const [open, setOpen] = useState(false);
+  const drawerPanelRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  useFocusTrap(drawerPanelRef, open);
 
   // Close the drawer on route change and lock body scroll while open.
   useEffect(() => {
@@ -165,11 +168,15 @@ function HeaderInner() {
           >
             <button
               type="button"
-              aria-label={closeA11y}
+              tabIndex={-1}
+              aria-hidden="true"
               onClick={() => setOpen(false)}
               className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in"
             />
-            <div className="absolute inset-y-0 right-0 w-[min(88vw,360px)] bg-background shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
+            <div
+              ref={drawerPanelRef}
+              className="absolute inset-y-0 right-0 w-[min(88vw,360px)] bg-background shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
+            >
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
                 <span className="text-sm font-bold tracking-wider uppercase text-muted-foreground">
                   {isPl ? "Menu" : "Menu"}

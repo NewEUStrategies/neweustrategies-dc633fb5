@@ -476,9 +476,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // (fallback 1200 px). Bez tego, mimo ustawień w kokpicie, treść zawsze
   // "wpadałaby" w wąski kontener i po bokach zostawałaby pusta przestrzeń.
   const outerMaxWidthPx =
-    (globalLayoutSettings?.wide_align_max_width && globalLayoutSettings.wide_align_max_width > 0
+    globalLayoutSettings?.wide_align_max_width && globalLayoutSettings.wide_align_max_width > 0
       ? globalLayoutSettings.wide_align_max_width
-      : 1200);
+      : 1200;
   const outerMaxStyle = { maxWidth: `${outerMaxWidthPx}px` } as const;
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
@@ -606,10 +606,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
-        <main
-          style={outerMaxStyle}
-          className="flex-1 w-full mx-auto px-4 lg:px-8 py-10"
-        >
+        <main style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
           <Breadcrumbs items={crumbs} />
           <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
           <PostLayoutRenderer

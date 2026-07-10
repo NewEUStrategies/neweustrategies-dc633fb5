@@ -243,8 +243,7 @@ function PopupsList() {
             </DialogTitle>
             <DialogDescription>
               {t("admin.popups.newDialog.desc", {
-                defaultValue:
-                  "Podaj nazwe roboczą - bedzie widoczna wylacznie w panelu admina.",
+                defaultValue: "Podaj nazwe roboczą - bedzie widoczna wylacznie w panelu admina.",
               })}
             </DialogDescription>
           </DialogHeader>

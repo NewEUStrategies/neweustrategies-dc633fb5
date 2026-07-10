@@ -88,7 +88,6 @@ const INITIAL_TTS: TtsProgress = {
   elapsedMs: 0,
 };
 
-
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
 
 // Cache blob URL na sesję. Ten sam artykuł ⇒ ten sam blob (bez ponownego TTS).
@@ -119,7 +118,6 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const [error, setError] = useState<string | null>(null);
   const [tts, setTts] = useState<TtsProgress>(INITIAL_TTS);
 
-
   // Lazy audio element - tworzymy w efekcie, żeby nie ruszać `Audio` w SSR.
   useEffect(() => {
     if (audioRef.current || typeof window === "undefined") return;
@@ -146,108 +144,104 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     };
   }, []);
 
-  const fetchBlob = useCallback(
-    async (postId: string, lang: "pl" | "en"): Promise<string> => {
-      const key = cacheKey(postId, lang);
-      const cached = audioBlobCache.get(key);
-      if (cached) {
-        setTts({
-          stage: "cached",
-          percent: 100,
-          bytes: 0,
-          totalBytes: null,
-          elapsedMs: 0,
-        });
-        return cached;
-      }
-
-      const startedAt = performance.now();
+  const fetchBlob = useCallback(async (postId: string, lang: "pl" | "en"): Promise<string> => {
+    const key = cacheKey(postId, lang);
+    const cached = audioBlobCache.get(key);
+    if (cached) {
       setTts({
-        stage: "preparing",
-        percent: 0,
+        stage: "cached",
+        percent: 100,
         bytes: 0,
         totalBytes: null,
         elapsedMs: 0,
       });
+      return cached;
+    }
 
-      const res = await fetch("/api/public/post-tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, lang }),
-      });
+    const startedAt = performance.now();
+    setTts({
+      stage: "preparing",
+      percent: 0,
+      bytes: 0,
+      totalBytes: null,
+      elapsedMs: 0,
+    });
 
-      if (!res.ok) {
-        const msg = await res.text().catch(() => "");
-        setTts({
-          stage: "error",
-          percent: 0,
-          bytes: 0,
-          totalBytes: null,
-          elapsedMs: performance.now() - startedAt,
-        });
-        throw new Error(msg || `HTTP ${res.status}`);
-      }
+    const res = await fetch("/api/public/post-tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId, lang }),
+    });
 
-      // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
-      const totalHeader = res.headers.get("content-length");
-      const totalBytes = totalHeader ? Number(totalHeader) : null;
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
       setTts({
-        stage: "synthesizing",
+        stage: "error",
         percent: 0,
         bytes: 0,
-        totalBytes,
+        totalBytes: null,
         elapsedMs: performance.now() - startedAt,
       });
+      throw new Error(msg || `HTTP ${res.status}`);
+    }
 
-      // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
-      // `res.blob()` gdy body nie jest czytelne (np. stary browser).
-      let blob: Blob;
-      const body = res.body;
-      if (body && typeof body.getReader === "function") {
-        const reader = body.getReader();
-        const chunks: Uint8Array[] = [];
-        let received = 0;
-        let announcedStreaming = false;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            received += value.byteLength;
-            if (!announcedStreaming) {
-              announcedStreaming = true;
-            }
-            setTts({
-              stage: "streaming",
-              percent:
-                totalBytes && totalBytes > 0
-                  ? Math.min(99, Math.round((received / totalBytes) * 100))
-                  : 0,
-              bytes: received,
-              totalBytes,
-              elapsedMs: performance.now() - startedAt,
-            });
+    // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
+    const totalHeader = res.headers.get("content-length");
+    const totalBytes = totalHeader ? Number(totalHeader) : null;
+    setTts({
+      stage: "synthesizing",
+      percent: 0,
+      bytes: 0,
+      totalBytes,
+      elapsedMs: performance.now() - startedAt,
+    });
+
+    // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
+    // `res.blob()` gdy body nie jest czytelne (np. stary browser).
+    let blob: Blob;
+    const body = res.body;
+    if (body && typeof body.getReader === "function") {
+      const reader = body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      let announcedStreaming = false;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+          if (!announcedStreaming) {
+            announcedStreaming = true;
           }
+          setTts({
+            stage: "streaming",
+            percent:
+              totalBytes && totalBytes > 0
+                ? Math.min(99, Math.round((received / totalBytes) * 100))
+                : 0,
+            bytes: received,
+            totalBytes,
+            elapsedMs: performance.now() - startedAt,
+          });
         }
-        blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
-      } else {
-        blob = await res.blob();
       }
+      blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
+    } else {
+      blob = await res.blob();
+    }
 
-      const url = URL.createObjectURL(blob);
-      audioBlobCache.set(key, url);
-      setTts({
-        stage: "ready",
-        percent: 100,
-        bytes: blob.size,
-        totalBytes: totalBytes ?? blob.size,
-        elapsedMs: performance.now() - startedAt,
-      });
-      return url;
-    },
-    [],
-  );
-
+    const url = URL.createObjectURL(blob);
+    audioBlobCache.set(key, url);
+    setTts({
+      stage: "ready",
+      percent: 100,
+      bytes: blob.size,
+      totalBytes: totalBytes ?? blob.size,
+      elapsedMs: performance.now() - startedAt,
+    });
+    return url;
+  }, []);
 
   const loadAndPlay = useCallback(
     async (meta: AudioTrackMeta) => {
@@ -335,8 +329,6 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     [track, fetchBlob],
   );
 
-
-
   const isActive = useCallback(
     (postId: string, lang: "pl" | "en") =>
       !!track && track.postId === postId && track.lang === lang,
@@ -379,7 +371,6 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       download,
     ],
   );
-
 
   return <GlobalPlayerContext.Provider value={value}>{children}</GlobalPlayerContext.Provider>;
 }

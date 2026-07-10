@@ -8,14 +8,7 @@
 
 export type Lang = "pl" | "en";
 
-export type CustomFieldType =
-  | "text"
-  | "email"
-  | "tel"
-  | "url"
-  | "textarea"
-  | "select"
-  | "checkbox";
+export type CustomFieldType = "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox";
 
 export interface CustomFieldOption {
   value: string;
@@ -41,12 +34,7 @@ type Cfg = Record<string, unknown>;
  * Read a per-language override from a widget config with a safe fallback.
  * Overrides use the pattern `${key}_${lang}` (e.g. `firstNameLabel_pl`).
  */
-export function readI18nOverride(
-  data: Cfg,
-  baseKey: string,
-  lang: Lang,
-  fallback: string,
-): string {
+export function readI18nOverride(data: Cfg, baseKey: string, lang: Lang, fallback: string): string {
   const v = data[`${baseKey}_${lang}`];
   if (typeof v === "string" && v.trim()) return v;
   const vAlt = data[`${baseKey}_${lang === "pl" ? "en" : "pl"}`];
@@ -122,9 +110,9 @@ export function parseCustomFields(raw: unknown): CustomField[] {
     const id = toStr(obj.id, 64);
     if (!id || seen.has(id)) continue;
     const rawType = typeof obj.type === "string" ? obj.type.toLowerCase() : "text";
-    const type = (ALLOWED_TYPES.has(rawType as CustomFieldType)
-      ? rawType
-      : "text") as CustomFieldType;
+    const type = (
+      ALLOWED_TYPES.has(rawType as CustomFieldType) ? rawType : "text"
+    ) as CustomFieldType;
 
     out.push({
       id,

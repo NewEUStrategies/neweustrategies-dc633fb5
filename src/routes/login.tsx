@@ -376,7 +376,7 @@ function LoginPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={isPl ? "Jan Kowalski" : "Jane Doe"}
-                  className="pl-11 h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="icon-input h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
               </Field>
             )}
@@ -389,7 +389,7 @@ function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="youremail@example.com"
-                className="pl-11 h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="icon-input h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
               />
             </Field>
 
@@ -417,7 +417,7 @@ function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={isPl ? "Minimum 6 znaków" : "At least 6 characters"}
-                  className="pl-11 pr-11 h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="icon-input icon-input-with-action h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
                 <button
                   type="button"

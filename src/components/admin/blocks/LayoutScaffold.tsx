@@ -15,7 +15,6 @@ import {
   type LayoutPreset,
 } from "@/lib/postLayouts";
 
-
 interface Props {
   format: PostFormat;
   layoutId: string;
@@ -92,7 +91,14 @@ function ScaffoldMetaPreview({ lang = "pl" as "pl" | "en" }: { lang?: "pl" | "en
   return (
     <>
       <span className="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="w-3.5 h-3.5 opacity-80"
+          aria-hidden
+        >
           <circle cx="12" cy="8" r="4" />
           <path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
         </svg>
@@ -100,7 +106,14 @@ function ScaffoldMetaPreview({ lang = "pl" as "pl" | "en" }: { lang?: "pl" | "en
         <span className="font-medium underline">{L.name}</span>
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="w-3.5 h-3.5 opacity-80"
+          aria-hidden
+        >
           <rect x="3" y="4" width="18" height="18" rx="2" />
           <path d="M16 2v4M8 2v4M3 10h18" />
         </svg>
@@ -108,7 +121,14 @@ function ScaffoldMetaPreview({ lang = "pl" as "pl" | "en" }: { lang?: "pl" | "en
         <span>DD/MM/YYYY</span>
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="w-3.5 h-3.5 opacity-80"
+          aria-hidden
+        >
           <circle cx="12" cy="12" r="9" />
           <path d="M12 7v5l3 2" />
         </svg>
@@ -140,10 +160,7 @@ function Header({
 }) {
   const { t } = useTranslation();
   return (
-    <div
-      className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}
-      style={headerTypographyStyle(settings)}
-    >
+    <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`} style={headerTypographyStyle(settings)}>
       <ZoneTag
         label={
           center
@@ -169,7 +186,7 @@ function Header({
         ) : (
           <p className="text-xs text-muted-foreground/60 mb-4">
             {t("admin.layoutScaffold.excerptPlaceholder", {
-              defaultValue: "Excerpt - uzupełnij w „Szczegóły\"",
+              defaultValue: 'Excerpt - uzupełnij w „Szczegóły"',
             })}
           </p>
         )}
@@ -182,7 +199,6 @@ function Header({
     </div>
   );
 }
-
 
 function OverlayCover({
   url,
@@ -232,8 +248,7 @@ function OverlayCover({
           </div>
 
           <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.1] mb-2 text-white">
-            {title ||
-              t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+            {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
           </h1>
 
           {excerpt && (
@@ -259,7 +274,6 @@ function OverlayCover({
   );
 }
 
-
 function SideBySide({
   url,
   title,
@@ -273,10 +287,7 @@ function SideBySide({
 }) {
   const { t } = useTranslation();
   return (
-    <div
-      className="grid lg:grid-cols-2 gap-4 items-center"
-      style={headerTypographyStyle(settings)}
-    >
+    <div className="grid lg:grid-cols-2 gap-4 items-center" style={headerTypographyStyle(settings)}>
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
         <ZoneTag
           label={t("admin.layoutScaffold.sideBySide.cover", { defaultValue: "Cover - side" })}
@@ -286,8 +297,7 @@ function SideBySide({
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
         <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
         <p className="font-display header-title-typography font-bold leading-[1.1]">
-          {title ||
-            t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+          {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
         {excerpt && (
           <p className="header-excerpt-typography text-muted-foreground mt-2">{excerpt}</p>
@@ -296,7 +306,6 @@ function SideBySide({
     </div>
   );
 }
-
 
 function FooterBars({ s }: { s: PostLayoutSettings }) {
   const { t } = useTranslation();
@@ -329,9 +338,7 @@ function FooterBars({ s }: { s: PostLayoutSettings }) {
   if (!enabled.length) return null;
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-4`}>
-      <ZoneTag
-        label={t("admin.layoutScaffold.footer.label", { defaultValue: "Stopka wpisu" })}
-      />
+      <ZoneTag label={t("admin.layoutScaffold.footer.label", { defaultValue: "Stopka wpisu" })} />
       <div className="flex flex-wrap gap-1.5">
         {enabled.map(([label]) => (
           <span
@@ -415,7 +422,6 @@ export function LayoutScaffold({
     );
   })();
 
-
   const contentZone = (
     <div className={`relative pt-6 ${ZONE} p-4 mt-4`}>
       <ZoneTag
@@ -461,7 +467,6 @@ export function LayoutScaffold({
           </span>
         )}
       </div>
-
 
       {topZone}
 
