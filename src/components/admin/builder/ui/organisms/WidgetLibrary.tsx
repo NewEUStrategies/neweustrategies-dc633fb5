@@ -271,13 +271,14 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }:
                           e.dataTransfer.setData("application/x-widget-type", w.type);
                           e.dataTransfer.effectAllowed = "copy";
                         }}
-                        className="h-16 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group cursor-grab active:cursor-grabbing select-none"
+                        className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
                         title={`Przeciągnij na sekcję: ${w.label}`}
                       >
-                        <Icon className="w-4 h-4 text-brand group-hover:text-brand" />
-                        <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
+                        <Icon className="w-3.5 h-3.5 text-brand group-hover:text-brand" />
+                        <span className="text-[8px] text-center leading-[1.05] text-foreground group-hover:text-brand line-clamp-2">
                           {w.label}
                         </span>
+
                       </div>
                     );
                   })}
