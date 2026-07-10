@@ -8,7 +8,41 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
-type NotificationKind = "system" | "comment" | "follow" | "subscription" | "content" | "security";
+export type NotificationKind =
+  | "system"
+  | "comment"
+  | "follow"
+  | "subscription"
+  | "content"
+  | "security"
+  | "message";
+
+export interface NotificationPreferences {
+  enabled_message: boolean;
+  enabled_comment: boolean;
+  enabled_follow: boolean;
+  enabled_subscription: boolean;
+  enabled_content: boolean;
+  enabled_system: boolean;
+  enabled_security: boolean;
+  auto_mark_on_open: boolean;
+  group_by_conversation: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  enabled_message: true,
+  enabled_comment: true,
+  enabled_follow: true,
+  enabled_subscription: true,
+  enabled_content: true,
+  enabled_system: true,
+  enabled_security: true,
+  auto_mark_on_open: true,
+  group_by_conversation: true,
+};
+
+const prefsKey = (uid: string | undefined) =>
+  ["notifications", "preferences", uid ?? "anon"] as const;
 
 const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
   ["notifications", uid ?? "anon", filter] as const;
