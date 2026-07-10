@@ -175,9 +175,9 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   <button
                     type="button"
                     onClick={() => setMode("new")}
-                    className="inline-flex items-center gap-1 rounded-[6px] bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                    className="inline-flex items-center gap-1 rounded-[6px] bg-primary px-1.5 py-0.5 text-[9px] font-medium leading-none text-primary-foreground transition-opacity hover:opacity-90"
                   >
-                    <SquarePen className="h-3 w-3" aria-hidden />
+                    <SquarePen className="h-2.5 w-2.5" aria-hidden />
                     {t("chat.newMessage")}
                   </button>
                 </div>
