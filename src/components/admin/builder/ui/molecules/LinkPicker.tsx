@@ -270,7 +270,7 @@ function EntityPicker({
         />
       </div>
       {q.trim().length >= 2 && (
-        <div className="max-h-48 overflow-y-auto rounded border border-border bg-popover">
+        <div className="max-h-64 overflow-y-auto overscroll-contain rounded border border-border bg-popover">
           {isFetching && (
             <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
               {lang === "pl" ? "Wczytywanie..." : "Loading..."}
