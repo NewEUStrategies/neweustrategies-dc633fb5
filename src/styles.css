@@ -193,6 +193,11 @@
   --ring: oklch(0.98 0 0);
   --brand: #fa9346;
   --brand-foreground: #141414;
+  --chat-user-from: #f8934a;
+  --chat-user-to: #d95a12;
+  --chat-user-foreground: #ffffff;
+  --chat-user-tick: #ffffff;
+  --chat-user-tick-read: #7ee2ff;
 
   --cat-military: oklch(0.68 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
