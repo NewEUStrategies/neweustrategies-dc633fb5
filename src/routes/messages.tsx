@@ -56,8 +56,21 @@ function MessagesInner() {
   const { t, i18n } = useTranslation();
   const lang: ChatLang = i18n.language === "en" ? "en" : "pl";
   const { user } = useAuth();
-  const { c } = Route.useSearch();
+  const { c, view } = Route.useSearch();
   const navigate = Route.useNavigate();
+  const activeView: MessagesView = view === "notifications" ? "notifications" : "chats";
+  const unreadNotifQ = useUnreadCount();
+  const unreadNotif = unreadNotifQ.data ?? 0;
+
+  const setActiveView = (v: MessagesView) => {
+    void navigate({
+      search: (prev) => ({
+        ...prev,
+        view: v === "chats" ? undefined : v,
+      }),
+      replace: true,
+    });
+  };
 
   useChatListRealtime();
   const online = useOnlineUsers();
