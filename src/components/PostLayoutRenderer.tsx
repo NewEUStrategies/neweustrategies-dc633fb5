@@ -13,7 +13,6 @@ import {
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
 
-
 interface Props {
   format: PostFormat;
   layoutId: string;
@@ -26,6 +25,12 @@ interface Props {
   content: ReactNode;
   sidebar?: ReactNode;
   footer?: ReactNode;
+  /**
+   * Id wpisu dla morph-przejścia okładki (View Transitions API). Musi być tym
+   * samym id, które listy przekazują do PostListCard.viewTransitionId - para
+   * `post-cover-<id>` po obu stronach nawigacji tworzy płynny morph okładki.
+   */
+  coverViewTransitionId?: string;
 }
 
 export function PostLayoutRenderer({
@@ -40,6 +45,7 @@ export function PostLayoutRenderer({
   content,
   sidebar,
   footer,
+  coverViewTransitionId,
 }: Props) {
   const preset = findLayout(format, layoutId);
   const hasSidebar = effectiveHasSidebar(preset, settings);
@@ -56,12 +62,8 @@ export function PostLayoutRenderer({
           {categoryBadges}
         </div>
       )}
-      <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4">
-        {title}
-      </h1>
-      {excerpt && (
-        <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
-      )}
+      <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4">{title}</h1>
+      {excerpt && <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>}
       {meta && (
         <div
           className={`cms-meta cms-meta-info ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
@@ -106,7 +108,6 @@ export function PostLayoutRenderer({
     </div>
   );
 
-
   // Wrapper dla cover + overlay. Full-bleed używa filmowego kadru 16/8
   // (jak w podglądzie edytora) - nie 70vh, żeby cover nie zajmował całego
   // ekranu i tytuł/subtytuł/meta trafiały w wyraźny dolny pas nakładki.
@@ -129,7 +130,13 @@ export function PostLayoutRenderer({
         <div className="relative mb-8">
           <div
             className={`relative ${heightClass} overflow-hidden bg-neutral-900`}
-            style={{ ...aspectStyle, borderRadius: "6px" }}
+            style={{
+              ...aspectStyle,
+              borderRadius: "6px",
+              ...(coverViewTransitionId
+                ? { viewTransitionName: `post-cover-${coverViewTransitionId}` }
+                : null),
+            }}
           >
             <OptimizedImage
               src={coverImageUrl}

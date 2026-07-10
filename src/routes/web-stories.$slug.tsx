@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { webStoryBySlugQueryOptions, latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { StoryViewer } from "@/components/web-stories/StoryViewer";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { storyTitle, storyDescription } from "@/lib/web-stories/types";
 
 export const Route = createFileRoute("/web-stories/$slug")({
@@ -51,9 +52,12 @@ function WebStorySinglePage() {
         className="relative aspect-[9/16] sm:aspect-video w-full overflow-hidden rounded-xl border border-border bg-black"
       >
         {story.cover_url && (
-          <img
+          <OptimizedImage
             src={story.cover_url}
             alt={title}
+            priority
+            responsive
+            sizes="(max-width: 896px) 100vw, 896px"
             className="absolute inset-0 w-full h-full object-cover"
           />
         )}

@@ -43,6 +43,8 @@ import {
   LogIn as LLogIn,
   LogOut as LLogOut,
   Mail as LMail,
+  LineChart as LLineChart,
+  Globe2 as LGlobe2,
   MapPin as LMapPin,
   Megaphone as LMegaphone,
   Menu as LMenu,
@@ -214,6 +216,8 @@ export const ListOrdered = makeIcon("ListOrdered", LListOrdered);
 export const LogIn = makeIcon("LogIn", LLogIn);
 export const LogOut = makeIcon("LogOut", LLogOut);
 export const Mail = makeIcon("Mail", LMail);
+export const LineChart = makeIcon("LineChart", LLineChart);
+export const Globe2 = makeIcon("Globe2", LGlobe2);
 export const MapPin = makeIcon("MapPin", LMapPin);
 export const Megaphone = makeIcon("Megaphone", LMegaphone);
 export const Menu = makeIcon("Menu", LMenu);

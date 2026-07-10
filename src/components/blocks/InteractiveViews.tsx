@@ -4,6 +4,7 @@
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
 import { ChevronDown } from "lucide-react";
 
 type Lang = "pl" | "en";
@@ -264,8 +265,12 @@ export function ProgressView({
 }: ProgressProps) {
   const v = Math.max(0, Math.min(100, value));
   const fill = PROGRESS_COLORS[color];
+  // Wypełnienie animuje się od 0 przy pierwszym wejściu w viewport; SSR,
+  // elementy widoczne od razu i prefers-reduced-motion pokazują stan końcowy
+  // natychmiast (współdzielony wzorzec useRevealOnScroll - zero migotania).
+  const { ref, state } = useRevealOnScroll<HTMLDivElement>(true);
   return (
-    <div className={`w-full space-y-1.5 ${cls ?? ""}`}>
+    <div ref={ref} className={`w-full space-y-1.5 ${cls ?? ""}`}>
       {label || showValue ? (
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium text-foreground">{label}</span>
@@ -281,8 +286,8 @@ export function ProgressView({
         aria-label={label || undefined}
       >
         <div
-          className={`h-full ${fill} transition-[width] duration-500`}
-          style={{ width: `${v}%` }}
+          className={`h-full ${fill} transition-[width] duration-700 ease-out motion-reduce:transition-none`}
+          style={{ width: `${state === "armed" ? 0 : v}%` }}
         />
       </div>
     </div>

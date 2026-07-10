@@ -13,6 +13,7 @@ import {
   safeImageUrl,
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
 import {
@@ -40,6 +41,8 @@ import {
   TabsBlock,
   AdSlotById,
   RichTextView,
+  ChartWidgetView,
+  DataMapWidgetView,
 } from "./ui/organisms/widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -108,8 +111,13 @@ export const WidgetView = memo(function WidgetView({
   const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
+  // prefers-reduced-motion disables enter animations entirely (final state
+  // renders immediately). The hook returns false during SSR + first client
+  // render, so hydration stays byte-identical and the flip happens one commit
+  // after mount - before the IntersectionObserver would have fired anyway.
+  const reducedMotion = usePrefersReducedMotion();
   const motion =
-    node.advanced?.animation && node.advanced.animation !== "none"
+    !reducedMotion && node.advanced?.animation && node.advanced.animation !== "none"
       ? node.advanced.animation
       : undefined;
 
@@ -122,11 +130,21 @@ export const WidgetView = memo(function WidgetView({
   const dist = node.advanced?.animationDistance ?? 24;
   const ease = EASING_MAP[node.advanced?.animationEasing ?? "ease-out"] ?? "ease-out";
   const motionStyle: CSSProperties = motion
-    ? {
-        ...(inView ? MOTION_FINAL : (MOTION_INITIAL[motion]?.(dist) ?? {})),
-        transition: `opacity ${dur}ms ${ease} ${delay}ms, transform ${dur}ms ${ease} ${delay}ms, filter ${dur}ms ${ease} ${delay}ms, clip-path ${dur}ms ${ease} ${delay}ms`,
-        willChange: "opacity, transform, filter, clip-path",
-      }
+    ? (() => {
+        // Narrow transition/will-change to the properties this preset actually
+        // animates - a plain fade must not force filter/clip-path compositing
+        // layers on every widget, and will-change is released once revealed.
+        const initial = MOTION_INITIAL[motion]?.(dist) ?? {};
+        const props = ["opacity"];
+        if ("transform" in initial) props.push("transform");
+        if ("filter" in initial) props.push("filter");
+        if ("clipPath" in initial) props.push("clip-path");
+        return {
+          ...(inView ? MOTION_FINAL : initial),
+          transition: props.map((p) => `${p} ${dur}ms ${ease} ${delay}ms`).join(", "),
+          willChange: inView ? undefined : props.join(", "),
+        };
+      })()
     : {};
 
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
@@ -312,8 +330,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
     </div>
   );
-
-
 
   const c = node.content;
   const canEdit = editable && !!onContentChange;
@@ -658,6 +674,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
+    case "chart":
+      return wrap(<ChartWidgetView node={node} lang={lang} />);
+    case "data-map":
+      return wrap(<DataMapWidgetView node={node} lang={lang} />);
     case "podcast-latest":
       return wrap(<PodcastLatestView c={c} lang={lang} />);
     case "web-stories-carousel":
@@ -724,7 +744,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             widgetConfig={c as Record<string, unknown>}
           />,
         );
-
       }
 
       // editable=true → builder preview (oryginalna statyczna grafika)
@@ -808,16 +827,17 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       // updates the canvas immediately, no page refresh.
       const rawVariant = getStr(c, "variant") || "split";
       const variant = (
-        rawVariant === "card" || rawVariant === "split" ||
-        rawVariant === "inline" || rawVariant === "split-image"
+        rawVariant === "card" ||
+        rawVariant === "split" ||
+        rawVariant === "inline" ||
+        rawVariant === "split-image"
           ? rawVariant
           : "split"
       ) as "card" | "split" | "inline" | "split-image";
       const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
-      const interestsDisplay =
-        (getStr(c, "interestsDisplay") === "droplist" ? "droplist" : "chips") as
-          | "chips"
-          | "droplist";
+      const interestsDisplay = (
+        getStr(c, "interestsDisplay") === "droplist" ? "droplist" : "chips"
+      ) as "chips" | "droplist";
       const interestSlugsRaw = c.interestSlugs;
       const interestSlugs = Array.isArray(interestSlugsRaw)
         ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
@@ -838,7 +858,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const rawFit = getStr(c, "imageFit");
       const imageFit = rawFit === "contain" ? "contain" : rawFit === "cover" ? "cover" : undefined;
 
-
       const isOn = (k: string) => getStr(c, k) === "1";
       const customFields = parseCustomFields(c.customFields);
       return wrap(
@@ -855,10 +874,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           imagePosition={imagePosition}
           imageAspect={imageAspect}
           imageFit={imageFit}
-
           showInterests={showInterests}
           interestsDisplay={interestsDisplay}
-
           title={pick("title")}
           subtitle={pick("subtitle")}
           perk1={pick("perk1")}
@@ -888,7 +905,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           requireCountry={(getStr(c, "requireCountry") ?? "0") === "1"}
           requireInterests={(getStr(c, "requireInterests") ?? "0") === "1"}
           interestSlugs={interestSlugs}
-
           firstNamePlaceholder={pick("firstNamePlaceholder")}
           lastNamePlaceholder={pick("lastNamePlaceholder")}
           positionPlaceholder={pick("positionPlaceholder")}
@@ -908,7 +924,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         />,
       );
     }
-
 
     case "customize-interests": {
       const variant = (getStr(c, "variant") || "full") as "full" | "compact";

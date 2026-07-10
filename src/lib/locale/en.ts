@@ -1094,6 +1094,8 @@ export const en = {
       countdown: "Countdown",
       calendar: "Calendar",
       map: "Map",
+      chart: "Chart",
+      "data-map": "Data map",
       "contact-form": "Contact form",
       "social-icons": "Social icons",
       "share-buttons": "Share",

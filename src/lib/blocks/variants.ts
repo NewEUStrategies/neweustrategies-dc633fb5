@@ -16,6 +16,17 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "inline", label: "Inline" },
     { key: "minimal", label: "Minimalna" },
   ],
+  // Szybkie przełączanie rodzaju wykresu. Toolbar zapisuje data.variant;
+  // parseChartConfig czyta variant z pierwszeństwem nad kind, a edytor
+  // wykresu utrzymuje oba klucze w zgodzie.
+  chart: [
+    { key: "bar", label: "Kolumny" },
+    { key: "bar-horizontal", label: "Słupki" },
+    { key: "line", label: "Linia" },
+    { key: "area", label: "Pole" },
+    { key: "pie", label: "Kołowy" },
+    { key: "donut", label: "Pierścień" },
+  ],
 };
 
 export function getBlockVariants(type: string): BlockVariantOption[] | null {

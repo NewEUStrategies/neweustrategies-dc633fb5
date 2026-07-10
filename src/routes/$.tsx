@@ -262,8 +262,7 @@ export const Route = createFileRoute("/$")({
     // node carries the AEO layer (section, keywords, abstract, speakable);
     // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
     // exist after hydration.
-    const takeaways =
-      (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
+    const takeaways = (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
     const parentCrumbs = [...(loaderData.crumbs ?? [])].sort((a, b) => a.depth - b.depth);
     const sectionCrumb = isPost
       ? parentCrumbs[parentCrumbs.length - 1]
@@ -476,8 +475,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const maxW = "max-w-[1200px]";
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
-  const takeaways: readonly string[] =
-    (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
+  const takeaways: readonly string[] = (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
 
   const currentPostCtx: CurrentPostCtx = {
     kind: isPost ? "post" : "page",
@@ -509,8 +507,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             [postAuthor.first_name, postAuthor.last_name].filter(Boolean).join(" ") ||
             undefined,
           slug: postAuthor.slug ?? undefined,
-          avatarUrl:
-            postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? undefined,
+          avatarUrl: postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? undefined,
           jobTitle: postAuthor.author_profile?.job_title ?? undefined,
           company: postAuthor.author_profile?.company ?? undefined,
           bio_pl: postAuthor.author_profile?.bio_pl ?? undefined,
@@ -550,8 +547,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             const postFormat = isPost
               ? ((it as { post_format?: string }).post_format ?? "standard")
               : null;
-            const isTextPost =
-              isPost && postFormat !== "audio" && postFormat !== "video";
+            const isTextPost = isPost && postFormat !== "audio" && postFormat !== "video";
             const hasBullets = takeaways.length > 0;
             const tocOverride = (post?.toc_override ?? null) as TocOverride | null;
             const readMinutes = post?.read_minutes ?? null;
@@ -613,6 +609,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             title={title}
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
+            coverViewTransitionId={it.id}
             meta={
               <PostOverlayMeta
                 lang={lang}
@@ -682,9 +679,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                                 .filter(Boolean)
                                 .join(" ") ||
                               null,
-                            authorHref: postAuthor?.slug
-                              ? `/author/${postAuthor.slug}`
-                              : null,
+                            authorHref: postAuthor?.slug ? `/author/${postAuthor.slug}` : null,
                             readMinutes: post.read_minutes ?? null,
                           }
                         : null

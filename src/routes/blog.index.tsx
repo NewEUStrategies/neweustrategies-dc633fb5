@@ -65,6 +65,7 @@ function BlogIndex() {
                     lang={lang}
                     titleClassName="text-base"
                     priority={idx === 0}
+                    viewTransitionId={p.id}
                   />
                   {adsAfter.map((ad) => (
                     <div

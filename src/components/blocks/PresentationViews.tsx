@@ -1,7 +1,8 @@
 // Publiczne renderery dla Phase 4 batch 10 (prezentacyjne).
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { Json } from "@/lib/blocks/types";
+import { useRevealOnScroll, type RevealState } from "@/hooks/useRevealOnScroll";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   Star,
@@ -113,31 +114,6 @@ function parseNumber(v: string): { num: number; prefix: string } {
   return { num: Number(match[2].replace(",", ".")) || 0, prefix: match[1] ?? "" };
 }
 
-function useInView<T extends HTMLElement>(): [React.RefObject<T | null>, boolean] {
-  const ref = useRef<T | null>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") {
-      setInView(true);
-      return;
-    }
-    const obs = new IntersectionObserver(
-      (entries) =>
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            setInView(true);
-            obs.disconnect();
-          }
-        }),
-      { threshold: 0.2 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-  return [ref, inView];
-}
-
 function formatNumber(n: number, lang: "pl" | "en"): string {
   const locale = lang === "en" ? "en-US" : "pl-PL";
   return Number.isInteger(n)
@@ -145,21 +121,32 @@ function formatNumber(n: number, lang: "pl" | "en"): string {
     : n.toLocaleString(locale, { maximumFractionDigits: 2 });
 }
 
+/**
+ * Licznik napędzany współdzielonym useRevealOnScroll:
+ *  - "static" (SSR / element widoczny przy załadowaniu / reduced motion):
+ *    wartość KOŃCOWA od razu - crawler i czytelnik bez JS widzą liczby,
+ *    nie zera (wcześniej SSR renderował 0),
+ *  - "armed" (poza viewportem): 0,
+ *  - "run": count-up rAF z easingiem cubic-out.
+ */
 function AnimatedCounter({
   target,
   duration,
-  run,
+  state,
   lang,
 }: {
   target: number;
   duration: number;
-  run: boolean;
+  state: RevealState;
   lang: "pl" | "en";
 }) {
-  const [val, setVal] = useState(0);
+  const [val, setVal] = useState(target);
   useEffect(() => {
-    if (!run) return;
-    if (typeof window === "undefined") {
+    if (state === "armed") {
+      setVal(0);
+      return;
+    }
+    if (state !== "run") {
       setVal(target);
       return;
     }
@@ -174,7 +161,7 @@ function AnimatedCounter({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [run, target, duration]);
+  }, [state, target, duration]);
   return <>{formatNumber(Math.round(val), lang)}</>;
 }
 
@@ -197,7 +184,7 @@ export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: S
       };
     });
   }, [items]);
-  const [ref, inView] = useInView<HTMLDivElement>();
+  const { ref, state } = useRevealOnScroll<HTMLDivElement>(true);
   if (parsed.length === 0) return null;
   return (
     <div
@@ -213,7 +200,7 @@ export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: S
           <div key={idx} className="space-y-1">
             <div className="text-3xl md:text-4xl font-bold text-foreground tabular-nums">
               {prefix}
-              <AnimatedCounter target={num} duration={duration} run={inView} lang={lang} />
+              <AnimatedCounter target={num} duration={duration} state={state} lang={lang} />
               {it.suffix}
             </div>
             {it.label ? <div className="text-sm text-muted-foreground">{it.label}</div> : null}

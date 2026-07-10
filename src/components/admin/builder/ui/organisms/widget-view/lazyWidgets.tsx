@@ -179,3 +179,31 @@ export function RichTextView(props: ComponentProps<typeof RichTextViewImpl>) {
     </Suspense>
   );
 }
+
+// Data-viz widgets pull in the whole SVG chart engine (scales, tooltips,
+// choropleth) - split out so pages without charts never download it.
+const ChartWidgetViewImpl = lazy(() =>
+  import("@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets").then((m) => ({
+    default: m.ChartWidgetView,
+  })),
+);
+export function ChartWidgetView(props: ComponentProps<typeof ChartWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <ChartWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const DataMapWidgetViewImpl = lazy(() =>
+  import("@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets").then((m) => ({
+    default: m.DataMapWidgetView,
+  })),
+);
+export function DataMapWidgetView(props: ComponentProps<typeof DataMapWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <DataMapWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}

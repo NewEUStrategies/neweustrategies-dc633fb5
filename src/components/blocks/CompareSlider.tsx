@@ -58,6 +58,8 @@ export function CompareSlider({
       <img
         src={after}
         alt={labelAfter}
+        loading="lazy"
+        decoding="async"
         className="absolute inset-0 w-full h-full object-cover"
         draggable={false}
       />
@@ -65,6 +67,8 @@ export function CompareSlider({
         <img
           src={before}
           alt={labelBefore}
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 h-full w-auto max-w-none object-cover"
           style={{ width: `${10000 / Math.max(pos, 1)}%` }}
           draggable={false}

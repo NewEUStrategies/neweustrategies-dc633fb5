@@ -170,7 +170,6 @@ export interface AdvancedSettings {
   contentMaxWidth?: number | string; // px (number) lub dowolna wartość CSS
   contentAlign?: "start" | "center" | "end"; // wyrównanie treści w widgecie
   contentGap?: number | string; // px (number) lub wartość CSS - odstęp między dziećmi
-
 }
 
 // ---------- Section-specific settings (Elementor-style) ----------
@@ -331,6 +330,9 @@ export type WidgetType =
   | "icon"
   | "map"
   | "tts"
+  // Data visualization (engine: src/components/charts)
+  | "chart"
+  | "data-map"
   // Dynamic
   | "post-list"
   | "carousel"

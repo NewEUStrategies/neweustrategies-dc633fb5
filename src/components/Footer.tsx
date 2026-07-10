@@ -46,6 +46,10 @@ export const Footer = memo(function Footer() {
       <footer
         data-site-footer
         data-footer-layout={chromeCfg.layout}
+        // cv-auto: the footer is below the fold on load - skipping its
+        // layout/paint until the reader nears it is a real first-paint win on
+        // every page (the footer is a full builder document of its own).
+        className="cv-auto"
         style={{ viewTransitionName: "site-footer" }}
       >
         <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />

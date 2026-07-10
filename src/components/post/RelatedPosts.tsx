@@ -56,7 +56,7 @@ export function RelatedPosts({
 
   return (
     <section
-      className={`related-posts mt-10 ${className ?? ""}`}
+      className={`related-posts cv-auto mt-10 ${className ?? ""}`}
       data-related-position={cfg.position}
       aria-label={title}
     >
@@ -105,7 +105,11 @@ function CardBody({
   return (
     <div className="space-y-1">
       <h3 className="font-display text-base leading-snug">
-        <Link to={p.href as "/"} className="hover:text-brand transition-colors">
+        {/* Viewport preload: by the time the reader reaches the end of the
+            article these cards are the most likely next navigation - warming
+            their loaders here makes the transition feel instant, and the page
+            is already idle when this section scrolls in. */}
+        <Link to={p.href as "/"} preload="viewport" className="hover:text-brand transition-colors">
           {title}
         </Link>
       </h3>

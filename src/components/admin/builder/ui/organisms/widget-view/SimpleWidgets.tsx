@@ -31,6 +31,7 @@ import { ContactFormView } from "@/components/blocks/ContactFormView";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
+import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { AuthFormWidget } from "./AuthFormWidget";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
@@ -485,10 +486,16 @@ export function renderSimpleWidget(
       const q = getStr(c, "query") || "Warszawa";
       const ratio = getStr(c, "ratio") || "16/9";
       const src = `https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
+      // Deferred mount: the Google Maps subframe used to load eagerly on every
+      // page containing this widget; now it mounts only near the viewport.
       return (
-        <div style={{ aspectRatio: ratio.replace("/", " / ") }}>
-          <iframe src={src} title="map" className="w-full h-full rounded border-0" />
-        </div>
+        <DeferredFrame
+          src={src}
+          title={q}
+          className="rounded overflow-hidden"
+          style={{ aspectRatio: ratio.replace("/", " / ") }}
+          placeholder={<LucideIcons.MapPin className="h-6 w-6" aria-hidden />}
+        />
       );
     }
     case "video": {

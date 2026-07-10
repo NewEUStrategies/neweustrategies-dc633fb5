@@ -123,6 +123,7 @@ import {
   BannerImageBlock,
   VideoHeroBlock,
 } from "./edit/ConversionBlocks";
+import { ChartBlock, DataMapBlock } from "./edit/DataVizBlocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -492,6 +493,10 @@ function BlockRenderer({
       return <BannerImageBlock block={block} onChange={onChange} />;
     case "video-hero":
       return <VideoHeroBlock block={block} onChange={onChange} />;
+    case "chart":
+      return <ChartBlock block={block} onChange={onChange} />;
+    case "data-map":
+      return <DataMapBlock block={block} onChange={onChange} />;
 
     default:
       return <div className="text-xs text-muted-foreground italic py-2">[{block.type}]</div>;

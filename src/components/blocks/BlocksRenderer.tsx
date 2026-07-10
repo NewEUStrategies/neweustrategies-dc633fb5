@@ -92,6 +92,7 @@ import {
   BannerImageView,
   VideoHeroView,
 } from "./ConversionViews";
+import { ChartBlockView, DataMapBlockView } from "./DataVizViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -211,7 +212,6 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   );
 }
 
-
 /**
  * Walk blocks in render order (columns: left then right), transforming the
  * footnote shortcodes in paragraph/html blocks exactly once and collecting the
@@ -270,7 +270,6 @@ function precomputeFootnotes(
     }
   }
 }
-
 
 function alignClass(b: Block): string {
   const a = b.style?.align;
@@ -350,9 +349,7 @@ function BlockView({
       const Tag = `h${level}` as "h2" | "h3" | "h4";
       const withFn = fnHtml.get(`${block.id}:text`);
       if (withFn !== undefined) {
-        return (
-          <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: withFn }} />
-        );
+        return <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: withFn }} />;
       }
       return (
         <Tag id={id} className={cls}>
@@ -400,9 +397,7 @@ function BlockView({
       const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [];
       const ordered = Boolean(block.data.ordered);
       const Tag = ordered ? "ol" : "ul";
-      const kept = items
-        .map((it, i) => ({ it, i }))
-        .filter(({ it }) => Boolean(it));
+      const kept = items.map((it, i) => ({ it, i })).filter(({ it }) => Boolean(it));
       return (
         <Tag
           className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}
@@ -410,11 +405,7 @@ function BlockView({
           {kept.map(({ it, i }) => {
             const withFn = fnHtml.get(`${block.id}:item:${i}`);
             return withFn !== undefined ? (
-              <li
-                key={i}
-                className="my-0 pl-1"
-                dangerouslySetInnerHTML={{ __html: withFn }}
-              />
+              <li key={i} className="my-0 pl-1" dangerouslySetInnerHTML={{ __html: withFn }} />
             ) : (
               <li key={i} className="my-0 pl-1">
                 {it}
@@ -554,7 +545,9 @@ function BlockView({
       // stay aligned with precomputeFootnotes.
       const headIdx = header ? 0 : -1;
       const head = header ? rows[0] : null;
-      const body = header ? rows.slice(1).map((r, i) => ({ r, ri: i + 1 })) : rows.map((r, i) => ({ r, ri: i }));
+      const body = header
+        ? rows.slice(1).map((r, i) => ({ r, ri: i + 1 }))
+        : rows.map((r, i) => ({ r, ri: i }));
       const renderCell = (Tag: "th" | "td", ri: number, ci: number, c: string) => {
         const withFn = fnHtml.get(`${block.id}:cell:${ri}:${ci}`);
         return withFn !== undefined ? (
@@ -1330,13 +1323,7 @@ function BlockView({
     case "author-bio": {
       const v = String(block.data.variant ?? "card");
       const variant: "card" | "inline" | "minimal" | "split" =
-        v === "inline"
-          ? "inline"
-          : v === "minimal"
-            ? "minimal"
-            : v === "split"
-              ? "split"
-              : "card";
+        v === "inline" ? "inline" : v === "minimal" ? "minimal" : v === "split" ? "split" : "card";
       const inlineRaw = block.data.inlineAuthor;
       const inlineAuthor =
         inlineRaw && typeof inlineRaw === "object" && !Array.isArray(inlineRaw)
@@ -1715,6 +1702,10 @@ function BlockView({
         />
       );
     }
+    case "chart":
+      return <ChartBlockView data={block.data} lang={lang} cls={cls} />;
+    case "data-map":
+      return <DataMapBlockView data={block.data} lang={lang} cls={cls} />;
     default:
       return null;
   }

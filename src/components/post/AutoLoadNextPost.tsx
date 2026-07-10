@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchNextPost, type NextPostSummary } from "@/lib/queries/nextPost";
 import { AppLink } from "@/components/atoms/AppLink";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
@@ -139,10 +140,11 @@ export function AutoLoadNextPost({
               </AppLink>
             </h2>
             {c.post.cover_image_url && (
-              <img
+              <OptimizedImage
                 src={c.post.cover_image_url}
                 alt={title}
-                loading="lazy"
+                responsive
+                sizes="(max-width: 768px) 100vw, 800px"
                 className="w-full rounded-lg mb-6 max-h-[420px] object-cover"
               />
             )}
