@@ -52,7 +52,9 @@ export const AUTH_DEFAULTS: AuthSettings = {
   popup_description_en: "Sign in to bookmark articles and follow authors.",
   form_logo_url: "",
   form_logo_url_dark: "",
-  login_position: "center",
+  // "right" odpowiada historycznemu układowi /login (pasek | hero | formularz),
+  // więc instalacje, które nigdy nie zapisały ustawień, nie zmieniają wyglądu.
+  login_position: "right",
   login_bg_url: "",
   login_bg_color: "",
   custom_login_url: "",

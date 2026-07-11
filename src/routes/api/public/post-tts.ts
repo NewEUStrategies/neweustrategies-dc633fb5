@@ -169,19 +169,11 @@ export const Route = createFileRoute("/api/public/post-tts")({
         if (!okMin) {
           return jsonError(429, "Rate limit exceeded (minute)", { "Retry-After": "60" });
         }
-        const okHour = await rateLimit({
-          scope: "post-tts:ip:hour",
-          subjectId: ip,
-          max: 15,
-          windowMinutes: 60,
-        });
-        if (!okHour) {
-          return jsonError(429, "Rate limit exceeded (hour)", { "Retry-After": "3600" });
-        }
-        // The per-post throttle protects the ElevenLabs SYNTHESIS budget, so it
-        // is applied later - only on a cache MISS (below). A cache hit costs
-        // nothing and must never be throttled, otherwise a popular episode's
-        // 61st listener/hour would be blocked from a free, already-rendered file.
+        // Budget-protecting limits (per-IP hourly + per-post) are applied later,
+        // only on a cache MISS - a cache hit costs nothing and must never be
+        // throttled. Only the tight per-minute limit above runs pre-cache, as
+        // pure abuse protection. A reader listening to many already-cached
+        // articles is legitimate traffic.
 
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
@@ -261,7 +253,16 @@ export const Route = createFileRoute("/api/public/post-tts")({
         }
 
         // Cache miss => we are about to spend ElevenLabs budget. Apply the
-        // per-post synthesis throttle now (60/h per post+lang).
+        // synthesis throttles now: per-IP hourly + per-post hourly.
+        const okHour = await rateLimit({
+          scope: "post-tts:ip:hour",
+          subjectId: ip,
+          max: 15,
+          windowMinutes: 60,
+        });
+        if (!okHour) {
+          return jsonError(429, "Rate limit exceeded (hour)", { "Retry-After": "3600" });
+        }
         const okPost = await rateLimit({
           scope: "post-tts:post:hour",
           subjectId: `${postId}:${lang}`,

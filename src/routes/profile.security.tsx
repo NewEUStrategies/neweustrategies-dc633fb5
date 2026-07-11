@@ -40,6 +40,7 @@ function SecurityPage() {
   const [othersBusy, setOthersBusy] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
+  const [emailPw, setEmailPw] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
 
   const [delPw, setDelPw] = useState("");
@@ -84,10 +85,20 @@ function SecurityPage() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
       return toast.error(t("profile.security.email.invalid"));
     }
+    if (!emailPw) {
+      return toast.error(
+        t("profile.security.email.needPassword", {
+          defaultValue: isPl
+            ? "Podaj obecne hasło, aby potwierdzić."
+            : "Enter your current password to confirm.",
+        }),
+      );
+    }
     setEmailBusy(true);
     try {
-      await changeMyEmail({ data: { email: value } });
+      await changeMyEmail({ data: { email: value, password: emailPw } });
       setNewEmail("");
+      setEmailPw("");
       toast.success(t("profile.security.email.sent"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("profile.security.email.invalid"));
@@ -211,6 +222,17 @@ function SecurityPage() {
                   onChange={(e) => setNewEmail(e.target.value)}
                   required
                   autoComplete="email"
+                />
+              </div>
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="email-pw">{t("profile.security.currentPassword")}</FieldLabel>
+                <Input
+                  id="email-pw"
+                  type="password"
+                  value={emailPw}
+                  onChange={(e) => setEmailPw(e.target.value)}
+                  required
+                  autoComplete="current-password"
                 />
               </div>
               <Button type="submit" variant="outline" disabled={emailBusy}>

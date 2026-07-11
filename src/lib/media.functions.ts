@@ -18,12 +18,17 @@ const ALLOWED_MIME = new Set([
   "image/avif",
   "application/pdf",
   // Audio (podcast episodes are uploaded through the media library).
+  // Includes the alternative MIME spellings browsers actually emit for
+  // wav/flac uploads (audio/x-wav, audio/wave).
   "audio/mpeg",
   "audio/mp4",
   "audio/m4a",
   "audio/x-m4a",
   "audio/aac",
   "audio/wav",
+  "audio/x-wav",
+  "audio/wave",
+  "audio/flac",
   "audio/webm",
   "audio/ogg",
 ]);

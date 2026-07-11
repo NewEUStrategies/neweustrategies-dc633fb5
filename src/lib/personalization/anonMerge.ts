@@ -15,11 +15,21 @@
 // Zakładki gościa (tylko url+tytuł) są rozwiązywane do postów po slugu
 // (ostatni segment ścieżki) i lądują w user_bookmarks; pozycje nierozwiązane
 // zostają na urządzeniu.
+//
+// TTL gościa: admin ustawia `guestExpirationDays` (personalized_system) -
+// pozycje starsze niż limit NIE są scalane z kontem i są usuwane z urządzenia
+// (ten sam cutoff egzekwuje useSaveArticle przy każdym odczycie).
 import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DEFAULT_PERSONALIZED_SETTINGS,
+  PERSONALIZED_SETTINGS_KEY,
+} from "@/hooks/usePersonalizedSettings";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 const ANON_INTERESTS_KEY = "nes.interests.anon.v1";
 const GUEST_SAVED_KEY = "lovable:saved-articles";
+const DAY_MS = 86_400_000;
 
 interface AnonInterests {
   categoryIds: string[];
@@ -114,8 +124,32 @@ async function mergeInterests(userId: string): Promise<number> {
   return rows.length;
 }
 
-async function mergeGuestBookmarks(userId: string): Promise<number> {
-  const saved = readGuestSaved();
+// TTL z ustawień personalizacji; przy braku QueryClienta / błędzie sieci
+// używamy wartości domyślnej, żeby merge nigdy nie blokował logowania.
+async function guestTtlDays(queryClient?: QueryClient): Promise<number> {
+  if (!queryClient) return DEFAULT_PERSONALIZED_SETTINGS.guestExpirationDays;
+  try {
+    const map = await queryClient.ensureQueryData(siteSettingsQueryOptions);
+    return resolveSetting(map, PERSONALIZED_SETTINGS_KEY, DEFAULT_PERSONALIZED_SETTINGS)
+      .guestExpirationDays;
+  } catch {
+    return DEFAULT_PERSONALIZED_SETTINGS.guestExpirationDays;
+  }
+}
+
+async function mergeGuestBookmarks(userId: string, maxAgeDays: number): Promise<number> {
+  const all = readGuestSaved();
+  if (all.length === 0) return 0;
+
+  // Pozycje starsze niż TTL gościa wygasły: nie wskrzeszamy ich na koncie
+  // i od razu usuwamy z urządzenia. Wpisy bez znacznika czasu traktujemy
+  // jako świeże (useSaveArticle stempluje je przy najbliższym zapisie).
+  const cutoff =
+    Number.isFinite(maxAgeDays) && maxAgeDays > 0 ? Date.now() - maxAgeDays * DAY_MS : null;
+  const saved = all.filter(
+    (item) => cutoff === null || typeof item.savedAt !== "number" || item.savedAt >= cutoff,
+  );
+  if (saved.length !== all.length) writeJson(GUEST_SAVED_KEY, saved);
   if (saved.length === 0) return 0;
 
   const bySlug = new Map<string, GuestSavedItem>();
@@ -180,9 +214,10 @@ export async function mergeAnonPersonalization(
   if (inFlight) return inFlight;
 
   inFlight = (async (): Promise<AnonMergeResult> => {
+    const maxAgeDays = await guestTtlDays(queryClient);
     const [mergedInterests, mergedBookmarks] = await Promise.all([
       mergeInterests(userId),
-      mergeGuestBookmarks(userId),
+      mergeGuestBookmarks(userId, maxAgeDays),
     ]);
 
     if (queryClient && (mergedInterests > 0 || mergedBookmarks > 0)) {

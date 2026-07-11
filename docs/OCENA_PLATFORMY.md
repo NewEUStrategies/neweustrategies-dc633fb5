@@ -271,3 +271,91 @@ błędów, `lint` 0 błędów, testy 1363 przechodzą.
   rozlewa się szeroko po formularzach admina — do osobnej, skupionej rundy.
 - `get_chat_peers`/`podcast_settings` odczyt bez filtra tenanta: bez znaczenia
   na obecnej instalacji jednodostawcowej (single-tenant).
+
+---
+
+# Re-ewaluacja po wdrożeniach — karta ocen (2026-07-11, HEAD c4d8ba3+)
+
+Pięć niezależnych re-audytów zweryfikowało każdą wdrożoną poprawkę w AKTUALNYM
+kodzie (nie na podstawie changeloga). Bramki wykonane: testy **1363 przechodzą**,
+lint **0 błędów**, tsc **0 nowych błędów** (2 pozostałe = preexisting
+`CountryCombobox`, brak typów prywatnego pakietu lokalnie).
+
+## Oceny obszarów: przed → po
+
+| Obszar | Przed | Po | Kluczowe potwierdzenia |
+|---|---|---|---|
+| Podcasty / audio / TTS | 4,3 | **8,0** | upload+auto-czas działa end-to-end (klient, serwer, bucket, RLS); RSS z enclosure; limity TTS realnie egzekwowane; cache przed limitem per-post |
+| Czat / powiadomienia | ~6,0 | **~8,3** | typing na stałym kanale z ref-countingiem — peer realnie odbiera; usuwanie grup wszystkich id; naprawa linków `/messages?c=` potwierdzona; bot usunięty czysto; `get_chat_peers` z filtrem tenanta; bucket załączników utworzony migracją |
+| Profil / auth / personalizacja | 5,8 | **~7,2** (naprawione elementy: 9,0) | reset hasła kompletny (recovery+invalid state+meter); usuwanie konta nieobchodzalne (uid z tokenu); RODO: anon+admin odcięci od psychometrii, answers usunięte z historii; rekomendacje: SQL↔typy↔hook w 100% zgodne |
+| Treści / live blog / strony | 7,2 | **7,8** | placeholder nieosiągalny publicznie; karta autora z realnymi danymi; rewizje stron z restore; latest_posts z SSR 1:1; live blog: klucz SSR == klucz klienta co do wartości |
+| Monetyzacja | 6,9 | **~7,1** | plan one-time → dożywotni dostęp (testy jednostkowe); refund zawężony do właściwej subskrypcji; migracje idempotentne; `subscription_tiers` zdropowane |
+| Infrastruktura / jakość inż. | 7,7 | **~7,9** | lint CZERWONY → 0 błędów; martwy kod usunięty bez wiszących importów (10/10); sitemap + podcasty |
+| **Platforma ogółem** | **6,5** | **~7,7** | |
+
+## Nowe/rezydualne defekty z re-audytu → status
+
+| Defekt | Waga | Status |
+|---|---|---|
+| Deep-link edytora bloku Live Blog gubił `blockId` (kasowany przy wyborze postu) | mała | **NAPRAWIONE** — blockId zachowywany, walidowany względem bloków postu, auto-wybór przy jednym bloku |
+| RSS podcastu: enclosure zawsze `audio/mpeg` (m4a/wav błędnie deklarowane) | mała | **NAPRAWIONE** — `enclosureMimeType()` z rozszerzenia pliku |
+| Martwe `subscription_tiers` w wygenerowanych typach po DROP | kosmetyczna | **NAPRAWIONE** — blok usunięty z types.ts |
+| Limity per-IP TTS przed cache (przesadny throttle czytelnika wielu artykułów) | mała | zaakceptowane — świadoma ochrona przed nadużyciami |
+| `charge.refunded` dopasowuje po `provider_intent_id`, null dla sesji subskrypcyjnych | preexisting | poza zakresem — cykl subskrypcji obsługują zdarzenia `customer.subscription.*` |
+| Reset hasła: sztywny deadline 4 s może fałszywie zgłosić wygaśnięcie na wolnym łączu | mała | odnotowane |
+| Producent powitania (`notify_profile_welcome`) omija `enabled_system` | mała/preexisting | odnotowane (jednorazowy insert przed powstaniem preferencji) |
+
+## Werdykt
+
+Wszystkie poprawki z obu rund są **realne i podłączone** — żadna nie okazała się
+deklaratywna. Najsłabszy obszar platformy (podcasty/audio/TTS: 4,3) wykonał
+największy skok (8,0). Nie wykryto żadnej regresji o wysokiej wadze; jedyna
+potwierdzona (linki powiadomień → 404) została naprawiona jeszcze przed tą
+re-ewaluacją, a trzy drobne znaleziska domknięto w jej ramach. Główne pozostałe
+rezerwy jakościowe platformy to obszary świadomie poza mandatem: paginacja
+archiwów/wyszukiwarki, harmonogram i analityka kampanii newslettera, MFA/TOTP
+oraz pokrycie testami obszarów czatu i profilu.
+
+---
+
+# Runda 5 - domknięcie rezerw world-class (2026-07-11, wieczór)
+
+Cel rundy: zamknąć wszystkie rezydualne niedociągnięcia wskazane w re-ewaluacji
+(w tym obszary wcześniej "poza mandatem") i podnieść spójność międzymodułową.
+
+## Wdrożone w tej rundzie
+
+| Obszar | Zmiana | Efekt |
+|---|---|---|
+| Archiwa i wyszukiwarka | Paginacja "załaduj więcej" (blog, kategoria, tag, autor: 60/str.; szukajka: 60→300 z uczciwym "N+"), błędy RPC rzucane zamiast udawania "0 wyników", i18n PL/EN stanów pustych i błędów | koniec ucinania list na sztywnym limicie |
+| Komentarze | Naprawa wycieku subskrypcji auth (useMemo→useEffect z unsubscribe), paginacja okienkowa 50/str., stan "komentarze zamknięte" wg site_settings, przyjazny toast rate-limitu, spójny limit takeaways 6 (serwer=klient=copy) | stabilność pamięci + UX |
+| Czat | Blokowanie użytkowników end-to-end (tabela `user_blocks` + RPC `is_blocked_pair` + trigger guard + UI z AlertDialog), kursor złożony (created_at,id) bez gubienia wiadomości przy równych timestampach, typing-stop wysyłany przy send, rate-limit 30 msg/60 s z mapowaniem na toast | moderacja + poprawność paginacji |
+| Powiadomienia | SPA-nawigacja przez router.navigate({href}) z obsługą query stringów (koniec pełnych przeładowań i ryzyka 404), optymistyczne mark-read/unread/delete z rollbackiem, share bar: jeden przycisk Drukuj/PDF, mobile zgodny z konfiguracją | płynność + spójność konfiguracji |
+| Newsletter | Harmonogram realnie działa: oportunistyczny tick (mount admina + przycisk "Wyślij zaległe"), atomowe przejęcie kampanii, odzysk zawieszonej wysyłki (lease 20 min) z idempotencją per-odbiorca, kolumna "Zaplanowana na" | scheduled_at przestał być martwym polem |
+| Web stories | SEO odcinka (tytuł, opis, OG, JSON-LD CreativeWork), wpisy w sitemap, publiczny indeks `/web-stories` w stylu `/podcasts` | odkrywalność |
+| Ustawienia logowania/personalizacji | Podpięte 7 martwych opcji: logout_redirect_url, custom_login_url, form_logo_url_dark (tryb ciemny), login_bg_url/color, login_position (L/Ś/P), guestExpirationDays (TTL gościa z przycinaniem przy merge), readingListPath; usunięty martwy userExpirationDays | panel admina przestał kłamać |
+| Wpisy | Prev/next zasilane realnymi danymi (adjacentPosts wg published_at, RLS anon), usunięte martwe paski Źródła/Via z całego łańcucha (typy, merge, admin, scaffold) | nawigacja działa, mniej martwego kodu |
+| Konto / bezpieczeństwo | Zmiana e-maila wymaga re-auth hasłem, deadline resetu hasła zależny od obecności tokenu recovery (20 s vs 4 s), rate-limit weryfikacji hasła treści (10/min), polityka podcast_settings zawężona do tenanta | domknięcie wektorów z re-audytu |
+| Podcasty / media | Okładka w Media Session (artwork na ekranie blokady), MediaPicker z trybem audio i guardem typów, szersze MIME audio (x-wav, wave, flac), limity TTS liczone po cache (czytelnik wielu artykułów nie jest karany za trafienia w cache) | UX audio klasy premium |
+
+## Bramki weryfikacyjne rundy 5
+
+- `tsc --noEmit`: 0 nowych błędów (pozostaje wyłącznie baseline środowiska: brak `@types/node`, prywatne pakiety `@lovable.dev/*`)
+- `bun run lint`: 0 błędów (61 ostrzeżeń `exhaustive-deps` - baseline sprzed rundy)
+- `bun run test`: 144 pliki / 1363 testy zaliczone
+- Drzewo tras zregenerowane (`/web-stories/`), migracja hardeningowa `20260711190000` za wdrożonymi na produkcji
+
+## Ocena po rundzie 5 (szacunek)
+
+| Obszar | Po rundzie 4 | Po rundzie 5 |
+|---|---|---|
+| Czat / powiadomienia | ~8,3 | **~8,8** |
+| Treści / archiwa / wyszukiwarka | 7,8 | **~8,4** |
+| Newsletter / monetyzacja | ~7,1 | **~7,8** |
+| Profil / auth / personalizacja | ~7,2 | **~8,2** |
+| Podcasty / audio / TTS | 8,0 | **~8,3** |
+| Infrastruktura / jakość inż. | ~7,9 | **~8,1** |
+| **Platforma ogółem** | **~7,7** | **~8,2** |
+
+Pozostałe świadome rezerwy: MFA/TOTP, analityka kampanii newslettera (open/click),
+pokrycie testami komponentów czatu, pg_cron zamiast ticku oportunistycznego.

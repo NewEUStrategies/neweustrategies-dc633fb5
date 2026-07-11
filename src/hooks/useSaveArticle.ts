@@ -7,14 +7,20 @@
 //                                        same device only - no guest sync exists)
 //   guest + !allowGuests              -> login popup (same nudge reading-list uses)
 //   feature off / no entity id        -> localStorage fallback (unchanged behavior)
+//
+// Guest entries honour the admin's `guestExpirationDays` TTL: every item is
+// stamped with `savedAt`, expired items are pruned from localStorage on read,
+// and the post-login merge (anonMerge) applies the same cutoff.
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
-import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
+import { usePersonalizedSettings, safeReadingListPath } from "@/hooks/usePersonalizedSettings";
 import { openLoginPopup } from "@/lib/loginPopupBus";
 
 const LS_KEY = "lovable:saved-articles";
+const DAY_MS = 86_400_000;
 
 type SavedItem = { url: string; title: string; savedAt: number };
 
@@ -26,6 +32,15 @@ function readLocal(): SavedItem[] {
   } catch {
     return [];
   }
+}
+
+// Drop guest entries older than the admin-configured TTL. Entries without a
+// numeric `savedAt` (hand-edited / corrupted) are kept - they get re-stamped
+// on the next write. maxAgeDays <= 0 disables expiration.
+function pruneExpired(list: SavedItem[], maxAgeDays: number): SavedItem[] {
+  if (!Number.isFinite(maxAgeDays) || maxAgeDays <= 0) return list;
+  const cutoff = Date.now() - maxAgeDays * DAY_MS;
+  return list.filter((s) => typeof s.savedAt !== "number" || s.savedAt >= cutoff);
 }
 
 interface Options {
@@ -49,6 +64,7 @@ export function useSaveArticle({
   lang,
 }: Options): SaveState {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const settings = usePersonalizedSettings();
   const { data: bookmarks } = useBookmarks();
   const toggleBookmark = useToggleBookmark();
@@ -57,12 +73,24 @@ export function useSaveArticle({
   // the personalization system switched on; everything else falls back to the
   // per-device localStorage list.
   const canUseDb = !!user && !!entityId && settings.enabled;
+  const guestTtlDays = settings.guestExpirationDays;
 
   const [localSaved, setLocalSaved] = useState(false);
   useEffect(() => {
     if (canUseDb || typeof window === "undefined" || !url) return;
-    setLocalSaved(readLocal().some((s) => s.url === url));
-  }, [canUseDb, url]);
+    const all = readLocal();
+    const fresh = pruneExpired(all, guestTtlDays);
+    if (fresh.length !== all.length) {
+      // Enforce the TTL at the storage level too, so /reading-list and the
+      // post-login merge see the same pruned list.
+      try {
+        window.localStorage.setItem(LS_KEY, JSON.stringify(fresh));
+      } catch {
+        /* private mode / storage unavailable - ignore */
+      }
+    }
+    setLocalSaved(fresh.some((s) => s.url === url));
+  }, [canUseDb, url, guestTtlDays]);
 
   const dbSaved =
     canUseDb &&
@@ -71,22 +99,42 @@ export function useSaveArticle({
   const savedMsg = lang === "en" ? "Added to saved" : "Dodano do zapisanych";
   const removedMsg = lang === "en" ? "Removed from saved" : "Usunięto z zapisanych";
   const errorMsg = lang === "en" ? "Could not save" : "Nie udało się zapisać";
+  const openListLabel = lang === "en" ? "Open list" : "Otwórz listę";
+  // Admin-configurable target for "reading list" links (validated internal
+  // path, falls back to the built-in /reading-list route).
+  const readingListTarget = safeReadingListPath(settings);
+
+  const savedToast = useCallback(() => {
+    toast.success(savedMsg, {
+      action: {
+        label: openListLabel,
+        onClick: () => {
+          void navigate({ to: readingListTarget });
+        },
+      },
+    });
+  }, [savedMsg, openListLabel, readingListTarget, navigate]);
 
   const toggleLocal = useCallback(() => {
     if (typeof window === "undefined" || !url) return;
-    const list = readLocal();
+    const list = pruneExpired(readLocal(), guestTtlDays);
     const exists = list.some((s) => s.url === url);
     const next = exists
       ? list.filter((s) => s.url !== url)
-      : [{ url, title, savedAt: Date.now() }, ...list].slice(0, 200);
+      : [
+          { url, title, savedAt: Date.now() },
+          // Re-stamp legacy entries missing a timestamp so they age from now on.
+          ...list.map((s) => (typeof s.savedAt === "number" ? s : { ...s, savedAt: Date.now() })),
+        ].slice(0, 200);
     try {
       window.localStorage.setItem(LS_KEY, JSON.stringify(next));
       setLocalSaved(!exists);
-      toast.success(exists ? removedMsg : savedMsg);
+      if (exists) toast.success(removedMsg);
+      else savedToast();
     } catch {
       /* private mode / storage unavailable - ignore */
     }
-  }, [url, title, savedMsg, removedMsg]);
+  }, [url, title, guestTtlDays, removedMsg, savedToast]);
 
   const toggle = useCallback(() => {
     // Guest hitting a gated save: nudge to sign in (mirrors /reading-list).
@@ -103,7 +151,9 @@ export function useSaveArticle({
         { entityType, entityId, on: next },
         {
           onSuccess: () => {
-            if (settings.popupNotification) toast.success(next ? savedMsg : removedMsg);
+            if (!settings.popupNotification) return;
+            if (next) savedToast();
+            else toast.success(removedMsg);
           },
           onError: () => toast.error(errorMsg),
         },
@@ -124,7 +174,7 @@ export function useSaveArticle({
     dbSaved,
     toggleBookmark,
     toggleLocal,
-    savedMsg,
+    savedToast,
     removedMsg,
     errorMsg,
   ]);

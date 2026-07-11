@@ -227,8 +227,6 @@ export interface PostLayoutSettings {
   image_caption_left_border: boolean;
   quick_view_info: boolean;
   show_post_tags_bar: boolean;
-  show_sources_bar: boolean;
-  show_via_bar: boolean;
   show_author_card: boolean;
   show_prev_next: boolean;
   prev_next_mobile_hide: boolean;
@@ -271,8 +269,6 @@ export interface LayoutOverrides {
   format?: PostFormat;
   center_header?: boolean;
   show_post_tags_bar?: boolean;
-  show_sources_bar?: boolean;
-  show_via_bar?: boolean;
   show_author_card?: boolean;
   show_prev_next?: boolean;
   show_bottom_newsletter?: boolean;
@@ -308,8 +304,6 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     image_caption_left_border: false,
     quick_view_info: true,
     show_post_tags_bar: true,
-    show_sources_bar: true,
-    show_via_bar: true,
     show_author_card: false,
     show_prev_next: false,
     prev_next_mobile_hide: true,
@@ -391,8 +385,6 @@ export function mergeOverrides(
     ...global,
     center_header: overrides.center_header ?? global.center_header,
     show_post_tags_bar: overrides.show_post_tags_bar ?? global.show_post_tags_bar,
-    show_sources_bar: overrides.show_sources_bar ?? global.show_sources_bar,
-    show_via_bar: overrides.show_via_bar ?? global.show_via_bar,
     show_author_card: overrides.show_author_card ?? global.show_author_card,
     show_prev_next: overrides.show_prev_next ?? global.show_prev_next,
     show_bottom_newsletter: overrides.show_bottom_newsletter ?? global.show_bottom_newsletter,

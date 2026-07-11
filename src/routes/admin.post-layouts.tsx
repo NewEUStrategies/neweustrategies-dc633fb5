@@ -274,16 +274,6 @@ function Page() {
               onChange={(v) => upd({ show_post_tags_bar: v })}
             />
             <Toggle
-              label="Pasek źródeł"
-              checked={local.show_sources_bar}
-              onChange={(v) => upd({ show_sources_bar: v })}
-            />
-            <Toggle
-              label="Pasek Via"
-              checked={local.show_via_bar}
-              onChange={(v) => upd({ show_via_bar: v })}
-            />
-            <Toggle
               label="Karta autora"
               checked={local.show_author_card}
               onChange={(v) => upd({ show_author_card: v })}

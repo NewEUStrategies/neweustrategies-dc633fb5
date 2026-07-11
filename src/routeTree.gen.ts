@@ -29,6 +29,7 @@ import { Route as FeedRouteImport } from './routes/feed'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WebStoriesIndexRouteImport } from './routes/web-stories.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -232,6 +233,11 @@ const SplatRoute = SplatRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebStoriesIndexRoute = WebStoriesIndexRouteImport.update({
+  id: '/web-stories/',
+  path: '/web-stories/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
@@ -854,6 +860,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
@@ -975,6 +982,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
@@ -1102,6 +1110,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
@@ -1230,6 +1239,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
@@ -1351,6 +1361,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/profile'
+    | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
@@ -1477,6 +1488,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
@@ -1552,6 +1564,7 @@ export interface RootRouteChildren {
   TagSlugRoute: typeof TagSlugRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
@@ -1701,6 +1714,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/web-stories/': {
+      id: '/web-stories/'
+      path: '/web-stories'
+      fullPath: '/web-stories/'
+      preLoaderRoute: typeof WebStoriesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile/': {
@@ -2733,6 +2753,7 @@ const rootRouteChildren: RootRouteChildren = {
   TagSlugRoute: TagSlugRoute,
   WebStoriesSlugRoute: WebStoriesSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
+  WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
@@ -2744,13 +2765,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

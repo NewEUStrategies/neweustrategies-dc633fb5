@@ -24,14 +24,24 @@ import type { ChatMessage, MessageRow, ReactionRow } from "./types";
 
 const PAGE_SIZE = 40;
 
+/**
+ * Compound pagination cursor. A plain `created_at < cursor` skips rows that
+ * share the boundary timestamp (bulk inserts, coarse clocks), so the id acts
+ * as the tiebreaker under the same (created_at desc, id desc) ordering.
+ */
+export interface MessagesCursor {
+  createdAt: string;
+  id: string;
+}
+
 export interface MessagesPage {
   /** Newest-first rows of this page. */
   rows: ChatMessage[];
   /** Cursor for the next (older) page; null = end of history. */
-  nextCursor: string | null;
+  nextCursor: MessagesCursor | null;
 }
 
-type MessagesData = InfiniteData<MessagesPage, string | null>;
+type MessagesData = InfiniteData<MessagesPage, MessagesCursor | null>;
 
 /** Newest-first pages; the UI flattens and reverses for display. */
 export function useMessages(
@@ -43,21 +53,29 @@ export function useMessages(
     queryKey: chatKeys.messages(user?.id, conversationId),
     enabled: enabled && !!user,
     staleTime: 30_000,
-    initialPageParam: null as string | null,
+    initialPageParam: null as MessagesCursor | null,
     queryFn: async ({ pageParam }): Promise<MessagesPage> => {
       let q = supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .limit(PAGE_SIZE);
-      if (pageParam) q = q.lt("created_at", pageParam);
+      if (pageParam) {
+        // Strictly older timestamp OR same timestamp with a smaller id.
+        q = q.or(
+          `created_at.lt.${pageParam.createdAt},and(created_at.eq.${pageParam.createdAt},id.lt.${pageParam.id})`,
+        );
+      }
       const { data, error } = await q;
       if (error) throw error;
       const rows = data ?? [];
+      const last = rows[rows.length - 1];
       return {
         rows,
-        nextCursor: rows.length === PAGE_SIZE ? (rows[rows.length - 1]?.created_at ?? null) : null,
+        nextCursor:
+          rows.length === PAGE_SIZE && last ? { createdAt: last.created_at, id: last.id } : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
@@ -440,6 +458,13 @@ export function useToggleReaction(conversationId: string) {
 
 export interface TypingEvent {
   userId: string;
+  /**
+   * false = explicit "stopped typing" (broadcast on message send so the peer's
+   * indicator clears immediately). Absent means typing - clients that predate
+   * this field broadcast only { userId }, so the receiver must treat a missing
+   * value as typing:true.
+   */
+  typing?: boolean;
 }
 
 // --- Shared typing-broadcast channels -------------------------------------
@@ -502,11 +527,14 @@ function releaseTypingChannel(
   }
 }
 
-/** Broadcast a "typing" ping on the conversation's shared stable-topic channel. */
-function sendTypingBroadcast(conversationId: string, userId: string): void {
+/**
+ * Broadcast a "typing" ping (or an explicit typing:false stop) on the
+ * conversation's shared stable-topic channel.
+ */
+function sendTypingBroadcast(conversationId: string, userId: string, typing: boolean): void {
   const entry = typingChannels.get(conversationId);
   if (!entry) return;
-  void entry.channel.send({ type: "broadcast", event: "typing", payload: { userId } });
+  void entry.channel.send({ type: "broadcast", event: "typing", payload: { userId, typing } });
 }
 
 /**
@@ -524,19 +552,20 @@ function sendTypingBroadcast(conversationId: string, userId: string): void {
  * once to recover events dropped while the socket was down.
  *
  * Typing lives on a separate STABLE-topic channel shared with the peer (see
- * acquireTypingChannel). Returns a stable `sendTyping` emitter for the composer.
+ * acquireTypingChannel). Returns a stable `sendTyping` emitter for the
+ * composer; `sendTyping(false)` broadcasts an explicit stop (used on send).
  */
 export function useConversationChannel(
   conversationId: string,
   enabled: boolean,
   onTyping: (event: TypingEvent) => void,
-): { sendTyping: () => void } {
+): { sendTyping: (typing?: boolean) => void } {
   const qc = useQueryClient();
   const { user } = useAuth();
   const uid = user?.id;
   const onTypingRef = useRef(onTyping);
   onTypingRef.current = onTyping;
-  const sendRef = useRef<() => void>(() => {});
+  const sendRef = useRef<(typing: boolean) => void>(() => {});
 
   useEffect(() => {
     if (!enabled || !uid) return;
@@ -667,7 +696,7 @@ export function useConversationChannel(
       if (event.userId !== uid) onTypingRef.current(event);
     };
     acquireTypingChannel(conversationId, listener);
-    sendRef.current = () => sendTypingBroadcast(conversationId, uid);
+    sendRef.current = (typing) => sendTypingBroadcast(conversationId, uid, typing);
     return () => {
       sendRef.current = () => {};
       releaseTypingChannel(conversationId, listener);
@@ -675,7 +704,7 @@ export function useConversationChannel(
   }, [conversationId, enabled, uid]);
 
   // Stable identity so the (memoized) composer never re-renders because of it.
-  const sendTyping = useCallback(() => sendRef.current(), []);
+  const sendTyping = useCallback((typing: boolean = true) => sendRef.current(typing), []);
   return { sendTyping };
 }
 

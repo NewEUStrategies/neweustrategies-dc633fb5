@@ -3,20 +3,24 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, Globe, Linkedin } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
+import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
-import { authorBySlugQueryOptions } from "@/lib/queries/archives";
+import { authorBySlugQueryOptions, ARCHIVE_PAGE_SIZE } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/author/$slug")({
+  // SSR prefetches only the first page (default limit); "load more" pages are
+  // fetched client-side through the same query options with a bigger limit.
   loader: async ({ params, context }) => {
     const data = await context.queryClient.ensureQueryData(authorBySlugQueryOptions(params.slug));
     if (!data) throw notFound();
@@ -26,7 +30,7 @@ export const Route = createFileRoute("/author/$slug")({
     const author = loaderData?.author;
     const url = getRequestUrl() || `/author/${params.slug}`;
     const lang = activeLang(url);
-    const name = author?.display_name ?? "Autor";
+    const name = author?.display_name ?? (lang === "en" ? "Author" : "Autor");
     const bio = author
       ? lang === "en"
         ? author.bio_en || author.bio_pl
@@ -48,20 +52,33 @@ export const Route = createFileRoute("/author/$slug")({
   component: AuthorArchivePage,
   notFoundComponent: AuthorNotFound,
   errorComponent: (props) => (
-    <RouteErrorFallback {...props} title="Nie udało się załadować profilu" />
+    <RouteErrorFallback
+      {...props}
+      title={
+        activeLang() === "en" ? "Failed to load the profile" : "Nie udało się załadować profilu"
+      }
+    />
   ),
 });
 
 function AuthorArchivePage() {
   const { slug } = Route.useParams();
-  const { data } = useSuspenseQuery(authorBySlugQueryOptions(slug));
-  const { i18n } = useTranslation();
+  // Limit window keyed by slug: navigating to another author must start from
+  // the first page again instead of carrying over an inflated "load more" limit.
+  const [paging, setPaging] = useState({ slug, limit: ARCHIVE_PAGE_SIZE });
+  const limit = paging.slug === slug ? paging.limit : ARCHIVE_PAGE_SIZE;
+  // The bump re-suspends useSuspenseQuery (new query key), so it runs inside a
+  // transition - the current grid stays on screen instead of a blank fallback.
+  const [isPending, startTransition] = useTransition();
+  const { data } = useSuspenseQuery(authorBySlugQueryOptions(slug, limit));
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const personalized = usePersonalizedSettings();
   if (!data) return <AuthorNotFound />;
   const { author, posts } = data;
-  const name = author.display_name ?? "Autor";
+  const name = author.display_name ?? (lang === "en" ? "Author" : "Autor");
   const bio = lang === "en" ? (author.bio_en ?? author.bio_pl) : (author.bio_pl ?? author.bio_en);
+  const canLoadMore = posts.length >= limit;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -140,8 +157,30 @@ function AuthorArchivePage() {
           <ArchivePostList
             posts={posts}
             lang={lang}
-            emptyText={lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów."}
+            emptyText={t("archive.empty", {
+              defaultValue:
+                lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
+            })}
           />
+          {canLoadMore && (
+            <div className="flex justify-center pt-6">
+              <Button
+                variant="outline"
+                disabled={isPending}
+                onClick={() =>
+                  startTransition(() => setPaging({ slug, limit: limit + ARCHIVE_PAGE_SIZE }))
+                }
+              >
+                {isPending
+                  ? t("common.loading", {
+                      defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
+                    })
+                  : t("common.loadMore", {
+                      defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
+                    })}
+              </Button>
+            </div>
+          )}
         </section>
       </main>
     </div>
@@ -149,17 +188,25 @@ function AuthorArchivePage() {
 }
 
 function AuthorNotFound() {
+  const { t, i18n } = useTranslation();
+  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="text-center space-y-3">
-          <h1 className="font-display text-3xl">Autor nie znaleziony</h1>
+          <h1 className="font-display text-3xl">
+            {t("archive.authorNotFound", {
+              defaultValue: lang === "en" ? "Author not found" : "Autor nie znaleziony",
+            })}
+          </h1>
           <a
             href="/blog"
             className="inline-flex items-center gap-1 text-brand hover:underline text-sm"
           >
             <ExternalLink className="w-3 h-3" />
-            Wróć na blog
+            {t("archive.backToBlog", {
+              defaultValue: lang === "en" ? "Back to the blog" : "Wróć na blog",
+            })}
           </a>
         </div>
       </main>

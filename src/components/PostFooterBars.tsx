@@ -1,4 +1,4 @@
-// Stopka pojedynczego wpisu - paski tagów / źródeł / via / karta autora / paginacja.
+// Stopka pojedynczego wpisu - pasek tagów / karta autora / paginacja prev-next.
 // Każdy element renderuje się tylko gdy odpowiedni flag w settings jest true.
 import { Link } from "@tanstack/react-router";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
@@ -19,17 +19,13 @@ interface Props {
   settings: PostLayoutSettings;
   lang: "pl" | "en";
   tags?: Array<{ slug: string; name: string }>;
-  sources?: string[] | null;
-  via?: string[] | null;
   author?: AuthorInfo | null;
   prev?: NeighborPost | null;
   next?: NeighborPost | null;
 }
 
-export function PostFooterBars({ settings, lang, tags, sources, via, author, prev, next }: Props) {
+export function PostFooterBars({ settings, lang, tags, author, prev, next }: Props) {
   const showTags = settings.show_post_tags_bar && tags && tags.length > 0;
-  const showSources = settings.show_sources_bar && sources && sources.length > 0;
-  const showVia = settings.show_via_bar && via && via.length > 0;
   const showAuthor = settings.show_author_card && author;
   const showPrevNext = settings.show_prev_next && (prev || next);
 
@@ -45,28 +41,6 @@ export function PostFooterBars({ settings, lang, tags, sources, via, author, pre
               #{t.name}
             </span>
           ))}
-        </div>
-      )}
-
-      {showSources && (
-        <div className="border-t border-border pt-4">
-          <h4 className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-            {lang === "en" ? "Sources" : "Źródła"}
-          </h4>
-          <ul className="text-sm space-y-1 list-disc list-inside">
-            {sources!.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {showVia && (
-        <div className="border-t border-border pt-4 text-sm">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground mr-2">
-            {lang === "en" ? "Via" : "Via"}
-          </span>
-          {via!.join(", ")}
         </div>
       )}
 

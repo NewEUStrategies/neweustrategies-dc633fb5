@@ -7,7 +7,7 @@
 // przypinać/usuwać.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -158,6 +158,23 @@ function LiveBlogAdmin() {
     },
   });
 
+  // Deep-link z edytora bloku niesie tylko blockId (edytor bloku nie zna id
+  // postu). Po wczytaniu bloków wybranego postu: zachowany blockId spoza tego
+  // postu czyścimy, a gdy blockId nie wybrano i post ma dokładnie jeden blok
+  // live blog - wybieramy go automatycznie.
+  useEffect(() => {
+    if (!search.postId || blocksLoading) return;
+    if (search.blockId && !blockOptions.some((b) => b.id === search.blockId)) {
+      void navigate({ search: (p: SearchParams) => ({ ...p, blockId: undefined }) });
+      return;
+    }
+    if (!search.blockId && blockOptions.length === 1) {
+      const only = blockOptions[0].id;
+      void navigate({ search: (p: SearchParams) => ({ ...p, blockId: only }) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.postId, search.blockId, blocksLoading, blockOptions]);
+
   const enabled = !!search.postId && !!search.blockId;
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["liveBlogEntries", search.postId, search.blockId, lang] as const,
@@ -250,7 +267,9 @@ function LiveBlogAdmin() {
             <Label>Post</Label>
             <Select
               value={search.postId ?? ""}
-              onValueChange={(v) => setSearch({ postId: v, blockId: undefined })}
+              // blockId celowo NIE jest czyszczony: deep-link z edytora bloku
+              // niesie tylko blockId - walidacja/auto-wybór w efekcie powyżej.
+              onValueChange={(v) => setSearch({ postId: v })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Wybierz post…" />

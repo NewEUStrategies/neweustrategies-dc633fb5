@@ -9,7 +9,12 @@ import { Search as SearchIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
-import { searchQueryOptions, type SearchFilters } from "@/lib/queries/archives";
+import {
+  searchQueryOptions,
+  SEARCH_LIMIT_MAX,
+  SEARCH_PAGE_SIZE,
+  type SearchFilters,
+} from "@/lib/queries/archives";
 import { activeLang } from "@/lib/seo/head";
 import "@/lib/i18n-search";
 
@@ -60,7 +65,31 @@ function SearchPage() {
     dateTo: search.to,
   };
 
-  const { data, isFetching } = useQuery(searchQueryOptions(filters));
+  // search_posts has no offset, so "load more" paginates by growing _limit
+  // (60 -> 120 -> ... -> 300 max). The window is keyed by the serialized
+  // filters: changing the query/filters starts back at the first page.
+  const filterKey = JSON.stringify([
+    search.q,
+    search.category,
+    search.author,
+    search.from,
+    search.to,
+  ]);
+  const [paging, setPaging] = useState({ key: filterKey, limit: SEARCH_PAGE_SIZE });
+  const limit = paging.key === filterKey ? paging.limit : SEARCH_PAGE_SIZE;
+
+  const { data, isFetching, isError } = useQuery({
+    ...searchQueryOptions(filters, limit),
+    // Keep the previous result grid on screen while a bigger page (or a new
+    // filter set) loads instead of blanking to zero results.
+    placeholderData: (prev) => prev,
+  });
+
+  const posts = data?.posts ?? [];
+  // The RPC filled the whole window -> more matches may exist server-side, so
+  // the exact count would lie; render "N+" and offer "load more" (until the cap).
+  const resultsCapped = posts.length >= limit;
+  const canLoadMore = resultsCapped && limit < SEARCH_LIMIT_MAX;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,13 +216,53 @@ function SearchPage() {
             </aside>
 
             <section>
-              <p className="text-sm text-muted-foreground mb-4">
-                {isFetching
-                  ? t("search.searching")
-                  : t("search.results_count", { count: data?.posts.length ?? 0 })}
-              </p>
-              {data && (
-                <ArchivePostList posts={data.posts} lang={lang} emptyText={t("search.empty")} />
+              {isError ? (
+                <p className="text-sm text-destructive mb-4">
+                  {t("search.error", {
+                    defaultValue:
+                      lang === "en"
+                        ? "Search failed. Please try again."
+                        : "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+                  })}
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {isFetching
+                      ? t("search.searching")
+                      : resultsCapped
+                        ? t("search.results_count_plus", {
+                            defaultValue: lang === "en" ? "Results: {{n}}+" : "Wyników: {{n}}+",
+                            n: posts.length,
+                          })
+                        : t("search.results_count", { count: posts.length })}
+                  </p>
+                  {data && (
+                    <ArchivePostList posts={posts} lang={lang} emptyText={t("search.empty")} />
+                  )}
+                  {canLoadMore && (
+                    <div className="flex justify-center pt-6">
+                      <Button
+                        variant="outline"
+                        disabled={isFetching}
+                        onClick={() =>
+                          setPaging({
+                            key: filterKey,
+                            limit: Math.min(limit + SEARCH_PAGE_SIZE, SEARCH_LIMIT_MAX),
+                          })
+                        }
+                      >
+                        {isFetching
+                          ? t("common.loading", {
+                              defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
+                            })
+                          : t("common.loadMore", {
+                              defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
+                            })}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           </div>

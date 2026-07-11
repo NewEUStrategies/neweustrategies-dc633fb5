@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
+import { useTheme } from "@/components/ThemeProvider";
 import { onOpenLoginPopup } from "@/lib/loginPopupBus";
 import {
   Dialog,
@@ -25,6 +26,7 @@ export function LoginPopup() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const settings = useAuthSettings();
+  const { theme } = useTheme();
   const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
 
   const [open, setOpen] = useState(false);
@@ -41,13 +43,26 @@ export function LoginPopup() {
       const m = opts.mode ?? "signin";
       setOverride({ title: opts.title, description: opts.description });
       if (!settings.popup_enabled) {
+        // Admin may point the full sign-in flow at a custom page instead of
+        // /login: an internal path ("/membership/login") uses the router, a
+        // full http(s) URL (external IdP) gets a hard navigation. Anything
+        // else (including protocol-relative "//host") falls back to /login.
+        const custom = settings.custom_login_url.trim();
+        if (custom.startsWith("/") && !custom.startsWith("//")) {
+          void navigate({ to: custom });
+          return;
+        }
+        if (/^https?:\/\//.test(custom)) {
+          window.location.assign(custom);
+          return;
+        }
         navigate({ to: "/login", search: { mode: m } });
         return;
       }
       setMode(m);
       setOpen(true);
     });
-  }, [settings.popup_enabled, navigate]);
+  }, [settings.popup_enabled, settings.custom_login_url, navigate]);
 
   useEffect(() => {
     if (session && open) setOpen(false);
@@ -58,7 +73,13 @@ export function LoginPopup() {
   const description =
     override.description ??
     (lang === "pl" ? settings.popup_description_pl : settings.popup_description_en);
-  const logo = lang === "pl" ? settings.form_logo_url : settings.form_logo_url;
+  // Dark theme prefers the dedicated dark-mode logo and falls back to the
+  // light one, so a site configured before the dark variant existed keeps
+  // showing its logo.
+  const logo =
+    theme === "dark"
+      ? settings.form_logo_url_dark || settings.form_logo_url
+      : settings.form_logo_url;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +98,13 @@ export function LoginPopup() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}${settings.logged_in_redirect_url || "/"}`,
+            // Same internal-path guard as /login: a non-"/" value must never
+            // leak into the confirmation redirect.
+            emailRedirectTo: `${window.location.origin}${
+              settings.logged_in_redirect_url?.startsWith("/")
+                ? settings.logged_in_redirect_url
+                : "/"
+            }`,
             data: {
               display_name: displayName,
               first_name: firstName,

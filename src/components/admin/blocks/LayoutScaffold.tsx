@@ -311,8 +311,6 @@ function FooterBars({ s }: { s: PostLayoutSettings }) {
   const { t } = useTranslation();
   const bars: Array<[string, boolean]> = [
     [t("admin.layoutScaffold.footer.tags", { defaultValue: "Tagi" }), s.show_post_tags_bar],
-    [t("admin.layoutScaffold.footer.sources", { defaultValue: "Źródła" }), s.show_sources_bar],
-    [t("admin.layoutScaffold.footer.via", { defaultValue: "Via" }), s.show_via_bar],
     [
       t("admin.layoutScaffold.footer.authorCard", { defaultValue: "Karta autora" }),
       s.show_author_card,

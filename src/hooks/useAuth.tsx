@@ -3,6 +3,8 @@ import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { hasAnonPersonalization, mergeAnonPersonalization } from "@/lib/personalization/anonMerge";
+import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY } from "@/lib/authSettings";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 export type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
@@ -100,6 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Resolve the admin-configured post-logout destination BEFORE clearing the
+    // cache (the bulk settings map is almost always already cached, so this is
+    // a cache read, not a round-trip). Only internal paths are honoured -
+    // "//evil.example" style values fall back to the homepage.
+    let target = "/";
+    try {
+      const map = await queryClient.ensureQueryData(siteSettingsQueryOptions);
+      const configured = resolveSetting(map, AUTH_SETTINGS_KEY, AUTH_DEFAULTS).logout_redirect_url;
+      if (configured.startsWith("/") && !configured.startsWith("//")) target = configured;
+    } catch {
+      /* settings unavailable - fall back to the homepage */
+    }
     await supabase.auth.signOut();
     setSession(null);
     setRoles([]);
@@ -108,6 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // sees the previous account's data - billing, orders, subscription and
     // bookmarks use static, user-independent query keys.
     queryClient.clear();
+    // AuthProvider mounts outside the router, so use a hard navigation - on
+    // logout a full reload is even desirable: it guarantees no per-user state
+    // survives in memory.
+    if (typeof window !== "undefined") window.location.assign(target);
   };
 
   const isSuperAdmin = roles.includes("super_admin");

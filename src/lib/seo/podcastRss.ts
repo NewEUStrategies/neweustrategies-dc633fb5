@@ -30,6 +30,31 @@ export interface PodcastRssChannelInput {
   items: readonly PodcastRssItem[];
 }
 
+/**
+ * Enclosure MIME derived from the audio URL's extension. The admin explicitly
+ * invites mp3/m4a/wav uploads, so hardcoding audio/mpeg would mis-declare
+ * non-mp3 episodes to podcast directories. Unknown/missing extension falls
+ * back to audio/mpeg (the dominant format).
+ */
+export function enclosureMimeType(audioUrl: string): string {
+  const ext = audioUrl.split(/[?#]/)[0].split(".").pop()?.toLowerCase() ?? "";
+  switch (ext) {
+    case "m4a":
+    case "mp4":
+    case "aac":
+      return "audio/mp4";
+    case "wav":
+      return "audio/wav";
+    case "ogg":
+    case "oga":
+      return "audio/ogg";
+    case "webm":
+      return "audio/webm";
+    default:
+      return "audio/mpeg";
+  }
+}
+
 /** Format seconds as HH:MM:SS for itunes:duration. */
 function itunesDuration(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds || 0));
@@ -58,8 +83,10 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
       lines.push(`      <itunes:summary>${xmlEscape(description)}</itunes:summary>`);
     }
     // RSS wymaga length; nie przechowujemy rozmiaru pliku, więc 0 (dopuszczalne
-    // przez większość agregatorów) - type domyślnie audio/mpeg.
-    lines.push(`      <enclosure url="${xmlEscape(item.audioUrl)}" length="0" type="audio/mpeg"/>`);
+    // przez większość agregatorów) - type wyprowadzany z rozszerzenia pliku.
+    lines.push(
+      `      <enclosure url="${xmlEscape(item.audioUrl)}" length="0" type="${enclosureMimeType(item.audioUrl)}"/>`,
+    );
     if (item.durationSeconds > 0) {
       lines.push(
         `      <itunes:duration>${itunesDuration(item.durationSeconds)}</itunes:duration>`,
