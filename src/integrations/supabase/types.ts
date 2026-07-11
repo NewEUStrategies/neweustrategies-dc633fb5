@@ -1429,6 +1429,50 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_events: {
+        Row: {
+          actor_id: string | null
+          aggregate_id: string
+          aggregate_type: string
+          correlation_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          aggregate_id: string
+          aggregate_type: string
+          correlation_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          aggregate_id?: string
+          aggregate_type?: string
+          correlation_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_field_policies: {
         Row: {
           active: boolean
@@ -4690,6 +4734,16 @@ export type Database = {
         Returns: string
       }
       current_tenant_id: { Args: never; Returns: string }
+      emit_domain_event: {
+        Args: {
+          p_aggregate_id: string
+          p_aggregate_type: string
+          p_event_type: string
+          p_payload?: Json
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       enforce_form_field_policy: {
         Args: { _form_type: string; _payload: Json; _tenant: string }
         Returns: string[]
@@ -4717,6 +4771,26 @@ export type Database = {
           job_title: string
           specialization: string
         }[]
+      }
+      get_correlated_events: {
+        Args: { p_correlation_id: string }
+        Returns: {
+          actor_id: string | null
+          aggregate_id: string
+          aggregate_type: string
+          correlation_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "domain_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_entity_content: {
         Args: {
@@ -5023,6 +5097,7 @@ export type Database = {
         Args: { _base: string }
         Returns: string
       }
+      prune_domain_events: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
       record_post_view: {
@@ -5034,6 +5109,7 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      request_correlation_id: { Args: never; Returns: string }
       request_public_host: { Args: never; Returns: string }
       resolve_path: {
         Args: { _segments: string[] }
