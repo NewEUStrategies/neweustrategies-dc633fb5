@@ -41,7 +41,13 @@ export const Route = createFileRoute("/messages")({
     const c = typeof search.c === "string" && search.c.length > 0 ? search.c : undefined;
     const rawView = typeof search.view === "string" ? search.view : undefined;
     const view: MessagesView | undefined =
-      rawView === "notifications" ? "notifications" : rawView === "chats" ? "chats" : undefined;
+      rawView === "notifications"
+        ? "notifications"
+        : rawView === "consents"
+          ? "consents"
+          : rawView === "chats"
+            ? "chats"
+            : undefined;
     return { c, view };
   },
   head: () => ({
