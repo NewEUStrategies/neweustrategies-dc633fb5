@@ -13,10 +13,18 @@ const ThemeContext = createContext<{
   setTheme: () => {},
 });
 
+function systemTheme(): Theme {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+// Explicit user choice (localStorage) wins; otherwise follow the OS preference.
+// Mirrors the pre-hydration themeInitScript in __root.tsx - keep both in sync.
 function readStored(): Theme {
   if (typeof window === "undefined") return "light";
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "dark" ? "dark" : "light";
+  if (stored === "dark" || stored === "light") return stored;
+  return systemTheme();
 }
 
 function apply(theme: Theme) {
@@ -58,6 +66,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Follow live OS theme changes, but only while the user has not made an
+  // explicit choice (no localStorage entry).
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => {
+      if (localStorage.getItem(STORAGE_KEY) === null) setThemeState(systemTheme());
+    };
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
   }, []);
 
   const setTheme = (next: Theme) => {

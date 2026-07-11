@@ -58,6 +58,7 @@ import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
+import { confirmDialog, promptDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
@@ -275,7 +276,12 @@ function EditPage() {
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
     history.set((f) => (f ? { ...f, [k]: v } : f), { coalesceKey: String(k) });
 
-  const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
+  const pickImage = async (): Promise<string | null> =>
+    promptDialog({
+      title: t("admin.imageUrlTitle", { defaultValue: "Adres URL obrazka" }),
+      placeholder: "https://…",
+      confirmLabel: t("admin.insert", { defaultValue: "Wstaw" }),
+    });
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
@@ -319,7 +325,14 @@ function EditPage() {
   };
 
   const del = async () => {
-    if (!confirm(t("admin.confirmDelete"))) return;
+    if (
+      !(await confirmDialog({
+        title: t("admin.confirmDelete"),
+        destructive: true,
+        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+      }))
+    )
+      return;
     try {
       await delete$({ data: { id } });
       toast.success(t("admin.deleted"));

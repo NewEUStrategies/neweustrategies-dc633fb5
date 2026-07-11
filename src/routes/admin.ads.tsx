@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import { useInterestCatalog } from "@/hooks/useInterests";
 import "@/lib/i18n-ads-admin";
 
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/ads")({ component: AdsAdmin });
 
 function emptySlot(): Partial<AdSlot> {
@@ -255,7 +256,15 @@ function SlotsPanel() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Usunąć slot? Wszystkie powiązane pozycje również znikną.")) return;
+    if (
+      !(await confirmDialog({
+        title: "Usunąć slot?",
+        description: "Wszystkie powiązane pozycje również znikną.",
+        destructive: true,
+        confirmLabel: "Usuń",
+      }))
+    )
+      return;
     const { error } = await supabase.from("ad_slots").delete().eq("id", id);
     if (error) toast.error(error.message);
     else {
@@ -499,7 +508,10 @@ function PlacementsPanel() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Usunąć pozycję?")) return;
+    if (
+      !(await confirmDialog({ title: "Usunąć pozycję?", destructive: true, confirmLabel: "Usuń" }))
+    )
+      return;
     const { error } = await supabase.from("ad_placements").delete().eq("id", id);
     if (error) toast.error(error.message);
     else {

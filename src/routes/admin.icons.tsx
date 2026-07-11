@@ -29,6 +29,7 @@ import {
   type IconVariant,
 } from "@/lib/iconLibrary";
 
+import { confirmDialog } from "@/lib/appDialogs";
 const KIND_TABS: { id: IconKind; icon: typeof Shapes; labelKey: string }[] = [
   { id: "custom", icon: Shapes, labelKey: "admin.icons.tabs.custom" },
   { id: "flag", icon: Tags, labelKey: "admin.icons.tabs.flag" },
@@ -370,7 +371,14 @@ function IconCard({
   };
 
   const onRemove = async () => {
-    if (!confirm(t("admin.icons.confirmDelete", { name: row.name }))) return;
+    if (
+      !(await confirmDialog({
+        title: t("admin.icons.confirmDelete", { name: row.name }),
+        destructive: true,
+        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+      }))
+    )
+      return;
     try {
       await deleteIcon(row.id);
       toast.success(t("admin.icons.deleted"));

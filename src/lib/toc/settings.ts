@@ -45,7 +45,7 @@ export const TocDefaultsSchema = z
       .object({
         bg: COLOR.default("#f8fafc"),
         bgDark: COLOR.default("#1e293b"),
-        accent: COLOR.default("#4f46e5"),
+        accent: COLOR.default("#fa9346"),
         border: COLOR.default("#e2e8f0"),
         borderDark: COLOR.default("#334155"),
         text: COLOR.default("#0f172a"),

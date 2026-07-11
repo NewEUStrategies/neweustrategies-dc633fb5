@@ -64,7 +64,7 @@
   --color-cat-diplomacy: var(--cat-diplomacy);
   --color-cat-cyber: var(--cat-cyber);
   --color-hot: var(--hot);
-  --font-display: "Red Hat Display", Georgia, serif;
+  --font-display: "Red Hat Display", system-ui, sans-serif;
   --font-sans: "Red Hat Display", system-ui, sans-serif;
 }
 
@@ -94,16 +94,14 @@
 
   /* Widget form-field interaction tokens - shared across every widget input.
      Override per-widget by setting these vars on the widget shell. */
-  --gc-input-hover-border: #FDB078; /* light-orange hover ring, per brand */
-  --gc-input-focus-border: #FDB078; /* focus uses the same orange for continuity */
-  --gc-label-font-size: 0.75rem;   /* 12px - unified input-label size */
-  --gc-input-font-size: 14px;      /* unified input/select/textarea text size */
+  --gc-input-hover-border: #fdb078; /* light-orange hover ring, per brand */
+  --gc-input-focus-border: #fdb078; /* focus uses the same orange for continuity */
+  --gc-label-font-size: 0.75rem; /* 12px - unified input-label size */
+  --gc-input-font-size: 14px; /* unified input/select/textarea text size */
   --gc-input-line-height: 1.4;
   --gc-input-text: var(--foreground);
   --gc-input-placeholder: oklch(0.62 0 0);
   --gc-input-placeholder-dark: oklch(0.58 0 0);
-
-
 
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.18 0 0);
@@ -251,11 +249,31 @@
 /* Cała platforma: każdy interaktywny element pokazuje "rączkę" na hover.
    Tailwind v4 preflight ustawia buttonom `cursor: default`, więc jawnie
    przywracamy pointer globalnie, bez naruszania stanów disabled/aria-disabled. */
-:where(button, a, [role="button"], [role="link"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="tab"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], summary, label[for], select, input[type="submit"], input[type="button"], input[type="reset"], input[type="checkbox"], input[type="radio"], input[type="file"]):not(:disabled):not([aria-disabled="true"]) {
+:where(
+    button,
+    a,
+    [role="button"],
+    [role="link"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="tab"],
+    [role="option"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    summary,
+    label[for],
+    select,
+    input[type="submit"],
+    input[type="button"],
+    input[type="reset"],
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="file"]
+  ):not(:disabled):not([aria-disabled="true"]) {
   cursor: pointer;
 }
-
-
 
 /* Overlay meta card: wyłączone efekty hover (brak zmiany koloru, opacity, underline). */
 .overlay-meta-card,
@@ -539,7 +557,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="group
 
 /* Style 5 - Glass / Frosted */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 55%, transparent), color-mix(in oklab, var(--card) 35%, transparent)) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 55%, transparent),
+    color-mix(in oklab, var(--card) 35%, transparent)
+  ) !important;
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   border-right: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
@@ -2271,7 +2293,12 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .cf-shell button,
 .cf-shell label,
 .cf-shell a {
-  font-family: "Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family:
+    "Red Hat Display",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
 }
 .cf-shell {
   position: relative;
@@ -2328,10 +2355,10 @@ textarea::placeholder {
   opacity: 1 !important;
 }
 .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #FDB078);
+  border-color: var(--gc-input-hover-border, #fdb078);
 }
 .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #FDB078);
+  border-color: var(--gc-input-focus-border, #fdb078);
   background: var(--gc-input-bg, var(--background));
 }
 .dark .cf-shell .cf-input {
@@ -2339,11 +2366,11 @@ textarea::placeholder {
   border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 .dark .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #FDB078);
+  border-color: var(--gc-input-hover-border, #fdb078);
 }
 .dark .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, color-mix(in oklab, var(--background) 65%, var(--foreground) 14%));
-  border-color: var(--gc-input-focus-border, #FDB078);
+  border-color: var(--gc-input-focus-border, #fdb078);
 }
 
 /* Image background */
@@ -2405,9 +2432,21 @@ textarea::placeholder {
 /* 2. Mesh drift */
 .cf-bg--mesh {
   background:
-    radial-gradient(60% 60% at 20% 20%, color-mix(in oklab, var(--primary) 25%, transparent), transparent 60%),
-    radial-gradient(50% 50% at 80% 30%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
-    radial-gradient(70% 70% at 50% 90%, color-mix(in oklab, var(--brand, var(--primary)) 20%, transparent), transparent 60%);
+    radial-gradient(
+      60% 60% at 20% 20%,
+      color-mix(in oklab, var(--primary) 25%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      50% 50% at 80% 30%,
+      color-mix(in oklab, var(--accent) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      70% 70% at 50% 90%,
+      color-mix(in oklab, var(--brand, var(--primary)) 20%, transparent),
+      transparent 60%
+    );
   background-size: 200% 200%;
   animation: cf-mesh 22s ease-in-out infinite alternate;
 }
@@ -2476,8 +2515,17 @@ textarea::placeholder {
 /* 5. Noise shimmer */
 .cf-bg--shimmer {
   background:
-    repeating-linear-gradient(115deg, transparent 0 60px, color-mix(in oklab, var(--primary) 6%, transparent) 60px 62px),
-    linear-gradient(115deg, transparent 30%, color-mix(in oklab, var(--primary) 18%, transparent) 50%, transparent 70%);
+    repeating-linear-gradient(
+      115deg,
+      transparent 0 60px,
+      color-mix(in oklab, var(--primary) 6%, transparent) 60px 62px
+    ),
+    linear-gradient(
+      115deg,
+      transparent 30%,
+      color-mix(in oklab, var(--primary) 18%, transparent) 50%,
+      transparent 70%
+    );
   background-size:
     100% 100%,
     200% 100%;
@@ -2634,7 +2682,9 @@ textarea::placeholder {
      (Tailwind utilities like h-9/h-11 always beat this)
    ============================================================ */
 :where(
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+      [type="file"]
+    ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
 ),
 :where(select) {
   height: var(--form-input-height);
@@ -2648,7 +2698,6 @@ textarea::placeholder {
   font-size: var(--form-input-font-size);
   line-height: 1.35;
 }
-
 
 /* Neutralize the browser's default focus outline (blue glow) everywhere. */
 :where(input, textarea, select):focus {
@@ -2668,7 +2717,7 @@ textarea::placeholder {
 /* Contact-form input focus: orange border only, no glow. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #FDB078);
+  border-color: var(--gc-input-focus-border, #fdb078);
 }
 
 /* ============================================================
@@ -2680,7 +2729,9 @@ textarea::placeholder {
    ============================================================ */
 :where([data-w-id])
   :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     textarea,
     select
   ) {
@@ -2701,45 +2752,53 @@ textarea::placeholder {
 }
 :where([data-w-id])
   :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     select
   ):hover {
-  border-color: var(--gc-input-hover-border, #FDB078);
+  border-color: var(--gc-input-hover-border, #fdb078);
 }
 :where([data-w-id]) :where(textarea):hover {
-  border-color: var(--gc-input-hover-border, #FDB078);
+  border-color: var(--gc-input-hover-border, #fdb078);
 }
 :where([data-w-id])
   :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     textarea,
     select
   ):focus,
 :where([data-w-id])
   :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     textarea,
     select
   ):focus-visible {
   outline: none;
-  border-color: var(--gc-input-focus-border, #FDB078);
+  border-color: var(--gc-input-focus-border, #fdb078);
   background: var(--gc-input-bg, var(--background));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
   --tw-ring-shadow: 0 0 #0000;
   --tw-ring-offset-shadow: 0 0 #0000;
 }
-.dark :where([data-w-id])
+.dark
+  :where([data-w-id])
   :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     textarea,
     select
   ) {
   background: var(--gc-input-bg, color-mix(in oklab, var(--background) 80%, var(--foreground) 10%));
   border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
-:where([data-w-id])
-  :where(input, textarea)::placeholder {
+:where([data-w-id]) :where(input, textarea)::placeholder {
   color: var(--gc-input-placeholder, oklch(0.62 0 0));
   opacity: 1;
 }
@@ -2815,7 +2874,6 @@ input.icon-input-with-action {
     padding-right: 2.75rem !important;
   }
 }
-
 
 /* ============================================================
    Widget alignment bridge: text-align (Styl panel → dropdown
@@ -2919,15 +2977,6 @@ input.icon-input-with-action {
   justify-content: var(--widget-row-justify);
 }
 
-
-
-
-
-
-
-
-
-
 /* Chrome autofill: kill the blue/yellow background + inner shadow that some
    themes paint on inputs after the browser fills in credentials. */
 :where(input):-webkit-autofill,
@@ -2959,7 +3008,9 @@ input.icon-input-with-action {
   display: inline-block;
   vertical-align: middle;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
   flex-shrink: 0;
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
@@ -2994,8 +3045,11 @@ input.icon-input-with-action {
 /* Date / time inputs — match text input sizing */
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(
-    input[type="date"], input[type="datetime-local"],
-    input[type="time"], input[type="month"], input[type="week"]
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"],
+    input[type="month"],
+    input[type="week"]
   ) {
   height: var(--form-input-height);
   padding-inline: var(--form-input-padding-x);
@@ -3009,13 +3063,22 @@ input.icon-input-with-action {
   font-family: inherit;
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="date"], input[type="datetime-local"], input[type="time"])::-webkit-calendar-picker-indicator {
+  :where(
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"]
+  )::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.7;
   filter: invert(0);
 }
-.dark :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="date"], input[type="datetime-local"], input[type="time"])::-webkit-calendar-picker-indicator {
+.dark
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+  :where(
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"]
+  )::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
 
@@ -3046,7 +3109,9 @@ input.icon-input-with-action {
   background: var(--primary);
   color: var(--primary-foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
 }
 :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
   :where(input[type="file"])::file-selector-button:hover {
@@ -3054,8 +3119,7 @@ input.icon-input-with-action {
 }
 
 /* Textarea — match input border/background inside widget shells */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(textarea) {
+:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell) :where(textarea) {
   border: 1.5px solid var(--border);
   border-radius: var(--form-input-radius);
 
@@ -3066,8 +3130,7 @@ input.icon-input-with-action {
 }
 
 /* Select — match input styling */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(select) {
+:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell) :where(select) {
   border: 1.5px solid var(--border);
   border-radius: var(--form-input-radius);
 
@@ -3087,7 +3150,6 @@ input.icon-input-with-action {
   font-size: 0.875rem;
   line-height: 1.35;
 }
-
 
 /* ============================================================
    Wykresy i mapy danych (silnik SVG - src/components/charts)
@@ -3274,15 +3336,18 @@ input.icon-input-with-action {
   border-color: var(--gc-input-border, var(--cf-border, var(--border)));
 }
 .light .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #FDB078);
+  border-color: var(--gc-input-hover-border, #fdb078);
 }
 .light .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, var(--background));
-  border-color: var(--gc-input-focus-border, #FDB078);
+  border-color: var(--gc-input-focus-border, #fdb078);
 }
-.light :where([data-w-id])
+.light
+  :where([data-w-id])
   :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     textarea,
     select
   ) {
@@ -3297,8 +3362,13 @@ input.icon-input-with-action {
 .light .join-us-shell :where(input, select, textarea)::placeholder {
   color: var(--gc-input-placeholder, oklch(0.62 0 0));
 }
-.light :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="date"], input[type="datetime-local"], input[type="time"])::-webkit-calendar-picker-indicator {
+.light
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+  :where(
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"]
+  )::-webkit-calendar-picker-indicator {
   filter: invert(0);
 }
 /* Dual-source (light/dark) images inside the canvas follow the CANVAS mode,
@@ -3364,19 +3434,19 @@ input.icon-input-with-action {
    globalnych ustawień z site_settings.key_takeaways (edytowalne w
    /admin/key-takeaways). */
 .key-takeaways__card {
-  background: var(--kt-bg, #eef1ff);
+  background: var(--kt-bg, #fff4ea);
   color: var(--kt-text, #1f2937);
   border: var(--kt-border-width, 0px) solid var(--kt-border, transparent);
 }
 .dark .key-takeaways__card {
-  background: var(--kt-bg-dark, #1e2540);
+  background: var(--kt-bg-dark, #2b2118);
   color: var(--kt-text-dark, #e5e7eb);
   border-color: var(--kt-border-dark, transparent);
 }
 .key-takeaways__icon {
   width: 40px;
   height: 40px;
-  background: var(--kt-icon-bg, #4f46e5);
+  background: var(--kt-icon-bg, #fa9346);
   color: var(--kt-icon, #ffffff);
 }
 .key-takeaways__title {
@@ -3393,17 +3463,17 @@ input.icon-input-with-action {
 }
 .key-takeaways__card .key-takeaways__list::marker,
 .key-takeaways__card .key-takeaways__list > li::marker {
-  color: var(--kt-accent, #4f46e5);
+  color: var(--kt-accent, #fa9346);
 }
 .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text, #1f2937);
-  border-top-color: color-mix(in oklab, var(--kt-accent, #4f46e5) 30%, transparent);
+  border-top-color: color-mix(in oklab, var(--kt-accent, #fa9346) 30%, transparent);
 }
 .dark .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__bullet {
-  background: var(--kt-accent, #4f46e5);
+  background: var(--kt-accent, #fa9346);
 }
 
 /* Wariant "ghost" - wielki, półprzezroczysty nagłówek renderowany ZA listą.
@@ -3447,7 +3517,7 @@ h2.key-takeaways__ghost-title > span {
 /* Podświetlone słowa - tylko kolor się zmienia, transparentność ta sama. */
 .key-takeaways .key-takeaways__ghost-title .key-takeaways__ghost-title-hl,
 h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
-  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #4f46e5)) 22%, transparent);
+  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #fa9346)) 22%, transparent);
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
@@ -3456,10 +3526,8 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__ghost-item + .key-takeaways__ghost-item {
-  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #4f46e5) 22%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #fa9346) 22%, transparent);
 }
-
-
 
 /* -------------------------------------------------------------
  * Global font-size tokens (admin: Theme options > Font sizes)
@@ -3558,7 +3626,6 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   font-size: var(--fs-code, 0.875rem);
 }
 
-
 /* -------------------------------------------------------------
  * Global input UX: hide placeholder on focus, restore on blur.
  * Applies to every form field project-wide (inputs, textareas,
@@ -3571,7 +3638,9 @@ input:focus::-webkit-input-placeholder,
 textarea:focus::-webkit-input-placeholder {
   opacity: 0 !important;
   color: transparent !important;
-  transition: opacity 120ms ease-out, color 120ms ease-out;
+  transition:
+    opacity 120ms ease-out,
+    color 120ms ease-out;
 }
 
 input::placeholder,
@@ -3584,12 +3653,19 @@ textarea::placeholder {
 
 /* Chat: brief flash when jumping to a quoted message (reply-to click). */
 @keyframes chat-jump-flash-kf {
-  0% { background-color: color-mix(in oklab, var(--chat-user-to, #ed6d1f) 22%, transparent); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: color-mix(in oklab, var(--chat-user-to, #ed6d1f) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 .chat-jump-flash {
   animation: chat-jump-flash-kf 1.5s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .chat-jump-flash { animation: none; background-color: transparent; }
+  .chat-jump-flash {
+    animation: none;
+    background-color: transparent;
+  }
 }

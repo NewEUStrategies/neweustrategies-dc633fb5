@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
+import { promptDialog } from "@/lib/appDialogs";
 interface Props {
   editor: Editor;
 }
@@ -179,22 +180,32 @@ export function WordStyleToolbar({ editor }: Props) {
   const isHeading = (lvl: 1 | 2 | 3) => editor.isActive("heading", { level: lvl });
   const align = (a: "left" | "center" | "right" | "justify") => editor.isActive({ textAlign: a });
 
-  const promptLink = () => {
+  const promptLink = async () => {
     const current = (editor.getAttributes("link").href as string | undefined) ?? "https://";
-    const url = window.prompt("URL:", current);
+    const url = await promptDialog({
+      title: "Link",
+      label: "URL",
+      defaultValue: current,
+      confirmLabel: "Zastosuj",
+    });
     if (url === null) return;
     if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
     else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
-  const insertFootnote = () => {
+  const insertFootnote = async () => {
     const { from, to, empty } = editor.state.selection;
     const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
     const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", {
       defaultValue: "Treść przypisu:",
     });
     const initial = selected || "";
-    const text = window.prompt(promptLabel, initial);
+    const text = await promptDialog({
+      title: i18n.t("blocks.toolbar.footnote", { defaultValue: "Przypis" }),
+      label: promptLabel,
+      defaultValue: initial,
+      confirmLabel: i18n.t("blocks.toolbar.insert", { defaultValue: "Wstaw" }),
+    });
     if (text === null) return;
     const body = text.trim();
     if (!body) return;

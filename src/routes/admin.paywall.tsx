@@ -20,6 +20,7 @@ import type { AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney } from "@/hooks/useContentAccess";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
 
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/paywall")({ component: PaywallAdmin });
 
 function emptyPlan(): Partial<AccessPlan> {
@@ -71,7 +72,14 @@ function PaywallAdmin() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm(t("admin.paywall.confirmRemove"))) return;
+    if (
+      !(await confirmDialog({
+        title: t("admin.paywall.confirmRemove"),
+        destructive: true,
+        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+      }))
+    )
+      return;
     const { error } = await supabase.from("access_plans").delete().eq("id", id);
     if (error) toast.error(error.message);
     else {

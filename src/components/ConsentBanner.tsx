@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/consent";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { setConsentOverlayVisible } from "@/lib/overlayCoordinator";
 
 type Cats = Record<ConsentCategory, boolean>;
 
@@ -81,6 +82,14 @@ export function ConsentBanner() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [prefsOpen, decided]);
+
+  // While the consent surface is visible (undecided banner or the prefs
+  // dialog), hold back marketing overlays - consent always goes first.
+  const consentSurfaceVisible = mounted && (!decided || prefsOpen);
+  useEffect(() => {
+    setConsentOverlayVisible(consentSurfaceVisible);
+    return () => setConsentOverlayVisible(false);
+  }, [consentSurfaceVisible]);
 
   // SSR-safe: nic nie renderuj do hydracji.
   if (!mounted) return null;

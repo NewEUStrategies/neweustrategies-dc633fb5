@@ -168,3 +168,33 @@ Najkrótsza droga do „pokazania się lepiej" (w kolejności zwrotu):
 
 Po wykonaniu punktów 1–4 realistyczny pułap tej platformy to **8/10 UX/UI** —
 silnik już na to pozwala; brakuje wyłącznie wykończenia i dyscypliny.
+
+---
+
+# Wdrożenia — „tydzień higieny" (2026-07-11)
+
+Zrealizowano rekomendacje 1–7 i 10 z listy defektów priorytetowych. Bramki po
+zmianach: `tsc --noEmit` 0 błędów, testy **1367 przechodzą** (1363 + 4 nowe),
+`lint` 0 błędów (61 ostrzeżeń `exhaustive-deps` = baseline sprzed zmian).
+
+| # | Defekt | Wdrożenie |
+|---|---|---|
+| 1 | Brak menedżera nakładek | Nowy `lib/overlayCoordinator.ts` (+ testy vitest): pojedynczy właściciel slotu marketingowego, kolejka FIFO, cooldown 30 s między nakładkami. `ConsentBanner` zgłasza widoczność (zgody zawsze pierwsze), `NewsletterPopup` i `PopupHost` proszą o slot zamiast otwierać się na ślepo — koniec 3 nakładek naraz. |
+| 2 | Dark mode ignorował system | `themeInitScript` (`__root.tsx`) i `ThemeProvider` honorują `prefers-color-scheme`, gdy brak jawnego wyboru w localStorage; żywa reakcja na zmianę motywu OS; jawny wybór użytkownika nadal wygrywa. |
+| 3 | Rozjechana warstwa błędów/404 | Nowy `lib/errorCopy.ts` — jedna dwujęzyczna kopia dla WSZYSTKICH powierzchni awaryjnych (`__root` 404+error, `$.tsx` 404+error, `ErrorBoundary`). Surowe `error.message` już nigdy nie renderuje się czytelnikowi (idzie do console/reportera). |
+| 4 | Dwa silniki wyszukiwania | `SearchOverlay` przepięty z ILIKE-po-tytule na RPC `search_posts` (ten sam ranked FTS co `/search`: unaccent, prefiksy, treść bloków). Dodane ARIA combobox/listbox/`aria-activedescendant` — strzałki są teraz ogłaszane czytnikom ekranu. |
+| 5 | MegaMenu hover-only | Otwieranie także z fokusa klawiatury (parytet z hoverem), Escape działa dla obu wariantów, zdjęte fałszywe `role="menu"`/`aria-haspopup` (wzorzec disclosure-nav). |
+| 6 | Natywne `window.confirm/prompt` | Nowy `lib/appDialogs.ts` + `<AppDialogHost/>` (promise-owe `confirmDialog()`/`promptDialog()` w stylach aplikacji, wzorzec jak `unsavedChanges`). Wymienione WSZYSTKIE 21 wywołań w 15 plikach (AutosaveBar, edytory postów/stron, builder ops, sidebar builder, eksperymenty, custom-meta, ads, kategorie, paywall, ikony, crop-sizes, subskrybenci, profil, toolbar bloków, audio bar). `grep window.confirm\|window.prompt` = 0 trafień w kodzie produkcyjnym. |
+| 7 | Cele dotykowe < 44px | `button.tsx` (wszystkie rozmiary) i `input.tsx` dostały `pointer-coarse:min-h-11` (44px) — tylko na urządzeniach dotykowych, gęstość desktopu bez zmian. |
+| 10 | Zły fallback fontu + off-brand indygo | `"Red Hat Display", Georgia, serif` → `…, system-ui, sans-serif` (32 wystąpienia: styles.css, globalColors.ts, GlobalColorsEditor). Domyślne kolory Key Takeaways i TOC: indygo `#4f46e5`/`#eef1ff` → kolory marki `#fa9346`/`#fff4ea` (nadpisania z DB nadal wygrywają). |
+| — | Drobne i18n | „Clear" → „Wyczyść", `aria-label` „Close" → dwujęzyczny (SearchOverlay), breadcrumb „Start" → „Home" w EN, wyszarzone 25 niezaimplementowanych bloków usunięte z insertera (pokazujemy tylko realnie dostępne). |
+
+Poza zakresem tej rundy (świadomie): odchudzenie strony artykułu (pkt 8 — decyzja
+redakcyjna o liczbie stref reklam), onboarding admina i konsolidacja 3 ekranów
+ustawień designu (pkt 9 — wymaga decyzji o docelowej IA), TTS bez logowania
+(decyzja kosztowa właściciela).
+
+Uwaga: budżet bundle (`check:bundle`) jest przekroczony **na main** (public
+1176 KB > 1000 KB, overall 1561 KB > 1300 KB — stan zastany, dokumentacja
+ARCHITECTURE.md podaje nieaktualne ~930 KB); wkład tych zmian to ~+1 KB.
+Wymaga osobnej rundy odchudzania lub urealnienia budżetów.

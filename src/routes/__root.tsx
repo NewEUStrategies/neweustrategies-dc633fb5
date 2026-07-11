@@ -21,6 +21,7 @@ import { getOrigin } from "../lib/seo/request";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { currentLang } from "../lib/i18n/localeRuntime";
+import { errorCopy } from "../lib/errorCopy";
 import "../lib/i18n-profile";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
@@ -47,6 +48,7 @@ import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider } from "../lib/audio/global-player";
 import { GlobalAudioBar } from "../components/audio/GlobalAudioBar";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
+import { AppDialogHost } from "../components/AppDialogHost";
 
 // Non-critical overlays: not visible at first paint (they open on trigger/delay),
 // so they are code-split out of the entry to shrink the critical hydration bundle.
@@ -65,20 +67,19 @@ const PopupHost = lazy(() =>
 );
 
 function NotFoundComponent() {
+  const copy = errorCopy();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{copy.notFoundTitle}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.notFoundBody}</p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            {copy.goHome}
           </Link>
         </div>
       </div>
@@ -93,15 +94,12 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
+  const copy = errorCopy();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -110,13 +108,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {copy.tryAgain}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {copy.goHome}
           </a>
         </div>
       </div>
@@ -233,7 +231,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
+// No stored choice -> follow the OS preference (prefers-color-scheme); an
+// explicit toggle in ThemeProvider persists to localStorage and wins from then on.
+const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
 
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
@@ -294,6 +294,7 @@ function RootComponent() {
             <CommandPalette />
           </Suspense>
           <UnsavedChangesGuardHost />
+          <AppDialogHost />
           <Toaster />
         </AuthProvider>
       </ThemeProvider>

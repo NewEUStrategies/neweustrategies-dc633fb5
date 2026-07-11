@@ -35,18 +35,18 @@ export const KeyTakeawaysSettingsSchema = z
         indices: z.array(z.number().int().min(0).max(20)).default([]),
         indicesPl: z.array(z.number().int().min(0).max(20)).default([]),
         indicesEn: z.array(z.number().int().min(0).max(20)).default([]),
-        color: COLOR.default("#4f46e5"),
+        color: COLOR.default("#fa9346"),
         sizeScale: z.number().min(0.5).max(3).default(1),
         offsetY: z.number().min(-200).max(200).default(0),
       })
       .default({}),
     colors: z
       .object({
-        bg: COLOR.default("#eef1ff"),
-        bgDark: COLOR.default("#1e2540"),
-        accent: COLOR.default("#4f46e5"),
+        bg: COLOR.default("#fff4ea"),
+        bgDark: COLOR.default("#2b2118"),
+        accent: COLOR.default("#fa9346"),
         icon: COLOR.default("#ffffff"),
-        iconBg: COLOR.default("#4f46e5"),
+        iconBg: COLOR.default("#fa9346"),
         text: COLOR.default("#1f2937"),
         textDark: COLOR.default("#e5e7eb"),
         title: COLOR.default("#111827"),

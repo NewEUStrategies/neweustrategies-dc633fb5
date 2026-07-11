@@ -19,6 +19,7 @@ import {
   Redo,
 } from "@/lib/lucide-shim";
 
+import { promptDialog } from "@/lib/appDialogs";
 interface Props {
   value: string;
   onChange: (v: string) => void;
@@ -148,8 +149,13 @@ function RichEditor({
           <Quote className="w-4 h-4" />
         </Btn>
         <Btn
-          onClick={() => {
-            const url = window.prompt("URL");
+          onClick={async () => {
+            const url = await promptDialog({
+              title: "Link",
+              label: "URL",
+              placeholder: "https://…",
+              confirmLabel: "Wstaw",
+            });
             if (url) editor.chain().focus().setLink({ href: url }).run();
           }}
           active={editor.isActive("link")}
@@ -159,7 +165,14 @@ function RichEditor({
         </Btn>
         <Btn
           onClick={async () => {
-            const url = onPickImage ? await onPickImage() : window.prompt("Image URL");
+            const url = onPickImage
+              ? await onPickImage()
+              : await promptDialog({
+                  title: "Obraz",
+                  label: "URL obrazka",
+                  placeholder: "https://…",
+                  confirmLabel: "Wstaw",
+                });
             if (url) editor.chain().focus().setImage({ src: url }).run();
           }}
           label="Image"

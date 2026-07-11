@@ -43,9 +43,12 @@ export function BlockInserter({
   const labelFor = (type: BlockType): string => t(`blocks.types.${type}`);
 
   const filtered = useMemo(() => {
+    // Only implemented blocks are offered - a grid of disabled "coming soon"
+    // tiles reads as broken and buries the real blocks.
+    const available = BLOCK_LIST.filter((s) => IMPLEMENTED_BLOCKS.includes(s.type));
     const q = query.trim().toLowerCase();
-    if (!q) return BLOCK_LIST;
-    return BLOCK_LIST.filter(
+    if (!q) return available;
+    return available.filter(
       (s) =>
         labelFor(s.type).toLowerCase().includes(q) ||
         s.type.toLowerCase().includes(q) ||
@@ -156,13 +159,11 @@ function renderItem(
   choose: (s: BlockSpec) => void,
 ) {
   const Icon = spec.icon;
-  const impl = IMPLEMENTED_BLOCKS.includes(spec.type);
   return (
     <button
       key={spec.type}
       type="button"
       onClick={() => choose(spec)}
-      disabled={!impl}
       title={spec.description}
       className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-[#FDB078] hover:bg-[#FDB078]/20 focus:bg-[#FDB078]/20 text-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
     >
