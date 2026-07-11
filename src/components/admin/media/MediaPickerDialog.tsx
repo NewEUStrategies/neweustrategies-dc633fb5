@@ -49,12 +49,15 @@ export function MediaPickerDialog({
   const { user } = useAuth();
   const qc = useQueryClient();
   const registerUpload = useServerFn(registerMediaUpload);
+  const updateMeta = useServerFn(updateMediaMeta);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
   const [pickedUrl, setPickedUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [altDraft, setAltDraft] = useState("");
+  const [savingAlt, setSavingAlt] = useState(false);
 
   const acceptAttr = accept === "image" ? "image/*" : undefined;
 
