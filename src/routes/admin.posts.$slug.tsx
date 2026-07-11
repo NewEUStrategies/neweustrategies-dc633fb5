@@ -1077,6 +1077,12 @@ function EditPost() {
                   icon: ListChecks,
                   hint: "Kluczowe punkty PL/EN + wariant",
                 },
+                {
+                  id: "audio",
+                  label: "Audio (MP3)",
+                  icon: Mic,
+                  hint: "PL/EN · fallback do lektora AI",
+                },
               ],
             },
             {
