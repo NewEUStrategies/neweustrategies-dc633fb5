@@ -8,7 +8,11 @@ import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getRecommendedPosts, type RecommendedPost } from "@/lib/recommendations.functions";
+import {
+  getFollowedFeed,
+  getRecommendedPosts,
+  type RecommendedPost,
+} from "@/lib/recommendations.functions";
 import { openLoginPopup } from "@/lib/loginPopupBus";
 import { Button } from "@/components/ui/button";
 
