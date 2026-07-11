@@ -89,10 +89,13 @@ function isInternalHref(href: string): boolean {
   return href.startsWith("/") && !href.startsWith("//");
 }
 
-export function NotificationsCenter() {
+export type NotificationsCenterMode = "full" | "inbox" | "preferences";
+
+export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode } = {}) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const [tab, setTab] = useState<TabValue>("all");
+  const initialTab: TabValue = mode === "preferences" ? "settings" : "all";
+  const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [limit, setLimit] = useState(NOTIFICATIONS_PAGE_SIZE);
@@ -168,20 +171,30 @@ export function NotificationsCenter() {
     });
   };
 
+  const showInboxTabs = mode !== "preferences";
+  const showSettingsTab = mode !== "inbox";
+  const headerTitleKey =
+    mode === "preferences" ? "notifications.settings.title" : "notifications.title";
+  const headerTitleDefault = mode === "preferences" ? "Zgody i powiadomienia" : "Powiadomienia";
+  const headerSubtitleKey =
+    mode === "preferences" ? "notifications.settings.subtitleLead" : "notifications.inboxSubtitle";
+  const headerSubtitleDefault =
+    mode === "preferences"
+      ? "Zdecyduj, o czym chcesz być informowany. Zmiany zapisują się natychmiast."
+      : "Twoja prywatna skrzynka - widzisz tylko własne powiadomienia.";
+
   return (
-    <Card className="border-0 rounded-none shadow-none h-full flex flex-col">
+    <Card className="border-0 rounded-none shadow-none h-full flex flex-col bg-transparent">
       <CardHeader className="flex flex-row items-center justify-between gap-2 py-3 px-3 sm:px-4 border-b border-border/60">
         <div className="min-w-0">
           <CardTitle className="text-base">
-            {t("notifications.title", { defaultValue: "Powiadomienia" })}
+            {t(headerTitleKey, { defaultValue: headerTitleDefault })}
           </CardTitle>
           <p className="text-xs text-muted-foreground truncate">
-            {t("notifications.inboxSubtitle", {
-              defaultValue: "Twoja prywatna skrzynka - widzisz tylko własne powiadomienia.",
-            })}
+            {t(headerSubtitleKey, { defaultValue: headerSubtitleDefault })}
           </p>
         </div>
-        {tab !== "settings" && (
+        {showInboxTabs && tab !== "settings" && (
           <Button
             variant="outline"
             size="sm"
@@ -199,21 +212,37 @@ export function NotificationsCenter() {
           onValueChange={(v) => setTab(v as TabValue)}
           className="flex-1 min-h-0 flex flex-col"
         >
-          <div className="px-3 sm:px-4 pt-3">
-            <TabsList>
-              <TabsTrigger value="all">
-                {t("notifications.filters.all", { defaultValue: "Wszystkie" })}
-              </TabsTrigger>
-              <TabsTrigger value="unread">
-                {t("notifications.filters.unread", { defaultValue: "Nieprzeczytane" })}
-              </TabsTrigger>
-              <TabsTrigger value="settings">
-                {t("notifications.filters.settings", { defaultValue: "Ustawienia" })}
-              </TabsTrigger>
-            </TabsList>
-          </div>
+          {mode === "full" && (
+            <div className="px-3 sm:px-4 pt-3">
+              <TabsList>
+                <TabsTrigger value="all">
+                  {t("notifications.filters.all", { defaultValue: "Wszystkie" })}
+                </TabsTrigger>
+                <TabsTrigger value="unread">
+                  {t("notifications.filters.unread", { defaultValue: "Nieprzeczytane" })}
+                </TabsTrigger>
+                {showSettingsTab && (
+                  <TabsTrigger value="settings">
+                    {t("notifications.filters.settings", { defaultValue: "Ustawienia" })}
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
+          )}
+          {mode === "inbox" && (
+            <div className="px-3 sm:px-4 pt-3">
+              <TabsList>
+                <TabsTrigger value="all">
+                  {t("notifications.filters.all", { defaultValue: "Wszystkie" })}
+                </TabsTrigger>
+                <TabsTrigger value="unread">
+                  {t("notifications.filters.unread", { defaultValue: "Nieprzeczytane" })}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          )}
 
-          {tab !== "settings" ? (
+          {showInboxTabs && tab !== "settings" ? (
             <TabsContent
               value={tab}
               className="mt-3 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden"

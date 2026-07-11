@@ -4,7 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { Bell, MessagesSquare, Search, ShieldCheck, SquarePen, X } from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
@@ -21,7 +21,7 @@ import { useUnreadCount } from "@/lib/notifications/useNotifications";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
-type MessagesView = "chats" | "notifications";
+type MessagesView = "chats" | "notifications" | "consents";
 
 interface MessagesSearch {
   c?: string;
@@ -29,12 +29,23 @@ interface MessagesSearch {
 }
 
 export const Route = createFileRoute("/messages")({
+  // Auth-only inbox + noindex/robots-disallowed: SSR would render the AuthGate
+  // spinner on the server and MessagesInner on the client (session lives in
+  // localStorage), guaranteeing a hydration mismatch. ssr:false skips SSR for
+  // this route entirely — client hydrates from a clean placeholder, no diff.
+  ssr: false,
   component: MessagesPage,
   validateSearch: (search: Record<string, unknown>): MessagesSearch => {
     const c = typeof search.c === "string" && search.c.length > 0 ? search.c : undefined;
     const rawView = typeof search.view === "string" ? search.view : undefined;
     const view: MessagesView | undefined =
-      rawView === "notifications" ? "notifications" : rawView === "chats" ? "chats" : undefined;
+      rawView === "notifications"
+        ? "notifications"
+        : rawView === "consents"
+          ? "consents"
+          : rawView === "chats"
+            ? "chats"
+            : undefined;
     return { c, view };
   },
   head: () => ({
@@ -56,7 +67,8 @@ function MessagesInner() {
   const { user } = useAuth();
   const { c, view } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const activeView: MessagesView = view === "notifications" ? "notifications" : "chats";
+  const activeView: MessagesView =
+    view === "notifications" ? "notifications" : view === "consents" ? "consents" : "chats";
   const unreadNotifQ = useUnreadCount();
   const unreadNotif = unreadNotifQ.data ?? 0;
 
@@ -155,11 +167,30 @@ function MessagesInner() {
             </span>
           )}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "consents"}
+          onClick={() => setActiveView("consents")}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
+            activeView === "consents"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+          {t("notifications.consents.tab", { defaultValue: "Zgody" })}
+        </button>
       </div>
       <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-[6px] border border-border/60 bg-card shadow-sm">
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
-            <NotificationsCenter />
+            <NotificationsCenter mode="inbox" />
+          </div>
+        ) : activeView === "consents" ? (
+          <div className="w-full min-w-0">
+            <NotificationsCenter mode="preferences" />
           </div>
         ) : (
           <>
