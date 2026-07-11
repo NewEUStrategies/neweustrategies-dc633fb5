@@ -31,6 +31,11 @@ interface MessagesSearch {
 }
 
 export const Route = createFileRoute("/messages")({
+  // Auth-only inbox + noindex/robots-disallowed: SSR would render the AuthGate
+  // spinner on the server and MessagesInner on the client (session lives in
+  // localStorage), guaranteeing a hydration mismatch. ssr:false skips SSR for
+  // this route entirely — client hydrates from a clean placeholder, no diff.
+  ssr: false,
   component: MessagesPage,
   validateSearch: (search: Record<string, unknown>): MessagesSearch => {
     const c = typeof search.c === "string" && search.c.length > 0 ? search.c : undefined;
@@ -43,6 +48,7 @@ export const Route = createFileRoute("/messages")({
     meta: [{ title: "Wiadomości" }, { name: "robots", content: "noindex, nofollow" }],
   }),
 });
+
 
 function MessagesPage() {
   return (
