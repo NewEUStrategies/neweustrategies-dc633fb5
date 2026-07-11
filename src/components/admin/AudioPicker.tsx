@@ -112,7 +112,7 @@ export function AudioPicker({
       {value ? (
         <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <Music className="w-4 h-4 text-brand shrink-0" />
+            <Mic className="w-4 h-4 text-brand shrink-0" />
             <div className="flex-1 min-w-0 text-xs text-foreground truncate" title={value}>
               {value.split("/").pop() || value}
             </div>
