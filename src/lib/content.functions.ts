@@ -289,6 +289,8 @@ const PostCore = z.object({
   content_pl: NullableStr(200_000),
   content_en: NullableStr(200_000),
   cover_image_url: z.string().url().max(2048).nullable().optional(),
+  audio_url_pl: z.string().url().max(2048).nullable().optional(),
+  audio_url_en: z.string().url().max(2048).nullable().optional(),
   read_minutes: z.number().int().min(0).max(999).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
   blocks_data: BuilderJsonValue.nullable().optional(),

@@ -58,6 +58,8 @@ interface Props {
     author?: string | null;
     authorHref?: string | null;
     readMinutes?: number | null;
+    /** Wgrany MP3 dla bieżącego języka - gdy podany, TTS jest pomijany. */
+    audioUrl?: string | null;
   } | null;
 }
 
@@ -363,6 +365,7 @@ export function FloatingShareBar({
             author={listen.author ?? null}
             authorHref={listen.authorHref ?? null}
             readMinutes={listen.readMinutes ?? null}
+            audioUrl={listen.audioUrl ?? null}
             postHref={href || undefined}
           />
         </div>

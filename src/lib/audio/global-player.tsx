@@ -24,6 +24,12 @@ export interface AudioTrackMeta {
   author?: string | null;
   authorHref?: string | null;
   postHref: string;
+  /**
+   * Wgrany plik MP3 (per język). Gdy podany, fetcher pobiera bezpośrednio ten
+   * URL i pomija endpoint /api/public/post-tts - ElevenLabs nie jest wywoływany.
+   * Fallback (brak audioUrl) generuje narrację AI jak dotąd.
+   */
+  audioUrl?: string | null;
 }
 
 export type AudioStatus = "idle" | "loading" | "playing" | "paused" | "error";
@@ -284,42 +290,47 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     return unsubscribe;
   }, [playerId]);
 
-  const fetchBlob = useCallback(async (postId: string, lang: "pl" | "en"): Promise<string> => {
-    const key = cacheKey(postId, lang);
-    const cached = audioBlobCache.get(key);
-    if (cached) {
+  const fetchBlob = useCallback(
+    async (postId: string, lang: "pl" | "en", audioUrl?: string | null): Promise<string> => {
+      const key = cacheKey(postId, lang);
+      const cached = audioBlobCache.get(key);
+      if (cached) {
+        setTts({
+          stage: "cached",
+          percent: 100,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: 0,
+        });
+        return cached;
+      }
+
+      // Szybka zmiana wpisu ⇒ anulujemy poprzednie pobieranie, żeby nie ścigały
+      // się równoległe fetch-e. Zachowujemy zwykły, same-origin POST (bez CORS).
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+
+      const startedAt = performance.now();
       setTts({
-        stage: "cached",
-        percent: 100,
+        stage: "preparing",
+        percent: 0,
         bytes: 0,
         totalBytes: null,
         elapsedMs: 0,
       });
-      return cached;
-    }
 
-    // Szybka zmiana wpisu ⇒ anulujemy poprzednie pobieranie, żeby nie ścigały
-    // się równoległe fetch-e. Zachowujemy zwykły, same-origin POST (bez CORS).
-    fetchAbortRef.current?.abort();
-    const controller = new AbortController();
-    fetchAbortRef.current = controller;
-
-    const startedAt = performance.now();
-    setTts({
-      stage: "preparing",
-      percent: 0,
-      bytes: 0,
-      totalBytes: null,
-      elapsedMs: 0,
-    });
-
-    try {
-      const res = await fetch("/api/public/post-tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, lang }),
-        signal: controller.signal,
-      });
+      try {
+        // Wgrany MP3: pobieramy bezpośrednio (GET), całkowicie z pominięciem
+        // TTS - ElevenLabs nie jest angażowany dla tego języka.
+        const res = audioUrl
+          ? await fetch(audioUrl, { method: "GET", signal: controller.signal })
+          : await fetch("/api/public/post-tts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ postId, lang }),
+              signal: controller.signal,
+            });
 
       if (!res.ok) {
         // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
@@ -434,7 +445,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       setStatus("loading");
       setError(null);
       try {
-        const blobUrl = await fetchBlob(meta.postId, meta.lang);
+        const blobUrl = await fetchBlob(meta.postId, meta.lang, meta.audioUrl ?? null);
         audio.src = blobUrl;
         // Zaplanuj jednorazowe przywrócenie pozycji po `loadedmetadata`.
         posKeyRef.current = key;
@@ -506,7 +517,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       const target: AudioTrackMeta | AudioTrackState | null = meta ?? track;
       if (!target) return;
       const existingBlob = (target as AudioTrackState).blobUrl;
-      const url = existingBlob ?? (await fetchBlob(target.postId, target.lang));
+      const url =
+        existingBlob ?? (await fetchBlob(target.postId, target.lang, target.audioUrl ?? null));
       const a = document.createElement("a");
       a.href = url;
       a.download = `${sanitizeFilename(target.title)}.mp3`;

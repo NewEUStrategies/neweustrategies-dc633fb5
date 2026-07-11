@@ -731,6 +731,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                               null,
                             authorHref: postAuthor?.slug ? `/author/${postAuthor.slug}` : null,
                             readMinutes: post.read_minutes ?? null,
+                            audioUrl:
+                              (lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null,
                           }
                         : null
                     }

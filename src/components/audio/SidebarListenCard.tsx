@@ -21,6 +21,12 @@ interface SidebarListenCardProps {
   postHref?: string;
   /** Szacowany czas czytania w min - do estymacji długości audio. */
   readMinutes?: number | null;
+  /**
+   * Wgrany MP3 dla tego języka. Gdy podany, sidebar player pomija ElevenLabs
+   * TTS i odtwarza bezpośrednio ten plik. Brak = fallback do syntezowanego
+   * lektora AI.
+   */
+  audioUrl?: string | null;
 }
 
 const COPY = {
@@ -75,6 +81,7 @@ export function SidebarListenCard({
   authorHref,
   postHref,
   readMinutes,
+  audioUrl,
 }: SidebarListenCardProps) {
   const t = COPY[lang];
   const player = useGlobalAudioPlayer();
@@ -124,11 +131,12 @@ export function SidebarListenCard({
       title,
       author: author ?? null,
       authorHref: authorHref ?? null,
+      audioUrl: audioUrl ?? null,
       postHref:
         postHref ??
         (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/"),
     }),
-    [postId, lang, title, author, authorHref, postHref],
+    [postId, lang, title, author, authorHref, postHref, audioUrl],
   );
 
   const approxMin =
@@ -182,27 +190,30 @@ export function SidebarListenCard({
           {t.label}
         </h3>
         <div className="h-px flex-1 bg-border/60" />
-        {/* Dyskretna informacja, że lektor jest generowany przez AI. */}
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t.aiNarration}
-                className={[
-                  "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full",
-                  "text-muted-foreground/70 hover:text-brand transition-colors",
-                  FOCUS_RING,
-                ].join(" ")}
-              >
-                <Sparkles className="h-3 w-3" aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
-              {t.aiNarration}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {/* Sparkle informuje o AI narracji - ukrywamy gdy jest wgrany MP3
+            (wtedy odtwarzamy oryginał, ElevenLabs nie jest używany). */}
+        {!audioUrl && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t.aiNarration}
+                  className={[
+                    "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full",
+                    "text-muted-foreground/70 hover:text-brand transition-colors",
+                    FOCUS_RING,
+                  ].join(" ")}
+                >
+                  <Sparkles className="h-3 w-3" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
+                {t.aiNarration}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       {/* Main row: play + time/progress */}

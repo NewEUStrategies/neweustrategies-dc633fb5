@@ -34,6 +34,7 @@ import {
 import { PostEditor } from "@/components/admin/PostEditor";
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
+import { AudioPicker } from "@/components/admin/AudioPicker";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import {
@@ -92,6 +93,8 @@ interface PostForm {
   content_pl: string | null;
   content_en: string | null;
   cover_image_url: string | null;
+  audio_url_pl: string | null;
+  audio_url_en: string | null;
   read_minutes: number | null;
   published_at: string | null;
   publish_at: string | null;
@@ -370,6 +373,8 @@ function EditPost() {
             content_pl: snapshot.content_pl,
             content_en: snapshot.content_en,
             cover_image_url: snapshot.cover_image_url,
+            audio_url_pl: snapshot.audio_url_pl,
+            audio_url_en: snapshot.audio_url_en,
             read_minutes: snapshot.read_minutes,
             builder_data: snapshot.builder_data,
             blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
@@ -743,6 +748,29 @@ function EditPost() {
           label={t("admin.posts.cover")}
           value={form.cover_image_url ?? ""}
           onChange={(v: string) => set("cover_image_url", v || null)}
+        />
+      </div>
+      <div className="pt-2 border-t border-border/60 space-y-3">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("admin.posts.audio.title", { defaultValue: "Audio (MP3) - odsłuch artykułu" })}
+        </div>
+        <AudioPicker
+          label={t("admin.posts.audio.pl", { defaultValue: "Plik audio - polski" })}
+          value={form.audio_url_pl ?? ""}
+          onChange={(v: string) => set("audio_url_pl", v || null)}
+          hint={t("admin.posts.audio.hintPl", {
+            defaultValue:
+              "Gdy wgrany, sidebar użyje tego pliku dla PL. W przeciwnym razie zostanie wygenerowany lektor AI (ElevenLabs).",
+          })}
+        />
+        <AudioPicker
+          label={t("admin.posts.audio.en", { defaultValue: "Plik audio - angielski" })}
+          value={form.audio_url_en ?? ""}
+          onChange={(v: string) => set("audio_url_en", v || null)}
+          hint={t("admin.posts.audio.hintEn", {
+            defaultValue:
+              "Gdy wgrany, sidebar użyje tego pliku dla EN. W przeciwnym razie zostanie wygenerowany lektor AI (ElevenLabs).",
+          })}
         />
       </div>
     </SidebarSection>
