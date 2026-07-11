@@ -316,6 +316,37 @@ export function MediaPickerDialog({
           )}
         </div>
 
+        {picked && pickedIsImage && (
+          <div className="border-t border-border pt-3 space-y-2">
+            <label
+              htmlFor="picker-alt"
+              className="block text-xs text-muted-foreground font-medium"
+            >
+              Tekst alternatywny (alt) — dla dostępności i SEO
+            </label>
+            <div className="flex items-start gap-2">
+              <textarea
+                id="picker-alt"
+                value={altDraft}
+                onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
+                rows={2}
+                placeholder="Opisz obraz w 1-2 zdaniach"
+                className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!altDirty || savingAlt}
+                onClick={saveAlt}
+              >
+                {savingAlt ? "Zapisywanie…" : "Zapisz alt"}
+              </Button>
+            </div>
+            <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             <X className="w-3.5 h-3.5 mr-1" /> Anuluj
