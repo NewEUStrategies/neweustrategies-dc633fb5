@@ -40,6 +40,8 @@ export interface PostSidebarRendererProps {
     author?: string | null;
     authorHref?: string | null;
     readMinutes?: number | null;
+    /** Wgrany MP3 dla bieżącego języka - gdy podany, TTS jest pomijany. */
+    audioUrl?: string | null;
   } | null;
 }
 
