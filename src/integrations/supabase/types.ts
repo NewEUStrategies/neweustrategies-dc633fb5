@@ -4779,6 +4779,7 @@ export type Database = {
         }[]
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
+      post_canonical_href: { Args: { _post_id: string }; Returns: string }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profiles_generate_unique_slug: {
         Args: { _base: string }
