@@ -1390,6 +1390,50 @@ export type Database = {
           },
         ]
       }
+      cross_references: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          relation: string
+          source_id: string
+          source_type: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          relation?: string
+          source_id: string
+          source_type: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          relation?: string
+          source_id?: string
+          source_type?: string
+          target_id?: string
+          target_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cross_references_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_crop_sizes: {
         Row: {
           created_at: string
@@ -4598,6 +4642,18 @@ export type Database = {
       }
     }
     Functions: {
+      add_cross_reference: {
+        Args: {
+          p_created_by?: string
+          p_relation?: string
+          p_source_id: string
+          p_source_type: string
+          p_target_id: string
+          p_target_type: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       admin_clear_content_password: {
         Args: {
           _entity_id: string
@@ -4821,6 +4877,18 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_linked_items: {
+        Args: { p_item_id: string; p_item_type: string }
+        Returns: {
+          created_at: string
+          direction: string
+          item_id: string
+          item_type: string
+          label: string
+          reference_id: string
+          relation: string
+        }[]
+      }
       get_or_create_direct_conversation: {
         Args: { p_peer_id: string }
         Returns: string
@@ -5032,6 +5100,10 @@ export type Database = {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
       }
+      linked_item_label: {
+        Args: { p_id: string; p_type: string }
+        Returns: string
+      }
       mark_conversation_read: {
         Args: { p_conversation_id: string }
         Returns: undefined
@@ -5092,6 +5164,18 @@ export type Database = {
         }[]
       }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
+      process_mentions: {
+        Args: {
+          p_actor_id: string
+          p_body: string
+          p_href: string
+          p_kind: string
+          p_source_id: string
+          p_source_type: string
+          p_tenant_id: string
+        }
+        Returns: number
+      }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profiles_generate_unique_slug: {
         Args: { _base: string }
