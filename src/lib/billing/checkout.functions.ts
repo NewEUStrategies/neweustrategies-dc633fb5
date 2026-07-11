@@ -121,7 +121,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         params.set("line_items[0][price_data][product_data][name]", label || "Order");
         if (data.kind === "subscription") {
           params.set("line_items[0][price_data][recurring][interval]", recurringInterval);
+          if (trialDays > 0) {
+            // Stripe caps trial_period_days at 730; we clamp defensively so a
+            // misconfigured plan can't blow up the whole checkout call.
+            params.set("subscription_data[trial_period_days]", String(Math.min(trialDays, 730)));
+          }
         }
+
         params.set("line_items[0][quantity]", "1");
         params.set("metadata[order_id]", order.id);
 
