@@ -1,3 +1,4 @@
+import React from "react";
 // Sekcja CV na publicznym profilu autora `/author/$slug`.
 // Renderuje doświadczenie zawodowe, edukację, umiejętności, nagrody i hobby.
 // Pusta sekcja (brak danych) nie jest w ogóle wyświetlana — nie chcemy
@@ -32,7 +33,7 @@ function formatDateRange(
   return s || e;
 }
 
-export function AuthorCvSections({ userId }: Props): JSX.Element | null {
+export function AuthorCvSections({ userId }: Props): React.ReactElement | null {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { data } = useQuery(authorCvQueryOptions(userId));
@@ -74,7 +75,7 @@ function SectionHeader({
 }: {
   icon: typeof Briefcase;
   title: string;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <div className="flex items-center gap-2 mb-4">
       <Icon className="w-5 h-5 text-brand" />
@@ -89,7 +90,7 @@ function ExperienceSection({
 }: {
   items: AuthorCv["experiences"];
   isPl: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <div>
       <SectionHeader icon={Briefcase} title={isPl ? "Doświadczenie zawodowe" : "Experience"} />
@@ -141,7 +142,7 @@ function EducationSection({
 }: {
   items: AuthorCv["education"];
   isPl: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <div>
       <SectionHeader icon={GraduationCap} title={isPl ? "Edukacja" : "Education"} />
@@ -187,7 +188,7 @@ function SkillsSection({
 }: {
   items: AuthorCv["skills"];
   isPl: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   const grouped = items.reduce<Record<string, AuthorCv["skills"]>>((acc, s) => {
     const key = s.category ?? "";
     if (!acc[key]) acc[key] = [];
@@ -250,7 +251,7 @@ function HobbiesSection({
 }: {
   items: AuthorCv["hobbies"];
   isPl: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <div>
       <SectionHeader icon={Heart} title={isPl ? "Zainteresowania" : "Interests"} />
@@ -275,7 +276,7 @@ function AwardsSection({
 }: {
   items: AuthorCv["awards"];
   isPl: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <div>
       <SectionHeader icon={Award} title={isPl ? "Wyróżnienia i certyfikaty" : "Awards & certifications"} />
