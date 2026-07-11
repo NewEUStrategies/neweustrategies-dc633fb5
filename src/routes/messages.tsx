@@ -4,7 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, Bot, MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { Bell, Bot, MessagesSquare, Search, ShieldCheck, SquarePen, X } from "lucide-react";
 import { BotChatWindow } from "@/components/chat/BotChatWindow";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
