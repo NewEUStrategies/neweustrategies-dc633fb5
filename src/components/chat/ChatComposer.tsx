@@ -189,7 +189,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   return (
     <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
       {editing && (
-        <div className="mb-1.5 flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5">
+        <div className="mb-1.5 flex items-center justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
             <Pencil className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
             <span className="font-medium">{t("chat.editingMessage")}</span>
@@ -207,7 +207,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       )}
 
       {!editing && replyTo && (
-        <div className="mb-1.5 flex items-start justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5">
+        <div className="mb-1.5 flex items-start justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="min-w-0 text-[11px]">
             <span className="block font-medium text-foreground">
               {t("chat.replyingTo")}
@@ -231,7 +231,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       )}
 
       {uploading && (
-        <div className="mb-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5">
+        <div className="mb-1.5 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             {/\.(jpe?g|png|gif|svg|webp)$/i.test(uploading.name) ? (
               <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -287,13 +287,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 e.preventDefault();
                 sendText();
               } else if (e.key === "Escape" && editing) {
+                // Cancel the edit only - do not bubble up to the dock
+                // window's Escape-to-close handler.
                 e.preventDefault();
+                e.stopPropagation();
                 onCancelEdit();
               }
             }}
             placeholder={t("chat.inputPlaceholder")}
             aria-label={t("chat.inputPlaceholder")}
-            className="max-h-[120px] w-full resize-none rounded-2xl border border-input bg-muted/40 py-1.5 pl-3 pr-9 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="max-h-[120px] w-full resize-none rounded-[6px] border border-input bg-muted/40 py-1.5 pl-3 pr-9 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
             <PopoverTrigger asChild>

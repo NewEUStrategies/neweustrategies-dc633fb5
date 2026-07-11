@@ -6,10 +6,7 @@ import { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, FileText, ImageIcon, X } from "lucide-react";
 import { useAttachmentUrl, formatBytes } from "@/lib/chat/attachments";
-import {
-  useConversationAttachments,
-  type ChatAttachmentRow,
-} from "@/lib/chat/useMessages";
+import { useConversationAttachments, type ChatAttachmentRow } from "@/lib/chat/useMessages";
 import { cn } from "@/lib/utils";
 
 type Tab = "photos" | "files";
@@ -37,7 +34,7 @@ function PhotoTile({ row }: { row: ChatAttachmentRow }) {
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "group relative aspect-square overflow-hidden rounded-[8px] bg-muted",
+        "group relative aspect-square overflow-hidden rounded-[6px] bg-muted",
         !urlQ.data && "pointer-events-none",
       )}
       aria-label={row.attachment_name ?? "photo"}
@@ -58,10 +55,11 @@ function PhotoTile({ row }: { row: ChatAttachmentRow }) {
 
 function FileRow({ row, lang }: { row: ChatAttachmentRow; lang: string }) {
   const urlQ = useAttachmentUrl(row.attachment_path);
-  const date = new Date(row.created_at).toLocaleDateString(
-    lang === "en" ? "en-US" : "pl-PL",
-    { day: "2-digit", month: "short", year: "numeric" },
-  );
+  const date = new Date(row.created_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
   return (
     <a
       href={urlQ.data ?? "#"}
@@ -69,7 +67,7 @@ function FileRow({ row, lang }: { row: ChatAttachmentRow; lang: string }) {
       rel="noopener noreferrer"
       download={row.attachment_name ?? undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-[8px] border border-border/60 bg-background px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
+        "flex items-center gap-2.5 rounded-[6px] border border-border/60 bg-background px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
         !urlQ.data && "pointer-events-none opacity-60",
       )}
     >
@@ -101,16 +99,14 @@ export const ChatMediaPanel = memo(function ChatMediaPanel({
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const [tab, setTab] = useState<Tab>("photos");
-  const remoteQ = useConversationAttachments(
-    conversationId,
-    enabled && !localRows,
-  );
-  const rows: ReadonlyArray<ChatAttachmentRow> = localRows ?? remoteQ.data ?? [];
+  const remoteQ = useConversationAttachments(conversationId, enabled && !localRows);
+  // No `?? []` here: a fresh array identity per render would defeat the memo.
+  const rows: ReadonlyArray<ChatAttachmentRow> | undefined = localRows ?? remoteQ.data;
 
   const { photos, files } = useMemo(() => {
     const p: ChatAttachmentRow[] = [];
     const f: ChatAttachmentRow[] = [];
-    for (const r of rows) (isImageRow(r) ? p : f).push(r);
+    for (const r of rows ?? []) (isImageRow(r) ? p : f).push(r);
     return { photos: p, files: f };
   }, [rows]);
 
@@ -125,9 +121,7 @@ export const ChatMediaPanel = memo(function ChatMediaPanel({
       aria-label={t("chat.mediaPanel.title")}
     >
       <header className="flex items-center gap-2 border-b border-border/60 px-2.5 py-1.5">
-        <p className="flex-1 truncate text-[12px] font-semibold">
-          {t("chat.mediaPanel.title")}
-        </p>
+        <p className="flex-1 truncate text-[12px] font-semibold">{t("chat.mediaPanel.title")}</p>
         <button
           type="button"
           onClick={onClose}

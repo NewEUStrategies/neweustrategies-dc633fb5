@@ -57,7 +57,7 @@ function PrivacyVisibilitySection() {
   return (
     <section
       className={
-        "grid gap-2 rounded-lg border px-4 py-3 " +
+        "grid gap-2 rounded-[6px] border px-4 py-3 " +
         (on ? "border-border/60 bg-muted/30" : "border-[var(--brand)]/40 bg-[var(--brand)]/5")
       }
     >

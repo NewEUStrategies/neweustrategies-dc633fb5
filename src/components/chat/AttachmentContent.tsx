@@ -25,14 +25,14 @@ export function AttachmentImage({
   if (urlQ.isLoading) {
     return (
       <div
-        className="h-40 w-52 max-w-full animate-pulse rounded-2xl bg-muted"
+        className="h-40 w-52 max-w-full animate-pulse rounded-[6px] bg-muted"
         aria-label={t("chat.photo")}
       />
     );
   }
   if (!urlQ.data) {
     return (
-      <div className="rounded-2xl bg-muted px-3 py-2 text-xs text-muted-foreground">
+      <div className="rounded-[6px] bg-muted px-3 py-2 text-xs text-muted-foreground">
         {t("chat.uploadFailed")}
       </div>
     );
@@ -43,7 +43,7 @@ export function AttachmentImage({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "block overflow-hidden rounded-2xl border border-border/40 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "block overflow-hidden rounded-[6px] border border-border/40 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           mine ? "ml-auto" : "",
         )}
         aria-label={name ?? t("chat.photo")}
@@ -61,7 +61,7 @@ export function AttachmentImage({
           <img
             src={urlQ.data}
             alt={name ?? t("chat.photo")}
-            className="max-h-[80vh] w-full rounded-lg object-contain"
+            className="max-h-[80vh] w-full rounded-[6px] object-contain"
           />
         </DialogContent>
       </Dialog>
@@ -106,7 +106,7 @@ export function AttachmentFile({
         if (!urlQ.data) e.preventDefault();
       }}
       className={cn(
-        "group/file flex max-w-[240px] items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition-colors",
+        "group/file flex max-w-[240px] items-center gap-2.5 rounded-[6px] border px-3 py-2.5 transition-colors",
         mine
           ? "border-primary/20 bg-primary text-primary-foreground hover:bg-primary/90"
           : "border-border/60 bg-muted text-foreground hover:bg-muted/70",
@@ -115,7 +115,7 @@ export function AttachmentFile({
     >
       <span
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px]",
           mine ? "bg-primary-foreground/15" : "bg-background",
         )}
         aria-hidden
