@@ -152,6 +152,33 @@ export function MediaPickerDialog({
     });
   }, [data, q, folder]);
 
+  const picked = useMemo(
+    () => (data ?? []).find((m) => m.public_url === pickedUrl) ?? null,
+    [data, pickedUrl],
+  );
+  const pickedIsImage = !!picked?.mime_type?.startsWith("image/");
+  const altDirty = picked ? (picked.alt_text ?? "") !== altDraft : false;
+
+  const handlePickRow = (row: PickerRow) => {
+    setPickedUrl(row.public_url);
+    setAltDraft(row.alt_text ?? "");
+  };
+
+  const saveAlt = async () => {
+    if (!picked) return;
+    setSavingAlt(true);
+    try {
+      await updateMeta({ data: { mediaId: picked.id, altText: altDraft.trim() } });
+      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      toast.success("Zapisano alt");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingAlt(false);
+    }
+  };
+
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
