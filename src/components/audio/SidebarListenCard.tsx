@@ -142,6 +142,34 @@ export function SidebarListenCard({
   const approxMin =
     readMinutes && readMinutes > 0 ? Math.max(1, Math.round(readMinutes * 1.15)) : null;
 
+  // Gdy wpis ma wgrany MP3, czytamy jego czas trwania z metadanych - bez
+  // uruchamiania pobierania całego pliku - dzięki temu w sidebarze widać realny
+  // czas nagrania jeszcze przed pierwszym kliknięciem Play.
+  const [prefetchedDuration, setPrefetchedDuration] = useState<number | null>(null);
+  useEffect(() => {
+    setPrefetchedDuration(null);
+    if (!audioUrl || typeof window === "undefined") return;
+    let cancelled = false;
+    const el = document.createElement("audio");
+    el.preload = "metadata";
+    el.src = audioUrl;
+    const onMeta = () => {
+      if (!cancelled && Number.isFinite(el.duration)) {
+        setPrefetchedDuration(el.duration);
+      }
+    };
+    el.addEventListener("loadedmetadata", onMeta);
+    const timer = window.setTimeout(() => {
+      cancelled = true;
+    }, 8000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      el.removeEventListener("loadedmetadata", onMeta);
+      el.src = "";
+    };
+  }, [audioUrl]);
+
   const duration = isThis ? player.duration : 0;
   const currentTime = isThis ? player.currentTime : 0;
   const displayTime = scrub ?? currentTime;
@@ -175,9 +203,11 @@ export function SidebarListenCard({
   const totalLabel =
     duration > 0
       ? formatAudioTime(duration)
-      : approxMin
-        ? t.approx.replace("{min}", String(approxMin))
-        : "--:--";
+      : prefetchedDuration && prefetchedDuration > 0
+        ? formatAudioTime(prefetchedDuration)
+        : approxMin
+          ? t.approx.replace("{min}", String(approxMin))
+          : "--:--";
 
   return (
     <aside
