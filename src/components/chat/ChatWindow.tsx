@@ -135,8 +135,18 @@ export function ChatWindow(props: ChatWindowProps) {
       }
     }
     // ISO-8601 sorts lexicographically; plain compare beats localeCompare.
+    // Id tiebreaker keeps equal-timestamp rows (optimistic vs server clock)
+    // in a stable order across re-renders.
     return ordered.sort((a, b) =>
-      a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0,
+      a.created_at < b.created_at
+        ? -1
+        : a.created_at > b.created_at
+          ? 1
+          : a.id < b.id
+            ? -1
+            : a.id > b.id
+              ? 1
+              : 0,
     );
   }, [messagesQ.data]);
 
@@ -184,6 +194,15 @@ export function ChatWindow(props: ChatWindowProps) {
     setEditTarget(null);
     setDeleteTarget(null);
   }, [conversationId]);
+
+  // Minute tick: the 5-minute edit window must close visually even when
+  // nothing else re-renders. Only the list shell re-renders on a tick -
+  // memoized bubbles re-render solely when their own `editable` flips.
+  const [, setEditTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setEditTick((n) => n + 1), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Stable handlers: MessageBubble is memoized, so these references must not
   // change per render or the memo is defeated for the whole thread.
@@ -354,13 +373,22 @@ export function ChatWindow(props: ChatWindowProps) {
     <section
       className={cn(
         "pointer-events-auto flex w-[320px] max-w-[calc(100vw-16px)] flex-col overflow-hidden",
-        "h-[430px] max-h-[min(70vh,430px)] rounded-t-lg border border-b-0 border-border/60 bg-background shadow-2xl",
+        "h-[430px] max-h-[min(70vh,430px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
         "motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in-0 motion-safe:duration-200",
         className,
       )}
       role="dialog"
       aria-label={`${t("chat.title")}: ${peerName}`}
       data-active-conversation={conversationId}
+      onKeyDown={(e) => {
+        // Messenger behavior: Escape closes the dock window. The composer
+        // stops propagation when Escape means "cancel editing", and Radix
+        // portals (emoji picker, delete dialog) live outside this subtree.
+        if (e.key === "Escape" && onClose) {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
     >
       <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
         <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />

@@ -65,7 +65,7 @@ function DiscoverabilityBanner() {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border px-3 py-2.5",
+        "flex items-center gap-3 rounded-[6px] border px-3 py-2.5",
         on ? "border-border/60 bg-muted/30" : "border-[var(--brand)]/40 bg-[var(--brand)]/5",
       )}
     >
@@ -302,11 +302,11 @@ function PeopleInner() {
       ) : peopleQ.isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-[72px] animate-pulse rounded-lg bg-muted/60" />
+            <div key={i} className="h-[72px] animate-pulse rounded-[6px] bg-muted/60" />
           ))}
         </div>
       ) : people.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border/70 p-10 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-[6px] border border-dashed border-border/70 p-10 text-center">
           <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
           <p className="text-sm text-muted-foreground">
             {hasActiveFilters
@@ -328,20 +328,42 @@ function PeopleInner() {
           )}
         </div>
       ) : (
-        <>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {people.map((person) => (
-              <PersonCard key={person.id} person={person} online={online.has(person.id)} />
-            ))}
-          </ul>
-          {peopleQ.hasNextPage && (
-            <div className="mt-5 flex justify-center">
-              <Button
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {people.map((person) => (
+            <li
+              key={person.id}
+              className="flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border"
+            >
+              <ChatAvatar
+                name={person.display_name}
+                avatarUrl={person.avatar_url}
+                online={online.has(person.id)}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{person.display_name}</p>
+                {(person.job_title || person.current_company) && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[person.job_title, person.current_company].filter(Boolean).join(" - ")}
+                  </p>
+                )}
+                {person.specialization && (
+                  <p className="truncate text-[11px] text-muted-foreground/80">
+                    {person.specialization}
+                  </p>
+                )}
+              </div>
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                disabled={peopleQ.isFetchingNextPage}
-                onClick={() => void peopleQ.fetchNextPage()}
+                disabled={start.isPending}
+                onClick={() =>
+                  start.mutate(person.id, {
+                    onSuccess: (conversationId) => openChatWindow({ conversationId }),
+                    onError: () => toast.error(t("chat.startError")),
+                  })
+                }
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                aria-label={`${t("people.message")}: ${person.display_name}`}
               >
                 {peopleQ.isFetchingNextPage ? t("people.loadingMore") : t("people.showMore")}
               </Button>

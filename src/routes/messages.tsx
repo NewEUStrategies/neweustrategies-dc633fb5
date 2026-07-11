@@ -117,7 +117,7 @@ function MessagesInner() {
       <div
         role="tablist"
         aria-label={t("chat.messages")}
-        className="mb-3 inline-flex items-center gap-1 rounded-[8px] border border-border/60 bg-muted/40 p-1 text-sm"
+        className="mb-3 inline-flex items-center gap-1 rounded-[6px] border border-border/60 bg-muted/40 p-1 text-sm"
       >
         <button
           type="button"
@@ -150,7 +150,7 @@ function MessagesInner() {
           {t("notifications.title", { defaultValue: "Powiadomienia" })}
           {unreadNotif > 0 && (
             <span
-              className="ml-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+              className="ml-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-[6px] bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
               aria-label={t("notifications.unread", { count: unreadNotif })}
             >
               {unreadNotif > 99 ? "99+" : unreadNotif}
@@ -158,7 +158,7 @@ function MessagesInner() {
           )}
         </button>
       </div>
-      <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+      <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-[6px] border border-border/60 bg-card shadow-sm">
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
             <NotificationsCenter />
@@ -178,7 +178,7 @@ function MessagesInner() {
                   type="button"
                   onClick={() => setMode(mode === "new" ? "list" : "new")}
                   className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                    "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                     mode === "new" && "bg-muted text-foreground",
                   )}
                   aria-label={t("chat.newMessage")}
@@ -224,7 +224,7 @@ function MessagesInner() {
                       )}
                     >
                       <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary"
                         aria-hidden
                       >
                         <Bot className="h-4 w-4" />
@@ -301,7 +301,7 @@ function MessagesInner() {
                 />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-[6px] bg-muted">
                     <MessagesSquare className="h-6 w-6 text-muted-foreground" aria-hidden />
                   </span>
                   <p className="max-w-[260px] text-sm text-muted-foreground">

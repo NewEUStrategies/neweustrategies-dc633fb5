@@ -298,7 +298,7 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                         key={m.id}
                         data-message-id={m.id}
                         className={cn(
-                          "group/msg flex w-full items-end gap-1.5 rounded-xl",
+                          "group/msg flex w-full items-end gap-1.5 rounded-[6px]",
                           mine ? "flex-row-reverse" : "flex-row",
                         )}
                       >
@@ -313,7 +313,7 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                               type="button"
                               onClick={() => jumpToMessage(replied.id)}
                               className={cn(
-                                "mb-0.5 max-w-full truncate rounded-[8px] bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                "mb-0.5 max-w-full truncate rounded-[6px] bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                 mine ? "text-right self-end" : "text-left self-start",
                               )}
                               aria-label={t("chat.jumpToReplied")}
@@ -328,7 +328,7 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                           )}
                           <div
                             className={cn(
-                              "max-w-full rounded-[10px] px-3 py-1.5",
+                              "max-w-full rounded-[6px] px-3 py-1.5",
                               !mine && "bg-muted text-foreground",
                             )}
                             style={
@@ -454,7 +454,7 @@ export const BotChatWindow = memo(function BotChatWindow({ onBack }: Props) {
                   })}
                   {typing && (
                     <li className="flex justify-start">
-                      <div className="inline-flex items-center gap-1 rounded-[10px] bg-muted px-3 py-2">
+                      <div className="inline-flex items-center gap-1 rounded-[6px] bg-muted px-3 py-2">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/70" />
                         <span
                           className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/70"
