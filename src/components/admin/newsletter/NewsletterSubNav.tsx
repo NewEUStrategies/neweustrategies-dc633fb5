@@ -44,7 +44,6 @@ const tabs = [
   },
 ] as const;
 
-
 export function NewsletterSubNav() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");

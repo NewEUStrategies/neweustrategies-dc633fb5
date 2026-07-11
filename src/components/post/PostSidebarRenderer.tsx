@@ -26,6 +26,11 @@ export interface PostSidebarRendererProps {
   postTitle: string;
   lang: "pl" | "en";
   tags?: Array<{ slug: string; name: string }>;
+  /**
+   * Kontekst targetingu reklam (slugi kategorii/tagów posta) - bez niego slot
+   * z targetingiem treściowym nie wyemituje się w sidebarze.
+   */
+  adContent?: { categorySlugs?: string[]; tagSlugs?: string[] };
   /** Optional override layout id stored on the post. */
   layoutId?: string | null;
   /** Metadane odsłuchu - jeśli obecne, w readingu pojawi się widget audio TTS. */
@@ -59,7 +64,7 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
 }
 
 function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps) {
-  const { widget, postId, postTitle, lang, tags, listen } = props;
+  const { widget, postId, postTitle, lang, tags, listen, adContent } = props;
   switch (widget.type) {
     case "reading-panel": {
       const cfg: ReadingPanelSettings = {
@@ -131,7 +136,12 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
     case "ad-slot": {
       return (
         <Suspense fallback={null}>
-          <AdZone position="sidebar" pageType="post" pageId={postId} />
+          <AdZone
+            position="sidebar"
+            pageType="post"
+            pageId={postId}
+            content={adContent ?? { tagSlugs: (tags ?? []).map((tg) => tg.slug) }}
+          />
         </Suspense>
       );
     }

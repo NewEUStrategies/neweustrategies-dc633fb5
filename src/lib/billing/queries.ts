@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { cancelSubscription } from "./checkout.functions";
+import { cancelSubscription, resumeSubscription } from "./checkout.functions";
 import type {
   AccessPlan,
   BillingProfile,
@@ -147,4 +147,9 @@ export async function cancelMySubscription(subscriptionId: string): Promise<void
   // would let a user self-grant access). Cancel-at-period-end keeps access until
   // current_period_end instead of revoking already-paid time immediately.
   await cancelSubscription({ data: { subscriptionId } });
+}
+
+export async function resumeMySubscription(subscriptionId: string): Promise<void> {
+  // Cofa cancel_at_period_end (Stripe + DB) dopóki opłacony okres trwa.
+  await resumeSubscription({ data: { subscriptionId } });
 }

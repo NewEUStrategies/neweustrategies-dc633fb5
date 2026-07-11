@@ -178,7 +178,6 @@ export function MediaPickerDialog({
     }
   };
 
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
@@ -318,10 +317,7 @@ export function MediaPickerDialog({
 
         {picked && pickedIsImage && (
           <div className="border-t border-border pt-3 space-y-2">
-            <label
-              htmlFor="picker-alt"
-              className="block text-xs text-muted-foreground font-medium"
-            >
+            <label htmlFor="picker-alt" className="block text-xs text-muted-foreground font-medium">
               Tekst alternatywny (alt) — dla dostępności i SEO
             </label>
             <div className="flex items-start gap-2">

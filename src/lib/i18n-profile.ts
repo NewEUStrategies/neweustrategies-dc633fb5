@@ -12,6 +12,7 @@ const pl = {
       author: "Profil autora",
       social: "Media społecznościowe",
       interests: "Zainteresowania",
+      personality: "Osobowość",
       bookmarks: "Zapisane materiały",
       notifications: "Powiadomienia",
       follows: "Obserwowane",
@@ -175,6 +176,13 @@ const pl = {
       cancel: "Anuluj subskrypcję",
       cancelConfirm: "Subskrypcja pozostanie aktywna do końca okresu rozliczeniowego.",
       canceled: "Subskrypcja anulowana",
+      cancelFailed:
+        "Nie udało się anulować subskrypcji. Spróbuj ponownie lub skontaktuj się z nami.",
+      keep: "Zostaw subskrypcję",
+      accessUntil: "Subskrypcja anulowana - dostęp pozostaje aktywny do {{date}}.",
+      resume: "Wznów subskrypcję",
+      resumed: "Subskrypcja wznowiona",
+      resumeError: "Nie udało się wznowić subskrypcji.",
       change: "Zmień plan",
     },
     orders: {
@@ -255,6 +263,7 @@ const en: typeof pl = {
       author: "Author profile",
       social: "Social media",
       interests: "Interests",
+      personality: "Personality",
       bookmarks: "Saved items",
       notifications: "Notifications",
       follows: "Following",
@@ -418,6 +427,12 @@ const en: typeof pl = {
       cancelConfirm:
         "Your subscription remains active until the end of the current billing period.",
       canceled: "Subscription canceled",
+      cancelFailed: "Could not cancel the subscription. Please try again or contact us.",
+      keep: "Keep subscription",
+      accessUntil: "Subscription canceled - access stays active until {{date}}.",
+      resume: "Resume subscription",
+      resumed: "Subscription resumed",
+      resumeError: "Could not resume the subscription.",
       change: "Change plan",
     },
     orders: {
@@ -544,6 +559,7 @@ type ProfileExtras = {
       open: string;
       tabPosts: string;
       tabPages: string;
+      unavailable: string;
     };
     follows: {
       title: string;
@@ -553,6 +569,7 @@ type ProfileExtras = {
       tabAuthors: string;
       tabCategories: string;
       tabTags: string;
+      unavailable: string;
     };
   };
 };
@@ -616,12 +633,14 @@ const extrasPl: ProfileExtras = {
       open: "Otwórz",
       tabPosts: "Wpisy",
       tabPages: "Strony",
+      unavailable: "Materiał niedostępny (usunięty lub wycofany z publikacji)",
     },
     follows: {
       title: "Obserwowane",
       subtitle: "Twoi obserwowani autorzy, kategorie i tagi.",
       empty: "Niczego jeszcze nie obserwujesz.",
       unfollow: "Przestań obserwować",
+      unavailable: "Pozycja niedostępna lub ukryta",
       tabAuthors: "Autorzy",
       tabCategories: "Kategorie",
       tabTags: "Tagi",
@@ -688,12 +707,14 @@ const extrasEn: ProfileExtras = {
       open: "Open",
       tabPosts: "Posts",
       tabPages: "Pages",
+      unavailable: "Item unavailable (deleted or unpublished)",
     },
     follows: {
       title: "Following",
       subtitle: "Authors, categories and tags you follow.",
       empty: "You are not following anything yet.",
       unfollow: "Unfollow",
+      unavailable: "Item unavailable or hidden",
       tabAuthors: "Authors",
       tabCategories: "Categories",
       tabTags: "Tags",

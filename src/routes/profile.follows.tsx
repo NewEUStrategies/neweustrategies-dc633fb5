@@ -90,6 +90,33 @@ function FollowsPage() {
     },
   });
 
+  // Obserwacje, których nie da się już rozwiązać (usunięty byt / profil ukryty
+  // przez RLS) nie znikają po cichu - dostają wiersz z możliwością unfollow,
+  // dzięki czemu liczniki zakładek zgadzają się z zawartością list.
+  const missing = {
+    author: authorsQ.data ? ids.author.filter((id) => !authorsQ.data.some((a) => a.id === id)) : [],
+    category: categoriesQ.data
+      ? ids.category.filter((id) => !categoriesQ.data.some((c) => c.id === id))
+      : [],
+    tag: tagsQ.data ? ids.tag.filter((id) => !tagsQ.data.some((tg) => tg.id === id)) : [],
+  };
+
+  const UnresolvedRow = ({ type, id }: { type: FollowTargetType; id: string }) => (
+    <li className="flex items-center gap-3 py-3">
+      <span className="flex-1 truncate text-sm italic text-muted-foreground">
+        {t("profile.follows.unavailable")}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={toggle.isPending}
+        onClick={() => toggle.mutate({ targetType: type, targetId: id, on: false })}
+      >
+        {t("profile.follows.unfollow")}
+      </Button>
+    </li>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -150,6 +177,9 @@ function FollowsPage() {
                     </Button>
                   </li>
                 ))}
+                {missing.author.map((id) => (
+                  <UnresolvedRow key={id} type="author" id={id} />
+                ))}
               </ul>
             )}
           </TabsContent>
@@ -179,6 +209,9 @@ function FollowsPage() {
                     </Button>
                   </li>
                 ))}
+                {missing.category.map((id) => (
+                  <UnresolvedRow key={id} type="category" id={id} />
+                ))}
               </ul>
             )}
           </TabsContent>
@@ -207,6 +240,9 @@ function FollowsPage() {
                       {t("profile.follows.unfollow")}
                     </Button>
                   </li>
+                ))}
+                {missing.tag.map((id) => (
+                  <UnresolvedRow key={id} type="tag" id={id} />
                 ))}
               </ul>
             )}

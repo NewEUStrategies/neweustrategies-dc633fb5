@@ -2341,6 +2341,7 @@ export type Database = {
           icon: string | null
           id: string
           kind: string
+          meta: Json
           read_at: string | null
           tenant_id: string
           title_en: string | null
@@ -2355,6 +2356,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          meta?: Json
           read_at?: string | null
           tenant_id: string
           title_en?: string | null
@@ -2369,6 +2371,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          meta?: Json
           read_at?: string | null
           tenant_id?: string
           title_en?: string | null
@@ -2671,6 +2674,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "personality_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      personality_result_history: {
+        Row: {
+          agreeableness: number
+          conscientiousness: number
+          created_at: string
+          extraversion: number
+          id: string
+          neuroticism: number
+          openness: number
+          taken_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          agreeableness: number
+          conscientiousness: number
+          created_at?: string
+          extraversion: number
+          id?: string
+          neuroticism: number
+          openness: number
+          taken_at?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          agreeableness?: number
+          conscientiousness?: number
+          created_at?: string
+          extraversion?: number
+          id?: string
+          neuroticism?: number
+          openness?: number
+          taken_at?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personality_result_history_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3624,6 +3674,7 @@ export type Database = {
           created_at: string
           current_company: string | null
           discoverable: boolean
+          discovery_search: string | null
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -3655,6 +3706,7 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
+          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -3686,6 +3738,7 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
+          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -4681,6 +4734,23 @@ export type Database = {
           content_pl: string
         }[]
       }
+      get_followed_feed: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          author_id: string
+          cover_image_url: string
+          excerpt_en: string
+          excerpt_pl: string
+          id: string
+          parent_page_id: string
+          published_at: string
+          reasons: string[]
+          slug: string
+          title_en: string
+          title_pl: string
+          total_count: number
+        }[]
+      }
       get_or_create_direct_conversation: {
         Args: { p_peer_id: string }
         Returns: string
@@ -4835,6 +4905,27 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_recommended_posts_v2: {
+        Args: {
+          p_category_ids?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cover_image_url: string
+          excerpt_en: string
+          excerpt_pl: string
+          id: string
+          parent_page_id: string
+          published_at: string
+          reason: string
+          score: number
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
@@ -4918,6 +5009,14 @@ export type Database = {
         }[]
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
+      people_filter_options: {
+        Args: never
+        Returns: {
+          cnt: number
+          field: string
+          value: string
+        }[]
+      }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profiles_generate_unique_slug: {
@@ -4944,14 +5043,24 @@ export type Database = {
         }[]
       }
       search_people: {
-        Args: { p_limit?: number; p_query: string }
+        Args: {
+          p_company?: string
+          p_limit?: number
+          p_location?: string
+          p_offset?: number
+          p_query?: string
+          p_specialization?: string
+        }
         Returns: {
           avatar_url: string
           current_company: string
           display_name: string
           id: string
           job_title: string
+          location: string
+          slug: string
           specialization: string
+          total_count: number
         }[]
       }
       search_posts: {

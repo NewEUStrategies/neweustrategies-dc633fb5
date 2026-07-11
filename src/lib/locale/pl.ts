@@ -36,7 +36,8 @@ export const pl = {
       confirmBtn: "Potwierdź wypisanie",
       working: "Wypisywanie…",
       okTitle: "Wypisano z newslettera",
-      okBody: "Nie będziesz już otrzymywać naszych wiadomości. Możesz zapisać się ponownie w każdej chwili.",
+      okBody:
+        "Nie będziesz już otrzymywać naszych wiadomości. Możesz zapisać się ponownie w każdej chwili.",
       alreadyTitle: "Już wypisane",
       alreadyBody: "Ten adres jest już wypisany z newslettera.",
       invalidTitle: "Nieprawidłowy link",
@@ -1691,6 +1692,13 @@ export const pl = {
       approve: "Zatwierdź",
       spam: "Spam",
       delete: "Usuń",
+    },
+    kinds: {
+      all: "Wszystkie typy",
+      system: "System",
+      follow: "Obserwujący",
+      content: "Nowe treści",
+      subscription: "Subskrypcja",
     },
   },
 };

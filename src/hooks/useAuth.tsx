@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { hasAnonPersonalization, mergeAnonPersonalization } from "@/lib/personalization/anonMerge";
 
 export type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
@@ -74,6 +75,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(() => {
           void loadContext(s.user.id);
         }, 0);
+        // Merge anonimowej personalizacji (zainteresowania + zapisane
+        // artykuły gościa) na poziomie aplikacji - działa niezależnie od tego,
+        // które widżety są zamontowane. Best-effort: błąd nie blokuje logowania.
+        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && hasAnonPersonalization()) {
+          const mergeUid = s.user.id;
+          setTimeout(() => {
+            void mergeAnonPersonalization(mergeUid, queryClient).catch((err) => {
+              console.warn("[auth] anon personalization merge failed", err);
+            });
+          }, 0);
+        }
       } else {
         setRoles([]);
         setTenantId(null);

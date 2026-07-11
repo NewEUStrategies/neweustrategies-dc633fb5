@@ -13,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Search, Trash2, Upload } from "lucide-react";
+import { Download, MailX, RotateCcw, Search, Trash2, Upload } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-newsletter-admin";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
 
@@ -38,6 +40,7 @@ const SUBSCRIBER_FETCH_CAP = 5000;
 export function SubscribersPanel() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
+  const { t } = useTranslation();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [lang, setLang] = useState<"all" | "pl" | "en">("all");
   const [importOpen, setImportOpen] = useState(false);
@@ -101,6 +104,30 @@ export function SubscribersPanel() {
     a.download = `newsletter-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Miekki wypis / przywrocenie zamiast twardego DELETE: zachowuje dowod
+  // zgody i historie, a trigger newsletter_to_lead loguje cofniecie zgody.
+  const setSubStatus = async (id: string, next: "subscribed" | "unsubscribed") => {
+    const { error } = await supabase
+      .from("newsletter_subscribers")
+      .update(
+        next === "unsubscribed"
+          ? { status: "unsubscribed", unsubscribed_at: new Date().toISOString() }
+          : { status: "subscribed", unsubscribed_at: null },
+      )
+      .eq("id", id);
+    if (error) {
+      toast.error(t("adminNewsletter.subscribers.actionError"));
+      return;
+    }
+    toast.success(
+      next === "unsubscribed"
+        ? t("adminNewsletter.subscribers.unsubscribed")
+        : t("adminNewsletter.subscribers.resubscribed"),
+    );
+    qc.invalidateQueries({ queryKey: ["newsletter-subscribers"] });
+    qc.invalidateQueries({ queryKey: ["newsletter-kpis"] });
   };
 
   const remove = async (id: string) => {
@@ -223,7 +250,32 @@ export function SubscribersPanel() {
                   <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                     {new Date(s.created_at).toLocaleDateString()}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-right whitespace-nowrap">
+                    {s.status === "unsubscribed" ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSubStatus(s.id, "subscribed");
+                        }}
+                        className="text-muted-foreground hover:bg-muted p-1.5 rounded"
+                        aria-label={t("adminNewsletter.subscribers.resubscribeAction")}
+                        title={t("adminNewsletter.subscribers.resubscribeAction")}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSubStatus(s.id, "unsubscribed");
+                        }}
+                        className="text-muted-foreground hover:bg-muted p-1.5 rounded"
+                        aria-label={t("adminNewsletter.subscribers.unsubscribeAction")}
+                        title={t("adminNewsletter.subscribers.unsubscribeAction")}
+                      >
+                        <MailX className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

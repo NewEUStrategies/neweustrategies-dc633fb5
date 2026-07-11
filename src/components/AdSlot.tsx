@@ -14,7 +14,7 @@
 import { memo, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMarketingConsent } from "@/lib/ads/consent";
-import { useAdPlacements } from "@/lib/ads/queries";
+import { useAdPlacements, type AdContentContext } from "@/lib/ads/queries";
 import { useDeferredAd } from "@/lib/ads/useDeferredAd";
 import { AdContainer } from "@/components/ads/atoms/AdContainer";
 import type { AdPageType, AdPlacementWithSlot, AdPosition } from "@/lib/ads/types";
@@ -128,11 +128,17 @@ interface ZoneProps {
   className?: string;
   /** Jeśli podane, renderujemy maksymalnie N placementów dla tej pozycji. */
   limit?: number;
+  /**
+   * Kontekst treści dla targetingu slotów (slugi kategorii/tagów bieżącego
+   * posta). Bez niego sloty z targetingiem treściowym nie są emitowane;
+   * targeting językowy działa zawsze (język z i18n).
+   */
+  content?: AdContentContext;
 }
 
 /** Wrapper renderujący wszystkie aktywne placementy dla danej pozycji. */
-export function AdZone({ position, pageType, pageId, className, limit }: ZoneProps) {
-  const { data } = useAdPlacements(position, pageType, pageId);
+export function AdZone({ position, pageType, pageId, className, limit, content }: ZoneProps) {
+  const { data } = useAdPlacements(position, pageType, pageId, content);
   if (!data || data.length === 0) return null;
   const list = typeof limit === "number" ? data.slice(0, limit) : data;
   return (

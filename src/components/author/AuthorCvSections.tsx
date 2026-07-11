@@ -5,7 +5,15 @@ import React from "react";
 // pokazywać nagłówka bez treści.
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Briefcase, GraduationCap, Sparkles, Award, Heart, MapPin, ExternalLink } from "lucide-react";
+import {
+  Briefcase,
+  GraduationCap,
+  Sparkles,
+  Award,
+  Heart,
+  MapPin,
+  ExternalLink,
+} from "lucide-react";
 import { authorCvQueryOptions, type AuthorCv } from "@/lib/queries/authorCv";
 
 interface Props {
@@ -46,9 +54,7 @@ export function AuthorCvSections({ userId }: Props): React.ReactElement | null {
 
   return (
     <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pt-2 pb-10 space-y-10">
-      {experiences.length > 0 && (
-        <ExperienceSection items={experiences} isPl={isPl} />
-      )}
+      {experiences.length > 0 && <ExperienceSection items={experiences} isPl={isPl} />}
       {education.length > 0 && <EducationSection items={education} isPl={isPl} />}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {skills.length > 0 && (
@@ -97,7 +103,10 @@ function ExperienceSection({
       <ol className="relative border-l border-border ml-3 space-y-6">
         {items.map((e) => (
           <li key={e.id} className="pl-5 relative">
-            <span className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-brand" aria-hidden />
+            <span
+              className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-brand"
+              aria-hidden
+            />
             <div className="flex flex-col sm:flex-row sm:items-start gap-3">
               {e.logo_url && (
                 <img
@@ -108,10 +117,10 @@ function ExperienceSection({
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <h3 className="font-semibold">{e.role_title || (isPl ? "Stanowisko" : "Role")}</h3>
-                  {e.company && (
-                    <span className="text-muted-foreground">· {e.company}</span>
-                  )}
+                  <h3 className="font-semibold">
+                    {e.role_title || (isPl ? "Stanowisko" : "Role")}
+                  </h3>
+                  {e.company && <span className="text-muted-foreground">· {e.company}</span>}
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-0.5">
                   <span>{formatDateRange(e.start_date, e.end_date, e.is_current, isPl)}</span>
@@ -148,10 +157,7 @@ function EducationSection({
       <SectionHeader icon={GraduationCap} title={isPl ? "Edukacja" : "Education"} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {items.map((e) => (
-          <article
-            key={e.id}
-            className="rounded-lg border border-border bg-card p-4 flex gap-3"
-          >
+          <article key={e.id} className="rounded-lg border border-border bg-card p-4 flex gap-3">
             {e.logo_url && (
               <img
                 src={e.logo_url}
@@ -279,18 +285,23 @@ function AwardsSection({
 }): React.ReactElement {
   return (
     <div>
-      <SectionHeader icon={Award} title={isPl ? "Wyróżnienia i certyfikaty" : "Awards & certifications"} />
+      <SectionHeader
+        icon={Award}
+        title={isPl ? "Wyróżnienia i certyfikaty" : "Awards & certifications"}
+      />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((a) => {
           const inner = (
             <>
               <div className="flex items-start gap-2">
-                {a.icon && <span aria-hidden className="text-xl">{a.icon}</span>}
+                {a.icon && (
+                  <span aria-hidden className="text-xl">
+                    {a.icon}
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm">{a.title}</h3>
-                  {a.issuer && (
-                    <div className="text-xs text-muted-foreground">{a.issuer}</div>
-                  )}
+                  {a.issuer && <div className="text-xs text-muted-foreground">{a.issuer}</div>}
                   {a.awarded_at && (
                     <div className="text-xs text-muted-foreground">
                       {new Date(a.awarded_at).toLocaleDateString(isPl ? "pl-PL" : "en-US", {
@@ -320,10 +331,7 @@ function AwardsSection({
               {inner}
             </a>
           ) : (
-            <article
-              key={a.id}
-              className="rounded-lg border border-border bg-card p-4"
-            >
+            <article key={a.id} className="rounded-lg border border-border bg-card p-4">
               {inner}
             </article>
           );

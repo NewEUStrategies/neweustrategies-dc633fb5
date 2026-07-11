@@ -5,6 +5,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { FollowButton } from "@/components/FollowButton";
+import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -45,6 +47,9 @@ function TagArchivePage() {
   const { data } = useSuspenseQuery(taxonomyArchiveQueryOptions("tag", slug));
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  // Parytet z nagłówkiem kategorii: tag też można obserwować z archiwum
+  // (wcześniej jedyną drogą był konfigurator zainteresowań).
+  const personalized = usePersonalizedSettings();
   if (!data) return <NotFound />;
   const { taxonomy, posts } = data;
   const name =
@@ -64,7 +69,12 @@ function TagArchivePage() {
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-10">
           <header className="mb-8">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Tag</p>
-            <h1 className="font-display text-3xl lg:text-4xl mt-1">#{name}</h1>
+            <div className="flex flex-wrap items-center gap-3 mt-1">
+              <h1 className="font-display text-3xl lg:text-4xl">#{name}</h1>
+              {personalized.followInTagHeader && (
+                <FollowButton targetType="tag" targetId={taxonomy.id} lang={lang} />
+              )}
+            </div>
           </header>
           <ArchivePostList posts={posts} lang={lang} emptyText="Brak opublikowanych wpisów." />
         </section>

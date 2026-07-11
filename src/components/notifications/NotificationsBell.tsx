@@ -47,14 +47,37 @@ function relTime(iso: string, lang: Lang): string {
   return new Date(iso).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL");
 }
 
+function kebabToPascal(name: string): string {
+  return name
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
 function resolveIcon(name: string | null | undefined) {
   if (!name) return null;
   const IconRegistry = LucideIcons as unknown as Record<
     string,
     React.ComponentType<{ className?: string }>
   >;
-  const Ico = IconRegistry[name];
-  return Ico ?? null;
+  // Producenci DB zapisują nazwy kebab-case (user-plus, sparkles);
+  // eksporty lucide są PascalCase - normalizujemy, z fallbackiem na oryginał.
+  return IconRegistry[kebabToPascal(name)] ?? IconRegistry[name] ?? null;
+}
+
+// Ikona zapasowa per rodzaj (spójna z /profile/notifications), gdy producent
+// nie zapisał własnej.
+const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  system: LucideIcons.Info,
+  follow: LucideIcons.UserPlus,
+  content: LucideIcons.Sparkles,
+  subscription: LucideIcons.Crown,
+  comment: LucideIcons.MessageCircle,
+  security: LucideIcons.ShieldAlert,
+};
+
+function isInternalHref(href: string): boolean {
+  return href.startsWith("/") && !href.startsWith("//");
 }
 
 export interface NotificationsBellProps {
@@ -160,7 +183,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             <ul className="divide-y divide-border/60">
               {groups.map((g) => {
                 const n = g.latest;
-                const IconCmp = resolveIcon(n.icon) ?? LucideIcons.Circle;
+                const IconCmp = resolveIcon(n.icon) ?? KIND_ICONS[n.kind] ?? LucideIcons.Circle;
                 const groupUnread = g.unreadCount;
                 const isUnread = groupUnread > 0;
                 const extra = g.items.length - 1;
@@ -228,9 +251,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            const ids = g.items
-                              .filter((it) => !it.read_at)
-                              .map((it) => it.id);
+                            const ids = g.items.filter((it) => !it.read_at).map((it) => it.id);
                             if (ids.length > 0) markMany.mutate(ids);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -273,9 +294,19 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                 };
                 return (
                   <li key={g.key}>
-                    {n.href ? (
+                    {n.href && isInternalHref(n.href) ? (
+                      // Wewnętrzna nawigacja przez router - bez pełnego reloadu.
+                      <Link
+                        to={n.href}
+                        onClick={onClick}
+                        className="block hover:bg-muted/50 transition-colors"
+                      >
+                        {inner}
+                      </Link>
+                    ) : n.href ? (
                       <a
                         href={n.href}
+                        rel="noopener noreferrer"
                         onClick={onClick}
                         className="block hover:bg-muted/50 transition-colors"
                       >
@@ -296,8 +327,6 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             </ul>
           )}
         </div>
-
-
 
         <div className="border-t border-border/60 p-2">
           <Link

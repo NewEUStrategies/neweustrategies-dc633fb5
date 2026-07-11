@@ -370,6 +370,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     ? ((data as { categories?: Array<{ slug: string; name_pl: string; name_en: string }> })
         .categories ?? [])
     : [];
+  // Kontekst targetingu reklam: slugi kategorii/tagów bieżącego posta.
+  const adContent = isPost
+    ? {
+        categorySlugs: postCategories.map((c) => c.slug),
+        tagSlugs: (postTags ?? []).map((tg) => tg.slug),
+      }
+    : undefined;
   const postAuthor = isPost
     ? ((
         data as {
@@ -609,7 +616,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <PostContentStyle />
         <main style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
           <Breadcrumbs items={crumbs} />
-          <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
+          <AdZone
+            position="top_of_post"
+            pageType={adPageType}
+            pageId={it.id}
+            className="mb-6"
+            content={adContent}
+          />
           <PostLayoutRenderer
             format={format}
             layoutId={layoutId}
@@ -661,6 +674,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   pageType={adPageType}
                   pageId={it.id}
                   scanKey={`${it.id}-${lang}`}
+                  content={adContent}
                 />
               </>
             }
@@ -672,6 +686,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     postTitle={title}
                     lang={lang}
                     tags={postTags}
+                    adContent={adContent}
                     layoutId={
                       (post as unknown as { sidebar_layout_id?: string | null })
                         .sidebar_layout_id ?? null
@@ -716,6 +731,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   pageType={adPageType}
                   pageId={it.id}
                   className="my-6"
+                  content={adContent}
                 />
                 {merged.show_bottom_newsletter && (
                   <NewsletterForm lang={lang} source={`post:${post.slug}`} />
@@ -771,14 +787,26 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const pageBody = (
     <>
       {tpl.id !== "landing" && <Breadcrumbs items={crumbs} />}
-      <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
+      <AdZone
+        position="top_of_post"
+        pageType={adPageType}
+        pageId={it.id}
+        className="mb-6"
+        content={adContent}
+      />
       <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
       {contentBlock}
       {tpl.id === "archive_listing" && (
         <ArchiveListing parentPageId={it.id} lang={lang} parentPath={parentPath} />
       )}
       {tpl.id === "contact" && <ContactForm lang={lang} />}
-      <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
+      <AdZone
+        position="bottom_of_post"
+        pageType={adPageType}
+        pageId={it.id}
+        className="my-6"
+        content={adContent}
+      />
       <FootnoteTooltips notes={notes} containerRef={articleRef} />
     </>
   );

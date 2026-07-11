@@ -42,10 +42,15 @@ export function useToggleFollow() {
     }) => {
       if (!user) throw new Error("Not authenticated");
       if (on) {
+        // Upsert z ignoreDuplicates zamiast łapania "duplicate" po treści
+        // komunikatu - odporny na lokalizację błędów i równoległe zapisy.
         const { error } = await supabase
           .from("user_follows")
-          .insert({ user_id: user.id, target_type: targetType, target_id: targetId });
-        if (error && !String(error.message).includes("duplicate")) throw error;
+          .upsert(
+            { user_id: user.id, target_type: targetType, target_id: targetId },
+            { onConflict: "user_id,target_type,target_id", ignoreDuplicates: true },
+          );
+        if (error) throw error;
       } else {
         const { error } = await supabase
           .from("user_follows")
@@ -56,6 +61,14 @@ export function useToggleFollow() {
         if (error) throw error;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["follows", user?.id] }),
+    onSuccess: () => {
+      // Jedna tabela, wiele widoków: chipy follow, zainteresowania, liczniki
+      // profilu, rekomendacje i feed obserwowanych muszą się zgadzać.
+      void qc.invalidateQueries({ queryKey: ["follows", user?.id] });
+      void qc.invalidateQueries({ queryKey: ["my-interests"] });
+      void qc.invalidateQueries({ queryKey: ["profile-counts"] });
+      void qc.invalidateQueries({ queryKey: ["recommended-posts"] });
+      void qc.invalidateQueries({ queryKey: ["followed-feed"] });
+    },
   });
 }

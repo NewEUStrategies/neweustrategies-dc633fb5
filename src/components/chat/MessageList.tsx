@@ -125,7 +125,6 @@ export function MessageList(props: MessageListProps) {
     window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
   }, []);
 
-
   // Newest own message that the peer has already read -> "seen" receipt.
   const lastMine = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -201,7 +200,7 @@ export function MessageList(props: MessageListProps) {
       aria-label={t("chat.messages")}
     >
       <div ref={topSentinelRef} aria-hidden />
-      
+
       {hasOlder && (
         <div className="flex justify-center py-1.5">
           <span

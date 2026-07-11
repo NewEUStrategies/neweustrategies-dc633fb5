@@ -153,8 +153,6 @@ export function useMarkNotificationsUnread() {
   });
 }
 
-
-
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -322,5 +320,3 @@ export function useNotificationPreferencesRealtime(): void {
     };
   }, [user, qc]);
 }
-
-

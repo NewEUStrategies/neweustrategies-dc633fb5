@@ -9,6 +9,7 @@ type NavKey =
   | "author"
   | "social"
   | "interests"
+  | "personality"
   | "bookmarks"
   | "notifications"
   | "follows"
@@ -25,6 +26,7 @@ const MAIN: NavItem[] = [
   { to: "/profile/author", key: "author" },
   { to: "/profile/social", key: "social" },
   { to: "/profile/interests", key: "interests" },
+  { to: "/profile/personality", key: "personality" },
   { to: "/profile/bookmarks", key: "bookmarks" },
   { to: "/messages", search: { view: "notifications" }, key: "notifications" },
   { to: "/profile/follows", key: "follows" },

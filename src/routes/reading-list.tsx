@@ -1,22 +1,30 @@
+// Lista czytelnicza: zapisane / obserwowane / rekomendacje.
+//
+// Obserwowane to od teraz PRAWDZIWY feed postów obserwowanych autorów,
+// kategorii i tagów (RPC get_followed_feed) z klikalnymi chipami obserwacji
+// (unfollow jednym kliknięciem), a nie statyczne chipy. Rekomendacje idą przez
+// get_recommended_posts_v2 - działają też dla gościa (zainteresowania z
+// localStorage), więc strona nie jest już twardym login-wallem: gość przy
+// włączonym allowGuests widzi rekomendacje i lokalnie zapisane artykuły.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { ExternalLink, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarks } from "@/hooks/useBookmarks";
-import { useFollows } from "@/hooks/useFollows";
+import { useFollows, useToggleFollow } from "@/hooks/useFollows";
+import { useFollowedFeed, type FollowedFeedItem } from "@/hooks/useFollowedFeed";
+import { useRecommendedPosts, type RecommendedPost } from "@/hooks/useRecommendedPosts";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import {
-  getFollowedFeed,
-  getRecommendedPosts,
-  type RecommendedPost,
-} from "@/lib/recommendations.functions";
 import { openLoginPopup } from "@/lib/loginPopupBus";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import "@/lib/i18n-reading-list";
 
 type Tab = "saved" | "followed" | "recommended";
+type Lang = "pl" | "en";
 
 interface PostRow {
   id: string;
@@ -30,6 +38,27 @@ interface PostRow {
   parent_page_id: string;
 }
 
+// Gościnne zapisy z useSaveArticle (localStorage, to samo źródło danych).
+const GUEST_SAVED_KEY = "lovable:saved-articles";
+interface GuestSavedItem {
+  url: string;
+  title: string;
+  savedAt: number;
+}
+
+function readGuestSaved(): GuestSavedItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(GUEST_SAVED_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? (parsed as GuestSavedItem[]).filter((s) => typeof s?.url === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export const Route = createFileRoute("/reading-list")({
   component: ReadingListPage,
   head: () => ({
@@ -39,12 +68,25 @@ export const Route = createFileRoute("/reading-list")({
 
 function ReadingListPage() {
   const { user } = useAuth();
-  const { i18n } = useTranslation();
-  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const { t, i18n } = useTranslation();
+  const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const settings = usePersonalizedSettings();
   const [tab, setTab] = useState<Tab>("saved");
 
-  if (!user) {
+  // Wyłącznik główny personalizacji obowiązuje także tutaj.
+  if (!settings.enabled) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
+          <h1 className="font-display text-3xl mb-3">{t("readingList.disabledTitle")}</h1>
+          <p className="text-muted-foreground">{t("readingList.disabledBody")}</p>
+        </main>
+      </div>
+    );
+  }
+
+  // Gość bez trybu gościnnego: dotychczasowa zachęta do logowania.
+  if (!user && !settings.allowGuests) {
     return (
       <div className="min-h-screen flex flex-col">
         <main className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
@@ -58,7 +100,7 @@ function ReadingListPage() {
               })
             }
           >
-            Zaloguj się
+            {t("readingList.signIn")}
           </Button>
         </main>
       </div>
@@ -111,8 +153,22 @@ function ReadingListPage() {
           ))}
         </div>
 
-        {tab === "saved" && <SavedSection columns={settings.sections.saved.columns} lang={lang} />}
-        {tab === "followed" && <FollowedSection lang={lang} />}
+        {tab === "saved" &&
+          (user ? (
+            <SavedSection columns={settings.sections.saved.columns} lang={lang} />
+          ) : (
+            <GuestSavedSection lang={lang} />
+          ))}
+        {tab === "followed" &&
+          (user ? (
+            <FollowedSection columns={settings.sections.followed.columns} lang={lang} />
+          ) : (
+            <GuestLoginNudge
+              text={t("readingList.followedGuest")}
+              title={settings.restrictedTitle}
+              description={settings.restrictedDescription}
+            />
+          ))}
         {tab === "recommended" && (
           <RecommendedSection
             columns={settings.sections.recommended.columns}
@@ -133,7 +189,28 @@ function gridClass(cols: number) {
       : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
 }
 
-function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" }) {
+function GuestLoginNudge({
+  text,
+  title,
+  description,
+}: {
+  text: string;
+  title: string;
+  description: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="text-center py-20 text-muted-foreground">
+      <p className="mb-4">{text}</p>
+      <Button onClick={() => openLoginPopup({ title, description })}>
+        {t("readingList.signIn")}
+      </Button>
+    </div>
+  );
+}
+
+function SavedSection({ columns, lang }: { columns: number; lang: Lang }) {
+  const { t } = useTranslation();
   const { data: bookmarks, isLoading } = useBookmarks();
   const postIds = (bookmarks ?? []).filter((b) => b.entity_type === "post").map((b) => b.entity_id);
   const { data: posts } = useQuery({
@@ -152,10 +229,11 @@ function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" })
       return data as PostRow[];
     },
   });
-  if (isLoading) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
-  if (postIds.length === 0)
-    return <EmptyState text="Nie masz jeszcze żadnych zapisanych artykułów." />;
-  if (!posts) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
+  if (isLoading)
+    return <p className="text-center text-muted-foreground">{t("readingList.loading")}</p>;
+  if (postIds.length === 0) return <EmptyState text={t("readingList.savedEmpty")} />;
+  if (!posts)
+    return <p className="text-center text-muted-foreground">{t("readingList.loading")}</p>;
   return (
     <div className={`grid gap-6 ${gridClass(columns)}`}>
       {posts.map((p) => (
@@ -165,18 +243,141 @@ function SavedSection({ columns, lang }: { columns: number; lang: "pl" | "en" })
   );
 }
 
-function FollowedSection({ lang }: { lang: "pl" | "en" }) {
-  const { data: follows } = useFollows();
-  const catIds = (follows ?? [])
-    .filter((f) => f.target_type === "category")
-    .map((f) => f.target_id);
-  const tagIds = (follows ?? []).filter((f) => f.target_type === "tag").map((f) => f.target_id);
-  const authorIds = (follows ?? [])
-    .filter((f) => f.target_type === "author")
-    .map((f) => f.target_id);
+// Zapisane gościa: lista z localStorage (url+tytuł), z usuwaniem pozycji.
+function GuestSavedSection({ lang }: { lang: Lang }) {
+  const { t } = useTranslation();
+  const [items, setItems] = useState<GuestSavedItem[]>(() => readGuestSaved());
 
-  const { data } = useQuery({
+  const removeItem = useCallback((url: string) => {
+    setItems((prev) => {
+      const next = prev.filter((s) => s.url !== url);
+      try {
+        window.localStorage.setItem(GUEST_SAVED_KEY, JSON.stringify(next));
+      } catch {
+        /* private mode - stan i tak zaktualizowany w pamięci */
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <p className="rounded-[6px] border border-border/60 bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">
+        {t("readingList.guestSavedInfo")}
+      </p>
+      {items.length === 0 ? (
+        <EmptyState text={t("readingList.guestSavedEmpty")} />
+      ) : (
+        <ul className="divide-y divide-border/60 rounded-[6px] border border-border/60">
+          {items.map((item) => (
+            <li key={item.url} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <a href={item.url} className="block truncate text-sm font-medium hover:underline">
+                  {item.title || item.url}
+                </a>
+                {Number.isFinite(item.savedAt) && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("readingList.savedAt", {
+                      date: new Date(item.savedAt).toLocaleDateString(
+                        lang === "en" ? "en-US" : "pl-PL",
+                      ),
+                    })}
+                  </p>
+                )}
+              </div>
+              <a
+                href={item.url}
+                className="text-muted-foreground hover:text-foreground"
+                aria-hidden
+                tabIndex={-1}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              <button
+                type="button"
+                onClick={() => removeItem(item.url)}
+                className="text-muted-foreground transition-colors hover:text-destructive"
+                aria-label={t("readingList.guestRemove")}
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+interface FollowChip {
+  type: "author" | "category" | "tag";
+  id: string;
+  label: string;
+  href: { to: string; params: Record<string, string> } | null;
+  avatarUrl?: string | null;
+}
+
+// Chipy obserwacji: klikalne (archiwum/profil) + unfollow jednym kliknięciem.
+function FollowChips({ chips }: { chips: FollowChip[] }) {
+  const { t } = useTranslation();
+  const toggle = useToggleFollow();
+  if (chips.length === 0) return null;
+  return (
+    <section className="mb-8">
+      <h2 className="font-display mb-3 text-sm uppercase tracking-wide text-muted-foreground">
+        {t("readingList.yourFollows")}
+      </h2>
+      <div className="flex flex-wrap gap-2">
+        {chips.map((chip) => (
+          <span
+            key={`${chip.type}:${chip.id}`}
+            className="inline-flex items-center gap-1.5 rounded-full bg-muted py-1 pl-3 pr-1.5 text-sm"
+          >
+            {chip.avatarUrl && <img src={chip.avatarUrl} alt="" className="h-5 w-5 rounded-full" />}
+            {chip.href ? (
+              <Link to={chip.href.to} params={chip.href.params} className="hover:underline">
+                {chip.label}
+              </Link>
+            ) : (
+              <span>{chip.label}</span>
+            )}
+            <button
+              type="button"
+              disabled={toggle.isPending}
+              onClick={() => toggle.mutate({ targetType: chip.type, targetId: chip.id, on: false })}
+              className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-destructive disabled:opacity-50"
+              aria-label={t("readingList.unfollow", { name: chip.label })}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FollowedSection({ columns, lang }: { columns: number; lang: Lang }) {
+  const { t } = useTranslation();
+  const { data: follows } = useFollows();
+  const feed = useFollowedFeed();
+
+  const catIds = useMemo(
+    () => (follows ?? []).filter((f) => f.target_type === "category").map((f) => f.target_id),
+    [follows],
+  );
+  const tagIds = useMemo(
+    () => (follows ?? []).filter((f) => f.target_type === "tag").map((f) => f.target_id),
+    [follows],
+  );
+  const authorIds = useMemo(
+    () => (follows ?? []).filter((f) => f.target_type === "author").map((f) => f.target_id),
+    [follows],
+  );
+
+  const { data: entities } = useQuery({
     queryKey: ["followed-entities", catIds.join(","), tagIds.join(","), authorIds.join(",")],
+    enabled: (follows ?? []).length > 0,
     queryFn: async () => {
       const [cats, tags, authors] = await Promise.all([
         catIds.length
@@ -188,12 +389,16 @@ function FollowedSection({ lang }: { lang: "pl" | "en" }) {
           ? supabase.from("tags").select("id, name, slug").in("id", tagIds)
           : Promise.resolve({ data: [] as Array<{ id: string; name: string; slug: string }> }),
         authorIds.length
-          ? supabase.from("profiles").select("id, display_name, avatar_url").in("id", authorIds)
+          ? supabase
+              .from("profiles")
+              .select("id, display_name, avatar_url, slug")
+              .in("id", authorIds)
           : Promise.resolve({
               data: [] as Array<{
                 id: string;
                 display_name: string | null;
                 avatar_url: string | null;
+                slug: string | null;
               }>,
             }),
       ]);
@@ -201,86 +406,74 @@ function FollowedSection({ lang }: { lang: "pl" | "en" }) {
     },
   });
 
-  const fetchFeed = useServerFn(getFollowedFeed);
-  const { data: feedPosts, isLoading: feedLoading } = useQuery({
-    queryKey: ["followed-feed", catIds.length, tagIds.length, authorIds.length],
-    enabled: (follows?.length ?? 0) > 0,
-    queryFn: () => fetchFeed({ data: { limit: 18 } }),
-  });
+  const chips = useMemo<FollowChip[]>(() => {
+    if (!entities) return [];
+    const authorChips: FollowChip[] = entities.authors.map((a) => ({
+      type: "author",
+      id: a.id,
+      label: a.display_name ?? t("readingList.anonymousAuthor"),
+      href: a.slug ? { to: "/author/$slug", params: { slug: a.slug } } : null,
+      avatarUrl: a.avatar_url,
+    }));
+    const catChips: FollowChip[] = entities.cats.map((c) => ({
+      type: "category",
+      id: c.id,
+      label: (lang === "pl" ? c.name_pl : c.name_en) || c.name_pl,
+      href: { to: "/category/$slug", params: { slug: c.slug } },
+    }));
+    const tagChips: FollowChip[] = entities.tags.map((tg) => ({
+      type: "tag",
+      id: tg.id,
+      label: `#${tg.name}`,
+      href: { to: "/tag/$slug", params: { slug: tg.slug } },
+    }));
+    return [...authorChips, ...catChips, ...tagChips];
+  }, [entities, lang, t]);
 
-  if (!follows || follows.length === 0)
-    return <EmptyState text="Nie obserwujesz jeszcze żadnych kategorii ani autorów." />;
-  if (!data) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
+  if (!follows || follows.length === 0) {
+    return (
+      <div className="text-center py-20 text-muted-foreground">
+        <p>{t("readingList.followedEmpty")}</p>
+        <Link to="/profile/interests" className="mt-4 inline-block text-brand hover:underline">
+          {t("readingList.followedEmptyCta")}
+        </Link>
+      </div>
+    );
+  }
+
+  // Dedupe po id: publikacja nowego posta między stronami przesuwa okno
+  // offsetu i ten sam rekord może wrócić na kolejnej stronie.
+  const items = Array.from(new Map((feed.data?.pages ?? []).flat().map((p) => [p.id, p])).values());
 
   return (
-    <div className="space-y-10">
-      <div className="space-y-6">
-        {data.cats.length > 0 && (
-          <section>
-            <h2 className="font-display text-xl mb-3">Kategorie</h2>
-            <div className="flex flex-wrap gap-2">
-              {data.cats.map((c) => (
-                <span key={c.id} className="px-3 py-1.5 bg-muted rounded-full text-sm">
-                  {lang === "pl" ? c.name_pl : c.name_en}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-        {data.tags.length > 0 && (
-          <section>
-            <h2 className="font-display text-xl mb-3">Tagi</h2>
-            <div className="flex flex-wrap gap-2">
-              {data.tags.map((t) => (
-                <span key={t.id} className="px-3 py-1.5 bg-muted rounded-full text-sm">
-                  #{t.name}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-        {data.authors.length > 0 && (
-          <section>
-            <h2 className="font-display text-xl mb-3">Autorzy</h2>
-            <div className="flex flex-wrap gap-3">
-              {data.authors.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-sm"
-                >
-                  {a.avatar_url && (
-                    <img src={a.avatar_url} alt="" className="w-6 h-6 rounded-full" />
-                  )}
-                  <span>{a.display_name ?? "Anonim"}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
+    <div>
+      <FollowChips chips={chips} />
 
-      <section>
-        <h2 className="font-display text-2xl mb-4">
-          {lang === "en" ? "Latest from followed" : "Najnowsze z obserwowanych"}
-        </h2>
-        {feedLoading || !feedPosts ? (
-          <p className="text-center text-muted-foreground">Ładowanie…</p>
-        ) : feedPosts.length === 0 ? (
-          <EmptyState
-            text={
-              lang === "en"
-                ? "No posts from followed authors, categories or tags yet."
-                : "Brak nowych wpisów z obserwowanych autorów, kategorii lub tagów."
-            }
-          />
-        ) : (
-          <div className={`grid gap-6 ${gridClass(3)}`}>
-            {feedPosts.map((p) => (
-              <PostCard key={p.id} post={p} lang={lang} />
+      {feed.isLoading ? (
+        <p className="text-center text-muted-foreground">{t("readingList.loading")}</p>
+      ) : items.length === 0 ? (
+        <EmptyState text={t("readingList.followedFeedEmpty")} />
+      ) : (
+        <>
+          <div className={`grid gap-6 ${gridClass(columns)}`}>
+            {items.map((p) => (
+              <PostCard key={p.id} post={p} lang={lang} reasons={p.reasons} />
             ))}
           </div>
-        )}
-      </section>
+          {feed.hasNextPage && (
+            <div className="mt-8 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={feed.isFetchingNextPage}
+                onClick={() => void feed.fetchNextPage()}
+              >
+                {feed.isFetchingNextPage ? t("readingList.loading") : t("readingList.loadMore")}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -292,38 +485,45 @@ function RecommendedSection({
 }: {
   columns: number;
   limit: number;
-  lang: "pl" | "en";
+  lang: Lang;
 }) {
-  const fetchFn = useServerFn(getRecommendedPosts);
-  // React Query so saving interests (which invalidates ["recommended-posts"])
-  // actually refetches this list instead of waiting for a remount.
-  const { data: posts, error } = useQuery({
-    queryKey: ["recommended-posts", limit],
-    queryFn: () => fetchFn({ data: { limit } }),
-  });
+  const { t } = useTranslation();
+  const { data: posts, error, refetch } = useRecommendedPosts(limit);
   if (error)
     return (
-      <p className="text-center text-destructive">
-        {error instanceof Error ? error.message : "Error"}
-      </p>
+      <div className="text-center py-10">
+        <p className="mb-3 text-destructive">{t("readingList.recommendedError")}</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+          {t("readingList.retry")}
+        </Button>
+      </div>
     );
-  if (!posts) return <p className="text-center text-muted-foreground">Ładowanie rekomendacji…</p>;
-  if (posts.length === 0)
+  if (!posts)
     return (
-      <EmptyState text="Brak rekomendacji. Zaobserwuj kategorie lub przeczytaj kilka wpisów, abyśmy mogli dopasować propozycje." />
+      <p className="text-center text-muted-foreground">{t("readingList.loadingRecommendations")}</p>
     );
+  if (posts.length === 0) return <EmptyState text={t("readingList.recommendedEmpty")} />;
   return (
     <div className={`grid gap-6 ${gridClass(columns)}`}>
       {posts.map((p) => (
-        <PostCard key={p.id} post={p} lang={lang} />
+        <PostCard key={p.id} post={p} lang={lang} reasons={[p.reason]} />
       ))}
     </div>
   );
 }
 
-function PostCard({ post, lang }: { post: PostRow | RecommendedPost; lang: "pl" | "en" }) {
+type CardPost = PostRow | RecommendedPost | FollowedFeedItem;
+
+// Kolejność = priorytet wyświetlania (najbardziej osobisty powód wygrywa).
+const REASON_PRIORITY = ["author", "category", "tag", "history", "fresh"] as const;
+
+function PostCard({ post, lang, reasons }: { post: CardPost; lang: Lang; reasons?: string[] }) {
+  const { t } = useTranslation();
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
+  // Badge tylko dla najistotniejszego powodu (autor > kategoria > tag > reszta),
+  // żeby karta nie tonęła w metadanych.
+  const reason = REASON_PRIORITY.find((r) => (reasons ?? []).includes(r));
   return (
     <article className="group">
       <Link to="/post/$slug" params={{ slug: post.slug }} className="block">
@@ -332,9 +532,15 @@ function PostCard({ post, lang }: { post: PostRow | RecommendedPost; lang: "pl" 
             <img
               src={post.cover_image_url}
               alt=""
+              loading="lazy"
               className="w-full h-full object-cover group-hover:scale-105 transition"
             />
           </div>
+        )}
+        {reason && (
+          <Badge variant="secondary" className="mb-1.5 text-[10px]">
+            {t(`readingList.reasons.${reason}`)}
+          </Badge>
         )}
         <h3 className="font-display text-lg leading-tight group-hover:text-brand transition mb-1">
           {title}
@@ -346,11 +552,12 @@ function PostCard({ post, lang }: { post: PostRow | RecommendedPost; lang: "pl" 
 }
 
 function EmptyState({ text }: { text: string }) {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-20 text-muted-foreground">
       <p>{text}</p>
       <Link to="/blog" className="inline-block mt-4 text-brand hover:underline">
-        Przeglądaj artykuły →
+        {t("readingList.browseArticles")}
       </Link>
     </div>
   );

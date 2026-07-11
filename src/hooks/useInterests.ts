@@ -148,6 +148,9 @@ export function useMyInterests() {
       if (!userId) {
         writeAnon(next);
         qc.setQueryData(["my-interests", "anon"], next);
+        // Rekomendacje gościa czytają anon zainteresowania z localStorage -
+        // bez inwalidacji stary wynik wisiałby do końca staleTime.
+        void qc.invalidateQueries({ queryKey: ["recommended-posts"] });
         return { ok: true as const, anon: true as const };
       }
       // Compute diff vs current to avoid wiping unrelated follows (author).
@@ -175,7 +178,12 @@ export function useMyInterests() {
       });
 
       if (toInsert.length) {
-        const { error } = await supabase.from("user_follows").insert(toInsert);
+        // Upsert z ignoreDuplicates: równoległy zapis (np. FollowButton albo
+        // merge po zalogowaniu) nie wywraca całej partii na kluczu unikalnym.
+        const { error } = await supabase.from("user_follows").upsert(toInsert, {
+          onConflict: "user_id,target_type,target_id",
+          ignoreDuplicates: true,
+        });
         if (error) return { ok: false as const, error: error.message };
       }
       for (const d of toDelete) {
@@ -187,28 +195,24 @@ export function useMyInterests() {
           .eq("target_id", d.id);
         if (error) return { ok: false as const, error: error.message };
       }
-      await qc.invalidateQueries({ queryKey: ["my-interests"] });
-      await qc.invalidateQueries({ queryKey: ["recommended-posts"] });
+      // user_follows czytają dwie rodziny kluczy (useInterests i useFollows)
+      // oraz liczniki profilu i feedy personalizacji - odświeżamy wszystkie.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["my-interests"] }),
+        qc.invalidateQueries({ queryKey: ["follows"] }),
+        qc.invalidateQueries({ queryKey: ["profile-counts"] }),
+        qc.invalidateQueries({ queryKey: ["recommended-posts"] }),
+        qc.invalidateQueries({ queryKey: ["followed-feed"] }),
+      ]);
       return { ok: true as const, anon: false as const };
     },
     [userId, qc, query.data],
   );
 
-  // If a user logs in with anon-stored interests, automatically merge them.
-  useEffect(() => {
-    if (!userId) return;
-    const anon = readAnon();
-    if (!anon.categoryIds.length && !anon.tagIds.length) return;
-    (async () => {
-      const merged = {
-        categoryIds: Array.from(new Set([...(query.data?.categoryIds ?? []), ...anon.categoryIds])),
-        tagIds: Array.from(new Set([...(query.data?.tagIds ?? []), ...anon.tagIds])),
-      };
-      await save(merged);
-      writeAnon({ categoryIds: [], tagIds: [] });
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  // Merge anon -> zalogowany dzieje się na poziomie aplikacji (AuthProvider ->
+  // mergeAnonPersonalization), nie w tym hooku: działa więc także wtedy, gdy
+  // żaden widżet zainteresowań nie jest zamontowany, a nieudany zapis nie
+  // kasuje już lokalnych danych.
 
   return useMemo(() => ({ ...query, save, userId, isAnonymous: !userId }), [query, save, userId]);
 }

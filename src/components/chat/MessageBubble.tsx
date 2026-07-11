@@ -140,9 +140,8 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     !deleted && message.kind === "text" && !!message.body && isEmojiOnly(message.body);
   const myReaction = reactions.find((r) => r.user_id === myUserId)?.emoji ?? null;
   const timeTitle = clockTime(message.created_at, lang);
-  const receipt: ReceiptState | null = mine && !deleted
-    ? computeReceipt(message, peerLastReadAt, peerOnline)
-    : null;
+  const receipt: ReceiptState | null =
+    mine && !deleted ? computeReceipt(message, peerLastReadAt, peerOnline) : null;
 
   const actions = !deleted && !message.pending && !message.failed && (
     <div
@@ -260,8 +259,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
   } else {
     const bubbleStyle: React.CSSProperties = mine
       ? {
-          background:
-            "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
+          background: "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
           color: "var(--chat-user-foreground)",
           boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
         }
@@ -343,7 +341,9 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
               "mb-0.5 max-w-full truncate rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               mine ? "text-right self-end" : "text-left self-start",
             )}
-            aria-label={t("chat.jumpToReplied", { defaultValue: "Przejdź do oryginalnej wiadomości" })}
+            aria-label={t("chat.jumpToReplied", {
+              defaultValue: "Przejdź do oryginalnej wiadomości",
+            })}
             title={t("chat.jumpToReplied", { defaultValue: "Przejdź do oryginalnej wiadomości" })}
           >
             <span className="font-medium">
