@@ -46,20 +46,33 @@ export function useContentAccess(
     (async () => {
       const { data: rule } = await supabase
         .from("content_access")
-        .select("*")
+        .select(CONTENT_ACCESS_SAFE_COLS)
         .eq("entity_type", entityType)
         .eq("entity_id", entityId)
         .maybeSingle();
 
       if (cancelled) return;
 
-      if (!rule || rule.mode === "public") {
-        setState({ loading: false, rule: (rule as ContentAccessRule) ?? null, hasAccess: true });
+      let ruleOut: ContentAccessRule | null = null;
+      if (rule) {
+        let has_password = false;
+        if (rule.mode === "password") {
+          const { data: hp } = await supabase.rpc("content_access_has_password", {
+            _entity_type: entityType,
+            _entity_id: entityId,
+          });
+          has_password = !!hp;
+        }
+        ruleOut = { ...(rule as ContentAccessRule), has_password };
+      }
+
+      if (!ruleOut || ruleOut.mode === "public") {
+        setState({ loading: false, rule: ruleOut, hasAccess: true });
         return;
       }
 
       if (!session) {
-        setState({ loading: false, rule: rule as ContentAccessRule, hasAccess: false });
+        setState({ loading: false, rule: ruleOut, hasAccess: false });
         return;
       }
 
@@ -68,7 +81,7 @@ export function useContentAccess(
         _entity_id: entityId,
       });
       if (cancelled) return;
-      setState({ loading: false, rule: rule as ContentAccessRule, hasAccess: !!ok });
+      setState({ loading: false, rule: ruleOut, hasAccess: !!ok });
     })();
     return () => {
       cancelled = true;
