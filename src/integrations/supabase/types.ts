@@ -2536,6 +2536,7 @@ export type Database = {
           provider: string
           provider_intent_id: string | null
           provider_session_id: string | null
+          provider_subscription_id: string | null
           receipt_email: string | null
           status: Database["public"]["Enums"]["order_status"]
           tenant_id: string
@@ -2557,6 +2558,7 @@ export type Database = {
           provider?: string
           provider_intent_id?: string | null
           provider_session_id?: string | null
+          provider_subscription_id?: string | null
           receipt_email?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tenant_id?: string
@@ -2578,6 +2580,7 @@ export type Database = {
           provider?: string
           provider_intent_id?: string | null
           provider_session_id?: string | null
+          provider_subscription_id?: string | null
           receipt_email?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tenant_id?: string
