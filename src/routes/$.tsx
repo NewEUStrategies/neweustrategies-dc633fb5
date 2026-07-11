@@ -3,7 +3,7 @@
 //   /<parent>/<child>/...
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
-import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
@@ -888,20 +889,5 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   );
 }
 
-function PublicNotFound() {
-  const copy = errorCopy();
-  return (
-    <main className="flex-1 flex items-center justify-center px-4 py-20">
-      <div className="text-center">
-        <h1 className="font-display text-3xl">404 &middot; {copy.notFoundTitle}</h1>
-        <p className="text-sm text-muted-foreground mt-2">{copy.notFoundBody}</p>
-        <Link
-          to="/"
-          className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
-        >
-          {copy.goHome}
-        </Link>
-      </div>
-    </main>
-  );
-}
+// PublicNotFound is shared with the taxonomy/author archives (see
+// @/components/molecules/PublicNotFound) so 404 copy never diverges.

@@ -1,6 +1,7 @@
 // Public blog list. URL: /blog
 import { createFileRoute } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Fragment, useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/blog/")({
     });
   },
   component: BlogIndex,
+  pendingComponent: () => <ArchiveSkeleton />,
   errorComponent: (props) => (
     <RouteErrorFallback
       {...props}

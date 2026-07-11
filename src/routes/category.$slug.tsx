@@ -7,6 +7,8 @@ import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
@@ -55,7 +57,8 @@ export const Route = createFileRoute("/category/$slug")({
     });
   },
   component: () => <TaxonomyPage kind="category" />,
-  notFoundComponent: NotFound,
+  pendingComponent: () => <ArchiveSkeleton />,
+  notFoundComponent: PublicNotFound,
   errorComponent: (props) => <RouteErrorFallback {...props} />,
 });
 
@@ -74,7 +77,7 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
   const personalized = usePersonalizedSettings();
   const showFollow =
     kind === "category" ? personalized.followInCategoryHeader : personalized.followInTagHeader;
-  if (!data) return <NotFound />;
+  if (!data) return <PublicNotFound />;
   const { taxonomy, posts } = data;
   const name =
     lang === "en" ? taxonomy.name_en || taxonomy.name_pl : taxonomy.name_pl || taxonomy.name_en;
@@ -141,16 +144,3 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
   );
 }
 
-function NotFound() {
-  const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 flex items-center justify-center px-4">
-        <h1 className="font-display text-3xl">
-          {t("archive.notFound", { defaultValue: lang === "en" ? "Not found" : "Nie znaleziono" })}
-        </h1>
-      </main>
-    </div>
-  );
-}

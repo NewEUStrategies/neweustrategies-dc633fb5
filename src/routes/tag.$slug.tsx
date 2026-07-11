@@ -1,6 +1,7 @@
 // Tag archive: /tag/$slug - same shape as category, reuses TaxonomyPage logic.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/tag/$slug")({
     });
   },
   component: TagArchivePage,
+  pendingComponent: () => <ArchiveSkeleton />,
   notFoundComponent: NotFound,
   errorComponent: (props) => <RouteErrorFallback {...props} />,
 });

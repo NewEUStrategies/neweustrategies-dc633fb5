@@ -1,6 +1,7 @@
 // Public search page: /search?q=...&category=&author=&from=&to=
 // Facets are derived from the match set so users can drill down.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useState, useEffect } from "react";
@@ -43,6 +44,7 @@ export const Route = createFileRoute("/search")({
     };
   },
   component: SearchPage,
+  pendingComponent: () => <ArchiveSkeleton />,
 });
 
 function SearchPage() {

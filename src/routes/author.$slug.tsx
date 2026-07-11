@@ -5,10 +5,12 @@ import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Globe, Linkedin } from "lucide-react";
+import { Globe, Linkedin } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
@@ -50,7 +52,8 @@ export const Route = createFileRoute("/author/$slug")({
     });
   },
   component: AuthorArchivePage,
-  notFoundComponent: AuthorNotFound,
+  pendingComponent: () => <ArchiveSkeleton />,
+  notFoundComponent: PublicNotFound,
   errorComponent: (props) => (
     <RouteErrorFallback
       {...props}
@@ -74,7 +77,7 @@ function AuthorArchivePage() {
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const personalized = usePersonalizedSettings();
-  if (!data) return <AuthorNotFound />;
+  if (!data) return <PublicNotFound />;
   const { author, posts } = data;
   const name = author.display_name ?? (lang === "en" ? "Author" : "Autor");
   const bio = lang === "en" ? (author.bio_en ?? author.bio_pl) : (author.bio_pl ?? author.bio_en);
@@ -187,29 +190,3 @@ function AuthorArchivePage() {
   );
 }
 
-function AuthorNotFound() {
-  const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center space-y-3">
-          <h1 className="font-display text-3xl">
-            {t("archive.authorNotFound", {
-              defaultValue: lang === "en" ? "Author not found" : "Autor nie znaleziony",
-            })}
-          </h1>
-          <a
-            href="/blog"
-            className="inline-flex items-center gap-1 text-brand hover:underline text-sm"
-          >
-            <ExternalLink className="w-3 h-3" />
-            {t("archive.backToBlog", {
-              defaultValue: lang === "en" ? "Back to the blog" : "Wróć na blog",
-            })}
-          </a>
-        </div>
-      </main>
-    </div>
-  );
-}

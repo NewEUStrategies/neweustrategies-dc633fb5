@@ -166,11 +166,9 @@ function Index() {
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">
-              Strona główna nie ma jeszcze treści. Zbuduj ją w{" "}
-              <a href="/admin/pages" className="text-brand hover:underline">
-                panelu CMS
-              </a>
-              .
+              {lang === "en"
+                ? "There's nothing here yet — please check back soon."
+                : "Nie ma tu jeszcze treści — zajrzyj wkrótce."}
             </p>
           </div>
         )}
