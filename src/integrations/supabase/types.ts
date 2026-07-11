@@ -4184,6 +4184,35 @@ export type Database = {
           },
         ]
       }
+      tenant_pending_counters: {
+        Row: {
+          counter_key: string
+          tenant_id: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          counter_key: string
+          tenant_id: string
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          counter_key?: string
+          tenant_id?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_pending_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           aliases: string[]
@@ -4299,6 +4328,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_pending_counters: {
+        Row: {
+          counter_key: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          counter_key: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          value?: number
+        }
+        Update: {
+          counter_key?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_pending_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_purchases: {
         Row: {
@@ -4726,6 +4787,19 @@ export type Database = {
       }
       admin_update_user_avatar: {
         Args: { _avatar_url: string; _user_id: string }
+        Returns: undefined
+      }
+      bump_tenant_counter: {
+        Args: { p_delta: number; p_key: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      bump_user_counter: {
+        Args: {
+          p_delta: number
+          p_key: string
+          p_tenant_id: string
+          p_user_id: string
+        }
         Returns: undefined
       }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
@@ -5184,6 +5258,15 @@ export type Database = {
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
+      recompute_my_pending_counters: { Args: never; Returns: undefined }
+      recompute_tenant_pending_counters: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
+      }
+      recompute_user_pending_counters: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
         Returns: undefined
