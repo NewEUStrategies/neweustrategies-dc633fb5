@@ -705,6 +705,50 @@ export type Database = {
         }
         Relationships: []
       }
+      command_idempotency: {
+        Row: {
+          actor_id: string | null
+          command: string
+          completed_at: string | null
+          correlation_id: string | null
+          created_at: string
+          idempotency_key: string
+          result: Json | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          command: string
+          completed_at?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          idempotency_key: string
+          result?: Json | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          command?: string
+          completed_at?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          idempotency_key?: string
+          result?: Json | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_idempotency_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           body: string
@@ -1650,6 +1694,116 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      integration_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          endpoint_id: string
+          event_id: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          payload: Json
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          endpoint_id: string
+          event_id?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          payload: Json
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          endpoint_id?: string
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_deliveries_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "integration_endpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_deliveries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_endpoints: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          event_types: string[]
+          id: string
+          integration: string
+          name: string
+          secret: string | null
+          tenant_id: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          event_types?: string[]
+          id?: string
+          integration?: string
+          name: string
+          secret?: string | null
+          tenant_id: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          event_types?: string[]
+          id?: string
+          integration?: string
+          name?: string
+          secret?: string | null
+          tenant_id?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_endpoints_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       live_blog_entries: {
         Row: {
@@ -4810,6 +4964,37 @@ export type Database = {
         }
         Returns: Database["public"]["Enums"]["app_role"][]
       }
+      claim_command: {
+        Args: { p_command: string; p_key: string }
+        Returns: Json
+      }
+      claim_integration_deliveries: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          endpoint_id: string
+          event_id: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          payload: Json
+          status: string
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "integration_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_command: {
+        Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
+        Returns: undefined
+      }
       content_access_has_password: {
         Args: {
           _entity_id: string
@@ -4890,6 +5075,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      finish_integration_delivery: {
+        Args: { p_error?: string; p_id: string; p_succeeded: boolean }
+        Returns: undefined
       }
       get_chat_peers: {
         Args: { p_user_ids: string[] }
@@ -5255,7 +5444,9 @@ export type Database = {
         Args: { _base: string }
         Returns: string
       }
+      prune_command_idempotency: { Args: never; Returns: number }
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
+      prune_integration_deliveries: { Args: never; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
       recompute_my_pending_counters: { Args: never; Returns: undefined }
