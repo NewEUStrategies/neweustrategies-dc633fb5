@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import type { Database } from "@/integrations/supabase/types";
 
 export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
@@ -84,6 +85,16 @@ export function useUnreadCount(): UseQueryResult<number> {
     queryKey: countKey(user?.id),
     enabled: !!user,
     queryFn: async (): Promise<number> => {
+      // Zmaterializowany licznik (user_pending_counters, utrzymywany
+      // triggerami) zamiast COUNT(*) po notifications przy każdym odświeżeniu
+      // badge'a. Fallback do COUNT, gdy wiersz licznika jeszcze nie istnieje
+      // (konto sprzed seedu liczników).
+      const { data: counter, error: counterError } = await supabase
+        .from("user_pending_counters")
+        .select("value")
+        .eq("counter_key", "notifications_unread")
+        .maybeSingle();
+      if (!counterError && counter) return counter.value;
       const { count, error } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
@@ -190,37 +201,19 @@ export function useDeleteNotification() {
 
 // Realtime subscription - scoped per user_id via a filter to avoid a fan-out
 // firehose across tenants. RLS still enforces isolation; the filter is a
-// bandwidth optimization.
+// bandwidth optimization. Kanał współdzielony przez tableChannelHub: dzwonek,
+// centrum notyfikacji i /messages używają JEDNEJ subskrypcji websocketowej.
 export function useNotificationsRealtime(): void {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const uid = user?.id;
   useEffect(() => {
-    if (!user) return;
-    // Unique channel name per mount - reusing the same name returns the
-    // already-subscribed instance (StrictMode double-mount, remounts), which
-    // rejects new `.on()` callbacks with
-    // "cannot add postgres_changes callbacks ... after subscribe()".
-    const channelName = `notifications:${user.id}:${Math.random().toString(36).slice(2, 10)}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          void qc.invalidateQueries({ queryKey: ["notifications"] });
-          void qc.invalidateQueries({ queryKey: countKey(user.id) });
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [user, qc]);
+    if (!uid) return;
+    return subscribeToTable({ table: "notifications", filter: `user_id=eq.${uid}` }, () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: countKey(uid) });
+    });
+  }, [uid, qc]);
 }
 
 /** Toggle a single notification back to unread (RPC checks auth.uid()). */
@@ -297,26 +290,14 @@ export function useUpdateNotificationPreferences() {
 export function useNotificationPreferencesRealtime(): void {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const uid = user?.id;
   useEffect(() => {
-    if (!user) return;
-    const channelName = `notif-prefs:${user.id}:${Math.random().toString(36).slice(2, 10)}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notification_preferences",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          void qc.invalidateQueries({ queryKey: prefsKey(user.id) });
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [user, qc]);
+    if (!uid) return;
+    return subscribeToTable(
+      { table: "notification_preferences", filter: `user_id=eq.${uid}` },
+      () => {
+        void qc.invalidateQueries({ queryKey: prefsKey(uid) });
+      },
+    );
+  }, [uid, qc]);
 }

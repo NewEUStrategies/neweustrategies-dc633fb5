@@ -36,6 +36,7 @@ import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
+import { CohesionLiveSync } from "../lib/realtime/cohesionLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
@@ -271,6 +272,7 @@ function RootComponent() {
           <IconPackSync />
           <WidgetLiveSync />
           <SiteSettingsLiveSync />
+          <CohesionLiveSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
           <ThemeOptionsStyle />

@@ -699,6 +699,50 @@ export type Database = {
         };
         Relationships: [];
       };
+      command_idempotency: {
+        Row: {
+          actor_id: string | null;
+          command: string;
+          completed_at: string | null;
+          correlation_id: string | null;
+          created_at: string;
+          idempotency_key: string;
+          result: Json | null;
+          status: string;
+          tenant_id: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          command: string;
+          completed_at?: string | null;
+          correlation_id?: string | null;
+          created_at?: string;
+          idempotency_key: string;
+          result?: Json | null;
+          status?: string;
+          tenant_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          command?: string;
+          completed_at?: string | null;
+          correlation_id?: string | null;
+          created_at?: string;
+          idempotency_key?: string;
+          result?: Json | null;
+          status?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "command_idempotency_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       comments: {
         Row: {
           body: string;
@@ -1384,6 +1428,50 @@ export type Database = {
           },
         ];
       };
+      cross_references: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          relation: string;
+          source_id: string;
+          source_type: string;
+          target_id: string;
+          target_type: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          relation?: string;
+          source_id: string;
+          source_type: string;
+          target_id: string;
+          target_type: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          relation?: string;
+          source_id?: string;
+          source_type?: string;
+          target_id?: string;
+          target_type?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cross_references_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_crop_sizes: {
         Row: {
           created_at: string;
@@ -1422,6 +1510,50 @@ export type Database = {
           width?: number;
         };
         Relationships: [];
+      };
+      domain_events: {
+        Row: {
+          actor_id: string | null;
+          aggregate_id: string;
+          aggregate_type: string;
+          correlation_id: string | null;
+          created_at: string;
+          event_type: string;
+          id: string;
+          payload: Json;
+          tenant_id: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          aggregate_id: string;
+          aggregate_type: string;
+          correlation_id?: string | null;
+          created_at?: string;
+          event_type: string;
+          id?: string;
+          payload?: Json;
+          tenant_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          aggregate_id?: string;
+          aggregate_type?: string;
+          correlation_id?: string | null;
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          payload?: Json;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "domain_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       form_field_policies: {
         Row: {
@@ -1556,6 +1688,116 @@ export type Database = {
           user_agent?: string | null;
         };
         Relationships: [];
+      };
+      integration_deliveries: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          delivered_at: string | null;
+          endpoint_id: string;
+          event_id: string | null;
+          event_type: string;
+          id: string;
+          last_error: string | null;
+          next_attempt_at: string;
+          payload: Json;
+          status: string;
+          tenant_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          delivered_at?: string | null;
+          endpoint_id: string;
+          event_id?: string | null;
+          event_type: string;
+          id?: string;
+          last_error?: string | null;
+          next_attempt_at?: string;
+          payload: Json;
+          status?: string;
+          tenant_id: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          delivered_at?: string | null;
+          endpoint_id?: string;
+          event_id?: string | null;
+          event_type?: string;
+          id?: string;
+          last_error?: string | null;
+          next_attempt_at?: string;
+          payload?: Json;
+          status?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "integration_deliveries_endpoint_id_fkey";
+            columns: ["endpoint_id"];
+            isOneToOne: false;
+            referencedRelation: "integration_endpoints";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "integration_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      integration_endpoints: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          enabled: boolean;
+          event_types: string[];
+          id: string;
+          integration: string;
+          name: string;
+          secret: string | null;
+          tenant_id: string;
+          updated_at: string;
+          url: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          event_types?: string[];
+          id?: string;
+          integration?: string;
+          name: string;
+          secret?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          url: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          event_types?: string[];
+          id?: string;
+          integration?: string;
+          name?: string;
+          secret?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "integration_endpoints_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       live_blog_entries: {
         Row: {
@@ -4088,6 +4330,35 @@ export type Database = {
           },
         ];
       };
+      tenant_pending_counters: {
+        Row: {
+          counter_key: string;
+          tenant_id: string;
+          updated_at: string;
+          value: number;
+        };
+        Insert: {
+          counter_key: string;
+          tenant_id: string;
+          updated_at?: string;
+          value?: number;
+        };
+        Update: {
+          counter_key?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          value?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_pending_counters_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenants: {
         Row: {
           aliases: string[];
@@ -4203,6 +4474,38 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [];
+      };
+      user_pending_counters: {
+        Row: {
+          counter_key: string;
+          tenant_id: string;
+          updated_at: string;
+          user_id: string;
+          value: number;
+        };
+        Insert: {
+          counter_key: string;
+          tenant_id: string;
+          updated_at?: string;
+          user_id: string;
+          value?: number;
+        };
+        Update: {
+          counter_key?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          user_id?: string;
+          value?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_pending_counters_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       user_purchases: {
         Row: {
@@ -4443,6 +4746,146 @@ export type Database = {
           },
         ];
       };
+      workflow_definitions: {
+        Row: {
+          condition: Json;
+          created_at: string;
+          created_by: string | null;
+          enabled: boolean;
+          id: string;
+          name: string;
+          steps: Json;
+          template_key: string | null;
+          tenant_id: string;
+          trigger_event_type: string;
+          updated_at: string;
+        };
+        Insert: {
+          condition?: Json;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          id?: string;
+          name: string;
+          steps?: Json;
+          template_key?: string | null;
+          tenant_id: string;
+          trigger_event_type: string;
+          updated_at?: string;
+        };
+        Update: {
+          condition?: Json;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          id?: string;
+          name?: string;
+          steps?: Json;
+          template_key?: string | null;
+          tenant_id?: string;
+          trigger_event_type?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workflow_definitions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      workflow_runs: {
+        Row: {
+          correlation_id: string | null;
+          created_at: string;
+          error: string | null;
+          event_id: string | null;
+          event_type: string;
+          id: string;
+          status: string;
+          steps_completed: number;
+          tenant_id: string;
+          workflow_id: string;
+        };
+        Insert: {
+          correlation_id?: string | null;
+          created_at?: string;
+          error?: string | null;
+          event_id?: string | null;
+          event_type: string;
+          id?: string;
+          status: string;
+          steps_completed?: number;
+          tenant_id: string;
+          workflow_id: string;
+        };
+        Update: {
+          correlation_id?: string | null;
+          created_at?: string;
+          error?: string | null;
+          event_id?: string | null;
+          event_type?: string;
+          id?: string;
+          status?: string;
+          steps_completed?: number;
+          tenant_id?: string;
+          workflow_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workflow_runs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workflow_runs_workflow_id_fkey";
+            columns: ["workflow_id"];
+            isOneToOne: false;
+            referencedRelation: "workflow_definitions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      workflow_templates: {
+        Row: {
+          condition: Json;
+          created_at: string;
+          description_en: string;
+          description_pl: string;
+          key: string;
+          name_en: string;
+          name_pl: string;
+          steps: Json;
+          trigger_event_type: string;
+        };
+        Insert: {
+          condition?: Json;
+          created_at?: string;
+          description_en: string;
+          description_pl: string;
+          key: string;
+          name_en: string;
+          name_pl: string;
+          steps?: Json;
+          trigger_event_type: string;
+        };
+        Update: {
+          condition?: Json;
+          created_at?: string;
+          description_en?: string;
+          description_pl?: string;
+          key?: string;
+          name_en?: string;
+          name_pl?: string;
+          steps?: Json;
+          trigger_event_type?: string;
+        };
+        Relationships: [];
+      };
       wp_import_jobs: {
         Row: {
           actor_id: string;
@@ -4628,6 +5071,31 @@ export type Database = {
         };
         Returns: Database["public"]["Enums"]["app_role"][];
       };
+      claim_command: {
+        Args: { p_key: string; p_command: string };
+        Returns: Json;
+      };
+      claim_integration_deliveries: {
+        Args: { p_limit?: number };
+        Returns: {
+          attempts: number;
+          created_at: string;
+          delivered_at: string | null;
+          endpoint_id: string;
+          event_id: string | null;
+          event_type: string;
+          id: string;
+          last_error: string | null;
+          next_attempt_at: string;
+          payload: Json;
+          status: string;
+          tenant_id: string;
+        }[];
+      };
+      complete_command: {
+        Args: { p_key: string; p_succeeded: boolean; p_result?: Json };
+        Returns: undefined;
+      };
       content_access_has_password: {
         Args: {
           _entity_id: string;
@@ -4699,6 +5167,10 @@ export type Database = {
         };
         Returns: string;
       };
+      finish_integration_delivery: {
+        Args: { p_id: string; p_succeeded: boolean; p_error?: string | null };
+        Returns: undefined;
+      };
       get_chat_peers: {
         Args: { p_user_ids: string[] };
         Returns: {
@@ -4708,6 +5180,20 @@ export type Database = {
           id: string;
           job_title: string;
           specialization: string;
+        }[];
+      };
+      get_correlated_events: {
+        Args: { p_correlation_id: string };
+        Returns: {
+          actor_id: string | null;
+          aggregate_id: string;
+          aggregate_type: string;
+          correlation_id: string | null;
+          created_at: string;
+          event_type: string;
+          id: string;
+          payload: Json;
+          tenant_id: string;
         }[];
       };
       get_entity_content: {
@@ -4737,6 +5223,18 @@ export type Database = {
           title_en: string;
           title_pl: string;
           total_count: number;
+        }[];
+      };
+      get_linked_items: {
+        Args: { p_item_type: string; p_item_id: string };
+        Returns: {
+          created_at: string;
+          direction: string;
+          item_id: string;
+          item_type: string;
+          label: string | null;
+          reference_id: string;
+          relation: string;
         }[];
       };
       get_or_create_direct_conversation: {
@@ -4933,6 +5431,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      install_workflow_template: {
+        Args: { p_key: string };
+        Returns: string;
+      };
       is_blocked_pair: {
         Args: { _a: string; _b: string }
         Returns: boolean
@@ -5018,6 +5520,10 @@ export type Database = {
       };
       public_tenant_id: { Args: never; Returns: string };
       publish_due_posts: { Args: never; Returns: number };
+      recompute_my_pending_counters: {
+        Args: never;
+        Returns: undefined;
+      };
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string };
         Returns: undefined;

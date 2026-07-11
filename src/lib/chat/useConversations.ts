@@ -11,16 +11,10 @@
 //  - Peer profile lookups seed the per-peer cache keys, so opening a chat
 //    window resolves its header instantly from the directory/list fetch.
 import { useEffect } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-  type UseQueryResult,
-} from "@tanstack/react-query";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { chatKeys } from "./keys";
 import type {
   ConversationRow,
@@ -195,54 +189,21 @@ export function useMarkConversationRead() {
 // Per-user realtime stream, shared app-wide. Any change to the caller's
 // participant rows (new conversation, unread bump from a peer's message, read
 // state synced from another tab) refreshes the conversations query - which
-// also drives the derived unread badge. Module-level refcount: no matter how
-// many components subscribe, exactly one websocket channel exists.
+// also drives the derived unread badge. Kanał współdzielony przez
+// tableChannelHub (refcount na poziomie huba): niezależnie od liczby
+// subskrybentów istnieje dokładnie jeden websocketowy kanał.
 // ---------------------------------------------------------------------------
-let listChannel: RealtimeChannel | null = null;
-let listChannelUid: string | null = null;
-let listRefCount = 0;
-
-function acquireListChannel(uid: string, qc: QueryClient) {
-  listRefCount += 1;
-  if (listChannel && listChannelUid === uid) return;
-  if (listChannel) {
-    void supabase.removeChannel(listChannel);
-    listChannel = null;
-  }
-  listChannelUid = uid;
-  listChannel = supabase
-    .channel(`chat-list:${uid}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "conversation_participants",
-        filter: `user_id=eq.${uid}`,
-      },
-      () => {
-        void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
-      },
-    )
-    .subscribe();
-}
-
-function releaseListChannel() {
-  listRefCount = Math.max(0, listRefCount - 1);
-  if (listRefCount === 0 && listChannel) {
-    void supabase.removeChannel(listChannel);
-    listChannel = null;
-    listChannelUid = null;
-  }
-}
-
 export function useChatListRealtime(): void {
   const qc = useQueryClient();
   const { user } = useAuth();
   const uid = user?.id;
   useEffect(() => {
     if (!uid) return;
-    acquireListChannel(uid, qc);
-    return releaseListChannel;
+    return subscribeToTable(
+      { table: "conversation_participants", filter: `user_id=eq.${uid}` },
+      () => {
+        void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
+      },
+    );
   }, [uid, qc]);
 }

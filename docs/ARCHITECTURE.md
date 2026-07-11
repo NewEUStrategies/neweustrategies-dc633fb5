@@ -311,3 +311,85 @@ pgTAP coverage: `supabase/tests/host_tenant_resolution_test.sql`,
 `src/lib/server/__tests__/tenantResolver.test.ts`,
 `src/lib/__tests__/ssrCacheHostScope.test.ts`,
 `src/integrations/supabase/__tests__/tenantHostFetch.test.ts`.
+
+---
+
+## 5. Warstwa spójności między modułami (szyna zdarzeń domenowych)
+
+> **Status:** wdrożona (migracje `20260711200000`-`20260711204000` + `src/lib/realtime/`).
+> Moduły (content, komentarze, czat, CRM, newsletter) komunikują się przez JEDNĄ
+> szynę zdarzeń zamiast nasłuchiwać nawzajem swoich tabel.
+
+### 5.1 Szyna zdarzeń (`domain_events`)
+
+Triggery AFTER na tabelach źródłowych emitują zdarzenia `<agregat>.<czasownik>.v1`
+przez `emit_domain_event()` (SECURITY DEFINER; klient nie może sfałszować
+zdarzenia). Katalog typów jest kontraktem: frontendowa lista
+`DOMAIN_EVENT_TYPES` (`src/lib/realtime/domainEvents.ts`) musi pokrywać się
+z emiterami - pilnuje tego test kompletności mapy inwalidacji.
+
+- RLS: staff czyta zdarzenia swojego tenanta; zwykły użytkownik tylko te,
+  których jest aktorem (wystarcza do potwierdzeń optymistycznych mutacji).
+- Retencja 90 dni (`prune_domain_events`, pg_cron 03:20).
+- **Nie dopisuj konsumenta bez reguły w `eventInvalidationMap.ts`** - to jedyne
+  miejsce mapujące `event_type -> queryKey[]`.
+
+### 5.2 Realtime frontendowy
+
+- `tableChannelHub.ts` - wspólny, zliczany referencyjnie kanał postgres_changes
+  per (schema, table, event, filter). Hooki (`useNotificationsRealtime`,
+  `useChatListRealtime`, liczniki, graf) NIE tworzą własnych kanałów.
+- `useDomainEventStream` / `useModuleRealtime(moduleKey)` - strumień zdarzeń
+  per agregat/moduł, debounce + wstrzymanie inwalidacji przy ukrytej karcie.
+- `CohesionLiveSync` (montowane w `__root`) - globalny konsument dla
+  zalogowanych; anonimowi nie trzymają websocketów (kwoty połączeń - ta sama
+  doktryna co `SiteSettingsLiveSync`).
+
+### 5.3 Korelacja i optymistyczne mutacje
+
+Mutacja w `runWithCorrelation` wysyła nagłówek `x-correlation-id`
+(`correlation-fetch.ts` w kliencie Supabase); emitery zapisują go w
+`domain_events.correlation_id`. `get_correlated_events(id)` zwraca pełny ślad
+"co się wydarzyło po moim kliknięciu". `useEventConfirmedMutation` łata cache
+optymistycznie i wycofuje łatkę, jeśli w oknie (domyślnie 3 s) nie przyjdzie
+potwierdzające zdarzenie z tym samym correlation_id.
+
+### 5.4 Graf powiązań i wzmianki
+
+`cross_references` to jeden graf relacji między encjami modułów; krawędzie
+dopisują triggery (komentarz->post, notatka->lead) oraz procesor wzmianek
+`process_mentions` (parsowanie `@slug` PO STRONIE BAZY na comments/messages/
+crm_lead_notes: krawędź `mention` + `enqueue_notification` + zdarzenie
+`mention.created.v1`). Panele czytają `get_linked_items` (obie strony relacji,
+etykiety rozwiązane w bazie) przez `useLinkedItems` / `LinkedItemsCard`.
+
+### 5.5 Liczniki, presence, idempotencja, integracje
+
+- **Liczniki:** `user_pending_counters` (notifications_unread, chat_unread) i
+  `tenant_pending_counters` (comments_pending, crm_leads_new) utrzymywane
+  triggerami; `useUnreadCount` czyta licznik zamiast COUNT(*). Dryf naprawia
+  `recompute_my_pending_counters()`.
+- **Presence:** `useEntityPresence(entityType, entityId)` uogólnia
+  `useEditPresence` (posty/strony bez zmian - ta sama przestrzeń kanałów);
+  `PresenceIndicator` pokazuje obecnych np. na leadzie CRM.
+- **Idempotencja:** `command_idempotency` + `claim_command`/`complete_command`;
+  helper `withCommandIdempotency` (`src/lib/http/idempotency.ts`), wzorcowe
+  użycie: `addCrmNote`. Klucz generuje frontend per AKCJA użytkownika.
+- **Workflowy:** `workflow_definitions` (trigger_event_type + condition
+  `@>` + steps) wykonywane triggerem na szynie; katalog przepisów w
+  `workflow_templates` (`install_workflow_template`; nowy tenant dostaje
+  flagowe przepisy automatycznie - trigger na `tenants`). Flagowe: newsletter
+  confirmed -> lead CRM; post published -> notyfikacje obserwujących; lead won
+  -> notyfikacja staffu; comment pending -> notyfikacja moderacji.
+- **Fix przy okazji:** `enqueue_notification` przypina notyfikację do tenanta
+  ODBIORCY (migracja `20260711205000`) - wcześniej zgadywał tenant z kontekstu
+  żądania, więc każda notyfikacja triggerowa (bez HTTP) dla tenanta innego niż
+  domyślny była cicho odrzucana przez guard `notifications_enforce_tenant`.
+- **Integracje wychodzące:** router (trigger na `domain_events`) fanoutuje do
+  `integration_deliveries` per `integration_endpoints` (filtr event_types);
+  dispatcher `dispatchIntegrationDeliveries` (HMAC-SHA256, backoff, dead po 8
+  próbach) tyka opportunistycznie przy wejściu staffu do /admin/crm.
+
+pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
+`src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
+`src/lib/__tests__/i18nCohesion.test.ts`.

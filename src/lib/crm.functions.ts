@@ -3,6 +3,7 @@
 // as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { z } from "zod";
 async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   const enc = new TextEncoder();
@@ -156,6 +157,7 @@ export const updateCrmLead = createServerFn({ method: "POST" })
 const NoteInput = z.object({
   lead_id: z.string().uuid(),
   body: z.string().trim().min(1).max(4000),
+  idempotency_key: z.string().trim().min(8).max(120).optional(),
 });
 
 export const addCrmNote = createServerFn({ method: "POST" })
@@ -163,13 +165,27 @@ export const addCrmNote = createServerFn({ method: "POST" })
   .inputValidator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    const { error } = await tbl(context, "crm_lead_notes").insert({
-      lead_id: data.lead_id,
-      body: data.body,
-      author_id: userId,
-    });
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    const insertNote = async () => {
+      const { error } = await tbl(context, "crm_lead_notes").insert({
+        lead_id: data.lead_id,
+        body: data.body,
+        author_id: userId,
+      });
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    };
+    // Idempotencja end-to-end (command_idempotency): retry HTTP / podwójne
+    // wysłanie z tym samym kluczem dostaje zapamiętany wynik zamiast
+    // zdublowanej notatki.
+    if (data.idempotency_key) {
+      const outcome = await withCommandIdempotency(context.supabase as unknown as RpcClient, {
+        key: data.idempotency_key,
+        command: "crm.add_note",
+        run: insertNote,
+      });
+      return outcome.result;
+    }
+    return insertNote();
   });
 
 export const deleteCrmNote = createServerFn({ method: "POST" })
