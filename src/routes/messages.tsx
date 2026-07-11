@@ -23,7 +23,7 @@ import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
 const BOT_ID = "bot-simulator";
-type MessagesView = "chats" | "notifications";
+type MessagesView = "chats" | "notifications" | "consents";
 
 interface MessagesSearch {
   c?: string;
