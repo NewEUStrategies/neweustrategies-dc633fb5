@@ -34,6 +34,7 @@ import {
 import { PostEditor } from "@/components/admin/PostEditor";
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
+import { AudioPicker } from "@/components/admin/AudioPicker";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import {
