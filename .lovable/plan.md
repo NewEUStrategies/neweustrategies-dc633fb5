@@ -12,8 +12,8 @@ Mapowanie nazw:
 
 ## Etapy
 
-- [ ] **1. Notification producer helper** — `public.enqueue_notification()` (SECURITY DEFINER, exception-safe, dedup w oknie 5 min).
-- [ ] **2. Komentarze** — tabela `public.comments` + RLS + BEFORE INSERT/UPDATE trigger + notyfikacja autora + moderacja `/admin/comments` + publiczny `<CommentsSection>` pod wpisami + i18n.
+- [x] **1. Notification producer helper** — `public.enqueue_notification()` (SECURITY DEFINER, exception-safe, dedup w oknie 5 min).
+- [x] **2. Komentarze** — tabela `public.comments` + RLS + BEFORE INSERT/UPDATE trigger + notyfikacja autora + moderacja `/admin/comments` + publiczny `<CommentsSection>` pod wpisami + i18n (PL/EN). `allow_comments` ustawione na `true`.
 - [ ] **3. Producenci powiadomień** — triggery na `user_follows` (nowy obserwator), `posts` (publikacja → obserwatorzy autora + kategorii + tagów), `user_subscriptions` (aktywacja).
 - [ ] **4. Newsletter — samoobsługowy unsubscribe** — token + `/api/public/newsletter/unsubscribe` + strona wyniku + stopka we wszystkich mailach.
 - [ ] **5. Newsletter — kampanie** — tabela `newsletter_campaigns`, admin `/admin/newsletter/campaigns` (dwujęzyczny edytor, test-mail, licznik odbiorców, wysyłka paczkami via Resend).

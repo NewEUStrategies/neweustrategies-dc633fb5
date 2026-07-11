@@ -64,6 +64,7 @@ import { activeLang } from "@/lib/seo/head";
 import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
 import { PostFooterBars } from "@/components/PostFooterBars";
+import { CommentsSection } from "@/components/comments/CommentsSection";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
 import { NewsletterForm } from "@/components/NewsletterForm";
@@ -719,6 +720,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 {merged.show_bottom_newsletter && (
                   <NewsletterForm lang={lang} source={`post:${post.slug}`} />
                 )}
+                <CommentsSection postId={post.id} lang={lang} />
               </>
             }
           />

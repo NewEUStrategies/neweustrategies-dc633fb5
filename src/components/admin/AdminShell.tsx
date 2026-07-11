@@ -218,6 +218,13 @@ function AdminShellInner({
             defaultValue: lang === "pl" ? "Centrum kontaktu" : "Contact center",
           }),
         },
+        {
+          to: "/admin/comments",
+          icon: MessageCircle,
+          label: t("admin.nav.comments", {
+            defaultValue: lang === "pl" ? "Komentarze" : "Comments",
+          }),
+        },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
         { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
