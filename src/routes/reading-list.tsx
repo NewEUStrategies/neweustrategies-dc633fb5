@@ -506,7 +506,7 @@ function RecommendedSection({
   return (
     <div className={`grid gap-6 ${gridClass(columns)}`}>
       {posts.map((p) => (
-        <PostCard key={p.id} post={p} lang={lang} reasons={[p.reason]} />
+        <PostCard key={p.id} post={p} lang={lang} reasons={p.reasons} />
       ))}
     </div>
   );
