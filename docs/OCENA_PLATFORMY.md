@@ -271,3 +271,47 @@ błędów, `lint` 0 błędów, testy 1363 przechodzą.
   rozlewa się szeroko po formularzach admina — do osobnej, skupionej rundy.
 - `get_chat_peers`/`podcast_settings` odczyt bez filtra tenanta: bez znaczenia
   na obecnej instalacji jednodostawcowej (single-tenant).
+
+---
+
+# Re-ewaluacja po wdrożeniach — karta ocen (2026-07-11, HEAD c4d8ba3+)
+
+Pięć niezależnych re-audytów zweryfikowało każdą wdrożoną poprawkę w AKTUALNYM
+kodzie (nie na podstawie changeloga). Bramki wykonane: testy **1363 przechodzą**,
+lint **0 błędów**, tsc **0 nowych błędów** (2 pozostałe = preexisting
+`CountryCombobox`, brak typów prywatnego pakietu lokalnie).
+
+## Oceny obszarów: przed → po
+
+| Obszar | Przed | Po | Kluczowe potwierdzenia |
+|---|---|---|---|
+| Podcasty / audio / TTS | 4,3 | **8,0** | upload+auto-czas działa end-to-end (klient, serwer, bucket, RLS); RSS z enclosure; limity TTS realnie egzekwowane; cache przed limitem per-post |
+| Czat / powiadomienia | ~6,0 | **~8,3** | typing na stałym kanale z ref-countingiem — peer realnie odbiera; usuwanie grup wszystkich id; naprawa linków `/messages?c=` potwierdzona; bot usunięty czysto; `get_chat_peers` z filtrem tenanta; bucket załączników utworzony migracją |
+| Profil / auth / personalizacja | 5,8 | **~7,2** (naprawione elementy: 9,0) | reset hasła kompletny (recovery+invalid state+meter); usuwanie konta nieobchodzalne (uid z tokenu); RODO: anon+admin odcięci od psychometrii, answers usunięte z historii; rekomendacje: SQL↔typy↔hook w 100% zgodne |
+| Treści / live blog / strony | 7,2 | **7,8** | placeholder nieosiągalny publicznie; karta autora z realnymi danymi; rewizje stron z restore; latest_posts z SSR 1:1; live blog: klucz SSR == klucz klienta co do wartości |
+| Monetyzacja | 6,9 | **~7,1** | plan one-time → dożywotni dostęp (testy jednostkowe); refund zawężony do właściwej subskrypcji; migracje idempotentne; `subscription_tiers` zdropowane |
+| Infrastruktura / jakość inż. | 7,7 | **~7,9** | lint CZERWONY → 0 błędów; martwy kod usunięty bez wiszących importów (10/10); sitemap + podcasty |
+| **Platforma ogółem** | **6,5** | **~7,7** | |
+
+## Nowe/rezydualne defekty z re-audytu → status
+
+| Defekt | Waga | Status |
+|---|---|---|
+| Deep-link edytora bloku Live Blog gubił `blockId` (kasowany przy wyborze postu) | mała | **NAPRAWIONE** — blockId zachowywany, walidowany względem bloków postu, auto-wybór przy jednym bloku |
+| RSS podcastu: enclosure zawsze `audio/mpeg` (m4a/wav błędnie deklarowane) | mała | **NAPRAWIONE** — `enclosureMimeType()` z rozszerzenia pliku |
+| Martwe `subscription_tiers` w wygenerowanych typach po DROP | kosmetyczna | **NAPRAWIONE** — blok usunięty z types.ts |
+| Limity per-IP TTS przed cache (przesadny throttle czytelnika wielu artykułów) | mała | zaakceptowane — świadoma ochrona przed nadużyciami |
+| `charge.refunded` dopasowuje po `provider_intent_id`, null dla sesji subskrypcyjnych | preexisting | poza zakresem — cykl subskrypcji obsługują zdarzenia `customer.subscription.*` |
+| Reset hasła: sztywny deadline 4 s może fałszywie zgłosić wygaśnięcie na wolnym łączu | mała | odnotowane |
+| Producent powitania (`notify_profile_welcome`) omija `enabled_system` | mała/preexisting | odnotowane (jednorazowy insert przed powstaniem preferencji) |
+
+## Werdykt
+
+Wszystkie poprawki z obu rund są **realne i podłączone** — żadna nie okazała się
+deklaratywna. Najsłabszy obszar platformy (podcasty/audio/TTS: 4,3) wykonał
+największy skok (8,0). Nie wykryto żadnej regresji o wysokiej wadze; jedyna
+potwierdzona (linki powiadomień → 404) została naprawiona jeszcze przed tą
+re-ewaluacją, a trzy drobne znaleziska domknięto w jej ramach. Główne pozostałe
+rezerwy jakościowe platformy to obszary świadomie poza mandatem: paginacja
+archiwów/wyszukiwarki, harmonogram i analityka kampanii newslettera, MFA/TOTP
+oraz pokrycie testami obszarów czatu i profilu.
