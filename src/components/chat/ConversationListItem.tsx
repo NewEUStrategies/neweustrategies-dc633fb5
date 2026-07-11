@@ -34,7 +34,7 @@ export function ConversationListItem(props: ConversationListItemProps) {
       type="button"
       onClick={onOpen}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors",
+        "flex w-full items-center gap-2.5 rounded-[6px] px-2 py-2 text-left transition-colors",
         active ? "bg-muted" : "hover:bg-muted/60",
       )}
     >
@@ -63,7 +63,7 @@ export function ConversationListItem(props: ConversationListItemProps) {
           </span>
           {unread > 0 && (
             <span
-              className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
+              className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-[6px] bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
               aria-label={t("chat.unread", { count: unread })}
             >
               {unread > 99 ? "99+" : unread}

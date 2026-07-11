@@ -6,10 +6,7 @@ import { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, FileText, ImageIcon, X } from "lucide-react";
 import { useAttachmentUrl, formatBytes } from "@/lib/chat/attachments";
-import {
-  useConversationAttachments,
-  type ChatAttachmentRow,
-} from "@/lib/chat/useMessages";
+import { useConversationAttachments, type ChatAttachmentRow } from "@/lib/chat/useMessages";
 import { cn } from "@/lib/utils";
 
 type Tab = "photos" | "files";
@@ -58,10 +55,11 @@ function PhotoTile({ row }: { row: ChatAttachmentRow }) {
 
 function FileRow({ row, lang }: { row: ChatAttachmentRow; lang: string }) {
   const urlQ = useAttachmentUrl(row.attachment_path);
-  const date = new Date(row.created_at).toLocaleDateString(
-    lang === "en" ? "en-US" : "pl-PL",
-    { day: "2-digit", month: "short", year: "numeric" },
-  );
+  const date = new Date(row.created_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
   return (
     <a
       href={urlQ.data ?? "#"}
@@ -101,10 +99,7 @@ export const ChatMediaPanel = memo(function ChatMediaPanel({
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const [tab, setTab] = useState<Tab>("photos");
-  const remoteQ = useConversationAttachments(
-    conversationId,
-    enabled && !localRows,
-  );
+  const remoteQ = useConversationAttachments(conversationId, enabled && !localRows);
   const rows: ReadonlyArray<ChatAttachmentRow> = localRows ?? remoteQ.data ?? [];
 
   const { photos, files } = useMemo(() => {
@@ -125,9 +120,7 @@ export const ChatMediaPanel = memo(function ChatMediaPanel({
       aria-label={t("chat.mediaPanel.title")}
     >
       <header className="flex items-center gap-2 border-b border-border/60 px-2.5 py-1.5">
-        <p className="flex-1 truncate text-[12px] font-semibold">
-          {t("chat.mediaPanel.title")}
-        </p>
+        <p className="flex-1 truncate text-[12px] font-semibold">{t("chat.mediaPanel.title")}</p>
         <button
           type="button"
           onClick={onClose}
