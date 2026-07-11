@@ -968,7 +968,18 @@ export function MediaManager() {
             className="w-72 shrink-0 border border-border rounded-lg bg-card overflow-y-auto p-4 text-xs"
             data-nomarquee
           >
-            <InfoPanel target={infoTarget} imgSize={imgSize} />
+            <InfoPanel
+              target={infoTarget}
+              imgSize={imgSize}
+              onSaveAlt={async (id, altText) => {
+                try {
+                  await updateMeta({ data: { mediaId: id, altText } });
+                  invalidateAll();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : String(err));
+                }
+              }}
+            />
           </aside>
         )}
       </div>
