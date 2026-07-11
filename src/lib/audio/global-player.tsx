@@ -290,42 +290,47 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     return unsubscribe;
   }, [playerId]);
 
-  const fetchBlob = useCallback(async (postId: string, lang: "pl" | "en"): Promise<string> => {
-    const key = cacheKey(postId, lang);
-    const cached = audioBlobCache.get(key);
-    if (cached) {
+  const fetchBlob = useCallback(
+    async (postId: string, lang: "pl" | "en", audioUrl?: string | null): Promise<string> => {
+      const key = cacheKey(postId, lang);
+      const cached = audioBlobCache.get(key);
+      if (cached) {
+        setTts({
+          stage: "cached",
+          percent: 100,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: 0,
+        });
+        return cached;
+      }
+
+      // Szybka zmiana wpisu ⇒ anulujemy poprzednie pobieranie, żeby nie ścigały
+      // się równoległe fetch-e. Zachowujemy zwykły, same-origin POST (bez CORS).
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+
+      const startedAt = performance.now();
       setTts({
-        stage: "cached",
-        percent: 100,
+        stage: "preparing",
+        percent: 0,
         bytes: 0,
         totalBytes: null,
         elapsedMs: 0,
       });
-      return cached;
-    }
 
-    // Szybka zmiana wpisu ⇒ anulujemy poprzednie pobieranie, żeby nie ścigały
-    // się równoległe fetch-e. Zachowujemy zwykły, same-origin POST (bez CORS).
-    fetchAbortRef.current?.abort();
-    const controller = new AbortController();
-    fetchAbortRef.current = controller;
-
-    const startedAt = performance.now();
-    setTts({
-      stage: "preparing",
-      percent: 0,
-      bytes: 0,
-      totalBytes: null,
-      elapsedMs: 0,
-    });
-
-    try {
-      const res = await fetch("/api/public/post-tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, lang }),
-        signal: controller.signal,
-      });
+      try {
+        // Wgrany MP3: pobieramy bezpośrednio (GET), całkowicie z pominięciem
+        // TTS - ElevenLabs nie jest angażowany dla tego języka.
+        const res = audioUrl
+          ? await fetch(audioUrl, { method: "GET", signal: controller.signal })
+          : await fetch("/api/public/post-tts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ postId, lang }),
+              signal: controller.signal,
+            });
 
       if (!res.ok) {
         // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
