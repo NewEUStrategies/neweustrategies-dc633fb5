@@ -6,7 +6,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 
 import {
   listCrmLeads,
@@ -21,6 +20,11 @@ import {
   getCrmLeadTimeline,
   exportCrmLeadTimelineCsv,
 } from "@/lib/crm.functions";
+import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
+import { newIdempotencyKey } from "@/lib/http/idempotency";
+import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
+import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
+import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -337,6 +341,13 @@ function AdminCrmPage() {
   const L = lang === "pl" ? PL : EN;
   const { isSuperAdmin } = useAuth();
 
+  // Opportunistyczny tick dispatchera integracji (ta sama doktryna co
+  // publish_due_posts): wejście staffu do CRM zdejmuje zaległe dostawy z
+  // kolejki integration_deliveries. Best-effort - błąd nie psuje panelu.
+  useEffect(() => {
+    void dispatchIntegrationDeliveries({ data: { limit: 20 } }).catch(() => undefined);
+  }, []);
+
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
       <header className="flex items-center gap-2">
@@ -374,9 +385,6 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
   const [openId, setOpenId] = useState<string | null>(null);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
-  const qc = useQueryClient();
-  const openIdRef = useRef<string | null>(null);
-  openIdRef.current = openId;
 
   const q = useQuery({
     queryKey: ["crm-leads", { search, stage, scope }],
@@ -393,43 +401,13 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     },
   });
 
-  // Realtime: refresh leads + open detail as soon as widgets write to CRM.
-  // RLS in Supabase restricts payloads to rows the current user may read,
-  // so no client-side tenant filtering is needed here.
-  useEffect(() => {
-    const invalidateAll = () => {
-      qc.invalidateQueries({ queryKey: ["crm-leads"] });
-      const id = openIdRef.current;
-      if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
-      setLastLiveAt(Date.now());
-    };
-    const channel = supabase
-      .channel("admin-crm-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "crm_leads" }, invalidateAll)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "crm_consent_log" },
-        invalidateAll,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "contact_messages" },
-        invalidateAll,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "newsletter_subscribers" },
-        invalidateAll,
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "crm_lead_notes" }, () => {
-        const id = openIdRef.current;
-        if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
+  // Realtime przez szynę zdarzeń domenowych: zamiast osobnego kanału na każdą
+  // z 4 tabel źródłowych (leady, notatki, subskrybenci, formularz kontaktowy),
+  // jeden strumień domain_events per agregat CRM; mapa inwalidacji
+  // (eventInvalidationMap) odświeża listę i otwarty szczegół. Zapisy z
+  // formularza kontaktowego przechodzą przez crm_upsert_lead, więc lądują na
+  // szynie jako crm_lead.created/updated - nic nie ginie.
+  useModuleRealtime("crm", { onEvent: () => setLastLiveAt(Date.now()) });
 
   const onExport = async () => {
     const r = await exportCrmLeadsCsv({
@@ -621,7 +599,12 @@ function LeadDrawer({
   });
 
   const noteMut = useMutation({
-    mutationFn: async (body: string) => addCrmNote({ data: { lead_id: leadId!, body } }),
+    // Klucz idempotencji per akcja: retry HTTP / replay nie zdubluje notatki
+    // (command_idempotency w DB zwróci zapamiętany wynik zamiast insertu).
+    mutationFn: async (body: string) =>
+      addCrmNote({
+        data: { lead_id: leadId!, body, idempotency_key: newIdempotencyKey("crm.add_note") },
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
       setNote("");
@@ -661,6 +644,7 @@ function LeadDrawer({
             {lead
               ? [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email
               : L.detail.title}
+            <PresenceIndicator entityType="crm_lead" entityId={leadId} className="ml-auto" />
           </SheetTitle>
           <SheetDescription className="text-[12px]">{lead?.email}</SheetDescription>
         </SheetHeader>
@@ -711,6 +695,7 @@ function LeadDrawer({
                   value={new Date(lead.last_activity_at).toLocaleString()}
                 />
               </div>
+              <LinkedItemsCard itemType="crm_lead" itemId={leadId} />
             </TabsContent>
 
             <TabsContent value="consents" className="pt-3 space-y-2">
