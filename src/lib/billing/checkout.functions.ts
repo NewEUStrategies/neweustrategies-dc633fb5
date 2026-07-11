@@ -30,12 +30,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // plan below (default monthly) so a yearly/weekly plan is billed on its real
     // interval rather than always monthly.
     let recurringInterval: StripeRecurringInterval = "month";
+    let trialDays = 0;
 
     if (data.kind === "subscription") {
       if (!data.plan_id) throw new Error("plan_id_required");
       const { data: plan, error } = await supabase
         .from("access_plans")
-        .select("price_cents, currency, name_pl, name_en, active, interval")
+        .select("price_cents, currency, name_pl, name_en, active, interval, trial_days")
         .eq("id", data.plan_id)
         .maybeSingle();
       if (error) throw error;
@@ -44,6 +45,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
       recurringInterval = stripeRecurringInterval(String(plan.interval));
+      trialDays = Math.max(0, Number(plan.trial_days ?? 0));
+
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the
