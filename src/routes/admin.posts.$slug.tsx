@@ -49,6 +49,7 @@ import {
   Tags as TagIcon,
   Lock,
   Link as LinkIconLucide,
+  Mic,
 } from "@/lib/lucide-shim";
 import { History, Database, ListChecks } from "lucide-react";
 import { ChevronDown } from "lucide-react";
