@@ -2092,6 +2092,7 @@ export type Database = {
           source_form_name: string | null
           status: string
           tenant_id: string
+          unsubscribe_token: string
           unsubscribed_at: string | null
           updated_at: string
           user_agent: string | null
@@ -2115,6 +2116,7 @@ export type Database = {
           source_form_name?: string | null
           status?: string
           tenant_id?: string
+          unsubscribe_token?: string
           unsubscribed_at?: string | null
           updated_at?: string
           user_agent?: string | null
@@ -2138,6 +2140,7 @@ export type Database = {
           source_form_name?: string | null
           status?: string
           tenant_id?: string
+          unsubscribe_token?: string
           unsubscribed_at?: string | null
           updated_at?: string
           user_agent?: string | null

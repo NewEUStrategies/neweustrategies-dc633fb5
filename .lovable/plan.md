@@ -15,7 +15,7 @@ Mapowanie nazw:
 - [x] **1. Notification producer helper** — `public.enqueue_notification()` (SECURITY DEFINER, exception-safe, dedup w oknie 5 min).
 - [x] **2. Komentarze** — tabela `public.comments` + RLS + BEFORE INSERT/UPDATE trigger + notyfikacja autora + moderacja `/admin/comments` + publiczny `<CommentsSection>` pod wpisami + i18n (PL/EN). `allow_comments` ustawione na `true`.
 - [x] **3. Producenci powiadomień** — triggery na `user_follows` (nowy obserwator), `posts` (publikacja → obserwatorzy autora + kategorii + tagów, dedup 5 min), `user_subscriptions` (aktywacja).
-- [ ] **4. Newsletter — samoobsługowy unsubscribe** — token + `/api/public/newsletter/unsubscribe` + strona wyniku + stopka we wszystkich mailach.
+- [x] **4. Newsletter — samoobsługowy unsubscribe** — kolumna `unsubscribe_token` (auto-generowana trigger BEFORE INSERT, backfill dla istniejących), publiczny `/api/public/newsletter/unsubscribe` (GET walidacja + POST wypisanie), strona `/newsletter/unsubscribe` (dwuklik: potwierdzenie chroniące przed skanerami URL), stopka „Unsubscribe" w mailu DOI, i18n PL/EN.
 - [ ] **5. Newsletter — kampanie** — tabela `newsletter_campaigns`, admin `/admin/newsletter/campaigns` (dwujęzyczny edytor, test-mail, licznik odbiorców, wysyłka paczkami via Resend).
 - [ ] **6. Publiczny profil CV** — render `profile_experiences` / `profile_education` / `profile_skills` / `profile_awards` / `profile_hobbies` na `/author/$slug`.
 - [ ] **7. Obserwowanie autorów w scoringu** — `lib/recommendations.scoring.ts` z boostem +4, feed „Obserwowane".
