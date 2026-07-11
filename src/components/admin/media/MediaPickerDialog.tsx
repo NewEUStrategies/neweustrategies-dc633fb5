@@ -274,7 +274,7 @@ export function MediaPickerDialog({
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => setPickedUrl(m.public_url)}
+                    onClick={() => handlePickRow(m)}
                     onDoubleClick={() => {
                       onPick(m.public_url);
                       onOpenChange(false);
