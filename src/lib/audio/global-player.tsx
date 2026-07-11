@@ -110,6 +110,33 @@ function cacheKey(postId: string, lang: "pl" | "en"): string {
 }
 
 /**
+ * Wybór źródła audio dla wpisu w danym języku. Gdy wgrany jest MP3 dla tego
+ * języka - pobieramy plik bezpośrednio (GET, ElevenLabs pomijany). W przeciwnym
+ * razie odpalamy TTS przez `/api/public/post-tts` z payloadem `{ postId, lang }`.
+ * Eksportowane, żeby móc testować kryterium "fallback do ElevenLabs tylko gdy
+ * brak wgranego audio dla danego języka" bez montowania całego providera.
+ */
+export function resolveAudioFetch(
+  postId: string,
+  lang: "pl" | "en",
+  audioUrl: string | null | undefined,
+): { url: string; init: RequestInit; usesElevenLabs: boolean } {
+  const trimmed = audioUrl?.trim();
+  if (trimmed) {
+    return { url: trimmed, init: { method: "GET" }, usesElevenLabs: false };
+  }
+  return {
+    url: "/api/public/post-tts",
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId, lang }),
+    },
+    usesElevenLabs: true,
+  };
+}
+
+/**
  * Zapisuje blob URL do cache, zwalniając (revokeObjectURL) stary URL gdy dany
  * klucz jest nadpisywany oraz gdy najstarsze wpisy są eksmitowane po
  * przekroczeniu `MAX_CACHED_BLOBS`. `keepUrl` chroni aktualnie odtwarzany blob
