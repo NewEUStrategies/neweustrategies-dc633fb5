@@ -123,7 +123,7 @@ export function MediaPickerDialog({
     queryFn: async (): Promise<PickerRow[]> => {
       let query = supabase
         .from("media")
-        .select("id, public_url, filename, mime_type, folder_path, created_at")
+        .select("id, public_url, filename, mime_type, folder_path, created_at, alt_text")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(500);
