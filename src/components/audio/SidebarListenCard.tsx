@@ -131,11 +131,12 @@ export function SidebarListenCard({
       title,
       author: author ?? null,
       authorHref: authorHref ?? null,
+      audioUrl: audioUrl ?? null,
       postHref:
         postHref ??
         (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/"),
     }),
-    [postId, lang, title, author, authorHref, postHref],
+    [postId, lang, title, author, authorHref, postHref, audioUrl],
   );
 
   const approxMin =
