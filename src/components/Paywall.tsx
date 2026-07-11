@@ -173,12 +173,23 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
     }
   };
 
+  // Remember the current article so the checkout success page can offer
+  // "continue reading" instead of dead-ending the buyer on their profile.
+  const rememberReturn = () => {
+    try {
+      sessionStorage.setItem("checkout:returnTo", window.location.pathname);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const buyableEntity = rule.entity_type === "post" || rule.entity_type === "page";
   const startOneTime = async () => {
     if (!session) return;
     // Narrow entity_type to the checkout-supported union ("post" | "page").
     if (rule.entity_type !== "post" && rule.entity_type !== "page") return;
     const entityType = rule.entity_type;
+    rememberReturn();
     setBusy(true);
     try {
       const res = await checkout({
@@ -343,7 +354,11 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                         <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>
                       )}
                       <Button asChild size="sm" className="w-full mt-3" disabled={busy}>
-                        <Link to="/checkout/$planId" params={{ planId: p.id }}>
+                        <Link
+                          to="/checkout/$planId"
+                          params={{ planId: p.id }}
+                          onClick={rememberReturn}
+                        >
                           {t.subscribe}
                         </Link>
                       </Button>

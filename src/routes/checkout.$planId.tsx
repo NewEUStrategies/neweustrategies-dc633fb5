@@ -10,7 +10,7 @@ import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import "@/lib/i18n-profile";
@@ -50,12 +50,7 @@ function CheckoutPage() {
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
 
   const submit = async () => {
-    if (!plan.data) return;
-    if (!hasBilling) {
-      toast.error(t("checkout.fillBilling"));
-      void navigate({ to: "/profile/billing" });
-      return;
-    }
+    if (!plan.data || !hasBilling) return;
     setBusy(true);
     try {
       const res = await checkout({
@@ -77,8 +72,9 @@ function CheckoutPage() {
         // Mock mode - go to internal success page
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
-    } catch (e) {
-      toast.error(String(e instanceof Error ? e.message : e));
+    } catch {
+      // Never surface a raw backend error string to the visitor.
+      toast.error(t("checkout.stripeNotConfigured"));
       setBusy(false);
     }
   };
@@ -113,14 +109,13 @@ function CheckoutPage() {
                     </Button>
                   </div>
                 ) : (
-                  <Alert>
-                    <AlertDescription className="flex items-center justify-between gap-4">
-                      <span>{t("checkout.fillBilling")}</span>
-                      <Button asChild size="sm">
-                        <Link to="/profile/billing">{t("profile.billing.title")}</Link>
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">{t("checkout.fillBilling")}</p>
+                    {/* Capture billing inline - no ejecting out of the funnel. On
+                        save the my-billing query invalidates, hasBilling flips and
+                        the pay button enables in place. */}
+                    <BillingProfileForm submitLabel={t("checkout.saveBillingContinue")} />
+                  </div>
                 )}
               </CardContent>
             </Card>

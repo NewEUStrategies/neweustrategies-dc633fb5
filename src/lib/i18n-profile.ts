@@ -173,6 +173,7 @@ const pl = {
       country: "Kraj",
       save: "Zapisz dane",
       saved: "Dane zapisane",
+      saveError: "Nie udało się zapisać danych. Spróbuj ponownie.",
       tip: {
         isCompany: "Włącz, jeśli kupujesz jako firma - pojawi się pole na NIP.",
         fullName: "Pełne imię i nazwisko, jak ma być widoczne na fakturze.",
@@ -245,9 +246,35 @@ const pl = {
     trial: "{{days}} dni za darmo",
     popular: "Najpopularniejszy",
     empty: "Brak dostępnych planów.",
+    trust: {
+      secure: "Bezpieczne płatności Stripe",
+      cancel: "Anuluj w każdej chwili",
+      instant: "Natychmiastowy dostęp po opłaceniu",
+    },
+    faqTitle: "Najczęstsze pytania",
+    faq: [
+      {
+        q: "Czy mogę anulować subskrypcję?",
+        a: "Tak. Subskrypcję anulujesz w każdej chwili w panelu profilu - zachowujesz dostęp do końca opłaconego okresu.",
+      },
+      {
+        q: "Jakie metody płatności akceptujecie?",
+        a: "Płatności obsługuje Stripe - karty Visa, Mastercard oraz popularne metody lokalne.",
+      },
+      {
+        q: "Czy otrzymam fakturę?",
+        a: "Tak. Fakturę wystawiamy na podstawie danych rozliczeniowych z Twojego profilu.",
+      },
+      {
+        q: "Czy dostęp jest natychmiastowy?",
+        a: "Tak - dostęp odblokowuje się automatycznie zaraz po potwierdzeniu płatności.",
+      },
+    ],
   },
   checkout: {
     title: "Finalizacja zamówienia",
+    saveBillingContinue: "Zapisz i kontynuuj",
+    continueReading: "Wróć do artykułu",
     summary: "Podsumowanie",
     item: "Pozycja",
     total: "Razem",
@@ -447,6 +474,7 @@ const en: typeof pl = {
       country: "Country",
       save: "Save details",
       saved: "Saved",
+      saveError: "Could not save your details. Please try again.",
       tip: {
         isCompany: "Enable if you're purchasing as a business - a VAT field will appear.",
         fullName: "Full name as it should appear on the invoice.",
@@ -519,9 +547,35 @@ const en: typeof pl = {
     trial: "{{days}}-day free trial",
     popular: "Most popular",
     empty: "No plans available.",
+    trust: {
+      secure: "Secure payments by Stripe",
+      cancel: "Cancel anytime",
+      instant: "Instant access after payment",
+    },
+    faqTitle: "Frequently asked questions",
+    faq: [
+      {
+        q: "Can I cancel my subscription?",
+        a: "Yes. Cancel anytime from your profile - you keep access until the end of the paid period.",
+      },
+      {
+        q: "Which payment methods do you accept?",
+        a: "Payments are handled by Stripe - Visa, Mastercard and popular local methods.",
+      },
+      {
+        q: "Will I get an invoice?",
+        a: "Yes. Invoices are issued from the billing details in your profile.",
+      },
+      {
+        q: "Is access immediate?",
+        a: "Yes - access unlocks automatically as soon as the payment is confirmed.",
+      },
+    ],
   },
   checkout: {
     title: "Checkout",
+    saveBillingContinue: "Save and continue",
+    continueReading: "Back to the article",
     summary: "Order summary",
     item: "Item",
     total: "Total",

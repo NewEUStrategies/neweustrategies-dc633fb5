@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AppLink } from "@/components/atoms/AppLink";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,11 +21,28 @@ export const Route = createFileRoute("/checkout/success")({
   }),
 });
 
+const RETURN_KEY = "checkout:returnTo";
+
 function SuccessPage() {
   const { t } = useTranslation();
   const { order, mock } = Route.useSearch();
   const finalize = useServerFn(finalizeCheckout);
   const queryClient = useQueryClient();
+  // Where the buyer was before checkout (e.g. the paywalled article they were
+  // reading), captured by the Paywall so we can send them back to it instead of
+  // dead-ending on the profile.
+  const [returnTo, setReturnTo] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem(RETURN_KEY);
+      if (v && v.startsWith("/") && !v.startsWith("/checkout") && !v.startsWith("/profile")) {
+        setReturnTo(v);
+      }
+      sessionStorage.removeItem(RETURN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // In mock mode (no Stripe) there is no webhook, so finalise the order here and
   // then drop cached access/content so the just-purchased content unlocks.
@@ -54,8 +72,13 @@ function SuccessPage() {
           <CheckCircle2 className="h-16 w-16 mx-auto text-primary" />
           <h1 className="text-2xl font-bold">{t("checkout.successTitle")}</h1>
           <p className="text-muted-foreground">{t("checkout.successBody")}</p>
-          <div className="flex justify-center gap-2 pt-4">
-            <Button asChild>
+          <div className="flex flex-wrap justify-center gap-2 pt-4">
+            {returnTo && (
+              <Button asChild>
+                <AppLink href={returnTo}>{t("checkout.continueReading")}</AppLink>
+              </Button>
+            )}
+            <Button asChild variant={returnTo ? "outline" : "default"}>
               <Link to="/profile">{t("checkout.backToProfile")}</Link>
             </Button>
             <Button asChild variant="outline">
