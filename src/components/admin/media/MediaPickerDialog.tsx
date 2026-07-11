@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
-import { registerMediaUpload } from "@/lib/media.functions";
+import { registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
 import {
   Dialog,
   DialogContent,
