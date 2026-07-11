@@ -2,6 +2,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Fragment, useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
@@ -62,6 +63,7 @@ function BlogIndex() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+        <Breadcrumbs items={[{ label: "Blog" }]} />
         <h1 className="font-display text-4xl lg:text-5xl mb-8">Blog</h1>
         {posts.length === 0 ? (
           <p className="text-muted-foreground">

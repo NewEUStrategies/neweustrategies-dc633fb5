@@ -11,6 +11,7 @@ import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
@@ -93,6 +94,7 @@ function AuthorArchivePage() {
             </div>
           )}
           <div className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8">
+            <Breadcrumbs items={[{ label: name }]} />
             <div className="flex flex-col sm:flex-row gap-5 items-start">
               {author.avatar_url && (
                 <img

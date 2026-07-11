@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
@@ -82,6 +83,7 @@ function TagArchivePage() {
           </section>
         )}
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-10">
+          <Breadcrumbs items={[{ label: `#${name}` }]} />
           <header className="mb-8">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               {t("archive.tag", { defaultValue: "Tag" })}

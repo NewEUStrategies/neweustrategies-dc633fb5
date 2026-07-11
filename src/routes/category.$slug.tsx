@@ -9,6 +9,7 @@ import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
@@ -99,6 +100,7 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
           </section>
         )}
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-10">
+          <Breadcrumbs items={[{ label: name }]} />
           <header className="mb-8">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               {kind === "category"

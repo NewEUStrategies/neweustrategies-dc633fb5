@@ -2,6 +2,7 @@
 // Facets are derived from the match set so users can drill down.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useState, useEffect } from "react";
@@ -109,6 +110,7 @@ function SearchPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+        <Breadcrumbs items={[{ label: t("search.title") }]} />
         <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title")}</h1>
         <form onSubmit={submit} className="flex gap-2 mb-8">
           <div className="relative flex-1">
