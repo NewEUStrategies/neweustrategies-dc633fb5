@@ -445,7 +445,7 @@ export function PostGeneralOverview({
             </>
           )}
           {accessMode === "password" && (
-            <Row label="Hasło" value={accessRule?.password_hash ? "ustawione ✓" : "brak"} />
+            <Row label="Hasło" value={accessRule?.has_password ? "ustawione ✓" : "brak"} />
           )}
         </Tile>
 
