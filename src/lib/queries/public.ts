@@ -112,6 +112,8 @@ export interface PostData extends PageData {
   related_override: Record<string, unknown> | null;
   author_id: string | null;
   toc_override: Record<string, unknown> | null;
+  audio_url_pl: string | null;
+  audio_url_en: string | null;
 }
 
 interface AuthorProfileOverlay {
