@@ -176,6 +176,51 @@ async function handle(request: Request): Promise<Response> {
         break;
       }
 
+      case "customer.subscription.updated": {
+        // Reconcile changes made on Stripe side (cancel_at_period_end flipped
+        // in the Stripe Dashboard, plan swap, past_due -> active after retry,
+        // trial ending -> active). Stripe is the source of truth for the
+        // subscription lifecycle; we mirror the relevant fields.
+        const sub = event.data.object;
+        const subId = str(sub, "id");
+        if (!subId) break;
+        const stripeStatus = str(sub, "status");
+        const cancelAtPeriodEnd = sub.cancel_at_period_end === true;
+        const periodEnd =
+          typeof sub.current_period_end === "number"
+            ? new Date((sub.current_period_end as number) * 1000).toISOString()
+            : null;
+        // Stripe -> our purchase_status enum {pending,active,refunded,canceled}.
+        // trialing/past_due/unpaid still grant access until Stripe deletes the
+        // subscription, so we keep them 'active' and let has_content_access
+        // gate on current_period_end.
+        const localStatus: "active" | "canceled" =
+          stripeStatus === "canceled" || stripeStatus === "incomplete_expired"
+            ? "canceled"
+            : "active";
+
+        type SubUpdate = {
+          status: "active" | "canceled";
+          canceled_at?: string | null;
+          current_period_end?: string;
+        };
+        const updates: SubUpdate = { status: localStatus };
+        if (periodEnd) updates.current_period_end = periodEnd;
+        if (localStatus === "canceled") {
+          updates.canceled_at = new Date().toISOString();
+        } else {
+          // cancel_at_period_end=true -> "cancels at period end" (keep active
+          // until Stripe deletes it); false -> clear a pending cancel so the
+          // UI stops showing "cancels at".
+          updates.canceled_at = cancelAtPeriodEnd ? new Date().toISOString() : null;
+        }
+        await supabaseAdmin
+          .from("user_subscriptions")
+          .update(updates)
+          .eq("external_ref", subId);
+        break;
+      }
+
       case "customer.subscription.deleted": {
         const sub = event.data.object;
         const subId = str(sub, "id");
@@ -187,6 +232,57 @@ async function handle(request: Request): Promise<Response> {
         }
         break;
       }
+
+      case "charge.refunded": {
+        // A refund revokes entitlement: mark the order refunded and end the
+        // matching subscription / purchase so has_content_access returns false.
+        // Match by payment_intent (subscription first invoice, one-time payment)
+        // - the same id we stored as provider_intent_id on checkout.session.completed.
+        const charge = event.data.object;
+        const paymentIntent = str(charge, "payment_intent");
+        if (!paymentIntent) break;
+
+        const { data: order } = await supabaseAdmin
+          .from("payment_orders")
+          .select("id, user_id, kind, entity_type, entity_id, provider_session_id")
+          .eq("provider_intent_id", paymentIntent)
+          .maybeSingle();
+        if (!order) break;
+
+        await supabaseAdmin
+          .from("payment_orders")
+          .update({ status: "refunded" })
+          .eq("id", order.id);
+
+        if (order.kind === "subscription") {
+          // For subscription refunds we revoke immediately - Stripe usually
+          // sends customer.subscription.deleted alongside a full refund, but
+          // we must not depend on ordering.
+          const sessionId = order.provider_session_id;
+          if (sessionId) {
+            // Session -> subscription id lives on the checkout session; the
+            // stored external_ref is the sub id from grantEntitlement.
+            await supabaseAdmin
+              .from("user_subscriptions")
+              .update({
+                status: "canceled",
+                canceled_at: new Date().toISOString(),
+                current_period_end: new Date().toISOString(),
+              })
+              .eq("user_id", order.user_id)
+              .eq("status", "active");
+          }
+        } else if (order.kind === "one_time" && order.entity_type && order.entity_id) {
+          await supabaseAdmin
+            .from("user_purchases")
+            .update({ status: "refunded" })
+            .eq("user_id", order.user_id)
+            .eq("entity_type", order.entity_type)
+            .eq("entity_id", order.entity_id);
+        }
+        break;
+      }
+
 
       case "checkout.session.expired":
       case "payment_intent.payment_failed": {
