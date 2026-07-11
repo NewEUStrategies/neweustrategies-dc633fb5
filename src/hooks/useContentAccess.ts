@@ -15,11 +15,14 @@ export interface ContentAccessRule {
   one_time_currency: string | null;
   teaser_pl: string | null;
   teaser_en: string | null;
-  /** Presence flag — the hash itself is never selected client-side. */
-  password_hash?: string | null;
+  /** Presence flag only. The hash itself is never selectable client-side (column privilege revoked). */
+  has_password?: boolean;
   password_hint_pl?: string | null;
   password_hint_en?: string | null;
 }
+
+const CONTENT_ACCESS_SAFE_COLS =
+  "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, password_hint_pl, password_hint_en, tenant_id";
 
 export interface AccessState {
   loading: boolean;
