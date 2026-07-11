@@ -85,6 +85,7 @@ import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
+import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
@@ -506,6 +507,11 @@ const AdminContactRoute = AdminContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCommentsRoute = AdminCommentsRouteImport.update({
+  id: '/comments',
+  path: '/comments',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCategoryColorsRoute = AdminCategoryColorsRouteImport.update({
   id: '/category-colors',
   path: '/category-colors',
@@ -740,6 +746,7 @@ export interface FileRoutesByFullPath {
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
+  '/admin/comments': typeof AdminCommentsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -856,6 +863,7 @@ export interface FileRoutesByTo {
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
+  '/admin/comments': typeof AdminCommentsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -972,6 +980,7 @@ export interface FileRoutesById {
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
+  '/admin/comments': typeof AdminCommentsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -1092,6 +1101,7 @@ export interface FileRouteTypes {
     | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
+    | '/admin/comments'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1208,6 +1218,7 @@ export interface FileRouteTypes {
     | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
+    | '/admin/comments'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1323,6 +1334,7 @@ export interface FileRouteTypes {
     | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
+    | '/admin/comments'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1991,6 +2003,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminContactRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/comments': {
+      id: '/admin/comments'
+      path: '/comments'
+      fullPath: '/admin/comments'
+      preLoaderRoute: typeof AdminCommentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/category-colors': {
       id: '/admin/category-colors'
       path: '/category-colors'
@@ -2402,6 +2421,7 @@ interface AdminRouteChildren {
   AdminAuthorsRoute: typeof AdminAuthorsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
+  AdminCommentsRoute: typeof AdminCommentsRoute
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCrmRoute: typeof AdminCrmRoute
@@ -2445,6 +2465,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAuthorsRoute: AdminAuthorsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
+  AdminCommentsRoute: AdminCommentsRoute,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCrmRoute: AdminCrmRoute,
