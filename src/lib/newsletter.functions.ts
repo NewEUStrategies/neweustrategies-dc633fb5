@@ -121,6 +121,7 @@ function buildDoiEmail(
   name: string | null,
   lang: "pl" | "en",
   confirmUrl: string,
+  unsubscribeUrl: string | null,
 ): { subject: string; html: string } {
   const pl = lang === "pl";
   const subject = pl ? "Potwierdź zapis do newslettera" : "Confirm your newsletter subscription";
@@ -135,6 +136,11 @@ function buildDoiEmail(
   const fallback = pl
     ? "Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki:"
     : "If the button doesn't work, copy this URL into your browser:";
+  const unsubLine = unsubscribeUrl
+    ? pl
+      ? `Nie chcesz otrzymywać tych wiadomości? <a href="${esc(unsubscribeUrl)}" style="color:#888">Wypisz się jednym kliknięciem</a>.`
+      : `No longer want these emails? <a href="${esc(unsubscribeUrl)}" style="color:#888">Unsubscribe with one click</a>.`
+    : "";
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:560px">
       <p>${hi}</p>
@@ -148,6 +154,7 @@ function buildDoiEmail(
       <hr style="border:none;border-top:1px solid #eee;margin:16px 0" />
       <p style="color:#888;font-size:12px">${fallback}<br>
         <span style="word-break:break-all">${esc(confirmUrl)}</span></p>
+      ${unsubLine ? `<p style="color:#888;font-size:12px;margin-top:12px">${unsubLine}</p>` : ""}
     </div>`;
   return { subject, html };
 }
