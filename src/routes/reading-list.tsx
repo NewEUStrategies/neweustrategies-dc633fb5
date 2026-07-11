@@ -8,7 +8,11 @@ import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getRecommendedPosts, type RecommendedPost } from "@/lib/recommendations.functions";
+import {
+  getFollowedFeed,
+  getRecommendedPosts,
+  type RecommendedPost,
+} from "@/lib/recommendations.functions";
 import { openLoginPopup } from "@/lib/loginPopupBus";
 import { Button } from "@/components/ui/button";
 
@@ -197,52 +201,86 @@ function FollowedSection({ lang }: { lang: "pl" | "en" }) {
     },
   });
 
+  const fetchFeed = useServerFn(getFollowedFeed);
+  const { data: feedPosts, isLoading: feedLoading } = useQuery({
+    queryKey: ["followed-feed", catIds.length, tagIds.length, authorIds.length],
+    enabled: (follows?.length ?? 0) > 0,
+    queryFn: () => fetchFeed({ data: { limit: 18 } }),
+  });
+
   if (!follows || follows.length === 0)
     return <EmptyState text="Nie obserwujesz jeszcze żadnych kategorii ani autorów." />;
   if (!data) return <p className="text-center text-muted-foreground">Ładowanie…</p>;
 
   return (
-    <div className="space-y-8">
-      {data.cats.length > 0 && (
-        <section>
-          <h2 className="font-display text-xl mb-3">Kategorie</h2>
-          <div className="flex flex-wrap gap-2">
-            {data.cats.map((c) => (
-              <span key={c.id} className="px-3 py-1.5 bg-muted rounded-full text-sm">
-                {lang === "pl" ? c.name_pl : c.name_en}
-              </span>
+    <div className="space-y-10">
+      <div className="space-y-6">
+        {data.cats.length > 0 && (
+          <section>
+            <h2 className="font-display text-xl mb-3">Kategorie</h2>
+            <div className="flex flex-wrap gap-2">
+              {data.cats.map((c) => (
+                <span key={c.id} className="px-3 py-1.5 bg-muted rounded-full text-sm">
+                  {lang === "pl" ? c.name_pl : c.name_en}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+        {data.tags.length > 0 && (
+          <section>
+            <h2 className="font-display text-xl mb-3">Tagi</h2>
+            <div className="flex flex-wrap gap-2">
+              {data.tags.map((t) => (
+                <span key={t.id} className="px-3 py-1.5 bg-muted rounded-full text-sm">
+                  #{t.name}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+        {data.authors.length > 0 && (
+          <section>
+            <h2 className="font-display text-xl mb-3">Autorzy</h2>
+            <div className="flex flex-wrap gap-3">
+              {data.authors.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-sm"
+                >
+                  {a.avatar_url && (
+                    <img src={a.avatar_url} alt="" className="w-6 h-6 rounded-full" />
+                  )}
+                  <span>{a.display_name ?? "Anonim"}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <section>
+        <h2 className="font-display text-2xl mb-4">
+          {lang === "en" ? "Latest from followed" : "Najnowsze z obserwowanych"}
+        </h2>
+        {feedLoading || !feedPosts ? (
+          <p className="text-center text-muted-foreground">Ładowanie…</p>
+        ) : feedPosts.length === 0 ? (
+          <EmptyState
+            text={
+              lang === "en"
+                ? "No posts from followed authors, categories or tags yet."
+                : "Brak nowych wpisów z obserwowanych autorów, kategorii lub tagów."
+            }
+          />
+        ) : (
+          <div className={`grid gap-6 ${gridClass(3)}`}>
+            {feedPosts.map((p) => (
+              <PostCard key={p.id} post={p} lang={lang} />
             ))}
           </div>
-        </section>
-      )}
-      {data.tags.length > 0 && (
-        <section>
-          <h2 className="font-display text-xl mb-3">Tagi</h2>
-          <div className="flex flex-wrap gap-2">
-            {data.tags.map((t) => (
-              <span key={t.id} className="px-3 py-1.5 bg-muted rounded-full text-sm">
-                #{t.name}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-      {data.authors.length > 0 && (
-        <section>
-          <h2 className="font-display text-xl mb-3">Autorzy</h2>
-          <div className="flex flex-wrap gap-3">
-            {data.authors.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-sm"
-              >
-                {a.avatar_url && <img src={a.avatar_url} alt="" className="w-6 h-6 rounded-full" />}
-                <span>{a.display_name ?? "Anonim"}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   );
 }
