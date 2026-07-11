@@ -10,7 +10,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Upload, Link as LinkIcon, X, Music } from "@/lib/lucide-shim";
+import { Upload, Link as LinkIcon, X, Mic } from "@/lib/lucide-shim";
 
 interface Props {
   label?: string;
