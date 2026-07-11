@@ -47,16 +47,21 @@ describe("resolveAudioFetch (kryterium ElevenLabs fallback)", () => {
   });
 
   it("mockowany fetch: wgrany MP3 nie trafia do endpointu TTS", async () => {
-    const fetchSpy = vi.fn(async () => new Response("ok"));
-    // @ts-expect-error - test override
-    globalThis.fetch = fetchSpy;
-    const src = resolveAudioFetch("p", "pl", "https://cdn/a.mp3");
-    await fetch(src.url, src.init);
-    const called = fetchSpy.mock.calls[0]?.[0];
-    expect(called).toBe("https://cdn/a.mp3");
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(
-      fetchSpy.mock.calls.some((c) => String(c[0]).includes("/api/public/post-tts")),
-    ).toBe(false);
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response("ok"));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    try {
+      const src = resolveAudioFetch("p", "pl", "https://cdn/a.mp3");
+      await fetch(src.url, src.init);
+      const [firstCallUrl] = fetchSpy.mock.calls[0] ?? [];
+      expect(firstCallUrl).toBe("https://cdn/a.mp3");
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const anyTtsCall = fetchSpy.mock.calls.some(
+        (c) => typeof c[0] === "string" && c[0].includes("/api/public/post-tts"),
+      );
+      expect(anyTtsCall).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
