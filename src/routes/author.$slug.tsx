@@ -8,6 +8,7 @@ import { ExternalLink, Globe, Linkedin } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { authorBySlugQueryOptions } from "@/lib/queries/archives";
