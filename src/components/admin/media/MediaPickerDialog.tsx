@@ -29,6 +29,7 @@ interface PickerRow {
   mime_type: string | null;
   folder_path: string;
   created_at: string;
+  alt_text: string | null;
 }
 
 export function MediaPickerDialog({
