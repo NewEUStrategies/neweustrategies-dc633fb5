@@ -2341,7 +2341,6 @@ export type Database = {
           icon: string | null
           id: string
           kind: string
-          meta: Json
           read_at: string | null
           tenant_id: string
           title_en: string | null
@@ -2356,7 +2355,6 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
-          meta?: Json
           read_at?: string | null
           tenant_id: string
           title_en?: string | null
@@ -2371,7 +2369,6 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
-          meta?: Json
           read_at?: string | null
           tenant_id?: string
           title_en?: string | null
@@ -2637,6 +2634,7 @@ export type Database = {
       personality_result_history: {
         Row: {
           agreeableness: number
+          answers: Json | null
           conscientiousness: number
           created_at: string
           extraversion: number
@@ -2649,6 +2647,7 @@ export type Database = {
         }
         Insert: {
           agreeableness: number
+          answers?: Json | null
           conscientiousness: number
           created_at?: string
           extraversion: number
@@ -2661,6 +2660,7 @@ export type Database = {
         }
         Update: {
           agreeableness?: number
+          answers?: Json | null
           conscientiousness?: number
           created_at?: string
           extraversion?: number
@@ -3677,7 +3677,6 @@ export type Database = {
           created_at: string
           current_company: string | null
           discoverable: boolean
-          discovery_search: string | null
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -3709,7 +3708,6 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
-          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -3741,7 +3739,6 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
-          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -4048,45 +4045,6 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
-        }
-        Relationships: []
-      }
-      subscription_tiers: {
-        Row: {
-          created_at: string
-          description_en: string | null
-          description_pl: string | null
-          id: string
-          is_active: boolean
-          name_en: string
-          name_pl: string
-          slug: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description_en?: string | null
-          description_pl?: string | null
-          id?: string
-          is_active?: boolean
-          name_en: string
-          name_pl: string
-          slug: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description_en?: string | null
-          description_pl?: string | null
-          id?: string
-          is_active?: boolean
-          name_en?: string
-          name_pl?: string
-          slug?: string
-          sort_order?: number
-          updated_at?: string
         }
         Relationships: []
       }
