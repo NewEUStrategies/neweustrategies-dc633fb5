@@ -81,6 +81,7 @@ export function SidebarListenCard({
   authorHref,
   postHref,
   readMinutes,
+  audioUrl,
 }: SidebarListenCardProps) {
   const t = COPY[lang];
   const player = useGlobalAudioPlayer();
