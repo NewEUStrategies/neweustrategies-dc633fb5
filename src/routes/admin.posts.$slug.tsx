@@ -752,29 +752,6 @@ function EditPost() {
           onChange={(v: string) => set("cover_image_url", v || null)}
         />
       </div>
-      <div className="pt-2 border-t border-border/60 space-y-3">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("admin.posts.audio.title", { defaultValue: "Audio (MP3) - odsłuch artykułu" })}
-        </div>
-        <AudioPicker
-          label={t("admin.posts.audio.pl", { defaultValue: "Plik audio - polski" })}
-          value={form.audio_url_pl ?? ""}
-          onChange={(v: string) => set("audio_url_pl", v || null)}
-          hint={t("admin.posts.audio.hintPl", {
-            defaultValue:
-              "Gdy wgrany, sidebar użyje tego pliku dla PL. W przeciwnym razie zostanie wygenerowany lektor AI (ElevenLabs).",
-          })}
-        />
-        <AudioPicker
-          label={t("admin.posts.audio.en", { defaultValue: "Plik audio - angielski" })}
-          value={form.audio_url_en ?? ""}
-          onChange={(v: string) => set("audio_url_en", v || null)}
-          hint={t("admin.posts.audio.hintEn", {
-            defaultValue:
-              "Gdy wgrany, sidebar użyje tego pliku dla EN. W przeciwnym razie zostanie wygenerowany lektor AI (ElevenLabs).",
-          })}
-        />
-      </div>
     </SidebarSection>
   );
 
