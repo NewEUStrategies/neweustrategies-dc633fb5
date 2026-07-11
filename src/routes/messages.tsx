@@ -170,11 +170,30 @@ function MessagesInner() {
             </span>
           )}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "consents"}
+          onClick={() => setActiveView("consents")}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
+            activeView === "consents"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+          {t("notifications.consents.tab", { defaultValue: "Zgody" })}
+        </button>
       </div>
       <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-[6px] border border-border/60 bg-card shadow-sm">
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
-            <NotificationsCenter />
+            <NotificationsCenter mode="inbox" />
+          </div>
+        ) : activeView === "consents" ? (
+          <div className="w-full min-w-0">
+            <NotificationsCenter mode="preferences" />
           </div>
         ) : (
           <>
