@@ -61,7 +61,7 @@ function BlogIndex() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <h1 className="font-display text-4xl lg:text-5xl mb-8">Blog</h1>
         {posts.length === 0 ? (
           <p className="text-muted-foreground">
@@ -117,7 +117,7 @@ function BlogIndex() {
             </Button>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

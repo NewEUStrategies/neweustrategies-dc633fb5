@@ -284,7 +284,7 @@ function MessagesInner() {
             </aside>
 
             {/* Right pane: active thread */}
-            <main className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
+            <div className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
               {selected ? (
                 <ChatWindow
                   key={selected}
@@ -306,7 +306,7 @@ function MessagesInner() {
                   </p>
                 </div>
               )}
-            </main>
+            </div>
           </>
         )}
       </div>

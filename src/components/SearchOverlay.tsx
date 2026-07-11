@@ -4,6 +4,7 @@ import { Search, X, Loader2, ArrowRight, Clock } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
 type Result = { id: string; slug: string; title: string; excerpt: string | null };
@@ -26,7 +27,11 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
+  // The fullscreen variant locks body scroll (below) and is effectively modal,
+  // so it gets a focus trap; the input already holds focus on open.
+  useFocusTrap(panelRef, open && mode !== "dropdown");
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
 
   const selectAndClose = (query: string) => {
@@ -165,6 +170,10 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     >
       <div className="absolute inset-x-0 top-0 flex justify-center px-4 pt-[12vh] pb-8 max-h-screen overflow-y-auto">
         <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={lang === "pl" ? "Wyszukiwarka" : "Search"}
           className="w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-top-4 duration-300"
           onClick={(e) => e.stopPropagation()}
         >
@@ -276,6 +285,7 @@ function SearchBar({
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder}
         role="combobox"
+        aria-label={placeholder}
         aria-expanded={expanded}
         aria-controls={listboxId}
         aria-activedescendant={activeOptionId}
@@ -295,7 +305,7 @@ function SearchBar({
       <button
         onClick={onClose}
         aria-label={lang === "pl" ? "Zamknij" : "Close"}
-        className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
+        className="shrink-0 inline-flex items-center justify-center w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
       >
         <X className="w-4 h-4" />
       </button>

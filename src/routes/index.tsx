@@ -142,7 +142,7 @@ function Index() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 w-full">
+      <div className="flex-1 w-full">
         {/* Screen-reader-only H1 so the homepage always exposes a descriptive
             landmark heading, even when the CMS builder renders its own visual
             hierarchy. Search engines and assistive tech get the brand headline
@@ -172,7 +172,7 @@ function Index() {
             </p>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

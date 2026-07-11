@@ -127,7 +127,7 @@ function RouteLoadingSkeleton() {
   // skeleton-shimmer (styles.css) reads as active progress instead of an idle
   // pulse - perceived speed during slow (>500ms) route transitions.
   return (
-    <main className="min-h-[55vh] w-full px-4 py-8 lg:px-8" aria-busy="true">
+    <div className="min-h-[55vh] w-full px-4 py-8 lg:px-8" aria-busy="true">
       <div className="mx-auto max-w-[1200px] space-y-6">
         <div className="skeleton-shimmer h-5 w-40 rounded" />
         <div className="skeleton-shimmer h-10 w-2/3 max-w-2xl rounded" />
@@ -143,7 +143,7 @@ function RouteLoadingSkeleton() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

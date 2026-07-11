@@ -89,7 +89,7 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 w-full">
+      <div className="flex-1 w-full">
         {taxonomy.featured_section && (
           <section className="border-b border-border">
             <BuilderRenderer
@@ -139,7 +139,7 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
             </div>
           )}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

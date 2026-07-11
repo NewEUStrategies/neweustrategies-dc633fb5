@@ -85,7 +85,7 @@ function AuthorArchivePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 w-full">
+      <div className="flex-1 w-full">
         <header className="relative">
           {author.cover_url && (
             <div className="h-40 sm:h-56 w-full overflow-hidden bg-muted">
@@ -185,7 +185,7 @@ function AuthorArchivePage() {
             </div>
           )}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

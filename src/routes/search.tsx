@@ -108,7 +108,7 @@ function SearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title")}</h1>
         <form onSubmit={submit} className="flex gap-2 mb-8">
           <div className="relative flex-1">
@@ -117,6 +117,7 @@ function SearchPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={t("search.placeholder")}
+              aria-label={t("search.placeholder")}
               className="icon-input"
               autoFocus
             />
@@ -269,7 +270,7 @@ function SearchPage() {
             </section>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

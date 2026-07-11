@@ -77,10 +77,10 @@ function ReadingListPage() {
   if (!settings.enabled) {
     return (
       <div className="min-h-screen flex flex-col">
-        <main className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
+        <div className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
           <h1 className="font-display text-3xl mb-3">{t("readingList.disabledTitle")}</h1>
           <p className="text-muted-foreground">{t("readingList.disabledBody")}</p>
-        </main>
+        </div>
       </div>
     );
   }
@@ -89,7 +89,7 @@ function ReadingListPage() {
   if (!user && !settings.allowGuests) {
     return (
       <div className="min-h-screen flex flex-col">
-        <main className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
+        <div className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
           <h1 className="font-display text-3xl mb-3">{settings.restrictedTitle}</h1>
           <p className="text-muted-foreground mb-6">{settings.restrictedDescription}</p>
           <Button
@@ -102,7 +102,7 @@ function ReadingListPage() {
           >
             {t("readingList.signIn")}
           </Button>
-        </main>
+        </div>
       </div>
     );
   }
@@ -131,7 +131,7 @@ function ReadingListPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <main className="flex-1 max-w-6xl mx-auto px-4 lg:px-8 py-10 w-full">
+      <div className="flex-1 max-w-6xl mx-auto px-4 lg:px-8 py-10 w-full">
         <header className="text-center mb-8">
           <h1 className="font-display text-4xl mb-2">{currentSection.heading}</h1>
           <p className="text-muted-foreground">{currentSection.description}</p>
@@ -176,7 +176,7 @@ function ReadingListPage() {
             lang={lang}
           />
         )}
-      </main>
+      </div>
     </div>
   );
 }

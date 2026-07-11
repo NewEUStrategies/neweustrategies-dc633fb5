@@ -336,7 +336,7 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
     console.error(error);
   }, [error]);
   return (
-    <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
+    <div className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
       <h1 className="font-display text-2xl">{copy.errorTitle}</h1>
       <p className="text-sm text-muted-foreground mt-2">{copy.errorBody}</p>
       <button
@@ -348,7 +348,7 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
       >
         {copy.tryAgain}
       </button>
-    </main>
+    </div>
   );
 }
 
@@ -648,7 +648,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
-        <main style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
+        <div style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
           <Breadcrumbs items={crumbs} />
           <AdZone
             position="top_of_post"
@@ -802,7 +802,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
               lang={lang}
             />
           )}
-        </main>
+        </div>
 
         <FooterSlideup pageType={adPageType} pageId={it.id} />
       </div>
@@ -822,7 +822,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         data-page-header-override={page.header_override ?? "default"}
       >
         <h1 className="sr-only">{title}</h1>
-        <main className="flex-1 w-full">{contentBlock}</main>
+        <div className="flex-1 w-full">{contentBlock}</div>
         <FooterSlideup pageType={adPageType} pageId={it.id} />
       </div>
     );
@@ -867,7 +867,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   if (tpl.bare) {
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template={tpl.id}>
-        <main className="flex-1 w-full">{pageBody}</main>
+        <div className="flex-1 w-full">{pageBody}</div>
       </div>
     );
   }
@@ -878,12 +878,12 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       data-page-template={tpl.id}
       data-page-header-override={page.header_override ?? "default"}
     >
-      <main
+      <div
         style={pageFullWidth ? undefined : outerMaxStyle}
         className={`flex-1 ${pageFullWidth ? "max-w-none" : ""} w-full mx-auto px-4 lg:px-8 py-10`}
       >
         {pageBody}
-      </main>
+      </div>
       <FooterSlideup pageType={adPageType} pageId={it.id} />
     </div>
   );

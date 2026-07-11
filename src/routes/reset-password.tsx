@@ -148,7 +148,7 @@ function ResetPasswordPage() {
   return (
     <TooltipProvider>
       <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4">
-        <main className="w-full max-w-md bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10">
+        <div className="w-full max-w-md bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10">
           <div className="mb-6 flex items-center gap-3">
             <Logo size="sm" withWordmark />
           </div>
@@ -260,7 +260,7 @@ function ResetPasswordPage() {
               </form>
             </>
           )}
-        </main>
+        </div>
       </div>
     </TooltipProvider>
   );
