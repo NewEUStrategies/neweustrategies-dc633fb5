@@ -9,9 +9,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Mic, Search, Eye, Clock, Check, FileText } from "@/lib/lucide-shim";
-import type { Podcast, PodcastStatus } from "@/lib/podcast/types";
+import {
+  Plus,
+  Save,
+  Trash2,
+  Mic,
+  Search,
+  Eye,
+  Clock,
+  Check,
+  FileText,
+  Settings,
+} from "@/lib/lucide-shim";
+import type { Podcast, PodcastSettings, PodcastStatus } from "@/lib/podcast/types";
 import { parseDuration, formatDuration } from "@/lib/podcast/types";
 import { PODCAST_FIELDS } from "@/lib/queries/podcasts";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,6 +61,8 @@ function Page() {
   const [editing, setEditing] = useState<Podcast | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PodcastStatus>("all");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const { data: rows } = useQuery({
     queryKey: ["admin", "podcasts"],
@@ -49,6 +72,9 @@ function Page() {
         .select(
           "id,slug,title_pl,title_en,status,duration_seconds,episode_number,season,audio_url,cover_image_url,published_at",
         )
+        // Bez tego filtra „Usunięte" odcinki (soft-delete) zostawały na liście,
+        // więc „Usuń" wyglądał jak brak reakcji.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Row[];
@@ -191,15 +217,23 @@ function Page() {
               </p>
             </div>
           </div>
-          {!editing && (
-            <Button onClick={() => setEditing(newDraft())}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nowy odcinek
-            </Button>
+          {!editing && !showSettings && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowSettings(true)}>
+                <Settings className="w-4 h-4 mr-2" />
+                Ustawienia
+              </Button>
+              <Button onClick={() => setEditing(newDraft())}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nowy odcinek
+              </Button>
+            </div>
           )}
         </div>
 
-        {!editing && (
+        {showSettings && !editing && <PodcastSettingsPane onClose={() => setShowSettings(false)} />}
+
+        {!editing && !showSettings && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <StatCard icon={Mic} label="Wszystkie" value={String(stats.total)} tone="default" />
@@ -310,7 +344,7 @@ function Page() {
                       </td>
                       <td className="p-3 text-right">
                         <button
-                          onClick={() => remove.mutate(r.id)}
+                          onClick={() => setConfirmId(r.id)}
                           className="text-xs text-destructive hover:underline inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -343,7 +377,179 @@ function Page() {
           />
         )}
       </div>
+
+      <AlertDialog open={!!confirmId} onOpenChange={(o) => !o && setConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Usunąć odcinek?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Odcinek zostanie przeniesiony do usuniętych i zniknie z listy oraz ze strony
+              publicznej. Tej operacji nie można cofnąć z panelu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmId) remove.mutate(confirmId);
+                setConfirmId(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Usuń
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminShell>
+  );
+}
+
+function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { tenantId } = useAuth();
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "podcast-settings"],
+    queryFn: async (): Promise<PodcastSettings | null> => {
+      const { data, error } = await supabase.from("podcast_settings").select("*").maybeSingle();
+      if (error && error.code !== "PGRST116") throw error;
+      return (data ?? null) as PodcastSettings | null;
+    },
+  });
+
+  const [form, setForm] = useState<Partial<PodcastSettings>>({});
+  const merged: PodcastSettings = {
+    tenant_id: tenantId ?? "",
+    default_player_variant: form.default_player_variant ?? data?.default_player_variant ?? "full",
+    autoplay_next: form.autoplay_next ?? data?.autoplay_next ?? false,
+    show_speed_control: form.show_speed_control ?? data?.show_speed_control ?? true,
+    spotify_url: form.spotify_url ?? data?.spotify_url ?? "",
+    apple_url: form.apple_url ?? data?.apple_url ?? "",
+    google_url: form.google_url ?? data?.google_url ?? "",
+    rss_url: form.rss_url ?? data?.rss_url ?? "",
+  };
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Brak kontekstu tenanta");
+      const payload = {
+        tenant_id: tenantId,
+        default_player_variant: merged.default_player_variant,
+        autoplay_next: merged.autoplay_next,
+        show_speed_control: merged.show_speed_control,
+        spotify_url: merged.spotify_url || null,
+        apple_url: merged.apple_url || null,
+        google_url: merged.google_url || null,
+        rss_url: merged.rss_url || null,
+      };
+      // Singleton per tenant (PK = tenant_id) - upsert, żeby pierwsze zapisanie
+      // utworzyło wiersz (dotąd tabela nie miała żadnego writera w kodzie).
+      const { error } = await supabase
+        .from("podcast_settings")
+        .upsert(payload, { onConflict: "tenant_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "podcast-settings"] });
+      qc.invalidateQueries({ queryKey: ["podcast-settings"] });
+      toast.success("Ustawienia zapisane");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground">Ładowanie ustawień…</div>;
+  }
+
+  return (
+    <section className="bg-card border border-border rounded-lg p-6 space-y-6 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-lg">Ustawienia podcastu</h2>
+        <Button variant="ghost" onClick={onClose}>
+          Wróć do listy
+        </Button>
+      </div>
+
+      <div className="grid gap-4">
+        <div className="grid gap-1.5">
+          <Label>Domyślny wariant odtwarzacza</Label>
+          <div className="flex gap-2">
+            {(["full", "mini", "sticky"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, default_player_variant: v }))}
+                className={`px-3 py-1.5 text-xs rounded border ${merged.default_player_variant === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}
+              >
+                {v === "full" ? "Pełny" : v === "mini" ? "Mini" : "Przyklejony"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="flex items-center justify-between gap-4 py-2">
+          <span className="text-sm">Pokazuj kontrolę prędkości</span>
+          <Switch
+            checked={merged.show_speed_control}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, show_speed_control: v }))}
+          />
+        </label>
+
+        <label className="flex items-center justify-between gap-4 py-2">
+          <span className="text-sm">Autoodtwarzanie kolejnego odcinka</span>
+          <Switch
+            checked={merged.autoplay_next}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, autoplay_next: v }))}
+          />
+        </label>
+
+        <div className="grid gap-1.5">
+          <Label>Spotify URL</Label>
+          <Input
+            value={merged.spotify_url ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, spotify_url: e.target.value }))}
+            placeholder="https://open.spotify.com/show/…"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Apple Podcasts URL</Label>
+          <Input
+            value={merged.apple_url ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, apple_url: e.target.value }))}
+            placeholder="https://podcasts.apple.com/…"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Google / YouTube URL</Label>
+          <Input
+            value={merged.google_url ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, google_url: e.target.value }))}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Zewnętrzny RSS (opcjonalnie)</Label>
+          <Input
+            value={merged.rss_url ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, rss_url: e.target.value }))}
+            placeholder="Domyślnie: /podcast/rss.xml"
+          />
+          <p className="text-xs text-muted-foreground">
+            Zostaw puste, aby używać wbudowanego kanału RSS: <code>/podcast/rss.xml</code>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>
+          Anuluj
+        </Button>
+        <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          <Save className="w-4 h-4 mr-2" />
+          Zapisz ustawienia
+        </Button>
+      </div>
+    </section>
   );
 }
 

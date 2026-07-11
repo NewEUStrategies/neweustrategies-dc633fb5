@@ -23,7 +23,7 @@ describe("periodEndFor", () => {
 });
 
 describe("entitlementForOrder", () => {
-  it("maps a subscription order to its plan", () => {
+  it("maps a subscription order to its plan (recurring, not lifetime)", () => {
     expect(
       entitlementForOrder({
         kind: "subscription",
@@ -31,7 +31,19 @@ describe("entitlementForOrder", () => {
         entity_type: null,
         entity_id: null,
       }),
-    ).toEqual({ type: "subscription", planId: "p1" });
+    ).toEqual({ type: "subscription", planId: "p1", lifetime: false });
+  });
+  it("maps a one-time PLAN order to lifetime plan access", () => {
+    // A one-time plan (plan_id, no entity) unlocks everything that plan gates
+    // with no expiry; previously this threw entity_required at checkout.
+    expect(
+      entitlementForOrder({
+        kind: "one_time",
+        plan_id: "p1",
+        entity_type: null,
+        entity_id: null,
+      }),
+    ).toEqual({ type: "subscription", planId: "p1", lifetime: true });
   });
   it("maps a one-time order to its entity", () => {
     expect(

@@ -3,9 +3,14 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { PostListCard } from "@/components/molecules/PostListCard";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
-import { homePageQueryOptions } from "@/lib/queries/public";
+import {
+  blogListQueryOptions,
+  homePageQueryOptions,
+  homepageModeQueryOptions,
+} from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
@@ -34,7 +39,15 @@ export const Route = createFileRoute("/")({
     // language lives in the URL path (PL at "/", EN at "/en"), so each variant
     // is its own cache entry - no cookie-driven personalization, no poisoning.
     setCacheControlHeader(contentCacheControl());
-    const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
+    const [homePage, homeMode] = await Promise.all([
+      context.queryClient.ensureQueryData(homePageQueryOptions()),
+      context.queryClient.ensureQueryData(homepageModeQueryOptions()),
+    ]);
+    // "Najnowsze wpisy" jako strona główna: dotąd opcja z ustawień czytania nie
+    // była honorowana - trasa zawsze renderowała stronę statyczną.
+    if (homeMode === "latest_posts") {
+      await context.queryClient.ensureQueryData(blogListQueryOptions());
+    }
     // Settle every data-bound widget query BEFORE the router dehydrates - the
     // same model as $.tsx. Settled queries ship as plain data in the initial
     // dehydrated payload and hydrate synchronously, so client hydration sees
@@ -119,9 +132,13 @@ function Index() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { data: homePage } = useSuspenseQuery(homePageQueryOptions());
+  const { data: homeMode } = useSuspenseQuery(homepageModeQueryOptions());
 
+  const isLatestPosts = homeMode === "latest_posts";
   const doc =
-    homePage && homePage.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
+    !isLatestPosts && homePage && homePage.editor === "builder"
+      ? parseBuilderDoc(homePage.builder_data)
+      : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -135,7 +152,9 @@ function Index() {
             ? "New European Strategies - Strategic thinking, new perspectives"
             : "New European Strategies - Strategiczne myślenie, nowe perspektywy"}
         </h1>
-        {doc && doc.sections.length > 0 ? (
+        {isLatestPosts ? (
+          <LatestPostsHome lang={lang} />
+        ) : doc && doc.sections.length > 0 ? (
           // The loader settles the whole document's widget queries before the
           // router dehydrates (see loader note), so sections normally render
           // eagerly with data into the SSR shell. `stream` +
@@ -156,6 +175,35 @@ function Index() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
+  const {
+    data: { posts },
+  } = useSuspenseQuery(blogListQueryOptions());
+  return (
+    <div className="max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      {posts.length === 0 ? (
+        <p className="text-muted-foreground text-center py-16">
+          {lang === "en" ? "No posts published yet." : "Brak opublikowanych wpisów."}
+        </p>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {posts.map((p, idx) => (
+            <PostListCard
+              key={p.id}
+              post={p}
+              href={p.href}
+              lang={lang}
+              titleClassName="text-base"
+              priority={idx === 0}
+              viewTransitionId={p.id}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

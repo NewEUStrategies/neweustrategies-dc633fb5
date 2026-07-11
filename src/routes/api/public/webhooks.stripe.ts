@@ -135,6 +135,7 @@ async function handle(request: Request): Promise<Response> {
           paid_at: string;
           provider_intent_id: string | null;
           provider_session_id: string | null;
+          provider_subscription_id?: string | null;
           amount_cents?: number;
           currency?: string;
           receipt_email?: string;
@@ -144,6 +145,9 @@ async function handle(request: Request): Promise<Response> {
           paid_at: new Date().toISOString(),
           provider_intent_id: paymentIntent,
           provider_session_id: sessionId,
+          // Ten sam identyfikator, którego grantEntitlement użył jako
+          // external_ref subskrypcji - pozwala zawęzić refund do tej subskrypcji.
+          provider_subscription_id: subscriptionId ?? sessionId,
         };
         if (amountTotal !== null) updates.amount_cents = amountTotal;
         if (currency) updates.currency = currency.toUpperCase();
@@ -214,10 +218,7 @@ async function handle(request: Request): Promise<Response> {
           // UI stops showing "cancels at".
           updates.canceled_at = cancelAtPeriodEnd ? new Date().toISOString() : null;
         }
-        await supabaseAdmin
-          .from("user_subscriptions")
-          .update(updates)
-          .eq("external_ref", subId);
+        await supabaseAdmin.from("user_subscriptions").update(updates).eq("external_ref", subId);
         break;
       }
 
@@ -244,7 +245,9 @@ async function handle(request: Request): Promise<Response> {
 
         const { data: order } = await supabaseAdmin
           .from("payment_orders")
-          .select("id, user_id, kind, entity_type, entity_id, provider_session_id")
+          .select(
+            "id, user_id, kind, entity_type, entity_id, provider_session_id, provider_subscription_id",
+          )
           .eq("provider_intent_id", paymentIntent)
           .maybeSingle();
         if (!order) break;
@@ -254,14 +257,24 @@ async function handle(request: Request): Promise<Response> {
           .update({ status: "refunded" })
           .eq("id", order.id);
 
-        if (order.kind === "subscription") {
-          // For subscription refunds we revoke immediately - Stripe usually
-          // sends customer.subscription.deleted alongside a full refund, but
-          // we must not depend on ordering.
-          const sessionId = order.provider_session_id;
-          if (sessionId) {
-            // Session -> subscription id lives on the checkout session; the
-            // stored external_ref is the sub id from grantEntitlement.
+        // A one-time PURCHASE grants a user_purchases row; everything else
+        // (recurring subscription OR one-time lifetime-plan) grants a
+        // user_subscriptions row keyed by external_ref.
+        const isEntityPurchase = order.kind === "one_time" && !!order.entity_id;
+
+        if (isEntityPurchase) {
+          await supabaseAdmin
+            .from("user_purchases")
+            .update({ status: "refunded" })
+            .eq("user_id", order.user_id)
+            .eq("entity_type", order.entity_type!)
+            .eq("entity_id", order.entity_id!);
+        } else {
+          // Revoke ONLY the subscription this order paid for - matched by the
+          // external_ref we stored (subscription id, or session id fallback).
+          // The old code cancelled EVERY active subscription of the user.
+          const ref = order.provider_subscription_id ?? order.provider_session_id;
+          if (ref) {
             await supabaseAdmin
               .from("user_subscriptions")
               .update({
@@ -270,19 +283,12 @@ async function handle(request: Request): Promise<Response> {
                 current_period_end: new Date().toISOString(),
               })
               .eq("user_id", order.user_id)
+              .eq("external_ref", ref)
               .eq("status", "active");
           }
-        } else if (order.kind === "one_time" && order.entity_type && order.entity_id) {
-          await supabaseAdmin
-            .from("user_purchases")
-            .update({ status: "refunded" })
-            .eq("user_id", order.user_id)
-            .eq("entity_type", order.entity_type)
-            .eq("entity_id", order.entity_id);
         }
         break;
       }
-
 
       case "checkout.session.expired":
       case "payment_intent.payment_failed": {

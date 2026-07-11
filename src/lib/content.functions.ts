@@ -828,10 +828,15 @@ export const updatePage = createServerFn({ method: "POST" })
     return guard("page.update", userId, 120, async () => {
       const tenantId = await resolveTenant(supabase, userId);
 
-      const { data: existing, error: exErr } = await supabase
+      // Full pre-update row for the revision snapshot. Body columns (builder_data
+      // etc.) are no longer SELECT-able by the authenticated role, so read via
+      // service_role scoped by tenant - same pattern as updatePost.
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: existing, error: exErr } = await supabaseAdmin
         .from("pages")
-        .select("id, status, slug, parent_id, published_at")
+        .select("*")
         .eq("id", data.id)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Page not found or access denied");
@@ -855,6 +860,22 @@ export const updatePage = createServerFn({ method: "POST" })
         updates.parent_id !== undefined && updates.parent_id !== existing.parent_id;
       const willMove = (slugChanged || parentChanged) && existing.status === "published";
       const oldPath = willMove ? await pageFullPath(supabase, data.id) : null;
+
+      // Snapshot the pre-update page into content_revisions (same throttle/force
+      // rules as posts). Pages previously had NO revision history despite the
+      // builder holding the heaviest documents - a single bad save was
+      // unrecoverable.
+      if (revisionTouches(data.fields)) {
+        await writeRevisionSnapshot(supabase, {
+          tenantId,
+          userId,
+          entityType: "page",
+          entityId: data.id,
+          row: existing as Record<string, unknown>,
+          note: "autosave",
+          force: nextStatus !== existing.status,
+        });
+      }
 
       if (Object.keys(updates).length) {
         // Same silent-RLS-rejection guard as updatePost: 0 updated rows with

@@ -38,7 +38,7 @@ import {
   Link as LinkIcon,
   Search,
 } from "@/lib/lucide-shim";
-import { Inbox, MessageCircle, ListChecks } from "lucide-react";
+import { Inbox, MessageCircle, ListChecks, Radio } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -226,6 +226,13 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
+        {
+          to: "/admin/live-blog",
+          icon: Radio,
+          label: t("admin.nav.liveBlog", {
+            defaultValue: lang === "pl" ? "Live blog" : "Live blog",
+          }),
+        },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
         { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
         { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },

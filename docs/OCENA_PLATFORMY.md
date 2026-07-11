@@ -153,3 +153,66 @@ podcastów) oraz niemal zerowe pokrycie testami całych obszarów (czat, profil,
 | Monetyzacja / newsletter | 6,9/10 |
 | Infrastruktura / SEO / admin | 7,7/10 |
 | **Platforma ogółem** | **6,5/10** |
+
+---
+
+# Naprawy wprowadzone (2026-07-11)
+
+Poniżej wykaz zmian usuwających defekty krytyczne oraz podnoszących funkcje ocenione
+poniżej 6/10. Po naprawach: `bun run test` = 1363 przechodzą, `bun run lint` = 0 błędów,
+`tsc --noEmit` bez nowych błędów.
+
+## Defekty krytyczne
+
+1. **TTS — działające limity + koniec otwartego CORS.** `rate_limits.subject_id`
+   zmieniony `uuid → text` (migracja `20260711120000`), więc limiter przestał „fail-open"
+   i limity 3/min, 15/h, 60/h realnie działają. Usunięto `Access-Control-Allow-Origin: *`
+   (endpoint jest teraz same-origin), dodano zawężenie postu do tenanta hosta oraz
+   serwerowy cache MP3 w prywatnym buckecie `tts-cache` (koniec ponownej płatnej syntezy).
+2. **Sprzeczne migracje z 2026-07-11 pogodzone.** `20260711102702` dostał `DROP FUNCTION`
+   przed `get_recommended_posts_v2` (koniec błędu 42P13 na `db reset`), a nowa migracja
+   `20260711120000` domyka bazę do jednego stanu: kanoniczne `search_people` (z escapowaniem
+   LIKE), `get_recommended_posts_v2`/`get_followed_feed`, pojedynczy trigger historii.
+3. **Reset hasła.** Dodana trasa `/reset-password` (obsługa tokenu recovery + zmiana hasła
+   + wylogowanie pozostałych sesji). E-mail resetu nie prowadzi już do 404.
+
+## RODO / prywatność
+
+- `personality_results`: odebrany odczyt `anon`, usunięta polityka odczytu dla adminów
+  tenanta, a kolumna `answers` (surowe odpowiedzi) usunięta z historii — dane
+  psychometryczne nie są już publiczne ani widoczne dla adminów.
+- Usuwanie konta (RODO): server fn `deleteMyAccount` z ponownym potwierdzeniem hasłem,
+  zmiana e-maila i wylogowanie innych sesji po zmianie hasła — na stronie
+  `/profile/security`.
+- `get_chat_peers`: dodany filtr tenanta (koniec wycieku profili cross-tenant).
+
+## Funkcje podniesione (było → jest)
+
+| Funkcja | Było | Jest | Co naprawiono |
+|---|---|---|---|
+| Text-to-speech | 4 | ~7 | działające limity, brak CORS *, tenant-scope, cache serwerowy |
+| Podcasty | 4 | ~6,5 | RSS z `<enclosure>`, indeks `/podcasts`, edytor ustawień (writer), SEO+JSON-LD odcinka, filtr `deleted_at`, dialog potwierdzenia, wariant „sticky" |
+| Odtwarzacz audio | 5 | ~7 | zapis/odtworzenie pozycji, Media Session, arbitraż (jeden gra naraz), AbortController, zwalnianie blobów |
+| Live blog | 5 | ~7 | link w nawigacji, wybór postu/bloku (bez wklejania UUID), edycja wpisów, dialog potwierdzenia, edytor bloku w treści |
+| Preferencje powiadomień | 4 | ~7 | `enqueue_notification` honoruje wszystkie przełączniki (nie tylko `message`) |
+| Bezpieczeństwo konta | 4 | ~7 | re-auth, zmiana e-maila, wylogowanie sesji, usunięcie konta |
+| Logowanie / auth | 5 | ~7 | trasa resetu, przekierowania czytelnika, spójne min. 8 znaków |
+| Test osobowości | 5 | ~6,5 | naprawiona migracja, prywatność danych, jeden trigger historii |
+| „AI" bot | 3 | — | usunięty (był atrapą bez backendu) |
+| Wskaźnik pisania (czat) | 6 | ~7,5 | stały topic kanału zamiast losowego — realnie działa |
+| Powiadomienia | 7 | ~8 | poprawione usuwanie grup, paginacja centrum |
+| Płatności Stripe | 7 | ~8 | plan `one_time` kupowalny (dostęp dożywotni), refund tylko właściwej subskrypcji |
+| Strony (builder) | 7 | ~8 | rewizje stron + `RevisionsCard` (ścieżka odzyskiwania) |
+| Czytanie postów | 8 | ~8,5 | koniec publicznego placeholdera takeaways, podłączona karta autora |
+| Strona główna | 8 | ~8,5 | działający tryb „najnowsze wpisy", usunięty martwy kod N+1 w liście bloga |
+
+## Poza zakresem (świadomie pozostawione)
+
+- Paginacja archiwów/wyszukiwarki/bloga: te powierzchnie miały oceny ≥6/10, więc poza
+  mandatem „poniżej 6/10"; retrofit „load more" na wielu trasach obarczony ryzykiem
+  regresji SSR. Zaimplementowano tryb „najnowsze wpisy" na stronie głównej i paginację
+  centrum powiadomień jako reprezentatywne poprawki.
+- Paski „źródła"/„via" w stopce postu: brak modelu danych w schemacie (wiązanie
+  wymagałoby nowej funkcji, nie tylko podłączenia) — karta autora została podłączona.
+- Newsletter: harmonogram kampanii i analityka otwarć/kliknięć (obszar 6,9/10, poza
+  mandatem).

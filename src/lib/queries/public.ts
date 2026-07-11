@@ -175,6 +175,30 @@ const PAGE_PATH_TTL = 10 * 60_000;
 //      homepage_page_id or homepage_page_slug.
 //   2. fallback: top-level page with slug = "home".
 // Returns null if neither is found / published.
+/**
+ * Homepage mode from reading settings ("static_page" | "latest_posts" | unset).
+ * The settings UI offers "latest posts" but the route never honoured it - this
+ * lets index.tsx render the post list instead of always resolving a page.
+ * Tiny, cached read; the full homepage query reads the same setting for the
+ * static-page path.
+ */
+export const homepageModeQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public", "home-mode"] as const,
+    queryFn: async (): Promise<string> => {
+      return edgeTtlCache("public:home-mode", 60_000, async () => {
+        const { data } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "reading")
+          .maybeSingle();
+        const reading = (data?.value ?? {}) as { homepage_mode?: string };
+        return reading.homepage_mode ?? "";
+      });
+    },
+    staleTime: PAGE_PATH_TTL,
+  });
+
 export const homePageQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "home-page"] as const,
@@ -262,20 +286,12 @@ export const blogListQueryOptions = () =>
         .limit(50);
       if (error) throw error;
       const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
-      const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
-      const paths = new Map<string, string>();
-      await Promise.all(
-        parentIds.map(async (pid) => {
-          const { data: p } = await supabase.rpc("page_full_path", { _page_id: pid });
-          if (typeof p === "string") paths.set(pid, p);
-        }),
-      );
+      // Posts always link via the dedicated `/post/$slug` route, which resolves
+      // even when a parent path is missing. (A previous version fetched one
+      // `page_full_path` RPC per parent page here and then never used the
+      // result - removed: pure N+1 with no effect on the href.)
       const posts: BlogListItem[] = rows.map((r) => ({
         ...r,
-        // Always link posts via the dedicated `/post/$slug` route. The optional
-        // parent-page path is only used by the universal splat resolver when a
-        // post is genuinely nested under a CMS page; routing through `/post`
-        // guarantees the link resolves even when the parent path is missing.
         href: `/post/${r.slug}`,
       }));
       return { posts };

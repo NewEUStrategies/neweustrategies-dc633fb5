@@ -43,8 +43,18 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && session && isStaff) navigate({ to: "/admin" });
-  }, [session, isStaff, loading, navigate]);
+    if (loading || !session) return;
+    if (isStaff) {
+      navigate({ to: "/admin" });
+      return;
+    }
+    // Czytelnik po zalogowaniu nie zostaje na formularzu: honorujemy
+    // skonfigurowany cel (tylko ścieżki wewnętrzne), domyślnie strona główna.
+    const target = settings.logged_in_redirect_url?.startsWith("/")
+      ? settings.logged_in_redirect_url
+      : "/";
+    navigate({ to: target });
+  }, [session, isStaff, loading, navigate, settings.logged_in_redirect_url]);
 
   const t = useMemo(() => {
     const dict = {
@@ -131,7 +141,13 @@ function LoginPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/admin`,
+            // Rejestrują się tu wyłącznie czytelnicy - potwierdzenie e-maila
+            // prowadzi na stronę publiczną, nie do panelu admina.
+            emailRedirectTo: `${window.location.origin}${
+              settings.logged_in_redirect_url?.startsWith("/")
+                ? settings.logged_in_redirect_url
+                : "/"
+            }`,
             data: {
               display_name: displayName,
               first_name: firstName,
@@ -412,11 +428,11 @@ function LoginPage() {
                 <Input
                   type={showPw ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={mode === "signup" ? 8 : undefined}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isPl ? "Minimum 6 znaków" : "At least 6 characters"}
+                  placeholder={isPl ? "Minimum 8 znaków" : "At least 8 characters"}
                   className="icon-input icon-input-with-action h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
                 <button

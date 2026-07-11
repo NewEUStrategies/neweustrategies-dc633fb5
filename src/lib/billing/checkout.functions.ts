@@ -32,7 +32,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let recurringInterval: StripeRecurringInterval = "month";
     let trialDays = 0;
 
-    if (data.kind === "subscription") {
+    // One-time PLAN purchase: kind=one_time with a plan_id and no entity. The
+    // price comes from the plan; the Stripe session is a one-off payment (no
+    // recurring), and the grant is lifetime plan access (see entitlementForOrder).
+    const isOneTimePlan = data.kind === "one_time" && !!data.plan_id && !data.entity_id;
+
+    if (data.kind === "subscription" || isOneTimePlan) {
       if (!data.plan_id) throw new Error("plan_id_required");
       const { data: plan, error } = await supabase
         .from("access_plans")
@@ -45,8 +50,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
       recurringInterval = stripeRecurringInterval(String(plan.interval));
-      trialDays = Math.max(0, Number(plan.trial_days ?? 0));
-
+      trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the

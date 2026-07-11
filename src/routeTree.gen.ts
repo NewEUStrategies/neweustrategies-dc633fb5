@@ -14,9 +14,11 @@ import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PodcastsRouteImport } from './routes/podcasts'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as MessagesRouteImport } from './routes/messages'
@@ -44,6 +46,7 @@ import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
@@ -156,6 +159,11 @@ const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReadingListRoute = ReadingListRouteImport.update({
   id: '/reading-list',
   path: '/reading-list',
@@ -169,6 +177,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PodcastsRoute = PodcastsRouteImport.update({
+  id: '/podcasts',
+  path: '/podcasts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PeopleRoute = PeopleRouteImport.update({
@@ -304,6 +317,11 @@ const ProfileAccountRoute = ProfileAccountRouteImport.update({
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
   path: '/post/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PodcastRssDotxmlRoute = PodcastRssDotxmlRouteImport.update({
+  id: '/podcast/rss.xml',
+  path: '/podcast/rss.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PodcastSlugRoute = PodcastSlugRouteImport.update({
@@ -758,9 +776,11 @@ export interface FileRoutesByFullPath {
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
+  '/podcasts': typeof PodcastsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
   '/search': typeof SearchRoute
@@ -816,6 +836,7 @@ export interface FileRoutesByFullPath {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
+  '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
@@ -880,8 +901,10 @@ export interface FileRoutesByTo {
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
+  '/podcasts': typeof PodcastsRoute
   '/pricing': typeof PricingRoute
   '/reading-list': typeof ReadingListRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
   '/search': typeof SearchRoute
@@ -934,6 +957,7 @@ export interface FileRoutesByTo {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
+  '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
@@ -1000,9 +1024,11 @@ export interface FileRoutesById {
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
+  '/podcasts': typeof PodcastsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
   '/search': typeof SearchRoute
@@ -1058,6 +1084,7 @@ export interface FileRoutesById {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
+  '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
@@ -1125,9 +1152,11 @@ export interface FileRouteTypes {
     | '/messages'
     | '/news-sitemap.xml'
     | '/people'
+    | '/podcasts'
     | '/pricing'
     | '/profile'
     | '/reading-list'
+    | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
     | '/search'
@@ -1183,6 +1212,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
+    | '/podcast/rss.xml'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/author'
@@ -1247,8 +1277,10 @@ export interface FileRouteTypes {
     | '/messages'
     | '/news-sitemap.xml'
     | '/people'
+    | '/podcasts'
     | '/pricing'
     | '/reading-list'
+    | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
     | '/search'
@@ -1301,6 +1333,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
+    | '/podcast/rss.xml'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/author'
@@ -1366,9 +1399,11 @@ export interface FileRouteTypes {
     | '/messages'
     | '/news-sitemap.xml'
     | '/people'
+    | '/podcasts'
     | '/pricing'
     | '/profile'
     | '/reading-list'
+    | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
     | '/search'
@@ -1424,6 +1459,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
+    | '/podcast/rss.xml'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/author'
@@ -1490,9 +1526,11 @@ export interface RootRouteChildren {
   MessagesRoute: typeof MessagesRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
+  PodcastsRoute: typeof PodcastsRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   RssDotxmlRoute: typeof RssDotxmlRoute
   SearchRoute: typeof SearchRoute
@@ -1509,6 +1547,7 @@ export interface RootRouteChildren {
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
+  PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRoute
@@ -1559,6 +1598,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reading-list': {
       id: '/reading-list'
       path: '/reading-list'
@@ -1578,6 +1624,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/podcasts': {
+      id: '/podcasts'
+      path: '/podcasts'
+      fullPath: '/podcasts'
+      preLoaderRoute: typeof PodcastsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/people': {
@@ -1767,6 +1820,13 @@ declare module '@tanstack/react-router' {
       path: '/post/$slug'
       fullPath: '/post/$slug'
       preLoaderRoute: typeof PostSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/podcast/rss.xml': {
+      id: '/podcast/rss.xml'
+      path: '/podcast/rss.xml'
+      fullPath: '/podcast/rss.xml'
+      preLoaderRoute: typeof PodcastRssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/podcast/$slug': {
@@ -2646,9 +2706,11 @@ const rootRouteChildren: RootRouteChildren = {
   MessagesRoute: MessagesRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
+  PodcastsRoute: PodcastsRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   RssDotxmlRoute: RssDotxmlRoute,
   SearchRoute: SearchRoute,
@@ -2666,6 +2728,7 @@ const rootRouteChildren: RootRouteChildren = {
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
   PodcastSlugRoute: PodcastSlugRoute,
+  PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   WebStoriesSlugRoute: WebStoriesSlugRoute,
@@ -2681,13 +2744,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

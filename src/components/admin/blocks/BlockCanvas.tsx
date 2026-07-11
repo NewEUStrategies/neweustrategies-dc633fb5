@@ -58,6 +58,7 @@ import { GroupBlock } from "./edit/Group";
 import { SpacerBlock } from "./edit/Spacer";
 import { PageBreakBlock } from "./edit/PageBreak";
 import { ReadMoreBlock } from "./edit/ReadMore";
+import { LiveBlogBlock } from "./edit/LiveBlog";
 import { PullquoteBlock } from "./edit/Pullquote";
 import { PreformattedBlock } from "./edit/Preformatted";
 import { VerseBlock } from "./edit/Verse";
@@ -375,6 +376,8 @@ function BlockRenderer({
       return <PageBreakBlock />;
     case "read-more":
       return <ReadMoreBlock block={block} onChange={onChange} />;
+    case "liveblog":
+      return <LiveBlogBlock block={block} onChange={onChange} />;
     case "pullquote":
       return <PullquoteBlock block={block} onChange={onChange} />;
     case "preformatted":

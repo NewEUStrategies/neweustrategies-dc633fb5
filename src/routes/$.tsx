@@ -559,20 +559,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       ) : (
         <>
           {(() => {
-            const postFormat = isPost
-              ? ((it as { post_format?: string }).post_format ?? "standard")
-              : null;
-            const isTextPost = isPost && postFormat !== "audio" && postFormat !== "video";
             const hasBullets = takeaways.length > 0;
             const tocOverride = (post?.toc_override ?? null) as TocOverride | null;
             const readMinutes = post?.read_minutes ?? null;
             return (
               <>
-                {(hasBullets || isTextPost) && (
+                {/* Tylko realne punkty trafiają na stronę publiczną - placeholder
+                    „uzupełnij punkty" był widoczny dla czytelników przy postach
+                    bez takeaways. Puste = nie renderujemy sekcji. */}
+                {hasBullets && (
                   <KeyTakeaways
                     items={takeaways}
                     variantOverride={it.takeaways_variant ?? undefined}
-                    withPlaceholders={!hasBullets && isTextPost}
                   />
                 )}
                 {/* Widget odsłuchu został przeniesiony do sidebar (nad "Spis treści"). */}
@@ -721,7 +719,24 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   tags={postTags}
                   sources={null}
                   via={null}
-                  author={null}
+                  author={
+                    postAuthor
+                      ? {
+                          display_name:
+                            postAuthor.display_name ||
+                            [postAuthor.first_name, postAuthor.last_name]
+                              .filter(Boolean)
+                              .join(" ") ||
+                            null,
+                          avatar_url:
+                            postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? null,
+                          bio:
+                            (lang === "en"
+                              ? postAuthor.author_profile?.bio_en
+                              : postAuthor.author_profile?.bio_pl) ?? null,
+                        }
+                      : null
+                  }
                 />
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
                   <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />

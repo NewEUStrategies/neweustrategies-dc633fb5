@@ -4,19 +4,49 @@ import { useTranslation } from "react-i18next";
 import { podcastBySlugQueryOptions, podcastSettingsQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
 import { podcastTitle, podcastEpisodeLabel, formatDuration } from "@/lib/podcast/types";
+import { safeJsonLd } from "@/lib/seo/jsonld";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 export const Route = createFileRoute("/podcast/$slug")({
   loader: async ({ context, params }) => {
     const data = await context.queryClient.ensureQueryData(podcastBySlugQueryOptions(params.slug));
     if (!data) throw notFound();
-    return null;
+    return { podcast: data };
   },
-  head: ({ params }) => ({
-    meta: [{ title: `Podcast · ${params.slug}` }],
-  }),
-  errorComponent: ({ error }) => (
-    <div className="container mx-auto p-8 text-sm">{error.message}</div>
+  head: ({ loaderData }) => {
+    const p = loaderData?.podcast;
+    if (!p) return { meta: [{ title: "Podcast" }] };
+    const title = p.title_pl || p.title_en || "Podcast";
+    const description = (p.excerpt_pl || p.excerpt_en || "").slice(0, 300) || undefined;
+    // JSON-LD PodcastEpisode: pozwala wyszukiwarkom rozpoznać odcinek podcastu.
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "PodcastEpisode",
+      name: title,
+      ...(description ? { description } : {}),
+      ...(p.episode_number != null ? { episodeNumber: p.episode_number } : {}),
+      ...(p.published_at ? { datePublished: p.published_at } : {}),
+      associatedMedia: {
+        "@type": "MediaObject",
+        contentUrl: p.audio_url,
+      },
+    };
+    return {
+      meta: [
+        { title: `${title} · Podcast` },
+        ...(description ? [{ name: "description", content: description }] : []),
+        { property: "og:title", content: title },
+        { property: "og:type", content: "article" },
+        ...(description ? [{ property: "og:description", content: description }] : []),
+        ...(p.cover_image_url ? [{ property: "og:image", content: p.cover_image_url }] : []),
+      ],
+      scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
+    };
+  },
+  errorComponent: () => (
+    <div className="container mx-auto p-8 text-sm text-muted-foreground">
+      Nie udało się wczytać odcinka. Spróbuj ponownie później.
+    </div>
   ),
   notFoundComponent: () => (
     <div className="container mx-auto p-8 text-sm text-muted-foreground">
@@ -25,6 +55,10 @@ export const Route = createFileRoute("/podcast/$slug")({
   ),
   component: PodcastSinglePage,
 });
+
+function playerVariant(v: string | undefined): "mini" | "full" | "sticky" {
+  return v === "mini" || v === "sticky" ? v : "full";
+}
 
 function PodcastSinglePage() {
   const { slug } = Route.useParams();
@@ -58,7 +92,7 @@ function PodcastSinglePage() {
         src={p.audio_url}
         title={title}
         initialDuration={p.duration_seconds}
-        variant={settings?.default_player_variant === "mini" ? "mini" : "full"}
+        variant={playerVariant(settings?.default_player_variant)}
         showSpeed={settings?.show_speed_control ?? true}
         lang={lang}
       />

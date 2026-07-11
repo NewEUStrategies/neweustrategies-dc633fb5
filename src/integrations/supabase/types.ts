@@ -2341,6 +2341,7 @@ export type Database = {
           icon: string | null
           id: string
           kind: string
+          meta: Json
           read_at: string | null
           tenant_id: string
           title_en: string | null
@@ -2355,6 +2356,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          meta?: Json
           read_at?: string | null
           tenant_id: string
           title_en?: string | null
@@ -2369,6 +2371,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          meta?: Json
           read_at?: string | null
           tenant_id?: string
           title_en?: string | null
@@ -2536,6 +2539,7 @@ export type Database = {
           provider: string
           provider_intent_id: string | null
           provider_session_id: string | null
+          provider_subscription_id: string | null
           receipt_email: string | null
           status: Database["public"]["Enums"]["order_status"]
           tenant_id: string
@@ -2557,6 +2561,7 @@ export type Database = {
           provider?: string
           provider_intent_id?: string | null
           provider_session_id?: string | null
+          provider_subscription_id?: string | null
           receipt_email?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tenant_id?: string
@@ -2578,6 +2583,7 @@ export type Database = {
           provider?: string
           provider_intent_id?: string | null
           provider_session_id?: string | null
+          provider_subscription_id?: string | null
           receipt_email?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tenant_id?: string
@@ -2631,7 +2637,6 @@ export type Database = {
       personality_result_history: {
         Row: {
           agreeableness: number
-          answers: Json | null
           conscientiousness: number
           created_at: string
           extraversion: number
@@ -2644,7 +2649,6 @@ export type Database = {
         }
         Insert: {
           agreeableness: number
-          answers?: Json | null
           conscientiousness: number
           created_at?: string
           extraversion: number
@@ -2657,7 +2661,6 @@ export type Database = {
         }
         Update: {
           agreeableness?: number
-          answers?: Json | null
           conscientiousness?: number
           created_at?: string
           extraversion?: number
@@ -3674,6 +3677,7 @@ export type Database = {
           created_at: string
           current_company: string | null
           discoverable: boolean
+          discovery_search: string | null
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -3705,6 +3709,7 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
+          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -3736,6 +3741,7 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
+          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null

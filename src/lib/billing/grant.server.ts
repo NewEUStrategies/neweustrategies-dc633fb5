@@ -36,12 +36,17 @@ export async function grantEntitlement(
   const entitlement = entitlementForOrder(order);
 
   if (entitlement.type === "subscription") {
-    const { data: plan } = await supabaseAdmin
-      .from("access_plans")
-      .select("interval")
-      .eq("id", entitlement.planId)
-      .maybeSingle();
-    const periodEnd = periodEndFor(plan?.interval ?? null, new Date()).toISOString();
+    // Lifetime (one-time plan purchase) => no expiry; has_content_access()
+    // treats current_period_end IS NULL as never-expiring.
+    let periodEnd: string | null = null;
+    if (!entitlement.lifetime) {
+      const { data: plan } = await supabaseAdmin
+        .from("access_plans")
+        .select("interval")
+        .eq("id", entitlement.planId)
+        .maybeSingle();
+      periodEnd = periodEndFor(plan?.interval ?? null, new Date()).toISOString();
+    }
     const ref = externalRef ?? order.id;
 
     const { data: existing } = await supabaseAdmin

@@ -9,11 +9,13 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { announcePlayback, subscribePlayback } from "@/lib/audio/playbackBus";
 
 export interface AudioTrackMeta {
   postId: string;
@@ -93,8 +95,86 @@ const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null)
 // Cache blob URL na sesję. Ten sam artykuł ⇒ ten sam blob (bez ponownego TTS).
 const audioBlobCache = new Map<string, string>();
 
+// Górny limit trzymanych blobów. Zapobiega nieograniczonemu wzrostowi pamięci
+// w długiej sesji - najstarsze wpisy są usuwane, a ich blob URL zwalniane.
+const MAX_CACHED_BLOBS = 12;
+
 function cacheKey(postId: string, lang: "pl" | "en"): string {
   return `${postId}:${lang}`;
+}
+
+/**
+ * Zapisuje blob URL do cache, zwalniając (revokeObjectURL) stary URL gdy dany
+ * klucz jest nadpisywany oraz gdy najstarsze wpisy są eksmitowane po
+ * przekroczeniu `MAX_CACHED_BLOBS`. `keepUrl` chroni aktualnie odtwarzany blob
+ * przed zwolnieniem, gdyby akurat miał zostać eksmitowany.
+ */
+function setCachedBlob(key: string, url: string, keepUrl?: string | null): void {
+  const previous = audioBlobCache.get(key);
+  if (previous && previous !== url) {
+    URL.revokeObjectURL(previous);
+  }
+  audioBlobCache.set(key, url);
+  while (audioBlobCache.size > MAX_CACHED_BLOBS) {
+    const oldestKey = audioBlobCache.keys().next().value;
+    if (oldestKey === undefined || oldestKey === key) break;
+    const oldestUrl = audioBlobCache.get(oldestKey);
+    audioBlobCache.delete(oldestKey);
+    if (oldestUrl && oldestUrl !== url && oldestUrl !== keepUrl) {
+      URL.revokeObjectURL(oldestUrl);
+    }
+  }
+}
+
+// Trwałość pozycji odtwarzania (localStorage). Klucz per tożsamość audio
+// (postId+lang), spójny z formatem `cacheKey`. Wszystkie dostępy chronione pod
+// kątem SSR i trybu prywatnego.
+const POSITION_KEY_PREFIX = "audio-pos:";
+// Poniżej tego progu (s) nie zapisujemy/nie przywracamy - offset jest trywialny.
+const POSITION_MIN_SECONDS = 5;
+// Odstęp od końca (s), przy którym uznajemy materiał za "prawie skończony".
+const POSITION_END_MARGIN = 5;
+// Throttle zapisu pozycji (ms).
+const POSITION_SAVE_INTERVAL = 5000;
+
+function positionKey(postId: string, lang: "pl" | "en"): string {
+  return `${POSITION_KEY_PREFIX}${postId}:${lang}`;
+}
+
+function readStoredPosition(key: string): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.localStorage.getItem(key);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeStoredPosition(key: string, seconds: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, String(Math.floor(seconds)));
+  } catch {
+    /* private mode / quota - ignorujemy */
+  }
+}
+
+function clearStoredPosition(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* noop */
+  }
+}
+
+/** Czy pozycja `t` w materiale o długości `dur` warta jest zapisania/przywrócenia. */
+function isRestorablePosition(t: number, dur: number): boolean {
+  if (t <= POSITION_MIN_SECONDS) return false;
+  if (Number.isFinite(dur) && dur > 0 && t >= dur - POSITION_END_MARGIN) return false;
+  return true;
 }
 
 function sanitizeFilename(input: string): string {
@@ -118,21 +198,73 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const [error, setError] = useState<string | null>(null);
   const [tts, setTts] = useState<TtsProgress>(INITIAL_TTS);
 
+  // Unikalny identyfikator tego playera na szynie arbitrażu odtwarzania.
+  const playerId = useId();
+  const playerIdRef = useRef(playerId);
+  // Kontroler przerywający trwające pobieranie TTS przy szybkiej zmianie wpisu.
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  // Klucz localStorage dla pozycji aktualnie załadowanego materiału.
+  const posKeyRef = useRef<string | null>(null);
+  // Pozycja do przywrócenia po załadowaniu metadanych (null gdy nic nie czeka).
+  const pendingRestoreRef = useRef<number | null>(null);
+  // Znacznik czasu ostatniego zapisu pozycji (throttle).
+  const lastSaveRef = useRef(0);
+
   // Lazy audio element - tworzymy w efekcie, żeby nie ruszać `Audio` w SSR.
   useEffect(() => {
     if (audioRef.current || typeof window === "undefined") return;
     const audio = new Audio();
     audio.preload = "none";
-    audio.addEventListener("play", () => setStatus("playing"));
+
+    const persistPosition = (t: number) => {
+      const key = posKeyRef.current;
+      if (!key || pendingRestoreRef.current !== null) return;
+      if (isRestorablePosition(t, audio.duration)) writeStoredPosition(key, t);
+    };
+
+    audio.addEventListener("play", () => {
+      setStatus("playing");
+      // Ogłaszamy start - inne odtwarzacze (PodcastPlayer) się zatrzymają.
+      announcePlayback(playerIdRef.current);
+    });
     audio.addEventListener("pause", () => {
-      if (!audio.ended) setStatus("paused");
+      if (!audio.ended) {
+        setStatus("paused");
+        persistPosition(audio.currentTime);
+      }
     });
     audio.addEventListener("ended", () => {
       setStatus("paused");
       setCurrentTime(0);
+      // Materiał wysłuchany do końca - kasujemy zapamiętaną pozycję.
+      const key = posKeyRef.current;
+      if (key) clearStoredPosition(key);
     });
-    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration || 0));
-    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
+    audio.addEventListener("loadedmetadata", () => {
+      setDuration(audio.duration || 0);
+      // Jednorazowe przywrócenie pozycji dla świeżo załadowanego materiału.
+      const restore = pendingRestoreRef.current;
+      if (restore !== null) {
+        if (isRestorablePosition(restore, audio.duration)) {
+          try {
+            audio.currentTime = restore;
+            setCurrentTime(restore);
+          } catch {
+            /* seek może się nie udać dla niektórych źródeł - ignorujemy */
+          }
+        }
+        pendingRestoreRef.current = null;
+      }
+    });
+    audio.addEventListener("timeupdate", () => {
+      setCurrentTime(audio.currentTime);
+      // Throttlowany zapis pozycji (co ~POSITION_SAVE_INTERVAL ms).
+      const now = Date.now();
+      if (now - lastSaveRef.current >= POSITION_SAVE_INTERVAL) {
+        lastSaveRef.current = now;
+        persistPosition(audio.currentTime);
+      }
+    });
     audio.addEventListener("error", () => {
       setStatus("error");
       setError("Nie udało się odtworzyć audio");
@@ -143,6 +275,14 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       audio.src = "";
     };
   }, []);
+
+  // Arbitraż odtwarzania: gdy zagra inny player, pauzujemy globalny.
+  useEffect(() => {
+    const unsubscribe = subscribePlayback((activeId) => {
+      if (activeId !== playerId) audioRef.current?.pause();
+    });
+    return unsubscribe;
+  }, [playerId]);
 
   const fetchBlob = useCallback(async (postId: string, lang: "pl" | "en"): Promise<string> => {
     const key = cacheKey(postId, lang);
@@ -158,6 +298,12 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       return cached;
     }
 
+    // Szybka zmiana wpisu ⇒ anulujemy poprzednie pobieranie, żeby nie ścigały
+    // się równoległe fetch-e. Zachowujemy zwykły, same-origin POST (bez CORS).
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     const startedAt = performance.now();
     setTts({
       stage: "preparing",
@@ -167,14 +313,79 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       elapsedMs: 0,
     });
 
-    const res = await fetch("/api/public/post-tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postId, lang }),
-    });
+    try {
+      const res = await fetch("/api/public/post-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, lang }),
+        signal: controller.signal,
+      });
 
-    if (!res.ok) {
-      const msg = await res.text().catch(() => "");
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+
+      // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
+      const totalHeader = res.headers.get("content-length");
+      const totalBytes = totalHeader ? Number(totalHeader) : null;
+      setTts({
+        stage: "synthesizing",
+        percent: 0,
+        bytes: 0,
+        totalBytes,
+        elapsedMs: performance.now() - startedAt,
+      });
+
+      // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
+      // `res.blob()` gdy body nie jest czytelne (np. stary browser).
+      let blob: Blob;
+      const body = res.body;
+      if (body && typeof body.getReader === "function") {
+        const reader = body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        let announcedStreaming = false;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.byteLength;
+            if (!announcedStreaming) {
+              announcedStreaming = true;
+            }
+            setTts({
+              stage: "streaming",
+              percent:
+                totalBytes && totalBytes > 0
+                  ? Math.min(99, Math.round((received / totalBytes) * 100))
+                  : 0,
+              bytes: received,
+              totalBytes,
+              elapsedMs: performance.now() - startedAt,
+            });
+          }
+        }
+        blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
+      } else {
+        blob = await res.blob();
+      }
+
+      const url = URL.createObjectURL(blob);
+      // Cache + zwolnienie starego/eksmitowanego bloba (chronimy aktywny).
+      setCachedBlob(key, url, audioRef.current?.src ?? null);
+      setTts({
+        stage: "ready",
+        percent: 100,
+        bytes: blob.size,
+        totalBytes: totalBytes ?? blob.size,
+        elapsedMs: performance.now() - startedAt,
+      });
+      return url;
+    } catch (e) {
+      // Przerwane przez nowsze żądanie - cicho, nowe pobieranie steruje UI.
+      if (controller.signal.aborted) throw e;
       setTts({
         stage: "error",
         percent: 0,
@@ -182,65 +393,10 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         totalBytes: null,
         elapsedMs: performance.now() - startedAt,
       });
-      throw new Error(msg || `HTTP ${res.status}`);
+      throw e;
+    } finally {
+      if (fetchAbortRef.current === controller) fetchAbortRef.current = null;
     }
-
-    // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
-    const totalHeader = res.headers.get("content-length");
-    const totalBytes = totalHeader ? Number(totalHeader) : null;
-    setTts({
-      stage: "synthesizing",
-      percent: 0,
-      bytes: 0,
-      totalBytes,
-      elapsedMs: performance.now() - startedAt,
-    });
-
-    // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
-    // `res.blob()` gdy body nie jest czytelne (np. stary browser).
-    let blob: Blob;
-    const body = res.body;
-    if (body && typeof body.getReader === "function") {
-      const reader = body.getReader();
-      const chunks: Uint8Array[] = [];
-      let received = 0;
-      let announcedStreaming = false;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          received += value.byteLength;
-          if (!announcedStreaming) {
-            announcedStreaming = true;
-          }
-          setTts({
-            stage: "streaming",
-            percent:
-              totalBytes && totalBytes > 0
-                ? Math.min(99, Math.round((received / totalBytes) * 100))
-                : 0,
-            bytes: received,
-            totalBytes,
-            elapsedMs: performance.now() - startedAt,
-          });
-        }
-      }
-      blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
-    } else {
-      blob = await res.blob();
-    }
-
-    const url = URL.createObjectURL(blob);
-    audioBlobCache.set(key, url);
-    setTts({
-      stage: "ready",
-      percent: 100,
-      bytes: blob.size,
-      totalBytes: totalBytes ?? blob.size,
-      elapsedMs: performance.now() - startedAt,
-    });
-    return url;
   }, []);
 
   const loadAndPlay = useCallback(
@@ -256,17 +412,32 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         }
         return;
       }
+      // Zapisz pozycję wychodzącego materiału zanim podmienimy źródło (zmiana
+      // `src` nie zawsze emituje zdarzenie `pause`).
+      if (
+        posKeyRef.current &&
+        !audio.ended &&
+        isRestorablePosition(audio.currentTime, audio.duration)
+      ) {
+        writeStoredPosition(posKeyRef.current, audio.currentTime);
+      }
+      const key = positionKey(meta.postId, meta.lang);
       setStatus("loading");
       setError(null);
       try {
         const blobUrl = await fetchBlob(meta.postId, meta.lang);
         audio.src = blobUrl;
-        audio.currentTime = 0;
+        // Zaplanuj jednorazowe przywrócenie pozycji po `loadedmetadata`.
+        posKeyRef.current = key;
+        pendingRestoreRef.current = readStoredPosition(key);
+        lastSaveRef.current = 0;
         setTrack({ ...meta, blobUrl });
         setCurrentTime(0);
         setDuration(0);
         await audio.play();
       } catch (e) {
+        // Przerwane przez nowszy loadAndPlay - nie pokazujemy błędu.
+        if (e instanceof Error && e.name === "AbortError") return;
         setStatus("error");
         setError(e instanceof Error ? e.message : "Błąd ładowania audio");
       }
@@ -303,9 +474,17 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const close = useCallback(() => {
     const audio = audioRef.current;
     if (audio) {
+      // Zapisz pozycję zanim wyczyścimy źródło (zdarzenie `pause` bywa
+      // asynchroniczne i currentTime zdąży się wyzerować).
+      const key = posKeyRef.current;
+      if (key && !audio.ended && isRestorablePosition(audio.currentTime, audio.duration)) {
+        writeStoredPosition(key, audio.currentTime);
+      }
       audio.pause();
       audio.src = "";
     }
+    posKeyRef.current = null;
+    pendingRestoreRef.current = null;
     setTrack(null);
     setStatus("idle");
     setCurrentTime(0);
@@ -334,6 +513,51 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       !!track && track.postId === postId && track.lang === lang,
     [track],
   );
+
+  // Media Session API - lockscreen / klawisze multimedialne + metadane na
+  // mobile. Feature-detect + no-op na SSR / w nieobsługiwanych przeglądarkach.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    if (!track) {
+      ms.metadata = null;
+      ms.playbackState = "none";
+      return;
+    }
+    try {
+      ms.metadata = new MediaMetadata({
+        title: track.title,
+        artist: track.author ?? undefined,
+      });
+    } catch {
+      /* MediaMetadata niedostępne - pomijamy metadane */
+    }
+    ms.playbackState = status === "playing" ? "playing" : "paused";
+    const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {
+        /* akcja nieobsługiwana w tej przeglądarce */
+      }
+    };
+    setHandler("play", () => {
+      void audioRef.current?.play();
+    });
+    setHandler("pause", () => {
+      audioRef.current?.pause();
+    });
+    setHandler("seekbackward", () => {
+      const a = audioRef.current;
+      if (a) seek(a.currentTime - 15);
+    });
+    setHandler("seekforward", () => {
+      const a = audioRef.current;
+      if (a) seek(a.currentTime + 15);
+    });
+    setHandler("seekto", (details) => {
+      if (typeof details.seekTime === "number") seek(details.seekTime);
+    });
+  }, [track, status, seek]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
