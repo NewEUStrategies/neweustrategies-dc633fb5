@@ -92,6 +92,8 @@ interface PostForm {
   content_pl: string | null;
   content_en: string | null;
   cover_image_url: string | null;
+  audio_url_pl: string | null;
+  audio_url_en: string | null;
   read_minutes: number | null;
   published_at: string | null;
   publish_at: string | null;
