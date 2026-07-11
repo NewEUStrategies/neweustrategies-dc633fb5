@@ -79,10 +79,13 @@ function resolveIcon(name: string | null | undefined) {
   return reg[name] ?? null;
 }
 
-export function NotificationsCenter() {
+export type NotificationsCenterMode = "full" | "inbox" | "preferences";
+
+export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode } = {}) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const [tab, setTab] = useState<TabValue>("all");
+  const initialTab: TabValue = mode === "preferences" ? "settings" : "all";
+  const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
 
