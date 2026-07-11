@@ -517,7 +517,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       const target: AudioTrackMeta | AudioTrackState | null = meta ?? track;
       if (!target) return;
       const existingBlob = (target as AudioTrackState).blobUrl;
-      const url = existingBlob ?? (await fetchBlob(target.postId, target.lang));
+      const url =
+        existingBlob ?? (await fetchBlob(target.postId, target.lang, target.audioUrl ?? null));
       const a = document.createElement("a");
       a.href = url;
       a.download = `${sanitizeFilename(target.title)}.mp3`;
