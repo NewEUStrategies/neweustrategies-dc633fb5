@@ -270,7 +270,8 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     content = (
       <div
         className={cn(
-          "max-w-full whitespace-pre-wrap break-words rounded-[10px] px-3 py-1.5 text-[13px] font-normal leading-snug tracking-normal",
+          "max-w-full whitespace-pre-wrap break-words px-3 py-1.5 text-[13px] font-normal leading-snug tracking-normal",
+          bubbleRadius(mine, groupStart, groupEnd),
           !mine && "bg-muted text-foreground",
         )}
         style={bubbleStyle}
