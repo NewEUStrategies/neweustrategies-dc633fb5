@@ -705,6 +705,64 @@ export type Database = {
         }
         Relationships: []
       }
+      comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          parent_id: string | null
+          post_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          post_id: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          post_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_form_settings: {
         Row: {
           auto_reply_body_en: string
@@ -4447,6 +4505,19 @@ export type Database = {
       enforce_form_field_policy: {
         Args: { _form_type: string; _payload: Json; _tenant: string }
         Returns: string[]
+      }
+      enqueue_notification: {
+        Args: {
+          p_body_en?: string
+          p_body_pl?: string
+          p_href?: string
+          p_icon?: string
+          p_kind: string
+          p_title_en: string
+          p_title_pl: string
+          p_user_id: string
+        }
+        Returns: string
       }
       get_chat_peers: {
         Args: { p_user_ids: string[] }
