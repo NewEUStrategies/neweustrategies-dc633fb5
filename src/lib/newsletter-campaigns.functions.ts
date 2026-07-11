@@ -4,10 +4,11 @@
 //  - wszystkie funkcje wymagają `requireStaff` (admin/editor w ramach tenanta),
 //  - wysyłka i log wysyłek idą przez `supabaseAdmin` z pinowaniem po `tenant_id`
 //    pochodzącym z profilu wywołującego (nigdy z inputu klienta),
-//  - kampania nie może być wysłana ponownie po statusie `sent` / `sending`.
+//  - kampania nie może być wysłana ponownie po statusie `sent`; świeże
+//    `sending` też jest zablokowane (wyjątek: crash recovery, patrz niżej).
 //
 // Wysyłka:
-//  - `startCampaignSend` przełącza status → `sending`, materializuje odbiorców
+//  - `sendCampaign` przełącza status → `sending`, materializuje odbiorców
 //    (audience_filter → newsletter_subscribers), a następnie wysyła
 //    paczkami po 20 e-maili (Resend limit ~1 e-mail/sek per konto — chunki
 //    zmniejszają ryzyko rate-limita), logując każdą próbę w
@@ -15,6 +16,17 @@
 //  - Każdy odbiorca dostaje stopkę „Unsubscribe" z indywidualnym tokenem.
 //  - Zmienne `{{firstName}}`, `{{lastName}}`, `{{email}}` są renderowane
 //    per odbiorca.
+//
+// Harmonogram (opportunistic tick - patrz docs/ARCHITECTURE.md §2.6):
+//  - `processDueCampaigns` wyszukuje kampanie `scheduled` z `scheduled_at <= now()`
+//    i odpala dla nich tę samą ścieżkę wysyłki co ręczny `sendCampaign`
+//    (max DUE_CAMPAIGNS_PER_TICK = 3 na wywołanie, żeby ograniczyć czas requestu).
+//    Wysyłka wymaga HTTP env (RESEND_API_KEY), więc pg_cron nie może jej
+//    wykonać - tick odpala się przy wejściu admina na listę kampanii.
+//  - Odzyskiwanie po crashu: kampania wisząca w `sending` dłużej niż
+//    20 minut może zostać ponownie „zaklamowana" przez ręczny `sendCampaign`.
+//    Wznowienie jest idempotentne: odbiorcy z logu ze statusem `sent`
+//    nigdy nie dostają wiadomości drugi raz; `failed`/`skipped` są ponawiani.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
@@ -27,6 +39,8 @@ type DbClient = SupabaseClient<Database>;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 1100; // Resend free plan ~1 msg/s
+const STUCK_SENDING_MS = 20 * 60 * 1000; // po tylu ms "sending" uznajemy za martwe
+const DUE_CAMPAIGNS_PER_TICK = 3; // limit kampanii odpalanych w jednym ticku
 
 const AudienceFilter = z.object({
   languages: z
@@ -269,24 +283,119 @@ export const sendCampaign = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true; sent: number; failed: number }> => {
     const tenantId = await getTenantId(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const camp = await claimCampaign(supabaseAdmin, data.id, tenantId, "manual");
+    if (!camp) throw new Error("campaign_not_sendable");
+    const { sent, failed } = await runCampaignSend(supabaseAdmin, camp, tenantId);
+    return { ok: true, sent, failed };
+  });
 
-    // Atomically claim the campaign - transition draft/scheduled/failed → sending.
-    const { data: claimed, error: claimErr } = await supabaseAdmin
+// ----------------------------------------------------------------------------
+// PROCESS DUE CAMPAIGNS (opportunistic tick)
+// ----------------------------------------------------------------------------
+// Odpala zaległe kampanie `scheduled` z `scheduled_at <= now()` - wywoływane
+// przy wejściu admina na listę kampanii / overview (fallback zamiast pg_cron,
+// bo wysyłka wymaga env HTTP: RESEND_API_KEY / LOVABLE_API_KEY).
+export const processDueCampaigns = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .handler(async ({ context }): Promise<{ fired: number }> => {
+    const tenantId = await getTenantId(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: due, error } = await supabaseAdmin
       .from("newsletter_campaigns")
-      .update({ status: "sending", started_at: new Date().toISOString(), last_error: null })
-      .eq("id", data.id)
+      .select("id")
       .eq("tenant_id", tenantId)
-      .in("status", ["draft", "scheduled", "failed"])
-      .select("*")
-      .maybeSingle();
-    if (claimErr) throw new Error(claimErr.message);
-    if (!claimed) throw new Error("campaign_not_sendable");
-    const camp = claimed as unknown as CampaignRow;
+      .eq("status", "scheduled")
+      .lte("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true })
+      .limit(DUE_CAMPAIGNS_PER_TICK);
+    if (error) throw new Error(error.message);
 
+    let fired = 0;
+    for (const row of due ?? []) {
+      // Atomowy claim gwarantuje, że równoległy tick (druga karta admina)
+      // nie odpali tej samej kampanii dwa razy.
+      const camp = await claimCampaign(supabaseAdmin, row.id, tenantId, "due");
+      if (!camp) continue;
+      fired++;
+      try {
+        await runCampaignSend(supabaseAdmin, camp, tenantId);
+      } catch {
+        // runCampaignSend oznaczył już kampanię jako failed - lecimy dalej,
+        // żeby jedna zepsuta kampania nie blokowała pozostałych zaległych.
+      }
+    }
+    return { fired };
+  });
+
+// ----------------------------------------------------------------------------
+// Shared send pipeline (manual send + scheduled fire use the same path)
+// ----------------------------------------------------------------------------
+
+/**
+ * Atomowe przejęcie kampanii (status → `sending`).
+ *
+ * - `due`: tylko `scheduled` z `scheduled_at <= now()` (tick nie może odpalić
+ *   szkicu ani kampanii przełożonej w międzyczasie).
+ * - `manual`: `draft`/`scheduled`/`failed` + odzyskiwanie po crashu -
+ *   kampania wisząca w `sending` ze `started_at` starszym niż 20 minut
+ *   może zostać przejęta ponownie (wznowienie jest idempotentne, patrz
+ *   `runCampaignSend`).
+ */
+async function claimCampaign(
+  admin: DbClient,
+  campaignId: string,
+  tenantId: string,
+  mode: "manual" | "due",
+): Promise<CampaignRow | null> {
+  let q = admin
+    .from("newsletter_campaigns")
+    .update({ status: "sending", started_at: new Date().toISOString(), last_error: null })
+    .eq("id", campaignId)
+    .eq("tenant_id", tenantId);
+  if (mode === "due") {
+    q = q.eq("status", "scheduled").lte("scheduled_at", new Date().toISOString());
+  } else {
+    const staleBefore = new Date(Date.now() - STUCK_SENDING_MS).toISOString();
+    q = q.or(
+      `status.in.(draft,scheduled,failed),and(status.eq.sending,started_at.lt.${staleBefore})`,
+    );
+  }
+  const { data: claimed, error } = await q.select("*").maybeSingle();
+  if (error) throw new Error(error.message);
+  return (claimed ?? null) as unknown as CampaignRow | null;
+}
+
+interface AudienceSubscriber {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  language: string;
+  unsubscribe_token: string | null;
+}
+
+/**
+ * Właściwa wysyłka zaklamowanej kampanii (wspólna dla `sendCampaign`
+ * i `processDueCampaigns` - jedna implementacja pętli paczek).
+ *
+ * Idempotencja wznowienia: przed wysyłką czytamy log
+ * `newsletter_campaign_recipients` - odbiorcy ze statusem `sent` są pomijani
+ * (nigdy nie dostają wiadomości drugi raz), a `failed`/`skipped` są ponawiani.
+ * Licznik `sent` startuje od liczby już wysłanych, więc statystyki po
+ * wznowieniu pozostają spójne.
+ *
+ * Każdy błąd oznacza kampanię jako `failed` (markFailed) i jest rzucany dalej.
+ */
+async function runCampaignSend(
+  admin: DbClient,
+  camp: CampaignRow,
+  tenantId: string,
+): Promise<{ sent: number; failed: number }> {
+  try {
     // Fetch audience.
     const filter = camp.audience_filter ?? {};
     const statuses = filter.statuses?.length ? filter.statuses : ["subscribed"];
-    let q = supabaseAdmin
+    let q = admin
       .from("newsletter_subscribers")
       .select("id, email, first_name, last_name, language, unsubscribe_token")
       .eq("tenant_id", tenantId)
@@ -294,38 +403,43 @@ export const sendCampaign = createServerFn({ method: "POST" })
     if (filter.languages?.length) q = q.in("language", filter.languages);
     if (filter.source) q = q.eq("source", filter.source);
     const { data: subs, error: subsErr } = await q;
-    if (subsErr) {
-      await markFailed(supabaseAdmin, camp.id, subsErr.message);
-      throw new Error(subsErr.message);
-    }
-    const audience = (subs ?? []) as Array<{
-      id: string;
-      email: string;
-      first_name: string | null;
-      last_name: string | null;
-      language: string;
-      unsubscribe_token: string | null;
-    }>;
+    if (subsErr) throw new Error(subsErr.message);
+    const audience = (subs ?? []) as AudienceSubscriber[];
 
-    await supabaseAdmin
+    // Resume-idempotency: skip recipients already logged as "sent" by a
+    // previous (crashed) run; retry "failed"/"skipped" ones.
+    const { data: logged, error: loggedErr } = await admin
+      .from("newsletter_campaign_recipients")
+      .select("email, status")
+      .eq("tenant_id", tenantId)
+      .eq("campaign_id", camp.id);
+    if (loggedErr) throw new Error(loggedErr.message);
+    const alreadySent = new Set(
+      (logged ?? []).filter((r) => r.status === "sent").map((r) => r.email),
+    );
+    const pending = audience.filter((sub) => !alreadySent.has(sub.email));
+    const recipientCount = new Set([...audience.map((sub) => sub.email), ...alreadySent]).size;
+
+    let sent = alreadySent.size;
+    let failed = 0;
+
+    await admin
       .from("newsletter_campaigns")
-      .update({ recipient_count: audience.length })
+      .update({ recipient_count: recipientCount, sent_count: sent, failed_count: 0 })
       .eq("id", camp.id);
 
     const from = buildFrom(camp);
     const origin = originFromRequest();
-    let sent = 0;
-    let failed = 0;
 
-    for (let i = 0; i < audience.length; i += BATCH_SIZE) {
-      const chunk = audience.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+      const chunk = pending.slice(i, i + BATCH_SIZE);
       await Promise.all(
         chunk.map(async (sub) => {
           const lang = (sub.language === "en" ? "en" : "pl") as "pl" | "en";
           const subject = lang === "pl" ? camp.subject_pl : camp.subject_en;
           const rawHtml = lang === "pl" ? camp.html_pl : camp.html_en;
           if (!subject || !rawHtml) {
-            await logRecipient(supabaseAdmin, {
+            await logRecipient(admin, {
               tenantId,
               campaignId: camp.id,
               subscriberId: sub.id,
@@ -356,7 +470,7 @@ export const sendCampaign = createServerFn({ method: "POST" })
           });
           if (result.ok) {
             sent++;
-            await logRecipient(supabaseAdmin, {
+            await logRecipient(admin, {
               tenantId,
               campaignId: camp.id,
               subscriberId: sub.id,
@@ -367,7 +481,7 @@ export const sendCampaign = createServerFn({ method: "POST" })
             });
           } else {
             failed++;
-            await logRecipient(supabaseAdmin, {
+            await logRecipient(admin, {
               tenantId,
               campaignId: camp.id,
               subscriberId: sub.id,
@@ -380,17 +494,17 @@ export const sendCampaign = createServerFn({ method: "POST" })
         }),
       );
       // best-effort progress update
-      await supabaseAdmin
+      await admin
         .from("newsletter_campaigns")
         .update({ sent_count: sent, failed_count: failed })
         .eq("id", camp.id);
-      if (i + BATCH_SIZE < audience.length) {
+      if (i + BATCH_SIZE < pending.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     }
 
     const finalStatus = failed > 0 && sent === 0 ? "failed" : "sent";
-    await supabaseAdmin
+    await admin
       .from("newsletter_campaigns")
       .update({
         status: finalStatus,
@@ -400,8 +514,13 @@ export const sendCampaign = createServerFn({ method: "POST" })
       })
       .eq("id", camp.id);
 
-    return { ok: true, sent, failed };
-  });
+    return { sent, failed };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await markFailed(admin, camp.id, message);
+    throw err instanceof Error ? err : new Error(message);
+  }
+}
 
 // ----------------------------------------------------------------------------
 // Helpers

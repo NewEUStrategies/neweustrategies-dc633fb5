@@ -13,6 +13,8 @@ interface Props {
   variant?: Variant;
   initialDuration?: number;
   title?: string;
+  /** Cover art shown on the OS lock screen / media session, when available. */
+  coverUrl?: string | null;
   showSpeed?: boolean;
   autoPlay?: boolean;
   className?: string;
@@ -76,6 +78,7 @@ export function PodcastPlayer({
   variant = "full",
   initialDuration = 0,
   title,
+  coverUrl,
   showSpeed = true,
   autoPlay = false,
   className,
@@ -184,7 +187,12 @@ export function PodcastPlayer({
     const ms = navigator.mediaSession;
     if (playing) {
       try {
-        ms.metadata = new MediaMetadata({ title: title ?? "Podcast" });
+        ms.metadata = new MediaMetadata({
+          title: title ?? "Podcast",
+          ...(coverUrl
+            ? { artwork: [{ src: coverUrl, sizes: "512x512", type: "image/jpeg" }] }
+            : {}),
+        });
       } catch {
         /* MediaMetadata niedostępne - pomijamy metadane */
       }

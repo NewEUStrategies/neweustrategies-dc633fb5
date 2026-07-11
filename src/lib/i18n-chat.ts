@@ -61,6 +61,19 @@ export const chatPl = {
     saveEdit: "Zapisz zmiany",
     cancelEdit: "Anuluj edycję",
     editExpired: "Edycja możliwa tylko przez 5 minut od wysłania.",
+    rateLimited: "Zwolnij - za dużo wiadomości na raz.",
+    block: {
+      block: "Zablokuj",
+      unblock: "Odblokuj",
+      blockTitle: "Zablokować {{name}}?",
+      blockConfirm:
+        "Ta osoba nie będzie mogła wysyłać Ci wiadomości, a Ty nie napiszesz do niej, dopóki jej nie odblokujesz.",
+      unblockTitle: "Odblokować {{name}}?",
+      unblockConfirm: "Będziecie znów mogli wymieniać wiadomości w tej rozmowie.",
+      composerNotice: "Zablokowano tego użytkownika - odblokuj, aby pisać.",
+      sendBlocked: "Nie można wysłać - konwersacja jest zablokowana.",
+      error: "Nie udało się zmienić blokady. Spróbuj ponownie.",
+    },
     incoming: {
       someone: "Ktoś",
       open: "Otwórz",
@@ -220,6 +233,19 @@ export const chatEn = {
     saveEdit: "Save changes",
     cancelEdit: "Cancel editing",
     editExpired: "Messages can only be edited within 5 minutes of sending.",
+    rateLimited: "Slow down - too many messages at once.",
+    block: {
+      block: "Block",
+      unblock: "Unblock",
+      blockTitle: "Block {{name}}?",
+      blockConfirm:
+        "This person will not be able to message you, and you will not be able to write to them until you unblock them.",
+      unblockTitle: "Unblock {{name}}?",
+      unblockConfirm: "You will be able to exchange messages in this conversation again.",
+      composerNotice: "You blocked this user - unblock to write.",
+      sendBlocked: "Cannot send - this conversation is blocked.",
+      error: "Could not update the block. Please try again.",
+    },
     incoming: {
       someone: "Someone",
       open: "Open",

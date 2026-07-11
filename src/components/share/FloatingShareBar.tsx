@@ -13,7 +13,6 @@ import {
   Copy,
   Share2,
   Printer,
-  Download,
   List,
   X,
   BookOpen,
@@ -79,9 +78,7 @@ const COPY = {
     mail: "E-mail",
     toc: "Spis treści",
     progress: "Postęp czytania",
-    print: "Drukuj artykuł",
-    pdf: "Pobierz jako PDF",
-    pdfHint: "Wybierz \u201EZapisz jako PDF\u201D w oknie drukowania",
+    printPdf: "Drukuj / PDF",
     actions: "Akcje",
     tocTitle: "SPIS TREŚCI",
     read: "przeczytano",
@@ -98,9 +95,7 @@ const COPY = {
     mail: "Email",
     toc: "On this page",
     progress: "Reading progress",
-    print: "Print article",
-    pdf: "Download as PDF",
-    pdfHint: 'Choose "Save as PDF" in the print dialog',
+    printPdf: "Print / PDF",
     actions: "Actions",
     tocTitle: "ON THIS PAGE",
     read: "read",
@@ -315,11 +310,11 @@ export function FloatingShareBar({
     }
   };
 
-  const onPrint = (): void => {
-    window.print();
-  };
-
-  const onPdf = (): void => {
+  // One action for print AND PDF: both ran window.print() anyway (the browser
+  // print dialog offers "Save as PDF"), so two differently-labeled buttons -
+  // "PDF" suggesting a download - were misleading. Shown when the CMS config
+  // enables either showPrint or showPdf.
+  const onPrintPdf = (): void => {
     window.print();
   };
 
@@ -514,7 +509,7 @@ export function FloatingShareBar({
           {/* Divider */}
           <div className="my-2 h-px bg-border/60" />
 
-          {/* Print + PDF row - labeled action buttons */}
+          {/* Save-later + Print/PDF - labeled action buttons */}
           {cfg.showSaveLater && (
             <button
               type="button"
@@ -537,33 +532,17 @@ export function FloatingShareBar({
             </button>
           )}
           {(cfg.showPdf || cfg.showPrint) && (
-            <div
-              className={`grid gap-1.5 ${cfg.showPdf && cfg.showPrint ? "grid-cols-2" : "grid-cols-1"}`}
-            >
-              {cfg.showPdf && (
-                <button
-                  type="button"
-                  onClick={onPdf}
-                  aria-label={t.pdf}
-                  title={t.pdf}
-                  className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
-                >
-                  <Download className="w-[14px] h-[14px]" />
-                  PDF
-                </button>
-              )}
-              {cfg.showPrint && (
-                <button
-                  type="button"
-                  onClick={onPrint}
-                  aria-label={t.print}
-                  title={t.print}
-                  className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
-                >
-                  <Printer className="w-[14px] h-[14px]" />
-                  {lang === "pl" ? "Drukuj" : "Print"}
-                </button>
-              )}
+            <div className="grid gap-1.5 grid-cols-1">
+              <button
+                type="button"
+                onClick={onPrintPdf}
+                aria-label={t.printPdf}
+                title={t.printPdf}
+                className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+              >
+                <Printer className="w-[14px] h-[14px]" />
+                {t.printPdf}
+              </button>
             </div>
           )}
         </div>
@@ -778,14 +757,17 @@ export function FloatingShareBar({
                   </a>
                 );
               })}
-              <button
-                type="button"
-                onClick={onCopy}
-                aria-label={t.copy}
-                className="inline-flex items-center justify-center h-11 rounded-[5px] border border-border/60 text-muted-foreground active:text-brand active:bg-muted transition"
-              >
-                <Copy className="w-[17px] h-[17px]" />
-              </button>
+              {cfg.social.copy && (
+                <button
+                  type="button"
+                  onClick={onCopy}
+                  aria-label={t.copy}
+                  title={t.copy}
+                  className="inline-flex items-center justify-center h-11 rounded-[5px] border border-border/60 text-muted-foreground active:text-brand active:bg-muted transition"
+                >
+                  <Copy className="w-[17px] h-[17px]" />
+                </button>
+              )}
             </div>
             {cfg.showSaveLater && (
               <button
@@ -808,24 +790,22 @@ export function FloatingShareBar({
                 {isSaved ? t.saved : t.saveLater}
               </button>
             )}
-            <div className="grid grid-cols-2 gap-2 mt-2.5">
-              <button
-                type="button"
-                onClick={onPdf}
-                className="inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold tracking-tight active:scale-[0.98] transition shadow-sm"
-              >
-                <Download className="w-[15px] h-[15px]" />
-                PDF
-              </button>
-              <button
-                type="button"
-                onClick={onPrint}
-                className="inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] border border-border bg-background text-foreground text-[12px] font-semibold tracking-tight active:scale-[0.98] transition"
-              >
-                <Printer className="w-[15px] h-[15px]" />
-                {lang === "pl" ? "Drukuj" : "Print"}
-              </button>
-            </div>
+            {/* Same CMS config as the desktop rail - the sheet must not show
+                actions the settings turned off. */}
+            {(cfg.showPdf || cfg.showPrint) && (
+              <div className="grid grid-cols-1 gap-2 mt-2.5">
+                <button
+                  type="button"
+                  onClick={onPrintPdf}
+                  aria-label={t.printPdf}
+                  title={t.printPdf}
+                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold tracking-tight active:scale-[0.98] transition shadow-sm"
+                >
+                  <Printer className="w-[15px] h-[15px]" />
+                  {t.printPdf}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

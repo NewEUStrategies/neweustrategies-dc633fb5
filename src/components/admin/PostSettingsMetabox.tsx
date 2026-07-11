@@ -2,7 +2,7 @@
 // - Zakładki po lewej (pionowo, jak w Foxiz "Single Page Settings")
 // - Panel po prawej
 // - Zakładki: Spis treści (ToC), Ochrona treści (Membership), „Dowiesz się, że..."
-// - Sekcja „Dowiesz się, że..." dostępna dla wpisów i stron (max 7 punktów).
+// - Sekcja „Dowiesz się, że..." dostępna dla wpisów i stron (max 6 punktów).
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
@@ -71,7 +71,7 @@ export interface PostSettingsMetaboxProps {
 
 type TabKey = "toc" | "membership" | "takeaways";
 
-const MAX_TAKEAWAYS = 7;
+const MAX_TAKEAWAYS = 6;
 const MAX_TAKEAWAY_LEN = 500;
 const RECOMMENDED_MIN = 90;
 const RECOMMENDED_MAX = 200;

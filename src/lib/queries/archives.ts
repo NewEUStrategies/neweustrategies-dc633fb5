@@ -7,6 +7,15 @@ import type { SectionNode } from "@/lib/builder/types";
 
 const TTL = 2 * 60_000;
 
+// Page sizes for "load more" pagination. The first page equals the page size,
+// so SSR loaders (which call the query options with the default limit) keep
+// prefetching exactly one cheap page; bigger limits are client-side only.
+export const ARCHIVE_PAGE_SIZE = 60;
+export const SEARCH_PAGE_SIZE = 60;
+// search_posts has `_limit` but no offset, so search paginates by growing the
+// limit. Hard ceiling so a click-happy user cannot request unbounded result sets.
+export const SEARCH_LIMIT_MAX = 300;
+
 // ---------- helpers --------------------------------------------------------
 
 async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<BlogListItem[]> {
@@ -43,38 +52,45 @@ export interface AuthorProfile {
   website_url: string | null;
 }
 
-export const authorBySlugQueryOptions = (slugOrId: string) =>
+const PROFILE_COLS =
+  "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const authorBySlugQueryOptions = (slugOrId: string, limit: number = ARCHIVE_PAGE_SIZE) =>
   queryOptions({
-    queryKey: ["public", "author", slugOrId] as const,
+    queryKey: ["public", "author", slugOrId, { limit }] as const,
     queryFn: async (): Promise<{ author: AuthorProfile; posts: BlogListItem[] } | null> => {
-      // Try slug first, then fall back to id (uuid).
-      let { data: prof } = await supabase
+      // Try slug first, then fall back to id (uuid). Errors are THROWN (never
+      // swallowed into a fake 404): a network/RLS failure must hit the route
+      // error boundary, only a genuinely missing row resolves to null.
+      const bySlug = await supabase
         .from("profiles")
-        .select(
-          "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url",
-        )
+        .select(PROFILE_COLS)
         .eq("slug", slugOrId)
         .maybeSingle();
-      if (!prof) {
-        const fallback = await supabase
+      if (bySlug.error) throw bySlug.error;
+      let prof = bySlug.data;
+      if (!prof && UUID_RE.test(slugOrId)) {
+        const byId = await supabase
           .from("profiles")
-          .select(
-            "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url",
-          )
+          .select(PROFILE_COLS)
           .eq("id", slugOrId)
           .maybeSingle();
-        prof = fallback.data;
+        if (byId.error) throw byId.error;
+        prof = byId.data;
       }
       if (!prof) return null;
 
-      const { data: rows } = await supabase
+      const { data: rows, error } = await supabase
         .from("posts")
         .select(POST_COLS)
         .eq("author_id", prof.id)
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
-        .limit(60);
+        .limit(limit);
+      if (error) throw error;
 
       const posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
       return { author: prof as AuthorProfile, posts };
@@ -109,10 +125,16 @@ async function fetchFeaturedSection(templateId: string | null): Promise<SectionN
   return d;
 }
 
-export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
+export const taxonomyArchiveQueryOptions = (
+  kind: TaxonomyKind,
+  slug: string,
+  limit: number = ARCHIVE_PAGE_SIZE,
+) =>
   queryOptions({
-    queryKey: ["public", "archive", kind, slug] as const,
+    queryKey: ["public", "archive", kind, slug, { limit }] as const,
     queryFn: async (): Promise<{ taxonomy: TaxonomyMeta; posts: BlogListItem[] } | null> => {
+      // Errors are thrown (route error boundary), never collapsed into a fake
+      // "not found" - null is reserved for a genuinely missing taxonomy row.
       let taxRow: {
         id: string;
         slug: string;
@@ -125,13 +147,14 @@ export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
       let postIds: string[] = [];
 
       if (kind === "category") {
-        const { data: tax } = await supabase
+        const { data: tax, error: taxError } = await supabase
           .from("categories")
           .select(
             "id, slug, name_pl, name_en, description_pl, description_en, featured_template_id",
           )
           .eq("slug", slug)
           .maybeSingle();
+        if (taxError) throw taxError;
         if (!tax) return null;
         taxRow = {
           id: tax.id as string,
@@ -142,17 +165,19 @@ export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
           description_en: (tax.description_en as string | null) ?? null,
           featured_template_id: (tax.featured_template_id as string | null) ?? null,
         };
-        const { data: pivot } = await supabase
+        const { data: pivot, error: pivotError } = await supabase
           .from("post_categories")
           .select("post_id")
           .eq("category_id", taxRow.id);
+        if (pivotError) throw pivotError;
         postIds = (pivot ?? []).map((r) => r.post_id as string);
       } else {
-        const { data: tax } = await supabase
+        const { data: tax, error: taxError } = await supabase
           .from("tags")
           .select("id, slug, name, featured_template_id")
           .eq("slug", slug)
           .maybeSingle();
+        if (taxError) throw taxError;
         if (!tax) return null;
         const name = tax.name as string;
         taxRow = {
@@ -164,10 +189,11 @@ export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
           description_en: null,
           featured_template_id: (tax.featured_template_id as string | null) ?? null,
         };
-        const { data: pivot } = await supabase
+        const { data: pivot, error: pivotError } = await supabase
           .from("post_tags")
           .select("post_id")
           .eq("tag_id", taxRow.id);
+        if (pivotError) throw pivotError;
         postIds = (pivot ?? []).map((r) => r.post_id as string);
       }
 
@@ -175,14 +201,15 @@ export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
 
       let posts: BlogListItem[] = [];
       if (postIds.length > 0) {
-        const { data: rows } = await supabase
+        const { data: rows, error: postsError } = await supabase
           .from("posts")
           .select(POST_COLS)
           .in("id", postIds)
           .eq("status", "published")
           .is("deleted_at", null)
           .order("published_at", { ascending: false })
-          .limit(60);
+          .limit(limit);
+        if (postsError) throw postsError;
         posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
       }
 
@@ -218,21 +245,24 @@ export interface SearchFacets {
   authors: Array<{ id: string; name: string; count: number }>;
 }
 
-export const searchQueryOptions = (filters: SearchFilters) =>
+export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARCH_PAGE_SIZE) =>
   queryOptions({
-    queryKey: ["public", "search", filters] as const,
+    queryKey: ["public", "search", filters, { limit }] as const,
     enabled: filters.q.trim().length >= 2,
     queryFn: async (): Promise<{ posts: BlogListItem[]; facets: SearchFacets }> => {
       // Postgres full-text search (ranked, unaccent + prefix matching, indexuje
       // też treść blocks_data/builder_data) zamiast ILIKE %q%. Author/data są
       // filtrowane w RPC, kategoria pozostaje filtrem po stronie klienta (join).
-      const { data: matchRows } = await supabase.rpc("search_posts", {
+      // search_posts nie ma offsetu, więc "load more" rośnie przez _limit
+      // (60 → 120 → ...), z twardym sufitem SEARCH_LIMIT_MAX.
+      const { data: matchRows, error: matchError } = await supabase.rpc("search_posts", {
         _q: filters.q.trim(),
-        _limit: 80,
+        _limit: Math.min(limit, SEARCH_LIMIT_MAX),
         _author: filters.authorId ?? undefined,
         _date_from: filters.dateFrom ?? undefined,
         _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
       });
+      if (matchError) throw matchError;
       let rows = (matchRows ?? []).map(
         ({ rank: _rank, ...row }): Omit<BlogListItem, "href"> & { author_id: string | null } => row,
       );
@@ -240,11 +270,12 @@ export const searchQueryOptions = (filters: SearchFilters) =>
       // Category filter is post-join: filter ids via post_categories.
       if (filters.categoryId && rows.length > 0) {
         const ids = rows.map((r) => r.id);
-        const { data: pc } = await supabase
+        const { data: pc, error: pcError } = await supabase
           .from("post_categories")
           .select("post_id")
           .eq("category_id", filters.categoryId)
           .in("post_id", ids);
+        if (pcError) throw pcError;
         const allow = new Set((pc ?? []).map((r) => r.post_id as string));
         rows = rows.filter((r) => allow.has(r.id));
       }

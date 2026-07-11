@@ -208,8 +208,56 @@ function LoginPage() {
     return heroFallback;
   })();
 
+  // Admin-configured full-page background: the image wins, the colour acts as
+  // a fallback (and paints while the image loads). Empty settings keep the
+  // theme-aware Tailwind background classes untouched.
+  const pageBackground: React.CSSProperties = {};
+  const bgColor = settings.login_bg_color.trim();
+  const bgUrl = settings.login_bg_url.trim();
+  if (bgColor) pageBackground.backgroundColor = bgColor;
+  if (bgUrl) {
+    pageBackground.backgroundImage = `url("${bgUrl}")`;
+    pageBackground.backgroundSize = "cover";
+    pageBackground.backgroundPosition = "center";
+    pageBackground.backgroundRepeat = "no-repeat";
+  }
+
+  // Form column position (admin: "Pozycja formularza"). Applies to the lg
+  // grid only - below lg everything is a single column with mobile tabs.
+  //   right  - classic layout: rail | hero | form (default)
+  //   left   - mirrored:       form | hero | rail
+  //   center - hero hidden, narrow container centers rail + form
+  const position = settings.login_position;
+  const layout =
+    position === "left"
+      ? {
+          container: "max-w-[1280px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_100px]",
+          rail: "lg:order-3",
+          hero: "lg:order-2",
+          form: "lg:order-1",
+          showHero: true,
+        }
+      : position === "center"
+        ? {
+            container: "max-w-xl lg:grid-cols-[100px_minmax(0,1fr)]",
+            rail: "",
+            hero: "",
+            form: "",
+            showHero: false,
+          }
+        : {
+            container: "max-w-[1280px] lg:grid-cols-[100px_minmax(0,1.7fr)_minmax(0,1fr)]",
+            rail: "",
+            hero: "",
+            form: "",
+            showHero: true,
+          };
+
   return (
-    <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8">
+    <div
+      className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8"
+      style={pageBackground}
+    >
       {/* Floating back-to-site */}
       {settings.show_back_to_home && (
         <Link
@@ -270,9 +318,13 @@ function LoginPage() {
         )}
       </div>
 
-      <div className="relative w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-[100px_minmax(0,1.7fr)_minmax(0,1fr)] gap-0 lg:gap-5 isolate">
-        {/* LEFT: vertical mode rail */}
-        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-2">
+      <div
+        className={`relative w-full grid grid-cols-1 gap-0 lg:gap-5 isolate ${layout.container}`}
+      >
+        {/* Vertical mode rail */}
+        <aside
+          className={`hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-2 ${layout.rail}`}
+        >
           <div className="mb-3 flex items-center justify-center w-full">
             <Logo size="lg" withWordmark={false} />
           </div>
@@ -298,33 +350,37 @@ function LoginPage() {
           />
         </aside>
 
-        {/* CENTER: hero illustration card */}
-        <section
-          key={`hero-${theme}-${illustration}`}
-          className="relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-white shadow-2xl shadow-primary/20 min-h-[640px] animate-[fadeInUp_.6s_ease-out] bg-muted"
-          style={{
-            backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.15) 45%, rgba(15,23,42,0.65) 100%), url("${illustration}")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-          }}
-        >
-          <div className="p-8 relative z-10">
-            <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
-              {t.heroTitle}
-            </h2>
-            <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{t.heroSub}</p>
-          </div>
-          <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
-            <span>© {new Date().getFullYear()} New European Strategies</span>
-            <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">
-              {isPl ? "PL" : "EN"}
-            </span>
-          </div>
-        </section>
+        {/* Hero illustration card (hidden entirely for the centered layout) */}
+        {layout.showHero && (
+          <section
+            key={`hero-${theme}-${illustration}`}
+            className={`relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-white shadow-2xl shadow-primary/20 min-h-[640px] animate-[fadeInUp_.6s_ease-out] bg-muted ${layout.hero}`}
+            style={{
+              backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.15) 45%, rgba(15,23,42,0.65) 100%), url("${illustration}")`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+            }}
+          >
+            <div className="p-8 relative z-10">
+              <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
+                {t.heroTitle}
+              </h2>
+              <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{t.heroSub}</p>
+            </div>
+            <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
+              <span>© {new Date().getFullYear()} New European Strategies</span>
+              <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">
+                {isPl ? "PL" : "EN"}
+              </span>
+            </div>
+          </section>
+        )}
 
-        {/* RIGHT: form */}
-        <main className="bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col">
+        {/* Form column */}
+        <main
+          className={`bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col ${layout.form}`}
+        >
           {/* Mobile mode tabs */}
           <div className="flex lg:hidden gap-2 mb-6">
             {(["signin", "signup", "reset"] as Mode[]).map((m) => (

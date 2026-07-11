@@ -1,11 +1,12 @@
 // Public comments section rendered under a post. Uses tokens/utility classes
 // consistent with the rest of the app. Supports one level of nested replies
 // (enforced by the DB trigger `comments_before_insert`).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -23,24 +24,54 @@ interface Props {
   lang: "pl" | "en";
 }
 
+/** Rows fetched per page; "load more" grows the window by this amount. */
+const COMMENTS_PAGE_SIZE = 50;
+
+/** Shape of the admin "discussion" site_settings key (admin.settings.discussion.tsx). */
+interface DiscussionSettings {
+  allow_comments: boolean;
+  require_login_to_comment: boolean;
+  moderate_new_comments: boolean;
+}
+
+// Module-level so the reference stays stable across renders (useSiteSetting
+// memoizes on the defaults object). Mirrors the DB seed: comments off by default.
+const DISCUSSION_DEFAULTS: DiscussionSettings = {
+  allow_comments: false,
+  require_login_to_comment: true,
+  moderate_new_comments: true,
+};
+
 export function CommentsSection({ postId, lang }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [userId, setUserId] = useState<string | null>(null);
+  const [limit, setLimit] = useState(COMMENTS_PAGE_SIZE);
+  const discussion = useSiteSetting<DiscussionSettings>("discussion", DISCUSSION_DEFAULTS);
+  const commentsOpen = discussion.allow_comments;
 
-  useMemo(() => {
-    // Sync current user id once per mount so we can show controls for own rows.
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+  useEffect(() => {
+    // Sync current user id so we can show controls for own rows; the auth
+    // listener keeps it fresh and MUST be unsubscribed on unmount (a useMemo
+    // "cleanup" is never invoked by React and leaked one subscription per mount).
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setUserId(data.user?.id ?? null);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserId(session?.user?.id ?? null);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  const queryKey = ["post-comments", postId] as const;
-  const { data, isLoading } = useQuery({
-    queryKey,
-    queryFn: () => fetchPostComments(postId),
+  // Base key (no limit) so mutations can invalidate every fetched window at once.
+  const listKey = ["post-comments", postId] as const;
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: [...listKey, limit] as const,
+    queryFn: () => fetchPostComments(postId, limit),
     staleTime: 30_000,
   });
 
@@ -48,13 +79,23 @@ export function CommentsSection({ postId, lang }: Props) {
     mutationFn: (input: { body: string; parentId?: string | null }) =>
       createComment({ postId, body: input.body, parentId: input.parentId ?? null }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: listKey });
       toast.success(t("comments.submitted"));
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "error";
       if (msg === "auth_required") toast.error(t("comments.errors.authRequired"));
       else if (msg === "comments_disabled") toast.error(t("comments.errors.disabled"));
+      else if (msg.includes("rate limited"))
+        // DB trigger rejects >5 comments/min - map the raw message to friendly copy.
+        toast.error(
+          t("comments.errors.rateLimited", {
+            defaultValue:
+              lang === "pl"
+                ? "Zwolnij - za dużo komentarzy na raz."
+                : "Slow down - too many comments at once.",
+          }),
+        );
       else toast.error(t("comments.errors.generic"));
     },
   });
@@ -62,7 +103,7 @@ export function CommentsSection({ postId, lang }: Props) {
   const remove = useMutation({
     mutationFn: softDeleteComment,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: listKey });
       toast.success(t("comments.deleted"));
     },
     onError: () => toast.error(t("comments.errors.generic")),
@@ -70,6 +111,12 @@ export function CommentsSection({ postId, lang }: Props) {
 
   const tree = useMemo(() => buildTree(data ?? []), [data]);
   const totalApproved = (data ?? []).filter((c) => c.status === "approved").length;
+  // The raw window hit the ceiling -> more rows may exist on the server.
+  const canLoadMore = (data ?? []).length >= limit;
+
+  // Comments globally disabled and nothing approved to show (also while the
+  // list is still loading) -> render no section at all instead of a dead composer.
+  if (!commentsOpen && totalApproved === 0) return null;
 
   return (
     <section
@@ -84,7 +131,16 @@ export function CommentsSection({ postId, lang }: Props) {
         </h2>
       </header>
 
-      {userId ? (
+      {!commentsOpen ? (
+        <p role="note" className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
+          {t("comments.closed", {
+            defaultValue:
+              lang === "pl"
+                ? "Komentarze pod tym wpisem są zamknięte."
+                : "Comments are closed for this post.",
+          })}
+        </p>
+      ) : userId ? (
         <CommentComposer
           onSubmit={(body) => create.mutate({ body })}
           submitting={create.isPending}
@@ -111,11 +167,30 @@ export function CommentsSection({ postId, lang }: Props) {
               node={node}
               currentUserId={userId}
               lang={lang}
+              allowReplies={commentsOpen}
               onReply={(body, parentId) => create.mutate({ body, parentId })}
               onDelete={(id) => remove.mutate(id)}
               submittingReply={create.isPending}
             />
           ))
+        )}
+        {!isLoading && canLoadMore && (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isFetching}
+              onClick={() => setLimit((n) => n + COMMENTS_PAGE_SIZE)}
+            >
+              {isFetching
+                ? t("comments.loading")
+                : t("comments.loadMore", {
+                    defaultValue:
+                      lang === "pl" ? "Załaduj więcej komentarzy" : "Load more comments",
+                  })}
+            </Button>
+          </div>
         )}
       </div>
     </section>
@@ -195,6 +270,7 @@ function CommentNode({
   node,
   currentUserId,
   lang,
+  allowReplies,
   onReply,
   onDelete,
   submittingReply,
@@ -202,6 +278,8 @@ function CommentNode({
   node: Node;
   currentUserId: string | null;
   lang: "pl" | "en";
+  /** False when comments are globally closed - hides the reply affordance. */
+  allowReplies: boolean;
   onReply: (body: string, parentId: string) => void;
   onDelete: (id: string) => void;
   submittingReply: boolean;
@@ -213,12 +291,12 @@ function CommentNode({
         c={node.comment}
         currentUserId={currentUserId}
         lang={lang}
-        canReply
+        canReply={allowReplies}
         onReplyToggle={() => setReplying((v) => !v)}
         replyOpen={replying}
         onDelete={onDelete}
       />
-      {replying && (
+      {replying && allowReplies && (
         <div className="ml-6 pl-4 border-l border-border">
           <CommentComposer
             lang={lang}

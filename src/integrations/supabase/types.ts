@@ -2631,6 +2631,7 @@ export type Database = {
       personality_result_history: {
         Row: {
           agreeableness: number;
+          answers: Json | null;
           conscientiousness: number;
           created_at: string;
           extraversion: number;
@@ -4120,6 +4121,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_blocks: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          tenant_id: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          tenant_id: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_blocks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_bookmarks: {
         Row: {
           created_at: string;
@@ -4903,6 +4933,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      is_blocked_pair: {
+        Args: { _a: string; _b: string }
+        Returns: boolean
+      }
       is_conversation_member: {
         Args: { _conv: string; _user: string };
         Returns: boolean;

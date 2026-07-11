@@ -3,9 +3,9 @@
 // - Realtime updates (channel scoped per user_id)
 // - Multi-tenant safe: reads go through RLS (auth.uid() + current_tenant_id)
 // - i18n PL/EN, respects prefers-reduced-motion, uses semantic tokens only
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
@@ -76,8 +76,23 @@ const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   security: LucideIcons.ShieldAlert,
 };
 
+// Internal hrefs render a real <a href> for semantics, but plain left-clicks
+// are hijacked and routed through router.navigate({ href }). Unlike
+// <Link to={href}> - which treats `to` as a pathname verbatim and never splits
+// out `?search`, 404-ing "/messages?c=<uuid>" - navigate({ href }) parses the
+// query string correctly, so search params survive SPA navigation. External
+// hrefs stay plain anchors with a full navigation (same rule as the center).
 function isInternalHref(href: string): boolean {
   return href.startsWith("/") && !href.startsWith("//");
+}
+
+// Unmodified left-click - the only case we hijack for SPA navigation.
+// Modified clicks (ctrl/cmd/shift/alt, middle button) keep native anchor
+// behaviour like open-in-new-tab; the real href makes that work.
+function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean {
+  return (
+    !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
+  );
 }
 
 export interface NotificationsBellProps {
@@ -89,6 +104,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   // Always call hooks in the same order - even when unauth we render nothing.
   useNotificationsRealtime();
@@ -292,20 +308,29 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                   if (ids.length > 0) markMany.mutate(ids);
                   setOpen(false);
                 };
+                const href = n.href;
                 return (
                   <li key={g.key}>
-                    {n.href && isInternalHref(n.href) ? (
-                      // Wewnętrzna nawigacja przez router - bez pełnego reloadu.
-                      <Link
-                        to={n.href}
-                        onClick={onClick}
+                    {href && isInternalHref(href) ? (
+                      // Wewnętrzna nawigacja SPA - router.navigate({ href })
+                      // zachowuje query string (np. "/messages?c=<uuid>"),
+                      // bez pełnego reloadu; <a href> zostaje dla semantyki.
+                      <a
+                        href={href}
+                        onClick={(e) => {
+                          onClick();
+                          if (!isPlainLeftClick(e)) return;
+                          e.preventDefault();
+                          void router.navigate({ href });
+                        }}
                         className="block hover:bg-muted/50 transition-colors"
                       >
                         {inner}
-                      </Link>
-                    ) : n.href ? (
+                      </a>
+                    ) : href ? (
                       <a
-                        href={n.href}
+                        href={href}
+                        target="_blank"
                         rel="noopener noreferrer"
                         onClick={onClick}
                         className="block hover:bg-muted/50 transition-colors"

@@ -25,15 +25,19 @@ export type CommentStatus = "pending" | "approved" | "spam" | "deleted";
  * Fetch approved comments for a post, plus the caller's own pending replies
  * (RLS-permitted via `comments_own_select`). Sorted oldest-first at the top
  * level; children stay adjacent to their parent for a stable 1-level tree.
+ *
+ * `limit` windows the flat (parents + replies) list oldest-first; the caller
+ * grows it for "load more" pagination. Replies whose parent falls outside the
+ * window are dropped by the tree assembly - same as the previous fixed cap.
  */
-export async function fetchPostComments(postId: string): Promise<CommentWithAuthor[]> {
+export async function fetchPostComments(postId: string, limit = 500): Promise<CommentWithAuthor[]> {
   const { data, error } = await supabase
     .from("comments")
     .select("id, post_id, user_id, parent_id, body, status, created_at, updated_at, tenant_id")
     .eq("post_id", postId)
     .in("status", ["approved", "pending"])
     .order("created_at", { ascending: true })
-    .limit(500);
+    .limit(limit);
   if (error) throw error;
   const rows = (data ?? []) as CommentRow[];
   if (rows.length === 0) return [];

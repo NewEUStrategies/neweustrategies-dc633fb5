@@ -1,14 +1,29 @@
 // /admin/newsletter/campaigns — lista i tworzenie kampanii.
+// Przy montowaniu odpala opportunistic tick (`processDueCampaigns`), który
+// wysyła zaległe kampanie zaplanowane - fallback zamiast pg_cron, bo wysyłka
+// wymaga env HTTP (RESEND_API_KEY). Patrz docs/ARCHITECTURE.md §2.6.
+import { useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2, Send, Clock, CheckCircle2, XCircle, FileText } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Send,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  RefreshCw,
+} from "lucide-react";
 import {
   listCampaigns,
   upsertCampaign,
   deleteCampaign,
+  sendCampaign,
+  processDueCampaigns,
   type CampaignRow,
 } from "@/lib/newsletter-campaigns.functions";
 import { Button } from "@/components/ui/button";
@@ -79,6 +94,14 @@ const STATUS_META: Record<
   },
 };
 
+const STUCK_SENDING_MS = 20 * 60 * 1000;
+
+function isStuckSending(c: CampaignRow): boolean {
+  if (c.status !== "sending" || !c.started_at) return false;
+  const started = Date.parse(c.started_at);
+  return Number.isFinite(started) && Date.now() - started > STUCK_SENDING_MS;
+}
+
 function CampaignsList() {
   const { i18n, t } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
@@ -88,10 +111,65 @@ function CampaignsList() {
   const list = useServerFn(listCampaigns);
   const create = useServerFn(upsertCampaign);
   const remove = useServerFn(deleteCampaign);
+  const send = useServerFn(sendCampaign);
+  const processDue = useServerFn(processDueCampaigns);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["admin", "newsletter-campaigns"],
     queryFn: () => list(),
+  });
+
+  // Opportunistic tick: raz przy montowaniu, fire-and-forget. Toast tylko
+  // gdy faktycznie coś zostało wysłane.
+  const tickRan = useRef(false);
+  useEffect(() => {
+    if (tickRan.current) return;
+    tickRan.current = true;
+    processDue()
+      .then((res) => {
+        if (res.fired > 0) {
+          toast.success(
+            isPl
+              ? `Wysłano ${res.fired} zaplanowanych kampanii`
+              : `Sent ${res.fired} scheduled campaigns`,
+          );
+          qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+        }
+      })
+      .catch(() => undefined);
+  }, [processDue, qc, isPl]);
+
+  const processDueMut = useMutation({
+    mutationFn: () => processDue(),
+    onSuccess: (res) => {
+      if (res.fired > 0) {
+        toast.success(
+          isPl
+            ? `Wysłano ${res.fired} zaplanowanych kampanii`
+            : `Sent ${res.fired} scheduled campaigns`,
+        );
+      } else {
+        toast.info(isPl ? "Brak zaległych kampanii" : "No due campaigns");
+      }
+      qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const resumeMut = useMutation({
+    mutationFn: (id: string) => send({ data: { id } }),
+    onSuccess: (res) => {
+      toast.success(
+        isPl
+          ? `Wznowiono wysyłkę - wysłano ${res.sent}, błędy: ${res.failed}`
+          : `Send resumed - sent ${res.sent}, failed: ${res.failed}`,
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+      qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+    },
   });
 
   const createMut = useMutation({
@@ -135,10 +213,20 @@ function CampaignsList() {
               : "Compose and send mailings to selected subscriber segments."}
           </p>
         </div>
-        <Button onClick={() => createMut.mutate()} disabled={createMut.isPending}>
-          <Plus className="w-4 h-4 mr-2" />
-          {isPl ? "Nowa kampania" : "New campaign"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => processDueMut.mutate()}
+            disabled={processDueMut.isPending}
+          >
+            <Clock className={`w-4 h-4 mr-2 ${processDueMut.isPending ? "animate-pulse" : ""}`} />
+            {isPl ? "Wyślij zaległe" : "Process due"}
+          </Button>
+          <Button onClick={() => createMut.mutate()} disabled={createMut.isPending}>
+            <Plus className="w-4 h-4 mr-2" />
+            {isPl ? "Nowa kampania" : "New campaign"}
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-card">
@@ -147,6 +235,7 @@ function CampaignsList() {
             <TableRow>
               <TableHead>{isPl ? "Nazwa" : "Name"}</TableHead>
               <TableHead>{isPl ? "Status" : "Status"}</TableHead>
+              <TableHead>{isPl ? "Zaplanowana na" : "Scheduled for"}</TableHead>
               <TableHead className="text-right">{isPl ? "Odbiorcy" : "Recipients"}</TableHead>
               <TableHead className="text-right">{isPl ? "Wysłano" : "Sent"}</TableHead>
               <TableHead>{isPl ? "Utworzono" : "Created"}</TableHead>
@@ -156,13 +245,13 @@ function CampaignsList() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   {isPl ? "Wczytywanie…" : "Loading…"}
                 </TableCell>
               </TableRow>
             ) : campaigns.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   {isPl ? "Brak kampanii." : "No campaigns yet."}
                 </TableCell>
               </TableRow>
@@ -171,6 +260,8 @@ function CampaignsList() {
                 const meta = STATUS_META[c.status];
                 const Icon = meta.icon;
                 const canDelete = c.status !== "sending" && c.status !== "sent";
+                const stuck = isStuckSending(c);
+                const resuming = resumeMut.isPending && resumeMut.variables === c.id;
                 return (
                   <TableRow key={c.id}>
                     <TableCell>
@@ -183,10 +274,31 @@ function CampaignsList() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <Badge className={meta.className}>
-                        <Icon className="w-3 h-3 mr-1" />
-                        {isPl ? meta.labelPl : meta.labelEn}
-                      </Badge>
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge className={meta.className}>
+                          <Icon className="w-3 h-3 mr-1" />
+                          {isPl ? meta.labelPl : meta.labelEn}
+                        </Badge>
+                        {stuck && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            disabled={resumeMut.isPending}
+                            onClick={() => resumeMut.mutate(c.id)}
+                          >
+                            <RefreshCw
+                              className={`w-3 h-3 mr-1 ${resuming ? "animate-spin" : ""}`}
+                            />
+                            {isPl ? "Zablokowana? Odzyskaj" : "Stuck? Recover"}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {c.scheduled_at
+                        ? new Date(c.scheduled_at).toLocaleString(isPl ? "pl-PL" : "en-US")
+                        : "-"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.recipient_count}</TableCell>
                     <TableCell className="text-right tabular-nums">

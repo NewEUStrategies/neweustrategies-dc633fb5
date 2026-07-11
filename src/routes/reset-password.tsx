@@ -89,7 +89,7 @@ function ResetPasswordPage() {
   useEffect(() => {
     let cancelled = false;
     // Sesja z tokenu recovery pojawia się asynchronicznie po sparsowaniu
-    // hasha; nasłuch + krótki deadline zamiast wyścigu z getSession().
+    // hasha; nasłuch + deadline zamiast wyścigu z getSession().
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
       if (session && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN")) {
@@ -100,9 +100,20 @@ function ResetPasswordPage() {
       if (cancelled) return;
       if (data.session) setPhase((p) => (p === "checking" ? "ready" : p));
     });
-    const deadline = window.setTimeout(() => {
-      if (!cancelled) setPhase((p) => (p === "checking" ? "invalid" : p));
-    }, 4000);
+    // Gdy w hashu URL jest token odzyskiwania, wymiana trwa - dajemy jej dużo
+    // więcej czasu (wolne łącze nie może fałszywie zgłosić „wygasł"). Bez tokenu
+    // i bez sesji szybko przechodzimy w stan „nieprawidłowy".
+    const hasRecoveryToken =
+      typeof window !== "undefined" &&
+      (window.location.hash.includes("access_token") ||
+        window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("code="));
+    const deadline = window.setTimeout(
+      () => {
+        if (!cancelled) setPhase((p) => (p === "checking" ? "invalid" : p));
+      },
+      hasRecoveryToken ? 20000 : 4000,
+    );
     return () => {
       cancelled = true;
       window.clearTimeout(deadline);

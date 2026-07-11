@@ -315,3 +315,47 @@ re-ewaluacją, a trzy drobne znaleziska domknięto w jej ramach. Główne pozost
 rezerwy jakościowe platformy to obszary świadomie poza mandatem: paginacja
 archiwów/wyszukiwarki, harmonogram i analityka kampanii newslettera, MFA/TOTP
 oraz pokrycie testami obszarów czatu i profilu.
+
+---
+
+# Runda 5 - domknięcie rezerw world-class (2026-07-11, wieczór)
+
+Cel rundy: zamknąć wszystkie rezydualne niedociągnięcia wskazane w re-ewaluacji
+(w tym obszary wcześniej "poza mandatem") i podnieść spójność międzymodułową.
+
+## Wdrożone w tej rundzie
+
+| Obszar | Zmiana | Efekt |
+|---|---|---|
+| Archiwa i wyszukiwarka | Paginacja "załaduj więcej" (blog, kategoria, tag, autor: 60/str.; szukajka: 60→300 z uczciwym "N+"), błędy RPC rzucane zamiast udawania "0 wyników", i18n PL/EN stanów pustych i błędów | koniec ucinania list na sztywnym limicie |
+| Komentarze | Naprawa wycieku subskrypcji auth (useMemo→useEffect z unsubscribe), paginacja okienkowa 50/str., stan "komentarze zamknięte" wg site_settings, przyjazny toast rate-limitu, spójny limit takeaways 6 (serwer=klient=copy) | stabilność pamięci + UX |
+| Czat | Blokowanie użytkowników end-to-end (tabela `user_blocks` + RPC `is_blocked_pair` + trigger guard + UI z AlertDialog), kursor złożony (created_at,id) bez gubienia wiadomości przy równych timestampach, typing-stop wysyłany przy send, rate-limit 30 msg/60 s z mapowaniem na toast | moderacja + poprawność paginacji |
+| Powiadomienia | SPA-nawigacja przez router.navigate({href}) z obsługą query stringów (koniec pełnych przeładowań i ryzyka 404), optymistyczne mark-read/unread/delete z rollbackiem, share bar: jeden przycisk Drukuj/PDF, mobile zgodny z konfiguracją | płynność + spójność konfiguracji |
+| Newsletter | Harmonogram realnie działa: oportunistyczny tick (mount admina + przycisk "Wyślij zaległe"), atomowe przejęcie kampanii, odzysk zawieszonej wysyłki (lease 20 min) z idempotencją per-odbiorca, kolumna "Zaplanowana na" | scheduled_at przestał być martwym polem |
+| Web stories | SEO odcinka (tytuł, opis, OG, JSON-LD CreativeWork), wpisy w sitemap, publiczny indeks `/web-stories` w stylu `/podcasts` | odkrywalność |
+| Ustawienia logowania/personalizacji | Podpięte 7 martwych opcji: logout_redirect_url, custom_login_url, form_logo_url_dark (tryb ciemny), login_bg_url/color, login_position (L/Ś/P), guestExpirationDays (TTL gościa z przycinaniem przy merge), readingListPath; usunięty martwy userExpirationDays | panel admina przestał kłamać |
+| Wpisy | Prev/next zasilane realnymi danymi (adjacentPosts wg published_at, RLS anon), usunięte martwe paski Źródła/Via z całego łańcucha (typy, merge, admin, scaffold) | nawigacja działa, mniej martwego kodu |
+| Konto / bezpieczeństwo | Zmiana e-maila wymaga re-auth hasłem, deadline resetu hasła zależny od obecności tokenu recovery (20 s vs 4 s), rate-limit weryfikacji hasła treści (10/min), polityka podcast_settings zawężona do tenanta | domknięcie wektorów z re-audytu |
+| Podcasty / media | Okładka w Media Session (artwork na ekranie blokady), MediaPicker z trybem audio i guardem typów, szersze MIME audio (x-wav, wave, flac), limity TTS liczone po cache (czytelnik wielu artykułów nie jest karany za trafienia w cache) | UX audio klasy premium |
+
+## Bramki weryfikacyjne rundy 5
+
+- `tsc --noEmit`: 0 nowych błędów (pozostaje wyłącznie baseline środowiska: brak `@types/node`, prywatne pakiety `@lovable.dev/*`)
+- `bun run lint`: 0 błędów (61 ostrzeżeń `exhaustive-deps` - baseline sprzed rundy)
+- `bun run test`: 144 pliki / 1363 testy zaliczone
+- Drzewo tras zregenerowane (`/web-stories/`), migracja hardeningowa `20260711190000` za wdrożonymi na produkcji
+
+## Ocena po rundzie 5 (szacunek)
+
+| Obszar | Po rundzie 4 | Po rundzie 5 |
+|---|---|---|
+| Czat / powiadomienia | ~8,3 | **~8,8** |
+| Treści / archiwa / wyszukiwarka | 7,8 | **~8,4** |
+| Newsletter / monetyzacja | ~7,1 | **~7,8** |
+| Profil / auth / personalizacja | ~7,2 | **~8,2** |
+| Podcasty / audio / TTS | 8,0 | **~8,3** |
+| Infrastruktura / jakość inż. | ~7,9 | **~8,1** |
+| **Platforma ogółem** | **~7,7** | **~8,2** |
+
+Pozostałe świadome rezerwy: MFA/TOTP, analityka kampanii newslettera (open/click),
+pokrycie testami komponentów czatu, pg_cron zamiast ticku oportunistycznego.

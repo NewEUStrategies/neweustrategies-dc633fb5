@@ -48,17 +48,34 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
 
 const ChangeEmailSchema = z.object({
   email: z.string().email().max(320),
+  // Potwierdzenie hasłem = re-uwierzytelnienie przed zmianą adresu logowania
+  // (spójnie z usuwaniem konta i zmianą hasła).
+  password: z.string().min(1).max(200),
 });
 
 /**
- * Rozpoczyna zmianę adresu e-mail konta. Supabase wysyła link potwierdzający
- * na nowy adres; zmiana wchodzi w życie dopiero po kliknięciu w niego.
+ * Rozpoczyna zmianę adresu e-mail konta po ponownym potwierdzeniu hasła.
+ * Supabase wysyła link potwierdzający na nowy adres; zmiana wchodzi w życie
+ * dopiero po kliknięciu w niego.
  */
 export const changeMyEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ChangeEmailSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, claims } = context;
+
+    const currentEmail = typeof claims.email === "string" ? claims.email : null;
+    if (!currentEmail) {
+      throw new Error("Nie można potwierdzić tożsamości konta.");
+    }
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email: currentEmail,
+      password: data.password,
+    });
+    if (reauthError) {
+      throw new Error("Nieprawidłowe hasło.");
+    }
+
     const { error } = await supabase.auth.updateUser({ email: data.email });
     if (error) {
       throw new Error(error.message);

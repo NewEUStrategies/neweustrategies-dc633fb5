@@ -8,7 +8,7 @@
 import "@/lib/i18n-chat";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Images, Minus, X } from "lucide-react";
+import { ArrowLeft, Ban, Images, Minus, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +38,7 @@ import {
   type SendMessageInput,
 } from "@/lib/chat/useMessages";
 import { toast } from "sonner";
+import { useBlockUser, useMyBlocks, useUnblockUser } from "@/lib/chat/useBlocks";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { usePrefetchAttachmentUrls } from "@/lib/chat/attachments";
 import type { ChatLang } from "@/lib/chat/time";
@@ -106,9 +107,24 @@ export function ChatWindow(props: ChatWindowProps) {
   const toggleReaction = useToggleReaction(conversationId);
   const markRead = useMarkConversationRead();
 
+  // Block state: RLS only exposes MY blocks, so this covers "I blocked the
+  // peer"; the reverse direction is enforced server-side ("chat: blocked").
+  const blocksQ = useMyBlocks();
+  const blockUser = useBlockUser();
+  const unblockUser = useUnblockUser();
+  const peerBlocked = !!peerId && !!blocksQ.data?.has(peerId);
+
   const [peerTyping, setPeerTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { sendTyping } = useConversationChannel(conversationId, true, () => {
+  const { sendTyping } = useConversationChannel(conversationId, true, (event) => {
+    if (event.typing === false) {
+      // Explicit stop (the peer just sent a message) - clear immediately
+      // instead of letting the 4s timeout linger under the fresh bubble.
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+      setPeerTyping(false);
+      return;
+    }
     setPeerTyping(true);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => setPeerTyping(false), TYPING_VISIBLE_MS);
@@ -188,11 +204,13 @@ export function ChatWindow(props: ChatWindowProps) {
   const [editTarget, setEditTarget] = useState<ChatMessage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
 
   useEffect(() => {
     setReplyTo(null);
     setEditTarget(null);
     setDeleteTarget(null);
+    setBlockDialogOpen(false);
   }, [conversationId]);
 
   // Minute tick: the 5-minute edit window must close visually even when
@@ -235,7 +253,32 @@ export function ChatWindow(props: ChatWindowProps) {
   const handleClearReply = useCallback(() => setReplyTo(null), []);
   const handleCancelEdit = useCallback(() => setEditTarget(null), []);
   const { mutate: mutateSend } = sendMessage;
-  const handleSend = useCallback((input: SendMessageInput) => mutateSend(input), [mutateSend]);
+  const handleSend = useCallback(
+    (input: SendMessageInput) => {
+      // The outgoing message supersedes the typing state on the peer's side -
+      // broadcast an explicit stop so their indicator clears instantly.
+      sendTyping(false);
+      mutateSend(input, {
+        onError: (err) => {
+          // The mutation's own onError already flipped the optimistic row to
+          // its failed state; here we only translate the server verdict.
+          if (err.message.includes("chat: blocked")) toast.error(t("chat.block.sendBlocked"));
+          else if (err.message.includes("rate limited")) toast.error(t("chat.rateLimited"));
+        },
+      });
+    },
+    [mutateSend, sendTyping, t],
+  );
+  const { mutate: mutateBlock } = blockUser;
+  const { mutate: mutateUnblock } = unblockUser;
+  const handleUnblock = useCallback(() => {
+    if (peerId) mutateUnblock(peerId, { onError: () => toast.error(t("chat.block.error")) });
+  }, [peerId, mutateUnblock, t]);
+  const handleConfirmBlockToggle = useCallback(() => {
+    if (!peerId) return;
+    if (peerBlocked) mutateUnblock(peerId, { onError: () => toast.error(t("chat.block.error")) });
+    else mutateBlock(peerId, { onError: () => toast.error(t("chat.block.error")) });
+  }, [peerId, peerBlocked, mutateBlock, mutateUnblock, t]);
   const { mutate: mutateEdit } = editMessage;
   const handleSaveEdit = useCallback(
     (messageId: string, body: string) =>
@@ -263,6 +306,22 @@ export function ChatWindow(props: ChatWindowProps) {
     </button>
   );
 
+  const blockToggle = peerId ? (
+    <button
+      type="button"
+      onClick={() => setBlockDialogOpen(true)}
+      className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        peerBlocked && "text-destructive hover:text-destructive",
+      )}
+      aria-label={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+      aria-haspopup="dialog"
+      title={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+    >
+      <Ban className="h-4 w-4" aria-hidden />
+    </button>
+  ) : null;
+
   const mainCol = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MessageList
@@ -285,19 +344,35 @@ export function ChatWindow(props: ChatWindowProps) {
         onDiscardFailed={handleDiscardFailed}
         canEdit={canEdit}
       />
-      <ChatComposer
-        conversationId={conversationId}
-        lang={lang}
-        replyTo={replyTo}
-        replyToAuthor={replyTo ? (replyTo.sender_id === user.id ? t("chat.you") : peerName) : null}
-        editing={editTarget}
-        onClearReply={handleClearReply}
-        onSend={handleSend}
-        onSaveEdit={handleSaveEdit}
-        onCancelEdit={handleCancelEdit}
-        onTyping={sendTyping}
-        autoFocus={autoFocus}
-      />
+      {peerBlocked ? (
+        <div className="border-t border-border/60 bg-background/95 px-3 py-2.5 text-center">
+          <p className="text-[12px] text-muted-foreground">{t("chat.block.composerNotice")}</p>
+          <button
+            type="button"
+            onClick={handleUnblock}
+            disabled={unblockUser.isPending}
+            className="mt-1.5 rounded-[6px] border border-border/60 px-3 py-1 text-[12px] font-medium transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            {t("chat.block.unblock")}
+          </button>
+        </div>
+      ) : (
+        <ChatComposer
+          conversationId={conversationId}
+          lang={lang}
+          replyTo={replyTo}
+          replyToAuthor={
+            replyTo ? (replyTo.sender_id === user.id ? t("chat.you") : peerName) : null
+          }
+          editing={editTarget}
+          onClearReply={handleClearReply}
+          onSend={handleSend}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
+          onTyping={sendTyping}
+          autoFocus={autoFocus}
+        />
+      )}
     </div>
   );
 
@@ -335,6 +410,26 @@ export function ChatWindow(props: ChatWindowProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {peerBlocked
+                ? t("chat.block.unblockTitle", { name: peerName })
+                : t("chat.block.blockTitle", { name: peerName })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {peerBlocked ? t("chat.block.unblockConfirm") : t("chat.block.blockConfirm")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("chat.close")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmBlockToggle}>
+              {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 
@@ -362,6 +457,7 @@ export function ChatWindow(props: ChatWindowProps) {
               {peerOnline ? t("chat.online") : t("chat.offline")}
             </div>
           </div>
+          {blockToggle}
           {mediaToggle}
         </div>
         {body}
@@ -398,6 +494,7 @@ export function ChatWindow(props: ChatWindowProps) {
             {peerOnline ? t("chat.online") : t("chat.offline")}
           </div>
         </div>
+        {blockToggle}
         {mediaToggle}
         {onMinimize && (
           <button

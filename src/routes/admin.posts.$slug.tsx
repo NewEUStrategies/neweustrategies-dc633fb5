@@ -820,8 +820,6 @@ function EditPost() {
           [
             ["center_header", "Wyśrodkuj nagłówek"],
             ["show_post_tags_bar", "Pasek tagów"],
-            ["show_sources_bar", "Pasek źródeł"],
-            ["show_via_bar", "Pasek „via”"],
             ["show_author_card", "Karta autora"],
             ["show_prev_next", "Poprzedni / następny"],
             ["show_bottom_newsletter", "Newsletter pod wpisem"],

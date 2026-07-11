@@ -4,10 +4,10 @@
 // - Settings tab (toggle notification kinds + default behaviour)
 // - Realtime: notifications + notification_preferences (widgets stay in sync)
 // - Multi-tenant: RLS scopes rows to auth.uid() + current_tenant_id
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
+import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
 import * as LucideIcons from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,8 +25,6 @@ import {
 } from "@/components/ui/select";
 import {
   useMarkAllNotificationsRead,
-  useMarkNotificationsRead,
-  useMarkNotificationsUnread,
   useNotifications,
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
@@ -83,17 +81,56 @@ function resolveIcon(name: string | null | undefined) {
   const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
   return reg[name] ?? null;
 }
-// Internal links go through the router (no full reload); external ones stay
+// Internal links get SPA navigation (no full reload); external ones stay
 // plain anchors - same rule the header bell applies.
 //
-// Hrefs carrying a query string (e.g. message notifications:
-// "/messages?c=<uuid>") must NOT go through <Link to={href}>: TanStack Router
-// treats `to` as a pathname verbatim and never splits out `?search`, so the
-// conversation id would be dropped and the polluted path 404s. Those use a
-// plain <a> full navigation, which the route's validateSearch parses correctly.
+// Internal hrefs render a real <a href> for semantics, but plain left-clicks
+// are hijacked and routed through router.navigate({ href }). Unlike
+// <Link to={href}> - which treats `to` as a pathname verbatim and never splits
+// out `?search`, 404-ing "/messages?c=<uuid>" - navigate({ href }) parses the
+// query string correctly, so search params survive client-side navigation.
 function isInternalHref(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//") && !href.includes("?");
+  return href.startsWith("/") && !href.startsWith("//");
 }
+
+// Unmodified left-click - the only case we hijack for SPA navigation.
+// Modified clicks (ctrl/cmd/shift/alt, middle button) keep native anchor
+// behaviour like open-in-new-tab; the real href makes that work.
+function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean {
+  return (
+    !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
+  );
+}
+
+// React-query plumbing for optimistic updates. List caches live under
+// ["notifications", <uid>, <filter>] (see useNotifications). The same
+// "notifications" prefix also covers the preferences and unread-count queries,
+// whose data is NOT a row array - list entries are recognized by key shape
+// (third element is the filter object).
+function isNotificationListQuery(query: { queryKey: readonly unknown[] }): boolean {
+  const key = query.queryKey;
+  return (
+    key[0] === "notifications" && key.length === 3 && typeof key[2] === "object" && key[2] !== null
+  );
+}
+
+const NOTIFICATION_LIST_FILTERS = {
+  queryKey: ["notifications"],
+  predicate: isNotificationListQuery,
+};
+
+/** Does this list cache hold only unread rows? (its filter set onlyUnread) */
+function listKeyIsOnlyUnread(key: readonly unknown[]): boolean {
+  const filter = key[2];
+  return (
+    typeof filter === "object" &&
+    filter !== null &&
+    "onlyUnread" in filter &&
+    filter.onlyUnread === true
+  );
+}
+
+type NotificationListSnapshot = Array<[QueryKey, NotificationRow[] | undefined]>;
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences";
 
@@ -115,6 +152,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   useNotificationsRealtime();
   useNotificationPreferencesRealtime();
 
+  const router = useRouter();
   const qc = useQueryClient();
   const prefsQ = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
@@ -126,22 +164,84 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     kind: kindFilter === "all" ? null : kindFilter,
   });
   const markAll = useMarkAllNotificationsRead();
-  const markMany = useMarkNotificationsRead();
-  const unreadMany = useMarkNotificationsUnread();
+
+  // Optimistic-cache plumbing shared by the mutations below: cancel in-flight
+  // list fetches (so a stale response cannot clobber the patch), snapshot every
+  // cached notifications list, apply the updater per list, and hand back the
+  // snapshot for rollback on error.
+  const patchNotificationLists = async (
+    patch: (rows: NotificationRow[], key: QueryKey) => NotificationRow[],
+  ): Promise<{ previous: NotificationListSnapshot }> => {
+    await qc.cancelQueries(NOTIFICATION_LIST_FILTERS);
+    const previous = qc.getQueriesData<NotificationRow[]>(NOTIFICATION_LIST_FILTERS);
+    for (const [key, rows] of previous) {
+      if (rows) qc.setQueryData(key, patch(rows, key));
+    }
+    return { previous };
+  };
+  const rollbackNotificationLists = (ctx: { previous: NotificationListSnapshot } | undefined) => {
+    for (const [key, rows] of ctx?.previous ?? []) qc.setQueryData(key, rows);
+  };
+  // Re-sync with the server whatever happened - the "notifications" prefix
+  // also covers the unread-count query, so it stays consistent too.
+  const invalidateNotifications = () => {
+    void qc.invalidateQueries({ queryKey: ["notifications"] });
+  };
+
+  // Mark-read / mark-unread: optimistic variants of the shared hooks (same
+  // RPCs), so rows flip state instantly instead of waiting for invalidation.
+  const markMany = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase.rpc("mark_notifications_read", { p_ids: ids });
+      if (error) throw error;
+    },
+    onMutate: (ids: string[]) => {
+      const idSet = new Set(ids);
+      const readAt = new Date().toISOString();
+      // Unread-only lists drop the rows entirely; the rest just flip read_at.
+      return patchNotificationLists((rows, key) =>
+        listKeyIsOnlyUnread(key)
+          ? rows.filter((row) => !idSet.has(row.id))
+          : rows.map((row) =>
+              idSet.has(row.id) && !row.read_at ? { ...row, read_at: readAt } : row,
+            ),
+      );
+    },
+    onError: (_err, _ids, ctx) => rollbackNotificationLists(ctx),
+    onSettled: invalidateNotifications,
+  });
+  const unreadMany = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase.rpc("mark_notifications_unread", { p_ids: ids });
+      if (error) throw error;
+    },
+    onMutate: (ids: string[]) => {
+      const idSet = new Set(ids);
+      return patchNotificationLists((rows) =>
+        rows.map((row) => (idSet.has(row.id) && row.read_at ? { ...row, read_at: null } : row)),
+      );
+    },
+    onError: (_err, _ids, ctx) => rollbackNotificationLists(ctx),
+    onSettled: invalidateNotifications,
+  });
   // Batch delete by id array - a grouped conversation collapses many rows into
   // one entry, so the trash button must remove EVERY member id (deleting only
   // the latest left the rest to resurface as a "new" group). One statement,
-  // then the shared invalidation the notification hooks use ("notifications"
-  // also covers the unread-count query).
+  // with the rows optimistically removed from every cached list up front.
   const deleteGroup = useMutation({
     mutationFn: async (ids: string[]) => {
       if (ids.length === 0) return;
       const { error } = await supabase.from("notifications").delete().in("id", ids);
       if (error) throw error;
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    onMutate: (ids: string[]) => {
+      const idSet = new Set(ids);
+      return patchNotificationLists((rows) => rows.filter((row) => !idSet.has(row.id)));
     },
+    onError: (_err, _ids, ctx) => rollbackNotificationLists(ctx),
+    onSettled: invalidateNotifications,
   });
 
   const items = listQ.data ?? [];
@@ -322,6 +422,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                           : pickTitle(n, lang);
                       const allIds = g.items.map((i) => i.id);
                       const unreadIds = g.items.filter((i) => !i.read_at).map((i) => i.id);
+                      const href = n.href;
                       return (
                         <li key={g.key} className="py-3 flex items-start gap-3">
                           <div
@@ -337,11 +438,14 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              {n.href && isInternalHref(n.href) ? (
-                                <Link
-                                  to={n.href}
-                                  onClick={() => {
+                              {href && isInternalHref(href) ? (
+                                <a
+                                  href={href}
+                                  onClick={(e) => {
                                     if (unreadIds.length > 0) markMany.mutate(unreadIds);
+                                    if (!isPlainLeftClick(e)) return;
+                                    e.preventDefault();
+                                    void router.navigate({ href });
                                   }}
                                   className={cn(
                                     "text-sm truncate hover:underline",
@@ -349,10 +453,11 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                   )}
                                 >
                                   {title}
-                                </Link>
-                              ) : n.href ? (
+                                </a>
+                              ) : href ? (
                                 <a
-                                  href={n.href}
+                                  href={href}
+                                  target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={() => {
                                     if (unreadIds.length > 0) markMany.mutate(unreadIds);

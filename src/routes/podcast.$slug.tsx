@@ -108,6 +108,7 @@ function PodcastSinglePage() {
       <PodcastPlayer
         src={p.audio_url}
         title={title}
+        coverUrl={p.cover_image_url}
         initialDuration={p.duration_seconds}
         variant={playerVariant(settings?.default_player_variant)}
         showSpeed={settings?.show_speed_control ?? true}

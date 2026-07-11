@@ -42,7 +42,7 @@ export function MediaPickerDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onPick: (url: string) => void;
-  accept?: "image" | "all";
+  accept?: "image" | "audio" | "all";
   title?: string;
 }) {
   const tenantId = useRequiredTenant();
@@ -59,7 +59,7 @@ export function MediaPickerDialog({
   const [altDraft, setAltDraft] = useState("");
   const [savingAlt, setSavingAlt] = useState(false);
 
-  const acceptAttr = accept === "image" ? "image/*" : undefined;
+  const acceptAttr = accept === "image" ? "image/*" : accept === "audio" ? "audio/*" : undefined;
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -75,6 +75,10 @@ export function MediaPickerDialog({
         for (const file of list) {
           if (accept === "image" && !file.type.startsWith("image/")) {
             toast.error(`Pominięto ${file.name} - to nie jest obraz`);
+            continue;
+          }
+          if (accept === "audio" && !file.type.startsWith("audio/")) {
+            toast.error(`Pominięto ${file.name} - to nie jest plik audio`);
             continue;
           }
           const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");

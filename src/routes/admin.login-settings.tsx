@@ -82,13 +82,26 @@ function LoginSettingsPage() {
             onPl={(v) => update("popup_description_pl", v)}
             onEn={(v) => update("popup_description_en", v)}
           />
-          <ImageField
-            label="Logo formularza"
-            value={s.form_logo_url}
-            onChange={(v) => update("form_logo_url", v)}
-            hint="PNG / SVG z przezroczystym tłem. Zalecana wysokość 48–80 px, szerokość do 240 px, waga < 100 KB."
-            aspect="240 / 80"
-          />
+          <div className="grid md:grid-cols-2 gap-4">
+            <ImageField
+              label="Logo formularza (motyw jasny)"
+              icon="light"
+              previewBg="light"
+              value={s.form_logo_url}
+              onChange={(v) => update("form_logo_url", v)}
+              hint="PNG / SVG z przezroczystym tłem. Zalecana wysokość 48–80 px, szerokość do 240 px, waga < 100 KB."
+              aspect="240 / 80"
+            />
+            <ImageField
+              label="Logo formularza (motyw ciemny)"
+              icon="dark"
+              previewBg="dark"
+              value={s.form_logo_url_dark}
+              onChange={(v) => update("form_logo_url_dark", v)}
+              hint="Opcjonalnie - jasna wersja logo dla ciemnego motywu. Fallback: logo motywu jasnego."
+              aspect="240 / 80"
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="page" className="space-y-6 mt-4">
@@ -241,6 +254,10 @@ function LoginSettingsPage() {
               <option value="center">Środek</option>
               <option value="right">Prawa</option>
             </select>
+            <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+              Lewa / Prawa - kolumna formularza względem ilustracji hero. Środek - ukrywa ilustrację
+              i wyśrodkowuje formularz.
+            </p>
           </div>
           <Card title="Pokaż link 'Wróć na stronę główną'" description="">
             <Switch
@@ -248,13 +265,31 @@ function LoginSettingsPage() {
               onCheckedChange={(v) => update("show_back_to_home", v)}
             />
           </Card>
-          <div>
-            <Label>Niestandardowy URL strony logowania (opcjonalnie)</Label>
-            <Input
-              value={s.custom_login_url}
-              onChange={(e) => update("custom_login_url", e.target.value)}
-              placeholder="/membership/login"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Niestandardowy URL strony logowania (opcjonalnie)</Label>
+              <Input
+                value={s.custom_login_url}
+                onChange={(e) => update("custom_login_url", e.target.value)}
+                placeholder="/membership/login"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                Gdy popup jest wyłączony, przyciski logowania prowadzą tutaj zamiast na /login.
+                Ścieżka wewnętrzna ("/...") lub pełny adres https.
+              </p>
+            </div>
+            <div>
+              <Label>Przekierowanie po wylogowaniu</Label>
+              <Input
+                value={s.logout_redirect_url}
+                onChange={(e) => update("logout_redirect_url", e.target.value)}
+                placeholder="/"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                Ścieżka wewnętrzna (musi zaczynać się od "/"), na którą trafia użytkownik po
+                wylogowaniu. Domyślnie strona główna.
+              </p>
+            </div>
           </div>
         </TabsContent>
 

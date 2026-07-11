@@ -105,6 +105,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { loc: `${origin}/`, changefreq: "daily", priority: "1.0" },
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/podcasts`, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/web-stories`, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
         ];
 
@@ -163,6 +164,27 @@ export const Route = createFileRoute("/sitemap.xml")({
               lastmod: (ep.updated_at ?? ep.published_at ?? "").slice(0, 10) || undefined,
               changefreq: "monthly",
               priority: "0.6",
+            });
+          }
+
+          // Published web stories - previously absent from the sitemap, so
+          // crawlers had no way to discover them.
+          const { data: stories } = await supabaseAdmin
+            .from("web_stories")
+            .select("slug, updated_at, published_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published");
+          for (const row of stories ?? []) {
+            const s = row as {
+              slug: string;
+              updated_at: string | null;
+              published_at: string | null;
+            };
+            entries.push({
+              loc: `${origin}/web-stories/${s.slug}`,
+              lastmod: (s.updated_at ?? s.published_at ?? "").slice(0, 10) || undefined,
+              changefreq: "monthly",
+              priority: "0.5",
             });
           }
         } catch (e) {

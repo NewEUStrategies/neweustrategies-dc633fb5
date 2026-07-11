@@ -6,16 +6,41 @@ import { webStoryBySlugQueryOptions, latestWebStoriesQueryOptions } from "@/lib/
 import { StoryViewer } from "@/components/web-stories/StoryViewer";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { storyTitle, storyDescription } from "@/lib/web-stories/types";
+import { safeJsonLd } from "@/lib/seo/jsonld";
 
 export const Route = createFileRoute("/web-stories/$slug")({
   loader: async ({ context, params }) => {
     const data = await context.queryClient.ensureQueryData(webStoryBySlugQueryOptions(params.slug));
     if (!data) throw notFound();
-    return null;
+    return { story: data };
   },
-  head: ({ params }) => ({
-    meta: [{ title: `Web Story · ${params.slug}` }, { property: "og:type", content: "article" }],
-  }),
+  head: ({ loaderData }) => {
+    const s = loaderData?.story;
+    if (!s) return { meta: [{ title: "Web Story" }] };
+    const title = s.title_pl || s.title_en || "Web Story";
+    const description = (s.description_pl || s.description_en || "").slice(0, 300) || undefined;
+    // JSON-LD CreativeWork: pozwala wyszukiwarkom rozpoznać web story jako
+    // samodzielną treść (nazwa, okładka, data publikacji).
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "CreativeWork",
+      name: title,
+      ...(description ? { description } : {}),
+      ...(s.cover_url ? { image: s.cover_url } : {}),
+      ...(s.published_at ? { datePublished: s.published_at } : {}),
+    };
+    return {
+      meta: [
+        { title: `${title} · Web Story` },
+        ...(description ? [{ name: "description", content: description }] : []),
+        { property: "og:title", content: title },
+        { property: "og:type", content: "article" },
+        ...(description ? [{ property: "og:description", content: description }] : []),
+        ...(s.cover_url ? [{ property: "og:image", content: s.cover_url }] : []),
+      ],
+      scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
+    };
+  },
   errorComponent: ({ error }) => (
     <div className="container mx-auto p-8 text-sm">{error.message}</div>
   ),

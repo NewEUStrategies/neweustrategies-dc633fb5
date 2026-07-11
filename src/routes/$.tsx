@@ -89,6 +89,7 @@ import {
   type PageData,
   type ResolvedContent,
 } from "@/lib/queries/public";
+import { adjacentPostsQueryOptions, type AdjacentPostRow } from "@/lib/queries/adjacentPosts";
 import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
@@ -473,6 +474,34 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const relatedOverride = (post?.related_override ?? null) as RelatedPostsOverride | null;
   const relatedCfg = mergeRelatedConfig(relatedGlobalCfg, relatedOverride);
 
+  // Prev/next footer navigation (show_prev_next). Client-side only and gated:
+  // the query fires exclusively when the toggle is effectively on (global
+  // setting or per-post override) for a published post, so it costs nothing
+  // otherwise. parent_path="post" routes the links through the dedicated
+  // /post/$slug resolver, which always works regardless of parent page paths.
+  const prevNextEnabled = Boolean(
+    isPost &&
+    post &&
+    globalLayoutSettings &&
+    mergeOverrides(globalLayoutSettings, post.layout_overrides ?? null).show_prev_next,
+  );
+  const { data: adjacentPosts } = useQuery(
+    adjacentPostsQueryOptions(
+      prevNextEnabled ? (post?.id ?? null) : null,
+      prevNextEnabled ? (post?.published_at ?? null) : null,
+    ),
+  );
+  const toNeighbor = (row: AdjacentPostRow | null | undefined) =>
+    row
+      ? {
+          slug: row.slug,
+          title: lang === "en" ? row.title_en || row.title_pl : row.title_pl || row.title_en,
+          parent_path: "post",
+        }
+      : null;
+  const prevPost = toNeighbor(adjacentPosts?.prev);
+  const nextPost = toNeighbor(adjacentPosts?.next);
+
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
   useEffect(() => {
     setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
@@ -717,8 +746,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   settings={merged}
                   lang={lang}
                   tags={postTags}
-                  sources={null}
-                  via={null}
+                  prev={prevPost}
+                  next={nextPost}
                   author={
                     postAuthor
                       ? {

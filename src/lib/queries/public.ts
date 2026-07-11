@@ -271,9 +271,14 @@ export const homePageQueryOptions = () =>
     staleTime: PAGE_PATH_TTL,
   });
 
-export const blogListQueryOptions = () =>
+// "Load more" page size for the public blog list. The default limit equals one
+// page, so SSR loaders (called without an argument) keep prefetching exactly
+// the first, cheap page; bigger limits are requested client-side only.
+export const BLOG_PAGE_SIZE = 50;
+
+export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
   queryOptions({
-    queryKey: ["public", "blog", "list", { limit: 50 }] as const,
+    queryKey: ["public", "blog", "list", { limit }] as const,
     queryFn: async (): Promise<{ posts: BlogListItem[] }> => {
       const { data, error } = await supabase
         .from("posts")
@@ -283,7 +288,7 @@ export const blogListQueryOptions = () =>
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
-        .limit(50);
+        .limit(limit);
       if (error) throw error;
       const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
       // Posts always link via the dedicated `/post/$slug` route, which resolves
