@@ -1632,16 +1632,27 @@ function ListView({
 function InfoPanel({
   target,
   imgSize,
+  onSaveAlt,
 }: {
   target: MediaRow | null;
   imgSize: { w: number; h: number } | null;
+  onSaveAlt: (id: string, altText: string) => Promise<void>;
 }) {
+  const { t } = useTranslation();
+  const [altDraft, setAltDraft] = useState("");
+  const [savingAlt, setSavingAlt] = useState(false);
+  useEffect(() => {
+    setAltDraft(target?.alt_text ?? "");
+  }, [target?.id, target?.alt_text]);
+
   if (!target) {
     return <p className="text-muted-foreground">Zaznacz jeden plik, aby zobaczyć szczegóły.</p>;
   }
+  const isImage = target.mime_type?.startsWith("image/");
+  const dirty = (target.alt_text ?? "") !== altDraft;
   return (
     <div className="space-y-3">
-      {target.mime_type?.startsWith("image/") ? (
+      {isImage ? (
         <img
           src={target.public_url}
           alt={target.alt_text || target.filename}
@@ -1663,6 +1674,45 @@ function InfoPanel({
         <Row label="Utworzono" value={new Date(target.created_at).toLocaleString()} />
         <Row label="ID" value={target.id} mono />
       </div>
+      {isImage && (
+        <div className="pt-2 border-t border-border space-y-2">
+          <label className="block text-muted-foreground" htmlFor={`alt-${target.id}`}>
+            {t("admin.media.altText", { defaultValue: "Tekst alternatywny (alt)" })}
+          </label>
+          <textarea
+            id={`alt-${target.id}`}
+            value={altDraft}
+            onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
+            rows={2}
+            placeholder={t("admin.media.altPlaceholder", {
+              defaultValue: "Opisz obraz dla czytników ekranu i SEO",
+            })}
+            className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] text-muted-foreground">{altDraft.length}/500</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!dirty || savingAlt}
+              onClick={async () => {
+                setSavingAlt(true);
+                try {
+                  await onSaveAlt(target.id, altDraft.trim());
+                  toast.success(t("admin.saved", { defaultValue: "Zapisano" }));
+                } finally {
+                  setSavingAlt(false);
+                }
+              }}
+            >
+              {savingAlt
+                ? t("admin.saving", { defaultValue: "Zapisywanie…" })
+                : t("admin.save", { defaultValue: "Zapisz" })}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="pt-2 border-t border-border space-y-1">
         <a
           href={target.public_url}
