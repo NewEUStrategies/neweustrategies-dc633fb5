@@ -206,7 +206,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
             </div>
           )}
 
-          {tab !== "settings" ? (
+          {showInboxTabs && tab !== "settings" ? (
             <TabsContent
               value={tab}
               className="mt-3 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden"
