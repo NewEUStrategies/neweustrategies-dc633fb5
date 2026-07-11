@@ -119,6 +119,7 @@ import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.n
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
+import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
@@ -682,6 +683,12 @@ const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
   path: '/inline',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminNewsletterCampaignsRoute =
+  AdminNewsletterCampaignsRouteImport.update({
+    id: '/campaigns',
+    path: '/campaigns',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminAppearancePostSidebarRoute =
   AdminAppearancePostSidebarRouteImport.update({
     id: '/post-sidebar',
@@ -825,6 +832,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -941,6 +949,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1063,6 +1072,7 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1186,6 +1196,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -1302,6 +1313,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -1423,6 +1435,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -2268,6 +2281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterInlineRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/campaigns': {
+      id: '/admin/newsletter/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/newsletter/campaigns'
+      preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/appearance/post-sidebar': {
       id: '/admin/appearance/post-sidebar'
       path: '/post-sidebar'
@@ -2355,6 +2375,7 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
 )
 
 interface AdminNewsletterRouteChildren {
+  AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRoute
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
@@ -2363,6 +2384,7 @@ interface AdminNewsletterRouteChildren {
 }
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
+  AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRoute,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
