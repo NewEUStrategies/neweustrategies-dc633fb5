@@ -254,6 +254,7 @@ function EditPost() {
     | "layout"
     | "taxonomy"
     | "access"
+    | "audio"
     | "revisions";
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("general");
 
