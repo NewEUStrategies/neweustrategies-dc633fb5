@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
-import { registerMediaUpload } from "@/lib/media.functions";
+import { registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ interface PickerRow {
   mime_type: string | null;
   folder_path: string;
   created_at: string;
+  alt_text: string | null;
 }
 
 export function MediaPickerDialog({
@@ -48,12 +49,15 @@ export function MediaPickerDialog({
   const { user } = useAuth();
   const qc = useQueryClient();
   const registerUpload = useServerFn(registerMediaUpload);
+  const updateMeta = useServerFn(updateMediaMeta);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string>("all");
   const [pickedUrl, setPickedUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [altDraft, setAltDraft] = useState("");
+  const [savingAlt, setSavingAlt] = useState(false);
 
   const acceptAttr = accept === "image" ? "image/*" : undefined;
 
@@ -122,7 +126,7 @@ export function MediaPickerDialog({
     queryFn: async (): Promise<PickerRow[]> => {
       let query = supabase
         .from("media")
-        .select("id, public_url, filename, mime_type, folder_path, created_at")
+        .select("id, public_url, filename, mime_type, folder_path, created_at, alt_text")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -147,6 +151,33 @@ export function MediaPickerDialog({
       return true;
     });
   }, [data, q, folder]);
+
+  const picked = useMemo(
+    () => (data ?? []).find((m) => m.public_url === pickedUrl) ?? null,
+    [data, pickedUrl],
+  );
+  const pickedIsImage = !!picked?.mime_type?.startsWith("image/");
+  const altDirty = picked ? (picked.alt_text ?? "") !== altDraft : false;
+
+  const handlePickRow = (row: PickerRow) => {
+    setPickedUrl(row.public_url);
+    setAltDraft(row.alt_text ?? "");
+  };
+
+  const saveAlt = async () => {
+    if (!picked) return;
+    setSavingAlt(true);
+    try {
+      await updateMeta({ data: { mediaId: picked.id, altText: altDraft.trim() } });
+      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      toast.success("Zapisano alt");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingAlt(false);
+    }
+  };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -243,7 +274,7 @@ export function MediaPickerDialog({
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => setPickedUrl(m.public_url)}
+                    onClick={() => handlePickRow(m)}
                     onDoubleClick={() => {
                       onPick(m.public_url);
                       onOpenChange(false);
@@ -284,6 +315,37 @@ export function MediaPickerDialog({
             </div>
           )}
         </div>
+
+        {picked && pickedIsImage && (
+          <div className="border-t border-border pt-3 space-y-2">
+            <label
+              htmlFor="picker-alt"
+              className="block text-xs text-muted-foreground font-medium"
+            >
+              Tekst alternatywny (alt) — dla dostępności i SEO
+            </label>
+            <div className="flex items-start gap-2">
+              <textarea
+                id="picker-alt"
+                value={altDraft}
+                onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
+                rows={2}
+                placeholder="Opisz obraz w 1-2 zdaniach"
+                className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!altDirty || savingAlt}
+                onClick={saveAlt}
+              >
+                {savingAlt ? "Zapisywanie…" : "Zapisz alt"}
+              </Button>
+            </div>
+            <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
