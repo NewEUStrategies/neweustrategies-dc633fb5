@@ -445,7 +445,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       setStatus("loading");
       setError(null);
       try {
-        const blobUrl = await fetchBlob(meta.postId, meta.lang);
+        const blobUrl = await fetchBlob(meta.postId, meta.lang, meta.audioUrl ?? null);
         audio.src = blobUrl;
         // Zaplanuj jednorazowe przywrócenie pozycji po `loadedmetadata`.
         posKeyRef.current = key;
