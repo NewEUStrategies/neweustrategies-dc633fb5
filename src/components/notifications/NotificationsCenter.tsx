@@ -85,8 +85,14 @@ function resolveIcon(name: string | null | undefined) {
 }
 // Internal links go through the router (no full reload); external ones stay
 // plain anchors - same rule the header bell applies.
+//
+// Hrefs carrying a query string (e.g. message notifications:
+// "/messages?c=<uuid>") must NOT go through <Link to={href}>: TanStack Router
+// treats `to` as a pathname verbatim and never splits out `?search`, so the
+// conversation id would be dropped and the polluted path 404s. Those use a
+// plain <a> full navigation, which the route's validateSearch parses correctly.
 function isInternalHref(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//");
+  return href.startsWith("/") && !href.startsWith("//") && !href.includes("?");
 }
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences";

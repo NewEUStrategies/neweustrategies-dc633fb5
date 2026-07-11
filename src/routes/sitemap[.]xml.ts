@@ -104,6 +104,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         const entries: SitemapEntry[] = [
           { loc: `${origin}/`, changefreq: "daily", priority: "1.0" },
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
+          { loc: `${origin}/podcasts`, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
         ];
 
@@ -140,6 +141,28 @@ export const Route = createFileRoute("/sitemap.xml")({
               lastmod: (p.updated_at ?? p.published_at ?? "").slice(0, 10) || undefined,
               changefreq: "monthly",
               priority: "0.7",
+            });
+          }
+
+          // Published podcast episodes - previously absent from the sitemap, so
+          // crawlers had no way to discover them.
+          const { data: podcasts } = await supabaseAdmin
+            .from("podcasts")
+            .select("slug, updated_at, published_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published")
+            .is("deleted_at", null);
+          for (const row of podcasts ?? []) {
+            const ep = row as {
+              slug: string;
+              updated_at: string | null;
+              published_at: string | null;
+            };
+            entries.push({
+              loc: `${origin}/podcast/${ep.slug}`,
+              lastmod: (ep.updated_at ?? ep.published_at ?? "").slice(0, 10) || undefined,
+              changefreq: "monthly",
+              priority: "0.6",
             });
           }
         } catch (e) {

@@ -519,6 +519,54 @@ export function calendarTarget(month: string): CalendarInput {
 }
 
 // ---------------------------------------------------------------------------
+// live-blog (post-scoped realtime entries)
+// ---------------------------------------------------------------------------
+// The live-blog block keeps an open realtime channel (postgres_changes) that
+// setQueryData-merges pushes into THIS cache entry, so the SSR-warmed key and
+// the client key must resolve 1:1 - both go through this single queryOptions.
+
+export interface LiveBlogEntryRow {
+  id: string;
+  post_id: string;
+  block_id: string;
+  lang: Lang;
+  title: string | null;
+  body_html: string;
+  pinned: boolean;
+  occurred_at: string;
+}
+
+export interface LiveBlogEntriesInput {
+  postId: string;
+  blockId: string;
+  lang: Lang;
+  reverseChronological: boolean;
+}
+
+const LIVE_BLOG_SELECT = "id, post_id, block_id, lang, title, body_html, pinned, occurred_at";
+
+export const liveBlogEntriesBlockQueryOptions = (input: LiveBlogEntriesInput) =>
+  queryOptions({
+    queryKey: ["public", "blocks", "liveblog", input] as const,
+    // Live coverage moves fast - keep the block's original 30s freshness window
+    // rather than the 2 min contract the static block widgets use.
+    staleTime: 30_000,
+    gcTime: GC_TIME,
+    queryFn: async (): Promise<LiveBlogEntryRow[]> => {
+      const { data, error } = await supabase
+        .from("live_blog_entries")
+        .select(LIVE_BLOG_SELECT)
+        .eq("post_id", input.postId)
+        .eq("block_id", input.blockId)
+        .eq("lang", input.lang)
+        .order("occurred_at", { ascending: !input.reverseChronological })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as LiveBlogEntryRow[];
+    },
+  });
+
+// ---------------------------------------------------------------------------
 // SSR prefetch - the piece that makes the blocks engine crawler-complete.
 // ---------------------------------------------------------------------------
 
@@ -552,7 +600,8 @@ export type BlockDataQuery =
   | ReturnType<typeof relatedPostsBlockQueryOptions>
   | ReturnType<typeof authorPostsCountQueryOptions>
   | ReturnType<typeof morePostsBlockQueryOptions>
-  | ReturnType<typeof calendarBlockQueryOptions>;
+  | ReturnType<typeof calendarBlockQueryOptions>
+  | ReturnType<typeof liveBlogEntriesBlockQueryOptions>;
 
 /**
  * Warm one block query. Same widening trade as the builder's
@@ -644,6 +693,20 @@ export function blockQueryOptionsList(
       case "author-bio":
         if (ctx.authorId && block.data.showPostsCount !== false) {
           list.push(authorPostsCountQueryOptions(ctx.authorId));
+        }
+        break;
+      case "liveblog":
+        // Post-scoped: only warm when we render inside a post (mirrors the
+        // renderer, which returns null for a liveblog block without a postId).
+        if (ctx.postId) {
+          list.push(
+            liveBlogEntriesBlockQueryOptions({
+              postId: ctx.postId,
+              blockId: block.id,
+              lang,
+              reverseChronological: block.data.reverseChronological !== false,
+            }),
+          );
         }
         break;
       case "more-posts": {

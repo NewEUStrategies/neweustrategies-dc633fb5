@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-
+// Shared access-control types + money formatter. The former `useContentAccess`
+// hook (and its AccessState) lived here too but were consumed only by the
+// removed MediaPreviewDialog; content gating now flows through the server-side
+// get_entity_content RPC (see lib/access), so the client hook was dead and was
+// removed. The type exports and formatMoney below remain widely used.
 export type AccessEntityType = "post" | "page" | "media";
 export type AccessMode = "public" | "members" | "paid" | "password";
 
@@ -19,76 +20,6 @@ export interface ContentAccessRule {
   has_password?: boolean;
   password_hint_pl?: string | null;
   password_hint_en?: string | null;
-}
-
-const CONTENT_ACCESS_SAFE_COLS =
-  "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, password_hint_pl, password_hint_en, tenant_id";
-
-export interface AccessState {
-  loading: boolean;
-  rule: ContentAccessRule | null;
-  hasAccess: boolean;
-}
-
-export function useContentAccess(
-  entityType: AccessEntityType,
-  entityId: string | null | undefined,
-): AccessState {
-  const { session } = useAuth();
-  const [state, setState] = useState<AccessState>({ loading: true, rule: null, hasAccess: true });
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!entityId) {
-      setState({ loading: false, rule: null, hasAccess: true });
-      return;
-    }
-    (async () => {
-      const { data: rule } = await supabase
-        .from("content_access")
-        .select(CONTENT_ACCESS_SAFE_COLS)
-        .eq("entity_type", entityType)
-        .eq("entity_id", entityId)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      let ruleOut: ContentAccessRule | null = null;
-      if (rule) {
-        let has_password = false;
-        if (rule.mode === "password") {
-          const { data: hp } = await supabase.rpc("content_access_has_password", {
-            _entity_type: entityType,
-            _entity_id: entityId,
-          });
-          has_password = !!hp;
-        }
-        ruleOut = { ...(rule as ContentAccessRule), has_password };
-      }
-
-      if (!ruleOut || ruleOut.mode === "public") {
-        setState({ loading: false, rule: ruleOut, hasAccess: true });
-        return;
-      }
-
-      if (!session) {
-        setState({ loading: false, rule: ruleOut, hasAccess: false });
-        return;
-      }
-
-      const { data: ok } = await supabase.rpc("has_content_access", {
-        _entity_type: entityType,
-        _entity_id: entityId,
-      });
-      if (cancelled) return;
-      setState({ loading: false, rule: ruleOut, hasAccess: !!ok });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [entityType, entityId, session?.user?.id]);
-
-  return state;
 }
 
 export interface AccessPlan {

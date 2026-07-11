@@ -322,6 +322,15 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       });
 
       if (!res.ok) {
+        // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
+        // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
+        // Pozostałe błędy zachowują dotychczasowe zachowanie (treść serwera).
+        if (res.status === 402) {
+          throw new Error("Wyczerpano limit lektora / TTS quota exceeded");
+        }
+        if (res.status === 429) {
+          throw new Error("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
+        }
         const msg = await res.text().catch(() => "");
         throw new Error(msg || `HTTP ${res.status}`);
       }

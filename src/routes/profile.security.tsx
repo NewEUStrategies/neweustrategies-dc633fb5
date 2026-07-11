@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { FieldLabel } from "@/components/profile/FieldLabel";
+import { PasswordStrengthMeter } from "@/components/molecules/PasswordStrengthMeter";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile/security")({
@@ -27,14 +28,16 @@ export const Route = createFileRoute("/profile/security")({
 });
 
 function SecurityPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const isPl = i18n.language?.startsWith("pl") ?? false;
 
   const [current, setCurrent] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
+  const [othersBusy, setOthersBusy] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
@@ -110,6 +113,26 @@ function SecurityPage() {
     }
   };
 
+  const signOutOthers = async () => {
+    setOthersBusy(true);
+    try {
+      // Supabase-js nie potrafi listować sesji po stronie klienta - jedyne, co
+      // możemy zrobić, to ubić wszystkie pozostałe sesje konta (inne urządzenia).
+      const { error } = await supabase.auth.signOut({ scope: "others" });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success(
+        t("profile.security.signedOutOthers", {
+          defaultValue: isPl ? "Wylogowano pozostałe sesje." : "Signed out other sessions.",
+        }),
+      );
+    } finally {
+      setOthersBusy(false);
+    }
+  };
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -145,6 +168,7 @@ function SecurityPage() {
                   required
                   autoComplete="new-password"
                 />
+                <PasswordStrengthMeter password={pw} lang={isPl ? "pl" : "en"} />
               </div>
               <div className="grid gap-2">
                 <FieldLabel htmlFor="pw2" tip={t("profile.security.tip.confirmPassword")}>
@@ -193,6 +217,42 @@ function SecurityPage() {
                 {t("profile.security.email.submit")}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("profile.security.sessions", { defaultValue: isPl ? "Sesje" : "Sessions" })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <p className="text-sm text-muted-foreground">
+              {t("profile.security.lastSignIn", {
+                defaultValue: isPl ? "Ostatnie logowanie" : "Last sign-in",
+              })}
+              :{" "}
+              <span className="font-medium text-foreground">
+                {user?.last_sign_in_at
+                  ? new Date(user.last_sign_in_at).toLocaleString(isPl ? "pl-PL" : "en-US")
+                  : "—"}
+              </span>
+            </p>
+            <Button
+              variant="outline"
+              className="justify-self-start"
+              onClick={() => void signOutOthers()}
+              disabled={othersBusy}
+              title={t("profile.security.tip.signOutOthers", {
+                defaultValue: isPl
+                  ? "Wylogowuje wszystkie pozostałe sesje na innych urządzeniach."
+                  : "Signs out all your other sessions on other devices.",
+              })}
+            >
+              {t("profile.security.signOutOthers", {
+                defaultValue: isPl ? "Wyloguj pozostałe sesje" : "Sign out other sessions",
+              })}
+            </Button>
           </CardContent>
         </Card>
 

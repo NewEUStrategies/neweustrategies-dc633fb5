@@ -2,9 +2,10 @@
 // Steruje globalnym playerem: pierwsze kliknięcie ładuje audio i uruchamia
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
-import { useMemo, useState } from "react";
-import { Loader2, Download, Play, Pause } from "@/lib/lucide-shim";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Download, Play, Pause, Sparkles } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   formatAudioTime,
   useGlobalAudioPlayer,
@@ -32,6 +33,7 @@ const COPY = {
     downloadFailed: "Nie udało się pobrać audio",
     retry: "Spróbuj ponownie",
     error: "Nie udało się wygenerować audio",
+    aiNarration: "Narracja generowana automatycznie (AI) na podstawie treści artykułu.",
     seek: "Przewiń materiał",
     approx: "ok. {min} min",
     loading: "Generuję audio…",
@@ -50,6 +52,7 @@ const COPY = {
     downloadFailed: "Download failed",
     retry: "Try again",
     error: "Could not generate audio",
+    aiNarration: "Narration is generated automatically (AI) from the article text.",
     seek: "Seek audio",
     approx: "~{min} min",
     loading: "Generating audio…",
@@ -100,6 +103,19 @@ export function SidebarListenCard({
 
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Powiadomienie o nieudanej syntezie. Odpalamy dokładnie raz na przejście
+  // statusu w "error" (poprzedni status trzymany w ref, żeby nie strzelać przy
+  // każdym renderze). Współdzielony `id` deduplikuje toast z GlobalAudioBar,
+  // który reaguje na to samo przejście globalnego statusu.
+  const prevStatusRef = useRef(player.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = player.status;
+    if (prev !== "error" && player.status === "error") {
+      toast.error(player.error ?? t.error, { id: "tts-error" });
+    }
+  }, [player.status, player.error, t.error]);
 
   const meta: AudioTrackMeta = useMemo(
     () => ({
@@ -166,6 +182,27 @@ export function SidebarListenCard({
           {t.label}
         </h3>
         <div className="h-px flex-1 bg-border/60" />
+        {/* Dyskretna informacja, że lektor jest generowany przez AI. */}
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t.aiNarration}
+                className={[
+                  "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full",
+                  "text-muted-foreground/70 hover:text-brand transition-colors",
+                  FOCUS_RING,
+                ].join(" ")}
+              >
+                <Sparkles className="h-3 w-3" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
+              {t.aiNarration}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Main row: play + time/progress */}

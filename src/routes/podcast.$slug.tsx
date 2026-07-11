@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { podcastBySlugQueryOptions, podcastSettingsQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
+import { Mic } from "@/lib/lucide-shim";
 import { podcastTitle, podcastEpisodeLabel, formatDuration } from "@/lib/podcast/types";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -81,11 +82,27 @@ function PodcastSinglePage() {
 
   return (
     <article className="container mx-auto px-4 py-10 max-w-4xl space-y-8">
-      <header className="space-y-3">
-        {ep && <div className="text-xs uppercase tracking-wider text-muted-foreground">{ep}</div>}
-        <h1 className="font-display text-3xl lg:text-4xl">{title}</h1>
-        {excerpt && <p className="text-lg text-muted-foreground">{excerpt}</p>}
-        <div className="text-xs text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
+      <header className="flex flex-col sm:flex-row gap-5 sm:items-start">
+        <div className="w-32 h-32 shrink-0 rounded-xl overflow-hidden border border-border bg-muted">
+          {p.cover_image_url ? (
+            <img
+              src={p.cover_image_url}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="eager"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Mic className="w-10 h-10 text-muted-foreground/40" />
+            </div>
+          )}
+        </div>
+        <div className="space-y-3 min-w-0">
+          {ep && <div className="text-xs uppercase tracking-wider text-muted-foreground">{ep}</div>}
+          <h1 className="font-display text-3xl lg:text-4xl">{title}</h1>
+          {excerpt && <p className="text-lg text-muted-foreground">{excerpt}</p>}
+          <div className="text-xs text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
+        </div>
       </header>
 
       <PodcastPlayer

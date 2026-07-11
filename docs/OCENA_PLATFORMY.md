@@ -216,3 +216,58 @@ poniżej 6/10. Po naprawach: `bun run test` = 1363 przechodzą, `bun run lint` =
   wymagałoby nowej funkcji, nie tylko podłączenia) — karta autora została podłączona.
 - Newsletter: harmonogram kampanii i analityka otwarć/kliknięć (obszar 6,9/10, poza
   mandatem).
+
+---
+
+# Rewaluacja — runda world-class (2026-07-11)
+
+Po scaleniu z `main` (rozwiązano konflikt: zachowano nową zakładkę „Zgody",
+usunięto atrapowy czat-bota) przeprowadzono ponowny, adwersaryjny audyt
+własnych zmian i wdrożono rozszerzenia jakościowe. Stan: `tsc` bez nowych
+błędów, `lint` 0 błędów, testy 1363 przechodzą.
+
+## Rozszerzenia funkcjonalne (realne działania)
+
+- **Podcasty — realny upload zamiast gołego URL.** Audio i okładka wgrywane
+  z dysku / wybierane z biblioteki mediów (`MediaPickerDialog`), czas trwania
+  wykrywany automatycznie z pliku. Serwer (`media.functions`) dopuszcza teraz
+  audio (limit 300 MB dla audio, 10 MB dla obrazów). Okładka odcinka pokazywana
+  na stronie publicznej. Odcinki i `/podcasts` dodane do `sitemap.xml`.
+- **TTS — obsługa błędów.** 402/429 mapowane na czytelne komunikaty (limit /
+  zbyt wiele prób), toast błędu w karcie i w dolnym pasku, postęp syntezy w
+  dolnym pasku, podpowiedź „narracja AI". Cache serwerowy serwowany PRZED
+  limitem per-post (odsłuch z cache nie zużywa budżetu i nie jest throttlowany).
+- **Live blog — SSR + realtime UX.** Wpisy prefetchowane po stronie serwera
+  (crawlery widzą treść, nie pusty stan), czas względny („2 min temu"),
+  ciągła pulsacja „na żywo" i animacja nowego wpisu.
+- **Bezpieczeństwo konta.** Miernik siły hasła (`PasswordStrengthMeter`) na
+  `/profile/security` i `/reset-password`, jawny przycisk „Wyloguj inne sesje",
+  data ostatniego logowania.
+- **Tooltipy** wyjaśniające nieoczywiste kontrolki (warianty odtwarzacza,
+  format czasu trwania, siła hasła).
+
+## Naprawione defekty (audyt adwersaryjny)
+
+- **[REGRESJA] Linki powiadomień o wiadomościach → 404.** Po scaleniu centrum
+  powiadomień renderowało `<Link to="/messages?c=…">`, a router nie parsuje
+  query z `to` (gubił `c`, trafiał w 404). `isInternalHref` traktuje teraz
+  hrefy z `?` jako pełną nawigację `<a>`.
+- **[TTS] Cache duszony limitem.** Limit per-post 60/h przeniesiony za odczyt
+  cache — popularne odcinki serwują się z cache bez throttlingu.
+
+## Usunięty martwy kod
+
+- Tabela `subscription_tiers` (zaseedowana, bez czytelnika) — DROP.
+- Pliki: `PostListenBar.tsx` (zastąpiony), `MediaPreviewDialog.tsx` (bez importów).
+- Martwy hook `useContentAccess` + `AccessState` (konsumował je tylko usunięty
+  `MediaPreviewDialog`); typy i `formatMoney` zostały.
+- `TakeawaysEditor` (zdefiniowany, nigdy nierenderowany) + jego stałe.
+- Martwy przełącznik podcastu „autoodtwarzanie" (brak konsumenta w playerze).
+
+## Świadomie odłożone
+
+- Martwe ustawienia panelu logowania (`login_bg_url`, `login_position`,
+  `custom_login_url`…) i personalizacji (`guestExpirationDays`…): usunięcie
+  rozlewa się szeroko po formularzach admina — do osobnej, skupionej rundy.
+- `get_chat_peers`/`podcast_settings` odczyt bez filtra tenanta: bez znaczenia
+  na obecnej instalacji jednodostawcowej (single-tenant).

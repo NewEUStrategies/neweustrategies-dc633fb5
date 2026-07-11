@@ -178,15 +178,10 @@ export const Route = createFileRoute("/api/public/post-tts")({
         if (!okHour) {
           return jsonError(429, "Rate limit exceeded (hour)", { "Retry-After": "3600" });
         }
-        const okPost = await rateLimit({
-          scope: "post-tts:post:hour",
-          subjectId: `${postId}:${lang}`,
-          max: 60,
-          windowMinutes: 60,
-        });
-        if (!okPost) {
-          return jsonError(429, "Post throttled", { "Retry-After": "3600" });
-        }
+        // The per-post throttle protects the ElevenLabs SYNTHESIS budget, so it
+        // is applied later - only on a cache MISS (below). A cache hit costs
+        // nothing and must never be throttled, otherwise a popular episode's
+        // 61st listener/hour would be blocked from a free, already-rendered file.
 
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
@@ -263,6 +258,18 @@ export const Route = createFileRoute("/api/public/post-tts")({
           }
         } catch {
           // Brak cache (lub brak bucketa) = zwykła synteza poniżej.
+        }
+
+        // Cache miss => we are about to spend ElevenLabs budget. Apply the
+        // per-post synthesis throttle now (60/h per post+lang).
+        const okPost = await rateLimit({
+          scope: "post-tts:post:hour",
+          subjectId: `${postId}:${lang}`,
+          max: 60,
+          windowMinutes: 60,
+        });
+        if (!okPost) {
+          return jsonError(429, "Post throttled", { "Retry-After": "3600" });
         }
 
         const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
