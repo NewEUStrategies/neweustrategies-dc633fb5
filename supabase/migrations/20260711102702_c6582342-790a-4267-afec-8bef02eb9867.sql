@@ -251,6 +251,12 @@ GRANT EXECUTE ON FUNCTION public.get_followed_feed(integer, integer) TO authenti
 -- =============================================================
 -- 5) get_recommended_posts_v2 - scoring w SQL, gość + zalogowany
 -- =============================================================
+-- DROP konieczny dla świeżego `db reset`: 20260711100000 tworzy tę funkcję
+-- z INNYM zestawem kolumn wyjściowych, a CREATE OR REPLACE nie może zmienić
+-- typu zwracanego (42P13). Na hostowanej bazie (migracja już zaaplikowana)
+-- ta poprawka nic nie zmienia. Wersję kanoniczną definiuje 20260711120000.
+DROP FUNCTION IF EXISTS public.get_recommended_posts_v2(integer, integer, uuid[], uuid[]);
+
 CREATE OR REPLACE FUNCTION public.get_recommended_posts_v2(
   p_limit integer DEFAULT 9,
   p_offset integer DEFAULT 0,

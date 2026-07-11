@@ -16,6 +16,7 @@ import {
   type UseQueryResult,
   useQuery,
 } from "@tanstack/react-query";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { chatKeys } from "./keys";
@@ -441,16 +442,89 @@ export interface TypingEvent {
   userId: string;
 }
 
+// --- Shared typing-broadcast channels -------------------------------------
+// Typing is peer-to-peer: BOTH participants must join the SAME realtime topic
+// to exchange "typing" broadcasts, so the topic is STABLE - derived only from
+// the conversation id. (The previous per-mount random suffix put every client
+// on a private topic, so a peer's typing event never arrived and the indicator
+// was dead code.)
+//
+// supabase dedupes channels by topic and throws if `.on()` runs after a channel
+// has subscribed, so we cannot create a fresh stable-topic channel on each
+// mount. Instead a single channel per conversation is ref-counted at module
+// scope (same shape as chat presence): concurrent surfaces - StrictMode's
+// double mount, a docked window plus the /messages page - share one
+// subscription, and it is torn down only when the last subscriber releases it.
+interface TypingChannelEntry {
+  readonly channel: RealtimeChannel;
+  readonly listeners: Set<(event: TypingEvent) => void>;
+  refCount: number;
+}
+
+const typingChannels = new Map<string, TypingChannelEntry>();
+
+function acquireTypingChannel(
+  conversationId: string,
+  listener: (event: TypingEvent) => void,
+): void {
+  let entry = typingChannels.get(conversationId);
+  if (!entry) {
+    const listeners = new Set<(event: TypingEvent) => void>();
+    // self:false - never echo our own ping back to us (the listener also
+    // guards on userId, but this saves a needless round trip).
+    const channel = supabase
+      .channel(`chat-conv:${conversationId}`, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const data = (payload as { payload?: TypingEvent }).payload;
+        if (!data?.userId) return;
+        // Snapshot: a listener that releases mid-dispatch must not skip peers.
+        for (const fn of [...listeners]) fn(data);
+      });
+    entry = { channel, listeners, refCount: 0 };
+    typingChannels.set(conversationId, entry);
+    channel.subscribe();
+  }
+  entry.listeners.add(listener);
+  entry.refCount += 1;
+}
+
+function releaseTypingChannel(
+  conversationId: string,
+  listener: (event: TypingEvent) => void,
+): void {
+  const entry = typingChannels.get(conversationId);
+  if (!entry) return;
+  entry.listeners.delete(listener);
+  entry.refCount -= 1;
+  if (entry.refCount <= 0) {
+    typingChannels.delete(conversationId);
+    void supabase.removeChannel(entry.channel);
+  }
+}
+
+/** Broadcast a "typing" ping on the conversation's shared stable-topic channel. */
+function sendTypingBroadcast(conversationId: string, userId: string): void {
+  const entry = typingChannels.get(conversationId);
+  if (!entry) return;
+  void entry.channel.send({ type: "broadcast", event: "typing", payload: { userId } });
+}
+
 /**
- * One realtime channel per open conversation:
+ * Per-open-conversation realtime wiring, split across two channels:
  *  - messages INSERT/UPDATE  -> merge straight into the cache (no refetch lag)
  *  - reactions changes       -> patch the reactions map from the payload
  *  - participants UPDATE     -> refresh read receipts ("seen")
  *  - broadcast "typing"      -> ephemeral typing indicator (no DB writes)
- * Effect deps use the stable uid string (not the user object), so auth token
- * refreshes do not tear the channel down; after a RE-subscribe the caches are
- * invalidated once to recover any events dropped while the socket was down.
- * Returns a stable `sendTyping` emitter for the composer.
+ *
+ * The postgres-changes stream is server -> client only and needs no shared
+ * topic, so it lives on its own per-mount channel; a unique name keeps
+ * concurrent surfaces from colliding on a single channel instance. Effect deps
+ * use the stable uid string (not the user object), so auth token refreshes do
+ * not tear the channel down; after a RE-subscribe the caches are invalidated
+ * once to recover events dropped while the socket was down.
+ *
+ * Typing lives on a separate STABLE-topic channel shared with the peer (see
+ * acquireTypingChannel). Returns a stable `sendTyping` emitter for the composer.
  */
 export function useConversationChannel(
   conversationId: string,
@@ -467,7 +541,9 @@ export function useConversationChannel(
   useEffect(() => {
     if (!enabled || !uid) return;
     let everSubscribed = false;
-    const channelName = `chat-conv:${conversationId}:${Math.random().toString(36).slice(2, 10)}`;
+    // Unique per mount: postgres_changes are server-push only, so this channel
+    // is never shared with the peer and must not collide with another surface.
+    const channelName = `chat-conv-db:${conversationId}:${Math.random().toString(36).slice(2, 10)}`;
     const channel = supabase
       .channel(channelName)
       .on(
@@ -561,10 +637,6 @@ export function useConversationChannel(
           void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
         },
       )
-      .on("broadcast", { event: "typing" }, (payload) => {
-        const data = payload.payload as TypingEvent | undefined;
-        if (data?.userId && data.userId !== uid) onTypingRef.current(data);
-      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           if (everSubscribed) {
@@ -578,15 +650,29 @@ export function useConversationChannel(
         }
       });
 
-    sendRef.current = () => {
-      void channel.send({ type: "broadcast", event: "typing", payload: { userId: uid } });
-    };
-
     return () => {
-      sendRef.current = () => {};
       void supabase.removeChannel(channel);
     };
   }, [conversationId, enabled, uid, qc]);
+
+  // Typing: shared STABLE-topic channel so the peer actually receives our pings
+  // (and we receive theirs). Ref-counted at module scope; this effect just adds
+  // and removes its listener + wires the emitter.
+  useEffect(() => {
+    if (!enabled || !uid) {
+      sendRef.current = () => {};
+      return;
+    }
+    const listener = (event: TypingEvent) => {
+      if (event.userId !== uid) onTypingRef.current(event);
+    };
+    acquireTypingChannel(conversationId, listener);
+    sendRef.current = () => sendTypingBroadcast(conversationId, uid);
+    return () => {
+      sendRef.current = () => {};
+      releaseTypingChannel(conversationId, listener);
+    };
+  }, [conversationId, enabled, uid]);
 
   // Stable identity so the (memoized) composer never re-renders because of it.
   const sendTyping = useCallback(() => sendRef.current(), []);

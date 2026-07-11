@@ -158,11 +158,11 @@ export function LoginPopup() {
                 id="lp-pwd"
                 type={showPw ? "text" : "password"}
                 required
-                minLength={6}
+                minLength={mode === "signup" ? 8 : undefined}
                 autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={lang === "pl" ? "min. 6 znaków" : "min. 6 characters"}
+                placeholder={lang === "pl" ? "min. 8 znaków" : "min. 8 characters"}
                 className="auth-icon-input auth-icon-input-with-action"
               />
               <button

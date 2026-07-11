@@ -4,10 +4,13 @@
 // - Settings tab (toggle notification kinds + default behaviour)
 // - Realtime: notifications + notification_preferences (widgets stay in sync)
 // - Multi-tenant: RLS scopes rows to auth.uid() + current_tenant_id
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import * as LucideIcons from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -21,7 +24,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  useDeleteNotification,
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
   useMarkNotificationsUnread,
@@ -61,6 +63,9 @@ const KIND_OPTIONS: KindFilter[] = [
   "system",
 ];
 
+/** Rows fetched per page; "load more" grows the window by this amount. */
+const NOTIFICATIONS_PAGE_SIZE = 50;
+
 function pickTitle(n: NotificationRow, lang: Lang): string {
   return (lang === "en" && n.title_en) || n.title_pl;
 }
@@ -78,6 +83,17 @@ function resolveIcon(name: string | null | undefined) {
   const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
   return reg[name] ?? null;
 }
+// Internal links go through the router (no full reload); external ones stay
+// plain anchors - same rule the header bell applies.
+//
+// Hrefs carrying a query string (e.g. message notifications:
+// "/messages?c=<uuid>") must NOT go through <Link to={href}>: TanStack Router
+// treats `to` as a pathname verbatim and never splits out `?search`, so the
+// conversation id would be dropped and the polluted path 404s. Those use a
+// plain <a> full navigation, which the route's validateSearch parses correctly.
+function isInternalHref(href: string): boolean {
+  return href.startsWith("/") && !href.startsWith("//") && !href.includes("?");
+}
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences";
 
@@ -88,25 +104,49 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [limit, setLimit] = useState(NOTIFICATIONS_PAGE_SIZE);
+
+  // Switching tab/kind starts a fresh window - never carry an inflated limit
+  // (grown by "load more") into a different filter.
+  useEffect(() => {
+    setLimit(NOTIFICATIONS_PAGE_SIZE);
+  }, [tab, kindFilter]);
 
   useNotificationsRealtime();
   useNotificationPreferencesRealtime();
 
+  const qc = useQueryClient();
   const prefsQ = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
   const prefs: NotificationPreferences = prefsQ.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
 
   const listQ = useNotifications({
-    limit: 200,
+    limit,
     onlyUnread: tab === "unread",
     kind: kindFilter === "all" ? null : kindFilter,
   });
   const markAll = useMarkAllNotificationsRead();
   const markMany = useMarkNotificationsRead();
   const unreadMany = useMarkNotificationsUnread();
-  const removeOne = useDeleteNotification();
+  // Batch delete by id array - a grouped conversation collapses many rows into
+  // one entry, so the trash button must remove EVERY member id (deleting only
+  // the latest left the rest to resurface as a "new" group). One statement,
+  // then the shared invalidation the notification hooks use ("notifications"
+  // also covers the unread-count query).
+  const deleteGroup = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase.from("notifications").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
 
   const items = listQ.data ?? [];
+  // The raw fetch (pre client-side search) hit the ceiling -> more may exist.
+  const canLoadMore = items.length >= limit;
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -139,9 +179,11 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
   const showInboxTabs = mode !== "preferences";
   const showSettingsTab = mode !== "inbox";
-  const headerTitleKey = mode === "preferences" ? "notifications.settings.title" : "notifications.title";
+  const headerTitleKey =
+    mode === "preferences" ? "notifications.settings.title" : "notifications.title";
   const headerTitleDefault = mode === "preferences" ? "Zgody i powiadomienia" : "Powiadomienia";
-  const headerSubtitleKey = mode === "preferences" ? "notifications.settings.subtitleLead" : "notifications.inboxSubtitle";
+  const headerSubtitleKey =
+    mode === "preferences" ? "notifications.settings.subtitleLead" : "notifications.inboxSubtitle";
   const headerSubtitleDefault =
     mode === "preferences"
       ? "Zdecyduj, o czym chcesz być informowany. Zmiany zapisują się natychmiast."
@@ -295,9 +337,23 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              {n.href ? (
+                              {n.href && isInternalHref(n.href) ? (
+                                <Link
+                                  to={n.href}
+                                  onClick={() => {
+                                    if (unreadIds.length > 0) markMany.mutate(unreadIds);
+                                  }}
+                                  className={cn(
+                                    "text-sm truncate hover:underline",
+                                    isUnread ? "font-semibold" : "font-medium",
+                                  )}
+                                >
+                                  {title}
+                                </Link>
+                              ) : n.href ? (
                                 <a
                                   href={n.href}
+                                  rel="noopener noreferrer"
                                   onClick={() => {
                                     if (unreadIds.length > 0) markMany.mutate(unreadIds);
                                   }}
@@ -403,8 +459,22 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeOne.mutate(g.latest.id)}
-                              aria-label={t("common.delete", { defaultValue: "Usuń" })}
+                              disabled={deleteGroup.isPending}
+                              onClick={() => deleteGroup.mutate(allIds)}
+                              aria-label={
+                                g.isConversation && !g.isSingle
+                                  ? t("notifications.deleteGroup", {
+                                      defaultValue: "Usuń całą rozmowę",
+                                    })
+                                  : t("common.delete", { defaultValue: "Usuń" })
+                              }
+                              title={
+                                g.isConversation && !g.isSingle
+                                  ? t("notifications.deleteGroup", {
+                                      defaultValue: "Usuń całą rozmowę",
+                                    })
+                                  : t("common.delete", { defaultValue: "Usuń" })
+                              }
                             >
                               <LucideIcons.Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -413,6 +483,20 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       );
                     })}
                   </ul>
+                )}
+                {!listQ.isLoading && canLoadMore && (
+                  <div className="pt-3 flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={listQ.isFetching}
+                      onClick={() => setLimit((n) => n + NOTIFICATIONS_PAGE_SIZE)}
+                    >
+                      {listQ.isFetching
+                        ? t("common.loading", { defaultValue: "Ładowanie..." })
+                        : t("notifications.loadMore", { defaultValue: "Załaduj więcej" })}
+                    </Button>
+                  </div>
                 )}
               </div>
             </TabsContent>

@@ -44,6 +44,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
+import { RevisionsCard } from "@/components/admin/molecules/RevisionsCard";
 import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
@@ -658,6 +659,16 @@ function EditPage() {
           <aside className="space-y-5">
             {metaCard}
             <AccessSettingsPane entityType="page" entityId={id} />
+            {id && (
+              <RevisionsCard
+                entityType="page"
+                entityId={id}
+                onRestored={() => {
+                  void qc.invalidateQueries({ queryKey: ["page-by-slug"] });
+                  void router.invalidate();
+                }}
+              />
+            )}
           </aside>
         </div>
       ) : (

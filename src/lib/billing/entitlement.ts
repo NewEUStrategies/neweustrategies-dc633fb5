@@ -63,18 +63,26 @@ export interface OrderForGrant {
 }
 
 export type Entitlement =
-  | { type: "subscription"; planId: string }
+  | { type: "subscription"; planId: string; lifetime: boolean }
   | { type: "purchase"; entityType: EntityType; entityId: string }
   | { type: "none" };
 
 /**
- * Decide what a paid order grants. A subscription order needs a plan; a one-time
- * order needs an entity. Anything incomplete grants nothing (defensive - never
- * throws on a malformed/partial order during webhook processing).
+ * Decide what a paid order grants.
+ * - subscription + plan -> recurring plan access (period end from interval).
+ * - one_time + plan (no entity) -> LIFETIME plan access: a one-time purchase of
+ *   a plan (e.g. a "lifetime"/"one-time" plan in the paywall admin) unlocks
+ *   everything that plan gates, with no expiry. Without this branch such a plan
+ *   was uncharge-/ungrantable (the checkout threw entity_required).
+ * - one_time + entity -> single-article purchase.
+ * Anything incomplete grants nothing (defensive - never throws during webhooks).
  */
 export function entitlementForOrder(order: OrderForGrant): Entitlement {
   if (order.kind === "subscription" && order.plan_id) {
-    return { type: "subscription", planId: order.plan_id };
+    return { type: "subscription", planId: order.plan_id, lifetime: false };
+  }
+  if (order.kind === "one_time" && order.plan_id && !order.entity_id) {
+    return { type: "subscription", planId: order.plan_id, lifetime: true };
   }
   if (order.kind === "one_time" && order.entity_type && order.entity_id) {
     return { type: "purchase", entityType: order.entity_type, entityId: order.entity_id };

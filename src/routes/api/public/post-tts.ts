@@ -2,12 +2,22 @@
 // treści wpisu ładowanej server-side (nie przyjmujemy tekstu od klienta - żeby
 // atakujący nie mogli przepompowywać dowolnego tekstu przez naszą kwotę API).
 //
-// Rate-limit: 3/min i 15/h per IP; 60/h globalnie per postId.
-// Wynik: audio/mpeg z `Cache-Control: public, max-age=31536000, immutable` +
-// ETag = hash(postId+lang+voice+model).
+// Rate-limit: 3/min i 15/h per IP; 60/h globalnie per postId (klucze tekstowe
+// wymagają rate_limits.subject_id typu text - migracja 20260711120000).
+// Endpoint jest wyłącznie same-origin (brak nagłówków CORS): audio odtwarza
+// nasz własny player, a otwarty CORS pozwalałby dowolnej obcej stronie
+// przepalać kwotę ElevenLabs przeglądarkami odwiedzających.
+// Post jest dodatkowo zawężany do tenanta wynikającego z hosta żądania -
+// service role omija RLS, więc bez tego filtra treść tenanta A dałaby się
+// syntezować przez domenę tenanta B.
+// Zsyntezowane MP3 trafia do prywatnego bucketa `tts-cache` (klucz = hash
+// treści+głosu+modelu); kolejni słuchacze dostają plik z cache zamiast
+// ponownej płatnej syntezy.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { rateLimit } from "@/lib/server/rate-limit.server";
+import { requestPublicHost } from "@/lib/http/requestHost";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import type { BlocksDoc, Block, Json, LocalizedBlocks } from "@/lib/blocks/types";
 
 const MAX_CHARS = 5000;
@@ -23,13 +33,6 @@ const ALLOWED_VOICES = new Set([
   "XrExE9yKIg1WjnnlVkGX", // Matilda
 ]);
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Max-Age": "86400",
-} as const;
-
 interface PostTtsRequest {
   postId?: string;
   lang?: "pl" | "en";
@@ -37,10 +40,12 @@ interface PostTtsRequest {
   model?: string;
 }
 
+const TTS_CACHE_BUCKET = "tts-cache";
+
 function jsonError(status: number, message: string, extra?: Record<string, string>): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...(extra ?? {}) },
+    headers: { "Content-Type": "application/json", ...(extra ?? {}) },
   });
 }
 
@@ -129,7 +134,6 @@ async function fnv1a(input: string): Promise<string> {
 export const Route = createFileRoute("/api/public/post-tts")({
   server: {
     handlers: {
-      OPTIONS: async () => new Response(null, { status: 204, headers: CORS_HEADERS }),
       POST: async ({ request }) => {
         let body: PostTtsRequest;
         try {
@@ -174,34 +178,39 @@ export const Route = createFileRoute("/api/public/post-tts")({
         if (!okHour) {
           return jsonError(429, "Rate limit exceeded (hour)", { "Retry-After": "3600" });
         }
-        const okPost = await rateLimit({
-          scope: "post-tts:post:hour",
-          subjectId: `${postId}:${lang}`,
-          max: 60,
-          windowMinutes: 60,
-        });
-        if (!okPost) {
-          return jsonError(429, "Post throttled", { "Retry-After": "3600" });
-        }
+        // The per-post throttle protects the ElevenLabs SYNTHESIS budget, so it
+        // is applied later - only on a cache MISS (below). A cache hit costs
+        // nothing and must never be throttled, otherwise a popular episode's
+        // 61st listener/hour would be blocked from a free, already-rendered file.
 
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
           return jsonError(503, "TTS not configured");
         }
 
+        // Tenant hosta żądania: service role omija RLS, więc zakres nakładamy
+        // jawnie (plan treści - nieznany host degraduje do tenanta domyślnego,
+        // tak samo jak public_tenant_id() dla anonimowych zapytań).
+        const tenantId = await resolveTenantIdForHost(requestPublicHost(request));
+        if (!tenantId) {
+          return jsonError(503, "Tenant directory unavailable");
+        }
+
         // Ładowanie treści przez service role (server-only).
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: post, error: postErr } = await supabaseAdmin
           .from("posts")
-          .select("id, title_pl, title_en, content_pl, content_en, blocks_data, status")
+          .select("id, title_pl, title_en, content_pl, content_en, blocks_data, status, tenant_id")
           .eq("id", postId)
+          .eq("tenant_id", tenantId)
           .maybeSingle();
 
         if (postErr || !post) {
           return jsonError(404, "Post not found");
         }
         if (post.status !== "published") {
-          return jsonError(403, "Post not published");
+          // Ten sam kod co "brak wpisu" - 403 zdradzałoby istnienie szkicu.
+          return jsonError(404, "Post not found");
         }
 
         const title =
@@ -220,17 +229,47 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return jsonError(422, "No readable content");
         }
 
-        const etag = `"tts-${await fnv1a(`${postId}:${lang}:${voiceId}:${model}:${text.length}`)}"`;
+        // Hash pełnej treści (nie samej długości): zmiana artykułu = nowy klucz
+        // cache i nowy ETag.
+        const contentHash = await fnv1a(`${postId}:${lang}:${voiceId}:${model}:${text}`);
+        const etag = `"tts-${contentHash}"`;
+        const audioHeaders = {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "private, max-age=86400",
+          ETag: etag,
+        } as const;
+
         const ifNoneMatch = request.headers.get("if-none-match");
         if (ifNoneMatch === etag) {
-          return new Response(null, {
-            status: 304,
-            headers: {
-              ETag: etag,
-              "Cache-Control": "public, max-age=31536000, immutable",
-              ...CORS_HEADERS,
-            },
-          });
+          return new Response(null, { status: 304, headers: audioHeaders });
+        }
+
+        // Cache serwerowy: ten sam artykuł+głos+model syntezujemy raz.
+        const cachePath = `${postId}/${lang}-${voiceId}-${model}-${contentHash}.mp3`;
+        try {
+          const { data: cached } = await supabaseAdmin.storage
+            .from(TTS_CACHE_BUCKET)
+            .download(cachePath);
+          if (cached) {
+            return new Response(cached, {
+              status: 200,
+              headers: { ...audioHeaders, "X-Tts-Cache": "hit" },
+            });
+          }
+        } catch {
+          // Brak cache (lub brak bucketa) = zwykła synteza poniżej.
+        }
+
+        // Cache miss => we are about to spend ElevenLabs budget. Apply the
+        // per-post synthesis throttle now (60/h per post+lang).
+        const okPost = await rateLimit({
+          scope: "post-tts:post:hour",
+          subjectId: `${postId}:${lang}`,
+          max: 60,
+          windowMinutes: 60,
+        });
+        if (!okPost) {
+          return jsonError(429, "Post throttled", { "Retry-After": "3600" });
         }
 
         const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
@@ -265,14 +304,23 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return jsonError(502, "TTS upstream failed");
         }
 
-        return new Response(upstream.body, {
+        const audio = await upstream.arrayBuffer();
+
+        // Zapis do cache w tle - odpowiedź nie czeka na upload, a jego błąd
+        // (np. brak bucketa w starym środowisku) nie psuje odtwarzania.
+        void supabaseAdmin.storage
+          .from(TTS_CACHE_BUCKET)
+          .upload(cachePath, audio, { contentType: "audio/mpeg", upsert: true })
+          .then(({ error }) => {
+            if (error) console.warn(`[post-tts] cache write failed: ${error.message}`);
+          })
+          .catch((e: unknown) => {
+            console.warn(`[post-tts] cache write failed:`, e);
+          });
+
+        return new Response(audio, {
           status: 200,
-          headers: {
-            "Content-Type": "audio/mpeg",
-            "Cache-Control": "public, max-age=31536000, immutable",
-            ETag: etag,
-            ...CORS_HEADERS,
-          },
+          headers: { ...audioHeaders, "X-Tts-Cache": "miss" },
         });
       },
     },

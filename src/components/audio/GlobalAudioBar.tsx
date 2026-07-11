@@ -1,7 +1,7 @@
 // Trwały bottom bar globalnego odtwarzacza audio. Renderowany raz w __root,
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, Download, Play, Pause, X, Share2 } from "@/lib/lucide-shim";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,6 +30,13 @@ const COPY = {
     seek: "Przewiń materiał",
     copied: "Skopiowano link do artykułu",
     region: "Odtwarzacz audio",
+    error: "Nie udało się wygenerować audio",
+    loading: "Generuję audio…",
+    stagePreparing: "Przygotowuję tekst",
+    stageSynthesizing: "ElevenLabs syntezuje głos",
+    stageStreaming: "Pobieram audio",
+    stageReady: "Gotowe",
+    stageCached: "Z pamięci podręcznej",
   },
   en: {
     play: "Play",
@@ -42,6 +49,13 @@ const COPY = {
     seek: "Seek audio",
     copied: "Article link copied",
     region: "Audio player",
+    error: "Could not generate audio",
+    loading: "Generating audio…",
+    stagePreparing: "Preparing text",
+    stageSynthesizing: "ElevenLabs synthesizing voice",
+    stageStreaming: "Streaming audio",
+    stageReady: "Ready",
+    stageCached: "From cache",
   },
 } as const;
 
@@ -75,12 +89,46 @@ export function GlobalAudioBar() {
     setMounted(true);
   }, []);
 
+  // Powiadomienie o nieudanej syntezie. Musi żyć nad wczesnym returnem (reguły
+  // hooków) i działać nawet gdy `track` jest null - błąd na pierwszym podejściu
+  // (np. 402/429) nie ustawia tracka, więc bar się nie renderuje i toast jest
+  // jedynym sygnałem. Odpalamy raz na przejście statusu w "error" (poprzedni
+  // status w ref). Współdzielony `id` deduplikuje toast z SidebarListenCard.
+  const prevStatusRef = useRef(player.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = player.status;
+    if (prev !== "error" && player.status === "error") {
+      toast.error(player.error ?? "Nie udało się wygenerować audio / Could not generate audio", {
+        id: "tts-error",
+      });
+    }
+  }, [player.status, player.error]);
+
   if (!mounted || !player.track) return null;
 
   const { track } = player;
   const t = COPY[track.lang];
   const loading = player.status === "loading";
   const playing = player.status === "playing";
+  const tts = player.tts;
+  const stageLabel = (() => {
+    switch (tts.stage) {
+      case "preparing":
+        return t.stagePreparing;
+      case "synthesizing":
+        return t.stageSynthesizing;
+      case "streaming":
+        return t.stageStreaming;
+      case "ready":
+        return t.stageReady;
+      case "cached":
+        return t.stageCached;
+      default:
+        return t.loading;
+    }
+  })();
+  const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
   const duration = player.duration || 0;
   const displayTime = scrub ?? player.currentTime;
   const displayPct = duration > 0 ? (displayTime / duration) * 100 : 0;
@@ -203,61 +251,79 @@ export function GlobalAudioBar() {
                 )}
               </div>
 
-              <div className="mt-1.5 flex items-center gap-2">
-                <span
-                  className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9 text-right"
-                  aria-hidden
-                >
-                  {formatAudioTime(displayTime)}
-                </span>
-
-                {/* Slider (natywny range dla pełnej a11y + klawiatury) */}
+              {loading ? (
+                /* Postęp syntezy TTS zamiast osi czasu (mirror SidebarListenCard). */
                 <div
-                  className={[
-                    "relative h-4 flex-1 flex items-center group",
-                    "rounded-full",
-                    "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
-                  ].join(" ")}
+                  className="mt-1.5 flex items-center gap-2"
+                  aria-live="polite"
+                  aria-atomic="true"
                 >
-                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-muted" />
-                  <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-brand"
-                    style={{ width: `${displayPct}%` }}
-                  />
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-brand shadow ring-2 ring-background opacity-0 group-hover:opacity-100 transition"
-                    style={{ left: `calc(${displayPct}% - 6px)` }}
-                    aria-hidden
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={duration || 0}
-                    step={0.1}
-                    value={displayTime}
-                    disabled={duration <= 0}
-                    onChange={(e) => setScrub(Number(e.target.value))}
-                    onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
-                    onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
-                    onBlur={(e) => {
-                      if (scrub !== null) commitSeek(Number(e.target.value));
-                    }}
-                    aria-label={t.seek}
-                    aria-valuemin={0}
-                    aria-valuemax={Math.max(duration, 0)}
-                    aria-valuenow={Math.floor(displayTime)}
-                    aria-valuetext={`${formatAudioTime(displayTime)} / ${formatAudioTime(duration)}`}
-                    className="absolute inset-0 w-full h-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                  />
+                  <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+                    <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
+                    <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
+                  </span>
+                  <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground tabular-nums">
+                    {stageLabel}
+                    {stagePct !== null ? ` · ${stagePct}%` : null}
+                  </span>
                 </div>
+              ) : (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span
+                    className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9 text-right"
+                    aria-hidden
+                  >
+                    {formatAudioTime(displayTime)}
+                  </span>
 
-                <span
-                  className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9"
-                  aria-hidden
-                >
-                  {formatAudioTime(duration)}
-                </span>
-              </div>
+                  {/* Slider (natywny range dla pełnej a11y + klawiatury) */}
+                  <div
+                    className={[
+                      "relative h-4 flex-1 flex items-center group",
+                      "rounded-full",
+                      "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
+                    ].join(" ")}
+                  >
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-muted" />
+                    <div
+                      className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-brand"
+                      style={{ width: `${displayPct}%` }}
+                    />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-brand shadow ring-2 ring-background opacity-0 group-hover:opacity-100 transition"
+                      style={{ left: `calc(${displayPct}% - 6px)` }}
+                      aria-hidden
+                    />
+                    <input
+                      type="range"
+                      min={0}
+                      max={duration || 0}
+                      step={0.1}
+                      value={displayTime}
+                      disabled={duration <= 0}
+                      onChange={(e) => setScrub(Number(e.target.value))}
+                      onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                      onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                      onBlur={(e) => {
+                        if (scrub !== null) commitSeek(Number(e.target.value));
+                      }}
+                      aria-label={t.seek}
+                      aria-valuemin={0}
+                      aria-valuemax={Math.max(duration, 0)}
+                      aria-valuenow={Math.floor(displayTime)}
+                      aria-valuetext={`${formatAudioTime(displayTime)} / ${formatAudioTime(duration)}`}
+                      className="absolute inset-0 w-full h-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  <span
+                    className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9"
+                    aria-hidden
+                  >
+                    {formatAudioTime(duration)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Actions */}

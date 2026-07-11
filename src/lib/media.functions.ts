@@ -17,14 +17,31 @@ const ALLOWED_MIME = new Set([
   "image/svg+xml",
   "image/avif",
   "application/pdf",
+  // Audio (podcast episodes are uploaded through the media library).
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/aac",
+  "audio/wav",
+  "audio/webm",
+  "audio/ogg",
 ]);
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB (images / PDF)
+const MAX_AUDIO_BYTES = 300 * 1024 * 1024; // 300 MB (podcast episodes)
+
+/** Per-type size ceiling: audio files are far larger than images. */
+function maxBytesFor(mime: string): number {
+  return mime.startsWith("audio/") ? MAX_AUDIO_BYTES : MAX_BYTES;
+}
 
 const RegisterUploadSchema = z.object({
   storagePath: z.string().min(1).max(512),
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1).max(127),
-  sizeBytes: z.number().int().min(0).max(MAX_BYTES),
+  // Hard ceiling here is the audio cap; the per-type check in the handler
+  // enforces the stricter 10 MB limit for non-audio files.
+  sizeBytes: z.number().int().min(0).max(MAX_AUDIO_BYTES),
   publicUrl: z.string().url().max(2048),
   altText: z.string().max(500).optional(),
 });
@@ -60,6 +77,11 @@ export const registerMediaUpload = createServerFn({ method: "POST" })
     // MIME allowlist.
     if (!ALLOWED_MIME.has(data.mimeType)) {
       throw new Error(`Disallowed mime type: ${data.mimeType}`);
+    }
+    // Per-type size ceiling (Zod already capped at the audio max; enforce the
+    // stricter image/PDF limit here).
+    if (data.sizeBytes > maxBytesFor(data.mimeType)) {
+      throw new Error(`File too large for ${data.mimeType}`);
     }
 
     // Rate limit: 60 uploads / minute / user.

@@ -132,6 +132,43 @@ export async function fetchPublicCategories(tenantId: string): Promise<Published
   );
 }
 
+export interface PublishedPodcastRow {
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
+  audio_url: string;
+  duration_seconds: number;
+  season: number | null;
+  episode_number: number | null;
+  cover_image_url: string | null;
+  published_at: string | null;
+}
+
+/** Published podcast episodes for the podcast RSS feed (tenant-scoped). */
+export async function fetchPublishedPodcasts(
+  tenantId: string,
+  limit = 50,
+): Promise<PublishedPodcastRow[]> {
+  return edgeTtlCache(`seo:podcasts:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
+    resilient("podcasts", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("podcasts")
+        .select(
+          "slug, title_pl, title_en, excerpt_pl, excerpt_en, audio_url, duration_seconds, season, episode_number, cover_image_url, published_at",
+        )
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .limit(Math.max(1, Math.min(limit, 200)));
+      return (data ?? []) as PublishedPodcastRow[];
+    }),
+  );
+}
+
 /** Site-wide SEO settings read server-side (service role, no RLS surprises). */
 export async function fetchSeoSettingsValue(tenantId: string): Promise<unknown> {
   return edgeTtlCache(`seo:settings:${tenantId}`, CACHE_TTL_MS, () =>
