@@ -15,11 +15,14 @@ export interface ContentAccessRule {
   one_time_currency: string | null;
   teaser_pl: string | null;
   teaser_en: string | null;
-  /** Presence flag — the hash itself is never selected client-side. */
-  password_hash?: string | null;
+  /** Presence flag only. The hash itself is never selectable client-side (column privilege revoked). */
+  has_password?: boolean;
   password_hint_pl?: string | null;
   password_hint_en?: string | null;
 }
+
+const CONTENT_ACCESS_SAFE_COLS =
+  "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, password_hint_pl, password_hint_en, tenant_id";
 
 export interface AccessState {
   loading: boolean;
@@ -43,20 +46,33 @@ export function useContentAccess(
     (async () => {
       const { data: rule } = await supabase
         .from("content_access")
-        .select("*")
+        .select(CONTENT_ACCESS_SAFE_COLS)
         .eq("entity_type", entityType)
         .eq("entity_id", entityId)
         .maybeSingle();
 
       if (cancelled) return;
 
-      if (!rule || rule.mode === "public") {
-        setState({ loading: false, rule: (rule as ContentAccessRule) ?? null, hasAccess: true });
+      let ruleOut: ContentAccessRule | null = null;
+      if (rule) {
+        let has_password = false;
+        if (rule.mode === "password") {
+          const { data: hp } = await supabase.rpc("content_access_has_password", {
+            _entity_type: entityType,
+            _entity_id: entityId,
+          });
+          has_password = !!hp;
+        }
+        ruleOut = { ...(rule as ContentAccessRule), has_password };
+      }
+
+      if (!ruleOut || ruleOut.mode === "public") {
+        setState({ loading: false, rule: ruleOut, hasAccess: true });
         return;
       }
 
       if (!session) {
-        setState({ loading: false, rule: rule as ContentAccessRule, hasAccess: false });
+        setState({ loading: false, rule: ruleOut, hasAccess: false });
         return;
       }
 
@@ -65,7 +81,7 @@ export function useContentAccess(
         _entity_id: entityId,
       });
       if (cancelled) return;
-      setState({ loading: false, rule: rule as ContentAccessRule, hasAccess: !!ok });
+      setState({ loading: false, rule: ruleOut, hasAccess: !!ok });
     })();
     return () => {
       cancelled = true;

@@ -4587,6 +4587,13 @@ export type Database = {
         }
         Returns: Database["public"]["Enums"]["app_role"][]
       }
+      content_access_has_password: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+        }
+        Returns: boolean
+      }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_upsert_from_form:
         | {

@@ -215,13 +215,19 @@ export function PostGeneralOverview({
     queryKey: ["content_access", "post", entityId],
     enabled: !!entityId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("content_access")
-        .select("mode, plan_ids, one_time_price_cents, one_time_currency, password_hash")
-        .eq("entity_type", "post")
-        .eq("entity_id", entityId)
-        .maybeSingle();
-      return data;
+      const [{ data }, { data: hp }] = await Promise.all([
+        supabase
+          .from("content_access")
+          .select("mode, plan_ids, one_time_price_cents, one_time_currency")
+          .eq("entity_type", "post")
+          .eq("entity_id", entityId)
+          .maybeSingle(),
+        supabase.rpc("content_access_has_password", {
+          _entity_type: "post",
+          _entity_id: entityId,
+        }),
+      ]);
+      return data ? { ...data, has_password: !!hp } : null;
     },
     staleTime: 15_000,
   });
@@ -439,7 +445,7 @@ export function PostGeneralOverview({
             </>
           )}
           {accessMode === "password" && (
-            <Row label="Hasło" value={accessRule?.password_hash ? "ustawione ✓" : "brak"} />
+            <Row label="Hasło" value={accessRule?.has_password ? "ustawione ✓" : "brak"} />
           )}
         </Tile>
 
