@@ -4,7 +4,7 @@
 // builderow.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LayoutDashboard, Mail, Send, Users } from "lucide-react";
+import { LayoutDashboard, Mail, Send, Users, Megaphone } from "lucide-react";
 
 const tabs = [
   {
@@ -29,6 +29,13 @@ const tabs = [
     labelEn: "Popup builder",
   },
   {
+    to: "/admin/newsletter/campaigns",
+    key: "campaigns",
+    icon: Megaphone,
+    labelPl: "Kampanie",
+    labelEn: "Campaigns",
+  },
+  {
     to: "/admin/newsletter/subscribers",
     key: "subscribers",
     icon: Users,
@@ -36,6 +43,7 @@ const tabs = [
     labelEn: "Subscribers",
   },
 ] as const;
+
 
 export function NewsletterSubNav() {
   const { i18n } = useTranslation();

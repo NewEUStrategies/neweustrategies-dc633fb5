@@ -119,6 +119,7 @@ import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.n
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
+import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
@@ -128,6 +129,7 @@ import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
+import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -682,6 +684,12 @@ const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
   path: '/inline',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminNewsletterCampaignsRoute =
+  AdminNewsletterCampaignsRouteImport.update({
+    id: '/campaigns',
+    path: '/campaigns',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminAppearancePostSidebarRoute =
   AdminAppearancePostSidebarRouteImport.update({
     id: '/post-sidebar',
@@ -731,6 +739,12 @@ const ApiPublicNewsletterConfirmRoute =
     id: '/api/public/newsletter/confirm',
     path: '/api/public/newsletter/confirm',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AdminNewsletterCampaignsIdRoute =
+  AdminNewsletterCampaignsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -825,6 +839,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -850,6 +865,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
+  '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -941,6 +957,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -966,6 +983,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
+  '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1063,6 +1081,7 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1088,6 +1107,7 @@ export interface FileRoutesById {
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
+  '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1186,6 +1206,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -1211,6 +1232,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
+    | '/admin/newsletter/campaigns/$id'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -1302,6 +1324,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -1327,6 +1350,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
+    | '/admin/newsletter/campaigns/$id'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -1423,6 +1447,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -1448,6 +1473,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
+    | '/admin/newsletter/campaigns/$id'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -2268,6 +2294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterInlineRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/campaigns': {
+      id: '/admin/newsletter/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/newsletter/campaigns'
+      preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/appearance/post-sidebar': {
       id: '/admin/appearance/post-sidebar'
       path: '/post-sidebar'
@@ -2331,6 +2364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/newsletter/campaigns/$id': {
+      id: '/admin/newsletter/campaigns/$id'
+      path: '/$id'
+      fullPath: '/admin/newsletter/campaigns/$id'
+      preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
+      parentRoute: typeof AdminNewsletterCampaignsRoute
+    }
   }
 }
 
@@ -2354,7 +2394,22 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
   AdminAppearanceRouteChildren,
 )
 
+interface AdminNewsletterCampaignsRouteChildren {
+  AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
+}
+
+const AdminNewsletterCampaignsRouteChildren: AdminNewsletterCampaignsRouteChildren =
+  {
+    AdminNewsletterCampaignsIdRoute: AdminNewsletterCampaignsIdRoute,
+  }
+
+const AdminNewsletterCampaignsRouteWithChildren =
+  AdminNewsletterCampaignsRoute._addFileChildren(
+    AdminNewsletterCampaignsRouteChildren,
+  )
+
 interface AdminNewsletterRouteChildren {
+  AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRouteWithChildren
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
@@ -2363,6 +2418,7 @@ interface AdminNewsletterRouteChildren {
 }
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
+  AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRouteWithChildren,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,

@@ -1925,6 +1925,135 @@ export type Database = {
         }
         Relationships: []
       }
+      newsletter_campaign_recipients: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          email: string
+          error: string | null
+          id: string
+          language: string
+          sent_at: string | null
+          status: string
+          subscriber_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          email: string
+          error?: string | null
+          id?: string
+          language?: string
+          sent_at?: string | null
+          status?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          email?: string
+          error?: string | null
+          id?: string
+          language?: string
+          sent_at?: string | null
+          status?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_recipients_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_campaigns: {
+        Row: {
+          audience_filter: Json
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          finished_at: string | null
+          from_email: string | null
+          from_name: string | null
+          html_en: string
+          html_pl: string
+          id: string
+          last_error: string | null
+          name: string
+          recipient_count: number
+          reply_to: string | null
+          scheduled_at: string | null
+          sent_count: number
+          started_at: string | null
+          status: string
+          subject_en: string
+          subject_pl: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          audience_filter?: Json
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          html_en?: string
+          html_pl?: string
+          id?: string
+          last_error?: string | null
+          name: string
+          recipient_count?: number
+          reply_to?: string | null
+          scheduled_at?: string | null
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          subject_en?: string
+          subject_pl?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          audience_filter?: Json
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          html_en?: string
+          html_pl?: string
+          id?: string
+          last_error?: string | null
+          name?: string
+          recipient_count?: number
+          reply_to?: string | null
+          scheduled_at?: string | null
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          subject_en?: string
+          subject_pl?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       newsletter_settings: {
         Row: {
           description_en: string
