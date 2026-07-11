@@ -45,6 +45,7 @@ import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
+import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
@@ -306,6 +307,11 @@ const PostSlugRoute = PostSlugRouteImport.update({
 const PodcastSlugRoute = PodcastSlugRouteImport.update({
   id: '/podcast/$slug',
   path: '/podcast/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewsletterUnsubscribeRoute = NewsletterUnsubscribeRouteImport.update({
+  id: '/newsletter/unsubscribe',
+  path: '/newsletter/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
@@ -794,6 +800,7 @@ export interface FileRoutesByFullPath {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
@@ -909,6 +916,7 @@ export interface FileRoutesByTo {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
@@ -1030,6 +1038,7 @@ export interface FileRoutesById {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
@@ -1152,6 +1161,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/newsletter/unsubscribe'
     | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
@@ -1267,6 +1277,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/newsletter/unsubscribe'
     | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
@@ -1387,6 +1398,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/newsletter/unsubscribe'
     | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
@@ -1469,6 +1481,7 @@ export interface RootRouteChildren {
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
+  NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
@@ -1735,6 +1748,13 @@ declare module '@tanstack/react-router' {
       path: '/podcast/$slug'
       fullPath: '/podcast/$slug'
       preLoaderRoute: typeof PodcastSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/newsletter/unsubscribe': {
+      id: '/newsletter/unsubscribe'
+      path: '/newsletter/unsubscribe'
+      fullPath: '/newsletter/unsubscribe'
+      preLoaderRoute: typeof NewsletterUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/newsletter/confirm': {
@@ -2588,6 +2608,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
+  NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
   PodcastSlugRoute: PodcastSlugRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
