@@ -3198,6 +3198,8 @@ export type Database = {
       }
       posts: {
         Row: {
+          audio_url_en: string | null
+          audio_url_pl: string | null
           author_id: string | null
           blocks_data: Json | null
           builder_data: Json | null
@@ -3241,6 +3243,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audio_url_en?: string | null
+          audio_url_pl?: string | null
           author_id?: string | null
           blocks_data?: Json | null
           builder_data?: Json | null
@@ -3284,6 +3288,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audio_url_en?: string | null
+          audio_url_pl?: string | null
           author_id?: string | null
           blocks_data?: Json | null
           builder_data?: Json | null
@@ -4846,6 +4852,8 @@ export type Database = {
       get_post_for_edit: {
         Args: { _slug: string }
         Returns: {
+          audio_url_en: string | null
+          audio_url_pl: string | null
           author_id: string | null
           blocks_data: Json | null
           builder_data: Json | null
