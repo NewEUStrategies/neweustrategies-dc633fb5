@@ -348,16 +348,11 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       });
 
       try {
-        // Wgrany MP3: pobieramy bezpośrednio (GET), całkowicie z pominięciem
-        // TTS - ElevenLabs nie jest angażowany dla tego języka.
-        const res = audioUrl
-          ? await fetch(audioUrl, { method: "GET", signal: controller.signal })
-          : await fetch("/api/public/post-tts", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ postId, lang }),
-              signal: controller.signal,
-            });
+        // Wybór źródła: wgrany MP3 (bezpośredni GET) albo TTS (ElevenLabs).
+        // Helper `resolveAudioFetch` gwarantuje, że dla języka z wgranym plikiem
+        // ElevenLabs nie jest wywoływany - kryterium weryfikowane przez testy.
+        const src = resolveAudioFetch(postId, lang, audioUrl);
+        const res = await fetch(src.url, { ...src.init, signal: controller.signal });
 
       if (!res.ok) {
         // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
