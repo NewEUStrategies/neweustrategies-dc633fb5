@@ -93,7 +93,7 @@ export function CommentsSection({ postId, lang }: Props) {
       ) : (
         <div className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
           {t("comments.signInPrompt")}{" "}
-          <Link to="/auth" className="underline hover:text-foreground">
+          <Link to="/login" className="underline hover:text-foreground">
             {t("comments.signInLink")}
           </Link>
         </div>
