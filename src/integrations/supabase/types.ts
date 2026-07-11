@@ -4754,6 +4754,146 @@ export type Database = {
           },
         ]
       }
+      workflow_definitions: {
+        Row: {
+          condition: Json
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          id: string
+          name: string
+          steps: Json
+          template_key: string | null
+          tenant_id: string
+          trigger_event_type: string
+          updated_at: string
+        }
+        Insert: {
+          condition?: Json
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          name: string
+          steps?: Json
+          template_key?: string | null
+          tenant_id: string
+          trigger_event_type: string
+          updated_at?: string
+        }
+        Update: {
+          condition?: Json
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          steps?: Json
+          template_key?: string | null
+          tenant_id?: string
+          trigger_event_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_definitions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_runs: {
+        Row: {
+          correlation_id: string | null
+          created_at: string
+          error: string | null
+          event_id: string | null
+          event_type: string
+          id: string
+          status: string
+          steps_completed: number
+          tenant_id: string
+          workflow_id: string
+        }
+        Insert: {
+          correlation_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_type: string
+          id?: string
+          status: string
+          steps_completed?: number
+          tenant_id: string
+          workflow_id: string
+        }
+        Update: {
+          correlation_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          status?: string
+          steps_completed?: number
+          tenant_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_templates: {
+        Row: {
+          condition: Json
+          created_at: string
+          description_en: string
+          description_pl: string
+          key: string
+          name_en: string
+          name_pl: string
+          steps: Json
+          trigger_event_type: string
+        }
+        Insert: {
+          condition?: Json
+          created_at?: string
+          description_en: string
+          description_pl: string
+          key: string
+          name_en: string
+          name_pl: string
+          steps?: Json
+          trigger_event_type: string
+        }
+        Update: {
+          condition?: Json
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          key?: string
+          name_en?: string
+          name_pl?: string
+          steps?: Json
+          trigger_event_type?: string
+        }
+        Relationships: []
+      }
       wp_import_jobs: {
         Row: {
           actor_id: string
@@ -5348,6 +5488,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      install_workflow_template: { Args: { p_key: string }; Returns: string }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
@@ -5476,6 +5617,13 @@ export type Database = {
           post_id: string
         }[]
       }
+      run_workflow_step: {
+        Args: {
+          p_event: Database["public"]["Tables"]["domain_events"]["Row"]
+          p_step: Json
+        }
+        Returns: undefined
+      }
       search_people: {
         Args: {
           p_company?: string
@@ -5567,6 +5715,15 @@ export type Database = {
           p75: number
           samples: number
         }[]
+      }
+      workflow_param_text: {
+        Args: {
+          p_fixed_key: string
+          p_from_key: string
+          p_params: Json
+          p_payload: Json
+        }
+        Returns: string
       }
     }
     Enums: {
