@@ -720,6 +720,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 {merged.show_bottom_newsletter && (
                   <NewsletterForm lang={lang} source={`post:${post.slug}`} />
                 )}
+                <CommentsSection postId={post.id} lang={lang} />
               </>
             }
           />
