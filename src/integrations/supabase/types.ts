@@ -705,6 +705,50 @@ export type Database = {
         }
         Relationships: []
       }
+      command_idempotency: {
+        Row: {
+          actor_id: string | null
+          command: string
+          completed_at: string | null
+          correlation_id: string | null
+          created_at: string
+          idempotency_key: string
+          result: Json | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          command: string
+          completed_at?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          idempotency_key: string
+          result?: Json | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          command?: string
+          completed_at?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          idempotency_key?: string
+          result?: Json | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_idempotency_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           body: string
@@ -1390,6 +1434,50 @@ export type Database = {
           },
         ]
       }
+      cross_references: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          relation: string
+          source_id: string
+          source_type: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          relation?: string
+          source_id: string
+          source_type: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          relation?: string
+          source_id?: string
+          source_type?: string
+          target_id?: string
+          target_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cross_references_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_crop_sizes: {
         Row: {
           created_at: string
@@ -1428,6 +1516,50 @@ export type Database = {
           width?: number
         }
         Relationships: []
+      }
+      domain_events: {
+        Row: {
+          actor_id: string | null
+          aggregate_id: string
+          aggregate_type: string
+          correlation_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          aggregate_id: string
+          aggregate_type: string
+          correlation_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          aggregate_id?: string
+          aggregate_type?: string
+          correlation_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       form_field_policies: {
         Row: {
@@ -1562,6 +1694,116 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      integration_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          endpoint_id: string
+          event_id: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          payload: Json
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          endpoint_id: string
+          event_id?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          payload: Json
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          endpoint_id?: string
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_deliveries_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "integration_endpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_deliveries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_endpoints: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          event_types: string[]
+          id: string
+          integration: string
+          name: string
+          secret: string | null
+          tenant_id: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          event_types?: string[]
+          id?: string
+          integration?: string
+          name: string
+          secret?: string | null
+          tenant_id: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          event_types?: string[]
+          id?: string
+          integration?: string
+          name?: string
+          secret?: string | null
+          tenant_id?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_endpoints_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       live_blog_entries: {
         Row: {
@@ -4096,6 +4338,35 @@ export type Database = {
           },
         ]
       }
+      tenant_pending_counters: {
+        Row: {
+          counter_key: string
+          tenant_id: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          counter_key: string
+          tenant_id: string
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          counter_key?: string
+          tenant_id?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_pending_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           aliases: string[]
@@ -4211,6 +4482,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_pending_counters: {
+        Row: {
+          counter_key: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          counter_key: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          value?: number
+        }
+        Update: {
+          counter_key?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_pending_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_purchases: {
         Row: {
@@ -4451,6 +4754,146 @@ export type Database = {
           },
         ]
       }
+      workflow_definitions: {
+        Row: {
+          condition: Json
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          id: string
+          name: string
+          steps: Json
+          template_key: string | null
+          tenant_id: string
+          trigger_event_type: string
+          updated_at: string
+        }
+        Insert: {
+          condition?: Json
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          name: string
+          steps?: Json
+          template_key?: string | null
+          tenant_id: string
+          trigger_event_type: string
+          updated_at?: string
+        }
+        Update: {
+          condition?: Json
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          steps?: Json
+          template_key?: string | null
+          tenant_id?: string
+          trigger_event_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_definitions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_runs: {
+        Row: {
+          correlation_id: string | null
+          created_at: string
+          error: string | null
+          event_id: string | null
+          event_type: string
+          id: string
+          status: string
+          steps_completed: number
+          tenant_id: string
+          workflow_id: string
+        }
+        Insert: {
+          correlation_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_type: string
+          id?: string
+          status: string
+          steps_completed?: number
+          tenant_id: string
+          workflow_id: string
+        }
+        Update: {
+          correlation_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          status?: string
+          steps_completed?: number
+          tenant_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_templates: {
+        Row: {
+          condition: Json
+          created_at: string
+          description_en: string
+          description_pl: string
+          key: string
+          name_en: string
+          name_pl: string
+          steps: Json
+          trigger_event_type: string
+        }
+        Insert: {
+          condition?: Json
+          created_at?: string
+          description_en: string
+          description_pl: string
+          key: string
+          name_en: string
+          name_pl: string
+          steps?: Json
+          trigger_event_type: string
+        }
+        Update: {
+          condition?: Json
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          key?: string
+          name_en?: string
+          name_pl?: string
+          steps?: Json
+          trigger_event_type?: string
+        }
+        Relationships: []
+      }
       wp_import_jobs: {
         Row: {
           actor_id: string
@@ -4554,6 +4997,18 @@ export type Database = {
       }
     }
     Functions: {
+      add_cross_reference: {
+        Args: {
+          p_created_by?: string
+          p_relation?: string
+          p_source_id: string
+          p_source_type: string
+          p_target_id: string
+          p_target_type: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       admin_clear_content_password: {
         Args: {
           _entity_id: string
@@ -4628,6 +5083,19 @@ export type Database = {
         Args: { _avatar_url: string; _user_id: string }
         Returns: undefined
       }
+      bump_tenant_counter: {
+        Args: { p_delta: number; p_key: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      bump_user_counter: {
+        Args: {
+          p_delta: number
+          p_key: string
+          p_tenant_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
       change_user_role: {
         Args: {
@@ -4635,6 +5103,37 @@ export type Database = {
           _target_user_id: string
         }
         Returns: Database["public"]["Enums"]["app_role"][]
+      }
+      claim_command: {
+        Args: { p_command: string; p_key: string }
+        Returns: Json
+      }
+      claim_integration_deliveries: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          endpoint_id: string
+          event_id: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          payload: Json
+          status: string
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "integration_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_command: {
+        Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
+        Returns: undefined
       }
       content_access_has_password: {
         Args: {
@@ -4690,6 +5189,16 @@ export type Database = {
         Returns: string
       }
       current_tenant_id: { Args: never; Returns: string }
+      emit_domain_event: {
+        Args: {
+          p_aggregate_id: string
+          p_aggregate_type: string
+          p_event_type: string
+          p_payload?: Json
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       enforce_form_field_policy: {
         Args: { _form_type: string; _payload: Json; _tenant: string }
         Returns: string[]
@@ -4707,6 +5216,10 @@ export type Database = {
         }
         Returns: string
       }
+      finish_integration_delivery: {
+        Args: { p_error?: string; p_id: string; p_succeeded: boolean }
+        Returns: undefined
+      }
       get_chat_peers: {
         Args: { p_user_ids: string[] }
         Returns: {
@@ -4717,6 +5230,26 @@ export type Database = {
           job_title: string
           specialization: string
         }[]
+      }
+      get_correlated_events: {
+        Args: { p_correlation_id: string }
+        Returns: {
+          actor_id: string | null
+          aggregate_id: string
+          aggregate_type: string
+          correlation_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "domain_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_entity_content: {
         Args: {
@@ -4745,6 +5278,18 @@ export type Database = {
           title_en: string
           title_pl: string
           total_count: number
+        }[]
+      }
+      get_linked_items: {
+        Args: { p_item_id: string; p_item_type: string }
+        Returns: {
+          created_at: string
+          direction: string
+          item_id: string
+          item_type: string
+          label: string
+          reference_id: string
+          relation: string
         }[]
       }
       get_or_create_direct_conversation: {
@@ -4943,6 +5488,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      install_workflow_template: { Args: { p_key: string }; Returns: string }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
@@ -4957,6 +5503,10 @@ export type Database = {
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
+      }
+      linked_item_label: {
+        Args: { p_id: string; p_type: string }
+        Returns: string
       }
       mark_conversation_read: {
         Args: { p_conversation_id: string }
@@ -5018,13 +5568,37 @@ export type Database = {
         }[]
       }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
+      process_mentions: {
+        Args: {
+          p_actor_id: string
+          p_body: string
+          p_href: string
+          p_kind: string
+          p_source_id: string
+          p_source_type: string
+          p_tenant_id: string
+        }
+        Returns: number
+      }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profiles_generate_unique_slug: {
         Args: { _base: string }
         Returns: string
       }
+      prune_command_idempotency: { Args: never; Returns: number }
+      prune_domain_events: { Args: { p_keep?: string }; Returns: number }
+      prune_integration_deliveries: { Args: never; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
+      recompute_my_pending_counters: { Args: never; Returns: undefined }
+      recompute_tenant_pending_counters: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
+      }
+      recompute_user_pending_counters: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
         Returns: undefined
@@ -5034,6 +5608,7 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      request_correlation_id: { Args: never; Returns: string }
       request_public_host: { Args: never; Returns: string }
       resolve_path: {
         Args: { _segments: string[] }
@@ -5041,6 +5616,13 @@ export type Database = {
           page_id: string
           post_id: string
         }[]
+      }
+      run_workflow_step: {
+        Args: {
+          p_event: Database["public"]["Tables"]["domain_events"]["Row"]
+          p_step: Json
+        }
+        Returns: undefined
       }
       search_people: {
         Args: {
@@ -5133,6 +5715,15 @@ export type Database = {
           p75: number
           samples: number
         }[]
+      }
+      workflow_param_text: {
+        Args: {
+          p_fixed_key: string
+          p_from_key: string
+          p_params: Json
+          p_payload: Json
+        }
+        Returns: string
       }
     }
     Enums: {
