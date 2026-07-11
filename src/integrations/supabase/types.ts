@@ -2341,7 +2341,6 @@ export type Database = {
           icon: string | null
           id: string
           kind: string
-          meta: Json
           read_at: string | null
           tenant_id: string
           title_en: string | null
@@ -2356,7 +2355,6 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
-          meta?: Json
           read_at?: string | null
           tenant_id: string
           title_en?: string | null
@@ -2371,7 +2369,6 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
-          meta?: Json
           read_at?: string | null
           tenant_id?: string
           title_en?: string | null
@@ -2631,6 +2628,56 @@ export type Database = {
         }
         Relationships: []
       }
+      personality_result_history: {
+        Row: {
+          agreeableness: number
+          answers: Json | null
+          conscientiousness: number
+          created_at: string
+          extraversion: number
+          id: string
+          neuroticism: number
+          openness: number
+          taken_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          agreeableness: number
+          answers?: Json | null
+          conscientiousness: number
+          created_at?: string
+          extraversion: number
+          id?: string
+          neuroticism: number
+          openness: number
+          taken_at?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          agreeableness?: number
+          answers?: Json | null
+          conscientiousness?: number
+          created_at?: string
+          extraversion?: number
+          id?: string
+          neuroticism?: number
+          openness?: number
+          taken_at?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personality_result_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       personality_results: {
         Row: {
           agreeableness: number
@@ -2674,53 +2721,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "personality_results_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      personality_result_history: {
-        Row: {
-          agreeableness: number
-          conscientiousness: number
-          created_at: string
-          extraversion: number
-          id: string
-          neuroticism: number
-          openness: number
-          taken_at: string
-          tenant_id: string
-          user_id: string
-        }
-        Insert: {
-          agreeableness: number
-          conscientiousness: number
-          created_at?: string
-          extraversion: number
-          id?: string
-          neuroticism: number
-          openness: number
-          taken_at?: string
-          tenant_id: string
-          user_id: string
-        }
-        Update: {
-          agreeableness?: number
-          conscientiousness?: number
-          created_at?: string
-          extraversion?: number
-          id?: string
-          neuroticism?: number
-          openness?: number
-          taken_at?: string
-          tenant_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "personality_result_history_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3674,7 +3674,6 @@ export type Database = {
           created_at: string
           current_company: string | null
           discoverable: boolean
-          discovery_search: string | null
           display_name: string | null
           email: string | null
           facebook_url: string | null
@@ -3706,7 +3705,6 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
-          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -3738,7 +3736,6 @@ export type Database = {
           created_at?: string
           current_company?: string | null
           discoverable?: boolean
-          discovery_search?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
@@ -4913,13 +4910,14 @@ export type Database = {
           p_tag_ids?: string[]
         }
         Returns: {
+          author_id: string
           cover_image_url: string
           excerpt_en: string
           excerpt_pl: string
           id: string
           parent_page_id: string
           published_at: string
-          reason: string
+          reasons: string[]
           score: number
           slug: string
           title_en: string
