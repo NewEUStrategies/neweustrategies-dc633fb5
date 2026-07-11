@@ -319,7 +319,7 @@ function CampaignEditor() {
               </Tabs>
               <p className="text-xs text-muted-foreground mt-2">
                 {isPl
-                  ? "Zmienne: {{firstName}}, {{lastName}}, {{email}}. Stopka „Wypisz się" jest doklejana automatycznie."
+                  ? 'Zmienne: {{firstName}}, {{lastName}}, {{email}}. Stopka „Wypisz się" jest doklejana automatycznie.'
                   : "Variables: {{firstName}}, {{lastName}}, {{email}}. Unsubscribe footer is appended automatically."}
               </p>
             </CardContent>

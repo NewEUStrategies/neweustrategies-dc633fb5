@@ -129,6 +129,7 @@ import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
+import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -739,6 +740,12 @@ const ApiPublicNewsletterConfirmRoute =
     path: '/api/public/newsletter/confirm',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AdminNewsletterCampaignsIdRoute =
+  AdminNewsletterCampaignsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AdminNewsletterCampaignsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -832,7 +839,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
-  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -858,6 +865,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
+  '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -949,7 +957,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
-  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -975,6 +983,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
+  '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1072,7 +1081,7 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
-  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1098,6 +1107,7 @@ export interface FileRoutesById {
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
+  '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1222,6 +1232,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
+    | '/admin/newsletter/campaigns/$id'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -1339,6 +1350,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
+    | '/admin/newsletter/campaigns/$id'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -1461,6 +1473,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
+    | '/admin/newsletter/campaigns/$id'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -2351,6 +2364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/newsletter/campaigns/$id': {
+      id: '/admin/newsletter/campaigns/$id'
+      path: '/$id'
+      fullPath: '/admin/newsletter/campaigns/$id'
+      preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
+      parentRoute: typeof AdminNewsletterCampaignsRoute
+    }
   }
 }
 
@@ -2374,8 +2394,22 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
   AdminAppearanceRouteChildren,
 )
 
+interface AdminNewsletterCampaignsRouteChildren {
+  AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
+}
+
+const AdminNewsletterCampaignsRouteChildren: AdminNewsletterCampaignsRouteChildren =
+  {
+    AdminNewsletterCampaignsIdRoute: AdminNewsletterCampaignsIdRoute,
+  }
+
+const AdminNewsletterCampaignsRouteWithChildren =
+  AdminNewsletterCampaignsRoute._addFileChildren(
+    AdminNewsletterCampaignsRouteChildren,
+  )
+
 interface AdminNewsletterRouteChildren {
-  AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRoute
+  AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRouteWithChildren
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
@@ -2384,7 +2418,7 @@ interface AdminNewsletterRouteChildren {
 }
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
-  AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRoute,
+  AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRouteWithChildren,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
@@ -2647,3 +2681,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
