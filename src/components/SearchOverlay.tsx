@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { Search, X, Loader2, ArrowRight } from "@/lib/lucide-shim";
+import { Search, X, Loader2, ArrowRight, Clock } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
+import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
 type Result = { id: string; slug: string; title: string; excerpt: string | null };
@@ -23,15 +24,22 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
+  const [recent, setRecent] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
+
+  const selectAndClose = (query: string) => {
+    addRecentSearch(query);
+    onClose();
+  };
 
   useEffect(() => {
     if (open) {
       setQ("");
       setResults([]);
       setActive(0);
+      setRecent(getRecentSearches());
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -84,14 +92,19 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       } else if (e.key === "Enter") {
         const r = results[active];
         if (r) {
+          addRecentSearch(q);
           onClose();
           void router.navigate({ href: `/post/${r.slug}` } as never);
+        } else if (q.trim().length >= 2) {
+          addRecentSearch(q);
+          onClose();
+          void router.navigate({ href: `/search?q=${encodeURIComponent(q.trim())}` } as never);
         }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, results, active, router]);
+  }, [open, onClose, results, active, router, q]);
 
   useEffect(() => {
     if (!open) return;
@@ -133,7 +146,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             results={results}
             active={active}
             setActive={setActive}
-            onClose={onClose}
+            onSelect={() => selectAndClose(q)}
             lang={lang}
             empty={showEmpty}
             compact
@@ -168,16 +181,31 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             expanded={showResults}
           />
           {showResults || showEmpty ? (
-            <ResultsList
-              results={results}
-              active={active}
-              setActive={setActive}
-              onClose={onClose}
-              lang={lang}
-              empty={showEmpty}
-              listboxId={listboxId}
-              optionId={optionId}
-            />
+            <>
+              <ResultsList
+                results={results}
+                active={active}
+                setActive={setActive}
+                onSelect={() => selectAndClose(q)}
+                lang={lang}
+                empty={showEmpty}
+                listboxId={listboxId}
+                optionId={optionId}
+              />
+              {hasQuery && (
+                <AppLink
+                  href={`/search?q=${encodeURIComponent(q.trim())}`}
+                  onClick={() => selectAndClose(q)}
+                  className="flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-sm font-medium text-brand transition hover:bg-muted/40"
+                >
+                  <span>
+                    {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
+                    <span className="font-semibold">„{q.trim()}"</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </AppLink>
+              )}
+            </>
           ) : (
             <div className="px-6 py-10 text-center">
               <div className="mx-auto w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
@@ -188,6 +216,21 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                   ? "Zacznij pisać, aby wyszukać artykuły"
                   : "Start typing to search articles"}
               </p>
+              {recent.length > 0 && (
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  {recent.map((term) => (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={() => setQ(term)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-foreground transition hover:bg-muted"
+                    >
+                      <Clock className="w-3 h-3 text-muted-foreground" />
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <Footer lang={lang} />
@@ -264,7 +307,7 @@ function ResultsList({
   results,
   active,
   setActive,
-  onClose,
+  onSelect,
   lang,
   empty,
   compact,
@@ -274,7 +317,7 @@ function ResultsList({
   results: Result[];
   active: number;
   setActive: (i: number) => void;
-  onClose: () => void;
+  onSelect: () => void;
   lang: "pl" | "en";
   empty: boolean;
   compact?: boolean;
@@ -304,7 +347,7 @@ function ResultsList({
           <li key={r.id} id={optionId(i)} role="option" aria-selected={isActive}>
             <AppLink
               href={`/post/${r.slug}`}
-              onClick={onClose}
+              onClick={onSelect}
               onMouseEnter={() => setActive(i)}
               className={`group flex items-start gap-3 px-5 py-3.5 transition ${
                 isActive ? "bg-muted/70" : "hover:bg-muted/40"
