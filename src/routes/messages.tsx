@@ -70,7 +70,8 @@ function MessagesInner() {
   const { user } = useAuth();
   const { c, view } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const activeView: MessagesView = view === "notifications" ? "notifications" : "chats";
+  const activeView: MessagesView =
+    view === "notifications" ? "notifications" : view === "consents" ? "consents" : "chats";
   const unreadNotifQ = useUnreadCount();
   const unreadNotif = unreadNotifQ.data ?? 0;
 
