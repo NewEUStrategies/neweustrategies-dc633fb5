@@ -372,6 +372,8 @@ function EditPost() {
             content_pl: snapshot.content_pl,
             content_en: snapshot.content_en,
             cover_image_url: snapshot.cover_image_url,
+            audio_url_pl: snapshot.audio_url_pl,
+            audio_url_en: snapshot.audio_url_en,
             read_minutes: snapshot.read_minutes,
             builder_data: snapshot.builder_data,
             blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
