@@ -100,7 +100,7 @@ export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
       const { error: finishError } = await supabaseAdmin.rpc("finish_integration_delivery", {
         p_id: delivery.id,
         p_succeeded: ok,
-        p_error: lastError,
+        p_error: lastError ?? undefined,
       });
       if (finishError) {
         console.error("[integrations] finish_integration_delivery failed", {
