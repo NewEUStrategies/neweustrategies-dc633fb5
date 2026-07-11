@@ -16,6 +16,11 @@ import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinat
 
 const LS_KEY = "nl_popup_last";
 
+// Per-visit guard: once the popup has been granted a slot in this app session,
+// never re-arm its trigger on client-side navigation (mirrors PopupHost's
+// shownRef). Survives route changes; resets on a full reload.
+let shownThisSession = false;
+
 function shouldShow(freqDays: number): boolean {
   if (typeof window === "undefined") return false;
   const raw = window.localStorage.getItem(LS_KEY);
@@ -49,6 +54,7 @@ export function NewsletterPopup() {
     if (!s?.popup_enabled || !s.enabled) return;
     if (s.mode === "off" || s.mode === "inline") return;
     if (loc.pathname.startsWith("/admin") || loc.pathname.startsWith("/auth")) return;
+    if (shownThisSession) return;
     if (!shouldShow(s.popup_frequency_days)) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -59,14 +65,17 @@ export function NewsletterPopup() {
     // The trigger only ASKS to open - the overlay coordinator defers the
     // grant behind the consent banner / another marketing overlay.
     const trigger = () => {
-      void requestOverlaySlot("newsletter-popup").then((release) => {
-        if (disposed) {
-          release();
-          return;
-        }
-        releaseSlotRef.current = release;
-        setOpen(true);
-      });
+      void requestOverlaySlot("newsletter-popup", { marketing: true, priority: 0 }).then(
+        (release) => {
+          if (disposed) {
+            release();
+            return;
+          }
+          shownThisSession = true;
+          releaseSlotRef.current = release;
+          setOpen(true);
+        },
+      );
     };
 
     if (s.popup_trigger === "delay") {

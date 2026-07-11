@@ -1,4 +1,11 @@
-// Site-wide alert bar driven by site_settings.theme_options.header.alert_bar
+// Site-wide alert bar driven by site_settings.theme_options.header.alert_bar.
+//
+// Deliberately EXEMPT from the overlay coordinator: the alert bar is a thin,
+// non-modal strip that lives inside the header chrome (normal document flow),
+// not a fixed overlay stacked over content. It never visually collides with the
+// consent banner / popups / slide-up, so routing it through the single-owner
+// coordinator would only starve genuine interruptions for a header element that
+// is not one. (Per the UX audit's "register OR exempt by design" option.)
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSiteSetting } from "@/lib/useSiteSetting";

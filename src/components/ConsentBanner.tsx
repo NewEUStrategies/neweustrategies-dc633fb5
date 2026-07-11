@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/consent";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { setConsentOverlayVisible } from "@/lib/overlayCoordinator";
+import { setConsentOverlayVisible, setMarketingConsent } from "@/lib/overlayCoordinator";
 
 type Cats = Record<ConsentCategory, boolean>;
 
@@ -90,6 +90,14 @@ export function ConsentBanner() {
     setConsentOverlayVisible(consentSurfaceVisible);
     return () => setConsentOverlayVisible(false);
   }, [consentSurfaceVisible]);
+
+  // Report the resolved marketing decision so the coordinator can SUPPRESS
+  // marketing overlays (newsletter/builder popups, slide-up) when the visitor
+  // has rejected marketing - not merely reorder them behind the banner.
+  useEffect(() => {
+    if (!mounted) return;
+    setMarketingConsent(state ? state.categories.marketing : null);
+  }, [mounted, state]);
 
   // SSR-safe: nic nie renderuj do hydracji.
   if (!mounted) return null;
