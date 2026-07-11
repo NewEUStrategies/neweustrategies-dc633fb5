@@ -7,6 +7,7 @@ import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
+import { promptDialog } from "@/lib/appDialogs";
 function ActionTip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Tooltip>
@@ -167,8 +168,8 @@ export function GlobalAudioBar() {
       await navigator.clipboard.writeText(url);
       toast.success(t.copied);
     } catch {
-      // Ostateczny fallback: prompt.
-      window.prompt(t.share, url);
+      // Ostateczny fallback: dialog z adresem do skopiowania.
+      void promptDialog({ title: t.share, defaultValue: url, confirmLabel: "OK" });
     }
   };
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Undo2, Redo2, Check, Loader2, AlertTriangle, Circle, RotateCcw } from "@/lib/lucide-shim";
 import type { AutosaveStatus } from "@/hooks/useAutosave";
 
+import { confirmDialog } from "@/lib/appDialogs";
 interface Props {
   status: AutosaveStatus;
   error: string | null;
@@ -81,15 +82,15 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
           size="sm"
           variant="ghost"
           onClick={() => {
-            if (
-              window.confirm(
-                t("admin.autosave.discardConfirm", {
-                  defaultValue: "Odrzucić niezapisane zmiany?",
-                }),
-              )
-            ) {
-              onDiscard();
-            }
+            void confirmDialog({
+              title: t("admin.autosave.discardConfirm", {
+                defaultValue: "Odrzucić niezapisane zmiany?",
+              }),
+              confirmLabel: t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" }),
+              destructive: true,
+            }).then((ok) => {
+              if (ok) onDiscard();
+            });
           }}
           aria-label={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
           title={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}

@@ -37,6 +37,7 @@ import {
 } from "@/lib/sidebarBuilder/types";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 
+import { promptDialog } from "@/lib/appDialogs";
 interface PaletteEntry {
   type: SidebarWidgetType;
   labelPl: string;
@@ -314,11 +315,14 @@ export function SidebarBuilderPane() {
           <button
             type="button"
             onClick={() => {
-              const name = window.prompt(
-                lang === "pl" ? "Nazwa nowego układu" : "New layout name",
-                "custom",
-              );
-              if (name && name.trim()) createMutation.mutate(name.trim());
+              void promptDialog({
+                title: lang === "pl" ? "Nowy układ" : "New layout",
+                label: lang === "pl" ? "Nazwa nowego układu" : "New layout name",
+                defaultValue: "custom",
+                confirmLabel: lang === "pl" ? "Utwórz" : "Create",
+              }).then((name) => {
+                if (name && name.trim()) createMutation.mutate(name.trim());
+              });
             }}
             className="w-full text-xs px-2 py-1.5 rounded-[5px] border border-dashed border-border hover:bg-muted transition"
           >

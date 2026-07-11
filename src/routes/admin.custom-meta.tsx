@@ -23,6 +23,7 @@ import {
 } from "@/lib/customMeta";
 import { CUSTOM_META_ICON_NAMES } from "@/components/post/CustomMetaList";
 
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/custom-meta")({
   component: CustomMetaAdmin,
   head: () => ({ meta: [{ title: "Custom meta - Admin" }] }),
@@ -101,7 +102,14 @@ function CustomMetaAdmin() {
   };
 
   const remove = async (id: string): Promise<void> => {
-    if (!window.confirm("Usunąć definicję?")) return;
+    if (
+      !(await confirmDialog({
+        title: "Usunąć definicję?",
+        destructive: true,
+        confirmLabel: "Usuń",
+      }))
+    )
+      return;
     try {
       await deleteCustomMetaDef(id);
       refresh();

@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 // Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { errorCopy } from "@/lib/errorCopy";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
@@ -328,10 +329,15 @@ export const Route = createFileRoute("/$")({
 // component, and neither can React DevTools).
 function PublicErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  const copy = errorCopy();
+  // Raw error.message is logged for diagnostics, never rendered to visitors.
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
   return (
     <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
-      <h1 className="font-display text-2xl">Nie udało się załadować strony</h1>
-      <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+      <h1 className="font-display text-2xl">{copy.errorTitle}</h1>
+      <p className="text-sm text-muted-foreground mt-2">{copy.errorBody}</p>
       <button
         onClick={() => {
           router.invalidate();
@@ -339,7 +345,7 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
         }}
         className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
       >
-        Spróbuj ponownie
+        {copy.tryAgain}
       </button>
     </main>
   );
@@ -883,15 +889,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
 }
 
 function PublicNotFound() {
+  const copy = errorCopy();
   return (
     <main className="flex-1 flex items-center justify-center px-4 py-20">
       <div className="text-center">
-        <h1 className="font-display text-3xl">404 - nie znaleziono</h1>
+        <h1 className="font-display text-3xl">404 &middot; {copy.notFoundTitle}</h1>
+        <p className="text-sm text-muted-foreground mt-2">{copy.notFoundBody}</p>
         <Link
           to="/"
           className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
         >
-          Strona główna
+          {copy.goHome}
         </Link>
       </div>
     </main>

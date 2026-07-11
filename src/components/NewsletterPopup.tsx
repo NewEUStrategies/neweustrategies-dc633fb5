@@ -12,6 +12,7 @@ import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 
 const LS_KEY = "nl_popup_last";
 
@@ -39,6 +40,7 @@ export function NewsletterPopup() {
   const loc = useLocation();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const releaseSlotRef = useRef<(() => void) | null>(null);
   useFocusTrap(panelRef, open);
 
   const isPl = (i18n.language ?? "pl").startsWith("pl");
@@ -52,8 +54,20 @@ export function NewsletterPopup() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let onScroll: (() => void) | null = null;
     let onMouseLeave: ((e: MouseEvent) => void) | null = null;
+    let disposed = false;
 
-    const trigger = () => setOpen(true);
+    // The trigger only ASKS to open - the overlay coordinator defers the
+    // grant behind the consent banner / another marketing overlay.
+    const trigger = () => {
+      void requestOverlaySlot("newsletter-popup").then((release) => {
+        if (disposed) {
+          release();
+          return;
+        }
+        releaseSlotRef.current = release;
+        setOpen(true);
+      });
+    };
 
     if (s.popup_trigger === "delay") {
       timer = setTimeout(trigger, Math.max(1, s.popup_delay_seconds) * 1000);
@@ -80,6 +94,8 @@ export function NewsletterPopup() {
     }
 
     return () => {
+      disposed = true;
+      cancelOverlayRequest("newsletter-popup");
       if (timer) clearTimeout(timer);
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);
@@ -91,6 +107,8 @@ export function NewsletterPopup() {
   const close = useCallback(() => {
     markDismissed();
     setOpen(false);
+    releaseSlotRef.current?.();
+    releaseSlotRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -105,7 +123,7 @@ export function NewsletterPopup() {
   if (!s?.popup_enabled || !open) return null;
   const onSuccess = () => {
     markDismissed();
-    setTimeout(() => setOpen(false), 1800);
+    setTimeout(() => close(), 1800);
   };
 
   const split = s.popup_layout === "split";

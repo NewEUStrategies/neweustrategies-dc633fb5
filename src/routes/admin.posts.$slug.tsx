@@ -82,6 +82,7 @@ type EditorType = "blocks" | "richtext" | "markdown" | "builder";
 
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 
+import { confirmDialog, promptDialog } from "@/lib/appDialogs";
 interface PostForm {
   id: string;
   slug: string;
@@ -487,7 +488,12 @@ function EditPost() {
   const set = <K extends keyof PostForm>(k: K, v: PostForm[K]) =>
     history.set((f) => (f ? { ...f, [k]: v } : f), { coalesceKey: String(k) });
 
-  const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
+  const pickImage = async (): Promise<string | null> =>
+    promptDialog({
+      title: t("admin.imageUrlTitle", { defaultValue: "Adres URL obrazka" }),
+      placeholder: "https://…",
+      confirmLabel: t("admin.insert", { defaultValue: "Wstaw" }),
+    });
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
@@ -529,7 +535,14 @@ function EditPost() {
   };
 
   const del = async () => {
-    if (!confirm(t("admin.confirmDelete"))) return;
+    if (
+      !(await confirmDialog({
+        title: t("admin.confirmDelete"),
+        destructive: true,
+        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+      }))
+    )
+      return;
     try {
       await delete$({ data: { id } });
       toast.success(t("admin.deleted"));

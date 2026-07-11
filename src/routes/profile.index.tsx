@@ -55,6 +55,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
 
+import { promptDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/profile/")({
   component: ProfileInline,
 });
@@ -178,8 +179,12 @@ function ProfileInline() {
               <button
                 type="button"
                 onClick={() => {
-                  const v = window.prompt(t("profile.account.currentCompany"));
-                  if (v != null) void saveField("current_company", v.trim() || null);
+                  void promptDialog({
+                    title: t("profile.account.currentCompany"),
+                    confirmLabel: t("common.save", { defaultValue: "Zapisz" }),
+                  }).then((v) => {
+                    if (v != null) void saveField("current_company", v.trim() || null);
+                  });
                 }}
                 className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
               >
@@ -237,8 +242,12 @@ function ProfileInline() {
               <button
                 type="button"
                 onClick={() => {
-                  const v = window.prompt(t("profile.account.specialization"));
-                  if (v != null) void saveField("specialization", v.trim() || null);
+                  void promptDialog({
+                    title: t("profile.account.specialization"),
+                    confirmLabel: t("common.save", { defaultValue: "Zapisz" }),
+                  }).then((v) => {
+                    if (v != null) void saveField("specialization", v.trim() || null);
+                  });
                 }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
               >
@@ -256,8 +265,12 @@ function ProfileInline() {
               <button
                 type="button"
                 onClick={() => {
-                  const v = window.prompt(t("profile.account.locationPh"));
-                  if (v != null) void saveField("location", v.trim() || null);
+                  void promptDialog({
+                    title: t("profile.account.locationPh"),
+                    confirmLabel: t("common.save", { defaultValue: "Zapisz" }),
+                  }).then((v) => {
+                    if (v != null) void saveField("location", v.trim() || null);
+                  });
                 }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
               >

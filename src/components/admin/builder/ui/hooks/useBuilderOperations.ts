@@ -27,6 +27,7 @@ import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import type { GlobalDragPayload } from "../organisms/builder/VisualCanvas";
 import type { Selection, SelectionKind } from "../organisms/builder/types";
 
+import { promptDialog } from "@/lib/appDialogs";
 interface Args {
   history: History;
   doc: BuilderDocument;
@@ -75,11 +76,15 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   }, [history]);
   const insertTemplateSection = (tpl: SectionTemplate) =>
     update((d) => ops.insertSectionNode(d, ops.cloneSection(tpl.data)));
-  const saveSectionAsTemplate = (sid: string) => {
+  const saveSectionAsTemplate = async (sid: string) => {
     const s = ops.findSection(doc, sid);
     if (!s) return;
-    const name = window.prompt("Nazwa szablonu sekcji:");
-    if (!name) return;
+    const name = await promptDialog({
+      title: "Zapisz sekcję jako szablon",
+      label: "Nazwa szablonu sekcji",
+      confirmLabel: "Zapisz",
+    });
+    if (!name?.trim()) return;
     void templates.save(name.trim(), s);
   };
   const removeSection = (id: string) => update((d) => ops.removeSection(d, id));
@@ -155,7 +160,11 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const saveWidgetAsGlobal = async (wid: string) => {
     const f = ops.findWidget(doc, wid);
     if (!f) return;
-    const name = window.prompt("Nazwa widgetu globalnego:");
+    const name = await promptDialog({
+      title: "Zapisz jako widget globalny",
+      label: "Nazwa widgetu globalnego",
+      confirmLabel: "Zapisz",
+    });
     if (!name?.trim()) return;
     const id = await globals.save(name.trim(), f.widget);
     if (!id) {
@@ -177,7 +186,11 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const startAbTest = async (sectionId: string) => {
     const s = ops.findSection(doc, sectionId);
     if (!s) return;
-    const name = window.prompt("Nazwa testu A/B:");
+    const name = await promptDialog({
+      title: "Nowy test A/B",
+      label: "Nazwa testu A/B",
+      confirmLabel: "Utwórz",
+    });
     if (!name?.trim()) return;
     const experimentId = await experiments.create(name.trim());
     if (!experimentId) {

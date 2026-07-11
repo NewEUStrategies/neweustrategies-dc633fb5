@@ -4,7 +4,7 @@
 // Supports two column kinds (Foxiz parity):
 //   - "links"    : title + list of links + optional featured banner
 //   - "category" : recent posts from a category with thumbnails (AJAX-style)
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState, type FocusEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "@/lib/lucide-shim";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
@@ -95,10 +95,12 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | null>(null);
 
-  // Click-outside + ESC for click-trigger.
+  // ESC closes the open panel for BOTH trigger variants (keyboard users open
+  // the hover variant via focus); click-outside applies to the click variant.
   useEffect(() => {
-    if (!open || triggerOn !== "click" || mobile) return;
+    if (!open || mobile) return;
     const onDoc = (e: MouseEvent): void => {
+      if (triggerOn !== "click") return;
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent): void => {
@@ -145,6 +147,19 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
     if (triggerOn !== "hover") return;
     closeTimer.current = window.setTimeout(() => setOpen(false), 120);
   };
+  // Keyboard parity for the hover variant: focusing the trigger (or anything
+  // inside the panel) opens/keeps the panel; tabbing out of the whole widget
+  // closes it. Mirrors onMouseEnter/onMouseLeave for pointer users.
+  const onFocusIn = (): void => {
+    if (triggerOn !== "hover") return;
+    if (closeTimer.current != null) window.clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const onFocusOut = (e: FocusEvent<HTMLDivElement>): void => {
+    if (triggerOn !== "hover") return;
+    if (e.relatedTarget && wrapRef.current?.contains(e.relatedTarget as Node)) return;
+    setOpen(false);
+  };
 
   const widthCls =
     config.width === "fluid"
@@ -163,12 +178,13 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       className="relative inline-flex items-stretch"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onFocus={onFocusIn}
+      onBlur={onFocusOut}
     >
       {triggerHref && triggerOn !== "click" ? (
         <AppLink
           href={triggerHref}
           className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
-          aria-haspopup="true"
           aria-expanded={open}
           aria-controls={panelId}
         >
@@ -179,7 +195,6 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
         <button
           type="button"
           className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
-          aria-haspopup="true"
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => {
@@ -191,10 +206,12 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
         </button>
       )}
 
+      {/* Disclosure-nav pattern: a region of plain links. role="menu" would
+          promise app-menu keyboard semantics (roving tabindex, menuitem)
+          that links don't have - so no menu role here. */}
       {open && columns.length > 0 && (
         <div
           id={panelId}
-          role="menu"
           className={`absolute top-full mt-2 z-50 ${widthCls} bg-background border border-border rounded-xl shadow-xl p-6`}
           style={widthStyle}
         >

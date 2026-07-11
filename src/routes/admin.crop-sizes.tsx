@@ -19,6 +19,7 @@ import {
   type CropSizeDraft,
 } from "@/lib/cropSizes";
 
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/crop-sizes")({
   component: CropSizesAdmin,
   head: () => ({ meta: [{ title: "Crop sizes - Admin" }] }),
@@ -91,7 +92,10 @@ function CropSizesAdmin() {
     });
 
   const remove = async (id: string) => {
-    if (!confirm("Usunąć preset?")) return;
+    if (
+      !(await confirmDialog({ title: "Usunąć preset?", destructive: true, confirmLabel: "Usuń" }))
+    )
+      return;
     await deleteCropSize(id);
     refresh();
   };

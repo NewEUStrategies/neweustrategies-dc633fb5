@@ -17,11 +17,13 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // pointer-coarse: on touch devices every size meets the 44px (WCAG
+      // 2.5.5 / HIG) target without changing the compact desktop density.
       size: {
-        default: "h-8 px-3 py-1.5",
-        sm: "h-7 rounded-md px-2.5 py-1 text-xs",
-        lg: "h-9 rounded-md px-6",
-        icon: "h-8 w-8",
+        default: "h-8 px-3 py-1.5 pointer-coarse:min-h-11",
+        sm: "h-7 rounded-md px-2.5 py-1 text-xs pointer-coarse:min-h-11",
+        lg: "h-9 rounded-md px-6 pointer-coarse:min-h-11",
+        icon: "h-8 w-8 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
       },
     },
     defaultVariants: {

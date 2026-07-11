@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { Search, X, Loader2, ArrowRight } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
+  const optionId = (i: number): string => `${listboxId}-opt-${i}`;
 
   useEffect(() => {
     if (open) {
@@ -43,25 +45,21 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     let cancelled = false;
     setLoading(true);
     const handle = setTimeout(async () => {
-      const titleCol = lang === "pl" ? "title_pl" : "title_en";
-      const excerptCol = lang === "pl" ? "excerpt_pl" : "excerpt_en";
-      const { data } = await supabase
-        .from("posts")
-        .select(`id, slug, ${titleCol}, ${excerptCol}`)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .ilike(titleCol, `%${q.trim()}%`)
-        .limit(Math.max(1, Math.min(limit, 20)));
+      // The same ranked FTS engine as /search (unaccent, prefix matching,
+      // indexes blocks/builder content) - previously the overlay ran a plain
+      // ILIKE on the title, so the two surfaces returned different results
+      // for the same phrase.
+      const { data } = await supabase.rpc("search_posts", {
+        _q: q.trim(),
+        _limit: Math.max(1, Math.min(limit, 20)),
+      });
       if (cancelled) return;
-      // Kolumny są wybierane dynamicznie (per język), więc wiersz ma kształt
-      // slownika - bez any.
-      const rows = (data ?? []) as Array<Record<string, string | null>>;
       setResults(
-        rows.map((r) => ({
-          id: r.id ?? "",
-          slug: r.slug ?? "",
-          title: r[titleCol] || "",
-          excerpt: r[excerptCol] || null,
+        (data ?? []).map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl || "",
+          excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || null,
         })),
       );
       setActive(0);
@@ -125,6 +123,10 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           onClose={onClose}
           placeholder={placeholder}
           compact
+          lang={lang}
+          listboxId={listboxId}
+          activeOptionId={showResults ? optionId(active) : undefined}
+          expanded={showResults}
         />
         {(showResults || showEmpty) && (
           <ResultsList
@@ -135,6 +137,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             lang={lang}
             empty={showEmpty}
             compact
+            listboxId={listboxId}
+            optionId={optionId}
           />
         )}
       </div>
@@ -158,6 +162,10 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             loading={loading}
             onClose={onClose}
             placeholder={placeholder}
+            lang={lang}
+            listboxId={listboxId}
+            activeOptionId={showResults ? optionId(active) : undefined}
+            expanded={showResults}
           />
           {showResults || showEmpty ? (
             <ResultsList
@@ -167,6 +175,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               onClose={onClose}
               lang={lang}
               empty={showEmpty}
+              listboxId={listboxId}
+              optionId={optionId}
             />
           ) : (
             <div className="px-6 py-10 text-center">
@@ -195,6 +205,10 @@ function SearchBar({
   onClose,
   placeholder,
   compact,
+  lang,
+  listboxId,
+  activeOptionId,
+  expanded,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   q: string;
@@ -203,6 +217,10 @@ function SearchBar({
   onClose: () => void;
   placeholder: string;
   compact?: boolean;
+  lang: "pl" | "en";
+  listboxId: string;
+  activeOptionId?: string;
+  expanded: boolean;
 }) {
   return (
     <div
@@ -214,6 +232,11 @@ function SearchBar({
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder}
+        role="combobox"
+        aria-expanded={expanded}
+        aria-controls={listboxId}
+        aria-activedescendant={activeOptionId}
+        aria-autocomplete="list"
         className={`flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none placeholder:text-muted-foreground/60 text-foreground ${compact ? "text-sm" : "text-base"}`}
         style={{ boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
       />
@@ -223,12 +246,12 @@ function SearchBar({
           onClick={() => setQ("")}
           className="text-xs text-muted-foreground hover:text-foreground transition px-2 py-0.5 rounded hover:bg-muted"
         >
-          Clear
+          {lang === "pl" ? "Wyczyść" : "Clear"}
         </button>
       )}
       <button
         onClick={onClose}
-        aria-label="Close"
+        aria-label={lang === "pl" ? "Zamknij" : "Close"}
         className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
       >
         <X className="w-4 h-4" />
@@ -245,6 +268,8 @@ function ResultsList({
   lang,
   empty,
   compact,
+  listboxId,
+  optionId,
 }: {
   results: Result[];
   active: number;
@@ -253,10 +278,13 @@ function ResultsList({
   lang: "pl" | "en";
   empty: boolean;
   compact?: boolean;
+  listboxId: string;
+  optionId: (i: number) => string;
 }) {
   if (empty) {
     return (
       <div
+        role="status"
         className={`text-center text-sm text-muted-foreground ${compact ? "px-4 py-8" : "px-6 py-12"}`}
       >
         {lang === "pl" ? "Brak wyników" : "No results"}
@@ -265,12 +293,15 @@ function ResultsList({
   }
   return (
     <ul
+      id={listboxId}
+      role="listbox"
+      aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
       className={`overflow-y-auto divide-y divide-border/60 ${compact ? "max-h-[60vh]" : "max-h-[52vh]"}`}
     >
       {results.map((r, i) => {
         const isActive = i === active;
         return (
-          <li key={r.id}>
+          <li key={r.id} id={optionId(i)} role="option" aria-selected={isActive}>
             <AppLink
               href={`/post/${r.slug}`}
               onClick={onClose}

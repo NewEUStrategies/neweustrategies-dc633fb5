@@ -56,7 +56,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#374151",
         defaultDark: "#e5e7eb",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -203,7 +203,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         description: "Kolor tekstu przycisków.",
         overrides: ["--primary-foreground"],
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -290,7 +290,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         description: "Kolor etykiety „sponsored”.",
         hasDark: true,
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "12px",
       },
     ],
@@ -306,7 +306,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         description: "Kolor licznika popularnych wpisów.",
         hasDark: true,
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
     ],
@@ -370,7 +370,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#e5e7eb",
         overrides: ["--sidebar-foreground"],
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -391,7 +391,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#ffffff",
         overrides: ["--sidebar-primary-foreground", "--sidebar-accent-foreground"],
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -428,7 +428,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#6b7280",
         defaultDark: "#9ca3af",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "12px",
       },
       {
@@ -440,7 +440,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#374151",
         defaultDark: "#d1d5db",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "13px",
       },
       {
@@ -494,7 +494,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#f1f5f9",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -505,7 +505,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#94a3b8",
         defaultDark: "#64748b",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -556,7 +556,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#ffffff",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "32px",
       },
       {
@@ -567,7 +567,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#ffffff",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "26px",
       },
       {
@@ -578,7 +578,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#f3f4f6",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "22px",
       },
       {
@@ -589,7 +589,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#f3f4f6",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "18px",
       },
       {
@@ -600,7 +600,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#e5e7eb",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "16px",
       },
       {
@@ -611,7 +611,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#e5e7eb",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
     ],
@@ -630,7 +630,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#d1d5db",
         overrides: ["--foreground"],
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -642,7 +642,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#9ca3af",
         overrides: ["--muted-foreground"],
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
     ],
@@ -660,7 +660,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -694,7 +694,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "12px",
       },
       {
@@ -705,7 +705,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#ffffff",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "20px",
       },
       {
@@ -716,7 +716,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#374151",
         defaultDark: "#d1d5db",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -727,7 +727,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#f3f4f6",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "14px",
       },
       {
@@ -754,7 +754,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#141414",
         defaultDark: "#f1f5f9",
         typography: true,
-        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontFamily: '"Red Hat Display", system-ui, sans-serif',
         defaultFontSize: "13px",
       },
     ],

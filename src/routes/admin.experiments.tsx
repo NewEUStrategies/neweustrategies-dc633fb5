@@ -14,6 +14,7 @@ import {
   type BuilderExperiment,
 } from "@/lib/builder/experiments";
 
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/experiments")({
   component: ExperimentsPage,
 });
@@ -23,15 +24,15 @@ function ExperimentsPage() {
   const experiments = useExperimentsAdmin();
 
   const removeExperiment = async (x: BuilderExperiment) => {
-    if (
-      !window.confirm(
-        t("admin.experiments.confirmDelete", {
-          defaultValue: 'Usunąć test "{{name}}" wraz z zebranymi danymi?',
-          name: x.name,
-        }),
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: t("admin.experiments.confirmDelete", {
+        defaultValue: 'Usunąć test "{{name}}" wraz z zebranymi danymi?',
+        name: x.name,
+      }),
+      destructive: true,
+      confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+    });
+    if (!ok) return;
     await experiments.remove(x.id);
     toast.success(t("admin.experiments.deleted", { defaultValue: "Usunięto test" }));
   };

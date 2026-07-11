@@ -19,6 +19,7 @@ import "@/lib/i18n-newsletter-admin";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
 
+import { confirmDialog } from "@/lib/appDialogs";
 interface SubRow {
   id: string;
   email: string;
@@ -131,7 +132,14 @@ export function SubscribersPanel() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Usunac subskrybenta?")) return;
+    if (
+      !(await confirmDialog({
+        title: "Usunąć subskrybenta?",
+        destructive: true,
+        confirmLabel: "Usuń",
+      }))
+    )
+      return;
     const { error } = await supabase.from("newsletter_subscribers").delete().eq("id", id);
     if (error) {
       toast.error(error.message);

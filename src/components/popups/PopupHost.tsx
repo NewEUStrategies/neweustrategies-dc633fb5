@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { X } from "@/lib/lucide-shim";
 import { isEmptyDocument, type Device } from "@/lib/builder/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 import {
   evaluatePopupTargeting,
   isPopupFrequencyOk,
@@ -46,6 +47,7 @@ export function PopupHost() {
   // on client-side navigation within the same visit.
   const shownRef = useRef<Set<string>>(new Set());
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const releaseSlotRef = useRef<(() => void) | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -81,9 +83,20 @@ export function PopupHost() {
     let onScroll: (() => void) | null = null;
     let onMouseLeave: ((e: MouseEvent) => void) | null = null;
 
+    let disposed = false;
+    // fire() only ASKS to open - the overlay coordinator defers the grant
+    // behind the consent banner / another marketing overlay (e.g. the
+    // newsletter popup), so overlays never stack.
     const fire = () => {
-      shownRef.current.add(candidate.id);
-      setOpen(candidate);
+      void requestOverlaySlot(`builder-popup:${candidate.id}`).then((release) => {
+        if (disposed) {
+          release();
+          return;
+        }
+        shownRef.current.add(candidate.id);
+        releaseSlotRef.current = release;
+        setOpen(candidate);
+      });
     };
 
     if (s.trigger === "immediate") {
@@ -112,6 +125,8 @@ export function PopupHost() {
     }
 
     return () => {
+      disposed = true;
+      cancelOverlayRequest(`builder-popup:${candidate.id}`);
       if (timer) clearTimeout(timer);
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);
@@ -123,6 +138,8 @@ export function PopupHost() {
       if (prev) markPopupDismissed(prev.id);
       return null;
     });
+    releaseSlotRef.current?.();
+    releaseSlotRef.current = null;
   }, []);
 
   // Escape closes; focus trap moves focus in on open and restores it on close.

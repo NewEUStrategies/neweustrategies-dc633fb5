@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges";
 import type { LangFilter } from "@/components/admin/molecules/AdminListToolbar";
 
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/categories")({
   component: Categories,
 });
@@ -143,7 +144,14 @@ function Categories() {
   };
 
   const del = async (id: string) => {
-    if (!confirm(t("admin.confirmDelete"))) return;
+    if (
+      !(await confirmDialog({
+        title: t("admin.confirmDelete"),
+        destructive: true,
+        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+      }))
+    )
+      return;
     try {
       await delete$({ data: { id } });
       qc.invalidateQueries({ queryKey: ["categories"] });
