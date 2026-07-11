@@ -365,6 +365,7 @@ export function FloatingShareBar({
             author={listen.author ?? null}
             authorHref={listen.authorHref ?? null}
             readMinutes={listen.readMinutes ?? null}
+            audioUrl={listen.audioUrl ?? null}
             postHref={href || undefined}
           />
         </div>
