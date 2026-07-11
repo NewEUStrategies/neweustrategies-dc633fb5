@@ -21,6 +21,12 @@ interface SidebarListenCardProps {
   postHref?: string;
   /** Szacowany czas czytania w min - do estymacji długości audio. */
   readMinutes?: number | null;
+  /**
+   * Wgrany MP3 dla tego języka. Gdy podany, sidebar player pomija ElevenLabs
+   * TTS i odtwarza bezpośrednio ten plik. Brak = fallback do syntezowanego
+   * lektora AI.
+   */
+  audioUrl?: string | null;
 }
 
 const COPY = {
