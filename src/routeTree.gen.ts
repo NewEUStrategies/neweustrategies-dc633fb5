@@ -125,6 +125,7 @@ import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
+import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -713,6 +714,12 @@ const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   path: '/api/public/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicNewsletterUnsubscribeRoute =
+  ApiPublicNewsletterUnsubscribeRouteImport.update({
+    id: '/api/public/newsletter/unsubscribe',
+    path: '/api/public/newsletter/unsubscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicNewsletterConfirmRoute =
   ApiPublicNewsletterConfirmRouteImport.update({
     id: '/api/public/newsletter/confirm',
@@ -837,6 +844,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
 export interface FileRoutesByTo {
@@ -951,6 +959,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
 export interface FileRoutesById {
@@ -1071,6 +1080,7 @@ export interface FileRoutesById {
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
 export interface FileRouteTypes {
@@ -1192,6 +1202,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/users/'
     | '/api/public/newsletter/confirm'
+    | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1306,6 +1317,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/api/public/newsletter/confirm'
+    | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
   id:
     | '__root__'
@@ -1425,6 +1437,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/users/'
     | '/api/public/newsletter/confirm'
+    | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
   fileRoutesById: FileRoutesById
 }
@@ -1466,6 +1479,7 @@ export interface RootRouteChildren {
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
+  ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
 }
 
@@ -2283,6 +2297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/newsletter/unsubscribe': {
+      id: '/api/public/newsletter/unsubscribe'
+      path: '/api/public/newsletter/unsubscribe'
+      fullPath: '/api/public/newsletter/unsubscribe'
+      preLoaderRoute: typeof ApiPublicNewsletterUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/newsletter/confirm': {
       id: '/api/public/newsletter/confirm'
       path: '/api/public/newsletter/confirm'
@@ -2577,6 +2598,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
+  ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport
