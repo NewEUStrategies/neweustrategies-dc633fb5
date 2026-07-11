@@ -60,7 +60,11 @@ export function NewsletterPopup() {
     // grant behind the consent banner / another marketing overlay.
     const trigger = () => {
       void requestOverlaySlot("newsletter-popup").then((release) => {
-        if (disposed) {
+        // Re-check the frequency cap at GRANT time: the grant may arrive long
+        // after the request (queued behind an already-open overlay - e.g. a
+        // route change re-armed this trigger while the popup was open), and
+        // by then the user may have already dismissed the popup.
+        if (disposed || !shouldShow(s.popup_frequency_days)) {
           release();
           return;
         }

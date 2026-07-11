@@ -22,6 +22,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errored, setErrored] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
@@ -40,6 +41,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     if (!open || !liveResults || q.trim().length < 2) {
       setResults([]);
       setLoading(false);
+      setErrored(false);
       return;
     }
     let cancelled = false;
@@ -49,11 +51,14 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       // indexes blocks/builder content) - previously the overlay ran a plain
       // ILIKE on the title, so the two surfaces returned different results
       // for the same phrase.
-      const { data } = await supabase.rpc("search_posts", {
+      const { data, error } = await supabase.rpc("search_posts", {
         _q: q.trim(),
         _limit: Math.max(1, Math.min(limit, 20)),
       });
       if (cancelled) return;
+      // A backend failure must not masquerade as "no results".
+      if (error) console.error(error);
+      setErrored(Boolean(error));
       setResults(
         (data ?? []).map((r) => ({
           id: r.id,
@@ -109,6 +114,13 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const hasQuery = q.trim().length >= 2;
   const showEmpty = liveResults && hasQuery && !loading && results.length === 0;
   const showResults = liveResults && hasQuery && results.length > 0;
+  const emptyLabel = errored
+    ? lang === "pl"
+      ? "Wyszukiwanie chwilowo nie działa - spróbuj ponownie."
+      : "Search is temporarily unavailable - please try again."
+    : lang === "pl"
+      ? "Brak wyników"
+      : "No results";
 
   const isDropdown = mode === "dropdown";
 
@@ -136,6 +148,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             onClose={onClose}
             lang={lang}
             empty={showEmpty}
+            emptyLabel={emptyLabel}
             compact
             listboxId={listboxId}
             optionId={optionId}
@@ -175,6 +188,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               onClose={onClose}
               lang={lang}
               empty={showEmpty}
+              emptyLabel={emptyLabel}
               listboxId={listboxId}
               optionId={optionId}
             />
@@ -234,7 +248,7 @@ function SearchBar({
         placeholder={placeholder}
         role="combobox"
         aria-expanded={expanded}
-        aria-controls={listboxId}
+        aria-controls={expanded ? listboxId : undefined}
         aria-activedescendant={activeOptionId}
         aria-autocomplete="list"
         className={`flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none placeholder:text-muted-foreground/60 text-foreground ${compact ? "text-sm" : "text-base"}`}
@@ -267,6 +281,7 @@ function ResultsList({
   onClose,
   lang,
   empty,
+  emptyLabel,
   compact,
   listboxId,
   optionId,
@@ -277,6 +292,7 @@ function ResultsList({
   onClose: () => void;
   lang: "pl" | "en";
   empty: boolean;
+  emptyLabel: string;
   compact?: boolean;
   listboxId: string;
   optionId: (i: number) => string;
@@ -287,7 +303,7 @@ function ResultsList({
         role="status"
         className={`text-center text-sm text-muted-foreground ${compact ? "px-4 py-8" : "px-6 py-12"}`}
       >
-        {lang === "pl" ? "Brak wyników" : "No results"}
+        {emptyLabel}
       </div>
     );
   }

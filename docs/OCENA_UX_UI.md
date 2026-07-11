@@ -198,3 +198,81 @@ Uwaga: budżet bundle (`check:bundle`) jest przekroczony **na main** (public
 1176 KB > 1000 KB, overall 1561 KB > 1300 KB — stan zastany, dokumentacja
 ARCHITECTURE.md podaje nieaktualne ~930 KB); wkład tych zmian to ~+1 KB.
 Wymaga osobnej rundy odchudzania lub urealnienia budżetów.
+
+---
+
+# Rewaluacja po wdrożeniach (2026-07-11, wieczór) — karta ocen przed → po
+
+Metoda: **adwersaryjny re-audyt** każdej wdrożonej poprawki w aktualnym kodzie
+(próba obalenia, że działa; weryfikacja podłączenia, ścieżek zamknięcia,
+SSR-safety, wygenerowanego CSS w buildzie). Werdykt re-audytu: **zero defektów
+klasy „uszkodzone"** — wszystkie wdrożenia realnie podłączone; wykryto 3
+przypadki brzegowe, wszystkie naprawione w tej samej rundzie:
+
+| Znalezisko re-audytu | Waga | Status |
+|---|---|---|
+| NewsletterPopup mógł otworzyć się ponownie ~30 s po zamknięciu (duplikat w kolejce koordynatora po nawigacji przy otwartym popupie; grant bez re-sprawdzenia frequency cap) | średnia | **NAPRAWIONE** — `shouldShow()` sprawdzany ponownie w momencie przyznania slotu |
+| Błąd RPC `search_posts` połykany — awaria backendu wyglądała jak „Brak wyników" | niska | **NAPRAWIONE** — stan `errored` + osobny komunikat PL/EN + `console.error` |
+| `aria-controls` wskazywało na nieistniejący listbox przy braku wyników (dangling IDREF) | niska | **NAPRAWIONE** — atrybut warunkowy (`expanded ? listboxId : undefined`) |
+
+Bramki po całej rundzie: `tsc --noEmit` **0 błędów**, testy **1367/1367**,
+lint **0 błędów** (61 ostrzeżeń = baseline), `pointer-coarse:min-h-11`
+potwierdzony w wygenerowanym CSS produkcyjnym (`@media (pointer:coarse)` →
+`min-height: 44px`).
+
+## UI / warstwa wizualna: 6,4 → **7,2**
+
+| Obszar | Przed | Po | Co się zmieniło / co trzyma ocenę |
+|---|---|---|---|
+| System tokenów / theming CMS | 7,0 | **7,2** | Domyślne kolory komponentów spięte z marką (koniec indygo). Trzyma: monolit 3600 linii, mieszanka OKLCH/hex, surowa interpolacja kolorów w injectorach. |
+| Biblioteka komponentów | 6,0 | **7,0** | Cele dotykowe 44px na dotyku (button wszystkie rozmiary + input, zweryfikowane w buildzie). Trzyma: stock shadcn, focus ring 1px. |
+| Typografia | 6,5 | **7,0** | Poprawny fallback sans (32 miejsca). Trzyma: brak kontrastu edytorskiego (jedna rodzina), miara wiersza w px. |
+| Dark mode | 6,5 | **8,0** | Honoruje `prefers-color-scheme` + żywa reakcja na zmianę motywu OS; jawny wybór wygrywa; zero flashu (zweryfikowana zgodność init-script ↔ provider). Trzyma: zaszyte hex neutrale w `.dark`. |
+| Responsywność | 6,5 | 6,5 | Bez zmian (ściana `!important`, dwie osie responsywności). |
+| Motion / micro-interactions | 8,5 | 8,5 | Bez zmian — nadal najmocniejszy obszar. |
+| Wyróżnialność wizualna | 5,5 | **6,0** | Spójna paleta marki w domyślnych komponentach. Trzyma: rdzeń = rozpoznawalny shadcn, tożsamość na jednym pomarańczu. |
+
+## UX publiczny (czytelnik): 5,4 → **6,4**
+
+| Obszar | Przed | Po | Co się zmieniło / co trzyma ocenę |
+|---|---|---|---|
+| Nawigacja / IA | 6,0 | **6,5** | MegaMenu w pełni klawiaturowy (focus/blur/Escape, poprawne ARIA — zweryfikowane bąbelkowanie focusin/focusout). Trzyma: rozmyta IA profilu (2 miejsca na zapisane, 3 edytory tożsamości). |
+| Wyszukiwanie | 5,0 | **7,0** | Jeden silnik: overlay na tym samym rankowanym FTS co `/search`; ARIA combobox/listbox/activedescendant; uczciwy stan błędu backendu. Trzyma: brak podpowiedzi/ostatnich wyszukiwań/snippetów. |
+| Czytanie artykułu | 6,5 | 6,5 | Bez zmian (kaskada 15+ elementów — decyzja redakcyjna, poza rundą). |
+| Stany loading / empty / error | 4,5 | **6,5** | Jedna dwujęzyczna warstwa 404/błędów na wszystkich 5 powierzchniach; `error.message` nigdy nie renderowany czytelnikowi. Trzyma: przewaga spinnerów nad skeletonami, empty states bez CTA. |
+| Popupy / presja monetyzacyjna | 4,0 | **6,5** | Koordynator nakładek: zgody pierwsze, max 1 marketingowa naraz, cooldown 30 s, release na każdej ścieżce zamknięcia (zweryfikowane: brak deadlocka), frequency cap re-sprawdzany przy grancie. Trzyma: gęstość reklam (4 strefy + AlertBar + FooterSlideup). |
+| Dostępność | 6,0 | **7,0** | MegaMenu klawiaturowy, semantyka combobox w szukajce, 44px na dotyku, `role="status"` na stanach pustych. Trzyma: axe bez testu kontrastu, pokrycie tylko PostLayoutRenderer. |
+| i18n copy | 5,5 | **6,0** | Warstwa awaryjna w 100% dwujęzyczna; „Clear"→„Wyczyść", „Start"→„Home" (EN). Trzyma: ~50 plików z hardkodowanymi ternarami, kopia poza zasobami. |
+| Lejek konwersji | 5,0 | 5,0 | Bez zmian (anemiczny /pricing, wyrzucanie do /profile/billing). |
+
+## UX admina (redakcja): 5,6 → **6,2**
+
+| Obszar | Przed | Po | Co się zmieniło / co trzyma ocenę |
+|---|---|---|---|
+| IA / nawigacja admina | 6,0 | 6,0 | Bez zmian (mikro-typografia, 3 ekrany ustawień designu). |
+| Edytor postów | 6,0 | **6,5** | Okładka/link/obraz przez stylowane dialogi (koniec `window.prompt`), usuwanie przez AlertDialog. Trzyma: monolit 1448 linii, 11 zakładek. |
+| Builder stron | 6,5 | **7,0** | Nazwy szablonów/widgetów globalnych/testów A/B przez dialogi z walidacją pustej nazwy. Trzyma: zero onboardingu. |
+| Block editor | 5,0 | **5,5** | Inserter pokazuje tylko 75 działających bloków (25 martwych ukrytych — slash-menu zweryfikowane). Trzyma: 54 bloki w kubełku „advanced", panel ustawień dla ~11 typów. |
+| Spójność wzorców / feedback | 5,0 | **7,0** | **0 natywnych `window.confirm/prompt`** (było 21 wywołań w 15 plikach) — jeden promise-owy serwis dialogów z focus-trap i Escape. Trzyma: loadery „...", `toast.error(e.message)`. |
+| Listy / zarządzanie treścią | 7,0 | 7,0 | Bez zmian (brak serwerowej paginacji). |
+| Krzywa uczenia | 4,0 | **4,5** | Mniej szumu (martwe bloki ukryte, przewidywalne dialogi). Trzyma: brak jakiegokolwiek onboardingu. |
+
+## Zbiorczo — cała platforma
+
+| Płaszczyzna | Przed rundą | Po rundzie | Benchmark rynkowy |
+|---|---|---|---|
+| UI / warstwa wizualna | 6,4 | **7,2** | premium serwisy wydawnicze |
+| UX publiczny (czytelnik) | 5,4 | **6,4** | The Verge / Axios / Substack |
+| UX admina (redakcja) | 5,6 | **6,2** | Gutenberg / Webflow / Notion / Linear |
+| **UX/UI ogółem** | **5,9** | **6,6** | |
+| Funkcjonalność (wg OCENA_PLATFORMY.md, po rundzie 5) | 8,2 | 8,2 | dojrzały CMS produkcyjny |
+| **Platforma — werdykt całościowy** | **~7,1** | **~7,4** | |
+
+Interpretacja: silnik (8,2) wciąż wyprzedza doświadczenie (6,6) — ale luka
+zmalała z 2,3 do 1,6 punktu w jednej rundzie czysto higienicznej, bez
+projektowania nowych funkcji. Największe pozostałe rezerwy UX/UI (w kolejności
+zwrotu): odchudzenie strony artykułu (jeden TOC, mniej stref reklam, TTS bez
+logowania), tożsamość typograficzna (kontrast display/serif), konsolidacja
+3 ekranów ustawień designu + onboarding redakcji, podpowiedzi/recent w szukajce,
+lejek konwersji (/pricing z porównaniem planów, adres w kroku płatności).
+Po ich domknięciu realny pułap: **UX/UI ~8/10, platforma ~8,2/10**.
