@@ -1346,6 +1346,36 @@ function EditPost() {
                     <AccessSettingsPane entityType="post" entityId={id} />
                   )}
 
+                  {detailsTab === "audio" && (
+                    <section className="rounded-xl border border-border bg-card overflow-hidden">
+                      <header className="px-4 py-3 border-b border-border bg-muted/30">
+                        <h3 className="text-sm font-semibold inline-flex items-center gap-2">
+                          <Mic className="w-4 h-4 text-brand" />
+                          Audio wpisu (MP3)
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Wgraj własny plik audio dla PL i/lub EN. Dla języka bez wgranego pliku
+                          użyty zostanie automatyczny lektor AI (ElevenLabs). Max 50 MB · MP3, M4A,
+                          AAC, OGG, WAV.
+                        </p>
+                      </header>
+                      <div className="p-4 grid md:grid-cols-2 gap-4">
+                        <AudioPicker
+                          label="Plik audio - polski (PL)"
+                          value={form.audio_url_pl ?? ""}
+                          onChange={(v: string) => set("audio_url_pl", v || null)}
+                          hint="Wgrany plik zastępuje ElevenLabs dla PL. Usuń, aby wrócić do lektora AI."
+                        />
+                        <AudioPicker
+                          label="Plik audio - angielski (EN)"
+                          value={form.audio_url_en ?? ""}
+                          onChange={(v: string) => set("audio_url_en", v || null)}
+                          hint="Wgrany plik zastępuje ElevenLabs dla EN. Usuń, aby wrócić do lektora AI."
+                        />
+                      </div>
+                    </section>
+                  )}
+
                   {detailsTab === "revisions" && (
                     <RevisionsCard
                       entityType="post"
