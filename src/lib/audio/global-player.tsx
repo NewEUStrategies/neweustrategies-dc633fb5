@@ -24,6 +24,12 @@ export interface AudioTrackMeta {
   author?: string | null;
   authorHref?: string | null;
   postHref: string;
+  /**
+   * Wgrany plik MP3 (per język). Gdy podany, fetcher pobiera bezpośrednio ten
+   * URL i pomija endpoint /api/public/post-tts - ElevenLabs nie jest wywoływany.
+   * Fallback (brak audioUrl) generuje narrację AI jak dotąd.
+   */
+  audioUrl?: string | null;
 }
 
 export type AudioStatus = "idle" | "loading" | "playing" | "paused" | "error";
