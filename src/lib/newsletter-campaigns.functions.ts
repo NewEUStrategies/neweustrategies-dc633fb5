@@ -24,14 +24,19 @@ import type { Database } from "@/integrations/supabase/types";
 
 type DbClient = SupabaseClient<Database>;
 
-
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 1100; // Resend free plan ~1 msg/s
 
 const AudienceFilter = z.object({
-  languages: z.array(z.enum(["pl", "en"])).max(2).optional(),
-  statuses: z.array(z.enum(["subscribed", "pending"])).max(2).optional(),
+  languages: z
+    .array(z.enum(["pl", "en"]))
+    .max(2)
+    .optional(),
+  statuses: z
+    .array(z.enum(["subscribed", "pending"]))
+    .max(2)
+    .optional(),
   source: z.string().trim().max(120).optional(),
 });
 export type AudienceFilter = z.infer<typeof AudienceFilter>;
@@ -101,7 +106,6 @@ async function getTenantId(context: { supabase: DbClient; userId: string }): Pro
   if (error || !profile?.tenant_id) throw new Error("no_tenant");
   return profile.tenant_id;
 }
-
 
 // ----------------------------------------------------------------------------
 // LIST
@@ -245,7 +249,13 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
       null,
     );
     const from = buildFrom(camp);
-    const send = await sendEmail({ to: data.toEmail, subject: `[TEST] ${subject}`, html, from, replyTo: camp.reply_to });
+    const send = await sendEmail({
+      to: data.toEmail,
+      subject: `[TEST] ${subject}`,
+      html,
+      from,
+      replyTo: camp.reply_to,
+    });
     if (!send.ok) throw new Error(send.error ?? "send_failed");
     return { ok: true };
   });
@@ -326,9 +336,10 @@ export const sendCampaign = createServerFn({ method: "POST" })
             });
             return;
           }
-          const unsubscribeUrl = sub.unsubscribe_token && origin
-            ? `${origin}/newsletter/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`
-            : null;
+          const unsubscribeUrl =
+            sub.unsubscribe_token && origin
+              ? `${origin}/newsletter/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`
+              : null;
           const html = renderCampaignHtml(
             rawHtml,
             { email: sub.email, firstName: sub.first_name ?? "", lastName: sub.last_name ?? "" },
@@ -472,7 +483,11 @@ async function sendEmail(opts: {
 async function markFailed(admin: DbClient, id: string, message: string): Promise<void> {
   await admin
     .from("newsletter_campaigns")
-    .update({ status: "failed", last_error: message.slice(0, 500), finished_at: new Date().toISOString() })
+    .update({
+      status: "failed",
+      last_error: message.slice(0, 500),
+      finished_at: new Date().toISOString(),
+    })
     .eq("id", id);
 }
 
@@ -489,20 +504,17 @@ async function logRecipient(
     sentAt?: string;
   },
 ): Promise<void> {
-  await admin
-    .from("newsletter_campaign_recipients")
-    .upsert(
-      {
-        tenant_id: row.tenantId,
-        campaign_id: row.campaignId,
-        subscriber_id: row.subscriberId,
-        email: row.email,
-        language: row.language,
-        status: row.status,
-        error: row.error ?? null,
-        sent_at: row.sentAt ?? null,
-      },
-      { onConflict: "campaign_id,email" },
-    );
+  await admin.from("newsletter_campaign_recipients").upsert(
+    {
+      tenant_id: row.tenantId,
+      campaign_id: row.campaignId,
+      subscriber_id: row.subscriberId,
+      email: row.email,
+      language: row.language,
+      status: row.status,
+      error: row.error ?? null,
+      sent_at: row.sentAt ?? null,
+    },
+    { onConflict: "campaign_id,email" },
+  );
 }
-

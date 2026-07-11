@@ -36,9 +36,7 @@ function isConversationFocused(conversationId: string): boolean {
   if (typeof document === "undefined") return false;
   if (!document.hasFocus()) return false;
   if (document.visibilityState !== "visible") return false;
-  return !!document.querySelector(
-    `[data-active-conversation="${CSS.escape(conversationId)}"]`,
-  );
+  return !!document.querySelector(`[data-active-conversation="${CSS.escape(conversationId)}"]`);
 }
 
 function attachmentSummary(row: MessageRow): string | null {
@@ -88,8 +86,7 @@ async function handleInsert(uid: string, row: MessageRow) {
   if (isConversationFocused(row.conversation_id)) return;
 
   const peer = await resolvePeer(row.sender_id);
-  const name =
-    peer?.display_name ?? i18n.t("chat.incoming.someone", { defaultValue: "Ktoś" });
+  const name = peer?.display_name ?? i18n.t("chat.incoming.someone", { defaultValue: "Ktoś" });
   const preview = buildPreview(row);
   const openLabel = i18n.t("chat.incoming.open", { defaultValue: "Otwórz" });
 

@@ -164,10 +164,14 @@ async function handle(request: Request): Promise<Response> {
             ? new Date((invoice.period_end as number) * 1000)
             : null;
         if (subscriptionId && periodEnd) {
+          // Stripe nie gwarantuje kolejności zdarzeń: spóźniona faktura nie
+          // może reanimować subskrypcji już anulowanej przez
+          // customer.subscription.deleted.
           await supabaseAdmin
             .from("user_subscriptions")
             .update({ status: "active", current_period_end: periodEnd.toISOString() })
-            .eq("external_ref", subscriptionId);
+            .eq("external_ref", subscriptionId)
+            .neq("status", "canceled");
         }
         break;
       }

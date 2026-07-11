@@ -1678,5 +1678,12 @@ export const en = {
       spam: "Spam",
       delete: "Delete",
     },
+    kinds: {
+      all: "All types",
+      system: "System",
+      follow: "Followers",
+      content: "New content",
+      subscription: "Subscription",
+    },
   },
 };

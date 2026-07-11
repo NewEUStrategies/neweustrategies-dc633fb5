@@ -201,22 +201,92 @@ const cancelSubscriptionSchema = z.object({ subscriptionId: z.string().uuid() })
 // so this runs service-role with an explicit ownership check. We set
 // canceled_at and keep status 'active': has_content_access already ends access
 // at current_period_end, so paid time is preserved and the UI shows "cancels at".
-// NOTE: in live Stripe mode the Stripe subscription must additionally be
-// canceled via the Stripe API to stop renewals; that is a follow-up (the DB /
-// mock-mode representation is handled here).
+//
+// In live Stripe mode the Stripe subscription is canceled FIRST
+// (cancel_at_period_end=true). Order matters: if Stripe refuses, we must NOT
+// mark the row canceled - the previous DB-only implementation told the user
+// "canceled" while Stripe kept charging them every period. The webhook
+// (customer.subscription.updated/deleted) remains the reconciliation source of
+// truth for changes made on the Stripe side.
 export const cancelSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => cancelSubscriptionSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: sub, error: loadError } = await supabaseAdmin
+      .from("user_subscriptions")
+      .select("id, external_ref, canceled_at")
+      .eq("id", data.subscriptionId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+    if (!sub) throw new Error("subscription_not_found");
+    if (sub.canceled_at) return { ok: true as const, alreadyCanceled: true as const };
+
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
+      const { cancelStripeSubscriptionAtPeriodEnd } = await import("@/lib/billing/stripe.server");
+      const result = await cancelStripeSubscriptionAtPeriodEnd(sub.external_ref, stripeSecret);
+      if (!result.ok) {
+        console.error("[billing] stripe cancel failed", sub.external_ref, result.error);
+        throw new Error("stripe_cancel_failed");
+      }
+    }
+
     const { data: updated, error } = await supabaseAdmin
       .from("user_subscriptions")
       .update({ canceled_at: new Date().toISOString() })
-      .eq("id", data.subscriptionId)
-      .eq("user_id", context.userId)
+      .eq("id", sub.id)
       .is("canceled_at", null)
       .select("id");
     if (error) throw new Error(error.message);
-    if (!updated?.length) throw new Error("subscription_not_found");
+    if (!updated?.length) return { ok: true as const, alreadyCanceled: true as const };
+    return { ok: true as const, alreadyCanceled: false as const };
+  });
+
+// Wznowienie subskrypcji anulowanej "na koniec okresu": dopóki opłacony okres
+// trwa, Stripe pozwala cofnąć cancel_at_period_end. Lustrzane do
+// cancelSubscription - najpierw Stripe, potem DB, żeby UI nigdy nie pokazywał
+// wznowienia, którego Stripe nie wykonał.
+export const resumeSubscription = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => cancelSubscriptionSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: sub, error: loadError } = await supabaseAdmin
+      .from("user_subscriptions")
+      .select("id, external_ref, canceled_at, status, current_period_end")
+      .eq("id", data.subscriptionId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+    if (!sub || sub.canceled_at === null || sub.status !== "active") {
+      throw new Error("subscription_not_resumable");
+    }
+    if (sub.current_period_end && new Date(sub.current_period_end).getTime() < Date.now()) {
+      // Okres wygasł - odnowienia nie ma czego reaktywować; potrzebny nowy checkout.
+      throw new Error("subscription_period_ended");
+    }
+
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
+      const { resumeStripeSubscriptionAtPeriodEnd } = await import("@/lib/billing/stripe.server");
+      const result = await resumeStripeSubscriptionAtPeriodEnd(sub.external_ref, stripeSecret);
+      if (!result.ok) {
+        console.error("[billing] stripe resume failed", sub.external_ref, result.error);
+        throw new Error("stripe_resume_failed");
+      }
+    }
+
+    const { data: updated, error } = await supabaseAdmin
+      .from("user_subscriptions")
+      .update({ canceled_at: null })
+      .eq("id", sub.id)
+      .not("canceled_at", "is", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!updated?.length) throw new Error("subscription_not_resumable");
     return { ok: true as const };
   });

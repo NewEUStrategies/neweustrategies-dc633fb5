@@ -94,3 +94,71 @@ export const AD_SLOT_KIND_LABELS: Record<AdSlotKind, string> = {
   script: "Skrypt (np. AdSense)",
   image: "Grafika z linkiem",
 };
+
+// ---------------------------------------------------------------------------
+// Targeting slotów (kolumna ad_slots.targeting, jsonb).
+//
+// Slugi zamiast id: kontekst strony (kategorie/tagi posta) ma slugi pod ręką
+// bez dodatkowych zapytań, a slugi są stabilne między środowiskami. Puste pole
+// = brak ograniczenia. languages zawęża emisję do wersji językowej; kategorie
+// i tagi działają w semantyce OR (wystarczy trafienie w KTÓRYKOLWIEK
+// z zadeklarowanych slugów), bo slot ma się wyświetlić przy każdej pasującej
+// treści, a nie wyłącznie na przecięciu warunków.
+// ---------------------------------------------------------------------------
+
+export type AdLanguage = "pl" | "en";
+
+export interface AdTargeting {
+  categorySlugs?: string[];
+  tagSlugs?: string[];
+  languages?: AdLanguage[];
+}
+
+export interface AdTargetingContext {
+  categorySlugs: string[];
+  tagSlugs: string[];
+  language: AdLanguage;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out = value.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+  return out.length > 0 ? out : undefined;
+}
+
+/** Bezpieczny odczyt jsonb - nieznane/uszkodzone struktury dają pusty targeting. */
+export function parseAdTargeting(json: unknown): AdTargeting {
+  if (typeof json !== "object" || json === null || Array.isArray(json)) return {};
+  const record = json as Record<string, unknown>;
+  const languages = stringArray(record.languages)?.filter(
+    (l): l is AdLanguage => l === "pl" || l === "en",
+  );
+  return {
+    categorySlugs: stringArray(record.categorySlugs),
+    tagSlugs: stringArray(record.tagSlugs),
+    languages: languages && languages.length > 0 ? languages : undefined,
+  };
+}
+
+export function hasContentTargeting(targeting: AdTargeting): boolean {
+  return Boolean(targeting.categorySlugs?.length || targeting.tagSlugs?.length);
+}
+
+/** Serializacja do jsonb - tylko niepuste pola, czysty obiekt literalny. */
+export function adTargetingToJson(targeting: AdTargeting): Record<string, unknown> {
+  return {
+    ...(targeting.categorySlugs?.length ? { categorySlugs: targeting.categorySlugs } : {}),
+    ...(targeting.tagSlugs?.length ? { tagSlugs: targeting.tagSlugs } : {}),
+    ...(targeting.languages?.length ? { languages: targeting.languages } : {}),
+  };
+}
+
+export function matchesAdTargeting(targeting: AdTargeting, ctx: AdTargetingContext): boolean {
+  if (targeting.languages?.length && !targeting.languages.includes(ctx.language)) {
+    return false;
+  }
+  if (!hasContentTargeting(targeting)) return true;
+  const catHit = (targeting.categorySlugs ?? []).some((slug) => ctx.categorySlugs.includes(slug));
+  const tagHit = (targeting.tagSlugs ?? []).some((slug) => ctx.tagSlugs.includes(slug));
+  return catHit || tagHit;
+}

@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { cancelMySubscription, fetchMySubscription } from "@/lib/billing/queries";
+import {
+  cancelMySubscription,
+  fetchMySubscription,
+  resumeMySubscription,
+} from "@/lib/billing/queries";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,8 +48,24 @@ function SubscriptionPage() {
       await cancelMySubscription(data.id);
       await qc.invalidateQueries({ queryKey: ["my-subscription"] });
       toast.success(t("profile.subscription.canceled"));
-    } catch (e) {
-      toast.error(String(e instanceof Error ? e.message : e));
+    } catch {
+      // Serwer nie oznacza anulowania, jeśli Stripe odmówił - komunikat musi
+      // być czytelny, a nie surowy kod błędu.
+      toast.error(t("profile.subscription.cancelFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onResume = async () => {
+    if (!data) return;
+    setBusy(true);
+    try {
+      await resumeMySubscription(data.id);
+      await qc.invalidateQueries({ queryKey: ["my-subscription"] });
+      toast.success(t("profile.subscription.resumed"));
+    } catch {
+      toast.error(t("profile.subscription.resumeError"));
     } finally {
       setBusy(false);
     }
@@ -53,6 +73,12 @@ function SubscriptionPage() {
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-US" : "pl-PL") : "-";
+
+  // Wznowienie ma sens tylko dopóki opłacony okres trwa - po jego końcu
+  // subskrypcję trzeba kupić od nowa (nowy checkout).
+  const periodStillRunning =
+    !!data?.current_period_end && new Date(data.current_period_end).getTime() > Date.now();
+  const canResume = !!data?.canceled_at && data.status === "active" && periodStillRunning;
 
   return (
     <Card>
@@ -101,6 +127,19 @@ function SubscriptionPage() {
               </div>
             </div>
 
+            {canResume && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-border/60 bg-muted/30 px-3 py-2.5">
+                <p className="text-sm text-muted-foreground">
+                  {t("profile.subscription.accessUntil", {
+                    date: fmtDate(data.current_period_end),
+                  })}
+                </p>
+                <Button size="sm" disabled={busy} onClick={onResume}>
+                  {t("profile.subscription.resume")}
+                </Button>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-4">
               <Button asChild variant="outline">
                 <Link to="/pricing">{t("profile.subscription.change")}</Link>
@@ -120,7 +159,7 @@ function SubscriptionPage() {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>{t("auth.required")}</AlertDialogCancel>
+                      <AlertDialogCancel>{t("profile.subscription.keep")}</AlertDialogCancel>
                       <AlertDialogAction onClick={onCancel}>
                         {t("profile.subscription.cancel")}
                       </AlertDialogAction>

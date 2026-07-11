@@ -283,7 +283,6 @@ function CommentItem({
         className="w-9 h-9 rounded-full bg-muted flex-shrink-0 flex items-center justify-center text-xs font-medium text-muted-foreground overflow-hidden"
       >
         {c.author?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={c.author.avatar_url} alt="" className="w-full h-full object-cover" />
         ) : (
           initials

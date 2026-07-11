@@ -21,12 +21,19 @@ import {
   AD_PAGE_TYPE_LABELS,
   AD_POSITION_LABELS,
   AD_SLOT_KIND_LABELS,
+  adTargetingToJson,
+  parseAdTargeting,
+  type AdLanguage,
   type AdPageType,
   type AdPlacement,
   type AdPosition,
   type AdSlot,
   type AdSlotKind,
+  type AdTargeting,
 } from "@/lib/ads/types";
+import { useTranslation } from "react-i18next";
+import { useInterestCatalog } from "@/hooks/useInterests";
+import "@/lib/i18n-ads-admin";
 
 export const Route = createFileRoute("/admin/ads")({ component: AdsAdmin });
 
@@ -86,6 +93,131 @@ function AdsAdmin() {
   );
 }
 
+function TargetingHeader() {
+  const { t } = useTranslation();
+  return <>{t("adsAdmin.columnTargeting")}</>;
+}
+
+// Podsumowanie targetingu na liście slotów, np. "2 kat. - 1 tagi - PL".
+function TargetingSummary({ slot }: { slot: AdSlot }) {
+  const { t } = useTranslation();
+  const parsed = parseAdTargeting(slot.targeting);
+  const parts: string[] = [];
+  if (parsed.categorySlugs?.length) {
+    parts.push(`${parsed.categorySlugs.length} ${t("adsAdmin.summaryCategories")}`);
+  }
+  if (parsed.tagSlugs?.length) parts.push(`${parsed.tagSlugs.length} ${t("adsAdmin.summaryTags")}`);
+  if (parsed.languages?.length) parts.push(parsed.languages.map((l) => l.toUpperCase()).join("/"));
+  return (
+    <span className="text-xs text-muted-foreground">
+      {parts.length > 0 ? parts.join(" - ") : t("adsAdmin.summaryAll")}
+    </span>
+  );
+}
+
+function chipClass(active: boolean): string {
+  return (
+    "rounded-full border px-2.5 py-1 text-xs transition " +
+    (active
+      ? "border-primary bg-primary text-primary-foreground"
+      : "border-border bg-background hover:bg-muted")
+  );
+}
+
+// Edytor kolumny ad_slots.targeting: chipy kategorii/tagów (katalog
+// zainteresowań) + przełączniki wersji językowych.
+function TargetingEditor({
+  value,
+  onChange,
+}: {
+  value: AdTargeting;
+  onChange: (next: AdTargeting) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const lang: AdLanguage = i18n.language === "en" ? "en" : "pl";
+  const catalog = useInterestCatalog(lang);
+
+  const toggleIn = (list: string[] | undefined, slug: string): string[] => {
+    const set = new Set(list ?? []);
+    if (set.has(slug)) set.delete(slug);
+    else set.add(slug);
+    return Array.from(set);
+  };
+
+  return (
+    <div className="sm:col-span-2 space-y-3 rounded-md border border-border p-3">
+      <div>
+        <Label className="mb-0">{t("adsAdmin.targetingTitle")}</Label>
+        <p className="mt-1 text-xs text-muted-foreground">{t("adsAdmin.targetingHint")}</p>
+      </div>
+      <div>
+        <p className="mb-1.5 text-xs font-medium">{t("adsAdmin.categories")}</p>
+        <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
+          {(catalog.data?.categories ?? []).map((c) => {
+            const active = (value.categorySlugs ?? []).includes(c.slug);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  onChange({ ...value, categorySlugs: toggleIn(value.categorySlugs, c.slug) })
+                }
+                className={chipClass(active)}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <p className="mb-1.5 text-xs font-medium">{t("adsAdmin.tags")}</p>
+        <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
+          {(catalog.data?.tags ?? []).map((tg) => {
+            const active = (value.tagSlugs ?? []).includes(tg.slug);
+            return (
+              <button
+                key={tg.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onChange({ ...value, tagSlugs: toggleIn(value.tagSlugs, tg.slug) })}
+                className={chipClass(active)}
+              >
+                #{tg.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <p className="mb-1.5 text-xs font-medium">{t("adsAdmin.languages")}</p>
+        <div className="flex gap-1.5">
+          {(["pl", "en"] as const).map((l) => {
+            const active = (value.languages ?? []).includes(l);
+            return (
+              <button
+                key={l}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  const set = new Set(value.languages ?? []);
+                  if (set.has(l)) set.delete(l);
+                  else set.add(l);
+                  onChange({ ...value, languages: Array.from(set) });
+                }}
+                className={chipClass(active)}
+              >
+                {l.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SlotsPanel() {
   const [slots, setSlots] = useState<AdSlot[]>([]);
   const [draft, setDraft] = useState<Partial<AdSlot>>(emptySlot());
@@ -142,6 +274,9 @@ function SlotsPanel() {
               <th className="text-left p-3">Typ</th>
               <th className="text-left p-3">Status</th>
               <th className="text-left p-3">Zgoda</th>
+              <th className="text-left p-3">
+                <TargetingHeader />
+              </th>
               <th className="p-3"></th>
             </tr>
           </thead>
@@ -152,6 +287,9 @@ function SlotsPanel() {
                 <td className="p-3">{AD_SLOT_KIND_LABELS[s.kind]}</td>
                 <td className="p-3">{s.status === "active" ? "Aktywny" : "Wstrzymany"}</td>
                 <td className="p-3">{s.requires_consent ? "Wymaga" : "Nie"}</td>
+                <td className="p-3">
+                  <TargetingSummary slot={s} />
+                </td>
                 <td className="p-3 text-right space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setDraft(s)}>
                     Edytuj
@@ -164,7 +302,7 @@ function SlotsPanel() {
             ))}
             {slots.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">
+                <td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">
                   Brak slotów. Dodaj pierwszy poniżej.
                 </td>
               </tr>
@@ -290,6 +428,11 @@ function SlotsPanel() {
             />
             <Label className="m-0">Wymaga zgody marketingowej (RODO)</Label>
           </div>
+
+          <TargetingEditor
+            value={parseAdTargeting(draft.targeting)}
+            onChange={(next) => setDraft({ ...draft, targeting: adTargetingToJson(next) })}
+          />
 
           <div className="sm:col-span-2">
             <Label>Notatki wewnętrzne</Label>

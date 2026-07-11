@@ -1,7 +1,9 @@
 // Publiczny endpoint samoobsługowego unsubscribe: /api/public/newsletter/unsubscribe?token=...
 // GET z przeglądarki → 303 na przyjazną stronę /newsletter/unsubscribe (podobnie jak confirm).
-// GET z fetch (Accept: */*) → JSON walidacyjny (token istnieje?).
-// POST → wykonuje wypisanie (idempotentnie).
+// GET z fetch (Accept: */*) → JSON walidacyjny (token istnieje?). GET nigdy nie mutuje:
+// skanery linków w bramkach pocztowych wykonują GET i wypisywałyby ludzi mimowolnie.
+// POST → wykonuje wypisanie (idempotentnie); klienci pocztowi (Gmail/Yahoo) wykonują
+// one-click przez POST zgodnie z List-Unsubscribe-Post (RFC 8058).
 import { createFileRoute } from "@tanstack/react-router";
 
 export function isValidUnsubToken(token: string | null): token is string {
@@ -10,6 +12,24 @@ export function isValidUnsubToken(token: string | null): token is string {
 
 function wantsHtml(accept: string | null): boolean {
   return !!accept && accept.includes("text/html");
+}
+
+// Abuse guard: publiczny, niewymagający auth endpoint z zapisem do bazy -
+// cap per IP (jak newsletter.subscribe); brak IP -> fail-open (nie blokujemy
+// prawdziwych klików zza nietypowych proxy).
+async function passesRateLimit(request: Request): Promise<boolean> {
+  const fwd = request.headers.get("x-forwarded-for");
+  const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
+  const clientIp =
+    request.headers.get("cf-connecting-ip") ?? fwdFirst ?? request.headers.get("x-real-ip");
+  if (!clientIp) return true;
+  const { rateLimit } = await import("@/lib/server/rate-limit.server");
+  return rateLimit({
+    scope: "newsletter.unsubscribe",
+    subjectId: clientIp,
+    max: 10,
+    windowMinutes: 10,
+  });
 }
 
 export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
@@ -54,6 +74,9 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
         if (!isValidUnsubToken(token)) {
           return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
         }
+        if (!(await passesRateLimit(request))) {
+          return Response.json({ ok: false, error: "rate_limited" }, { status: 429 });
+        }
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: sub, error } = await supabaseAdmin
           .from("newsletter_subscribers")
@@ -64,6 +87,8 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
           return Response.json({ ok: false, error: "not_found" }, { status: 404 });
         }
         if (sub.status === "unsubscribed") {
+          // Token zostaje w rekordzie po wypisie - to on czyni operację
+          // idempotentną (re-klik trafia tutaj zamiast w 404).
           return Response.json({ ok: true, already: true });
         }
         const { error: updErr } = await supabaseAdmin

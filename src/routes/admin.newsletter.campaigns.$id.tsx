@@ -140,7 +140,9 @@ function CampaignEditor() {
     return <div className="p-6 text-muted-foreground">{isPl ? "Wczytywanie…" : "Loading…"}</div>;
   }
   if (!campaign) {
-    return <div className="p-6 text-muted-foreground">{isPl ? "Nie znaleziono." : "Not found."}</div>;
+    return (
+      <div className="p-6 text-muted-foreground">{isPl ? "Nie znaleziono." : "Not found."}</div>
+    );
   }
 
   const readonly = campaign.status === "sending" || campaign.status === "sent";
@@ -148,7 +150,10 @@ function CampaignEditor() {
   const toggleLang = (lang: "pl" | "en", on: boolean) => {
     const current = form.audience_filter.languages ?? [];
     const next = on ? [...new Set([...current, lang])] : current.filter((l) => l !== lang);
-    setForm({ ...form, audience_filter: { ...form.audience_filter, languages: next.length ? next : undefined } });
+    setForm({
+      ...form,
+      audience_filter: { ...form.audience_filter, languages: next.length ? next : undefined },
+    });
   };
 
   return (
@@ -164,7 +169,9 @@ function CampaignEditor() {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h2 className="text-xl font-semibold">{form.name || (isPl ? "Kampania" : "Campaign")}</h2>
+            <h2 className="text-xl font-semibold">
+              {form.name || (isPl ? "Kampania" : "Campaign")}
+            </h2>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="outline">{campaign.status}</Badge>
               {campaign.sent_count > 0 && (
@@ -383,7 +390,9 @@ function CampaignEditor() {
               <div className="pt-2 border-t border-border">
                 <div className="text-2xl font-semibold tabular-nums">{audience?.count ?? "—"}</div>
                 <div className="text-xs text-muted-foreground">
-                  {isPl ? "aktywnych subskrybentów spełnia filtr" : "active subscribers match the filter"}
+                  {isPl
+                    ? "aktywnych subskrybentów spełnia filtr"
+                    : "active subscribers match the filter"}
                 </div>
               </div>
             </CardContent>

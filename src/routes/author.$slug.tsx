@@ -134,12 +134,17 @@ function AuthorArchivePage() {
         </header>
         <AuthorCvSections userId={author.id} />
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
-          <h2 className="font-display text-2xl mb-5">{lang === "en" ? "Author's posts" : "Wpisy autora"}</h2>
-          <ArchivePostList posts={posts} lang={lang} emptyText={lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów."} />
+          <h2 className="font-display text-2xl mb-5">
+            {lang === "en" ? "Author's posts" : "Wpisy autora"}
+          </h2>
+          <ArchivePostList
+            posts={posts}
+            lang={lang}
+            emptyText={lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów."}
+          />
         </section>
       </main>
     </div>
-
   );
 }
 

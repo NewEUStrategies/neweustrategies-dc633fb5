@@ -75,10 +75,7 @@ function fmtDate(iso: string, lang: Lang): string {
 }
 function resolveIcon(name: string | null | undefined) {
   if (!name) return null;
-  const reg = LucideIcons as unknown as Record<
-    string,
-    React.ComponentType<{ className?: string }>
-  >;
+  const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
   return reg[name] ?? null;
 }
 
@@ -208,10 +205,7 @@ export function NotificationsCenter() {
                     className="h-9 w-full rounded-[6px] border border-input bg-muted/40 !pl-[38px] pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </label>
-                <Select
-                  value={kindFilter}
-                  onValueChange={(v) => setKindFilter(v as KindFilter)}
-                >
+                <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as KindFilter)}>
                   <SelectTrigger className="h-9 sm:w-[190px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -236,10 +230,7 @@ export function NotificationsCenter() {
                   </div>
                 ) : groups.length === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
-                    <LucideIcons.BellOff
-                      className="mx-auto mb-3 h-8 w-8 opacity-40"
-                      aria-hidden
-                    />
+                    <LucideIcons.BellOff className="mx-auto mb-3 h-8 w-8 opacity-40" aria-hidden />
                     {query || kindFilter !== "all"
                       ? t("notifications.noMatches", {
                           defaultValue: "Brak wyników dla zadanych filtrów",
@@ -261,9 +252,7 @@ export function NotificationsCenter() {
                             })
                           : pickTitle(n, lang);
                       const allIds = g.items.map((i) => i.id);
-                      const unreadIds = g.items
-                        .filter((i) => !i.read_at)
-                        .map((i) => i.id);
+                      const unreadIds = g.items.filter((i) => !i.read_at).map((i) => i.id);
                       return (
                         <li key={g.key} className="py-3 flex items-start gap-3">
                           <div
@@ -488,8 +477,7 @@ export function NotificationsCenter() {
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {t("notifications.settings.groupByConversationHint", {
-                          defaultValue:
-                            "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
+                          defaultValue: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
                         })}
                       </p>
                     </div>

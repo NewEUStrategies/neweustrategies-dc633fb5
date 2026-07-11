@@ -1,3 +1,9 @@
+// Zapisane materiały: wpisy i strony z user_bookmarks.
+//
+// Widoczne są wyłącznie opublikowane, nieusunięte pozycje (jak /reading-list),
+// a zakładki wskazujące treści usunięte/wycofane nie znikają po cichu - dostają
+// wiersz "niedostępne" z możliwością sprzątnięcia. Liczniki w zakładkach
+// odpowiadają liczbie pozycji faktycznie pokazanych na liście.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
@@ -26,10 +32,39 @@ interface PageLite {
   slug: string;
   title_pl: string | null;
   title_en: string | null;
+  fullPath: string;
 }
 
 function pickTitle(row: { title_pl: string | null; title_en: string | null }, lang: "pl" | "en") {
   return (lang === "en" ? row.title_en : row.title_pl) || row.title_pl || row.title_en || "-";
+}
+
+// Wiersz dla zakładki, której treść zniknęła (usunięta / wycofana z publikacji
+// / niedostępna przez RLS) - użytkownik może sprzątnąć martwą pozycję.
+function UnavailableRow({
+  entityType,
+  entityId,
+}: {
+  entityType: BookmarkEntityType;
+  entityId: string;
+}) {
+  const { t } = useTranslation();
+  const toggle = useToggleBookmark();
+  return (
+    <li className="flex items-center justify-between gap-3 py-3">
+      <span className="truncate text-sm italic text-muted-foreground">
+        {t("profile.bookmarks.unavailable")}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={toggle.isPending}
+        onClick={() => toggle.mutate({ entityType, entityId, on: false })}
+      >
+        {t("profile.bookmarks.remove")}
+      </Button>
+    </li>
+  );
 }
 
 function BookmarksPage() {
@@ -55,7 +90,9 @@ function BookmarksPage() {
       const { data, error } = await supabase
         .from("posts")
         .select("id, slug, title_pl, title_en, cover_image_url, published_at")
-        .in("id", ids.post);
+        .in("id", ids.post)
+        .eq("status", "published")
+        .is("deleted_at", null);
       if (error) throw error;
       return (data ?? []) as PostLite[];
     },
@@ -68,11 +105,34 @@ function BookmarksPage() {
       const { data, error } = await supabase
         .from("pages")
         .select("id, slug, title_pl, title_en")
-        .in("id", ids.page);
+        .in("id", ids.page)
+        .eq("status", "published")
+        .is("deleted_at", null);
       if (error) throw error;
-      return (data ?? []) as PageLite[];
+      // Strony bywają zagnieżdżone - pełną ścieżkę zna DB (page_full_path).
+      const withPaths = await Promise.all(
+        (data ?? []).map(async (p) => {
+          const { data: path } = await supabase.rpc("page_full_path", { _page_id: p.id });
+          const raw = path && path.length > 0 ? path : p.slug;
+          return { ...p, fullPath: raw.startsWith("/") ? raw : `/${raw}` } as PageLite;
+        }),
+      );
+      return withPaths;
     },
   });
+
+  // Liczniki = pozycje faktycznie widoczne (po hydracji), nie surowe id.
+  const visiblePosts = postsQ.data ?? [];
+  const visiblePages = pagesQ.data ?? [];
+  const missingPostIds = postsQ.data
+    ? ids.post.filter((id) => !postsQ.data.some((p) => p.id === id))
+    : [];
+  const missingPageIds = pagesQ.data
+    ? ids.page.filter((id) => !pagesQ.data.some((p) => p.id === id))
+    : [];
+  // Licznik = wszystkie renderowane wiersze (widoczne + "niedostępne").
+  const postCount = postsQ.data ? visiblePosts.length + missingPostIds.length : ids.post.length;
+  const pageCount = pagesQ.data ? visiblePages.length + missingPageIds.length : ids.page.length;
 
   return (
     <Card>
@@ -84,10 +144,10 @@ function BookmarksPage() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as BookmarkEntityType)}>
           <TabsList>
             <TabsTrigger value="post">
-              {t("profile.bookmarks.tabPosts")} ({ids.post.length})
+              {t("profile.bookmarks.tabPosts")} ({postCount})
             </TabsTrigger>
             <TabsTrigger value="page">
-              {t("profile.bookmarks.tabPages")} ({ids.page.length})
+              {t("profile.bookmarks.tabPages")} ({pageCount})
             </TabsTrigger>
           </TabsList>
 
@@ -96,7 +156,7 @@ function BookmarksPage() {
               <p className="text-sm text-muted-foreground">{t("profile.bookmarks.empty")}</p>
             ) : (
               <ul className="divide-y divide-border">
-                {(postsQ.data ?? []).map((p) => (
+                {visiblePosts.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 py-3">
                     {p.cover_image_url ? (
                       <img
@@ -135,6 +195,9 @@ function BookmarksPage() {
                     </Button>
                   </li>
                 ))}
+                {missingPostIds.map((id) => (
+                  <UnavailableRow key={id} entityType="post" entityId={id} />
+                ))}
               </ul>
             )}
           </TabsContent>
@@ -144,9 +207,11 @@ function BookmarksPage() {
               <p className="text-sm text-muted-foreground">{t("profile.bookmarks.empty")}</p>
             ) : (
               <ul className="divide-y divide-border">
-                {(pagesQ.data ?? []).map((p) => (
+                {visiblePages.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 py-3">
-                    <span className="font-medium truncate">{pickTitle(p, lang)}</span>
+                    <Link to={p.fullPath} className="font-medium hover:underline truncate">
+                      {pickTitle(p, lang)}
+                    </Link>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -157,6 +222,9 @@ function BookmarksPage() {
                       {t("profile.bookmarks.remove")}
                     </Button>
                   </li>
+                ))}
+                {missingPageIds.map((id) => (
+                  <UnavailableRow key={id} entityType="page" entityId={id} />
                 ))}
               </ul>
             )}

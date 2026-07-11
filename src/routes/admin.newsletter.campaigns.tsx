@@ -41,12 +41,42 @@ const STATUS_META: Record<
   CampaignRow["status"],
   { icon: typeof Send; className: string; labelPl: string; labelEn: string }
 > = {
-  draft: { icon: FileText, className: "bg-muted text-muted-foreground", labelPl: "Szkic", labelEn: "Draft" },
-  scheduled: { icon: Clock, className: "bg-blue-100 text-blue-800", labelPl: "Zaplanowana", labelEn: "Scheduled" },
-  sending: { icon: Send, className: "bg-amber-100 text-amber-800", labelPl: "Wysyłanie", labelEn: "Sending" },
-  sent: { icon: CheckCircle2, className: "bg-emerald-100 text-emerald-800", labelPl: "Wysłana", labelEn: "Sent" },
-  failed: { icon: XCircle, className: "bg-red-100 text-red-800", labelPl: "Błąd", labelEn: "Failed" },
-  cancelled: { icon: XCircle, className: "bg-muted text-muted-foreground", labelPl: "Anulowana", labelEn: "Cancelled" },
+  draft: {
+    icon: FileText,
+    className: "bg-muted text-muted-foreground",
+    labelPl: "Szkic",
+    labelEn: "Draft",
+  },
+  scheduled: {
+    icon: Clock,
+    className: "bg-blue-100 text-blue-800",
+    labelPl: "Zaplanowana",
+    labelEn: "Scheduled",
+  },
+  sending: {
+    icon: Send,
+    className: "bg-amber-100 text-amber-800",
+    labelPl: "Wysyłanie",
+    labelEn: "Sending",
+  },
+  sent: {
+    icon: CheckCircle2,
+    className: "bg-emerald-100 text-emerald-800",
+    labelPl: "Wysłana",
+    labelEn: "Sent",
+  },
+  failed: {
+    icon: XCircle,
+    className: "bg-red-100 text-red-800",
+    labelPl: "Błąd",
+    labelEn: "Failed",
+  },
+  cancelled: {
+    icon: XCircle,
+    className: "bg-muted text-muted-foreground",
+    labelPl: "Anulowana",
+    labelEn: "Cancelled",
+  },
 };
 
 function CampaignsList() {
@@ -188,9 +218,7 @@ function CampaignsList() {
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>
-                                {isPl ? "Anuluj" : "Cancel"}
-                              </AlertDialogCancel>
+                              <AlertDialogCancel>{isPl ? "Anuluj" : "Cancel"}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => removeMut.mutate(c.id)}
                                 className="bg-red-600 hover:bg-red-700"

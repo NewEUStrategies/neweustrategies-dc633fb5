@@ -4,7 +4,7 @@
 // (poprzez createPortal) - bez modyfikowania samego HTML treści.
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { useAdPlacements } from "@/lib/ads/queries";
+import { useAdPlacements, type AdContentContext } from "@/lib/ads/queries";
 import { AdSlotView } from "@/components/AdSlot";
 import type { AdPageType, AdPlacementWithSlot } from "@/lib/ads/types";
 
@@ -14,6 +14,8 @@ interface Props {
   pageId: string;
   /** Klucz przebudowy gdy treść / język się zmienia. */
   scanKey?: string | number;
+  /** Kontekst treści dla targetingu slotów (slugi kategorii/tagów posta). */
+  content?: AdContentContext;
 }
 
 interface Mount {
@@ -23,8 +25,8 @@ interface Mount {
 
 const HOST_ATTR = "data-ad-mid-host";
 
-export function MidPostAds({ articleRef, pageType, pageId, scanKey }: Props) {
-  const { data } = useAdPlacements("mid_post", pageType, pageId);
+export function MidPostAds({ articleRef, pageType, pageId, scanKey, content }: Props) {
+  const { data } = useAdPlacements("mid_post", pageType, pageId, content);
   const [mounts, setMounts] = useState<Mount[]>([]);
 
   const sorted = useMemo(() => {

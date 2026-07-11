@@ -9,10 +9,7 @@ import { CheckCircle2, XCircle, Loader2, MailX } from "lucide-react";
 
 export const Route = createFileRoute("/newsletter/unsubscribe")({
   head: () => ({
-    meta: [
-      { title: "Unsubscribe" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Unsubscribe" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: Page,
 });
