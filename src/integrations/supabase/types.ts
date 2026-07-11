@@ -4045,45 +4045,6 @@ export type Database = {
         }
         Relationships: []
       }
-      subscription_tiers: {
-        Row: {
-          created_at: string
-          description_en: string | null
-          description_pl: string | null
-          id: string
-          is_active: boolean
-          name_en: string
-          name_pl: string
-          slug: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description_en?: string | null
-          description_pl?: string | null
-          id?: string
-          is_active?: boolean
-          name_en: string
-          name_pl: string
-          slug: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description_en?: string | null
-          description_pl?: string | null
-          id?: string
-          is_active?: boolean
-          name_en?: string
-          name_pl?: string
-          slug?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       tags: {
         Row: {
           created_at: string
