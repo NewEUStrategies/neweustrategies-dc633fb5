@@ -299,6 +299,39 @@ export async function moderateQaQuestion(
   if (error) throw error;
 }
 
+export interface CreateQaSessionInput {
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  intro_pl?: string;
+  intro_en?: string;
+  opens_at: string | null;
+  closes_at: string | null;
+  status: QaSessionStatus;
+}
+
+export async function createQaSession(input: CreateQaSessionInput): Promise<QaSessionRow> {
+  const { data: userData, error: uErr } = await supabase.auth.getUser();
+  if (uErr || !userData.user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("qa_sessions")
+    .insert({
+      slug: input.slug,
+      title_pl: input.title_pl,
+      title_en: input.title_en,
+      intro_pl: input.intro_pl ?? null,
+      intro_en: input.intro_en ?? null,
+      opens_at: input.opens_at,
+      closes_at: input.closes_at,
+      status: input.status,
+      host_user_id: userData.user.id,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // ------- Polls --------
 
 export type PollRow = Database["public"]["Tables"]["polls"]["Row"];
