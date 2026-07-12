@@ -1496,7 +1496,7 @@ function GridView({
                   ) : (
                     <span className="text-2xl">📄</span>
                   )}
-                  <span className="text-[10px]">{extOf(m.filename)}</span>
+                  <span className="text-[9px] leading-[11px]">{extOf(m.filename)}</span>
                 </div>
               )}
               {selected && (
@@ -1525,9 +1525,9 @@ function GridView({
                   {m.filename}
                 </div>
               )}
-              <div className="text-muted-foreground flex justify-between text-[6px] leading-[8px] gap-1">
-                <span>{formatBytes(m.size_bytes)}</span>
-                <span>{extOf(m.filename)}</span>
+              <div className="text-muted-foreground flex justify-between gap-1 uppercase tracking-wide">
+                <span className="text-[9px] leading-[11px]">{formatBytes(m.size_bytes)}</span>
+                <span className="text-[9px] leading-[11px]">{extOf(m.filename)}</span>
               </div>
             </div>
           </div>
@@ -1623,10 +1623,10 @@ function ListView({
                   <span className="truncate">{m.filename}</span>
                 </td>
                 <td className="px-3 py-1.5 text-muted-foreground">
-                  {m.mime_type ?? extOf(m.filename)}
+                  <span className="text-[10px] uppercase tracking-wide">{m.mime_type ?? extOf(m.filename)}</span>
                 </td>
                 <td className="px-3 py-1.5 text-right text-muted-foreground">
-                  {formatBytes(m.size_bytes)}
+                  <span className="text-[10px]">{formatBytes(m.size_bytes)}</span>
                 </td>
                 <td className="px-3 py-1.5 text-muted-foreground">
                   {new Date(m.created_at).toLocaleDateString()}
