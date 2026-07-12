@@ -2116,6 +2116,7 @@ export type Database = {
           deleted_at: string | null
           edited_at: string | null
           expires_at: string | null
+          forwarded: boolean
           id: string
           kind: string
           reply_to_id: string | null
@@ -2134,6 +2135,7 @@ export type Database = {
           deleted_at?: string | null
           edited_at?: string | null
           expires_at?: string | null
+          forwarded?: boolean
           id?: string
           kind?: string
           reply_to_id?: string | null
@@ -2152,6 +2154,7 @@ export type Database = {
           deleted_at?: string | null
           edited_at?: string | null
           expires_at?: string | null
+          forwarded?: boolean
           id?: string
           kind?: string
           reply_to_id?: string | null
@@ -5357,6 +5360,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"][]
       }
       chat_allow_messages_from: { Args: { _user: string }; Returns: string }
+      chat_check_upload_quota: { Args: never; Returns: undefined }
       chat_clear_history: {
         Args: { p_conversation_id: string }
         Returns: undefined
