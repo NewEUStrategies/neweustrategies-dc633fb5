@@ -15,6 +15,7 @@ import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, ShieldAlert } from "lucide-react";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
+import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 
 export const Route = createFileRoute("/profile/author")({
   component: AuthorProfilePage,
@@ -30,6 +31,7 @@ interface AuthorProfileRow {
   avatar_url: string | null;
   job_title: string | null;
   company: string | null;
+  /** Bio jest kanoniczne w profiles.bio_pl/bio_en - tu tylko edytowane, zapis idzie do profiles. */
   bio_pl: string | null;
   bio_en: string | null;
   contact_email: string | null;
@@ -82,19 +84,35 @@ function AuthorProfilePage() {
   useEffect(() => {
     if (!user) return;
     void (async () => {
-      const { data: row } = await supabase
-        .from("author_profiles")
-        .select(
-          "avatar_url, job_title, company, bio_pl, bio_en, contact_email, phone, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, is_public",
-        )
-        .eq("user_id", user.id)
-        .maybeSingle();
+      // Bio przychodzi z kanonicznego źródła (profiles), reszta persony
+      // autorskiej z author_profiles. Fallback na legacy author_profiles.bio_*
+      // tylko dla kont, które nigdy nie zapisały bio w profiles.
+      const [{ data: row }, { data: prof }] = await Promise.all([
+        supabase
+          .from("author_profiles")
+          .select(
+            "avatar_url, job_title, company, bio_pl, bio_en, contact_email, phone, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, is_public",
+          )
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase.from("profiles").select("bio_pl, bio_en").eq("id", user.id).maybeSingle(),
+      ]);
+      const canonicalBio = {
+        bio_pl: preferCanonicalBio(prof?.bio_pl, row?.bio_pl ?? null),
+        bio_en: preferCanonicalBio(prof?.bio_en, row?.bio_en ?? null),
+      };
       if (row) {
         const cs = Array.isArray(row.custom_socials)
           ? (row.custom_socials as unknown as CustomSocial[])
           : [];
-        setData({ ...(row as unknown as AuthorProfileRow), custom_socials: cs });
+        setData({
+          ...(row as unknown as AuthorProfileRow),
+          ...canonicalBio,
+          custom_socials: cs,
+        });
         setExists(true);
+      } else if (prof) {
+        setData((d) => ({ ...d, ...canonicalBio }));
       }
     })();
   }, [user]);
@@ -170,8 +188,6 @@ function AuthorProfilePage() {
       avatar_url: data.avatar_url,
       job_title: data.job_title,
       company: data.company,
-      bio_pl: data.bio_pl,
-      bio_en: data.bio_en,
       contact_email: data.contact_email,
       phone: data.phone,
       website_url: data.website_url,
@@ -183,11 +199,18 @@ function AuthorProfilePage() {
       custom_socials: data.custom_socials as unknown as never,
       is_public: data.is_public,
     };
-    const { error } = await supabase
-      .from("author_profiles")
-      .upsert(payload, { onConflict: "user_id" });
+    // Bio zapisujemy do kanonicznego źródła (profiles.bio_pl/bio_en - trigger
+    // profiles_mirror_bio utrzymuje legacy profiles.bio). Persona autorska
+    // (avatar, kontakt, socials) zostaje w author_profiles.
+    const [{ error }, { error: bioError }] = await Promise.all([
+      supabase.from("author_profiles").upsert(payload, { onConflict: "user_id" }),
+      supabase
+        .from("profiles")
+        .update({ bio_pl: data.bio_pl, bio_en: data.bio_en })
+        .eq("id", user.id),
+    ]);
     setBusy(false);
-    if (error) {
+    if (error || bioError) {
       toast.error(t("profile.account.saveError"));
       return;
     }
@@ -330,6 +353,12 @@ function AuthorProfilePage() {
                   />
                 </div>
               </div>
+              <p className="m-0 text-xs text-muted-foreground">
+                {t("profile.author.bioShared", {
+                  defaultValue:
+                    "Bio jest wspólne z Twoim profilem (konto / wizytówka) - edycja tutaj aktualizuje je wszędzie.",
+                })}
+              </p>
               <div className="grid gap-2">
                 <FieldLabel htmlFor="bio_pl">
                   {t("profile.author.bioPl", { defaultValue: "Bio (PL)" })}

@@ -1623,7 +1623,9 @@ function ListView({
                   <span className="truncate">{m.filename}</span>
                 </td>
                 <td className="px-3 py-1.5 text-muted-foreground">
-                  <span className="text-[10px] uppercase tracking-wide">{m.mime_type ?? extOf(m.filename)}</span>
+                  <span className="text-[10px] uppercase tracking-wide">
+                    {m.mime_type ?? extOf(m.filename)}
+                  </span>
                 </td>
                 <td className="px-3 py-1.5 text-right text-muted-foreground">
                   <span className="text-[10px]">{formatBytes(m.size_bytes)}</span>

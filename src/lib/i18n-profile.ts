@@ -29,7 +29,8 @@ const pl = {
     identityHint: {
       account: "Ta strona edytuje Twoje konto (dane prywatne widoczne dla Ciebie). Pozostałe:",
       social: "Ta strona edytuje Twoją publiczną wizytówkę i linki społecznościowe. Pozostałe:",
-      author: "Ta strona edytuje profil autora widoczny przy Twoich publikacjach. Pozostałe:",
+      author:
+        "Ta strona edytuje personę autora widoczną przy publikacjach (bio jest wspólne z profilem). Pozostałe:",
     },
     overview: {
       welcome: "Witaj, {{name}}",
@@ -387,7 +388,8 @@ const en: typeof pl = {
     identityHint: {
       account: "This page edits your account (private details visible to you). Also see:",
       social: "This page edits your public profile card and social links. Also see:",
-      author: "This page edits the author profile shown on your publications. Also see:",
+      author:
+        "This page edits the author persona shown on your publications (bio is shared with your profile). Also see:",
     },
     overview: {
       welcome: "Welcome, {{name}}",
