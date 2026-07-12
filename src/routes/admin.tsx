@@ -4,6 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 export const Route = createFileRoute("/admin")({
+  // Auth stan jest w localStorage (Supabase), więc SSR-owy render szkicu
+  // powoduje mismatch z klientem. Wyłączamy SSR dla całego /admin.
+  ssr: false,
   head: () => ({
     meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Admin" }],
   }),

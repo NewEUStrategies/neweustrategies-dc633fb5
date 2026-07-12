@@ -6131,6 +6131,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_community_stats: { Args: never; Returns: Json }
       admin_get_user: {
         Args: { _user_id: string }
         Returns: {
@@ -6192,6 +6193,10 @@ export type Database = {
           _hint_pl: string
           _password: string
         }
+        Returns: undefined
+      }
+      admin_soft_delete_message: {
+        Args: { p_message_id: string }
         Returns: undefined
       }
       admin_update_user_avatar: {
