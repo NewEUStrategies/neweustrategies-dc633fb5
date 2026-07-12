@@ -33,6 +33,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import { getRequest } from "@tanstack/react-start/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -153,6 +154,31 @@ export const getCampaign = createServerFn({ method: "GET" })
   });
 
 // ----------------------------------------------------------------------------
+// ENGAGEMENT (open/click counts for the admin editor)
+// ----------------------------------------------------------------------------
+export const getCampaignEngagement = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }): Promise<{ opens: number; clicks: number }> => {
+    const tenantId = await getTenantId(context);
+    // `newsletter_campaign_events` has staff-read RLS (tenant-scoped), so the
+    // caller's own user-scoped client can count it. Table not in generated
+    // types yet -> cast (precedent: web_vitals).
+    const countKind = async (kind: "open" | "click"): Promise<number> => {
+      const { count, error } = await context.supabase
+        .from("newsletter_campaign_events" as never)
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("campaign_id", data.id)
+        .eq("kind", kind);
+      if (error) return 0;
+      return count ?? 0;
+    };
+    const [opens, clicks] = await Promise.all([countKind("open"), countKind("click")]);
+    return { opens, clicks };
+  });
+
+// ----------------------------------------------------------------------------
 // UPSERT
 // ----------------------------------------------------------------------------
 export const upsertCampaign = createServerFn({ method: "POST" })
@@ -260,6 +286,7 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
       data.language === "pl" ? camp.html_pl : camp.html_en,
       { email: data.toEmail, firstName: "", lastName: "" },
       data.language,
+      null,
       null,
     );
     const from = buildFrom(camp);
@@ -459,6 +486,9 @@ async function runCampaignSend(
             { email: sub.email, firstName: sub.first_name ?? "", lastName: sub.last_name ?? "" },
             lang,
             unsubscribeUrl,
+            origin && sub.unsubscribe_token
+              ? { origin, campaignId: camp.id, token: sub.unsubscribe_token }
+              : null,
           );
           const result = await sendEmail({
             to: sub.email,
@@ -536,11 +566,21 @@ function renderCampaignHtml(
   vars: { email: string; firstName: string; lastName: string },
   lang: "pl" | "en",
   unsubscribeUrl: string | null,
+  // When present, body links are rewritten through the click-tracking redirect
+  // and an open-tracking pixel is appended. `token` reuses the subscriber's
+  // existing unsubscribe token. Null for test sends (no tracking).
+  tracking: { origin: string; campaignId: string; token: string } | null = null,
 ): string {
   const replaced = rawHtml
     .replaceAll("{{email}}", esc(vars.email))
     .replaceAll("{{firstName}}", esc(vars.firstName))
     .replaceAll("{{lastName}}", esc(vars.lastName));
+  // Rewrite body links BEFORE the unsubscribe footer is appended, so the
+  // one-click unsubscribe link (and List-Unsubscribe / RFC-8058) is never
+  // routed through the tracker.
+  const content = tracking
+    ? rewriteTrackingLinks(replaced, tracking.origin, tracking.campaignId, tracking.token)
+    : replaced;
   const footer = unsubscribeUrl
     ? `<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
        <p style="color:#888;font-size:12px;text-align:center">
@@ -551,7 +591,10 @@ function renderCampaignHtml(
          }
        </p>`
     : "";
-  return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${replaced}${footer}</div>`;
+  const pixel = tracking
+    ? trackingPixelImg(tracking.origin, tracking.campaignId, tracking.token)
+    : "";
+  return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${content}${footer}${pixel}</div>`;
 }
 
 async function sendEmail(opts: {

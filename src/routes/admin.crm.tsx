@@ -230,6 +230,7 @@ const PL = {
     mappingCategory: "Kategoria w Merydian",
     mappingRequired: "Wymagana",
     mappingRemove: "Usuń",
+    secretSet: "•••• (ustawiony)",
   },
 };
 
@@ -332,6 +333,7 @@ const EN = {
     mappingCategory: "Merydian category",
     mappingRequired: "Required",
     mappingRemove: "Remove",
+    secretSet: "•••• (set)",
   },
 };
 
@@ -1078,10 +1080,14 @@ type IntegrationSettings = {
   merydian_enabled: boolean;
   merydian_mode: "webhook" | "api" | "both";
   merydian_webhook_url: string | null;
-  merydian_webhook_secret: string | null;
+  // Write-only input buffers for secrets (never populated from the server).
+  merydian_webhook_secret: string;
   merydian_api_base: string | null;
-  merydian_api_key: string | null;
+  merydian_api_key: string;
   merydian_workspace_id: string | null;
+  // Whether a secret is already stored in Vault (drives the placeholder).
+  has_webhook_secret: boolean;
+  has_api_key: boolean;
   forward_stages: Stage[];
   consent_mapping: ConsentMapItem[];
   last_sync_at: string | null;
@@ -1107,10 +1113,13 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
         merydian_enabled: q.data.merydian_enabled ?? false,
         merydian_mode: q.data.merydian_mode ?? "webhook",
         merydian_webhook_url: q.data.merydian_webhook_url ?? "",
-        merydian_webhook_secret: q.data.merydian_webhook_secret ?? "",
+        merydian_webhook_secret: "",
         merydian_api_base: q.data.merydian_api_base ?? "",
-        merydian_api_key: q.data.merydian_api_key ?? "",
+        merydian_api_key: "",
         merydian_workspace_id: q.data.merydian_workspace_id ?? "",
+        has_webhook_secret:
+          (q.data as { has_webhook_secret?: boolean }).has_webhook_secret ?? false,
+        has_api_key: (q.data as { has_api_key?: boolean }).has_api_key ?? false,
         forward_stages: q.data.forward_stages ?? ["new"],
         consent_mapping: (q.data as { consent_mapping?: ConsentMapItem[] }).consent_mapping ?? [],
         last_sync_at: q.data.last_sync_at,
@@ -1126,6 +1135,8 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
         merydian_api_base: "",
         merydian_api_key: "",
         merydian_workspace_id: "",
+        has_webhook_secret: false,
+        has_api_key: false,
         forward_stages: ["new"],
         consent_mapping: [],
         last_sync_at: null,
@@ -1142,9 +1153,11 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
           merydian_enabled: s!.merydian_enabled,
           merydian_mode: s!.merydian_mode,
           merydian_webhook_url: s!.merydian_webhook_url || null,
-          merydian_webhook_secret: s!.merydian_webhook_secret || null,
+          merydian_webhook_secret: s!.merydian_webhook_secret
+            ? s!.merydian_webhook_secret
+            : undefined,
           merydian_api_base: s!.merydian_api_base || null,
-          merydian_api_key: s!.merydian_api_key || null,
+          merydian_api_key: s!.merydian_api_key ? s!.merydian_api_key : undefined,
           merydian_workspace_id: s!.merydian_workspace_id || null,
           forward_stages: s!.forward_stages,
           consent_mapping: s!.consent_mapping,
@@ -1218,9 +1231,11 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
           <Field label={L.integ.webhookSecret}>
             <Input
               type="password"
-              value={s.merydian_webhook_secret ?? ""}
+              value={s.merydian_webhook_secret}
               onChange={(e) => upd("merydian_webhook_secret", e.target.value)}
               className="h-8 text-[13px]"
+              placeholder={s.has_webhook_secret ? L.integ.secretSet : undefined}
+              autoComplete="new-password"
             />
           </Field>
         </div>
@@ -1239,9 +1254,11 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
           <Field label={L.integ.apiKey}>
             <Input
               type="password"
-              value={s.merydian_api_key ?? ""}
+              value={s.merydian_api_key}
               onChange={(e) => upd("merydian_api_key", e.target.value)}
               className="h-8 text-[13px]"
+              placeholder={s.has_api_key ? L.integ.secretSet : undefined}
+              autoComplete="new-password"
             />
           </Field>
           <Field label={L.integ.workspaceId}>

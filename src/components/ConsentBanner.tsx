@@ -9,8 +9,17 @@ import { Switch } from "@/components/ui/switch";
 import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/consent";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { setConsentOverlayVisible, setMarketingConsent } from "@/lib/overlayCoordinator";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 type Cats = Record<ConsentCategory, boolean>;
+
+// Admin-controlled privacy settings (site_settings["privacy"], edited in
+// /admin/settings/privacy). `cookie_banner` toggles whether the auto-shown
+// consent banner appears; `privacy_page_slug` links the policy page from the
+// banner. Stable module-level reference so useSiteSetting memoization holds.
+type PrivacyConfig = { privacy_page_slug: string; cookie_banner: boolean };
+const PRIVACY_DEFAULTS: PrivacyConfig = { privacy_page_slug: "", cookie_banner: true };
 
 const CATEGORY_LABELS: Record<
   ConsentCategory,
@@ -45,6 +54,10 @@ const CATEGORY_LABELS: Record<
 export function ConsentBanner() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
+  const privacyHref = privacy.privacy_page_slug
+    ? localizedPath(`/${privacy.privacy_page_slug.replace(/^\/+/, "")}`, isPl ? "pl" : "en")
+    : null;
   const { state, decided, mounted, save, acceptAll, rejectAll } = useConsent();
   const [prefsOpen, setPrefsOpen] = useState(false);
   const prefsPanelRef = useRef<HTMLDivElement>(null);
@@ -102,6 +115,10 @@ export function ConsentBanner() {
   // SSR-safe: nic nie renderuj do hydracji.
   if (!mounted) return null;
   if (decided && !prefsOpen) return null;
+  // Respect the admin "cookie banner" toggle (site_settings.privacy): when
+  // disabled, never auto-show the undecided banner. The footer-triggered
+  // preferences dialog (prefsOpen) still works so visitors can review choices.
+  if (!privacy.cookie_banner && !prefsOpen) return null;
 
   const t = {
     title: isPl ? "Twoja prywatność" : "Your privacy",
@@ -114,6 +131,7 @@ export function ConsentBanner() {
     save: isPl ? "Zapisz wybór" : "Save preferences",
     back: isPl ? "Wróć" : "Back",
     prefsTitle: isPl ? "Preferencje prywatności" : "Privacy preferences",
+    policy: isPl ? "Polityka prywatności" : "Privacy policy",
   };
 
   if (!prefsOpen) {
@@ -128,6 +146,14 @@ export function ConsentBanner() {
           <div>
             <h2 className="text-base font-semibold">{t.title}</h2>
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{t.intro}</p>
+            {privacyHref && (
+              <a
+                href={privacyHref}
+                className="text-sm text-primary underline underline-offset-2 mt-1 inline-block"
+              >
+                {t.policy}
+              </a>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
             <Button variant="ghost" size="sm" onClick={() => setPrefsOpen(true)}>
@@ -163,6 +189,14 @@ export function ConsentBanner() {
         <div className="p-5 border-b border-border">
           <h2 className="text-lg font-semibold">{t.prefsTitle}</h2>
           <p className="text-sm text-muted-foreground mt-1">{t.intro}</p>
+          {privacyHref && (
+            <a
+              href={privacyHref}
+              className="text-sm text-primary underline underline-offset-2 mt-1 inline-block"
+            >
+              {t.policy}
+            </a>
+          )}
         </div>
         <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
           {(Object.keys(CATEGORY_LABELS) as ConsentCategory[]).map((cat) => {

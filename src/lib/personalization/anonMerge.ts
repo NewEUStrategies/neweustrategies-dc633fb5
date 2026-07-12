@@ -26,6 +26,7 @@ import {
   PERSONALIZED_SETTINGS_KEY,
 } from "@/hooks/usePersonalizedSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { slugFromUrl } from "./slug";
 
 const ANON_INTERESTS_KEY = "nes.interests.anon.v1";
 const GUEST_SAVED_KEY = "lovable:saved-articles";
@@ -83,18 +84,6 @@ export function readAnonInterestIds(): AnonInterests {
 function readGuestSaved(): GuestSavedItem[] {
   const parsed = readJson<GuestSavedItem[]>(GUEST_SAVED_KEY);
   return Array.isArray(parsed) ? parsed.filter((s) => typeof s?.url === "string") : [];
-}
-
-// Ostatni segment ścieżki URL - slug posta niezależnie od tego, czy link był
-// kanoniczny (/sekcja/slug) czy bezpośredni (/post/slug).
-function slugFromUrl(url: string): string | null {
-  try {
-    const path = new URL(url, "https://placeholder.local").pathname;
-    const seg = path.split("/").filter(Boolean).pop() ?? "";
-    return seg.length > 0 ? decodeURIComponent(seg) : null;
-  } catch {
-    return null;
-  }
 }
 
 async function mergeInterests(userId: string): Promise<number> {

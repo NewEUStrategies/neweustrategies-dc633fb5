@@ -18,6 +18,7 @@ import {
   softDeleteComment,
   type CommentWithAuthor,
 } from "@/lib/comments/api";
+import { buildCommentTree, canReplyToComment, type CommentTreeNode } from "@/lib/comments/tree";
 
 interface Props {
   postId: string;
@@ -109,7 +110,7 @@ export function CommentsSection({ postId, lang }: Props) {
     onError: () => toast.error(t("comments.errors.generic")),
   });
 
-  const tree = useMemo(() => buildTree(data ?? []), [data]);
+  const tree = useMemo(() => buildCommentTree(data ?? []), [data]);
   const totalApproved = (data ?? []).filter((c) => c.status === "approved").length;
   // The raw window hit the ceiling -> more rows may exist on the server.
   const canLoadMore = (data ?? []).length >= limit;
@@ -197,22 +198,7 @@ export function CommentsSection({ postId, lang }: Props) {
   );
 }
 
-type Node = { comment: CommentWithAuthor; children: CommentWithAuthor[] };
-
-function buildTree(rows: CommentWithAuthor[]): Node[] {
-  const byParent = new Map<string, CommentWithAuthor[]>();
-  const roots: CommentWithAuthor[] = [];
-  for (const r of rows) {
-    if (r.parent_id) {
-      const arr = byParent.get(r.parent_id) ?? [];
-      arr.push(r);
-      byParent.set(r.parent_id, arr);
-    } else {
-      roots.push(r);
-    }
-  }
-  return roots.map((c) => ({ comment: c, children: byParent.get(c.id) ?? [] }));
-}
+type Node = CommentTreeNode;
 
 function CommentComposer({
   onSubmit,
@@ -291,7 +277,7 @@ function CommentNode({
         c={node.comment}
         currentUserId={currentUserId}
         lang={lang}
-        canReply={allowReplies}
+        canReply={canReplyToComment(0, allowReplies)}
         onReplyToggle={() => setReplying((v) => !v)}
         replyOpen={replying}
         onDelete={onDelete}
@@ -317,7 +303,7 @@ function CommentNode({
               c={child}
               currentUserId={currentUserId}
               lang={lang}
-              canReply={false}
+              canReply={canReplyToComment(1, allowReplies)}
               onReplyToggle={undefined}
               replyOpen={false}
               onDelete={onDelete}

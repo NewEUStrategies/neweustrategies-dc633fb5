@@ -13,6 +13,7 @@
 
 import { memo, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { beaconAdEvent } from "@/lib/analytics/events";
 import { useMarketingConsent } from "@/lib/ads/consent";
 import { useAdPlacements, type AdContentContext } from "@/lib/ads/queries";
 import { useDeferredAd } from "@/lib/ads/useDeferredAd";
@@ -54,6 +55,24 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
       }
     });
   }, [shouldRender, slot]);
+
+  // Growth analytics (fire-and-forget). One impression beacon once the creative
+  // actually renders - i.e. past the consent gate and the deferred-load gates,
+  // so blocked/off-screen slots are never counted. A click beacon on any
+  // interaction within the reserved container.
+  const impressionSent = useRef(false);
+  useEffect(() => {
+    if (blocked || !shouldRender || impressionSent.current) return;
+    impressionSent.current = true;
+    beaconAdEvent("impression", slot.id, placement.id);
+  }, [blocked, shouldRender, slot.id, placement.id]);
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || blocked) return;
+    const onClick = () => beaconAdEvent("click", slot.id, placement.id);
+    node.addEventListener("click", onClick);
+    return () => node.removeEventListener("click", onClick);
+  }, [blocked, shouldRender, slot.id, placement.id]);
 
   const dimensions = { width: slot.width, height: slot.height };
   const label = t("ads.label", { defaultValue: "Reklama" });

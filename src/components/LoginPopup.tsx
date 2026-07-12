@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { isMfaChallengeRequired } from "@/lib/auth/mfa";
+import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
@@ -38,6 +40,9 @@ export function LoginPopup() {
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState<{ title?: string; description?: string }>({});
+  const [mfaOpen, setMfaOpen] = useState(false);
+  // Holds the auto-close (session effect) while an aal1 session steps up to aal2.
+  const [mfaPending, setMfaPending] = useState(false);
 
   useEffect(() => {
     return onOpenLoginPopup((opts) => {
@@ -66,8 +71,8 @@ export function LoginPopup() {
   }, [settings.popup_enabled, settings.custom_login_url, navigate]);
 
   useEffect(() => {
-    if (session && open) setOpen(false);
-  }, [session, open]);
+    if (session && open && !mfaPending) setOpen(false);
+  }, [session, open, mfaPending]);
 
   const heading =
     override.title ?? (lang === "pl" ? settings.popup_heading_pl : settings.popup_heading_en);
@@ -119,10 +124,22 @@ export function LoginPopup() {
         toast.success(t("auth.signupOk", { defaultValue: "Sprawdź email aby potwierdzić konto." }));
         setOpen(false);
       } else {
+        // Hold the auto-close (see the session effect) until we know whether an
+        // aal1 -> aal2 step-up is required; set synchronously to beat the
+        // onAuthStateChange that fires as soon as sign-in resolves.
+        setMfaPending(true);
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        toast.success(t("auth.signinOk", { defaultValue: "Zalogowano." }));
-        setOpen(false);
+        if (error) {
+          setMfaPending(false);
+          throw error;
+        }
+        if (await isMfaChallengeRequired()) {
+          setMfaOpen(true);
+        } else {
+          setMfaPending(false);
+          toast.success(t("auth.signinOk", { defaultValue: "Zalogowano." }));
+          setOpen(false);
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
@@ -132,112 +149,128 @@ export function LoginPopup() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader className="items-center text-center">
-          {logo ? <img src={logo} alt="" className="h-12 mx-auto mb-2 object-contain" /> : null}
-          <DialogTitle className="font-display text-2xl">{heading}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+    <>
+      <MfaChallenge
+        open={mfaOpen}
+        onVerified={() => {
+          setMfaOpen(false);
+          setMfaPending(false);
+          toast.success(t("auth.signinOk", { defaultValue: "Zalogowano." }));
+          setOpen(false);
+        }}
+        onCancel={() => {
+          setMfaOpen(false);
+          setMfaPending(false);
+          setOpen(false);
+        }}
+      />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="items-center text-center">
+            {logo ? <img src={logo} alt="" className="h-12 mx-auto mb-2 object-contain" /> : null}
+            <DialogTitle className="font-display text-2xl">{heading}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={submit} className="space-y-3 mt-2">
-          {mode === "signup" && (
+          <form onSubmit={submit} className="space-y-3 mt-2">
+            {mode === "signup" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="lp-name" className="text-sm">
+                  {t("authForms.nameLabel")}
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="lp-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t("authForms.namePlaceholder")}
+                    className="auth-icon-input"
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
-              <Label htmlFor="lp-name" className="text-sm">
-                {t("authForms.nameLabel")}
+              <Label htmlFor="lp-email" className="text-sm">
+                Email
               </Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
-                  id="lp-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t("authForms.namePlaceholder")}
+                  id="lp-email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
                   className="auth-icon-input"
                 />
               </div>
             </div>
-          )}
-          <div className="space-y-1.5">
-            <Label htmlFor="lp-email" className="text-sm">
-              Email
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="lp-email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="auth-icon-input"
-              />
+            <div className="space-y-1.5">
+              <Label htmlFor="lp-pwd" className="text-sm">
+                {t("authForms.passwordLabel")}
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  id="lp-pwd"
+                  type={showPw ? "text" : "password"}
+                  required
+                  minLength={mode === "signup" ? 8 : undefined}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t("authForms.passwordPlaceholder")}
+                  className="auth-icon-input auth-icon-input-with-action"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+                  aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="lp-pwd" className="text-sm">
-              {t("authForms.passwordLabel")}
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="lp-pwd"
-                type={showPw ? "text" : "password"}
-                required
-                minLength={mode === "signup" ? 8 : undefined}
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("authForms.passwordPlaceholder")}
-                className="auth-icon-input auth-icon-input-with-action"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
-              >
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <Button type="submit" className="w-full" disabled={busy}>
-            {busy
-              ? "…"
-              : mode === "signin"
-                ? lang === "pl"
-                  ? settings.signin_label_pl
-                  : settings.signin_label_en
-                : lang === "pl"
-                  ? settings.signup_label_pl
-                  : settings.signup_label_en}
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy
+                ? "…"
+                : mode === "signin"
+                  ? lang === "pl"
+                    ? settings.signin_label_pl
+                    : settings.signin_label_en
+                  : lang === "pl"
+                    ? settings.signup_label_pl
+                    : settings.signup_label_en}
+            </Button>
+          </form>
 
-        {settings.allow_public_signup && (
-          <div className="text-center text-sm pt-2 border-t border-border mt-3">
-            {mode === "signin" ? (
-              <button
-                type="button"
-                className="text-brand hover:underline"
-                onClick={() => setMode("signup")}
-              >
-                {t("authForms.noAccount")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="text-brand hover:underline"
-                onClick={() => setMode("signin")}
-              >
-                {t("authForms.haveAccount")}
-              </button>
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          {settings.allow_public_signup && (
+            <div className="text-center text-sm pt-2 border-t border-border mt-3">
+              {mode === "signin" ? (
+                <button
+                  type="button"
+                  className="text-brand hover:underline"
+                  onClick={() => setMode("signup")}
+                >
+                  {t("authForms.noAccount")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="text-brand hover:underline"
+                  onClick={() => setMode("signin")}
+                >
+                  {t("authForms.haveAccount")}
+                </button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

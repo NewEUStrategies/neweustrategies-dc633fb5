@@ -36,20 +36,17 @@ import {
   type NotificationPreferences,
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
+import {
+  TOGGLEABLE_NOTIFICATION_KINDS,
+  isNotificationKindEnabled,
+} from "@/lib/notifications/preferences";
 import { cn } from "@/lib/utils";
 
 type Lang = "pl" | "en";
 type TabValue = "all" | "unread" | "settings";
 type KindFilter = "all" | NotificationKind;
 
-const TOGGLEABLE_KINDS = [
-  "message",
-  "comment",
-  "follow",
-  "subscription",
-  "content",
-  "system",
-] as const;
+// Toggleable kinds + gating live in @/lib/notifications/preferences (pure, unit-tested).
 
 const KIND_OPTIONS: KindFilter[] = [
   "all",
@@ -622,7 +619,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   })}
                 </p>
                 <div className="mt-3 space-y-2">
-                  {TOGGLEABLE_KINDS.map((kind) => {
+                  {TOGGLEABLE_NOTIFICATION_KINDS.map((kind) => {
                     const key = `enabled_${kind}` as keyof NotificationPreferences;
                     const id = `notif-kind-${kind}`;
                     return (
@@ -635,7 +632,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                         </Label>
                         <Switch
                           id={id}
-                          checked={Boolean(prefs[key])}
+                          checked={isNotificationKindEnabled(prefs, kind)}
                           disabled={updatePrefs.isPending}
                           onCheckedChange={(v) =>
                             patch({ [key]: v } as Partial<NotificationPreferences>)
@@ -650,7 +647,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                         defaultValue: "Alerty bezpieczeństwa (zawsze włączone)",
                       })}
                     </Label>
-                    <Switch checked disabled />
+                    <Switch checked={isNotificationKindEnabled(prefs, "security")} disabled />
                   </div>
                 </div>
               </div>

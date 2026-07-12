@@ -152,7 +152,10 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return jsonError(400, "Invalid postId");
         }
 
-        // Rate-limits (fail-open by design of rateLimit).
+        // Pre-cache per-minute throttle: pure abuse protection (runs on every
+        // request, including cache hits), so it stays FAIL-OPEN - a DB blip must
+        // not block readers listening to already-cached audio. The cost-bearing
+        // gates below (cache-miss only) are fail-closed.
         const ip = (() => {
           try {
             return getRequestIP({ xForwardedFor: true }) ?? "unknown";
@@ -253,12 +256,15 @@ export const Route = createFileRoute("/api/public/post-tts")({
         }
 
         // Cache miss => we are about to spend ElevenLabs budget. Apply the
-        // synthesis throttles now: per-IP hourly + per-post hourly.
+        // synthesis throttles now: per-IP hourly + per-post hourly. FAIL-CLOSED:
+        // these gate real paid synthesis, so a counter-store outage must DENY
+        // rather than let the budget be drained (rate-limit.server.ts).
         const okHour = await rateLimit({
           scope: "post-tts:ip:hour",
           subjectId: ip,
           max: 15,
           windowMinutes: 60,
+          failClosed: true,
         });
         if (!okHour) {
           return jsonError(429, "Rate limit exceeded (hour)", { "Retry-After": "3600" });
@@ -268,6 +274,7 @@ export const Route = createFileRoute("/api/public/post-tts")({
           subjectId: `${postId}:${lang}`,
           max: 60,
           windowMinutes: 60,
+          failClosed: true,
         });
         if (!okPost) {
           return jsonError(429, "Post throttled", { "Retry-After": "3600" });

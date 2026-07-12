@@ -3,11 +3,12 @@
 //
 // Dialogi (nowy popup / potwierdzenie usuniecia) uzywaja naszych komponentow
 // z design systemu - nie natywnych window.prompt/window.confirm.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,38 @@ function PopupsList() {
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BuilderPopup | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const isPl = (i18n.language ?? "pl").startsWith("pl");
+
+  // Per-popup view/conversion counts from popup_events (staff-read RLS,
+  // tenant-scoped). Table not in generated types yet -> cast.
+  const [stats, setStats] = useState<Record<string, { views: number; conversions: number }>>({});
+  useEffect(() => {
+    if (popups.items.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        popups.items.map(async (p) => {
+          const [{ count: v }, { count: c }] = await Promise.all([
+            supabase
+              .from("popup_events" as never)
+              .select("*", { count: "exact", head: true })
+              .eq("popup_id", p.id)
+              .eq("kind", "view"),
+            supabase
+              .from("popup_events" as never)
+              .select("*", { count: "exact", head: true })
+              .eq("popup_id", p.id)
+              .eq("kind", "conversion"),
+          ]);
+          return [p.id, { views: v ?? 0, conversions: c ?? 0 }] as const;
+        }),
+      );
+      if (!cancelled) setStats(Object.fromEntries(entries));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [popups.items]);
 
   const submitCreate = async () => {
     const name = newName.trim();
@@ -162,6 +195,12 @@ function PopupsList() {
                 <th className="text-left px-4 py-2.5 font-medium">
                   {t("admin.popups.list.updated", { defaultValue: "Aktualizacja" })}
                 </th>
+                <th className="text-right px-4 py-2.5 font-medium">
+                  {isPl ? "Wyświetlenia" : "Views"}
+                </th>
+                <th className="text-right px-4 py-2.5 font-medium">
+                  {isPl ? "Konwersje" : "Conversions"}
+                </th>
                 <th className="text-left px-4 py-2.5 font-medium">
                   {t("admin.popups.list.active", { defaultValue: "Aktywny" })}
                 </th>
@@ -190,6 +229,18 @@ function PopupsList() {
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">
                     {new Date(p.updated_at).toLocaleDateString(dateLocale)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                    {stats[p.id]?.views ?? 0}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                    {stats[p.id]?.conversions ?? 0}
+                    {(() => {
+                      const st = stats[p.id];
+                      return st && st.views > 0
+                        ? ` (${Math.round((st.conversions / st.views) * 100)}%)`
+                        : "";
+                    })()}
                   </td>
                   <td className="px-4 py-2.5">
                     <Switch
