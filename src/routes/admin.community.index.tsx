@@ -185,6 +185,27 @@ function CommunityOverview() {
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ polls_enabled: v })}
             />
+            <ToggleRow
+              label={isPl ? "Program współtwórców" : "Contributor program"}
+              hint={isPl ? "Zgłoszenia gościnne" : "Guest submissions"}
+              checked={modules?.contributor_program_enabled ?? true}
+              disabled={saveModules.isPending || !modules}
+              onChange={(v) => saveModules.mutate({ contributor_program_enabled: v })}
+            />
+            <ToggleRow
+              label={isPl ? "Odznaki" : "Badges"}
+              hint={isPl ? "Odznaki profilowe" : "Profile badges"}
+              checked={modules?.badges_enabled ?? true}
+              disabled={saveModules.isPending || !modules}
+              onChange={(v) => saveModules.mutate({ badges_enabled: v })}
+            />
+            <ToggleRow
+              label={isPl ? "Powiadomienia push" : "Push notifications"}
+              hint={isPl ? "Web Push i digesty" : "Web Push and digests"}
+              checked={modules?.push_enabled ?? true}
+              disabled={saveModules.isPending || !modules}
+              onChange={(v) => saveModules.mutate({ push_enabled: v })}
+            />
           </div>
 
           <div className="pt-4 border-t border-border/60 space-y-2">
