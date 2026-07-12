@@ -302,7 +302,10 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     list_style: "circle",
     wide_align_max_width: 1600,
     image_caption_left_border: false,
-    quick_view_info: true,
+    // Domyślnie OFF: pasek quick-view dublował datę i czas czytania, które
+    // PostOverlayMeta pokazuje już przy tytule (audyt UX: "kaskada meta").
+    // Redakcja może włączyć per-wpis lub globalnie w ustawieniach layoutu.
+    quick_view_info: false,
     show_post_tags_bar: true,
     show_author_card: false,
     show_prev_next: false,
