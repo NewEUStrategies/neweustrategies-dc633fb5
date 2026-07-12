@@ -194,8 +194,8 @@ export function ThemeDesignPane() {
     // server snapshot, so we don't overwrite unrelated columns.
     if (overlayData && overlayDraft) {
       const patch: Record<string, unknown> = {};
-      const draftRec = overlayDraft as Record<string, unknown>;
-      const dataRec = overlayData as Record<string, unknown>;
+      const draftRec = overlayDraft as unknown as Record<string, unknown>;
+      const dataRec = overlayData as unknown as Record<string, unknown>;
       for (const key of Object.keys(draftRec)) {
         if (draftRec[key] !== dataRec[key]) {
           patch[key] = draftRec[key];
