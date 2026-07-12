@@ -9,7 +9,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
-import { runJobsTick, secretsEqual } from "@/lib/server/jobsTick.server";
 
 const limiter = createRateLimiter({ capacity: 10, refillPerSec: 0.5 });
 
@@ -17,6 +16,10 @@ export const Route = createFileRoute("/api/public/jobs-tick")({
   server: {
     handlers: {
       POST: async () => {
+        // Moduł ticku ciągnie kod server-only (service role, Resend, VAPID) -
+        // import dynamiczny w handlerze, żeby nie trafił do bundla klienta
+        // (route tree importuje pliki tras także po stronie klienta).
+        const { runJobsTick, secretsEqual } = await import("@/lib/server/jobsTick.server");
         const req = getRequest();
         if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) {
           return new Response(null, { status: 429 });

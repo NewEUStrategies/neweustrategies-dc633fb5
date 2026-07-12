@@ -37,7 +37,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
-import { getRequest } from "@tanstack/react-start/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
@@ -115,10 +114,14 @@ function esc(v: string): string {
   );
 }
 
-function originFromRequest(): string {
+async function originFromRequest(): Promise<string> {
   const envUrl = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL;
   if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
+    // Dynamicznie: eksport tickNewsletterCampaigns (zwykła funkcja) trzyma ten
+    // moduł w grafie klienta, a statyczny import react-start/server wywala
+    // import-protection buildu.
+    const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     return new URL(req.url).origin;
   } catch {
@@ -553,7 +556,7 @@ async function runCampaignSend(
       .eq("id", camp.id);
 
     const from = buildFrom(camp);
-    const origin = originFromRequest();
+    const origin = await originFromRequest();
 
     for (let i = 0; i < pending.length; i += BATCH_SIZE) {
       const chunk = pending.slice(i, i + BATCH_SIZE);
