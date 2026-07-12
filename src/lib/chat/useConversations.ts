@@ -61,6 +61,7 @@ function hiddenPeerRow(conversation: ConversationRow, userId: string): Participa
     archived_at: null,
     muted_until: null,
     cleared_before: null,
+    role: "member",
     created_at: conversation.created_at,
     updated_at: conversation.created_at,
   };
