@@ -239,6 +239,13 @@ function AdminShellInner({
           }),
         },
         {
+          to: "/admin/community",
+          icon: Users,
+          label: t("admin.nav.community", {
+            defaultValue: lang === "pl" ? "Społeczność" : "Community",
+          }),
+        },
+        {
           to: "/admin/comments",
           icon: MessageCircle,
           label: t("admin.nav.comments", {
