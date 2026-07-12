@@ -109,6 +109,7 @@ import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-t
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
 import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open'
 import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
+import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-tick'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
@@ -644,6 +645,11 @@ const ApiPublicNlClickRoute = ApiPublicNlClickRouteImport.update({
   path: '/api/public/nl-click',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
+  id: '/api/public/jobs-tick',
+  path: '/api/public/jobs-tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   id: '/api/public/client-errors',
   path: '/api/public/client-errors',
@@ -933,6 +939,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
@@ -1062,6 +1069,7 @@ export interface FileRoutesByTo {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
@@ -1197,6 +1205,7 @@ export interface FileRoutesById {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
@@ -1333,6 +1342,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
@@ -1462,6 +1472,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
@@ -1596,6 +1607,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
@@ -1653,6 +1665,7 @@ export interface RootRouteChildren {
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
+  ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
   ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
   ApiPublicNlOpenRoute: typeof ApiPublicNlOpenRoute
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
@@ -2365,6 +2378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNlClickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs-tick': {
+      id: '/api/public/jobs-tick'
+      path: '/api/public/jobs-tick'
+      fullPath: '/api/public/jobs-tick'
+      preLoaderRoute: typeof ApiPublicJobsTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/client-errors': {
       id: '/api/public/client-errors'
       path: '/api/public/client-errors'
@@ -2910,6 +2930,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
+  ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
   ApiPublicNlClickRoute: ApiPublicNlClickRoute,
   ApiPublicNlOpenRoute: ApiPublicNlOpenRoute,
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,

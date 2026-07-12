@@ -49,6 +49,24 @@ interface FormState {
   from_email: string;
   reply_to: string;
   audience_filter: AudienceFilter;
+  /** Wartość <input type=datetime-local> (czas lokalny); "" = bez planu. */
+  scheduled_at_local: string;
+}
+
+/** ISO (UTC) -> wartość datetime-local w strefie przeglądarki. */
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Wartość datetime-local -> ISO (UTC); pusta/niepoprawna -> null. */
+function localInputToIso(v: string): string | null {
+  if (!v.trim()) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 function CampaignEditor() {
@@ -86,6 +104,7 @@ function CampaignEditor() {
         from_email: campaign.from_email ?? "",
         reply_to: campaign.reply_to ?? "",
         audience_filter: campaign.audience_filter ?? {},
+        scheduled_at_local: isoToLocalInput(campaign.scheduled_at),
       });
     }
   }, [campaign, form]);
@@ -115,6 +134,7 @@ function CampaignEditor() {
           from_email: state.from_email || null,
           reply_to: state.reply_to || null,
           audience_filter: state.audience_filter,
+          scheduled_at: localInputToIso(state.scheduled_at_local),
         },
       }),
     onSuccess: () => {
@@ -131,7 +151,20 @@ function CampaignEditor() {
   });
 
   const sendMut = useMutation({
-    mutationFn: () => send({ data: { id } }),
+    // Wysyłka idzie porcjami (MAX_EMAILS_PER_INVOCATION na request) - pętla
+    // kontynuuje aż done, odświeżając licznik między porcjami. Zamknięcie
+    // karty NIE przerywa kampanii trwale: tick crona / ponowne wejście
+    // podejmie ją dzięki oddanej dzierżawie.
+    mutationFn: async () => {
+      let res = await send({ data: { id } });
+      let guard = 0;
+      while (!res.done && guard < 500) {
+        guard++;
+        qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+        res = await send({ data: { id } });
+      }
+      return res;
+    },
     onSuccess: (res) => {
       toast.success(
         isPl
@@ -153,6 +186,7 @@ function CampaignEditor() {
   }
 
   const readonly = campaign.status === "sending" || campaign.status === "sent";
+  const canResume = campaign.status === "sending" && !sendMut.isPending;
 
   const toggleLang = (lang: "pl" | "en", on: boolean) => {
     const current = form.audience_filter.languages ?? [];
@@ -198,6 +232,12 @@ function CampaignEditor() {
             <Save className="w-4 h-4 mr-2" />
             {isPl ? "Zapisz" : "Save"}
           </Button>
+          {canResume && (
+            <Button variant="outline" onClick={() => sendMut.mutate()}>
+              <Send className="w-4 h-4 mr-2" />
+              {isPl ? "Wznów wysyłkę" : "Resume sending"}
+            </Button>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button disabled={readonly || sendMut.isPending}>
@@ -241,6 +281,34 @@ function CampaignEditor() {
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   disabled={readonly}
                 />
+              </div>
+              <div>
+                <Label>{isPl ? "Zaplanuj wysyłkę" : "Schedule send"}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="datetime-local"
+                    value={form.scheduled_at_local}
+                    onChange={(e) => setForm({ ...form, scheduled_at_local: e.target.value })}
+                    disabled={readonly}
+                    className="max-w-[240px]"
+                  />
+                  {form.scheduled_at_local && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={readonly}
+                      onClick={() => setForm({ ...form, scheduled_at_local: "" })}
+                    >
+                      {isPl ? "Usuń plan" : "Clear"}
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {isPl
+                    ? "Po zapisaniu kampania przejdzie w status „Zaplanowana” i wyśle się automatycznie o wskazanym czasie."
+                    : "After saving, the campaign becomes “Scheduled” and sends automatically at the chosen time."}
+                </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>

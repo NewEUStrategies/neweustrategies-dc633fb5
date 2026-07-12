@@ -17,16 +17,23 @@
 //  - Zmienne `{{firstName}}`, `{{lastName}}`, `{{email}}` są renderowane
 //    per odbiorca.
 //
-// Harmonogram (opportunistic tick - patrz docs/ARCHITECTURE.md §2.6):
-//  - `processDueCampaigns` wyszukuje kampanie `scheduled` z `scheduled_at <= now()`
-//    i odpala dla nich tę samą ścieżkę wysyłki co ręczny `sendCampaign`
-//    (max DUE_CAMPAIGNS_PER_TICK = 3 na wywołanie, żeby ograniczyć czas requestu).
-//    Wysyłka wymaga HTTP env (RESEND_API_KEY), więc pg_cron nie może jej
-//    wykonać - tick odpala się przy wejściu admina na listę kampanii.
-//  - Odzyskiwanie po crashu: kampania wisząca w `sending` dłużej niż
-//    20 minut może zostać ponownie „zaklamowana" przez ręczny `sendCampaign`.
-//    Wznowienie jest idempotentne: odbiorcy z logu ze statusem `sent`
+// Praca porcjami + dzierżawa (od 20260713170000):
+//  - jedno wywołanie wysyła najwyżej MAX_EMAILS_PER_INVOCATION e-maili
+//    i ODDAJE dzierżawę (lease_until=NULL) - koniec z jednym requestem
+//    trzymanym przez całą listę (timeout na dużych listach). Kampania
+//    w `sending` bez aktywnej dzierżawy jest natychmiast wznawialna
+//    przez UI, drugiego admina albo automatyczny tick.
+//  - Wznowienie jest idempotentne: odbiorcy z logu ze statusem `sent`
 //    nigdy nie dostają wiadomości drugi raz; `failed`/`skipped` są ponawiani.
+//
+// Harmonogram:
+//  - automatyczny: pg_cron + pg_net POST-uje co minutę na
+//    /api/public/jobs-tick (sekret w job_runner_settings), który woła
+//    `tickNewsletterCampaigns` cross-tenant - kampanie zaplanowane wysyłają
+//    się BEZ udziału człowieka (SQL sam nie może: wysyłka wymaga env
+//    RESEND_API_KEY, stąd wywołanie HTTP do aplikacji).
+//  - zapasowy (opportunistic, docs/ARCHITECTURE.md §2.6): `processDueCampaigns`
+//    przy wejściu admina na listę kampanii / overview + przycisk ręczny.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
@@ -40,8 +47,13 @@ type DbClient = SupabaseClient<Database>;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 1100; // Resend free plan ~1 msg/s
-const STUCK_SENDING_MS = 20 * 60 * 1000; // po tylu ms "sending" uznajemy za martwe
 const DUE_CAMPAIGNS_PER_TICK = 3; // limit kampanii odpalanych w jednym ticku
+// Górna granica e-maili wysłanych w JEDNYM wywołaniu server fn / ticku:
+// ~200 * (1.1s / 20) ≈ 12 s requestu - bezpiecznie poniżej timeoutów runtime.
+const MAX_EMAILS_PER_INVOCATION = 200;
+// Dzierżawa aktywnego procesora: chroni przed równoległym podwójnym
+// przetwarzaniem; wygasa sama, gdyby proces zginął w trakcie porcji.
+const LEASE_MS = 3 * 60 * 1000;
 
 const AudienceFilter = z.object({
   languages: z
@@ -84,6 +96,8 @@ export interface CampaignRow {
   audience_filter: AudienceFilter;
   status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "cancelled";
   scheduled_at: string | null;
+  /** Dzierżawa aktywnego procesora (NULL/przeszłość = wznawialna). */
+  lease_until: string | null;
   started_at: string | null;
   finished_at: string | null;
   recipient_count: number;
@@ -307,14 +321,21 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
 export const sendCampaign = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
-  .handler(async ({ data, context }): Promise<{ ok: true; sent: number; failed: number }> => {
-    const tenantId = await getTenantId(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const camp = await claimCampaign(supabaseAdmin, data.id, tenantId, "manual");
-    if (!camp) throw new Error("campaign_not_sendable");
-    const { sent, failed } = await runCampaignSend(supabaseAdmin, camp, tenantId);
-    return { ok: true, sent, failed };
-  });
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; sent: number; failed: number; done: boolean; remaining: number }> => {
+      const tenantId = await getTenantId(context);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const camp = await claimCampaign(supabaseAdmin, data.id, tenantId, "manual");
+      if (!camp) throw new Error("campaign_not_sendable");
+      const result = await runCampaignSend(supabaseAdmin, camp, tenantId, {
+        maxEmails: MAX_EMAILS_PER_INVOCATION,
+      });
+      return { ok: true, ...result };
+    },
+  );
 
 // ----------------------------------------------------------------------------
 // PROCESS DUE CAMPAIGNS (opportunistic tick)
@@ -324,67 +345,133 @@ export const sendCampaign = createServerFn({ method: "POST" })
 // bo wysyłka wymaga env HTTP: RESEND_API_KEY / LOVABLE_API_KEY).
 export const processDueCampaigns = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .handler(async ({ context }): Promise<{ fired: number }> => {
+  .handler(async ({ context }): Promise<{ fired: number; continued: number; sent: number }> => {
     const tenantId = await getTenantId(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: due, error } = await supabaseAdmin
-      .from("newsletter_campaigns")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("status", "scheduled")
-      .lte("scheduled_at", new Date().toISOString())
-      .order("scheduled_at", { ascending: true })
-      .limit(DUE_CAMPAIGNS_PER_TICK);
-    if (error) throw new Error(error.message);
+    return tickNewsletterCampaigns(supabaseAdmin, { tenantId });
+  });
 
-    let fired = 0;
-    for (const row of due ?? []) {
-      // Atomowy claim gwarantuje, że równoległy tick (druga karta admina)
-      // nie odpali tej samej kampanii dwa razy.
-      const camp = await claimCampaign(supabaseAdmin, row.id, tenantId, "due");
+/**
+ * Wspólny tick wysyłki: (1) odpala zaległe kampanie `scheduled`,
+ * (2) kontynuuje kampanie `sending` z oddaną/wygasłą dzierżawą.
+ * Praca ograniczona budżetem e-maili na wywołanie; wywoływany przez
+ * staff-owy `processDueCampaigns` (tenant-scoped) oraz przez
+ * /api/public/jobs-tick (cross-tenant, pg_cron + pg_net).
+ */
+export async function tickNewsletterCampaigns(
+  admin: DbClient,
+  opts: { tenantId?: string; maxEmails?: number } = {},
+): Promise<{ fired: number; continued: number; sent: number }> {
+  const budgetTotal = Math.max(1, opts.maxEmails ?? MAX_EMAILS_PER_INVOCATION);
+  let budget = budgetTotal;
+  let fired = 0;
+  let continued = 0;
+  let sentTotal = 0;
+
+  // (1) Zaległe kampanie zaplanowane.
+  let dueQ = admin
+    .from("newsletter_campaigns")
+    .select("id, tenant_id")
+    .eq("status", "scheduled")
+    .lte("scheduled_at", new Date().toISOString())
+    .order("scheduled_at", { ascending: true })
+    .limit(DUE_CAMPAIGNS_PER_TICK);
+  if (opts.tenantId) dueQ = dueQ.eq("tenant_id", opts.tenantId);
+  const { data: due, error } = await dueQ;
+  if (error) throw new Error(error.message);
+
+  for (const row of due ?? []) {
+    if (budget <= 0) break;
+    // Atomowy claim gwarantuje, że równoległy tick (druga karta admina,
+    // cron) nie odpali tej samej kampanii dwa razy.
+    const camp = await claimCampaign(admin, row.id, row.tenant_id, "due");
+    if (!camp) continue;
+    fired++;
+    try {
+      const r = await runCampaignSend(admin, camp, row.tenant_id, { maxEmails: budget });
+      sentTotal += r.processed;
+      budget -= Math.min(budget, r.processed);
+    } catch {
+      // runCampaignSend oznaczył już kampanię jako failed - lecimy dalej,
+      // żeby jedna zepsuta kampania nie blokowała pozostałych zaległych.
+    }
+  }
+
+  // (2) Kontynuacje: `sending` bez aktywnej dzierżawy (porcja się skończyła
+  // albo poprzedni proces zginął). Idempotencja per odbiorca czyni wznowienie
+  // bezpiecznym.
+  if (budget > 0) {
+    let contQ = admin
+      .from("newsletter_campaigns")
+      .select("id, tenant_id")
+      .eq("status", "sending")
+      .or(`lease_until.is.null,lease_until.lt.${new Date().toISOString()}`)
+      .order("started_at", { ascending: true })
+      .limit(DUE_CAMPAIGNS_PER_TICK);
+    if (opts.tenantId) contQ = contQ.eq("tenant_id", opts.tenantId);
+    const { data: cont, error: contErr } = await contQ;
+    if (contErr) throw new Error(contErr.message);
+    for (const row of cont ?? []) {
+      if (budget <= 0) break;
+      const camp = await claimCampaign(admin, row.id, row.tenant_id, "continue");
       if (!camp) continue;
-      fired++;
+      continued++;
       try {
-        await runCampaignSend(supabaseAdmin, camp, tenantId);
+        const r = await runCampaignSend(admin, camp, row.tenant_id, { maxEmails: budget });
+        sentTotal += r.processed;
+        budget -= Math.min(budget, r.processed);
       } catch {
-        // runCampaignSend oznaczył już kampanię jako failed - lecimy dalej,
-        // żeby jedna zepsuta kampania nie blokowała pozostałych zaległych.
+        /* jw. - kampania oznaczona jako failed */
       }
     }
-    return { fired };
-  });
+  }
+
+  return { fired, continued, sent: sentTotal };
+}
 
 // ----------------------------------------------------------------------------
 // Shared send pipeline (manual send + scheduled fire use the same path)
 // ----------------------------------------------------------------------------
 
 /**
- * Atomowe przejęcie kampanii (status → `sending`).
+ * Atomowe przejęcie kampanii (status → `sending` + świeża dzierżawa).
  *
  * - `due`: tylko `scheduled` z `scheduled_at <= now()` (tick nie może odpalić
  *   szkicu ani kampanii przełożonej w międzyczasie).
- * - `manual`: `draft`/`scheduled`/`failed` + odzyskiwanie po crashu -
- *   kampania wisząca w `sending` ze `started_at` starszym niż 20 minut
- *   może zostać przejęta ponownie (wznowienie jest idempotentne, patrz
- *   `runCampaignSend`).
+ * - `continue`: tylko `sending` z oddaną/wygasłą dzierżawą (kontynuacja
+ *   porcji lub przejęcie po martwym procesie).
+ * - `manual`: `draft`/`scheduled`/`failed` oraz `sending` bez aktywnej
+ *   dzierżawy (przycisk "Wyślij"/"Wznów" w UI).
+ *
+ * Dzierżawa (lease_until) wyklucza dwa równoległe procesory; wznowienie jest
+ * idempotentne per odbiorca (patrz `runCampaignSend`).
  */
 async function claimCampaign(
   admin: DbClient,
   campaignId: string,
   tenantId: string,
-  mode: "manual" | "due",
+  mode: "manual" | "due" | "continue",
 ): Promise<CampaignRow | null> {
+  const nowIso = new Date().toISOString();
+  const leaseIso = new Date(Date.now() + LEASE_MS).toISOString();
+  // lease_until jest nowsze niż wygenerowane typy -> cast payloadu.
   let q = admin
     .from("newsletter_campaigns")
-    .update({ status: "sending", started_at: new Date().toISOString(), last_error: null })
+    .update({
+      status: "sending",
+      started_at: nowIso,
+      last_error: null,
+      lease_until: leaseIso,
+    } as never)
     .eq("id", campaignId)
     .eq("tenant_id", tenantId);
   if (mode === "due") {
-    q = q.eq("status", "scheduled").lte("scheduled_at", new Date().toISOString());
+    q = q.eq("status", "scheduled").lte("scheduled_at", nowIso);
+  } else if (mode === "continue") {
+    q = q.eq("status", "sending").or(`lease_until.is.null,lease_until.lt.${nowIso}`);
   } else {
-    const staleBefore = new Date(Date.now() - STUCK_SENDING_MS).toISOString();
     q = q.or(
-      `status.in.(draft,scheduled,failed),and(status.eq.sending,started_at.lt.${staleBefore})`,
+      `status.in.(draft,scheduled,failed),and(status.eq.sending,lease_until.is.null),and(status.eq.sending,lease_until.lt.${nowIso})`,
     );
   }
   const { data: claimed, error } = await q.select("*").maybeSingle();
@@ -403,7 +490,13 @@ interface AudienceSubscriber {
 
 /**
  * Właściwa wysyłka zaklamowanej kampanii (wspólna dla `sendCampaign`
- * i `processDueCampaigns` - jedna implementacja pętli paczek).
+ * i ticku - jedna implementacja pętli paczek).
+ *
+ * Praca porcjami: wywołanie wysyła najwyżej `maxEmails` wiadomości, odnawia
+ * dzierżawę po każdej paczce i - jeśli zostali odbiorcy - ODDAJE dzierżawę
+ * (status zostaje `sending`, lease_until=NULL), zwracając done=false.
+ * Kolejne wywołanie (auto-kontynuacja UI, tick crona, drugi admin) podejmuje
+ * kampanię natychmiast.
  *
  * Idempotencja wznowienia: przed wysyłką czytamy log
  * `newsletter_campaign_recipients` - odbiorcy ze statusem `sent` są pomijani
@@ -417,7 +510,9 @@ async function runCampaignSend(
   admin: DbClient,
   camp: CampaignRow,
   tenantId: string,
-): Promise<{ sent: number; failed: number }> {
+  opts: { maxEmails?: number } = {},
+): Promise<{ sent: number; failed: number; done: boolean; remaining: number; processed: number }> {
+  const maxEmails = Math.max(1, opts.maxEmails ?? MAX_EMAILS_PER_INVOCATION);
   try {
     // Fetch audience.
     const filter = camp.audience_filter ?? {};
@@ -444,7 +539,9 @@ async function runCampaignSend(
     const alreadySent = new Set(
       (logged ?? []).filter((r) => r.status === "sent").map((r) => r.email),
     );
-    const pending = audience.filter((sub) => !alreadySent.has(sub.email));
+    const allPending = audience.filter((sub) => !alreadySent.has(sub.email));
+    // Porcja tego wywołania; reszta zostaje na kolejne wywołania/tick.
+    const pending = allPending.slice(0, maxEmails);
     const recipientCount = new Set([...audience.map((sub) => sub.email), ...alreadySent]).size;
 
     let sent = alreadySent.size;
@@ -523,14 +620,29 @@ async function runCampaignSend(
           }
         }),
       );
-      // best-effort progress update
+      // Postęp + odnowienie dzierżawy (proces wciąż żyje).
       await admin
         .from("newsletter_campaigns")
-        .update({ sent_count: sent, failed_count: failed })
+        .update({
+          sent_count: sent,
+          failed_count: failed,
+          lease_until: new Date(Date.now() + LEASE_MS).toISOString(),
+        } as never)
         .eq("id", camp.id);
       if (i + BATCH_SIZE < pending.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
+    }
+
+    const remaining = allPending.length - pending.length;
+    if (remaining > 0) {
+      // Porcja wyczerpana - kampania zostaje w `sending` z oddaną dzierżawą,
+      // gotowa do natychmiastowego podjęcia przez kolejne wywołanie.
+      await admin
+        .from("newsletter_campaigns")
+        .update({ sent_count: sent, failed_count: failed, lease_until: null } as never)
+        .eq("id", camp.id);
+      return { sent, failed, done: false, remaining, processed: pending.length };
     }
 
     const finalStatus = failed > 0 && sent === 0 ? "failed" : "sent";
@@ -541,10 +653,11 @@ async function runCampaignSend(
         sent_count: sent,
         failed_count: failed,
         finished_at: new Date().toISOString(),
-      })
+        lease_until: null,
+      } as never)
       .eq("id", camp.id);
 
-    return { sent, failed };
+    return { sent, failed, done: true, remaining: 0, processed: pending.length };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markFailed(admin, camp.id, message);
@@ -649,7 +762,8 @@ async function markFailed(admin: DbClient, id: string, message: string): Promise
       status: "failed",
       last_error: message.slice(0, 500),
       finished_at: new Date().toISOString(),
-    })
+      lease_until: null,
+    } as never)
     .eq("id", id);
 }
 

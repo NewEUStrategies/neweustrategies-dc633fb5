@@ -2,7 +2,7 @@
 // Przy montowaniu odpala opportunistic tick (`processDueCampaigns`), który
 // wysyła zaległe kampanie zaplanowane - fallback zamiast pg_cron, bo wysyłka
 // wymaga env HTTP (RESEND_API_KEY). Patrz docs/ARCHITECTURE.md §2.6.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -26,6 +26,11 @@ import {
   processDueCampaigns,
   type CampaignRow,
 } from "@/lib/newsletter-campaigns.functions";
+import { getJobRunnerSettings, updateJobRunnerSettings } from "@/lib/newsletter-admin.functions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -94,12 +99,14 @@ const STATUS_META: Record<
   },
 };
 
-const STUCK_SENDING_MS = 20 * 60 * 1000;
-
-function isStuckSending(c: CampaignRow): boolean {
-  if (c.status !== "sending" || !c.started_at) return false;
-  const started = Date.parse(c.started_at);
-  return Number.isFinite(started) && Date.now() - started > STUCK_SENDING_MS;
+// Kampania w `sending` bez aktywnej dzierżawy = wznawialna natychmiast
+// (porcja się skończyła albo poprzedni proces zginął). Model lease zastąpił
+// dawną 20-minutową heurystykę "stuck".
+function isResumableSending(c: CampaignRow): boolean {
+  if (c.status !== "sending") return false;
+  if (!c.lease_until) return true;
+  const lease = Date.parse(c.lease_until);
+  return !Number.isFinite(lease) || lease < Date.now();
 }
 
 function CampaignsList() {
@@ -119,34 +126,45 @@ function CampaignsList() {
     queryFn: () => list(),
   });
 
-  // Opportunistic tick: raz przy montowaniu, fire-and-forget. Toast tylko
-  // gdy faktycznie coś zostało wysłane.
+  // Opportunistic tick: raz przy montowaniu + co 12 s, dopóki jakaś kampania
+  // jest w `sending` (kontynuacja porcji po zamkniętej karcie edytora, gdy
+  // cron/pg_net nie jest jeszcze skonfigurowany). Fire-and-forget; toast
+  // tylko gdy faktycznie coś ruszyło.
   const tickRan = useRef(false);
+  const anySending = campaigns.some((c) => c.status === "sending");
   useEffect(() => {
-    if (tickRan.current) return;
-    tickRan.current = true;
-    processDue()
-      .then((res) => {
-        if (res.fired > 0) {
-          toast.success(
-            isPl
-              ? `Wysłano ${res.fired} zaplanowanych kampanii`
-              : `Sent ${res.fired} scheduled campaigns`,
-          );
-          qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
-        }
-      })
-      .catch(() => undefined);
-  }, [processDue, qc, isPl]);
+    const tick = () =>
+      processDue()
+        .then((res) => {
+          if (res.fired > 0 || res.continued > 0) {
+            if (res.fired > 0) {
+              toast.success(
+                isPl
+                  ? `Wysłano ${res.fired} zaplanowanych kampanii`
+                  : `Sent ${res.fired} scheduled campaigns`,
+              );
+            }
+            qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+          }
+        })
+        .catch(() => undefined);
+    if (!tickRan.current) {
+      tickRan.current = true;
+      void tick();
+    }
+    if (!anySending) return;
+    const handle = setInterval(tick, 12_000);
+    return () => clearInterval(handle);
+  }, [processDue, qc, isPl, anySending]);
 
   const processDueMut = useMutation({
     mutationFn: () => processDue(),
     onSuccess: (res) => {
-      if (res.fired > 0) {
+      if (res.fired > 0 || res.continued > 0) {
         toast.success(
           isPl
-            ? `Wysłano ${res.fired} zaplanowanych kampanii`
-            : `Sent ${res.fired} scheduled campaigns`,
+            ? `Uruchomiono: ${res.fired} zaplanowanych, wznowiono: ${res.continued}`
+            : `Fired: ${res.fired} scheduled, resumed: ${res.continued}`,
         );
       } else {
         toast.info(isPl ? "Brak zaległych kampanii" : "No due campaigns");
@@ -260,7 +278,7 @@ function CampaignsList() {
                 const meta = STATUS_META[c.status];
                 const Icon = meta.icon;
                 const canDelete = c.status !== "sending" && c.status !== "sent";
-                const stuck = isStuckSending(c);
+                const stuck = isResumableSending(c);
                 const resuming = resumeMut.isPending && resumeMut.variables === c.id;
                 return (
                   <TableRow key={c.id}>
@@ -290,7 +308,7 @@ function CampaignsList() {
                             <RefreshCw
                               className={`w-3 h-3 mr-1 ${resuming ? "animate-spin" : ""}`}
                             />
-                            {isPl ? "Zablokowana? Odzyskaj" : "Stuck? Recover"}
+                            {isPl ? "Wznów wysyłkę" : "Resume sending"}
                           </Button>
                         )}
                       </div>
@@ -349,6 +367,88 @@ function CampaignsList() {
           </TableBody>
         </Table>
       </div>
+
+      <JobRunnerCard isPl={isPl} />
     </div>
+  );
+}
+
+// Konfiguracja automatycznego ticku: pg_cron + pg_net POST-ują co minutę na
+// /api/public/jobs-tick (sekret w bazie). Bez tego zaplanowane kampanie
+// wysyłają się dopiero przy wejściu admina na tę stronę.
+function JobRunnerCard({ isPl }: { isPl: boolean }) {
+  const qc = useQueryClient();
+  const getSettings = useServerFn(getJobRunnerSettings);
+  const saveSettings = useServerFn(updateJobRunnerSettings);
+  const { data } = useQuery({
+    queryKey: ["admin", "job-runner-settings"],
+    queryFn: () => getSettings(),
+  });
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [baseUrl, setBaseUrl] = useState<string | null>(null);
+  const effEnabled = enabled ?? data?.enabled ?? false;
+  const effBaseUrl = baseUrl ?? data?.base_url ?? "";
+
+  const saveMut = useMutation({
+    mutationFn: () => saveSettings({ data: { enabled: effEnabled, base_url: effBaseUrl } }),
+    onSuccess: () => {
+      toast.success(isPl ? "Zapisano ustawienia automatu" : "Runner settings saved");
+      qc.invalidateQueries({ queryKey: ["admin", "job-runner-settings"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">
+          {isPl ? "Automatyczna wysyłka (cron)" : "Automatic sending (cron)"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground m-0">
+          {isPl
+            ? "Gdy włączone, baza (pg_cron + pg_net) co minutę wywołuje aplikację i wysyła zaplanowane kampanie oraz kontynuuje przerwane porcje - bez otwartego panelu admina. Bez tego wysyłka zaplanowana rusza dopiero przy wejściu na tę stronę."
+            : "When enabled, the database (pg_cron + pg_net) pings the app every minute to send scheduled campaigns and continue interrupted batches - no open admin tab required. Otherwise scheduled sending only fires when this page is visited."}
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="runner-url">
+              {isPl ? "Publiczny adres aplikacji" : "Public app URL"}
+            </Label>
+            <Input
+              id="runner-url"
+              type="url"
+              placeholder="https://neweuropeanstrategies.com"
+              value={effBaseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              className="w-[320px] max-w-full"
+            />
+          </div>
+          <label className="flex h-10 items-center gap-2 text-sm">
+            <Switch checked={effEnabled} onCheckedChange={(v) => setEnabled(v)} />
+            {isPl ? "Włączone" : "Enabled"}
+          </label>
+          <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+            {isPl ? "Zapisz" : "Save"}
+          </Button>
+          {typeof window !== "undefined" && !effBaseUrl && (
+            <Button variant="ghost" size="sm" onClick={() => setBaseUrl(window.location.origin)}>
+              {isPl ? "Użyj bieżącej domeny" : "Use current domain"}
+            </Button>
+          )}
+        </div>
+        {data?.secret_preview && (
+          <p className="text-xs text-muted-foreground m-0">
+            {isPl ? "Sekret ticku (podgląd):" : "Tick secret (preview):"}{" "}
+            <code>{data.secret_preview}</code>
+            {" · "}
+            {isPl
+              ? "endpoint: POST /api/public/jobs-tick (nagłówek x-jobs-secret)"
+              : "endpoint: POST /api/public/jobs-tick (x-jobs-secret header)"}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
