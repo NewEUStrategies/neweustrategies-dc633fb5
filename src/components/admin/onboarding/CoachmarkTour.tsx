@@ -74,28 +74,37 @@ export function CoachmarkTour({ controller }: { controller: TourController }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const isLast = stepIndex + 1 >= totalSteps;
 
-  // Measure the anchor for the active step; re-measure on resize/scroll.
+  // Measure the anchor for the active step, and re-read (but never re-scroll)
+  // on resize/scroll. The one-time scrollIntoView is deliberately kept OUT of
+  // the resize/scroll handler: a handler that itself scrolls would fight the
+  // user's own scrolling (snap-back) and re-trigger during the smooth-scroll
+  // animation. So we scroll the anchor into view once when the step activates,
+  // then the listeners only update the rect via getBoundingClientRect().
   useLayoutEffect(() => {
     if (!active || !currentStep?.anchor) {
       setRect(null);
       return;
     }
-    const measure = () => {
-      const el = document.querySelector<HTMLElement>(`[data-tour="${currentStep.anchor}"]`);
+    const anchor = currentStep.anchor;
+    const reposition = () => {
+      const el = document.querySelector<HTMLElement>(`[data-tour="${anchor}"]`);
       if (!el) {
         setRect(null);
-        return;
+        return null;
       }
-      el.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
       const r = el.getBoundingClientRect();
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      return el;
     };
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
+    // Scroll the anchor into view exactly once per step activation…
+    const el = reposition();
+    el?.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+    // …then only re-read the rect on resize/scroll (no further scrolling).
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
     return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
     };
   }, [active, currentStep, reduced, stepIndex]);
 
