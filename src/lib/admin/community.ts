@@ -15,6 +15,9 @@ export interface CommunityModulesSettings {
   events_enabled: boolean;
   qa_enabled: boolean;
   polls_enabled: boolean;
+  contributor_program_enabled: boolean;
+  badges_enabled: boolean;
+  push_enabled: boolean;
   default_message_ttl_seconds: number | null;
 }
 
@@ -23,6 +26,9 @@ export const COMMUNITY_MODULES_DEFAULTS: CommunityModulesSettings = {
   events_enabled: true,
   qa_enabled: true,
   polls_enabled: true,
+  contributor_program_enabled: true,
+  badges_enabled: true,
+  push_enabled: true,
   default_message_ttl_seconds: null,
 };
 
