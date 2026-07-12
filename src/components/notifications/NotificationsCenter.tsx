@@ -40,6 +40,13 @@ import {
   TOGGLEABLE_NOTIFICATION_KINDS,
   isNotificationKindEnabled,
 } from "@/lib/notifications/preferences";
+import {
+  disablePushForThisBrowser,
+  enablePushForThisBrowser,
+  isPushSupported,
+  vapidPublicKey,
+} from "@/lib/notifications/push";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 type Lang = "pl" | "en";
@@ -272,6 +279,37 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
           }),
         ),
     });
+  };
+
+  // Kanały doręczeń: push wymaga zgody przeglądarki + zapisu subskrypcji,
+  // więc przełącznik ma własny stan zajętości zamiast updatePrefs.isPending.
+  const { user } = useAuth();
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushAvailable = isPushSupported() && !!vapidPublicKey();
+  const handlePushToggle = async (enabled: boolean) => {
+    if (!user) return;
+    setPushBusy(true);
+    try {
+      if (enabled) {
+        await enablePushForThisBrowser(user.id);
+      } else {
+        await disablePushForThisBrowser();
+      }
+      patch({ push_enabled: enabled });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      toast.error(
+        code === "push_denied"
+          ? t("notifications.settings.pushDenied", {
+              defaultValue: "Przeglądarka odmówiła zgody na powiadomienia.",
+            })
+          : t("notifications.settings.pushError", {
+              defaultValue: "Nie udało się włączyć powiadomień push.",
+            }),
+      );
+    } finally {
+      setPushBusy(false);
+    }
   };
 
   const showInboxTabs = mode !== "preferences";
@@ -700,6 +738,87 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       disabled={updatePrefs.isPending}
                       onCheckedChange={(v) => patch({ group_by_conversation: v })}
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold">
+                  {t("notifications.settings.channelsHeader", {
+                    defaultValue: "Kanały doręczeń",
+                  })}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t("notifications.settings.channelsSubtitle", {
+                    defaultValue:
+                      "Powiadomienia poza aplikacją: push w przeglądarce i zbiorczy e-mail.",
+                  })}
+                </p>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+                    <div className="min-w-0">
+                      <Label htmlFor="pref-push" className="text-sm font-normal">
+                        {t("notifications.settings.push", {
+                          defaultValue: "Powiadomienia push w tej przeglądarce",
+                        })}
+                      </Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {pushAvailable
+                          ? t("notifications.settings.pushHint", {
+                              defaultValue:
+                                "Alert pojawi się nawet przy zamkniętej karcie. Każde urządzenie włączasz osobno.",
+                            })
+                          : t("notifications.settings.pushUnsupported", {
+                              defaultValue:
+                                "Ta przeglądarka lub instalacja nie wspiera powiadomień push.",
+                            })}
+                      </p>
+                    </div>
+                    <Switch
+                      id="pref-push"
+                      checked={prefs.push_enabled}
+                      disabled={pushBusy || !pushAvailable || updatePrefs.isPending}
+                      onCheckedChange={(v) => void handlePushToggle(v)}
+                    />
+                  </div>
+                  <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+                    <div className="min-w-0">
+                      <Label htmlFor="pref-digest" className="text-sm font-normal">
+                        {t("notifications.settings.digest", {
+                          defaultValue: "Digest e-mail z nieprzeczytanych powiadomień",
+                        })}
+                      </Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t("notifications.settings.digestHint", {
+                          defaultValue:
+                            "Jedno zbiorcze podsumowanie zamiast pojedynczych e-maili.",
+                        })}
+                      </p>
+                    </div>
+                    <Select
+                      value={prefs.email_digest}
+                      onValueChange={(v) =>
+                        patch({ email_digest: v as NotificationPreferences["email_digest"] })
+                      }
+                      disabled={updatePrefs.isPending}
+                    >
+                      <SelectTrigger id="pref-digest" className="w-36 shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="off">
+                          {t("notifications.settings.digestOff", { defaultValue: "Wyłączony" })}
+                        </SelectItem>
+                        <SelectItem value="daily">
+                          {t("notifications.settings.digestDaily", { defaultValue: "Codziennie" })}
+                        </SelectItem>
+                        <SelectItem value="weekly">
+                          {t("notifications.settings.digestWeekly", {
+                            defaultValue: "Co tydzień",
+                          })}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

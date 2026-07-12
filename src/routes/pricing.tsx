@@ -6,6 +6,12 @@ import { Check, Minus, ShieldCheck, RefreshCcw, Zap } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
 import { planFeatures, planName, type AccessPlan } from "@/lib/billing/types";
+import {
+  parseTierBenefits,
+  tierName,
+  useCurrentTier,
+  useMembershipTiers,
+} from "@/lib/billing/tiers";
 import { PlanCard } from "@/components/billing/PlanCard";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -42,6 +48,8 @@ function PricingPage() {
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
+  const tiers = useMembershipTiers();
+  const currentTier = useCurrentTier();
   const faq = t("pricing.faq", { returnObjects: true }) as { q: string; a: string }[];
 
   // Przełącznik miesięcznie/rocznie: pokazywany tylko gdy w cenniku istnieją
@@ -96,6 +104,67 @@ function PricingPage() {
           {t("pricing.trust.instant")}
         </li>
       </ul>
+
+      {/* Warstwy członkostwa: co daje każda warstwa, niezależnie od tego,
+          którym planem (miesiąc/rok) się ją kupuje. */}
+      {(tiers.data?.length ?? 0) > 0 && (
+        <section aria-labelledby="tiers-heading" className="mb-12">
+          <h2 id="tiers-heading" className="sr-only">
+            {t("pricing.tiers.heading", {
+              defaultValue: lang === "en" ? "Membership tiers" : "Warstwy członkostwa",
+            })}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tiers.data!.map((tier) => {
+              const isCurrent = currentTier.data?.key === tier.key;
+              const grantingPlans = (plans.data ?? []).filter((p) => p.tier_key === tier.key);
+              return (
+                <div
+                  key={tier.id}
+                  className={`rounded-lg border p-5 ${
+                    isCurrent ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-lg font-semibold">{tierName(tier, lang)}</h3>
+                    {isCurrent && (
+                      <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
+                        {t("pricing.tiers.current", {
+                          defaultValue: lang === "en" ? "Your tier" : "Twoja warstwa",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  {(lang === "en" ? tier.description_en : tier.description_pl) && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {lang === "en" ? tier.description_en : tier.description_pl}
+                    </p>
+                  )}
+                  <ul className="mt-3 space-y-1.5">
+                    {parseTierBenefits(tier.benefits).map((b, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <Check
+                          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                          aria-hidden="true"
+                        />
+                        <span>{lang === "en" ? b.en : b.pl}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {grantingPlans.length > 0 && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {t("pricing.tiers.grantedBy", {
+                        defaultValue: lang === "en" ? "Included in:" : "W ramach planów:",
+                      })}{" "}
+                      {grantingPlans.map((p) => planName(p, lang)).join(", ")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {showToggle && (
         <div className="mb-8 flex justify-center">
