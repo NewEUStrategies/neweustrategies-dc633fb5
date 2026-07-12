@@ -189,3 +189,141 @@ function PollResults({
     </div>
   );
 }
+
+function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [qPl, setQPl] = useState("");
+  const [qEn, setQEn] = useState("");
+  const [opts, setOpts] = useState<Array<{ label_pl: string; label_en: string }>>([
+    { label_pl: "", label_en: "" },
+    { label_pl: "", label_en: "" },
+  ]);
+  const [endsAt, setEndsAt] = useState("");
+  const [status, setStatus] = useState<PollStatus>("draft");
+
+  const reset = () => {
+    setQPl(""); setQEn("");
+    setOpts([{ label_pl: "", label_en: "" }, { label_pl: "", label_en: "" }]);
+    setEndsAt(""); setStatus("draft");
+  };
+
+  const m = useMutation({
+    mutationFn: () =>
+      createPoll({
+        question_pl: qPl.trim(),
+        question_en: qEn.trim(),
+        options: opts.filter((o) => o.label_pl.trim() && o.label_en.trim()),
+        ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+        status,
+      }),
+    onSuccess: () => {
+      toast.success(isPl ? "Utworzono" : "Created");
+      onCreated();
+      setOpen(false);
+      reset();
+    },
+    onError: (e: Error) => toast.error(e.message || (isPl ? "Błąd" : "Failed")),
+  });
+
+  const validOptCount = opts.filter((o) => o.label_pl.trim() && o.label_en.trim()).length;
+  const canSubmit = qPl.trim().length > 0 && qEn.trim().length > 0 && validOptCount >= 2;
+
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        <Plus className="w-4 h-4 mr-1" />
+        {isPl ? "Nowa ankieta" : "New poll"}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{isPl ? "Nowa ankieta" : "New poll"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isPl ? "Pytanie (PL)" : "Question (PL)"}</Label>
+                <Input value={qPl} onChange={(e) => setQPl(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>{isPl ? "Pytanie (EN)" : "Question (EN)"}</Label>
+                <Input value={qEn} onChange={(e) => setQEn(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{isPl ? "Opcje" : "Options"}</Label>
+              {opts.map((o, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    placeholder={`PL #${i + 1}`}
+                    value={o.label_pl}
+                    onChange={(e) => {
+                      const next = [...opts];
+                      next[i] = { ...next[i], label_pl: e.target.value };
+                      setOpts(next);
+                    }}
+                  />
+                  <Input
+                    placeholder={`EN #${i + 1}`}
+                    value={o.label_en}
+                    onChange={(e) => {
+                      const next = [...opts];
+                      next[i] = { ...next[i], label_en: e.target.value };
+                      setOpts(next);
+                    }}
+                  />
+                  {opts.length > 2 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setOpts(opts.filter((_, j) => j !== i))}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpts([...opts, { label_pl: "", label_en: "" }])}
+                disabled={opts.length >= 8}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                {isPl ? "Dodaj opcję" : "Add option"}
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isPl ? "Koniec (opcjonalny)" : "Ends at (optional)"}</Label>
+                <Input
+                  type="datetime-local"
+                  value={endsAt}
+                  onChange={(e) => setEndsAt(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isPl ? "Status" : "Status"}</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as PollStatus)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
+                    <SelectItem value="open">{isPl ? "Otwarta" : "Open"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {isPl ? "Anuluj" : "Cancel"}
+            </Button>
+            <Button onClick={() => m.mutate()} disabled={!canSubmit || m.isPending}>
+              {isPl ? "Utwórz" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
