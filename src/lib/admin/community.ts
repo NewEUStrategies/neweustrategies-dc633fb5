@@ -323,11 +323,11 @@ export async function deletePoll(id: string): Promise<void> {
 }
 
 export async function fetchPollResults(pollId: string): Promise<Record<string, number>> {
-  const { data, error } = await supabase.from("poll_votes").select("option_id").eq("poll_id", pollId);
+  const { data, error } = await supabase.from("poll_votes").select("option_idx").eq("poll_id", pollId);
   if (error) throw error;
   const map: Record<string, number> = {};
   for (const row of data ?? []) {
-    const key = row.option_id as string;
+    const key = String(row.option_idx);
     map[key] = (map[key] ?? 0) + 1;
   }
   return map;
