@@ -322,6 +322,30 @@ export async function deletePoll(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface CreatePollInput {
+  question_pl: string;
+  question_en: string;
+  options: Array<{ label_pl: string; label_en: string }>;
+  ends_at: string | null;
+  status: PollStatus;
+}
+
+export async function createPoll(input: CreatePollInput): Promise<PollRow> {
+  const { data, error } = await supabase
+    .from("polls")
+    .insert({
+      question_pl: input.question_pl,
+      question_en: input.question_en,
+      options: input.options as unknown as Database["public"]["Tables"]["polls"]["Insert"]["options"],
+      ends_at: input.ends_at,
+      status: input.status,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchPollResults(pollId: string): Promise<Record<string, number>> {
   const { data, error } = await supabase.from("poll_votes").select("option_idx").eq("poll_id", pollId);
   if (error) throw error;
