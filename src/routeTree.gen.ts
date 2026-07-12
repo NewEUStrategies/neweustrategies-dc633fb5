@@ -107,6 +107,7 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
+import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
@@ -638,6 +639,11 @@ const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminCommunityRoute,
+} as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   id: '/api/public/vitals',
   path: '/api/public/vitals',
@@ -866,7 +872,7 @@ export interface FileRoutesByFullPath {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
-  '/admin/community': typeof AdminCommunityRoute
+  '/admin/community': typeof AdminCommunityRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -967,6 +973,7 @@ export interface FileRoutesByFullPath {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -1002,7 +1009,6 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
-  '/admin/community': typeof AdminCommunityRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -1100,6 +1106,7 @@ export interface FileRoutesByTo {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -1138,7 +1145,7 @@ export interface FileRoutesById {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
-  '/admin/community': typeof AdminCommunityRoute
+  '/admin/community': typeof AdminCommunityRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -1239,6 +1246,7 @@ export interface FileRoutesById {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -1379,6 +1387,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/admin/community/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -1414,7 +1423,6 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
-    | '/admin/community'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1512,6 +1520,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/admin/community'
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
@@ -1650,6 +1659,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/admin/community/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -2401,6 +2411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterIndexRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/community/': {
+      id: '/admin/community/'
+      path: '/'
+      fullPath: '/admin/community/'
+      preLoaderRoute: typeof AdminCommunityIndexRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/api/public/vitals': {
       id: '/api/public/vitals'
       path: '/api/public/vitals'
@@ -2690,6 +2707,18 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
   AdminAppearanceRouteChildren,
 )
 
+interface AdminCommunityRouteChildren {
+  AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
+}
+
+const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
+  AdminCommunityIndexRoute: AdminCommunityIndexRoute,
+}
+
+const AdminCommunityRouteWithChildren = AdminCommunityRoute._addFileChildren(
+  AdminCommunityRouteChildren,
+)
+
 interface AdminNewsletterCampaignsRouteChildren {
   AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
 }
@@ -2815,7 +2844,7 @@ interface AdminRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
-  AdminCommunityRoute: typeof AdminCommunityRoute
+  AdminCommunityRoute: typeof AdminCommunityRouteWithChildren
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCrmRoute: typeof AdminCrmRoute
@@ -2863,7 +2892,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,
-  AdminCommunityRoute: AdminCommunityRoute,
+  AdminCommunityRoute: AdminCommunityRouteWithChildren,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCrmRoute: AdminCrmRoute,
