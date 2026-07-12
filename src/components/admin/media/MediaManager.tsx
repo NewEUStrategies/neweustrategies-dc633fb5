@@ -1623,10 +1623,10 @@ function ListView({
                   <span className="truncate">{m.filename}</span>
                 </td>
                 <td className="px-3 py-1.5 text-muted-foreground">
-                  {m.mime_type ?? extOf(m.filename)}
+                  <span className="text-[10px] uppercase tracking-wide">{m.mime_type ?? extOf(m.filename)}</span>
                 </td>
                 <td className="px-3 py-1.5 text-right text-muted-foreground">
-                  {formatBytes(m.size_bytes)}
+                  <span className="text-[10px]">{formatBytes(m.size_bytes)}</span>
                 </td>
                 <td className="px-3 py-1.5 text-muted-foreground">
                   {new Date(m.created_at).toLocaleDateString()}
