@@ -67,6 +67,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSeoRouteImport } from './routes/admin.seo'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
+import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
@@ -84,7 +85,6 @@ import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaw
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
-import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
@@ -426,6 +426,11 @@ const AdminRedirectsRoute = AdminRedirectsRouteImport.update({
   path: '/redirects',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminReadingTimeRoute = AdminReadingTimeRouteImport.update({
+  id: '/reading-time',
+  path: '/reading-time',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
@@ -509,11 +514,6 @@ const AdminIconsRoute = AdminIconsRouteImport.update({
 const AdminGreetingsRoute = AdminGreetingsRouteImport.update({
   id: '/greetings',
   path: '/greetings',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminReadingTimeRoute = AdminReadingTimeRouteImport.update({
-  id: '/reading-time',
-  path: '/reading-time',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
@@ -813,7 +813,6 @@ export interface FileRoutesByFullPath {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
-  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
@@ -830,6 +829,7 @@ export interface FileRoutesByFullPath {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/seo': typeof AdminSeoRoute
@@ -939,7 +939,6 @@ export interface FileRoutesByTo {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
-  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
@@ -955,6 +954,7 @@ export interface FileRoutesByTo {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/seo': typeof AdminSeoRoute
@@ -1065,7 +1065,6 @@ export interface FileRoutesById {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
-  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
@@ -1082,6 +1081,7 @@ export interface FileRoutesById {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/seo': typeof AdminSeoRoute
@@ -1195,7 +1195,6 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/experiments'
     | '/admin/greetings'
-    | '/admin/reading-time'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/key-takeaways'
@@ -1212,6 +1211,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/seo'
@@ -1321,7 +1321,6 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/experiments'
     | '/admin/greetings'
-    | '/admin/reading-time'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/key-takeaways'
@@ -1337,6 +1336,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/seo'
@@ -1446,7 +1446,6 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/experiments'
     | '/admin/greetings'
-    | '/admin/reading-time'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/key-takeaways'
@@ -1463,6 +1462,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/seo'
@@ -1994,6 +1994,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRedirectsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/reading-time': {
+      id: '/admin/reading-time'
+      path: '/reading-time'
+      fullPath: '/admin/reading-time'
+      preLoaderRoute: typeof AdminReadingTimeRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/posts': {
       id: '/admin/posts'
       path: '/posts'
@@ -2111,13 +2118,6 @@ declare module '@tanstack/react-router' {
       path: '/greetings'
       fullPath: '/admin/greetings'
       preLoaderRoute: typeof AdminGreetingsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/reading-time': {
-      id: '/admin/reading-time'
-      path: '/reading-time'
-      fullPath: '/admin/reading-time'
-      preLoaderRoute: typeof AdminReadingTimeRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/experiments': {
@@ -2625,7 +2625,6 @@ interface AdminRouteChildren {
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
-  AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
   AdminKeyTakeawaysRoute: typeof AdminKeyTakeawaysRoute
@@ -2642,6 +2641,7 @@ interface AdminRouteChildren {
   AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
   AdminSeoRoute: typeof AdminSeoRoute
@@ -2670,7 +2670,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
-  AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
   AdminKeyTakeawaysRoute: AdminKeyTakeawaysRoute,
@@ -2687,6 +2686,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPopupsRoute: AdminPopupsRouteWithChildren,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminSeoRoute: AdminSeoRoute,
