@@ -191,4 +191,3 @@ function AuthorArchivePage() {
     </div>
   );
 }
-

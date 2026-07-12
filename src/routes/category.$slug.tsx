@@ -145,4 +145,3 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
     </div>
   );
 }
-

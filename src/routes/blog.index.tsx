@@ -27,7 +27,7 @@ export const Route = createFileRoute("/blog/")({
       url,
       lang,
       type: "website",
-      title: lang === "en" ? "Blog - New European Strategies" : "Blog - New European Strategies",
+      title: "Blog - New European Strategies",
       description:
         lang === "en"
           ? "Analyses, interviews and reports - the New European Strategies blog."

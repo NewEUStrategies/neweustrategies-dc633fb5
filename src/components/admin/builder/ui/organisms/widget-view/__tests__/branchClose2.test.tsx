@@ -31,7 +31,15 @@ vi.mock("@/integrations/supabase/client", () => {
     b.then = (r: (v: unknown) => unknown) => r({ data: db.tables[table] ?? [], error: null });
     return b;
   };
-  return { supabase: { from: (t: string) => mk(t), rpc: async () => ({ data: [], error: null }) } };
+  return {
+    supabase: {
+      from: (t: string) => mk(t),
+      rpc: async (name: string) => ({
+        data: name === "search_posts" ? (db.tables.posts ?? []) : [],
+        error: null,
+      }),
+    },
+  };
 });
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({

@@ -129,6 +129,13 @@ export function SearchButtonWidget({
       setActive((i) => Math.max(i - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // Search-on-submit mode (live results off): run the query inline and keep
+      // the popover open, rather than navigating away.
+      if (!liveResults) {
+        void runSearch(q);
+        setFocused(true);
+        return;
+      }
       const r = active >= 0 ? results[active] : undefined;
       if (r) {
         addRecentSearch(q);

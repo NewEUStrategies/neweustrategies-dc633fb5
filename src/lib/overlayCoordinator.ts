@@ -177,10 +177,7 @@ export type OverlaySlotOptions = {
  * when the overlay closes. Cancel a still-pending request with
  * `cancelOverlayRequest(id)`.
  */
-export function requestOverlaySlot(
-  id: string,
-  opts: OverlaySlotOptions = {},
-): Promise<() => void> {
+export function requestOverlaySlot(id: string, opts: OverlaySlotOptions = {}): Promise<() => void> {
   return new Promise((resolve) => {
     queue.push({
       id,

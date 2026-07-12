@@ -34,7 +34,10 @@ vi.mock("@/integrations/supabase/client", () => {
   return {
     supabase: {
       from: (t: string) => makeBuilder(t),
-      rpc: async () => ({ data: [], error: null }),
+      rpc: async (name: string) => ({
+        data: name === "search_posts" ? search.rows : [],
+        error: null,
+      }),
       auth: {
         getSession: async () => ({ data: { session: null }, error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
@@ -384,7 +387,7 @@ describe("search button widget (live search)", () => {
   it("debounces a query, shows results, then clears", async () => {
     search.rows = [{ id: "1", slug: "alpha", title_pl: "Alfa wynik", excerpt_pl: "opis" }];
     renderNode("search-button", { label_pl: "Szukaj", liveResults: "on", limit: 8 });
-    const input = screen.getByRole("textbox");
+    const input = screen.getByRole("combobox");
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "al" } });
     expect(await screen.findByText("Alfa wynik")).toBeTruthy();
@@ -396,7 +399,7 @@ describe("search button widget (live search)", () => {
   it("shows an empty state and supports Enter to search", async () => {
     search.rows = [];
     renderNode("search-button", { label_pl: "Find", liveResults: "off", limit: 5 }, { lang: "en" });
-    const input = screen.getByRole("textbox");
+    const input = screen.getByRole("combobox");
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "zz" } });
     fireEvent.keyDown(input, { key: "Enter" });

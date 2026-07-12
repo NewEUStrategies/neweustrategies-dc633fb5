@@ -144,7 +144,7 @@ export function KeyTakeaways({
     >
       {isPlaceholder && (
         <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-dashed border-current/30 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
-          {lang === "en" ? "Placeholder - fill in the takeaways" : "Placeholder - uzupełnij punkty"}
+          {lang === "en" ? "Placeholder - fill in the takeaways" : "Szkic - uzupełnij punkty"}
         </div>
       )}
       {variant === "card" ? (

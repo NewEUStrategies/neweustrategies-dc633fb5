@@ -40,7 +40,7 @@ interface Props {
 
 function fmtDate(iso: string, lang: Lang): string {
   try {
-    return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
+    return new Intl.DateTimeFormat(lang === "en" ? "en-US" : "pl-PL", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

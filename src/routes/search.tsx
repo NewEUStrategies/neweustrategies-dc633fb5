@@ -18,6 +18,8 @@ import {
   type SearchFilters,
 } from "@/lib/queries/archives";
 import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead } from "@/lib/seo/meta";
 import "@/lib/i18n-search";
 
 const SearchParams = z.object({
@@ -33,16 +35,18 @@ type SearchInput = z.infer<typeof SearchParams>;
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
   head: () => {
-    const lang = activeLang();
-    return {
-      meta: [
-        { title: lang === "en" ? "Search" : "Szukaj" },
-        {
-          name: "description",
-          content: lang === "en" ? "Article search" : "Wyszukiwarka wpisów",
-        },
-      ],
-    };
+    // Route through buildContentHead so /search emits the canonical + hreflang
+    // (x-default / pl / en) cluster like the other public routes, instead of a
+    // hand-rolled meta list that skipped it.
+    const url = getRequestUrl() || "/search";
+    const lang = activeLang(url);
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: lang === "en" ? "Search" : "Szukaj",
+      description: lang === "en" ? "Article search" : "Wyszukiwarka wpisów",
+    });
   },
   component: SearchPage,
   pendingComponent: () => <ArchiveSkeleton />,
