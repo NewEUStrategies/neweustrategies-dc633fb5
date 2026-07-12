@@ -309,7 +309,7 @@ export function useSetConversationMuted() {
     async (args: { conversationId: string; seconds: number | null }) => {
       const { error } = await supabase.rpc("chat_set_muted", {
         p_conversation_id: args.conversationId,
-        p_seconds: args.seconds,
+        p_seconds: args.seconds as number,
       });
       if (error) throw error;
     },
