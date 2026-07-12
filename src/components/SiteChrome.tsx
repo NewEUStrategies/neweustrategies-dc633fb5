@@ -36,14 +36,15 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     }),
   });
   const { user } = useAuth();
+  const community = useCommunityModules();
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
 
-  // Auth-gated: guests never trigger the dynamic import (SSR + first client
-  // render agree on `null`, so hydration is unaffected).
+  // Auth-gated + globalny toggle chat_enabled z site_settings.community_modules.
+  // Superadmin może wyłączyć chat globalnie z /admin/community bez rebuildu.
   const chatDock =
-    !user || isAdmin || isLogin ? null : (
+    !user || isAdmin || isLogin || !community.chat_enabled ? null : (
       <Suspense fallback={null}>
         <ChatDock />
       </Suspense>
