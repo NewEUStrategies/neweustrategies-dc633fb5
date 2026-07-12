@@ -1,4 +1,6 @@
-// Sticky sub-nav dla /admin/community/* (Chat / Events / Q&A).
+// Sticky sub-nav dla /admin/community/*.
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   MessageCircle,
