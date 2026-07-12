@@ -56,6 +56,11 @@ function hiddenPeerRow(conversation: ConversationRow, userId: string): Participa
     tenant_id: conversation.tenant_id,
     unread_count: 0,
     last_read_at: null,
+    last_delivered_at: null,
+    pinned_at: null,
+    archived_at: null,
+    muted_until: null,
+    cleared_before: null,
     created_at: conversation.created_at,
     updated_at: conversation.created_at,
   };
@@ -93,7 +98,42 @@ async function fetchConversations(uid: string): Promise<ConversationView[]> {
     }
     views.push({ conversation: entry.conversation, me: entry.me, peers: entry.peers });
   }
-  return views.sort((a, b) => lastActivity(b) - lastActivity(a));
+  // WhatsApp order: pinned first (newest pin on top), then by last activity.
+  return views.sort((a, b) => {
+    const aPin = a.me.pinned_at ? new Date(a.me.pinned_at).getTime() : null;
+    const bPin = b.me.pinned_at ? new Date(b.me.pinned_at).getTime() : null;
+    if (aPin !== null || bPin !== null) {
+      if (aPin === null) return 1;
+      if (bPin === null) return -1;
+      return bPin - aPin;
+    }
+    return lastActivity(b) - lastActivity(a);
+  });
+}
+
+/** Active vs archived split - every list surface hides archived by default. */
+export function splitArchived(views: ConversationView[]): {
+  active: ConversationView[];
+  archived: ConversationView[];
+} {
+  const active: ConversationView[] = [];
+  const archived: ConversationView[] = [];
+  for (const view of views) (view.me.archived_at ? archived : active).push(view);
+  return { active, archived };
+}
+
+/** PostgREST serializes `'infinity'::timestamptz` as the literal string. */
+export function mutedUntilMs(raw: string | null): number | null {
+  if (!raw) return null;
+  if (raw === "infinity") return Number.POSITIVE_INFINITY;
+  const ms = new Date(raw).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/** Whether the caller muted this conversation (now or forever). */
+export function isMuted(view: ConversationView, nowMs: number = Date.now()): boolean {
+  const until = mutedUntilMs(view.me.muted_until);
+  return until !== null && until > nowMs;
 }
 
 function conversationsQueryOptions(uid: string | undefined) {
@@ -221,6 +261,89 @@ export function useMarkConversationRead() {
 }
 
 // ---------------------------------------------------------------------------
+// Per-conversation settings (pin / archive / mute / clear / disappearing).
+// All server-enforced SECURITY DEFINER RPCs scoped to the caller's own
+// participant row within their tenant - the client only relays intent.
+// ---------------------------------------------------------------------------
+function useConversationSetting<TArgs>(
+  run: (args: TArgs) => Promise<void>,
+  alsoInvalidateMessages?: (args: TArgs) => string | null,
+) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: (_res, args) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
+      const conversationId = alsoInvalidateMessages?.(args);
+      if (conversationId) {
+        void qc.invalidateQueries({ queryKey: chatKeys.messages(user?.id, conversationId) });
+      }
+    },
+  });
+}
+
+export function useSetConversationPinned() {
+  return useConversationSetting(async (args: { conversationId: string; pinned: boolean }) => {
+    const { error } = await supabase.rpc("chat_set_pinned", {
+      p_conversation_id: args.conversationId,
+      p_pinned: args.pinned,
+    });
+    if (error) throw error;
+  });
+}
+
+export function useSetConversationArchived() {
+  return useConversationSetting(async (args: { conversationId: string; archived: boolean }) => {
+    const { error } = await supabase.rpc("chat_set_archived", {
+      p_conversation_id: args.conversationId,
+      p_archived: args.archived,
+    });
+    if (error) throw error;
+  });
+}
+
+/** seconds: null = unmute, -1 = forever, otherwise a bounded window. */
+export function useSetConversationMuted() {
+  return useConversationSetting(
+    async (args: { conversationId: string; seconds: number | null }) => {
+      const { error } = await supabase.rpc("chat_set_muted", {
+        p_conversation_id: args.conversationId,
+        p_seconds: args.seconds,
+      });
+      if (error) throw error;
+    },
+  );
+}
+
+/** "Clear chat for me" - history before this instant disappears for the caller only. */
+export function useClearConversationHistory() {
+  return useConversationSetting(
+    async (args: { conversationId: string }) => {
+      const { error } = await supabase.rpc("chat_clear_history", {
+        p_conversation_id: args.conversationId,
+      });
+      if (error) throw error;
+    },
+    (args) => args.conversationId,
+  );
+}
+
+/** Disappearing messages window for NEW messages (either participant may set it). */
+export function useSetMessageTtl() {
+  return useConversationSetting(
+    async (args: { conversationId: string; ttlSeconds: number | null }) => {
+      const { error } = await supabase.rpc("chat_set_message_ttl", {
+        p_conversation_id: args.conversationId,
+        p_ttl_seconds: args.ttlSeconds,
+      });
+      if (error) throw error;
+    },
+    (args) => args.conversationId,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Per-user realtime stream, shared app-wide. Any change to the caller's
 // participant rows (new conversation, unread bump from a peer's message, read
 // state synced from another tab) refreshes the conversations query - which
@@ -228,16 +351,32 @@ export function useMarkConversationRead() {
 // tableChannelHub (refcount na poziomie huba): niezależnie od liczby
 // subskrybentów istnieje dokładnie jeden websocketowy kanał.
 // ---------------------------------------------------------------------------
+// Delivery acks power the sender's ✓✓ tick. Debounced module-wide so a burst
+// of realtime events costs one RPC; the RPC itself no-ops when every own row
+// is already up to date (no realtime echo loop).
+let deliveredTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleMarkDelivered(): void {
+  if (deliveredTimer) return;
+  deliveredTimer = setTimeout(() => {
+    deliveredTimer = null;
+    void supabase.rpc("mark_conversations_delivered");
+  }, 800);
+}
+
 export function useChatListRealtime(): void {
   const qc = useQueryClient();
   const { user } = useAuth();
   const uid = user?.id;
   useEffect(() => {
     if (!uid) return;
+    // Everything that arrived while this client was offline counts as
+    // delivered the moment the list mounts.
+    scheduleMarkDelivered();
     return subscribeToTable(
       { table: "conversation_participants", filter: `user_id=eq.${uid}` },
       () => {
         void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
+        scheduleMarkDelivered();
       },
     );
   }, [uid, qc]);

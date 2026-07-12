@@ -8,7 +8,22 @@
 import "@/lib/i18n-chat";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Ban, Images, Minus, X } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  Ban,
+  BellOff,
+  Check,
+  Eraser,
+  Images,
+  Minus,
+  MoreVertical,
+  Pin,
+  PinOff,
+  Timer,
+  X,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,12 +34,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  isMuted as isConversationMuted,
+  useClearConversationHistory,
   useConversations,
   useMarkConversationRead,
   usePeerProfiles,
+  useSetConversationArchived,
+  useSetConversationMuted,
+  useSetConversationPinned,
+  useSetMessageTtl,
 } from "@/lib/chat/useConversations";
+import { isExpired, MESSAGE_TTL_OPTIONS } from "@/lib/chat/receipts";
+import { useStarredIds, useToggleStar } from "@/lib/chat/stars";
 import {
   canEditMessage,
   useConversationChannel,
@@ -98,6 +122,11 @@ export function ChatWindow(props: ChatWindowProps) {
   const peerAvatar = peerProfile?.avatar_url ?? null;
   const peerOnline = !!peerId && online.has(peerId);
   const peerLastReadAt = view?.peers[0]?.last_read_at ?? null;
+  const peerLastDeliveredAt = view?.peers[0]?.last_delivered_at ?? null;
+  const pinned = !!view?.me.pinned_at;
+  const archived = !!view?.me.archived_at;
+  const muted = view ? isConversationMuted(view) : false;
+  const ttlSeconds = view?.conversation.message_ttl_seconds ?? null;
 
   const messagesQ = useMessages(conversationId, true);
   const reactionsQ = useReactions(conversationId, true);
@@ -107,6 +136,13 @@ export function ChatWindow(props: ChatWindowProps) {
   const discardFailed = useDiscardFailedMessage(conversationId);
   const toggleReaction = useToggleReaction(conversationId);
   const markRead = useMarkConversationRead();
+  const starredIdsQ = useStarredIds(conversationId, true);
+  const toggleStar = useToggleStar(conversationId);
+  const setPinned = useSetConversationPinned();
+  const setArchived = useSetConversationArchived();
+  const setMuted = useSetConversationMuted();
+  const clearHistory = useClearConversationHistory();
+  const setMessageTtl = useSetMessageTtl();
 
   // Block state: RLS only exposes MY blocks, so this covers "I blocked the
   // peer"; the reverse direction is enforced server-side ("chat: blocked").
@@ -142,9 +178,23 @@ export function ChatWindow(props: ChatWindowProps) {
     [],
   );
 
+  // Minute tick: the 5-minute edit window must close visually even when
+  // nothing else re-renders, and disappearing messages must vanish live
+  // between refetches. Only the list shell re-renders on a tick - memoized
+  // bubbles re-render solely when their own `editable` flips.
+  const [editTick, setEditTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setEditTick((n) => n + 1), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const messages: ChatMessage[] = useMemo(() => {
+    // editTick keeps the expiry cutoff fresh: disappearing messages vanish on
+    // the minute tick instead of waiting for the next refetch (RLS is the
+    // authority; this mirrors it client-side).
+    const nowMs = editTick >= 0 ? Date.now() : 0;
     const pages = messagesQ.data?.pages ?? [];
-    const flat = pages.flatMap((page) => page.rows);
+    const flat = pages.flatMap((page) => page.rows).filter((m) => !isExpired(m, nowMs));
     // Pages are newest-first; render oldest -> newest and drop duplicates
     // (an optimistic row can coexist with its realtime twin for a frame).
     const seen = new Set<string>();
@@ -170,7 +220,7 @@ export function ChatWindow(props: ChatWindowProps) {
               ? 1
               : 0,
     );
-  }, [messagesQ.data]);
+  }, [messagesQ.data, editTick]);
 
   // One batched storage call signs every attachment in the loaded history.
   const attachmentPaths = useMemo(
@@ -218,15 +268,6 @@ export function ChatWindow(props: ChatWindowProps) {
     setDeleteTarget(null);
     setBlockDialogOpen(false);
   }, [conversationId]);
-
-  // Minute tick: the 5-minute edit window must close visually even when
-  // nothing else re-renders. Only the list shell re-renders on a tick -
-  // memoized bubbles re-render solely when their own `editable` flips.
-  const [, setEditTick] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => setEditTick((n) => n + 1), 60_000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Stable handlers: MessageBubble is memoized, so these references must not
   // change per render or the memo is defeated for the whole thread.
@@ -299,6 +340,67 @@ export function ChatWindow(props: ChatWindowProps) {
       mutateEdit({ messageId, body }, { onError: () => toast.error(t("chat.editExpired")) }),
     [mutateEdit, t],
   );
+  const { mutate: mutateToggleStar } = toggleStar;
+  const handleToggleStar = useCallback(
+    (message: ChatMessage, starred: boolean) => {
+      if (message.pending || message.failed || message.deleted_at) return;
+      mutateToggleStar(
+        { messageId: message.id, starred },
+        { onError: () => toast.error(t("chat.star.error")) },
+      );
+    },
+    [mutateToggleStar, t],
+  );
+
+  // Conversation menu state + actions (pin / archive / mute / clear / ttl).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const settingErr = () => toast.error(t("chat.menu.error"));
+  const handlePinToggle = () => {
+    setMenuOpen(false);
+    setPinned.mutate(
+      { conversationId, pinned: !pinned },
+      {
+        onError: (err) =>
+          err.message.includes("pin limit") ? toast.error(t("chat.menu.pinLimit")) : settingErr(),
+      },
+    );
+  };
+  const handleArchiveToggle = () => {
+    setMenuOpen(false);
+    setArchived.mutate(
+      { conversationId, archived: !archived },
+      {
+        onSuccess: () =>
+          toast.success(archived ? t("chat.menu.unarchived") : t("chat.menu.archived")),
+        onError: settingErr,
+      },
+    );
+  };
+  const handleMute = (seconds: number | null) => {
+    setMenuOpen(false);
+    setMuted.mutate({ conversationId, seconds }, { onError: settingErr });
+  };
+  const handleTtl = (seconds: number | null) => {
+    setMenuOpen(false);
+    setMessageTtl.mutate(
+      { conversationId, ttlSeconds: seconds },
+      {
+        onSuccess: () => toast.success(t("chat.disappearing.saved")),
+        onError: settingErr,
+      },
+    );
+  };
+  const handleClearHistory = () => {
+    setClearDialogOpen(false);
+    clearHistory.mutate(
+      { conversationId },
+      {
+        onSuccess: () => toast.success(t("chat.menu.cleared")),
+        onError: settingErr,
+      },
+    );
+  };
 
   if (!user) return null;
 
@@ -336,6 +438,143 @@ export function ChatWindow(props: ChatWindowProps) {
     </button>
   ) : null;
 
+  const menuItemClass =
+    "flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted";
+  const menuHeadingClass =
+    "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
+  const conversationMenu = (
+    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            menuOpen && "bg-muted text-foreground",
+          )}
+          aria-label={t("chat.menu.title")}
+          aria-haspopup="menu"
+          title={t("chat.menu.title")}
+        >
+          <MoreVertical className="h-4 w-4" aria-hidden />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="end"
+        sideOffset={4}
+        className="w-60 rounded-[6px] border-border/60 bg-popover p-1.5 shadow-xl"
+      >
+        <div role="menu" aria-label={t("chat.menu.title")} className="flex flex-col">
+          <button type="button" role="menuitem" onClick={handlePinToggle} className={menuItemClass}>
+            {pinned ? (
+              <PinOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            ) : (
+              <Pin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            )}
+            {pinned ? t("chat.menu.unpin") : t("chat.menu.pin")}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleArchiveToggle}
+            className={menuItemClass}
+          >
+            {archived ? (
+              <ArchiveRestore className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            ) : (
+              <Archive className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            )}
+            {archived ? t("chat.menu.unarchive") : t("chat.menu.archive")}
+          </button>
+
+          <p className={menuHeadingClass}>{t("chat.menu.muteSection")}</p>
+          {muted ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleMute(null)}
+              className={menuItemClass}
+            >
+              <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              {t("chat.menu.unmute")}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleMute(8 * 3600)}
+                className={menuItemClass}
+              >
+                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                {t("chat.menu.mute8h")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleMute(7 * 86400)}
+                className={menuItemClass}
+              >
+                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                {t("chat.menu.muteWeek")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleMute(-1)}
+                className={menuItemClass}
+              >
+                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                {t("chat.menu.muteAlways")}
+              </button>
+            </>
+          )}
+
+          <p className={menuHeadingClass}>{t("chat.disappearing.title")}</p>
+          {[null, ...MESSAGE_TTL_OPTIONS].map((option) => {
+            const active = (ttlSeconds ?? null) === option;
+            const label =
+              option === null
+                ? t("chat.disappearing.off")
+                : option === 86400
+                  ? t("chat.disappearing.day")
+                  : option === 604800
+                    ? t("chat.disappearing.week")
+                    : t("chat.disappearing.quarter");
+            return (
+              <button
+                key={option ?? "off"}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => handleTtl(option)}
+                className={cn(menuItemClass, active && "bg-muted font-medium")}
+              >
+                <Timer className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                <span className="flex-1">{label}</span>
+                {active && <Check className="h-3.5 w-3.5 text-[var(--brand)]" aria-hidden />}
+              </button>
+            );
+          })}
+
+          <div className="my-1 h-px bg-border/60" aria-hidden />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              setClearDialogOpen(true);
+            }}
+            className={cn(menuItemClass, "text-destructive hover:text-destructive")}
+          >
+            <Eraser className="h-3.5 w-3.5" aria-hidden />
+            {t("chat.menu.clear")}
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   const mainCol = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MessageList
@@ -346,8 +585,10 @@ export function ChatWindow(props: ChatWindowProps) {
         peerName={peerName}
         peerAvatarUrl={peerAvatar}
         peerLastReadAt={peerLastReadAt}
-        peerOnline={peerOnline}
+        peerLastDeliveredAt={peerLastDeliveredAt}
         peerTyping={peerTypingSafe}
+        ttlSeconds={ttlSeconds}
+        starredIds={starredIdsQ.data}
         hasOlder={!!messagesQ.hasNextPage}
         loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
         onLoadOlder={handleLoadOlder}
@@ -356,6 +597,7 @@ export function ChatWindow(props: ChatWindowProps) {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onDiscardFailed={handleDiscardFailed}
+        onToggleStar={handleToggleStar}
         canEdit={canEdit}
       />
       {peerBlocked ? (
@@ -424,6 +666,20 @@ export function ChatWindow(props: ChatWindowProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("chat.menu.clear")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("chat.menu.clearConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("chat.close")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearHistory}>
+              {t("chat.menu.clear")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -466,13 +722,28 @@ export function ChatWindow(props: ChatWindowProps) {
           )}
           <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{peerName}</div>
+            <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
+              <span className="truncate">{peerName}</span>
+              {muted && (
+                <BellOff
+                  className="h-3 w-3 shrink-0 text-muted-foreground"
+                  aria-label={t("chat.menu.mutedBadge")}
+                />
+              )}
+              {pinned && (
+                <Pin
+                  className="h-3 w-3 shrink-0 text-muted-foreground"
+                  aria-label={t("chat.menu.pinnedBadge")}
+                />
+              )}
+            </div>
             <div className="text-[11px] text-muted-foreground">
               {peerOnline ? t("chat.online") : t("chat.offline")}
             </div>
           </div>
           {blockToggle}
           {mediaToggle}
+          {conversationMenu}
         </div>
         {body}
       </div>
@@ -503,13 +774,22 @@ export function ChatWindow(props: ChatWindowProps) {
       <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
         <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold leading-tight">{peerName}</div>
+          <div className="flex items-center gap-1 truncate text-[13px] font-semibold leading-tight">
+            <span className="truncate">{peerName}</span>
+            {muted && (
+              <BellOff
+                className="h-3 w-3 shrink-0 text-muted-foreground"
+                aria-label={t("chat.menu.mutedBadge")}
+              />
+            )}
+          </div>
           <div className="text-[10px] leading-tight text-muted-foreground">
             {peerOnline ? t("chat.online") : t("chat.offline")}
           </div>
         </div>
         {blockToggle}
         {mediaToggle}
+        {conversationMenu}
         {onMinimize && (
           <button
             type="button"

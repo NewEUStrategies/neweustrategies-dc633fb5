@@ -78,9 +78,9 @@ export function useMessages(
 
 export interface SendMessageInput {
   conversationId: string;
-  kind: "text" | "image" | "file";
+  kind: "text" | "image" | "file" | "audio";
   body?: string;
-  attachment?: { path: string; name: string; mime: string; size: number };
+  attachment?: { path: string; name: string; mime: string; size: number; duration?: number };
   replyToId?: string | null;
 }
 
@@ -104,6 +104,7 @@ export function useSendMessage() {
           attachment_name: input.attachment?.name ?? null,
           attachment_mime: input.attachment?.mime ?? null,
           attachment_size: input.attachment?.size ?? null,
+          attachment_duration: input.attachment?.duration ?? null,
           reply_to_id: input.replyToId ?? null,
         })
         .select("*")
@@ -134,9 +135,13 @@ export function useSendMessage() {
         attachment_name: input.attachment?.name ?? null,
         attachment_mime: input.attachment?.mime ?? null,
         attachment_size: input.attachment?.size ?? null,
+        attachment_duration: input.attachment?.duration ?? null,
         reply_to_id: input.replyToId ?? null,
         edited_at: null,
         deleted_at: null,
+        // The server stamps the real value from the conversation TTL; the
+        // optimistic row never expires client-side within its short lifetime.
+        expires_at: null,
         created_at: new Date().toISOString(),
         pending: true,
       };
@@ -214,6 +219,7 @@ export function useDeleteMessage(conversationId: string) {
           attachment_name: null,
           attachment_mime: null,
           attachment_size: null,
+          attachment_duration: null,
         })
         .eq("id", messageId)
         .select("*")

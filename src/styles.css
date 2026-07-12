@@ -3679,3 +3679,25 @@ textarea::placeholder {
     background-color: transparent;
   }
 }
+
+/* WhatsApp-style chat wallpaper: a subtle two-tone dot lattice derived from
+   the theme tokens (brand-tinted, theme-aware via currentColor-free tokens).
+   Deliberately faint - bubbles must stay the highest-contrast element. */
+.chat-wallpaper {
+  background-color: color-mix(in oklab, var(--muted, #f4f4f5) 45%, var(--background, #fff));
+  background-image:
+    radial-gradient(
+      color-mix(in oklab, var(--foreground, #111) 7%, transparent) 1px,
+      transparent 1.5px
+    ),
+    radial-gradient(
+      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 9%, transparent) 1px,
+      transparent 1.5px
+    );
+  background-size:
+    22px 22px,
+    22px 22px;
+  background-position:
+    0 0,
+    11px 11px;
+}

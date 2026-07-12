@@ -1,11 +1,22 @@
 // Molecules: attachment rendering inside message bubbles.
 // Images resolve short-lived signed URLs (private bucket) and open in a
-// lightbox dialog; files render as a download chip.
-import { useState } from "react";
+// lightbox dialog; files render as a download chip; voice notes render as a
+// WhatsApp-style inline player (play/pause + progress + timer).
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, FileText, FileSpreadsheet, Presentation, File as FileIcon } from "lucide-react";
+import {
+  Download,
+  FileText,
+  FileSpreadsheet,
+  Mic,
+  Pause,
+  Play,
+  Presentation,
+  File as FileIcon,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useAttachmentUrl, formatBytes } from "@/lib/chat/attachments";
+import { formatVoiceDuration } from "@/lib/chat/voice";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +77,120 @@ export function AttachmentImage({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+export function AttachmentAudio({
+  path,
+  duration,
+  mine,
+}: {
+  path: string;
+  duration: number | null;
+  mine: boolean;
+}) {
+  const { t } = useTranslation();
+  const urlQ = useAttachmentUrl(path);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0); // 0..1
+  const [elapsed, setElapsed] = useState(0);
+
+  // Callback ref: React calls it with null on unmount - pause mid-playback
+  // audio there (a detached <audio> element can keep playing otherwise).
+  const setAudioRef = useCallback((el: HTMLAudioElement | null) => {
+    if (!el) audioRef.current?.pause();
+    audioRef.current = el;
+  }, []);
+
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) el.pause();
+    else void el.play();
+  };
+
+  const total = duration ?? Math.round(audioRef.current?.duration ?? 0) ?? 0;
+
+  return (
+    <div
+      className={cn(
+        "flex w-[220px] max-w-full items-center gap-2.5 rounded-[6px] border px-3 py-2.5",
+        mine
+          ? "border-primary/20 bg-primary text-primary-foreground"
+          : "border-border/60 bg-muted text-foreground",
+      )}
+    >
+      {urlQ.data && (
+        <audio
+          ref={setAudioRef}
+          src={urlQ.data}
+          preload="metadata"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => {
+            setPlaying(false);
+            setProgress(0);
+            setElapsed(0);
+          }}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget;
+            const totalSeconds = duration ?? el.duration ?? 0;
+            setElapsed(el.currentTime);
+            setProgress(totalSeconds > 0 ? Math.min(1, el.currentTime / totalSeconds) : 0);
+          }}
+        />
+      )}
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={!urlQ.data}
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50",
+          mine
+            ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
+            : "bg-background hover:bg-background/70",
+        )}
+        aria-label={playing ? t("chat.voice.pause") : t("chat.voice.play")}
+        title={playing ? t("chat.voice.pause") : t("chat.voice.play")}
+      >
+        {playing ? (
+          <Pause className="h-4 w-4" aria-hidden />
+        ) : (
+          <Play className="ml-0.5 h-4 w-4" aria-hidden />
+        )}
+      </button>
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block h-1.5 overflow-hidden rounded-full",
+            mine ? "bg-primary-foreground/20" : "bg-background",
+          )}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+          aria-label={t("chat.voice.message")}
+        >
+          <span
+            className={cn(
+              "block h-full rounded-full transition-[width] duration-150",
+              mine ? "bg-primary-foreground/80" : "bg-[var(--brand)]",
+            )}
+            style={{ width: `${Math.round(progress * 100)}%` }}
+          />
+        </span>
+        <span
+          className={cn(
+            "mt-1 flex items-center gap-1 text-[10px] tabular-nums",
+            mine ? "opacity-80" : "text-muted-foreground",
+          )}
+        >
+          <Mic className="h-3 w-3" aria-hidden />
+          {playing || elapsed > 0 ? formatVoiceDuration(elapsed) : formatVoiceDuration(total)}
+        </span>
+      </span>
+    </div>
   );
 }
 

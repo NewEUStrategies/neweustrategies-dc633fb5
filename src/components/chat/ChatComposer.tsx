@@ -1,14 +1,17 @@
 // Organism: message composer - auto-growing textarea, emoji picker,
-// attachments (images + documents, 30 MB) with upload progress, reply bar,
-// throttled typing broadcast. Enter sends, Shift+Enter breaks the line.
+// attachments (images + documents, 30 MB) with upload progress, WhatsApp-style
+// voice notes (mic morphs into send as you type), reply bar, throttled typing
+// broadcast. Enter sends, Shift+Enter breaks the line.
 import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Check,
+  Mic,
   Paperclip,
   Pencil,
   SendHorizontal,
   Smile,
+  Trash2,
   X,
   Image as ImageIcon,
   FileText,
@@ -19,11 +22,13 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ATTACHMENT_ACCEPT,
+  MAX_ATTACHMENT_BYTES,
   attachmentKindForMime,
   formatBytes,
   uploadChatAttachment,
   validateAttachment,
 } from "@/lib/chat/attachments";
+import { formatVoiceDuration, useVoiceRecorder, type RecordedVoice } from "@/lib/chat/voice";
 import type { SendMessageInput } from "@/lib/chat/useMessages";
 import type { ChatMessage } from "@/lib/chat/types";
 import type { ChatLang } from "@/lib/chat/time";
@@ -168,6 +173,43 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
   };
 
+  // --- Voice notes ---------------------------------------------------------
+  const sendVoice = async (voice: RecordedVoice | null) => {
+    if (!voice || !user || !tenantId) return;
+    if (voice.file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(t("chat.attachmentTooLarge"));
+      return;
+    }
+    setUploading({ name: t("chat.voice.message"), percent: 0 });
+    try {
+      const uploaded = await uploadChatAttachment({
+        file: voice.file,
+        tenantId,
+        conversationId,
+        userId: user.id,
+        onProgress: (percent) => setUploading({ name: t("chat.voice.message"), percent }),
+      });
+      onSend({
+        conversationId,
+        kind: "audio",
+        attachment: { ...uploaded, duration: voice.durationSeconds },
+        replyToId: replyTo?.id ?? null,
+      });
+      onClearReply();
+    } catch {
+      toast.error(t("chat.uploadFailed"));
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const recorder = useVoiceRecorder({
+    onLimitReached: (voice) => void sendVoice(voice),
+    onError: (kind) =>
+      toast.error(kind === "denied" ? t("chat.voice.micDenied") : t("chat.voice.unsupported")),
+  });
+  const recording = recorder.state !== "idle";
+
   const insertEmoji = (emoji: string) => {
     const el = textareaRef.current;
     if (!el) {
@@ -245,107 +287,158 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         </div>
       )}
 
-      <div className="flex items-end gap-1">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ATTACHMENT_ACCEPT}
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void sendFile(file);
-            e.target.value = "";
-          }}
-        />
-        {!editing && (
+      {recording ? (
+        <div
+          className="flex h-10 items-center gap-2 rounded-[6px] border border-destructive/30 bg-destructive/5 px-2"
+          role="status"
+          aria-label={t("chat.voice.recording")}
+        >
+          <span
+            className="ml-1 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse"
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
+            {t("chat.voice.recording")}
+          </span>
+          <span className="shrink-0 text-[12px] font-medium tabular-nums">
+            {formatVoiceDuration(recorder.elapsed)}
+          </span>
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!!uploading}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
-            aria-label={t("chat.attach")}
-            title={`${t("chat.attach")} (max ${formatBytes(30 * 1024 * 1024, lang)})`}
+            onClick={() => recorder.cancel()}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+            aria-label={t("chat.voice.cancel")}
+            title={t("chat.voice.cancel")}
           >
-            <Paperclip className="h-4 w-4" aria-hidden />
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
-        )}
-
-        <div className="relative min-w-0 flex-1">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            rows={1}
-            autoFocus={autoFocus}
-            maxLength={MAX_BODY_LENGTH}
-            onChange={(e) => {
-              setText(e.target.value);
-              resize();
-              emitTyping();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendText();
-              } else if (e.key === "Escape" && editing) {
-                // Cancel the edit only - do not bubble up to the dock
-                // window's Escape-to-close handler.
-                e.preventDefault();
-                e.stopPropagation();
-                onCancelEdit();
-              }
-            }}
-            placeholder={t("chat.inputPlaceholder")}
-            aria-label={t("chat.inputPlaceholder")}
-            className="max-h-[120px] w-full resize-none rounded-[6px] border border-input bg-muted/40 py-1.5 pl-3 pr-9 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "absolute bottom-[7px] right-2 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                  emojiOpen && "text-foreground",
-                )}
-                aria-label={t("chat.emoji")}
-                title={t("chat.emoji")}
-              >
-                <Smile className="h-4 w-4" aria-hidden />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              side="top"
-              align="end"
-              sideOffset={8}
-              className="w-auto overflow-hidden border-border/60 bg-popover p-0 shadow-xl"
-            >
-              <Suspense
-                fallback={<div className="h-[264px] w-[288px] animate-pulse bg-muted/40" />}
-              >
-                <EmojiPicker
-                  onPick={(emoji) => {
-                    insertEmoji(emoji);
-                  }}
-                />
-              </Suspense>
-            </PopoverContent>
-          </Popover>
+          <button
+            type="button"
+            onClick={() => void recorder.finish().then(sendVoice)}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white transition-opacity hover:opacity-90"
+            aria-label={t("chat.voice.send")}
+            title={t("chat.voice.send")}
+          >
+            <SendHorizontal className="h-4 w-4" aria-hidden />
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={sendText}
-          disabled={!text.trim()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--brand)] transition-all hover:bg-muted disabled:opacity-35"
-          aria-label={editing ? t("chat.saveEdit") : t("chat.send")}
-          title={editing ? t("chat.saveEdit") : t("chat.send")}
-        >
-          {editing ? (
-            <Check className="h-4.5 w-4.5" aria-hidden />
-          ) : (
-            <SendHorizontal className="h-4.5 w-4.5" aria-hidden />
+      ) : (
+        <div className="flex items-end gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ATTACHMENT_ACCEPT}
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void sendFile(file);
+              e.target.value = "";
+            }}
+          />
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!!uploading}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
+              aria-label={t("chat.attach")}
+              title={`${t("chat.attach")} (max ${formatBytes(30 * 1024 * 1024, lang)})`}
+            >
+              <Paperclip className="h-4 w-4" aria-hidden />
+            </button>
           )}
-        </button>
-      </div>
+
+          <div className="relative min-w-0 flex-1">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              rows={1}
+              autoFocus={autoFocus}
+              maxLength={MAX_BODY_LENGTH}
+              onChange={(e) => {
+                setText(e.target.value);
+                resize();
+                emitTyping();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendText();
+                } else if (e.key === "Escape" && editing) {
+                  // Cancel the edit only - do not bubble up to the dock
+                  // window's Escape-to-close handler.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCancelEdit();
+                }
+              }}
+              placeholder={t("chat.inputPlaceholder")}
+              aria-label={t("chat.inputPlaceholder")}
+              className="max-h-[120px] w-full resize-none rounded-[6px] border border-input bg-muted/40 py-1.5 pl-3 pr-9 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "absolute bottom-[7px] right-2 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                    emojiOpen && "text-foreground",
+                  )}
+                  aria-label={t("chat.emoji")}
+                  title={t("chat.emoji")}
+                >
+                  <Smile className="h-4 w-4" aria-hidden />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="end"
+                sideOffset={8}
+                className="w-auto overflow-hidden border-border/60 bg-popover p-0 shadow-xl"
+              >
+                <Suspense
+                  fallback={<div className="h-[264px] w-[288px] animate-pulse bg-muted/40" />}
+                >
+                  <EmojiPicker
+                    onPick={(emoji) => {
+                      insertEmoji(emoji);
+                    }}
+                  />
+                </Suspense>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {!editing && !text.trim() && recorder.supported ? (
+            // WhatsApp morph: empty input shows the mic, typing swaps it for send.
+            <button
+              type="button"
+              onClick={() => void recorder.start()}
+              disabled={!!uploading}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--brand)] transition-all hover:bg-muted disabled:opacity-35"
+              aria-label={t("chat.voice.record")}
+              title={t("chat.voice.record")}
+            >
+              <Mic className="h-4.5 w-4.5" aria-hidden />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={sendText}
+              disabled={!text.trim()}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--brand)] transition-all hover:bg-muted disabled:opacity-35"
+              aria-label={editing ? t("chat.saveEdit") : t("chat.send")}
+              title={editing ? t("chat.saveEdit") : t("chat.send")}
+            >
+              {editing ? (
+                <Check className="h-4.5 w-4.5" aria-hidden />
+              ) : (
+                <SendHorizontal className="h-4.5 w-4.5" aria-hidden />
+              )}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 });

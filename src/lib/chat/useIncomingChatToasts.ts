@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { openChatWindow } from "./chatDockBus";
+import { mutedUntilMs } from "./useConversations";
 import type { MessageRow, PeerProfile } from "./types";
 
 const INCOMING_EVENT = "nes:chat-incoming";
@@ -41,11 +42,36 @@ function isConversationFocused(conversationId: string): boolean {
 
 function attachmentSummary(row: MessageRow): string | null {
   if (row.kind === "image") return i18n.t("chat.photo", { defaultValue: "Zdjęcie" });
+  if (row.kind === "audio")
+    return i18n.t("chat.voice.message", { defaultValue: "Wiadomość głosowa" });
   if (row.kind === "file") {
     const label = i18n.t("chat.file", { defaultValue: "Plik" });
     return row.attachment_name ? `${label}: ${row.attachment_name}` : label;
   }
   return null;
+}
+
+// Mute gate for toasts (badge and bell state still update - like WhatsApp,
+// muted chats count unread but stay silent). 60 s TTL keeps this at one
+// lightweight own-row select per conversation per minute, worst case.
+const muteCache = new Map<string, { until: number | null; at: number }>();
+
+async function isMutedConversation(uid: string, conversationId: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = muteCache.get(conversationId);
+  if (cached && now - cached.at < 60_000) {
+    return cached.until !== null && cached.until > now;
+  }
+  const { data, error } = await supabase
+    .from("conversation_participants")
+    .select("muted_until")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (error) return false;
+  const until = mutedUntilMs(data?.muted_until ?? null);
+  muteCache.set(conversationId, { until, at: now });
+  return until !== null && until > now;
 }
 
 function buildPreview(row: MessageRow): string {
@@ -84,6 +110,7 @@ async function handleInsert(uid: string, row: MessageRow) {
   window.dispatchEvent(new CustomEvent<MessageRow>(INCOMING_EVENT, { detail: row }));
 
   if (isConversationFocused(row.conversation_id)) return;
+  if (await isMutedConversation(uid, row.conversation_id)) return;
 
   const peer = await resolvePeer(row.sender_id);
   const name = peer?.display_name ?? i18n.t("chat.incoming.someone", { defaultValue: "Ktoś" });
@@ -133,6 +160,7 @@ function release() {
     channel = null;
     channelUid = null;
     seenIds.clear();
+    muteCache.clear();
   }
 }
 
