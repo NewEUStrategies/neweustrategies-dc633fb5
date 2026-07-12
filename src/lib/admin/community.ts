@@ -330,6 +330,7 @@ export async function createQaSession(input: CreateQaSessionInput): Promise<QaSe
     .single();
   if (error) throw error;
   return data;
+}
 
 // ------- Polls --------
 
