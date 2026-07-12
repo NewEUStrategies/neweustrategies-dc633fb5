@@ -33,6 +33,7 @@ export type Database = {
           price_cents: number
           sort_order: number
           tenant_id: string
+          tier_key: string | null
           trial_days: number
           updated_at: string
         }
@@ -54,6 +55,7 @@ export type Database = {
           price_cents?: number
           sort_order?: number
           tenant_id?: string
+          tier_key?: string | null
           trial_days?: number
           updated_at?: string
         }
@@ -75,6 +77,7 @@ export type Database = {
           price_cents?: number
           sort_order?: number
           tenant_id?: string
+          tier_key?: string | null
           trial_days?: number
           updated_at?: string
         }
@@ -805,6 +808,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          edited_at: string | null
           id: string
           parent_id: string | null
           post_id: string
@@ -816,6 +820,7 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           parent_id?: string | null
           post_id: string
@@ -827,6 +832,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           parent_id?: string | null
           post_id?: string
@@ -1631,6 +1637,143 @@ export type Database = {
           },
         ]
       }
+      event_rsvps: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          reminded_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          reminded_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_rsvps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          capacity: number | null
+          chatham_house: boolean
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          ends_at: string | null
+          host_user_id: string | null
+          id: string
+          join_url: string | null
+          kind: string
+          location: string | null
+          min_tier_rank: number
+          recording_url: string | null
+          slug: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          timezone: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          capacity?: number | null
+          chatham_house?: boolean
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          ends_at?: string | null
+          host_user_id?: string | null
+          id?: string
+          join_url?: string | null
+          kind?: string
+          location?: string | null
+          min_tier_rank?: number
+          recording_url?: string | null
+          slug: string
+          starts_at: string
+          status?: string
+          tenant_id?: string
+          timezone?: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          capacity?: number | null
+          chatham_house?: boolean
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          ends_at?: string | null
+          host_user_id?: string | null
+          id?: string
+          join_url?: string | null
+          kind?: string
+          location?: string | null
+          min_tier_rank?: number
+          recording_url?: string | null
+          slug?: string
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          timezone?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_field_policies: {
         Row: {
           active: boolean
@@ -2004,6 +2147,68 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: []
+      }
+      membership_tiers: {
+        Row: {
+          active: boolean
+          benefits: Json
+          created_at: string
+          description_en: string | null
+          description_pl: string | null
+          features: Json
+          id: string
+          is_default: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          rank: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          benefits?: Json
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          features?: Json
+          id?: string
+          is_default?: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          rank?: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          benefits?: Json
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          features?: Json
+          id?: string
+          is_default?: boolean
+          key?: string
+          name_en?: string
+          name_pl?: string
+          rank?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_tiers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       message_reactions: {
         Row: {
@@ -2700,6 +2905,8 @@ export type Database = {
           allow_messages_from: string
           auto_mark_on_open: boolean
           created_at: string
+          digest_last_sent_at: string | null
+          email_digest: string
           enabled_comment: boolean
           enabled_content: boolean
           enabled_follow: boolean
@@ -2708,6 +2915,7 @@ export type Database = {
           enabled_subscription: boolean
           enabled_system: boolean
           group_by_conversation: boolean
+          push_enabled: boolean
           read_receipts_enabled: boolean
           show_online_status: boolean
           tenant_id: string
@@ -2719,6 +2927,8 @@ export type Database = {
           allow_messages_from?: string
           auto_mark_on_open?: boolean
           created_at?: string
+          digest_last_sent_at?: string | null
+          email_digest?: string
           enabled_comment?: boolean
           enabled_content?: boolean
           enabled_follow?: boolean
@@ -2727,6 +2937,7 @@ export type Database = {
           enabled_subscription?: boolean
           enabled_system?: boolean
           group_by_conversation?: boolean
+          push_enabled?: boolean
           read_receipts_enabled?: boolean
           show_online_status?: boolean
           tenant_id: string
@@ -2738,6 +2949,8 @@ export type Database = {
           allow_messages_from?: string
           auto_mark_on_open?: boolean
           created_at?: string
+          digest_last_sent_at?: string | null
+          email_digest?: string
           enabled_comment?: boolean
           enabled_content?: boolean
           enabled_follow?: boolean
@@ -2746,6 +2959,7 @@ export type Database = {
           enabled_subscription?: boolean
           enabled_system?: boolean
           group_by_conversation?: boolean
+          push_enabled?: boolean
           read_receipts_enabled?: boolean
           show_online_status?: boolean
           tenant_id?: string
@@ -2756,6 +2970,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notification_preferences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_push_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: number
+          next_attempt_at: string
+          notification_id: string | null
+          payload: Json
+          sent_at: string | null
+          status: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: never
+          next_attempt_at?: string
+          notification_id?: string | null
+          payload: Json
+          sent_at?: string | null
+          status?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: never
+          next_attempt_at?: string
+          notification_id?: string | null
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_push_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_push_queue_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -4246,6 +4514,53 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          failed_at: string | null
+          id: string
+          last_seen_at: string
+          p256dh: string
+          tenant_id: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          failed_at?: string | null
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          tenant_id?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          failed_at?: string | null
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          tenant_id?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_limits: {
         Row: {
           count: number
@@ -5389,6 +5704,15 @@ export type Database = {
         Args: { p_command: string; p_key: string }
         Returns: Json
       }
+      claim_due_digests: {
+        Args: { p_frequency: string; p_limit?: number }
+        Returns: {
+          display_name: string
+          email: string
+          items: Json
+          user_id: string
+        }[]
+      }
       claim_integration_deliveries: {
         Args: { p_limit?: number }
         Returns: {
@@ -5408,6 +5732,27 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "integration_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_push_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: number
+          next_attempt_at: string
+          notification_id: string | null
+          payload: Json
+          sent_at: string | null
+          status: string
+          tenant_id: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notification_push_queue"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -5480,7 +5825,18 @@ export type Database = {
         }
         Returns: string
       }
+      current_membership_tier: {
+        Args: never
+        Returns: {
+          features: Json
+          key: string
+          name_en: string
+          name_pl: string
+          rank: number
+        }[]
+      }
       current_tenant_id: { Args: never; Returns: string }
+      current_tier_rank: { Args: never; Returns: number }
       emit_domain_event: {
         Args: {
           p_aggregate_id: string
@@ -5553,6 +5909,24 @@ export type Database = {
           builder_data: Json
           content_en: string
           content_pl: string
+        }[]
+      }
+      get_event_access: {
+        Args: { p_event_id: string }
+        Returns: {
+          can_join: boolean
+          can_watch: boolean
+          join_url: string
+          reason: string
+          recording_url: string
+        }[]
+      }
+      get_event_rsvp_counts: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          event_id: string
+          going: number
+          interested: number
         }[]
       }
       get_followed_feed: {
@@ -5780,6 +6154,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_tier_rank: { Args: { _min: number }; Returns: boolean }
       install_workflow_template: { Args: { p_key: string }; Returns: string }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
@@ -5816,6 +6191,10 @@ export type Database = {
       mark_notification_unread: { Args: { p_id: string }; Returns: undefined }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: number }
       mark_notifications_unread: { Args: { p_ids: string[] }; Returns: number }
+      mark_push_subscription_failed: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
       member_conversation_ids: { Args: never; Returns: string[] }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
@@ -5896,6 +6275,7 @@ export type Database = {
       prune_command_idempotency: { Args: never; Returns: number }
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
       prune_integration_deliveries: { Args: never; Returns: number }
+      prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
       recompute_my_pending_counters: { Args: never; Returns: undefined }
@@ -5916,6 +6296,10 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      report_push_job: {
+        Args: { p_dead?: boolean; p_id: number; p_ok: boolean }
+        Returns: undefined
+      }
       request_correlation_id: { Args: never; Returns: string }
       request_public_host: { Args: never; Returns: string }
       resolve_path: {
@@ -5925,6 +6309,11 @@ export type Database = {
           post_id: string
         }[]
       }
+      rsvp_event: {
+        Args: { p_event_id: string; p_status: string }
+        Returns: Json
+      }
+      run_event_reminders: { Args: never; Returns: number }
       run_workflow_step: {
         Args: {
           p_event: Database["public"]["Tables"]["domain_events"]["Row"]
@@ -5999,6 +6388,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
