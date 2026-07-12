@@ -28,7 +28,7 @@ interface Props {
   lang: "pl" | "en";
 }
 
-/** Rows fetched per page; "load more" grows the window by this amount. */
+/** Top-level threads fetched per page; "load more" grows the window by this amount. */
 const COMMENTS_PAGE_SIZE = 50;
 
 /** Shape of the admin "discussion" site_settings key (admin.settings.discussion.tsx). */
@@ -146,10 +146,11 @@ export function CommentsSection({ postId, lang }: Props) {
     },
   });
 
-  const tree = useMemo(() => buildCommentTree(data ?? []), [data]);
-  const totalApproved = (data ?? []).filter((c) => c.status === "approved").length;
-  // The raw window hit the ceiling -> more rows may exist on the server.
-  const canLoadMore = (data ?? []).length >= limit;
+  const tree = useMemo(() => buildCommentTree(data?.comments ?? []), [data]);
+  // Honest server-side count (was: count of fetched rows, lying beyond the window).
+  const totalApproved = data?.approvedCount ?? 0;
+  // More top-level threads exist beyond the current window.
+  const canLoadMore = (data?.topLevelCount ?? 0) > limit;
 
   // Comments globally disabled and nothing approved to show (also while the
   // list is still loading) -> render no section at all instead of a dead composer.
