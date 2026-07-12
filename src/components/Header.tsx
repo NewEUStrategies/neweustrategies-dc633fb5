@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -14,6 +14,7 @@ import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
+import { SearchOverlay } from "@/components/SearchOverlay";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
@@ -60,6 +61,9 @@ function HeaderInner() {
     : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
 
   const [open, setOpen] = useState(false);
+  // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
+  // hamburgerem -> drawer -> tap). Otwiera ten sam fullscreenowy SearchOverlay.
+  const [searchOpen, setSearchOpen] = useState(false);
   const drawerPanelRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   useFocusTrap(drawerPanelRef, open);
@@ -118,7 +122,14 @@ function HeaderInner() {
 
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
       <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
-        <div />
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          aria-label={isPl ? "Otwórz wyszukiwarkę" : "Open search"}
+          className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+        >
+          <Search className="w-5 h-5" aria-hidden />
+        </button>
         <AppLink
           href="/"
           aria-label={siteName}
@@ -199,6 +210,15 @@ function HeaderInner() {
           </div>,
           document.body,
         )}
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        mode="fullscreen"
+        heading={isPl ? "Szukaj" : "Search"}
+        liveResults
+        limit={8}
+        lang={isPl ? "pl" : "en"}
+      />
     </>
   );
 }

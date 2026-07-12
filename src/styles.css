@@ -58,6 +58,7 @@
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-ink: var(--brand-ink);
   --color-cat-military: var(--cat-military);
   --color-cat-finance: var(--cat-finance);
   --color-cat-transport: var(--cat-transport);
@@ -124,6 +125,11 @@
   --ring: oklch(0.18 0 0);
   --brand: #fa9346;
   --brand-foreground: oklch(1 0 0);
+  /* Marka jako TEKST na jasnym tle: #fa9346 daje ~2.2:1 (fail WCAG AA), więc
+     tekstowe użycia (text-brand-ink) idą przez ciemniejszy atrament w tym samym
+     hue (4.75:1 na --background). Tła/akcenty (bg-brand) nadal używają --brand.
+     Strażnik: src/lib/__tests__/brandContrast.test.ts. */
+  --brand-ink: #b85410;
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
@@ -191,6 +197,8 @@
   --ring: oklch(0.98 0 0);
   --brand: #fa9346;
   --brand-foreground: #141414;
+  /* Na ciemnym tle oryginalny pomarańcz ma ~7.6:1 - atrament wraca do brandu. */
+  --brand-ink: #fa9346;
   --chat-user-from: #f8934a;
   --chat-user-to: #d95a12;
   --chat-user-foreground: #ffffff;
@@ -1094,8 +1102,10 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   align-items: center;
   gap: 6px;
   background: var(--td-rm-bg, transparent);
-  color: var(--td-rm-color, var(--brand));
-  border: 1px solid var(--td-rm-border, var(--brand));
+  /* Fallback = atrament marki: tekst/obrys na tle strony musi przechodzić AA;
+     nadpisania z CMS (--td-rm-*) nadal wygrywają. */
+  color: var(--td-rm-color, var(--brand-ink));
+  border: 1px solid var(--td-rm-border, var(--brand-ink));
   border-radius: var(--td-rm-radius, 9999px);
   padding: var(--td-rm-py, 8px) var(--td-rm-px, 16px);
   font-weight: var(--td-rm-weight, 600);
@@ -1106,7 +1116,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
     transform 0.2s ease;
 }
 .cms-read-more:hover {
-  background: var(--td-rm-color, var(--brand));
+  background: var(--td-rm-color, var(--brand-ink));
   color: var(--td-rm-bg, var(--background));
 }
 .cms-meta-info {

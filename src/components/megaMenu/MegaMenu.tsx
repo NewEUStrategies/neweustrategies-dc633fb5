@@ -6,7 +6,9 @@
 //   - "category" : recent posts from a category with thumbnails (AJAX-style)
 import { memo, useEffect, useId, useRef, useState, type FocusEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "@/lib/lucide-shim";
+import "@/lib/i18n-public";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -83,9 +85,10 @@ interface Props {
 const pickLang = (a?: string, b?: string): string => (a && a.length ? a : (b ?? ""));
 
 export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }: Props) {
+  const { t } = useTranslation();
   const trigger =
     pickLang(lang === "pl" ? config.trigger_pl : config.trigger_en, config.trigger_pl) ||
-    (lang === "pl" ? "Menu" : "Menu");
+    t("megaMenu.menu");
   const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
@@ -120,7 +123,7 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       <details className="group/mega border-b border-border last:border-0 w-full">
         <summary className="flex items-center justify-between gap-2 py-3 cursor-pointer list-none select-none text-sm font-bold tracking-wider uppercase">
           {triggerHref ? (
-            <AppLink href={triggerHref} className="hover:text-brand transition flex-1">
+            <AppLink href={triggerHref} className="hover:text-brand-ink transition flex-1">
               {trigger}
             </AppLink>
           ) : (
@@ -283,6 +286,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
  * from the chosen category and renders a 2-column thumbnail grid with title.
  */
 function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
+  const { t } = useTranslation();
   const slug = (col.categorySlug ?? "").trim();
   const limit = Math.min(Math.max(Number(col.postCount) || 4, 1), 8);
   const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
@@ -302,9 +306,9 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
           {slug && (
             <AppLink
               href={viewAll}
-              className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider"
+              className="text-[10px] font-semibold text-brand-ink hover:underline uppercase tracking-wider"
             >
-              {lang === "pl" ? "Zobacz" : "View all"} →
+              {t("megaMenu.viewAll")} →
             </AppLink>
           )}
         </div>
@@ -340,7 +344,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
                     />
                   ) : null}
                 </div>
-                <div className="text-xs font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-brand transition">
+                <div className="text-xs font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-brand-ink transition">
                   {p.title}
                 </div>
               </AppLink>
@@ -349,14 +353,10 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
         </ul>
       )}
       {!isLoading && data && data.posts.length === 0 && slug && (
-        <div className="text-xs text-muted-foreground italic">
-          {lang === "pl" ? "Brak wpisów w kategorii." : "No posts in this category."}
-        </div>
+        <div className="text-xs text-muted-foreground italic">{t("megaMenu.emptyCategory")}</div>
       )}
       {!slug && (
-        <div className="text-xs text-muted-foreground italic">
-          {lang === "pl" ? "Wybierz kategorię w edytorze." : "Pick a category in the editor."}
-        </div>
+        <div className="text-xs text-muted-foreground italic">{t("megaMenu.pickCategory")}</div>
       )}
     </div>
   );
@@ -425,7 +425,7 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
       <div className="p-3 space-y-1">
         {title && <div className="text-sm font-bold text-foreground leading-tight">{title}</div>}
         {excerpt && <div className="text-xs text-muted-foreground line-clamp-2">{excerpt}</div>}
-        {cta && <div className="text-xs font-semibold text-brand pt-1">{cta} →</div>}
+        {cta && <div className="text-xs font-semibold text-brand-ink pt-1">{cta} →</div>}
       </div>
     </AppLink>
   );
@@ -466,7 +466,7 @@ function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }
             <li key={i}>
               <AppLink
                 href={href}
-                className="block py-2 text-sm text-foreground hover:text-brand transition"
+                className="block py-2 text-sm text-foreground hover:text-brand-ink transition"
               >
                 {label}
               </AppLink>

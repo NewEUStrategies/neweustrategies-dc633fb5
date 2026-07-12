@@ -211,7 +211,8 @@ export function AudioPicker({
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Clock className="w-3 h-3" aria-hidden />
               <span>
-                {t.duration}: <span className="tabular-nums text-foreground">{formatAudioTime(duration)}</span>
+                {t.duration}:{" "}
+                <span className="tabular-nums text-foreground">{formatAudioTime(duration)}</span>
               </span>
             </div>
           )}

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
 import { onOpenLoginPopup } from "@/lib/loginPopupBus";
+import "@/lib/i18n-public";
 import {
   Dialog,
   DialogContent,
@@ -87,7 +88,7 @@ export function LoginPopup() {
     try {
       if (mode === "signup") {
         if (!settings.allow_public_signup) {
-          throw new Error(lang === "pl" ? "Rejestracja jest wyłączona." : "Sign-up is disabled.");
+          throw new Error(t("authForms.signupDisabled"));
         }
         const trimmed = name.trim();
         const parts = trimmed.split(/\s+/).filter(Boolean);
@@ -143,7 +144,7 @@ export function LoginPopup() {
           {mode === "signup" && (
             <div className="space-y-1.5">
               <Label htmlFor="lp-name" className="text-sm">
-                {lang === "pl" ? "Imię" : "Name"}
+                {t("authForms.nameLabel")}
               </Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -151,7 +152,7 @@ export function LoginPopup() {
                   id="lp-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={lang === "pl" ? "Jan" : "John"}
+                  placeholder={t("authForms.namePlaceholder")}
                   className="auth-icon-input"
                 />
               </div>
@@ -177,7 +178,7 @@ export function LoginPopup() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="lp-pwd" className="text-sm">
-              {lang === "pl" ? "Hasło" : "Password"}
+              {t("authForms.passwordLabel")}
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -189,22 +190,14 @@ export function LoginPopup() {
                 autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={lang === "pl" ? "min. 8 znaków" : "min. 8 characters"}
+                placeholder={t("authForms.passwordPlaceholder")}
                 className="auth-icon-input auth-icon-input-with-action"
               />
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={
-                  showPw
-                    ? lang === "pl"
-                      ? "Ukryj hasło"
-                      : "Hide password"
-                    : lang === "pl"
-                      ? "Pokaż hasło"
-                      : "Show password"
-                }
+                aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -231,7 +224,7 @@ export function LoginPopup() {
                 className="text-brand hover:underline"
                 onClick={() => setMode("signup")}
               >
-                {lang === "pl" ? "Nie masz konta? Zarejestruj się" : "No account? Sign up"}
+                {t("authForms.noAccount")}
               </button>
             ) : (
               <button
@@ -239,7 +232,7 @@ export function LoginPopup() {
                 className="text-brand hover:underline"
                 onClick={() => setMode("signin")}
               >
-                {lang === "pl" ? "Masz już konto? Zaloguj się" : "Already have an account? Sign in"}
+                {t("authForms.haveAccount")}
               </button>
             )}
           </div>

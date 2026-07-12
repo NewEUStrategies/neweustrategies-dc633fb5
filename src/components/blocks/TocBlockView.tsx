@@ -3,9 +3,11 @@
 // - col-1 → jedna kolumna (default)
 // - col-2 → dwie kolumny (grid, płynny podział)
 // - half  → połowa szerokości bloku treści
+import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/blocks/types";
 import type { TocColumns } from "@/lib/toc/settings";
 import { extractHeadingsFromBlocks } from "@/lib/toc/settings";
+import "@/lib/i18n-public";
 
 interface Props {
   blocks: Block[];
@@ -17,6 +19,7 @@ interface Props {
   ordered?: boolean;
   sticky?: boolean;
   columns?: TocColumns;
+  /** Accepted for caller compatibility; UI copy now follows the i18n language. */
   lang?: "pl" | "en";
 }
 
@@ -28,9 +31,9 @@ export function TocBlockView({
   ordered = false,
   sticky = false,
   columns = "col-1",
-  lang = "pl",
 }: Props) {
-  const L = lang === "pl" ? "Spis treści" : "Table of contents";
+  const { t } = useTranslation();
+  const L = t("blocksUi.tocTitle");
   const items = extractHeadingsFromBlocks({ version: 1, blocks }).filter(
     (h) => h.level >= minLevel && h.level <= maxLevel,
   );

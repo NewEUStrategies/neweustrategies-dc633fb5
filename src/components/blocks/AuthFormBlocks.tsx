@@ -2,8 +2,10 @@
 // Renderuje semantyczny HTML + integrację Supabase. Nie używać raw HTML.
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import "@/lib/i18n-public";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,6 +80,7 @@ interface LoginData extends BaseData {
 }
 
 export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -85,46 +88,26 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const title = pickLang(data, "title", lang, lang === "pl" ? "Zaloguj się" : "Sign in");
+  const title = pickLang(data, "title", lang, t("authForms.signinTitle"));
   const subtitle = pickLang(data, "subtitle", lang);
-  const submitLabel = pickLang(
-    data,
-    "submitLabel",
-    lang,
-    lang === "pl" ? "Zaloguj się" : "Sign in",
-  );
+  const submitLabel = pickLang(data, "submitLabel", lang, t("authForms.signinTitle"));
   const redirectTo = data.redirectTo || "/";
 
   const L = useMemo(
-    () =>
-      lang === "pl"
-        ? {
-            email: "E-mail",
-            password: "Hasło",
-            remember: "Zapamiętaj mnie",
-            show: "Pokaż hasło",
-            hide: "Ukryj hasło",
-            forgot: "Nie pamiętasz hasła?",
-            register: "Załóż konto",
-            or: "lub",
-            google: "Kontynuuj z Google",
-            required: "Wypełnij pola",
-            ok: "Zalogowano",
-          }
-        : {
-            email: "Email",
-            password: "Password",
-            remember: "Remember me",
-            show: "Show password",
-            hide: "Hide password",
-            forgot: "Forgot password?",
-            register: "Create account",
-            or: "or",
-            google: "Continue with Google",
-            required: "Fill all fields",
-            ok: "Signed in",
-          },
-    [lang],
+    () => ({
+      email: t("authForms.emailLabel"),
+      password: t("authForms.passwordLabel"),
+      remember: t("authForms.remember"),
+      show: t("authForms.showPassword"),
+      hide: t("authForms.hidePassword"),
+      forgot: t("authForms.forgot"),
+      register: t("authForms.registerLink"),
+      or: t("authForms.or"),
+      google: t("authForms.google"),
+      required: t("authForms.required"),
+      ok: t("authForms.signinOk"),
+    }),
+    [t],
   );
 
   const submit = async (e: FormEvent) => {
@@ -277,6 +260,7 @@ interface RegisterData extends BaseData {
 }
 
 export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lang }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -287,43 +271,25 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const title = pickLang(data, "title", lang, lang === "pl" ? "Utwórz konto" : "Create account");
+  const title = pickLang(data, "title", lang, t("authForms.signupTitle"));
   const subtitle = pickLang(data, "subtitle", lang);
-  const submitLabel = pickLang(
-    data,
-    "submitLabel",
-    lang,
-    lang === "pl" ? "Zarejestruj się" : "Sign up",
-  );
+  const submitLabel = pickLang(data, "submitLabel", lang, t("authForms.signupSubmit"));
   const consentLabel = pickLang(data, "consentLabel", lang);
   const redirectTo = data.redirectTo || "/";
 
   const L = useMemo(
-    () =>
-      lang === "pl"
-        ? {
-            name: "Imię",
-            email: "E-mail",
-            password: "Hasło",
-            confirm: "Powtórz hasło",
-            newsletter: "Chcę otrzymywać newsletter",
-            ok: "Konto utworzone - sprawdź e-mail.",
-            mismatch: "Hasła muszą być identyczne.",
-            consent: "Wymagana zgoda.",
-            login: "Masz już konto? Zaloguj się",
-          }
-        : {
-            name: "First name",
-            email: "Email",
-            password: "Password",
-            confirm: "Confirm password",
-            newsletter: "Subscribe to newsletter",
-            ok: "Account created - check your email.",
-            mismatch: "Passwords must match.",
-            consent: "Consent is required.",
-            login: "Already have an account? Sign in",
-          },
-    [lang],
+    () => ({
+      name: t("authForms.firstNameLabel"),
+      email: t("authForms.emailLabel"),
+      password: t("authForms.passwordLabel"),
+      confirm: t("authForms.confirmPasswordLabel"),
+      newsletter: t("authForms.newsletterOptIn"),
+      ok: t("authForms.signupOk"),
+      mismatch: t("authForms.passwordsMismatch"),
+      consent: t("authForms.consentRequired"),
+      login: t("authForms.haveAccount"),
+    }),
+    [t],
   );
 
   const submit = async (e: FormEvent) => {
@@ -388,7 +354,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
                 autoComplete="given-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={lang === "pl" ? "Jan" : "John"}
+                placeholder={t("authForms.namePlaceholder")}
                 className="auth-icon-input"
               />
             </div>
@@ -426,22 +392,14 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={lang === "pl" ? "min. 8 znaków" : "min. 8 characters"}
+              placeholder={t("authForms.passwordPlaceholder")}
               className="auth-icon-input auth-icon-input-with-action"
             />
             <button
               type="button"
               onClick={() => setShowPw((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-              aria-label={
-                showPw
-                  ? lang === "pl"
-                    ? "Ukryj hasło"
-                    : "Hide password"
-                  : lang === "pl"
-                    ? "Pokaż hasło"
-                    : "Show password"
-              }
+              aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
             >
               {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -462,7 +420,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
                 minLength={8}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
+                placeholder={t("authForms.confirmPlaceholder")}
                 className="auth-icon-input"
               />
             </div>
@@ -487,12 +445,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               onCheckedChange={(v) => setConsent(Boolean(v))}
               required
             />
-            <span className="flex-1 min-w-0">
-              {consentLabel ||
-                (lang === "pl"
-                  ? "Akceptuję regulamin i politykę prywatności."
-                  : "I accept the terms and privacy policy.")}
-            </span>
+            <span className="flex-1 min-w-0">{consentLabel || t("authForms.consentDefault")}</span>
           </label>
         )}
         <Button type="submit" className="w-full" disabled={busy}>
@@ -515,34 +468,22 @@ interface LostPasswordData extends BaseData {
 }
 
 export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; lang: Lang }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const title = pickLang(data, "title", lang, lang === "pl" ? "Resetuj hasło" : "Reset password");
+  const title = pickLang(data, "title", lang, t("authForms.resetTitle"));
   const subtitle = pickLang(data, "subtitle", lang);
-  const submitLabel = pickLang(
-    data,
-    "submitLabel",
-    lang,
-    lang === "pl" ? "Wyślij link" : "Send link",
-  );
+  const submitLabel = pickLang(data, "submitLabel", lang, t("authForms.sendLink"));
   const redirectTo = data.redirectTo || "/reset-password";
 
-  const L =
-    lang === "pl"
-      ? {
-          email: "E-mail",
-          ok: "Link wysłany. Sprawdź skrzynkę.",
-          login: "Powrót do logowania",
-          success: "Sprawdź swoją skrzynkę - wysłaliśmy link do resetu hasła.",
-        }
-      : {
-          email: "Email",
-          ok: "Reset link sent. Check your inbox.",
-          login: "Back to sign in",
-          success: "Check your inbox - we sent you a reset link.",
-        };
+  const L = {
+    email: t("authForms.emailLabel"),
+    ok: t("authForms.resetLinkSent"),
+    login: t("authForms.backToSignin"),
+    success: t("authForms.resetSuccess"),
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -613,6 +554,7 @@ interface ResetPasswordData extends BaseData {
 }
 
 export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData; lang: Lang }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -620,19 +562,9 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const title = pickLang(
-    data,
-    "title",
-    lang,
-    lang === "pl" ? "Ustaw nowe hasło" : "Set new password",
-  );
+  const title = pickLang(data, "title", lang, t("authForms.setNewPasswordTitle"));
   const subtitle = pickLang(data, "subtitle", lang);
-  const submitLabel = pickLang(
-    data,
-    "submitLabel",
-    lang,
-    lang === "pl" ? "Zapisz hasło" : "Save password",
-  );
+  const submitLabel = pickLang(data, "submitLabel", lang, t("authForms.savePassword"));
   const minLength = Math.max(6, Number(data.minLength ?? 8));
   const redirectTo = data.redirectTo || "/login";
 
@@ -645,24 +577,14 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const L =
-    lang === "pl"
-      ? {
-          password: "Nowe hasło",
-          confirm: "Powtórz hasło",
-          ok: "Hasło zapisane.",
-          mismatch: "Hasła muszą być identyczne.",
-          tooShort: `Min. ${minLength} znaków.`,
-          noToken: "Otwórz link z e-maila resetującego hasło, aby kontynuować.",
-        }
-      : {
-          password: "New password",
-          confirm: "Confirm password",
-          ok: "Password saved.",
-          mismatch: "Passwords must match.",
-          tooShort: `At least ${minLength} characters.`,
-          noToken: "Open the password-reset link from your email to continue.",
-        };
+  const L = {
+    password: t("authForms.newPasswordLabel"),
+    confirm: t("authForms.confirmPasswordLabel"),
+    ok: t("authForms.passwordSaved"),
+    mismatch: t("authForms.passwordsMismatch"),
+    tooShort: t("authForms.tooShort", { minLength }),
+    noToken: t("authForms.noToken"),
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -711,24 +633,14 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                 minLength={minLength}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={
-                  lang === "pl" ? `min. ${minLength} znaków` : `min. ${minLength} characters`
-                }
+                placeholder={t("authForms.passwordPlaceholderMin", { minLength })}
                 className="auth-icon-input auth-icon-input-with-action"
               />
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={
-                  showPw
-                    ? lang === "pl"
-                      ? "Ukryj hasło"
-                      : "Hide password"
-                    : lang === "pl"
-                      ? "Pokaż hasło"
-                      : "Show password"
-                }
+                aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -749,7 +661,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
                   minLength={minLength}
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
-                  placeholder={lang === "pl" ? "powtórz hasło" : "repeat password"}
+                  placeholder={t("authForms.confirmPlaceholder")}
                   className="auth-icon-input"
                 />
               </div>

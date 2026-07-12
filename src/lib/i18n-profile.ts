@@ -21,6 +21,16 @@ const pl = {
       orders: "Historia płatności",
       security: "Bezpieczeństwo",
     },
+    navGroups: {
+      identity: "Tożsamość",
+      content: "Treści i personalizacja",
+      finance: "Płatności i bezpieczeństwo",
+    },
+    identityHint: {
+      account: "Ta strona edytuje Twoje konto (dane prywatne widoczne dla Ciebie). Pozostałe:",
+      social: "Ta strona edytuje Twoją publiczną wizytówkę i linki społecznościowe. Pozostałe:",
+      author: "Ta strona edytuje profil autora widoczny przy Twoich publikacjach. Pozostałe:",
+    },
     overview: {
       welcome: "Witaj, {{name}}",
       memberLabel: "Członek",
@@ -246,6 +256,10 @@ const pl = {
     trial: "{{days}} dni za darmo",
     popular: "Najpopularniejszy",
     empty: "Brak dostępnych planów.",
+    intervalMonthly: "Miesięcznie",
+    intervalYearly: "Rocznie",
+    compareTitle: "Porównanie planów",
+    compareFeature: "Funkcja",
     trust: {
       secure: "Bezpieczne płatności Stripe",
       cancel: "Anuluj w każdej chwili",
@@ -322,6 +336,16 @@ const en: typeof pl = {
       subscription: "Subscription",
       orders: "Payment history",
       security: "Security",
+    },
+    navGroups: {
+      identity: "Identity",
+      content: "Content & personalization",
+      finance: "Payments & security",
+    },
+    identityHint: {
+      account: "This page edits your account (private details visible to you). Also see:",
+      social: "This page edits your public profile card and social links. Also see:",
+      author: "This page edits the author profile shown on your publications. Also see:",
     },
     overview: {
       welcome: "Welcome, {{name}}",
@@ -547,6 +571,10 @@ const en: typeof pl = {
     trial: "{{days}}-day free trial",
     popular: "Most popular",
     empty: "No plans available.",
+    intervalMonthly: "Monthly",
+    intervalYearly: "Yearly",
+    compareTitle: "Compare plans",
+    compareFeature: "Feature",
     trust: {
       secure: "Secure payments by Stripe",
       cancel: "Cancel anytime",

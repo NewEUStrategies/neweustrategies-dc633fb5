@@ -8,6 +8,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { supabase } from "@/integrations/supabase/client";
 import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
 import { Clock, Eye, User, Calendar, FolderOpen, Star, LogIn, LogOut } from "lucide-react";
+import { formatDate } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -55,11 +56,7 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
   const dateStr = useMemo(() => {
     const d = ctx?.publishedAt ? new Date(ctx.publishedAt) : null;
     if (!d || Number.isNaN(d.getTime())) return null;
-    return d.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return formatDate(d, lang, { year: "numeric", month: "long", day: "numeric" });
   }, [ctx?.publishedAt, lang]);
 
   const readingMin = useMemo(() => {

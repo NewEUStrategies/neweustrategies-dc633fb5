@@ -2,7 +2,9 @@
 
 import { XIcon } from "@/components/atoms/XIcon";
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
+import "@/lib/i18n-public";
 import { FootnoteTooltips } from "@/components/Footnotes";
 import type { Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
@@ -101,11 +103,6 @@ interface Props {
   postId?: string;
 }
 
-const FN_LABELS = {
-  pl: { title: "Przypisy", back: "Wróć do tekstu" },
-  en: { title: "Footnotes", back: "Back to text" },
-} as const;
-
 /** Globalny stan przypisów: zbiera [fn]...[/fn] w kolejności wystąpienia. */
 type FootnoteCollector = { notes: string[] };
 
@@ -143,6 +140,7 @@ function renderFootnoteHtml(text: string): string {
 }
 
 export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
+  const { t } = useTranslation();
   const articleRef = useRef<HTMLElement | null>(null);
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
@@ -155,7 +153,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   const fnHtml = new Map<string, string>();
   precomputeFootnotes(safe.blocks, fn, fnHtml);
   const tooltipNotes: Footnote[] = fn.notes.map((html, i) => ({ id: i + 1, html }));
-  const L = FN_LABELS[lang] ?? FN_LABELS.pl;
+  const L = { title: t("blocksUi.footnotesTitle"), back: t("blocksUi.footnotesBack") };
   return (
     <article
       ref={articleRef}
@@ -363,6 +361,7 @@ function BlockView({
   postId?: string;
   allBlocks?: Block[];
 }) {
+  const { t } = useTranslation();
   const cls = alignClass(block);
 
   switch (block.type) {
@@ -706,8 +705,7 @@ function BlockView({
       const cons = (Array.isArray(block.data.cons) ? block.data.cons : [])
         .map((x) => String(x ?? ""))
         .filter(Boolean);
-      const LBL =
-        lang === "pl" ? { pros: "Plusy", cons: "Minusy" } : { pros: "Pros", cons: "Cons" };
+      const LBL = { pros: t("blocksUi.pros"), cons: t("blocksUi.cons") };
       if (!pros.length && !cons.length) return null;
       return (
         <section className={`not-prose my-6 ${cls}`}>
@@ -748,7 +746,7 @@ function BlockView({
           open={open}
         >
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/50 rounded-t-md">
-            {summary || (lang === "pl" ? "Pokaż więcej" : "Show more")}
+            {summary || t("blocksUi.showMore")}
           </summary>
           <div
             className="px-4 py-3 border-t border-border text-sm"
@@ -844,8 +842,8 @@ function BlockView({
           <CompareSlider
             before={before}
             after={after}
-            labelBefore={String(block.data.labelBefore ?? (lang === "pl" ? "Przed" : "Before"))}
-            labelAfter={String(block.data.labelAfter ?? (lang === "pl" ? "Po" : "After"))}
+            labelBefore={String(block.data.labelBefore ?? t("blocksUi.before"))}
+            labelAfter={String(block.data.labelAfter ?? t("blocksUi.after"))}
           />
         </div>
       );
@@ -918,11 +916,10 @@ function BlockView({
     }
     case "file": {
       const url = safeUrl(String(block.data.url ?? ""), "");
-      const label =
-        String(block.data.label ?? "") || (lang === "pl" ? "Pobierz plik" : "Download file");
+      const label = String(block.data.label ?? "") || t("blocksUi.downloadFile");
       const showButton = block.data.showButton !== false;
       if (!url) return null;
-      const labelDownload = lang === "pl" ? "Pobierz" : "Download";
+      const labelDownload = t("blocksUi.download");
       return (
         <div
           className={`not-prose my-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 ${cls}`}
@@ -1037,7 +1034,7 @@ function BlockView({
       return (
         <details className={`not-prose my-4 rounded-md border border-border bg-muted/20 ${cls}`}>
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/40 rounded-t-md">
-            {summary || (lang === "pl" ? "Szczegóły" : "Details")}
+            {summary || t("blocksUi.details")}
           </summary>
           <div className="px-4 py-3 border-t border-border text-sm whitespace-pre-line">{body}</div>
         </details>
@@ -1155,8 +1152,8 @@ function BlockView({
       );
     }
     case "search": {
-      const placeholder = String(block.data.placeholder ?? (lang === "pl" ? "Szukaj…" : "Search…"));
-      const buttonLabel = String(block.data.buttonLabel ?? (lang === "pl" ? "Szukaj" : "Search"));
+      const placeholder = String(block.data.placeholder ?? t("blocksUi.searchPlaceholder"));
+      const buttonLabel = String(block.data.buttonLabel ?? t("blocksUi.searchButton"));
       const action = String(block.data.action ?? "/search");
       return (
         <form className={`not-prose flex gap-2 ${cls}`} action={action} method="get" role="search">

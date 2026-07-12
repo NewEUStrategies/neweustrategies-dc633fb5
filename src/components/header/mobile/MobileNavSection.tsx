@@ -87,8 +87,15 @@ export function MobileNavSection({ items, isPl, onNavigate }: Props) {
             </a>
           );
         }
+        const active = typeof window !== "undefined" && window.location.pathname === item.href;
         return (
-          <Link key={item.id} to={item.href} onClick={onNavigate} className={linkCls}>
+          <Link
+            key={item.id}
+            to={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={`${linkCls}${active ? " bg-muted/60 font-semibold" : ""}`}
+          >
             <Icon className="w-4 h-4 text-muted-foreground" />
             <span>{label}</span>
           </Link>

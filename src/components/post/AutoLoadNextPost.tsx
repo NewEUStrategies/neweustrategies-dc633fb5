@@ -163,13 +163,18 @@ export function AutoLoadNextPost({
       <div ref={sentinelRef} aria-hidden className="h-px w-full" />
 
       {loading && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-center text-sm text-muted-foreground py-6"
-        >
-          {L.loading}
-        </p>
+        <div role="status" aria-live="polite" className="py-8">
+          <span className="sr-only">{L.loading}</span>
+          {/* Artykułowy skeleton zamiast gołego tekstu - czytelnik widzi, że
+              wjeżdża kolejny wpis, a nie generyczne "Ładowanie…". */}
+          <div aria-hidden="true" className="mx-auto max-w-3xl space-y-4">
+            <div className="skeleton-shimmer h-8 w-3/4 rounded" />
+            <div className="skeleton-shimmer h-4 w-40 rounded" />
+            <div className="skeleton-shimmer aspect-[16/8] w-full rounded-xl" />
+            <div className="skeleton-shimmer h-4 w-full rounded" />
+            <div className="skeleton-shimmer h-4 w-5/6 rounded" />
+          </div>
+        </div>
       )}
       {done && <p className="text-center text-xs text-muted-foreground py-6">{L.end}</p>}
     </div>

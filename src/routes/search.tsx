@@ -11,11 +11,15 @@ import { Search as SearchIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { SearchSnippet } from "@/components/search/SearchSnippet";
+import { AppLink } from "@/components/atoms/AppLink";
+import { supabase } from "@/integrations/supabase/client";
 import {
   searchQueryOptions,
   SEARCH_LIMIT_MAX,
   SEARCH_PAGE_SIZE,
   type SearchFilters,
+  type SearchResultItem,
 } from "@/lib/queries/archives";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -98,6 +102,52 @@ function SearchPage() {
   const resultsCapped = posts.length >= limit;
   const canLoadMore = resultsCapped && limit < SEARCH_LIMIT_MAX;
 
+  const hasQuery = search.q.trim().length >= 2;
+
+  // Did-you-mean (pg_trgm nad tytułami) - tylko przy zerowych wynikach.
+  // Odporny na brak funkcji przed wdrożeniem migracji (catch -> pusto).
+  const suggest = useQuery({
+    queryKey: ["public", "search-suggest", search.q] as const,
+    enabled: hasQuery && !isFetching && posts.length === 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      try {
+        const { data: rows } = await supabase.rpc("search_suggest", {
+          _q: search.q.trim(),
+          _limit: 5,
+        });
+        return rows ?? [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // Popularne frazy (z telemetrii zapytań) - podpowiedź w stanie pustym.
+  const popular = useQuery({
+    queryKey: ["public", "popular-searches"] as const,
+    enabled: !hasQuery,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      try {
+        const { data: rows } = await supabase.rpc("popular_searches", {
+          _days: 30,
+          _limit: 6,
+        });
+        return rows ?? [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // Snippet trafienia: preferuj headline w języku UI, fallback na drugi język.
+  const snippetFor = (p: SearchResultItem) => {
+    const raw = lang === "en" ? p.headline_en || p.headline_pl : p.headline_pl || p.headline_en;
+    if (!raw || !raw.includes("[[[")) return undefined;
+    return <SearchSnippet text={raw} />;
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     navigate({ search: (s: SearchInput) => ({ ...s, q: draft }) });
@@ -132,7 +182,33 @@ function SearchPage() {
         </form>
 
         {search.q.trim().length < 2 ? (
-          <p className="text-sm text-muted-foreground">{t("search.min_chars")}</p>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{t("search.min_chars")}</p>
+            {(popular.data?.length ?? 0) > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                  {t("search.popular", {
+                    defaultValue: lang === "en" ? "Popular searches" : "Popularne wyszukiwania",
+                  })}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(popular.data ?? []).map((p) => (
+                    <button
+                      key={p.q}
+                      type="button"
+                      onClick={() => {
+                        setDraft(p.q);
+                        navigate({ search: (s: SearchInput) => ({ ...s, q: p.q }) });
+                      }}
+                      className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-foreground transition hover:bg-muted"
+                    >
+                      {p.q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
             <aside className="space-y-5">
@@ -141,7 +217,7 @@ function SearchPage() {
                 {active && (
                   <button
                     onClick={clearAll}
-                    className="text-xs text-brand inline-flex items-center gap-1 hover:underline"
+                    className="text-xs text-brand-ink inline-flex items-center gap-1 hover:underline"
                   >
                     <X className="w-3 h-3" />
                     {t("search.clear")}
@@ -186,7 +262,7 @@ function SearchPage() {
                           <button
                             type="button"
                             onClick={() => updateFilter("category", isActive ? undefined : c.id)}
-                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand" : "hover:bg-muted"}`}
+                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand-ink" : "hover:bg-muted"}`}
                           >
                             <span className="truncate">{c.name}</span>
                             <span className="text-xs text-muted-foreground">{c.count}</span>
@@ -211,7 +287,7 @@ function SearchPage() {
                           <button
                             type="button"
                             onClick={() => updateFilter("author", isActive ? undefined : a.id)}
-                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand" : "hover:bg-muted"}`}
+                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand-ink" : "hover:bg-muted"}`}
                           >
                             <span className="truncate">{a.name}</span>
                             <span className="text-xs text-muted-foreground">{a.count}</span>
@@ -247,7 +323,36 @@ function SearchPage() {
                         : t("search.results_count", { count: posts.length })}
                   </p>
                   {data && (
-                    <ArchivePostList posts={posts} lang={lang} emptyText={t("search.empty")} />
+                    <ArchivePostList
+                      posts={posts}
+                      lang={lang}
+                      emptyText={t("search.empty")}
+                      getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
+                    />
+                  )}
+                  {/* Did-you-mean: trigramowo bliskie tytuły przy zerze wyników */}
+                  {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
+                    <div className="mt-6">
+                      <p className="text-sm font-medium mb-2">
+                        {t("search.didYouMean", {
+                          defaultValue: lang === "en" ? "Did you mean:" : "Czy chodziło Ci o:",
+                        })}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {(suggest.data ?? []).map((s) => (
+                          <li key={s.id}>
+                            <AppLink
+                              href={`/search?q=${encodeURIComponent(
+                                (lang === "en" ? s.title_en || s.title_pl : s.title_pl) ?? "",
+                              )}`}
+                              className="text-sm text-brand-ink hover:underline"
+                            >
+                              {lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en}
+                            </AppLink>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                   {canLoadMore && (
                     <div className="flex justify-center pt-6">

@@ -14,6 +14,7 @@ import {
   type RelatedPostsOverride,
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
+import { formatDate } from "@/lib/i18n/format";
 
 export interface RelatedPostsProps {
   postId: string;
@@ -109,7 +110,11 @@ function CardBody({
             article these cards are the most likely next navigation - warming
             their loaders here makes the transition feel instant, and the page
             is already idle when this section scrolls in. */}
-        <Link to={p.href as "/"} preload="viewport" className="hover:text-brand transition-colors">
+        <Link
+          to={p.href as "/"}
+          preload="viewport"
+          className="hover:text-brand-ink transition-colors"
+        >
           {title}
         </Link>
       </h3>
@@ -118,11 +123,7 @@ function CardBody({
       )}
       {cfg.show_meta && p.published_at && (
         <time className="text-xs text-muted-foreground" dateTime={p.published_at}>
-          {new Date(p.published_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })}
+          {formatDate(p.published_at, lang, { year: "numeric", month: "short", day: "numeric" })}
         </time>
       )}
     </div>

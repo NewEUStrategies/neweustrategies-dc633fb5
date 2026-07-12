@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { authorCvQueryOptions, type AuthorCv } from "@/lib/queries/authorCv";
+import { formatDate } from "@/lib/i18n/format";
 
 interface Props {
   userId: string | null | undefined;
@@ -30,10 +31,7 @@ function formatDateRange(
     if (!d) return "";
     const parsed = new Date(d);
     if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toLocaleDateString(isPl ? "pl-PL" : "en-US", {
-      year: "numeric",
-      month: "short",
-    });
+    return formatDate(parsed, isPl ? "pl" : "en", { year: "numeric", month: "short" });
   };
   const s = fmt(start);
   const e = isCurrent ? (isPl ? "obecnie" : "present") : fmt(end);

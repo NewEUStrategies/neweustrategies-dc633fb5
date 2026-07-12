@@ -40,7 +40,7 @@ export function FootnotesList({ notes, lang = "pl" }: { notes: Footnote[]; lang?
             <a
               href={`#fnref-${n.id}`}
               data-footnote-backlink
-              className="text-brand hover:underline ml-1"
+              className="text-brand-ink hover:underline ml-1"
               aria-label={L.back(n.id)}
               title={L.backTitle}
             >

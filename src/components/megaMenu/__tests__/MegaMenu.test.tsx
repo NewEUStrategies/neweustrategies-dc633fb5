@@ -1,7 +1,9 @@
-// MegaMenu - smoke + interaction tests (PL/EN, click trigger, mobile accordion).
+// MegaMenu - smoke + interaction tests (PL/EN, click trigger, mobile accordion)
+// + axe (structural a11y of the primary navigation surface).
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MegaMenu, type MegaMenuConfig } from "../MegaMenu";
+import { axeViolations, summarize } from "@/test/axe";
 
 const config: MegaMenuConfig = {
   trigger_pl: "Tematy",
@@ -66,5 +68,26 @@ describe("MegaMenu", () => {
     const cfg: MegaMenuConfig = { ...config, trigger_en: "" };
     render(<MegaMenu config={cfg} lang="en" />);
     expect(screen.getByRole("button", { name: /Tematy/ })).not.toBeNull();
+  });
+
+  it("has no axe violations with the panel open (desktop)", async () => {
+    const { container } = render(
+      <nav aria-label="Główna nawigacja">
+        <MegaMenu config={config} lang="pl" />
+      </nav>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Tematy/ }));
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("has no axe violations in the mobile accordion", async () => {
+    const { container } = render(
+      <nav aria-label="Główna nawigacja">
+        <MegaMenu config={config} lang="en" mobile />
+      </nav>,
+    );
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
   });
 });

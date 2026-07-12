@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "@/lib/lucide-shim";
 import { type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { currentLang } from "@/lib/i18n/localeRuntime";
+import { homeLabel } from "@/lib/i18n/commonLabels";
 
 // BreadcrumbList JSON-LD is emitted from the route head() (src/routes/$.tsx),
 // where it renders during SSR with absolute, localized URLs. Emitting it here
@@ -13,7 +14,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
       <ol className="flex flex-wrap items-center gap-1">
         <li>
           <Link to="/" className="hover:text-foreground">
-            {currentLang() === "pl" ? "Start" : "Home"}
+            {homeLabel(currentLang())}
           </Link>
         </li>
         {items.map((it, i) => (

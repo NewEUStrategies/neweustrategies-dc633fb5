@@ -1,7 +1,9 @@
 // Stopka pojedynczego wpisu - pasek tagów / karta autora / paginacja prev-next.
 // Każdy element renderuje się tylko gdy odpowiedni flag w settings jest true.
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
+import "@/lib/i18n-public";
 
 interface AuthorInfo {
   display_name?: string | null;
@@ -17,6 +19,7 @@ interface NeighborPost {
 
 interface Props {
   settings: PostLayoutSettings;
+  /** Accepted for caller compatibility; UI copy now follows the i18n language. */
   lang: "pl" | "en";
   tags?: Array<{ slug: string; name: string }>;
   author?: AuthorInfo | null;
@@ -24,7 +27,8 @@ interface Props {
   next?: NeighborPost | null;
 }
 
-export function PostFooterBars({ settings, lang, tags, author, prev, next }: Props) {
+export function PostFooterBars({ settings, tags, author, prev, next }: Props) {
+  const { t } = useTranslation();
   const showTags = settings.show_post_tags_bar && tags && tags.length > 0;
   const showAuthor = settings.show_author_card && author;
   const showPrevNext = settings.show_prev_next && (prev || next);
@@ -34,7 +38,7 @@ export function PostFooterBars({ settings, lang, tags, author, prev, next }: Pro
       {showTags && (
         <div className="flex items-center gap-2 flex-wrap border-t border-border pt-4">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            {lang === "en" ? "Tags" : "Tagi"}
+            {t("postFooter.tags")}
           </span>
           {tags!.map((t) => (
             <span key={t.slug} className="text-xs px-2 py-1 rounded bg-muted">
@@ -63,7 +67,7 @@ export function PostFooterBars({ settings, lang, tags, author, prev, next }: Pro
 
       {showPrevNext && (
         <nav
-          aria-label={lang === "en" ? "Post navigation" : "Nawigacja po wpisach"}
+          aria-label={t("postFooter.postNavigation")}
           className={`grid md:grid-cols-2 gap-4 border-t border-border pt-6 ${
             settings.prev_next_mobile_hide ? "hidden md:grid" : ""
           }`}
@@ -75,9 +79,7 @@ export function PostFooterBars({ settings, lang, tags, author, prev, next }: Pro
               preload="viewport"
               className="block p-4 rounded border border-border hover:bg-muted/40 transition"
             >
-              <span className="text-xs text-muted-foreground">
-                {lang === "en" ? "Previous" : "Poprzedni"}
-              </span>
+              <span className="text-xs text-muted-foreground">{t("postFooter.previous")}</span>
               <p className="text-sm font-medium mt-1">{prev.title}</p>
             </Link>
           ) : (
@@ -90,9 +92,7 @@ export function PostFooterBars({ settings, lang, tags, author, prev, next }: Pro
               preload="viewport"
               className="block p-4 rounded border border-border hover:bg-muted/40 transition text-right"
             >
-              <span className="text-xs text-muted-foreground">
-                {lang === "en" ? "Next" : "Następny"}
-              </span>
+              <span className="text-xs text-muted-foreground">{t("postFooter.next")}</span>
               <p className="text-sm font-medium mt-1">{next.title}</p>
             </Link>
           ) : (
