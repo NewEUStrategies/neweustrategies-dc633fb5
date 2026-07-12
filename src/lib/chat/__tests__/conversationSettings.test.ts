@@ -38,6 +38,7 @@ function view(me: Partial<ParticipantRow>, id = "conv-1"): ConversationView {
       last_message_preview: null,
       last_message_sender: null,
       message_ttl_seconds: null,
+      title: null,
     },
     me: participant(me),
     peers: [],
