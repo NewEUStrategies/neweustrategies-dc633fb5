@@ -25,6 +25,7 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as LiveRouteImport } from './routes/live'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
@@ -102,6 +103,7 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
+import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
@@ -218,6 +220,11 @@ const LoginRoute = LoginRouteImport.update({
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   id: '/llms.txt',
   path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveRoute = LiveRouteImport.update({
+  id: '/live',
+  path: '/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedRoute = FeedRouteImport.update({
@@ -607,6 +614,11 @@ const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const WebStoriesSlugAmpRoute = WebStoriesSlugAmpRouteImport.update({
+  id: '/amp',
+  path: '/amp',
+  getParentRoute: () => WebStoriesSlugRoute,
+} as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   id: '/api/public/vitals',
   path: '/api/public/vitals',
@@ -806,6 +818,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/feed': typeof FeedRoute
+  '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
@@ -887,7 +900,7 @@ export interface FileRoutesByFullPath {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
-  '/web-stories/$slug': typeof WebStoriesSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -925,6 +938,7 @@ export interface FileRoutesByFullPath {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -937,6 +951,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/feed': typeof FeedRoute
+  '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
@@ -1014,7 +1029,7 @@ export interface FileRoutesByTo {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
-  '/web-stories/$slug': typeof WebStoriesSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -1052,6 +1067,7 @@ export interface FileRoutesByTo {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -1066,6 +1082,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/feed': typeof FeedRoute
+  '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
@@ -1147,7 +1164,7 @@ export interface FileRoutesById {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
-  '/web-stories/$slug': typeof WebStoriesSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -1185,6 +1202,7 @@ export interface FileRoutesById {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -1200,6 +1218,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/feed'
+    | '/live'
     | '/llms.txt'
     | '/login'
     | '/mcp'
@@ -1319,6 +1338,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/web-stories/$slug/amp'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -1331,6 +1351,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/feed'
+    | '/live'
     | '/llms.txt'
     | '/login'
     | '/mcp'
@@ -1446,6 +1467,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/web-stories/$slug/amp'
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
@@ -1459,6 +1481,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/feed'
+    | '/live'
     | '/llms.txt'
     | '/login'
     | '/mcp'
@@ -1578,6 +1601,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/web-stories/$slug/amp'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -1592,6 +1616,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   FeedRoute: typeof FeedRoute
+  LiveRoute: typeof LiveRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
@@ -1622,7 +1647,7 @@ export interface RootRouteChildren {
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
-  WebStoriesSlugRoute: typeof WebStoriesSlugRoute
+  WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1750,6 +1775,13 @@ declare module '@tanstack/react-router' {
       path: '/llms.txt'
       fullPath: '/llms.txt'
       preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live': {
+      id: '/live'
+      path: '/live'
+      fullPath: '/live'
+      preLoaderRoute: typeof LiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed': {
@@ -2291,6 +2323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterIndexRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/web-stories/$slug/amp': {
+      id: '/web-stories/$slug/amp'
+      path: '/amp'
+      fullPath: '/web-stories/$slug/amp'
+      preLoaderRoute: typeof WebStoriesSlugAmpRouteImport
+      parentRoute: typeof WebStoriesSlugRoute
+    }
     '/api/public/vitals': {
       id: '/api/public/vitals'
       path: '/api/public/vitals'
@@ -2816,11 +2855,24 @@ const ProfileRouteChildren: ProfileRouteChildren = {
 const ProfileRouteWithChildren =
   ProfileRoute._addFileChildren(ProfileRouteChildren)
 
+interface WebStoriesSlugRouteChildren {
+  WebStoriesSlugAmpRoute: typeof WebStoriesSlugAmpRoute
+}
+
+const WebStoriesSlugRouteChildren: WebStoriesSlugRouteChildren = {
+  WebStoriesSlugAmpRoute: WebStoriesSlugAmpRoute,
+}
+
+const WebStoriesSlugRouteWithChildren = WebStoriesSlugRoute._addFileChildren(
+  WebStoriesSlugRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   FeedRoute: FeedRoute,
+  LiveRoute: LiveRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
@@ -2852,7 +2904,7 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
-  WebStoriesSlugRoute: WebStoriesSlugRoute,
+  WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,

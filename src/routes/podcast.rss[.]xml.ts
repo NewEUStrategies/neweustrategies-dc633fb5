@@ -9,7 +9,7 @@ import { requestPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 import { buildPodcastRssXml, type PodcastRssItem } from "@/lib/seo/podcastRss";
-import { fetchPublishedPodcasts } from "@/lib/server/publishedContent.server";
+import { fetchMediaMetaByUrls, fetchPublishedPodcasts } from "@/lib/server/publishedContent.server";
 import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 function requestContext(): { origin: string; host: string; lang: AppLang } {
@@ -37,21 +37,28 @@ export const Route = createFileRoute("/podcast/rss.xml")({
         }
 
         const episodes = await fetchPublishedPodcasts(tenantId);
-        const items: PodcastRssItem[] = episodes
+        const withAudio = episodes
           // Bez URL audio odcinek nie jest prawidłowym elementem podcastu.
-          .filter((e) => !!e.audio_url)
-          .map((e) => ({
-            url: `${origin}${localizedPath(`/podcast/${e.slug}`, lang)}`,
-            title: (lang === "en" ? e.title_en || e.title_pl : e.title_pl || e.title_en) || e.slug,
-            description:
-              lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en,
-            publishedAt: e.published_at,
-            audioUrl: e.audio_url,
-            durationSeconds: e.duration_seconds,
-            season: e.season,
-            episodeNumber: e.episode_number,
-            imageUrl: e.cover_image_url,
-          }));
+          .filter((e) => !!e.audio_url);
+        // Prawdziwy rozmiar + MIME dla plików wgranych przez bibliotekę mediów
+        // (enclosure length/type); zewnętrzne URL-e zostają przy length=0.
+        const mediaMeta = await fetchMediaMetaByUrls(
+          tenantId,
+          withAudio.map((e) => e.audio_url),
+        );
+        const items: PodcastRssItem[] = withAudio.map((e) => ({
+          url: `${origin}${localizedPath(`/podcast/${e.slug}`, lang)}`,
+          title: (lang === "en" ? e.title_en || e.title_pl : e.title_pl || e.title_en) || e.slug,
+          description: lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en,
+          publishedAt: e.published_at,
+          audioUrl: e.audio_url,
+          audioBytes: mediaMeta.get(e.audio_url)?.sizeBytes ?? null,
+          audioMime: mediaMeta.get(e.audio_url)?.mimeType ?? null,
+          durationSeconds: e.duration_seconds,
+          season: e.season,
+          episodeNumber: e.episode_number,
+          imageUrl: e.cover_image_url,
+        }));
 
         const xml = buildPodcastRssXml({
           title: `${SITE_DEFAULT_TITLE[lang]} · Podcast`,

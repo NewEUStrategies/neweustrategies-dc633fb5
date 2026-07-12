@@ -38,6 +38,9 @@ export const Route = createFileRoute("/web-stories/$slug")({
         ...(description ? [{ property: "og:description", content: description }] : []),
         ...(s.cover_url ? [{ property: "og:image", content: s.cover_url }] : []),
       ],
+      // Równoległy dokument <amp-story> (kwalifikacja do prezentacji Web
+      // Stories w Google); URL względny rozwiązuje się do bieżącego hosta.
+      links: s.cover_url ? [{ rel: "amphtml", href: `/web-stories/${s.slug}/amp` }] : [],
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };
   },

@@ -106,6 +106,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/podcasts`, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/web-stories`, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/live`, changefreq: "daily", priority: "0.6" },
           { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
         ];
 
