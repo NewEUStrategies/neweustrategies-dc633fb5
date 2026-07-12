@@ -1496,7 +1496,7 @@ function GridView({
                   ) : (
                     <span className="text-2xl">📄</span>
                   )}
-                  <span className="text-[10px]">{extOf(m.filename)}</span>
+                  <span className="text-[9px] leading-[11px]">{extOf(m.filename)}</span>
                 </div>
               )}
               {selected && (
