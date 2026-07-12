@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Save, Send, Mail, Users } from "lucide-react";
 import {
   getCampaign,
+  getCampaignEngagement,
   upsertCampaign,
   countCampaignAudience,
   sendCampaignTest,
@@ -62,6 +63,7 @@ function CampaignEditor() {
   const count = useServerFn(countCampaignAudience);
   const test = useServerFn(sendCampaignTest);
   const send = useServerFn(sendCampaign);
+  const engagement = useServerFn(getCampaignEngagement);
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["admin", "newsletter-campaigns", id],
@@ -92,6 +94,11 @@ function CampaignEditor() {
     queryKey: ["admin", "newsletter-campaigns", id, "audience", form?.audience_filter],
     queryFn: () => count({ data: form?.audience_filter ?? {} }),
     enabled: Boolean(form),
+  });
+
+  const { data: engagementStats } = useQuery({
+    queryKey: ["admin", "newsletter-campaigns", id, "engagement"],
+    queryFn: () => engagement({ data: { id } }),
   });
 
   const saveMut = useMutation({
@@ -395,6 +402,41 @@ function CampaignEditor() {
                     : "active subscribers match the filter"}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{isPl ? "Zaangażowanie" : "Engagement"}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(() => {
+                const opens = engagementStats?.opens ?? 0;
+                const clicks = engagementStats?.clicks ?? 0;
+                const base = campaign.sent_count || 0;
+                const pct = (n: number) => (base > 0 ? `${Math.round((n / base) * 100)}%` : "—");
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-2xl font-semibold tabular-nums">{opens}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isPl ? "Otwarcia" : "Opens"} · {pct(opens)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-semibold tabular-nums">{clicks}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isPl ? "Kliknięcia" : "Clicks"} · {pct(clicks)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <p className="text-xs text-muted-foreground">
+                {isPl
+                  ? "Otwarcia liczone pikselem, kliknięcia przez przekierowanie. Wartości przybliżone (% z dostarczonych)."
+                  : "Opens tracked via pixel, clicks via redirect. Approximate (% of delivered)."}
+              </p>
             </CardContent>
           </Card>
 

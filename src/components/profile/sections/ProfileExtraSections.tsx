@@ -756,12 +756,11 @@ export function CvSection({
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
       const path = `${tenantId}/users/${userId}/cv-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("media").upload(path, file, {
+      const { error: upErr } = await supabase.storage.from("cv").upload(path, file, {
         upsert: true,
         contentType: file.type || "application/pdf",
       });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       // unset previous current
       await supabase
         .from("profile_cv_files")
@@ -773,7 +772,7 @@ export function CvSection({
         user_id: userId,
         tenant_id: tenantId,
         file_name: file.name,
-        file_url: pub.publicUrl,
+        file_url: path,
         mime_type: file.type || null,
         size_bytes: file.size,
         version: nextVersion,
@@ -803,6 +802,16 @@ export function CvSection({
       .eq("is_current", true);
     await supabase.from("profile_cv_files").update({ is_current: true }).eq("id", id);
     invalidate();
+  }
+
+  // CV files live in a private bucket; mint a short-lived (1h) signed URL on
+  // demand for preview/download. `file_url` stores the storage path.
+  async function openCv(f: CvFile, download: boolean) {
+    const { data, error } = await supabase.storage
+      .from("cv")
+      .createSignedUrl(f.file_url, 3600, download ? { download: f.file_name } : undefined);
+    if (error || !data) return toast.error(error?.message ?? "Preview failed");
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -835,21 +844,20 @@ export function CvSection({
             <span className="truncate text-sm">{current.file_name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <a
-              href={current.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => void openCv(current, false)}
               className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-border px-2 text-xs hover:bg-muted"
             >
               <Eye className="h-3.5 w-3.5" /> {t("profile.sections.cvPreview")}
-            </a>
-            <a
-              href={current.file_url}
-              download={current.file_name}
+            </button>
+            <button
+              type="button"
+              onClick={() => void openCv(current, true)}
               className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-border px-2 text-xs hover:bg-muted"
             >
               <Download className="h-3.5 w-3.5" /> {t("profile.sections.cvDownload")}
-            </a>
+            </button>
             {editable ? (
               <button
                 type="button"

@@ -104,7 +104,11 @@ import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
+import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
+import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open'
+import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
+import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
 import { Route as AdminSuperMobileDrawerRouteImport } from './routes/admin.super.mobile-drawer'
 import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
@@ -613,9 +617,29 @@ const ApiPublicPostTtsRoute = ApiPublicPostTtsRouteImport.update({
   path: '/api/public/post-tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPopupEventRoute = ApiPublicPopupEventRouteImport.update({
+  id: '/api/public/popup-event',
+  path: '/api/public/popup-event',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicNlOpenRoute = ApiPublicNlOpenRouteImport.update({
+  id: '/api/public/nl-open',
+  path: '/api/public/nl-open',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicNlClickRoute = ApiPublicNlClickRouteImport.update({
+  id: '/api/public/nl-click',
+  path: '/api/public/nl-click',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   id: '/api/public/client-errors',
   path: '/api/public/client-errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAdEventRoute = ApiPublicAdEventRouteImport.update({
+  id: '/api/public/ad-event',
+  path: '/api/public/ad-event',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersIdRoute = AdminUsersIdRouteImport.update({
@@ -894,7 +918,11 @@ export interface FileRoutesByFullPath {
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
+  '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/nl-click': typeof ApiPublicNlClickRoute
+  '/api/public/nl-open': typeof ApiPublicNlOpenRoute
+  '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
@@ -1017,7 +1045,11 @@ export interface FileRoutesByTo {
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
+  '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/nl-click': typeof ApiPublicNlClickRoute
+  '/api/public/nl-open': typeof ApiPublicNlOpenRoute
+  '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
@@ -1146,7 +1178,11 @@ export interface FileRoutesById {
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
+  '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/nl-click': typeof ApiPublicNlClickRoute
+  '/api/public/nl-open': typeof ApiPublicNlOpenRoute
+  '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
@@ -1276,7 +1312,11 @@ export interface FileRouteTypes {
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
+    | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/nl-click'
+    | '/api/public/nl-open'
+    | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
     | '/admin/newsletter/'
@@ -1399,7 +1439,11 @@ export interface FileRouteTypes {
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
+    | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/nl-click'
+    | '/api/public/nl-open'
+    | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
     | '/admin/newsletter'
@@ -1527,7 +1571,11 @@ export interface FileRouteTypes {
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
+    | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/nl-click'
+    | '/api/public/nl-open'
+    | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
     | '/admin/newsletter/'
@@ -1578,7 +1626,11 @@ export interface RootRouteChildren {
   BlogIndexRoute: typeof BlogIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
+  ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
+  ApiPublicNlOpenRoute: typeof ApiPublicNlOpenRoute
+  ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
@@ -2253,11 +2305,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPostTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/popup-event': {
+      id: '/api/public/popup-event'
+      path: '/api/public/popup-event'
+      fullPath: '/api/public/popup-event'
+      preLoaderRoute: typeof ApiPublicPopupEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/nl-open': {
+      id: '/api/public/nl-open'
+      path: '/api/public/nl-open'
+      fullPath: '/api/public/nl-open'
+      preLoaderRoute: typeof ApiPublicNlOpenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/nl-click': {
+      id: '/api/public/nl-click'
+      path: '/api/public/nl-click'
+      fullPath: '/api/public/nl-click'
+      preLoaderRoute: typeof ApiPublicNlClickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/client-errors': {
       id: '/api/public/client-errors'
       path: '/api/public/client-errors'
       fullPath: '/api/public/client-errors'
       preLoaderRoute: typeof ApiPublicClientErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ad-event': {
+      id: '/api/public/ad-event'
+      path: '/api/public/ad-event'
+      fullPath: '/api/public/ad-event'
+      preLoaderRoute: typeof ApiPublicAdEventRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/users/$id': {
@@ -2776,7 +2856,11 @@ const rootRouteChildren: RootRouteChildren = {
   BlogIndexRoute: BlogIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
+  ApiPublicNlClickRoute: ApiPublicNlClickRoute,
+  ApiPublicNlOpenRoute: ApiPublicNlOpenRoute,
+  ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,

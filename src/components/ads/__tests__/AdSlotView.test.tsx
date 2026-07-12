@@ -14,6 +14,14 @@ vi.mock("@/lib/ads/consent", () => ({
   }),
 }));
 
+// The slot fires fire-and-forget impression/click beacons once it renders; stub
+// them so the test never makes a real network call (which surfaces as an
+// unhandled socket error in the happy-dom environment).
+vi.mock("@/lib/analytics/events", () => ({
+  beaconAdEvent: () => {},
+  beaconPopupEvent: () => {},
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,

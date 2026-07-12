@@ -8,12 +8,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { updatePost, deletePost } from "@/lib/content.functions";
-import {
-  isoToLocalInput,
-  localInputToIso,
-  statusOptionsFor,
-  type PostWorkflowStatus,
-} from "@/lib/content/workflow";
+import { slugifyTaxonomy } from "@/lib/content/taxonomySlug";
+import { statusOptionsFor, type PostWorkflowStatus } from "@/lib/content/workflow";
 import { RevisionsCard } from "@/components/admin/molecules/RevisionsCard";
 import { EditPresenceBanner } from "@/components/admin/molecules/EditPresenceBanner";
 import { migratePostToBlocks } from "@/lib/posts-migrate.functions";
@@ -53,23 +49,25 @@ import {
   Link as LinkIconLucide,
   Mic,
 } from "@/lib/lucide-shim";
-import { History, Database, ListChecks, HelpCircle } from "lucide-react";
-import { ChevronDown } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { History, Database, ListChecks } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
-import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
+import { getLayoutSet, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
-import { LayoutPreview } from "@/components/admin/LayoutPreview";
+import { LayoutOverridesCard } from "@/components/admin/post-editor/LayoutOverridesCard";
 import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { PostSettingsMetabox, TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
+import { CategoriesCard, TagsCard } from "@/components/admin/post-editor/TaxonomyCards";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
+import { WorkflowStatusSection } from "@/components/admin/post-editor/WorkflowStatusSection";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
+import { SidebarSection, InfoHint } from "@/components/admin/post-editor/SidebarSection";
 import { toast } from "sonner";
 import {
   invalidateWidgetCaches,
@@ -135,57 +133,7 @@ interface TagOpt {
   name: string;
 }
 
-function SidebarSection({
-  title,
-  icon: Icon,
-  children,
-  defaultOpen = true,
-}: {
-  title: string;
-  icon?: React.ElementType;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-muted/30 transition-colors"
-      >
-        <h3 className="text-sm font-semibold inline-flex items-center gap-2">
-          {Icon ? <Icon className="w-4 h-4" /> : null} {title}
-        </h3>
-        <ChevronDown
-          className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
-    </div>
-  );
-}
-
-// Small inline help affordance: a "?" icon that reveals a tooltip on
-// hover/focus. Keeps the dense editor controls self-explanatory without adding
-// permanent visual clutter. Requires a <TooltipProvider> ancestor (mounted
-// once around the whole EditPost tree).
-function InfoHint({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={text}
-          className="inline-flex align-middle text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{text}</TooltipContent>
-    </Tooltip>
-  );
-}
+// SidebarSection + InfoHint moved to @/components/admin/post-editor/SidebarSection
 
 function EditPost() {
   const { slug: routeSlug } = Route.useParams();
@@ -302,14 +250,6 @@ function EditPost() {
   const [newCatEn, setNewCatEn] = useState("");
   const [newTagName, setNewTagName] = useState("");
   const [taxonomyBusy, setTaxonomyBusy] = useState<"cat" | "tag" | null>(null);
-  const slugify = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80);
   const addCategory = async () => {
     const pl = newCatPl.trim();
     const en = newCatEn.trim() || pl;
@@ -319,7 +259,7 @@ function EditPost() {
     }
     setTaxonomyBusy("cat");
     try {
-      const slug = slugify(pl) || slugify(en) || `cat-${Date.now()}`;
+      const slug = slugifyTaxonomy(pl) || slugifyTaxonomy(en) || `cat-${Date.now()}`;
       const { data, error } = await supabase
         .from("categories")
         .insert({ tenant_id: tenantId, name_pl: pl, name_en: en, slug })
@@ -347,7 +287,7 @@ function EditPost() {
     }
     setTaxonomyBusy("tag");
     try {
-      const slug = slugify(name) || `tag-${Date.now()}`;
+      const slug = slugifyTaxonomy(name) || `tag-${Date.now()}`;
       const { data, error } = await supabase
         .from("tags")
         .insert({ tenant_id: tenantId, name, slug })
@@ -649,110 +589,19 @@ function EditPost() {
     new Date(form.publish_at).getTime() <= Date.now();
 
   const workflowSection = (
-    <div className="space-y-2">
-      <div>
-        <Label>{t("admin.posts.status")}</Label>
-        <Select value={form.status} onValueChange={(v) => set("status", v as PostWorkflowStatus)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map((o) => (
-              <SelectItem key={o.value} value={o.value} disabled={o.publisherOnly}>
-                {t(`admin.status.${o.value}`)}
-                {o.publisherOnly
-                  ? ` - ${t("admin.workflow.adminOnly", { defaultValue: "tylko administrator" })}`
-                  : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {!canPublish && (
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {t("admin.workflow.writerHint", {
-              defaultValue:
-                "Publikuje administrator - wyślij wpis do recenzji, a redakcja go zatwierdzi.",
-            })}
-          </p>
-        )}
-      </div>
-
-      {form.status === "scheduled" && (
-        <div>
-          <Label>{t("admin.workflow.publishAt", { defaultValue: "Data publikacji" })}</Label>
-          <Input
-            type="datetime-local"
-            value={isoToLocalInput(form.publish_at)}
-            onChange={(e) => set("publish_at", localInputToIso(e.target.value))}
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {!form.publish_at
-              ? t("admin.workflow.publishAtRequired", {
-                  defaultValue: "Zaplanowany wpis wymaga daty publikacji.",
-                })
-              : scheduledInPast
-                ? t("admin.workflow.publishAtPast", {
-                    defaultValue:
-                      "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
-                  })
-                : t("admin.workflow.publishAtHint", {
-                    defaultValue: "Wpis opublikuje się automatycznie o wskazanej godzinie.",
-                  })}
-          </p>
-        </div>
-      )}
-
-      {form.status === "published" && form.published_at && (
-        <p className="text-[11px] text-muted-foreground">
-          {t("admin.workflow.publishedAt", {
-            defaultValue: "Opublikowano: {{date}}",
-            date: new Date(form.published_at).toLocaleString(uiLang),
-          })}
-        </p>
-      )}
-
-      {!canPublish && form.status === "draft" && (
-        <Button
-          type="button"
-          size="sm"
-          className="w-full"
-          disabled={busy}
-          onClick={() => applyStatus("pending_review")}
-        >
-          {t("admin.workflow.submitReview", { defaultValue: "Wyślij do recenzji" })}
-        </Button>
-      )}
-      {form.status === "pending_review" &&
-        (canPublish ? (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="flex-1"
-              disabled={busy}
-              onClick={() => applyStatus("published")}
-            >
-              {t("admin.workflow.approvePublish", { defaultValue: "Zatwierdź i opublikuj" })}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="flex-1"
-              disabled={busy}
-              onClick={() => applyStatus("draft")}
-            >
-              {t("admin.workflow.rejectToDraft", { defaultValue: "Odrzuć do szkicu" })}
-            </Button>
-          </div>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">
-            {t("admin.workflow.awaitingReview", {
-              defaultValue: "Wpis czeka na recenzję administratora.",
-            })}
-          </p>
-        ))}
-    </div>
+    <WorkflowStatusSection
+      status={form.status}
+      publishAt={form.publish_at}
+      publishedAt={form.published_at}
+      canPublish={canPublish}
+      busy={busy}
+      statusOptions={statusOptions}
+      scheduledInPast={scheduledInPast}
+      uiLang={uiLang}
+      onStatusChange={(v) => set("status", v)}
+      onPublishAtChange={(v) => set("publish_at", v)}
+      onApplyStatus={applyStatus}
+    />
   );
 
   const metaCard = (
@@ -897,224 +746,41 @@ function EditPost() {
   const layoutSet = getLayoutSet(currentFormat);
 
   const layoutCard = (
-    <SidebarSection title="Layout wpisu" icon={Layers}>
-      <div>
-        <Label>Format wpisu</Label>
-        <Select
-          value={form.post_format ?? "standard"}
-          onValueChange={(v) => set("post_format", v as PostFormat)}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="standard">Standard</SelectItem>
-            <SelectItem value="video">Video</SelectItem>
-            <SelectItem value="audio">Audio</SelectItem>
-            <SelectItem value="gallery">Gallery</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label>Layout (override)</Label>
-        <Select
-          value={ov.layout ?? "__inherit__"}
-          onValueChange={(v) => setOv({ layout: v === "__inherit__" ? undefined : v })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__inherit__">- Użyj globalnego -</SelectItem>
-            {layoutSet.map((l) => (
-              <SelectItem key={l.id} value={l.id}>
-                {l.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {globalLayout &&
-        (() => {
-          const effective = mergeOverrides(globalLayout, ov);
-          const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
-          const preset = findLayout(currentFormat, layoutId);
-          return (
-            <div className="pt-2 border-t border-border space-y-1.5">
-              <p className="text-xs text-muted-foreground">Podgląd na żywo</p>
-              <LayoutPreview preset={preset} settings={effective} />
-              <p className="text-[10px] text-muted-foreground">
-                {preset.label} · format: {currentFormat}
-                {ov.layout ? " · override" : " · z globalnych"}
-              </p>
-            </div>
-          );
-        })()}
-      <div className="space-y-1.5 pt-2 border-t border-border">
-        <p className="text-xs text-muted-foreground mb-1 inline-flex items-center gap-1">
-          {t("admin.posts.layoutOverrideHint", {
-            defaultValue: "Nadpisz sekcje stopki (puste = z globalnych):",
-          })}
-          <InfoHint
-            text={t("admin.posts.layoutTriHint", {
-              defaultValue:
-                "Globalne = dziedzicz ustawienie globalne. Włącz/Wyłącz = wymuś dla tego wpisu, ignorując globalne.",
-            })}
-          />
-        </p>
-        {(
-          [
-            ["center_header", "Wyśrodkuj nagłówek"],
-            ["show_post_tags_bar", "Pasek tagów"],
-            ["show_author_card", "Karta autora"],
-            ["show_prev_next", "Poprzedni / następny"],
-            ["show_bottom_newsletter", "Newsletter pod wpisem"],
-          ] as const
-        ).map(([key, label]) => {
-          const val = ov[key];
-          const tri = val === true ? "on" : val === false ? "off" : "inherit";
-          return (
-            <div key={key} className="flex items-center justify-between text-xs">
-              <span>{label}</span>
-              <Select
-                value={tri}
-                onValueChange={(v) =>
-                  setOv({
-                    [key]: v === "inherit" ? undefined : v === "on",
-                  } as Partial<LayoutOverrides>)
-                }
-              >
-                <SelectTrigger className="h-7 w-32 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inherit">Globalne</SelectItem>
-                  <SelectItem value="on">Włącz</SelectItem>
-                  <SelectItem value="off">Wyłącz</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          );
-        })}
-      </div>
-    </SidebarSection>
+    <LayoutOverridesCard
+      postFormat={form.post_format}
+      onPostFormatChange={(v) => set("post_format", v)}
+      ov={ov}
+      onOverridesChange={setOv}
+      currentFormat={currentFormat}
+      layoutSet={layoutSet}
+      globalLayout={globalLayout}
+    />
   );
 
   const catsCard = (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <Label className="block">{t("admin.nav.categories")}</Label>
-      <div className="space-y-1 max-h-48 overflow-auto">
-        {allCats?.map((c) => (
-          <label key={c.id} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={selectedCats.includes(c.id)}
-              onChange={(e) =>
-                setSelectedCats((s) =>
-                  e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id),
-                )
-              }
-            />
-            {c.name_pl} / {c.name_en}
-          </label>
-        ))}
-        {!allCats?.length && (
-          <p className="text-xs text-muted-foreground">{t("admin.posts.noCats")}</p>
-        )}
-      </div>
-      <div className="pt-3 border-t border-border space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">Dodaj nową kategorię</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            value={newCatPl}
-            onChange={(e) => setNewCatPl(e.target.value)}
-            placeholder="Nazwa (PL)"
-            className="h-8 text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void addCategory();
-              }
-            }}
-          />
-          <Input
-            value={newCatEn}
-            onChange={(e) => setNewCatEn(e.target.value)}
-            placeholder="Name (EN)"
-            className="h-8 text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void addCategory();
-              }
-            }}
-          />
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-full h-8"
-          onClick={() => void addCategory()}
-          disabled={taxonomyBusy === "cat" || !newCatPl.trim()}
-        >
-          {taxonomyBusy === "cat" ? "Dodawanie..." : "+ Dodaj kategorię"}
-        </Button>
-      </div>
-    </div>
+    <CategoriesCard
+      allCats={allCats}
+      selectedCats={selectedCats}
+      onSelectedCatsChange={setSelectedCats}
+      newCatPl={newCatPl}
+      onNewCatPlChange={setNewCatPl}
+      newCatEn={newCatEn}
+      onNewCatEnChange={setNewCatEn}
+      taxonomyBusy={taxonomyBusy}
+      onAddCategory={() => void addCategory()}
+    />
   );
 
   const tagsCard = (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <Label className="block">{t("admin.nav.tags")}</Label>
-      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-auto">
-        {allTags?.map((tg) => {
-          const active = selectedTags.includes(tg.id);
-          return (
-            <button
-              key={tg.id}
-              type="button"
-              onClick={() =>
-                setSelectedTags((s) => (active ? s.filter((x) => x !== tg.id) : [...s, tg.id]))
-              }
-              className={`px-2 py-1 text-xs rounded border transition ${active ? "bg-brand text-brand-foreground border-brand" : "bg-muted/30 border-border"}`}
-            >
-              {tg.name}
-            </button>
-          );
-        })}
-        {!allTags?.length && (
-          <p className="text-xs text-muted-foreground">{t("admin.posts.noTags")}</p>
-        )}
-      </div>
-      <div className="pt-3 border-t border-border space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">Dodaj nowy tag</p>
-        <div className="flex gap-2">
-          <Input
-            value={newTagName}
-            onChange={(e) => setNewTagName(e.target.value)}
-            placeholder="Nazwa tagu"
-            className="h-8 text-sm flex-1"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void addTag();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8"
-            onClick={() => void addTag()}
-            disabled={taxonomyBusy === "tag" || !newTagName.trim()}
-          >
-            {taxonomyBusy === "tag" ? "..." : "+ Dodaj"}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <TagsCard
+      allTags={allTags}
+      selectedTags={selectedTags}
+      onSelectedTagsChange={setSelectedTags}
+      newTagName={newTagName}
+      onNewTagNameChange={setNewTagName}
+      taxonomyBusy={taxonomyBusy}
+      onAddTag={() => void addTag()}
+    />
   );
 
   return (

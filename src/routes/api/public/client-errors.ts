@@ -8,6 +8,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
 
 const VALID_SOURCES = new Set(["onerror", "unhandledrejection", "react_error_boundary"]);
 // Error bursts are noisier than vitals but still bounded: 30-token burst, one
@@ -35,18 +36,20 @@ export const Route = createFileRoute("/api/public/client-errors")({
           if (!raw || raw.length > 16_000) return noContent();
           const body = JSON.parse(raw) as Record<string, unknown>;
 
-          const message = clip(body.message, 2000);
+          // PII scrubbing before anything is persisted: messages/stacks/urls
+          // routinely carry emails, tokens and `code`/`email` query params.
+          const message = redactPii(clip(body.message, 2000));
           if (!message) return noContent(); // a message is the minimum useful signal
 
           const source =
             typeof body.source === "string" && VALID_SOURCES.has(body.source) ? body.source : null;
-          const stack = clip(body.stack, 8000);
-          const path = clip(body.url ?? body.path, 512);
+          const stack = redactPii(clip(body.stack, 8000));
+          const path = redactUrl(clip(body.url ?? body.path, 512));
           // `meta` is bounded structured context (boundary label, component stack).
           let meta: Record<string, unknown> | null = null;
           if (body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)) {
             const json = JSON.stringify(body.meta);
-            if (json.length <= 4000) meta = body.meta as Record<string, unknown>;
+            if (json.length <= 4000) meta = redactMeta(body.meta as Record<string, unknown>);
           }
 
           // `client_errors` is created by a migration not yet reflected in the

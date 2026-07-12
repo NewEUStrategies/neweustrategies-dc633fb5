@@ -84,16 +84,23 @@ export const Route = createFileRoute("/api/tts")({
         }
 
         // Dwuoknowy limit per uzytkownik (minutowy chroni przed seriami,
-        // godzinowy przed powolnym drenowaniem kwoty). Fail-open przy awarii
-        // DB - patrz rate-limit.server.ts.
+        // godzinowy przed powolnym drenowaniem kwoty). FAIL-CLOSED: to jest
+        // bramka kosztowa (płatna synteza ElevenLabs), więc awaria licznika
+        // ma ODMAWIAĆ, a nie otwierać budżet - patrz rate-limit.server.ts.
         const userId = userData.user.id;
         const [minuteOk, hourOk] = await Promise.all([
-          rateLimit({ scope: "tts.minute", subjectId: userId, max: TTS_LIMIT_PER_MINUTE }),
+          rateLimit({
+            scope: "tts.minute",
+            subjectId: userId,
+            max: TTS_LIMIT_PER_MINUTE,
+            failClosed: true,
+          }),
           rateLimit({
             scope: "tts.hour",
             subjectId: userId,
             max: TTS_LIMIT_PER_HOUR,
             windowMinutes: 60,
+            failClosed: true,
           }),
         ]);
         if (!minuteOk || !hourOk) {

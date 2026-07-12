@@ -218,8 +218,8 @@ function ImportWordpressPage() {
           </h1>
           <p className="text-xs text-muted-foreground">
             {isPL
-              ? "Pobiera wpisy w tle przez bezpieczny connector. Treść Gutenberga jest mapowana na bloki, nieznane elementy zachowywane bez utraty."
-              : "Fetches posts in the background via the secure connector. Gutenberg content is mapped to blocks; unknown elements preserved losslessly."}
+              ? "Import przez REST API WordPress.com (bez pliku eksportu WXR/XML) - podaj domenę witryny. Pobiera wpisy w tle przez bezpieczny connector; treść Gutenberga jest mapowana na bloki, nieznane elementy zachowywane bez utraty."
+              : "Imports via the WordPress.com REST API (no WXR/XML export file) - enter your site domain. Fetches posts in the background via the secure connector; Gutenberg content is mapped to blocks, unknown elements preserved losslessly."}
           </p>
         </div>
       </div>

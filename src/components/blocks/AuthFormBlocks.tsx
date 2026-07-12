@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Loader2, Mail, Lock, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
 import { toast } from "sonner";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 type Lang = "pl" | "en";
 type Variant = "card" | "plain" | "split";
@@ -28,8 +29,12 @@ interface BaseData {
   [k: string]: unknown;
 }
 
+// Thin wrapper over the canonical picker so every auth field follows the ONE
+// documented fallback policy (see src/lib/i18n/pickLocalized.ts). Unlike the
+// old nullish (`??`) version, an explicitly-blank field now falls back to the
+// other language / `fallback` instead of rendering empty.
 function pickLang(data: Record<string, unknown>, key: string, lang: Lang, fallback = ""): string {
-  return String(data[`${key}_${lang}`] ?? data[`${key}_pl`] ?? fallback);
+  return pickLocalized(data, key, lang, fallback);
 }
 
 function wrap(variant: Variant | undefined, children: React.ReactNode) {

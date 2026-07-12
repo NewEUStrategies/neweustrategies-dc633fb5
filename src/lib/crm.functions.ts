@@ -270,7 +270,17 @@ export const getCrmIntegrations = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await tbl(context, "crm_integrations").select("*").maybeSingle();
     if (error) throw new Error(error.message);
-    return { json: j(data) };
+    // Secrets never leave the server. Expose only booleans derived from the
+    // Vault reference columns so the UI can render a "already set" placeholder.
+    const row = data as Record<string, unknown> | null;
+    const withFlags = row
+      ? {
+          ...row,
+          has_webhook_secret: row.merydian_webhook_secret_id != null,
+          has_api_key: row.merydian_api_key_id != null,
+        }
+      : null;
+    return { json: j(withFlags) };
   });
 
 export const upsertCrmIntegrations = createServerFn({ method: "POST" })
@@ -281,20 +291,44 @@ export const upsertCrmIntegrations = createServerFn({ method: "POST" })
     const supabase = (
       context as unknown as {
         supabase: {
-          rpc: (n: string, a: Record<string, unknown>) => Promise<{ data: boolean | null }>;
+          rpc: (
+            n: string,
+            a: Record<string, unknown>,
+          ) => Promise<{ data: unknown; error: { message: string } | null }>;
         };
       }
     ).supabase;
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (!isAdmin) throw new Error("Forbidden");
+    // Secrets are stored in Supabase Vault via a SECURITY DEFINER RPC, never in
+    // crm_integrations columns. Keep them out of the row payload.
+    const { merydian_webhook_secret, merydian_api_key, ...config } = data;
     const { data: existing } = await tbl(context, "crm_integrations").select("id").maybeSingle();
     const E = existing as { id: string } | null;
     const res = E
-      ? await (tbl(context, "crm_integrations").update(data).eq("id", E.id) as unknown as Promise<{
+      ? await (tbl(context, "crm_integrations")
+          .update(config)
+          .eq("id", E.id) as unknown as Promise<{
           error: { message: string } | null;
         }>)
-      : await tbl(context, "crm_integrations").insert(data);
+      : await tbl(context, "crm_integrations").insert(config);
     if (res.error) throw new Error(res.error.message);
+    // Route secret material to Vault. undefined => not submitted (leave as-is);
+    // empty/null => clear; non-empty => create or update.
+    if (merydian_webhook_secret !== undefined) {
+      const { error } = await supabase.rpc("crm_set_merydian_secret", {
+        _kind: "webhook",
+        _plaintext: merydian_webhook_secret ?? "",
+      });
+      if (error) throw new Error(error.message);
+    }
+    if (merydian_api_key !== undefined) {
+      const { error } = await supabase.rpc("crm_set_merydian_secret", {
+        _kind: "api",
+        _plaintext: merydian_api_key ?? "",
+      });
+      if (error) throw new Error(error.message);
+    }
     return { ok: true };
   });
 
@@ -317,7 +351,19 @@ export const pushLeadToMerydian = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!cfg || !(cfg as { merydian_enabled: boolean }).merydian_enabled)
       throw new Error("Merydian integration is disabled");
-    const result = await dispatchMerydian(L, cfg as Record<string, unknown>);
+    const supabase = (
+      context as unknown as {
+        supabase: {
+          rpc: (
+            n: string,
+            a?: Record<string, unknown>,
+          ) => Promise<{ data: unknown; error: { message: string } | null }>;
+        };
+      }
+    ).supabase;
+    const result = await dispatchMerydian(L, cfg as Record<string, unknown>, (n, a) =>
+      supabase.rpc(n, a),
+    );
     await (tbl(context, "crm_integrations")
       .update({
         last_sync_at: new Date().toISOString(),
@@ -556,6 +602,10 @@ export type LeadRow = {
 async function dispatchMerydian(
   lead: LeadRow,
   cfg: Record<string, unknown>,
+  rpc: (
+    name: string,
+    args?: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>,
 ): Promise<{ ok: boolean; via?: string; status?: number; error?: string }> {
   const mode = String(cfg.merydian_mode ?? "webhook");
   const stages = (cfg.forward_stages as Stage[] | null) ?? ["new"];
@@ -601,6 +651,16 @@ async function dispatchMerydian(
   };
   const body = JSON.stringify(payload);
 
+  // Secrets live in Supabase Vault; fetch decrypted values once via RPC.
+  const { data: secretsData } = await rpc("crm_get_merydian_secrets", {
+    _tenant: cfg.tenant_id ?? null,
+  });
+  const secretRow = (Array.isArray(secretsData) ? secretsData[0] : secretsData) as
+    | { webhook_secret: string | null; api_key: string | null }
+    | undefined;
+  const webhookSecret = secretRow?.webhook_secret ?? "";
+  const apiSecret = secretRow?.api_key ?? "";
+
   const out: {
     webhook?: { ok: boolean; status?: number; error?: string };
     api?: { ok: boolean; status?: number; error?: string };
@@ -614,7 +674,7 @@ async function dispatchMerydian(
         "Content-Type": "application/json",
         "User-Agent": "NES-CRM/1.0",
       };
-      const secret = (cfg.merydian_webhook_secret as string | null) ?? "";
+      const secret = webhookSecret;
       if (secret) headers["X-Signature"] = await hmacSha256Hex(secret, body);
       try {
         const r = await fetch(url, { method: "POST", headers, body });
@@ -636,7 +696,7 @@ async function dispatchMerydian(
 
   if (mode === "api" || mode === "both") {
     const base = String(cfg.merydian_api_base ?? "");
-    const apiKey = String(cfg.merydian_api_key ?? "");
+    const apiKey = apiSecret;
     if (!base || !apiKey) out.api = { ok: false, error: "missing_api_config" };
     else {
       try {

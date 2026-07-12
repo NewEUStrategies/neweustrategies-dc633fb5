@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { beaconPopupEvent } from "@/lib/analytics/events";
 import { useAuth } from "@/hooks/useAuth";
 import { X } from "@/lib/lucide-shim";
 import { isEmptyDocument, type Device } from "@/lib/builder/types";
@@ -100,6 +101,7 @@ export function PopupHost() {
         shownRef.current.add(candidate.id);
         releaseSlotRef.current = release;
         setOpen(candidate);
+        beaconPopupEvent("view", candidate.id);
       });
     };
 
@@ -157,6 +159,24 @@ export function PopupHost() {
   }, [open, close]);
   useFocusTrap(panelRef, !!open);
 
+  // Growth analytics: a click on any CTA (link/button) inside the panel - other
+  // than the close control - counts as one conversion for this showing.
+  useEffect(() => {
+    if (!open) return;
+    const node = panelRef.current;
+    if (!node) return;
+    let converted = false;
+    const onClick = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement | null)?.closest("a[href], button");
+      if (!el || el.getAttribute("data-popup-close") === "true") return;
+      if (converted) return;
+      converted = true;
+      beaconPopupEvent("conversion", open.id);
+    };
+    node.addEventListener("click", onClick);
+    return () => node.removeEventListener("click", onClick);
+  }, [open]);
+
   if (!open) return null;
 
   const s = open.settings;
@@ -192,6 +212,7 @@ export function PopupHost() {
         {s.showCloseButton && (
           <button
             type="button"
+            data-popup-close="true"
             aria-label={lang === "pl" ? "Zamknij" : "Close"}
             onClick={close}
             className="absolute top-3 right-3 z-20 h-9 w-9 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center transition-colors"

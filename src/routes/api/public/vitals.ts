@@ -8,6 +8,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
+import { redactUrl } from "@/lib/observability/redact";
 
 const VALID_METRICS = new Set(["LCP", "CLS", "INP", "FCP", "TTFB", "FID"]);
 // A page load emits ~6 vitals; SPA navigations add a few more. 60-token burst
@@ -39,7 +40,8 @@ export const Route = createFileRoute("/api/public/vitals")({
           if (!VALID_METRICS.has(metric) || !Number.isFinite(value)) return noContent();
 
           const rating = typeof body.rating === "string" ? body.rating.slice(0, 32) : null;
-          const path = typeof body.url === "string" ? body.url.slice(0, 512) : null;
+          // Strip query strings (may carry tokens/emails) before persisting.
+          const path = redactUrl(typeof body.url === "string" ? body.url.slice(0, 512) : null);
 
           // Attribute the sample to the browsed host's tenant so per-tenant RUM
           // stays isolated. The service-role client sends no x-tenant-host, so

@@ -17,6 +17,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 // full-resolution covers, which is what made hover-opened menus feel sluggish.
 const MENU_THUMB_WIDTHS = [160, 320, 480] as const;
 import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 type MegaMenuLang = "pl" | "en";
 
@@ -82,13 +83,9 @@ interface Props {
   mobile?: boolean;
 }
 
-const pickLang = (a?: string, b?: string): string => (a && a.length ? a : (b ?? ""));
-
 export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }: Props) {
   const { t } = useTranslation();
-  const trigger =
-    pickLang(lang === "pl" ? config.trigger_pl : config.trigger_en, config.trigger_pl) ||
-    t("megaMenu.menu");
+  const trigger = pickLocalized(config, "trigger", lang) || t("megaMenu.menu");
   const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
@@ -239,7 +236,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
   if ((col.kind ?? "links") === "category") {
     return <CategoryColumn col={col} lang={lang} />;
   }
-  const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
+  const title = pickLocalized(col, "title", lang);
   const links = Array.isArray(col.links) ? col.links : [];
   const featured = col.featured;
   return (
@@ -252,8 +249,8 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
       {links.length > 0 && (
         <ul className="space-y-1.5">
           {links.map((l, i) => {
-            const label = pickLang(lang === "pl" ? l.label_pl : l.label_en, l.label_pl);
-            const desc = pickLang(lang === "pl" ? l.desc_pl : l.desc_en, l.desc_pl);
+            const label = pickLocalized(l, "label", lang);
+            const desc = pickLocalized(l, "desc", lang);
             const href = safeUrl(l.href ?? "#");
             if (!label) return null;
             return (
@@ -289,7 +286,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
   const { t } = useTranslation();
   const slug = (col.categorySlug ?? "").trim();
   const limit = Math.min(Math.max(Number(col.postCount) || 4, 1), 8);
-  const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
+  const title = pickLocalized(col, "title", lang);
   const viewAll = safeUrl(col.viewAllHref || (slug ? `/category/${slug}` : "#"));
 
   const { data, isLoading } = useQuery(megaMenuCategoryQueryOptions(slug, limit, lang));
@@ -387,9 +384,9 @@ export function normalizeFeatured(
 
 function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: MegaMenuLang }) {
   const f = normalizeFeatured(featured);
-  const title = pickLang(lang === "pl" ? f.title_pl : f.title_en, f.title_pl);
-  const excerpt = pickLang(lang === "pl" ? f.excerpt_pl : f.excerpt_en, f.excerpt_pl);
-  const cta = pickLang(lang === "pl" ? f.cta_pl : f.cta_en, f.cta_pl);
+  const title = pickLocalized(f, "title", lang);
+  const excerpt = pickLocalized(f, "excerpt", lang);
+  const cta = pickLocalized(f, "cta", lang);
   const href = safeUrl(f.href ?? "#");
   const img = safeImageUrl(f.image ?? "");
   const aspectCls =
@@ -448,7 +445,7 @@ function clamp01(n: number): number {
 }
 
 function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
-  const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
+  const title = pickLocalized(col, "title", lang);
   const links = Array.isArray(col.links) ? col.links : [];
   return (
     <div className="space-y-1.5">
@@ -459,7 +456,7 @@ function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }
       )}
       <ul className="space-y-0.5">
         {links.map((l, i) => {
-          const label = pickLang(lang === "pl" ? l.label_pl : l.label_en, l.label_pl);
+          const label = pickLocalized(l, "label", lang);
           const href = safeUrl(l.href ?? "#");
           if (!label) return null;
           return (

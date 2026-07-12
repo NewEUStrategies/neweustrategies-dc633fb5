@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { isMfaChallengeRequired } from "@/lib/auth/mfa";
+import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
@@ -41,9 +43,12 @@ function LoginPage() {
   const [name, setName] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
+  // Holds the auto-redirect while an aal1 session waits for its TOTP step-up.
+  const [mfaPending, setMfaPending] = useState(false);
 
   useEffect(() => {
-    if (loading || !session) return;
+    if (loading || !session || mfaPending) return;
     if (isStaff) {
       navigate({ to: "/admin" });
       return;
@@ -54,7 +59,7 @@ function LoginPage() {
       ? settings.logged_in_redirect_url
       : "/";
     navigate({ to: target });
-  }, [session, isStaff, loading, navigate, settings.logged_in_redirect_url]);
+  }, [session, isStaff, loading, mfaPending, navigate, settings.logged_in_redirect_url]);
 
   const t = useMemo(() => {
     const dict = {
@@ -173,9 +178,21 @@ function LoginPage() {
         );
         setMode("signin");
       } else {
+        // Hold the session-driven redirect before signing in: onAuthStateChange
+        // fires the instant the (aal1) session lands, so this must be set
+        // synchronously to win that race when a step-up is required.
+        setMfaPending(true);
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        toast.success(isPl ? "Zalogowano" : "Signed in");
+        if (error) {
+          setMfaPending(false);
+          throw error;
+        }
+        if (await isMfaChallengeRequired()) {
+          setMfaOpen(true);
+        } else {
+          setMfaPending(false);
+          toast.success(isPl ? "Zalogowano" : "Signed in");
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
@@ -547,6 +564,19 @@ function LoginPage() {
           </form>
         </main>
       </div>
+
+      <MfaChallenge
+        open={mfaOpen}
+        onVerified={() => {
+          setMfaOpen(false);
+          setMfaPending(false);
+          toast.success(isPl ? "Zalogowano" : "Signed in");
+        }}
+        onCancel={() => {
+          setMfaOpen(false);
+          setMfaPending(false);
+        }}
+      />
 
       <style>{`
         @keyframes fadeInUp {

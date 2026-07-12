@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { changeMyEmail, deleteMyAccount } from "@/lib/account.functions";
@@ -22,6 +22,8 @@ import {
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { PasswordStrengthMeter } from "@/components/molecules/PasswordStrengthMeter";
 import { toast } from "sonner";
+import type { Factor } from "@supabase/supabase-js";
+import { toQrDataUri } from "@/lib/auth/mfa";
 
 export const Route = createFileRoute("/profile/security")({
   component: SecurityPage,
@@ -46,6 +48,19 @@ function SecurityPage() {
   const [delPw, setDelPw] = useState("");
   const [delBusy, setDelBusy] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+
+  // Two-factor (TOTP): enrolled factors + in-progress enrollment + removal.
+  const [factors, setFactors] = useState<Factor[]>([]);
+  const [factorsLoading, setFactorsLoading] = useState(true);
+  const [enroll, setEnroll] = useState<{ factorId: string; qr: string; secret: string } | null>(
+    null,
+  );
+  const [enrollCode, setEnrollCode] = useState("");
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  const [removePw, setRemovePw] = useState("");
+  const [removeBusy, setRemoveBusy] = useState(false);
 
   const updatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +156,106 @@ function SecurityPage() {
       );
     } finally {
       setOthersBusy(false);
+    }
+  };
+
+  const refreshFactors = async () => {
+    setFactorsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      // Only TOTP is offered here; listFactors().totp is the verified subset.
+      setFactors(data?.totp ?? []);
+    } finally {
+      setFactorsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshFactors();
+  }, []);
+
+  const startEnroll = async () => {
+    setStartBusy(true);
+    try {
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+      if (error || !data) {
+        toast.error(t("profile.security.mfa.enrollError"));
+        return;
+      }
+      setEnroll({ factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
+      setEnrollCode("");
+    } finally {
+      setStartBusy(false);
+    }
+  };
+
+  const cancelEnroll = async () => {
+    // Drop the half-created (unverified) factor so it does not linger.
+    if (enroll) {
+      await supabase.auth.mfa.unenroll({ factorId: enroll.factorId }).catch(() => {});
+    }
+    setEnroll(null);
+    setEnrollCode("");
+  };
+
+  const activateEnroll = async () => {
+    if (!enroll) return;
+    if (!/^\d{6}$/.test(enrollCode)) return toast.error(t("profile.security.mfa.invalidCode"));
+    setEnrollBusy(true);
+    try {
+      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: enroll.factorId,
+      });
+      if (challengeError || !challenge) {
+        toast.error(t("profile.security.mfa.verifyError"));
+        return;
+      }
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: enroll.factorId,
+        challengeId: challenge.id,
+        code: enrollCode,
+      });
+      if (verifyError) {
+        toast.error(t("profile.security.mfa.verifyError"));
+        return;
+      }
+      setEnroll(null);
+      setEnrollCode("");
+      toast.success(t("profile.security.mfa.activated"));
+      await refreshFactors();
+    } finally {
+      setEnrollBusy(false);
+    }
+  };
+
+  const confirmRemove = async () => {
+    if (!removeId || !removePw || !user?.email) return;
+    setRemoveBusy(true);
+    try {
+      // Re-uwierzytelnienie hasłem (spójnie ze zmianą hasła / usuwaniem konta).
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: removePw,
+      });
+      if (reauthErr) {
+        toast.error(t("profile.security.mfa.wrongPassword"));
+        return;
+      }
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: removeId });
+      if (error) {
+        toast.error(t("profile.security.mfa.removeError"));
+        return;
+      }
+      setRemoveId(null);
+      setRemovePw("");
+      toast.success(t("profile.security.mfa.removed"));
+      await refreshFactors();
+    } finally {
+      setRemoveBusy(false);
     }
   };
 
@@ -289,6 +404,160 @@ function SecurityPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("profile.security.mfa.title")}</CardTitle>
+            <CardDescription>{t("profile.security.mfa.subtitle")}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 max-w-md">
+            <p className="text-sm">
+              <span className="text-muted-foreground">Status: </span>
+              <span className="font-medium">
+                {factors.length > 0
+                  ? t("profile.security.mfa.statusEnabled")
+                  : t("profile.security.mfa.statusDisabled")}
+              </span>
+            </p>
+
+            {factorsLoading ? (
+              <p className="text-sm text-muted-foreground">{t("profile.security.mfa.loading")}</p>
+            ) : factors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("profile.security.mfa.none")}</p>
+            ) : (
+              <div className="grid gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("profile.security.mfa.enrolledTitle")}
+                </p>
+                <ul className="grid gap-2">
+                  {factors.map((f) => (
+                    <li
+                      key={f.id}
+                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
+                    >
+                      <span className="grid">
+                        <span className="text-sm font-medium">
+                          {f.friendly_name || t("profile.security.mfa.defaultFactorName")}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("profile.security.mfa.addedOn", {
+                            date: new Date(f.created_at).toLocaleDateString(
+                              isPl ? "pl-PL" : "en-US",
+                            ),
+                          })}
+                        </span>
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setRemoveId(f.id);
+                          setRemovePw("");
+                        }}
+                      >
+                        {t("profile.security.mfa.remove")}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {enroll ? (
+              <div className="grid gap-3 rounded-md border border-border p-3">
+                <p className="text-sm text-muted-foreground">
+                  {t("profile.security.mfa.scanInstruction")}
+                </p>
+                <img
+                  src={toQrDataUri(enroll.qr)}
+                  alt=""
+                  width={180}
+                  height={180}
+                  className="self-start rounded bg-white p-2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("profile.security.mfa.manualIntro")}
+                </p>
+                <code className="select-all break-all rounded bg-muted px-2 py-1 text-xs">
+                  {enroll.secret}
+                </code>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="mfa-code">{t("profile.security.mfa.codeLabel")}</FieldLabel>
+                  <Input
+                    id="mfa-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={enrollCode}
+                    onChange={(e) => setEnrollCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder={t("profile.security.mfa.codePlaceholder")}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => void activateEnroll()} disabled={enrollBusy}>
+                    {t("profile.security.mfa.activate")}
+                  </Button>
+                  <Button variant="ghost" onClick={() => void cancelEnroll()} disabled={enrollBusy}>
+                    {t("profile.security.mfa.cancel")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                className="justify-self-start"
+                onClick={() => void startEnroll()}
+                disabled={startBusy}
+              >
+                {t("profile.security.mfa.enroll")}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        <AlertDialog
+          open={removeId !== null}
+          onOpenChange={(o) => {
+            if (!o) {
+              setRemoveId(null);
+              setRemovePw("");
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("profile.security.mfa.removeTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("profile.security.mfa.removeBody")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="grid gap-2 py-2">
+              <FieldLabel htmlFor="mfa-remove-pw">
+                {t("profile.security.mfa.removePasswordLabel")}
+              </FieldLabel>
+              <Input
+                id="mfa-remove-pw"
+                type="password"
+                value={removePw}
+                onChange={(e) => setRemovePw(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("profile.security.mfa.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  void confirmRemove();
+                }}
+                disabled={removeBusy || !removePw}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {t("profile.security.mfa.removeConfirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Card className="border-destructive/40">
           <CardHeader>

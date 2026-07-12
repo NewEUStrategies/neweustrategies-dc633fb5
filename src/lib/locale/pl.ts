@@ -794,6 +794,7 @@ export const pl = {
       large: "Duży rozmiar",
       w: "szer.",
       h: "wys.",
+      note: "Rozmiary są doradcze: platforma nie przeskalowuje plików po stronie serwera przy wgraniu. Renderowanie responsywne (srcSet) i przycinanie dobierają wymiary na podstawie tych wartości tam, gdzie są wspierane.",
     },
     permalinks: {
       title: "Bezpośrednie odnośniki",

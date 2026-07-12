@@ -6,6 +6,7 @@
 // SiteSettingsLiveSync invalidator will trigger that for us).
 import { queryOptions, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export type MegaMenuLang = "pl" | "en";
 
@@ -21,9 +22,6 @@ export interface MegaMenuCategoryData {
   posts: MegaMenuPostCard[];
   catName: string;
 }
-
-const pickLang = (a?: string | null, b?: string | null): string =>
-  (a && a.length ? a : (b ?? "")) as string;
 
 export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: MegaMenuLang) {
   return queryOptions({
@@ -51,10 +49,7 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
         .eq("category_id", cat.id as string)
         .limit(limit * 4);
       const ids = (pivot ?? []).map((r) => r.post_id as string);
-      const catName =
-        lang === "en"
-          ? pickLang(cat.name_en as string | null, cat.name_pl as string | null)
-          : pickLang(cat.name_pl as string | null, cat.name_en as string | null);
+      const catName = pickLocalized(cat as Record<string, unknown>, "name", lang);
       if (ids.length === 0) return { posts: [], catName };
       const { data: posts } = await supabase
         .from("posts")
@@ -68,10 +63,7 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
         posts: (posts ?? []).map((p) => ({
           id: p.id as string,
           slug: p.slug as string,
-          title: pickLang(
-            lang === "pl" ? (p.title_pl as string | null) : (p.title_en as string | null),
-            p.title_pl as string | null,
-          ),
+          title: pickLocalized(p as Record<string, unknown>, "title", lang),
           cover: (p.cover_image_url as string | null) ?? "",
           href: `/post/${p.slug as string}`,
         })),

@@ -47,6 +47,7 @@ function MediaSettings() {
   return (
     <div>
       <h2 className="font-display text-xl mb-4">{t("admin.mediaSizes.title")}</h2>
+      <p className="text-xs text-muted-foreground mb-4 max-w-prose">{t("admin.mediaSizes.note")}</p>
       <Pair label={t("admin.mediaSizes.thumbnail")} w="thumbnail_w" h="thumbnail_h" />
       <Pair label={t("admin.mediaSizes.medium")} w="medium_w" h="medium_h" />
       <Pair label={t("admin.mediaSizes.large")} w="large_w" h="large_h" />

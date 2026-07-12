@@ -790,6 +790,7 @@ export const en = {
       large: "Large size",
       w: "w",
       h: "h",
+      note: "Sizes are advisory: the platform does not resize files server-side on upload. Responsive rendering (srcSet) and cropping derive dimensions from these values where supported.",
     },
     permalinks: {
       title: "Permalinks",
