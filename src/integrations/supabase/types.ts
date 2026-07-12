@@ -4207,6 +4207,33 @@ export type Database = {
           },
         ]
       }
+      search_query_log: {
+        Row: {
+          created_at: string
+          id: number
+          lang: string
+          q: string
+          results: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          lang?: string
+          q: string
+          results?: number
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          lang?: string
+          q?: string
+          results?: number
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       seo_404_hits: {
         Row: {
           first_seen: string
@@ -5508,6 +5535,10 @@ export type Database = {
         Args: { p_id: string; p_type: string }
         Returns: string
       }
+      log_search_query: {
+        Args: { _lang?: string; _q: string; _results?: number }
+        Returns: undefined
+      }
       mark_conversation_read: {
         Args: { p_conversation_id: string }
         Returns: undefined
@@ -5565,6 +5596,13 @@ export type Database = {
           cnt: number
           field: string
           value: string
+        }[]
+      }
+      popular_searches: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          cnt: number
+          q: string
         }[]
       }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
@@ -5648,6 +5686,7 @@ export type Database = {
       search_posts: {
         Args: {
           _author?: string
+          _category?: string
           _date_from?: string
           _date_to?: string
           _limit?: number
@@ -5658,6 +5697,8 @@ export type Database = {
           cover_image_url: string
           excerpt_en: string
           excerpt_pl: string
+          headline_en: string
+          headline_pl: string
           id: string
           parent_page_id: string
           published_at: string
@@ -5673,6 +5714,16 @@ export type Database = {
           id: string
           kind: string
           rank: number
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
+      search_suggest: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          id: string
+          sim: number
           slug: string
           title_en: string
           title_pl: string
