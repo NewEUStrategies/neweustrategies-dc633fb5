@@ -5,13 +5,14 @@
 // supplies its own `message`), so long threads re-render only touched rows.
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, CheckCheck, Clock, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
+import { Check, CheckCheck, Clock, Pencil, Reply, SmilePlus, Star, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
+import { computeReceipt, type ReceiptState } from "@/lib/chat/receipts";
 import { clockTime, type ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
-import { AttachmentFile, AttachmentImage } from "./AttachmentContent";
+import { AttachmentAudio, AttachmentFile, AttachmentImage } from "./AttachmentContent";
 
 export interface MessageBubbleProps {
   message: ChatMessage;
@@ -27,33 +28,18 @@ export interface MessageBubbleProps {
   editable: boolean;
   /** Peer's last_read_at - used for per-message read receipts (mine only). */
   peerLastReadAt?: string | null;
-  /** Whether the peer is currently online - used to show "delivered" tick. */
-  peerOnline?: boolean;
+  /** Peer's last_delivered_at - powers the double grey tick. */
+  peerLastDeliveredAt?: string | null;
+  /** Caller starred this message (filled star + inverse action label). */
+  starred?: boolean;
   onReact: (message: ChatMessage, emoji: string, current: string | null) => void;
   onReply: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
+  onToggleStar?: (message: ChatMessage, starred: boolean) => void;
   /** Scroll/jump to the quoted original message (if still in the loaded window). */
   onJumpToReply?: (messageId: string) => void;
-}
-
-type ReceiptState = "pending" | "sent" | "delivered" | "read";
-
-function computeReceipt(
-  message: ChatMessage,
-  peerLastReadAt: string | null | undefined,
-  peerOnline: boolean | undefined,
-): ReceiptState {
-  if (message.pending || message.failed) return "pending";
-  if (
-    peerLastReadAt &&
-    new Date(peerLastReadAt).getTime() >= new Date(message.created_at).getTime()
-  ) {
-    return "read";
-  }
-  if (peerOnline) return "delivered";
-  return "sent";
 }
 
 // Design standard: every label/image/box in chat uses a 6px corner radius
@@ -127,12 +113,14 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     repliedAuthorName,
     editable,
     peerLastReadAt,
-    peerOnline,
+    peerLastDeliveredAt,
+    starred = false,
     onReact,
     onReply,
     onEdit,
     onDelete,
     onDiscardFailed,
+    onToggleStar,
     onJumpToReply,
   } = props;
   const { t } = useTranslation();
@@ -144,7 +132,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
   const myReaction = reactions.find((r) => r.user_id === myUserId)?.emoji ?? null;
   const timeTitle = clockTime(message.created_at, lang);
   const receipt: ReceiptState | null =
-    mine && !deleted ? computeReceipt(message, peerLastReadAt, peerOnline) : null;
+    mine && !deleted ? computeReceipt(message, peerLastReadAt, peerLastDeliveredAt) : null;
 
   const actions = !deleted && !message.pending && !message.failed && (
     <div
@@ -201,6 +189,23 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
       >
         <Reply className="h-3.5 w-3.5" aria-hidden />
       </button>
+      {onToggleStar && (
+        <button
+          type="button"
+          onClick={() => onToggleStar(message, starred)}
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-muted",
+            starred
+              ? "text-amber-500 hover:text-amber-600"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          aria-label={starred ? t("chat.star.remove") : t("chat.star.add")}
+          title={starred ? t("chat.star.remove") : t("chat.star.add")}
+          aria-pressed={starred}
+        >
+          <Star className={cn("h-3.5 w-3.5", starred && "fill-current")} aria-hidden />
+        </button>
+      )}
       {editable && (
         <button
           type="button"
@@ -241,6 +246,14 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
   } else if (message.kind === "image" && message.attachment_path) {
     content = (
       <AttachmentImage path={message.attachment_path} name={message.attachment_name} mine={mine} />
+    );
+  } else if (message.kind === "audio" && message.attachment_path) {
+    content = (
+      <AttachmentAudio
+        path={message.attachment_path}
+        duration={message.attachment_duration}
+        mine={mine}
+      />
     );
   } else if (message.kind === "file" && message.attachment_path) {
     content = (
@@ -291,6 +304,12 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           <span>{timeTitle}</span>
           {message.edited_at && <span aria-hidden>·</span>}
           {message.edited_at && <span>{t("chat.edited")}</span>}
+          {starred && (
+            <Star
+              className="h-2.5 w-2.5 fill-current opacity-80"
+              aria-label={t("chat.star.starred")}
+            />
+          )}
           {receipt && (
             <span
               className="ml-0.5 inline-flex items-center"

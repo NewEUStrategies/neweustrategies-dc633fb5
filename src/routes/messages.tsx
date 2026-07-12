@@ -4,7 +4,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, MessagesSquare, Search, ShieldCheck, SquarePen, X } from "lucide-react";
+import {
+  Archive,
+  Bell,
+  ChevronDown,
+  ChevronRight,
+  MessagesSquare,
+  Search,
+  ShieldCheck,
+  SquarePen,
+  X,
+} from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
@@ -13,6 +23,7 @@ import { NotificationsCenter } from "@/components/notifications/NotificationsCen
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
+  splitArchived,
   useChatListRealtime,
   useConversations,
   usePeerProfiles,
@@ -95,16 +106,23 @@ function MessagesInner() {
   const [selected, setSelected] = useState<string | null>(c ?? null);
   const [mode, setMode] = useState<"list" | "new">("list");
   const [filter, setFilter] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
 
-  // Deep link (?c=...) wins; afterwards default to the newest thread on desktop.
+  const { active: activeViews, archived: archivedViews } = useMemo(
+    () => splitArchived(views),
+    [views],
+  );
+
+  // Deep link (?c=...) wins; afterwards default to the newest active thread
+  // on desktop (never auto-open something the user deliberately archived).
   useEffect(() => {
     if (c) setSelected(c);
   }, [c]);
   useEffect(() => {
-    if (!selected && views.length > 0 && window.matchMedia("(min-width: 768px)").matches) {
-      setSelected(views[0]?.conversation.id ?? null);
+    if (!selected && activeViews.length > 0 && window.matchMedia("(min-width: 768px)").matches) {
+      setSelected(activeViews[0]?.conversation.id ?? null);
     }
-  }, [views, selected]);
+  }, [activeViews, selected]);
 
   const openConversation = (id: string) => {
     setSelected(id);
@@ -113,12 +131,13 @@ function MessagesInner() {
   };
 
   const normalizedFilter = filter.trim().toLowerCase();
+  const sourceViews = showArchived ? archivedViews : activeViews;
   const filtered = normalizedFilter
-    ? views.filter((v) => {
+    ? sourceViews.filter((v) => {
         const name = peersQ.data?.get(v.peers[0]?.user_id ?? "")?.display_name ?? "";
         return name.toLowerCase().includes(normalizedFilter);
       })
-    : views;
+    : sourceViews;
 
   if (!user) return null;
 
@@ -242,6 +261,28 @@ function MessagesInner() {
                     </label>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+                    {archivedViews.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowArchived((v) => !v)}
+                        aria-expanded={showArchived}
+                        className={cn(
+                          "mb-1 flex w-full items-center gap-2 rounded-[6px] px-2 py-2 text-left text-[12px] font-medium transition-colors",
+                          showArchived ? "bg-muted text-foreground" : "hover:bg-muted/60",
+                        )}
+                      >
+                        {showArchived ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        )}
+                        <Archive className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        {t("chat.menu.archivedSection")}
+                        <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
+                          {archivedViews.length}
+                        </span>
+                      </button>
+                    )}
                     {conversationsQ.isLoading ? (
                       <p className="p-6 text-center text-sm text-muted-foreground">
                         {t("common.loading", { defaultValue: "..." })}

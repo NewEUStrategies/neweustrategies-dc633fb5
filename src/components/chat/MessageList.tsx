@@ -1,8 +1,10 @@
 // Organism: scrollable message history - day separators, message grouping,
-// infinite upward pagination with scroll anchoring, seen receipt and the
-// animated typing indicator. Pure presentation: data arrives via props.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+// infinite upward pagination with scroll anchoring, delivery/read receipts,
+// disappearing-messages notice, scroll-to-bottom pill and the animated typing
+// indicator. Pure presentation: data arrives via props.
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronDown, Timer } from "lucide-react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { crossesDay, dayLabel, sameGroup, type ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
@@ -13,6 +15,7 @@ import { MessageBubble } from "./MessageBubble";
 // Stable empty-array identity so memoized bubbles without reactions never
 // see a "new" prop on unrelated updates.
 const NO_REACTIONS: ReactionRow[] = [];
+const NO_STARS: ReadonlySet<string> = new Set<string>();
 
 export interface MessageListProps {
   lang: ChatLang;
@@ -23,8 +26,12 @@ export interface MessageListProps {
   peerName: string;
   peerAvatarUrl: string | null;
   peerLastReadAt: string | null;
-  peerOnline?: boolean;
+  peerLastDeliveredAt?: string | null;
   peerTyping: boolean;
+  /** Active disappearing-messages window of this conversation (null = off). */
+  ttlSeconds?: number | null;
+  /** Caller's starred message ids (bubble star state). */
+  starredIds?: ReadonlySet<string>;
   hasOlder: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
@@ -33,8 +40,16 @@ export interface MessageListProps {
   onEdit: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
+  onToggleStar?: (message: ChatMessage, starred: boolean) => void;
   canEdit: (message: ChatMessage) => boolean;
   className?: string;
+}
+
+/** i18n label for the disappearing-messages chip. */
+function ttlLabelKey(ttlSeconds: number): string {
+  if (ttlSeconds === 86400) return "chat.disappearing.day";
+  if (ttlSeconds === 604800) return "chat.disappearing.week";
+  return "chat.disappearing.quarter";
 }
 
 function TypingIndicator({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
@@ -65,8 +80,10 @@ export function MessageList(props: MessageListProps) {
     peerName,
     peerAvatarUrl,
     peerLastReadAt,
-    peerOnline,
+    peerLastDeliveredAt,
     peerTyping,
+    ttlSeconds,
+    starredIds = NO_STARS,
     hasOlder,
     loadingOlder,
     onLoadOlder,
@@ -75,11 +92,14 @@ export function MessageList(props: MessageListProps) {
     onEdit,
     onDelete,
     onDiscardFailed,
+    onToggleStar,
     canEdit,
     className,
   } = props;
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Scroll-to-bottom pill visibility mirrors the stick-to-bottom heuristic.
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const prevHeightRef = useRef<number | null>(null);
@@ -151,8 +171,21 @@ export function MessageList(props: MessageListProps) {
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distance < 80;
+    // Pill threshold is looser than the stick threshold so it never flickers
+    // while smooth-scrolling the last few pixels.
+    setAwayFromBottom(distance > 240);
   };
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current = true;
+    setAwayFromBottom(false);
+    if (!reducedMotion) smoothUntilRef.current = Date.now() + 400;
+    el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion ? "auto" : "smooth" });
+  }, [reducedMotion]);
 
   // Auto-load older pages when the top sentinel enters the viewport. Beats a
   // scrollTop threshold because it also fires for short histories that never
@@ -231,109 +264,142 @@ export function MessageList(props: MessageListProps) {
   }, []);
 
   return (
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className={cn("flex-1 overflow-y-auto overscroll-contain px-3 py-2", className)}
-      role="log"
-      aria-live="polite"
-      aria-label={t("chat.messages")}
-    >
-      {/* Inner wrapper measured by the ResizeObserver (async image growth). */}
-      <div ref={contentRef} className="flex min-h-full flex-col">
-        <div ref={topSentinelRef} aria-hidden />
+    <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="chat-wallpaper h-full flex-1 overflow-y-auto overscroll-contain px-3 py-2"
+        role="log"
+        aria-live="polite"
+        aria-label={t("chat.messages")}
+      >
+        {/* Inner wrapper measured by the ResizeObserver (async image growth). */}
+        <div ref={contentRef} className="flex min-h-full flex-col">
+          <div ref={topSentinelRef} aria-hidden />
 
-        {hasOlder && (
-          <div className="flex justify-center py-1.5">
-            <span
-              className="rounded-[6px] bg-muted px-3 py-1 text-[11px] text-muted-foreground"
-              aria-live="polite"
-            >
-              {loadingOlder ? t("common.loading", { defaultValue: "..." }) : t("chat.loadOlder")}
-            </span>
-          </div>
-        )}
-
-        {messages.length === 0 && !loadingOlder && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
-            <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="lg" />
-            <p className="max-w-[220px] text-xs text-muted-foreground">
-              {t("chat.conversationEmpty")}
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-0.5">
-          {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
-            const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
-            // Animate only rows that appeared after the initial history render.
-            const isFresh = seenIdsRef.current !== null && !seenIdsRef.current.has(message.id);
-            return (
-              <div
-                key={message.id}
-                data-message-id={message.id}
-                className={cn(
-                  "rounded-[6px] transition-colors duration-500",
-                  groupStart && index > 0 && "mt-2",
-                  isFresh &&
-                    "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200",
-                )}
+          {ttlSeconds ? (
+            <div className="flex items-center justify-center py-1.5">
+              <span
+                className="inline-flex items-center gap-1 rounded-[6px] bg-muted/70 px-2.5 py-1 text-[10px] text-muted-foreground"
+                title={t("chat.disappearing.hint")}
               >
-                {newDay && (
-                  <div className="flex items-center justify-center py-2.5">
-                    <span className="rounded-[6px] bg-muted/70 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {dayLabel(message.created_at, lang, dayWords)}
-                    </span>
-                  </div>
-                )}
-                <MessageBubble
-                  message={message}
-                  mine={message.sender_id === myUserId}
-                  lang={lang}
-                  groupStart={groupStart}
-                  groupEnd={groupEnd}
-                  reactions={reactions.get(message.id) ?? NO_REACTIONS}
-                  myUserId={myUserId}
-                  repliedMessage={replied}
-                  repliedAuthorName={
-                    replied
-                      ? replied.sender_id === myUserId
-                        ? t("chat.you")
-                        : peerName
-                      : undefined
-                  }
-                  editable={canEdit(message)}
-                  peerLastReadAt={peerLastReadAt}
-                  peerOnline={peerOnline}
-                  onReact={onReact}
-                  onReply={onReply}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onDiscardFailed={onDiscardFailed}
-                  onJumpToReply={jumpToMessage}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-1 flex min-h-[18px] items-center justify-end pr-0.5">
-          {lastMine?.pending ? (
-            <span className="text-[10px] text-muted-foreground">{t("chat.sending")}</span>
-          ) : seen ? (
-            <span className="inline-flex items-center gap-1" title={t("chat.seen")}>
-              <span className="sr-only">{t("chat.seen")}</span>
-              <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="xs" />
-            </span>
+                <Timer className="h-3 w-3" aria-hidden />
+                {t("chat.disappearing.active", { window: t(ttlLabelKey(ttlSeconds)) })}
+              </span>
+            </div>
           ) : null}
-        </div>
 
-        {peerTyping && (
-          <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
-            <TypingIndicator name={peerName} avatarUrl={peerAvatarUrl} />
+          {hasOlder && (
+            <div className="flex justify-center py-1.5">
+              <span
+                className="rounded-[6px] bg-muted px-3 py-1 text-[11px] text-muted-foreground"
+                aria-live="polite"
+              >
+                {loadingOlder ? t("common.loading", { defaultValue: "..." }) : t("chat.loadOlder")}
+              </span>
+            </div>
+          )}
+
+          {messages.length === 0 && !loadingOlder && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
+              <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="lg" />
+              <p className="max-w-[220px] text-xs text-muted-foreground">
+                {t("chat.conversationEmpty")}
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-0.5">
+            {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
+              const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
+              // Animate only rows that appeared after the initial history render.
+              const isFresh = seenIdsRef.current !== null && !seenIdsRef.current.has(message.id);
+              return (
+                <div
+                  key={message.id}
+                  data-message-id={message.id}
+                  className={cn(
+                    "rounded-[6px] transition-colors duration-500",
+                    groupStart && index > 0 && "mt-2",
+                    isFresh &&
+                      "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200",
+                  )}
+                >
+                  {newDay && (
+                    <div className="flex items-center justify-center py-2.5">
+                      <span className="rounded-[6px] bg-muted/70 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {dayLabel(message.created_at, lang, dayWords)}
+                      </span>
+                    </div>
+                  )}
+                  <MessageBubble
+                    message={message}
+                    mine={message.sender_id === myUserId}
+                    lang={lang}
+                    groupStart={groupStart}
+                    groupEnd={groupEnd}
+                    reactions={reactions.get(message.id) ?? NO_REACTIONS}
+                    myUserId={myUserId}
+                    repliedMessage={replied}
+                    repliedAuthorName={
+                      replied
+                        ? replied.sender_id === myUserId
+                          ? t("chat.you")
+                          : peerName
+                        : undefined
+                    }
+                    editable={canEdit(message)}
+                    peerLastReadAt={peerLastReadAt}
+                    peerLastDeliveredAt={peerLastDeliveredAt}
+                    starred={starredIds.has(message.id)}
+                    onReact={onReact}
+                    onReply={onReply}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onDiscardFailed={onDiscardFailed}
+                    onToggleStar={onToggleStar}
+                    onJumpToReply={jumpToMessage}
+                  />
+                </div>
+              );
+            })}
           </div>
-        )}
+
+          <div className="mt-1 flex min-h-[18px] items-center justify-end pr-0.5">
+            {lastMine?.pending ? (
+              <span className="text-[10px] text-muted-foreground">{t("chat.sending")}</span>
+            ) : seen ? (
+              <span className="inline-flex items-center gap-1" title={t("chat.seen")}>
+                <span className="sr-only">{t("chat.seen")}</span>
+                <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="xs" />
+              </span>
+            ) : null}
+          </div>
+
+          {peerTyping && (
+            <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
+              <TypingIndicator name={peerName} avatarUrl={peerAvatarUrl} />
+            </div>
+          )}
+        </div>
       </div>
+
+      {awayFromBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className={cn(
+            "absolute bottom-3 right-3 z-[1] flex h-8 w-8 items-center justify-center rounded-full",
+            "border border-border/60 bg-background/95 text-muted-foreground shadow-md backdrop-blur",
+            "transition-colors hover:bg-muted hover:text-foreground",
+            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-90 motion-safe:duration-150",
+          )}
+          aria-label={t("chat.scrollToBottom")}
+          title={t("chat.scrollToBottom")}
+        >
+          <ChevronDown className="h-4 w-4" aria-hidden />
+        </button>
+      )}
     </div>
   );
 }

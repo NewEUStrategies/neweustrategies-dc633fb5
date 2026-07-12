@@ -1112,30 +1112,45 @@ export type Database = {
       }
       conversation_participants: {
         Row: {
+          archived_at: string | null
+          cleared_before: string | null
           conversation_id: string
           created_at: string
           id: string
+          last_delivered_at: string | null
           last_read_at: string | null
+          muted_until: string | null
+          pinned_at: string | null
           tenant_id: string
           unread_count: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
+          cleared_before?: string | null
           conversation_id: string
           created_at?: string
           id?: string
+          last_delivered_at?: string | null
           last_read_at?: string | null
+          muted_until?: string | null
+          pinned_at?: string | null
           tenant_id: string
           unread_count?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          archived_at?: string | null
+          cleared_before?: string | null
           conversation_id?: string
           created_at?: string
           id?: string
+          last_delivered_at?: string | null
           last_read_at?: string | null
+          muted_until?: string | null
+          pinned_at?: string | null
           tenant_id?: string
           unread_count?: number
           updated_at?: string
@@ -1169,6 +1184,7 @@ export type Database = {
           last_message_kind: string | null
           last_message_preview: string | null
           last_message_sender: string | null
+          message_ttl_seconds: number | null
           tenant_id: string
           updated_at: string
         }
@@ -1182,6 +1198,7 @@ export type Database = {
           last_message_kind?: string | null
           last_message_preview?: string | null
           last_message_sender?: string | null
+          message_ttl_seconds?: number | null
           tenant_id: string
           updated_at?: string
         }
@@ -1195,6 +1212,7 @@ export type Database = {
           last_message_kind?: string | null
           last_message_preview?: string | null
           last_message_sender?: string | null
+          message_ttl_seconds?: number | null
           tenant_id?: string
           updated_at?: string
         }
@@ -2039,8 +2057,55 @@ export type Database = {
           },
         ]
       }
+      message_stars: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          message_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string
+          created_at?: string
+          message_id: string
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          message_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_stars_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_stars_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_stars_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
+          attachment_duration: number | null
           attachment_mime: string | null
           attachment_name: string | null
           attachment_path: string | null
@@ -2050,6 +2115,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           edited_at: string | null
+          expires_at: string | null
           id: string
           kind: string
           reply_to_id: string | null
@@ -2057,6 +2123,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          attachment_duration?: number | null
           attachment_mime?: string | null
           attachment_name?: string | null
           attachment_path?: string | null
@@ -2066,6 +2133,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           edited_at?: string | null
+          expires_at?: string | null
           id?: string
           kind?: string
           reply_to_id?: string | null
@@ -2073,6 +2141,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          attachment_duration?: number | null
           attachment_mime?: string | null
           attachment_name?: string | null
           attachment_path?: string | null
@@ -2082,6 +2151,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           edited_at?: string | null
+          expires_at?: string | null
           id?: string
           kind?: string
           reply_to_id?: string | null
@@ -5317,6 +5387,26 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      chat_clear_history: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
+      }
+      chat_set_archived: {
+        Args: { p_conversation_id: string; p_archived: boolean }
+        Returns: undefined
+      }
+      chat_set_message_ttl: {
+        Args: { p_conversation_id: string; p_ttl_seconds: number | null }
+        Returns: undefined
+      }
+      chat_set_muted: {
+        Args: { p_conversation_id: string; p_seconds: number | null }
+        Returns: undefined
+      }
+      chat_set_pinned: {
+        Args: { p_conversation_id: string; p_pinned: boolean }
+        Returns: undefined
+      }
       complete_command: {
         Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
         Returns: undefined
@@ -5715,6 +5805,10 @@ export type Database = {
       }
       mark_conversation_read: {
         Args: { p_conversation_id: string }
+        Returns: undefined
+      }
+      mark_conversations_delivered: {
+        Args: never
         Returns: undefined
       }
       mark_notification_unread: { Args: { p_id: string }; Returns: undefined }

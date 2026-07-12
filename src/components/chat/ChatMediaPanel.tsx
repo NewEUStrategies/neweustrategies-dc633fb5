@@ -1,15 +1,19 @@
-// Side panel with Photos/Files tabs showing every attachment ever sent in
-// this conversation. Feeds off useConversationAttachments (server-side
-// filtered by attachment_path IS NOT NULL) so it works regardless of how
-// far back the visible message pagination has scrolled.
+// Side panel with Photos/Files/Starred tabs: every attachment ever sent in
+// this conversation plus the caller's privately starred messages. Feeds off
+// useConversationAttachments (server-side filtered by attachment_path IS NOT
+// NULL) so it works regardless of how far back the visible message pagination
+// has scrolled; starred entries join messages through RLS (expired/cleared
+// rows drop out automatically).
 import { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, FileText, ImageIcon, X } from "lucide-react";
+import { Download, FileText, ImageIcon, Mic, Star, X } from "lucide-react";
 import { useAttachmentUrl, formatBytes } from "@/lib/chat/attachments";
 import { useConversationAttachments, type ChatAttachmentRow } from "@/lib/chat/useMessages";
+import { useStarredMessages, type StarredEntry } from "@/lib/chat/stars";
+import { clockTime, type ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
-type Tab = "photos" | "files";
+type Tab = "photos" | "files" | "starred";
 
 interface Props {
   readonly conversationId: string;
@@ -89,6 +93,33 @@ function FileRow({ row, lang }: { row: ChatAttachmentRow; lang: string }) {
   );
 }
 
+function StarredRow({ entry, lang }: { entry: StarredEntry; lang: ChatLang }) {
+  const { t } = useTranslation();
+  const message = entry.message;
+  if (!message) return null;
+  const label =
+    message.kind === "text"
+      ? (message.body ?? "")
+      : message.kind === "audio"
+        ? t("chat.voice.message")
+        : (message.attachment_name ??
+          (message.kind === "image" ? t("chat.photo") : t("chat.file")));
+  return (
+    <div className="rounded-[6px] border border-border/60 bg-background px-2.5 py-2">
+      <p className="line-clamp-3 text-[12px] leading-snug">
+        {message.kind === "audio" && (
+          <Mic className="mr-1 inline h-3 w-3 text-muted-foreground" aria-hidden />
+        )}
+        {label}
+      </p>
+      <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+        <Star className="h-2.5 w-2.5 fill-current text-amber-500" aria-hidden />
+        {clockTime(message.created_at, lang)}
+      </p>
+    </div>
+  );
+}
+
 export const ChatMediaPanel = memo(function ChatMediaPanel({
   conversationId,
   enabled,
@@ -100,6 +131,8 @@ export const ChatMediaPanel = memo(function ChatMediaPanel({
   const lang = i18n.language === "en" ? "en" : "pl";
   const [tab, setTab] = useState<Tab>("photos");
   const remoteQ = useConversationAttachments(conversationId, enabled && !localRows);
+  const starredQ = useStarredMessages(conversationId, enabled && !localRows && tab === "starred");
+  const starred = starredQ.data ?? [];
   // No `?? []` here: a fresh array identity per render would defeat the memo.
   const rows: ReadonlyArray<ChatAttachmentRow> | undefined = localRows ?? remoteQ.data;
 
@@ -169,9 +202,42 @@ export const ChatMediaPanel = memo(function ChatMediaPanel({
           {t("chat.mediaPanel.tabFiles")}
           <span className="tabular-nums opacity-70">({files.length})</span>
         </button>
+        {!localRows && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "starred"}
+            onClick={() => setTab("starred")}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-medium transition-colors",
+              tab === "starred"
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Star className="h-3 w-3" aria-hidden />
+            {t("chat.mediaPanel.tabStarred")}
+          </button>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
-        {loading ? (
+        {tab === "starred" ? (
+          starredQ.isLoading ? (
+            <p className="py-6 text-center text-[11px] text-muted-foreground">
+              {t("chat.mediaPanel.loading")}
+            </p>
+          ) : starred.length === 0 ? (
+            <p className="py-6 text-center text-[11px] text-muted-foreground">
+              {t("chat.mediaPanel.emptyStarred")}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {starred.map((entry) => (
+                <StarredRow key={entry.message_id} entry={entry} lang={lang} />
+              ))}
+            </div>
+          )
+        ) : loading ? (
           <p className="py-6 text-center text-[11px] text-muted-foreground">
             {t("chat.mediaPanel.loading")}
           </p>

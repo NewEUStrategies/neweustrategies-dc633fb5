@@ -38,13 +38,26 @@ export const FILE_MIME_TYPES: ReadonlySet<string> = new Set([
   "application/vnd.oasis.opendocument.presentation",
 ]);
 
+// Voice notes are recorded in-app (MediaRecorder), never via the file picker,
+// so they are NOT part of ATTACHMENT_ACCEPT. Mirrors the bucket allowlist.
+export const AUDIO_MIME_TYPES: ReadonlySet<string> = new Set([
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/mpeg",
+]);
+
+/** Hard cap for a single voice note (mirrors the DB CHECK). */
+export const MAX_VOICE_SECONDS = 600;
+
 export const ATTACHMENT_ACCEPT = [...IMAGE_MIME_TYPES, ...FILE_MIME_TYPES].join(",");
 
-export type AttachmentKind = "image" | "file";
+export type AttachmentKind = "image" | "file" | "audio";
 
 export function attachmentKindForMime(mime: string): AttachmentKind | null {
   if (IMAGE_MIME_TYPES.has(mime)) return "image";
   if (FILE_MIME_TYPES.has(mime)) return "file";
+  if (AUDIO_MIME_TYPES.has(mime)) return "audio";
   return null;
 }
 

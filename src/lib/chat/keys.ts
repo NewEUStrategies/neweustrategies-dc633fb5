@@ -13,4 +13,8 @@ export const chatKeys = {
   attachmentUrl: (path: string) => ["chat", "attachment-url", path] as const,
   attachments: (uid: string | undefined, conversationId: string) =>
     ["chat", "attachments", uid ?? "anon", conversationId] as const,
+  stars: (uid: string | undefined, conversationId: string) =>
+    ["chat", "stars", uid ?? "anon", conversationId] as const,
+  starredList: (uid: string | undefined, conversationId: string) =>
+    ["chat", "starred-list", uid ?? "anon", conversationId] as const,
 };

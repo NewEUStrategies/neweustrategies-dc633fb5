@@ -42,7 +42,12 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
   const conversationsQ = useConversations();
   const unread = useChatUnreadTotal();
 
-  const views = useMemo(() => conversationsQ.data ?? [], [conversationsQ.data]);
+  // The bell droplist mirrors WhatsApp: archived conversations stay out of
+  // sight (they live under the /messages archive section).
+  const views = useMemo(
+    () => (conversationsQ.data ?? []).filter((v) => !v.me.archived_at),
+    [conversationsQ.data],
+  );
   const peerIds = useMemo(
     () => [...new Set(views.flatMap((v) => v.peers.map((p) => p.user_id)))],
     [views],
