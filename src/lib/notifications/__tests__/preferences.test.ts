@@ -12,6 +12,10 @@ const prefs: NotificationPreferences = {
   enabled_security: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
+  read_receipts_enabled: true,
+  typing_indicators_enabled: true,
+  show_online_status: true,
+  allow_messages_from: "everyone",
 };
 
 describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {

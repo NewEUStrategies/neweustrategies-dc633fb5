@@ -21,6 +21,13 @@ import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
 import { Switch } from "@/components/ui/switch";
 import { Eye, EyeOff } from "lucide-react";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  useNotificationPreferences,
+  useUpdateNotificationPreferences,
+  type AllowMessagesFrom,
+  type NotificationPreferences,
+} from "@/lib/notifications/useNotifications";
 import { toast } from "sonner";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 
@@ -49,11 +56,53 @@ const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
 const MAX_AVATAR = 2 * 1024 * 1024;
 const MAX_COVER = 5 * 1024 * 1024;
 
+/** One boolean chat-privacy preference row (label + hint + switch). */
+function ChatPrivacyToggle(props: {
+  prefKey: "read_receipts_enabled" | "typing_indicators_enabled" | "show_online_status";
+  labelKey: string;
+  hintKey: string;
+}) {
+  const { t } = useTranslation();
+  const prefsQ = useNotificationPreferences();
+  const updatePrefs = useUpdateNotificationPreferences();
+  const prefs: NotificationPreferences = prefsQ.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
+  const checked = prefs[props.prefKey];
+
+  return (
+    <div className="flex items-start gap-3 border-t border-border/40 pt-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium leading-snug">{t(props.labelKey)}</p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">{t(props.hintKey)}</p>
+      </div>
+      <div className="shrink-0 pt-0.5">
+        <Switch
+          checked={checked}
+          disabled={prefsQ.isLoading || updatePrefs.isPending}
+          onCheckedChange={(next) =>
+            updatePrefs.mutate(
+              { [props.prefKey]: next },
+              {
+                onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                onError: () => toast.error(t("profilePrivacy.saveError")),
+              },
+            )
+          }
+          aria-label={t(props.labelKey)}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PrivacyVisibilitySection() {
   const { t } = useTranslation();
   const discoverableQ = useDiscoverable();
   const setDiscoverable = useSetDiscoverable();
+  const prefsQ = useNotificationPreferences();
+  const updatePrefs = useUpdateNotificationPreferences();
   const on = discoverableQ.data ?? false;
+  const allowFrom: AllowMessagesFrom =
+    prefsQ.data?.allow_messages_from ?? DEFAULT_NOTIFICATION_PREFERENCES.allow_messages_from;
 
   return (
     <section
@@ -100,6 +149,58 @@ function PrivacyVisibilitySection() {
           </span>
         </div>
       </div>
+
+      {/* Kto może rozpocząć nową rozmowę (egzekwowane w DB, nie tylko w UI). */}
+      <div className="flex flex-wrap items-start gap-3 border-t border-border/40 pt-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">
+            {t("profilePrivacy.allowMessagesLabel")}
+          </p>
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">
+            {t("profilePrivacy.allowMessagesHint")}
+          </p>
+        </div>
+        <div className="w-full shrink-0 sm:w-56">
+          <Select
+            value={allowFrom}
+            disabled={prefsQ.isLoading || updatePrefs.isPending}
+            onValueChange={(next) =>
+              updatePrefs.mutate(
+                { allow_messages_from: next as AllowMessagesFrom },
+                {
+                  onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                  onError: () => toast.error(t("profilePrivacy.saveError")),
+                },
+              )
+            }
+          >
+            <SelectTrigger aria-label={t("profilePrivacy.allowMessagesLabel")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="everyone">{t("profilePrivacy.allowMessagesEveryone")}</SelectItem>
+              <SelectItem value="existing">{t("profilePrivacy.allowMessagesExisting")}</SelectItem>
+              <SelectItem value="nobody">{t("profilePrivacy.allowMessagesNobody")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <ChatPrivacyToggle
+        prefKey="read_receipts_enabled"
+        labelKey="profilePrivacy.readReceiptsLabel"
+        hintKey="profilePrivacy.readReceiptsHint"
+      />
+      <ChatPrivacyToggle
+        prefKey="typing_indicators_enabled"
+        labelKey="profilePrivacy.typingLabel"
+        hintKey="profilePrivacy.typingHint"
+      />
+      <ChatPrivacyToggle
+        prefKey="show_online_status"
+        labelKey="profilePrivacy.onlineStatusLabel"
+        hintKey="profilePrivacy.onlineStatusHint"
+      />
     </section>
   );
 }

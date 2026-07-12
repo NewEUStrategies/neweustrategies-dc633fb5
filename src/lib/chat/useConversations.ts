@@ -31,6 +31,36 @@ function lastActivity(view: ConversationView): number {
   return new Date(iso).getTime();
 }
 
+/**
+ * Peer user ids carried by the conversation itself. direct_key is
+ * `<tenant>:<uidA>:<uidB>`, so the pair survives even when a peer's
+ * participant ROW is hidden by RLS (peers who turned read receipts off no
+ * longer expose their unread/last_read state - the reciprocal policy on
+ * conversation_participants). Identity must not depend on that row.
+ */
+function peerIdsFromDirectKey(conversation: ConversationRow, uid: string): string[] {
+  if (!conversation.direct_key) return [];
+  const [, a, b] = conversation.direct_key.split(":");
+  return [a, b].filter((id): id is string => !!id && id !== uid);
+}
+
+/**
+ * Placeholder row for a peer whose participant row is RLS-hidden (read
+ * receipts off). Null read state renders as "delivered", never "seen".
+ */
+function hiddenPeerRow(conversation: ConversationRow, userId: string): ParticipantRow {
+  return {
+    id: `hidden-${conversation.id}-${userId}`,
+    conversation_id: conversation.id,
+    user_id: userId,
+    tenant_id: conversation.tenant_id,
+    unread_count: 0,
+    last_read_at: null,
+    created_at: conversation.created_at,
+    updated_at: conversation.created_at,
+  };
+}
+
 async function fetchConversations(uid: string): Promise<ConversationView[]> {
   const { data, error } = await supabase
     .from("conversation_participants")
@@ -56,6 +86,11 @@ async function fetchConversations(uid: string): Promise<ConversationView[]> {
   const views: ConversationView[] = [];
   for (const entry of grouped.values()) {
     if (!entry.me) continue;
+    for (const peerId of peerIdsFromDirectKey(entry.conversation, uid)) {
+      if (!entry.peers.some((p) => p.user_id === peerId)) {
+        entry.peers.push(hiddenPeerRow(entry.conversation, peerId));
+      }
+    }
     views.push({ conversation: entry.conversation, me: entry.me, peers: entry.peers });
   }
   return views.sort((a, b) => lastActivity(b) - lastActivity(a));

@@ -13,6 +13,7 @@ ani polityk RLS.
 | `search_tsquery_test.sql`       | `public.nes_search_tsquery` - unaccent + lower, prefiks `:*`, łączenie AND, sanityzacja znaków, puste/NULL → `NULL`.                                                                                                                                                                                    |
 | `search_posts_smoke_test.sql`   | Smoke RPC `public.search_posts`: zwraca tylko opublikowane, nieusunięte posty tenanta publicznego; pomija szkice, usunięte i obcych tenantów.                                                                                                                                                           |
 | `pii_column_grants_test.sql`    | Bramka CI grantów PII: `has_column_privilege` dowodzi, że `anon`/`authenticated` NIE czytają wrażliwych kolumn (`profiles.email/prefs`, `newsletter_subscribers.email`, `billing_profiles.email/tax_id/phone`, `crm_leads.email/phone`, `contact_messages.email/phone`); regresja grantu = błąd buildu. |
+| `chat_privacy_isolation_test.sql` | Prywatność czatu per tenant: legacy członkostwo cross-tenant nie daje odczytu wiadomości/konwersacji/uczestników ANI załącznika w storage; purge obiektu storage przy „cofnij wysłanie"; pin `user_id`/`tenant_id` w `notification_preferences`; wzajemne potwierdzenia odczytu (RLS na uczestnikach); `allow_messages_from` (nowe konwersacje + tryb cichy); `get_chat_peers` bez wycieku poza tenant; komplet polityk Realtime Authorization i parser topiców.  |
 
 ## Uruchamianie
 
