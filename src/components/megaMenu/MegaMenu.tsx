@@ -120,7 +120,7 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       <details className="group/mega border-b border-border last:border-0 w-full">
         <summary className="flex items-center justify-between gap-2 py-3 cursor-pointer list-none select-none text-sm font-bold tracking-wider uppercase">
           {triggerHref ? (
-            <AppLink href={triggerHref} className="hover:text-brand transition flex-1">
+            <AppLink href={triggerHref} className="hover:text-brand-ink transition flex-1">
               {trigger}
             </AppLink>
           ) : (
@@ -302,7 +302,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
           {slug && (
             <AppLink
               href={viewAll}
-              className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider"
+              className="text-[10px] font-semibold text-brand-ink hover:underline uppercase tracking-wider"
             >
               {lang === "pl" ? "Zobacz" : "View all"} →
             </AppLink>
@@ -340,7 +340,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
                     />
                   ) : null}
                 </div>
-                <div className="text-xs font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-brand transition">
+                <div className="text-xs font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-brand-ink transition">
                   {p.title}
                 </div>
               </AppLink>
@@ -425,7 +425,7 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
       <div className="p-3 space-y-1">
         {title && <div className="text-sm font-bold text-foreground leading-tight">{title}</div>}
         {excerpt && <div className="text-xs text-muted-foreground line-clamp-2">{excerpt}</div>}
-        {cta && <div className="text-xs font-semibold text-brand pt-1">{cta} →</div>}
+        {cta && <div className="text-xs font-semibold text-brand-ink pt-1">{cta} →</div>}
       </div>
     </AppLink>
   );
@@ -466,7 +466,7 @@ function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }
             <li key={i}>
               <AppLink
                 href={href}
-                className="block py-2 text-sm text-foreground hover:text-brand transition"
+                className="block py-2 text-sm text-foreground hover:text-brand-ink transition"
               >
                 {label}
               </AppLink>

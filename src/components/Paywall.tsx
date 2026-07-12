@@ -177,7 +177,7 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
         </div>
       )}
       <div className="px-6 py-8 text-center border-t border-border bg-background/60">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-brand/10 text-brand mb-4">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-brand/10 text-brand-ink mb-4">
           {rule.mode === "members" ? <LogIn className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
         </div>
         <h2 className="font-display text-2xl font-bold mb-2">
@@ -293,7 +293,7 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                       key={p.id}
                       className="border border-border rounded-lg p-4 bg-background hover:border-brand transition"
                     >
-                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand mb-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-ink mb-1">
                         <Star className="w-3.5 h-3.5" /> {name}
                       </div>
                       <div className="text-2xl font-bold">
@@ -342,7 +342,7 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                 planów, FAQ) zamiast być równoległym, ślepym lejkiem. */}
             <Link
               to="/pricing"
-              className="inline-block text-sm text-brand hover:underline"
+              className="inline-block text-sm text-brand-ink hover:underline"
               onClick={rememberReturn}
             >
               {t("paywall.seeAllPlans")} →

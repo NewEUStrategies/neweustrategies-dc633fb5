@@ -109,7 +109,7 @@ function CardBody({
             article these cards are the most likely next navigation - warming
             their loaders here makes the transition feel instant, and the page
             is already idle when this section scrolls in. */}
-        <Link to={p.href as "/"} preload="viewport" className="hover:text-brand transition-colors">
+        <Link to={p.href as "/"} preload="viewport" className="hover:text-brand-ink transition-colors">
           {title}
         </Link>
       </h3>

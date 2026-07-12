@@ -205,7 +205,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                 <AppLink
                   href={`/search?q=${encodeURIComponent(q.trim())}`}
                   onClick={() => selectAndClose(q)}
-                  className="flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-sm font-medium text-brand transition hover:bg-muted/40"
+                  className="flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-sm font-medium text-brand-ink transition hover:bg-muted/40"
                 >
                   <span>
                     {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
@@ -353,10 +353,18 @@ function ResultsList({
     >
       {results.map((r, i) => {
         const isActive = i === active;
+        // Wzorzec listbox/option: rolę option nosi SAM link (tabIndex=-1,
+        // fokus zostaje w combobox i jest ogłaszany przez aria-activedescendant).
+        // option nie może zawierać zagnieżdżonych elementów interaktywnych
+        // (axe: nested-interactive), więc <li> jest czysto prezentacyjne.
         return (
-          <li key={r.id} id={optionId(i)} role="option" aria-selected={isActive}>
+          <li key={r.id} role="presentation">
             <AppLink
               href={`/post/${r.slug}`}
+              id={optionId(i)}
+              role="option"
+              aria-selected={isActive}
+              tabIndex={-1}
               onClick={onSelect}
               onMouseEnter={() => setActive(i)}
               className={`group flex items-start gap-3 px-5 py-3.5 transition ${

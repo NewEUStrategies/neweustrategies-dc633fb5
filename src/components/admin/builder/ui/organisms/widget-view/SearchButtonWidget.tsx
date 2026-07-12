@@ -278,9 +278,16 @@ export function SearchButtonWidget({
                 className="divide-y divide-border/70"
               >
                 {results.map((r, i) => (
-                  <li key={r.id} id={optionId(i)} role="option" aria-selected={i === active}>
+                  // option na samym linku (tabIndex=-1) - patrz SearchOverlay;
+                  // zagnieżdżony fokusowalny element w option łamie ARIA
+                  // (axe: nested-interactive).
+                  <li key={r.id} role="presentation">
                     <AppLink
                       href={`/post/${r.slug}`}
+                      id={optionId(i)}
+                      role="option"
+                      aria-selected={i === active}
+                      tabIndex={-1}
                       onClick={goToResult}
                       onMouseEnter={() => setActive(i)}
                       className={`block px-4 py-3 transition-colors ${
@@ -307,7 +314,7 @@ export function SearchButtonWidget({
                   addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs font-medium text-brand transition-colors hover:bg-muted/50"
+                className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs font-medium text-brand-ink transition-colors hover:bg-muted/50"
               >
                 <span>
                   {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}

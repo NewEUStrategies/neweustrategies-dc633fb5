@@ -141,7 +141,7 @@ function SearchPage() {
                 {active && (
                   <button
                     onClick={clearAll}
-                    className="text-xs text-brand inline-flex items-center gap-1 hover:underline"
+                    className="text-xs text-brand-ink inline-flex items-center gap-1 hover:underline"
                   >
                     <X className="w-3 h-3" />
                     {t("search.clear")}
@@ -186,7 +186,7 @@ function SearchPage() {
                           <button
                             type="button"
                             onClick={() => updateFilter("category", isActive ? undefined : c.id)}
-                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand" : "hover:bg-muted"}`}
+                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand-ink" : "hover:bg-muted"}`}
                           >
                             <span className="truncate">{c.name}</span>
                             <span className="text-xs text-muted-foreground">{c.count}</span>
@@ -211,7 +211,7 @@ function SearchPage() {
                           <button
                             type="button"
                             onClick={() => updateFilter("author", isActive ? undefined : a.id)}
-                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand" : "hover:bg-muted"}`}
+                            className={`w-full text-left flex justify-between items-center px-2 py-1 rounded ${isActive ? "bg-brand/10 text-brand-ink" : "hover:bg-muted"}`}
                           >
                             <span className="truncate">{a.name}</span>
                             <span className="text-xs text-muted-foreground">{a.count}</span>
