@@ -76,10 +76,12 @@ export function useToggleStar(conversationId: string) {
         if (error) throw error;
         return;
       }
+      // conversation_id + tenant_id are stamped by the BEFORE INSERT trigger
+      // from the referenced message; passing anything client-side is ignored.
       const { error } = await supabase.from("message_stars").insert({
         user_id: user.id,
         message_id: input.messageId,
-      });
+      } as never);
       if (error) throw error;
     },
     // Optimistic star flip; the invalidation reconciles the starred-list tab.
