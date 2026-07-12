@@ -358,7 +358,10 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      // tenant_id jest ustawiany przez trigger tg_eu_policy_update_applied
+      // z dossier - pusty UUID to placeholder, DB nadpisuje w BEFORE INSERT.
       const { error } = await supabase.from("eu_policy_updates").insert({
+        tenant_id: "00000000-0000-0000-0000-000000000000",
         item_id: itemId,
         note_pl: notePl.trim(),
         note_en: noteEn.trim(),
