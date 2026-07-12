@@ -136,6 +136,7 @@ import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newslet
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
+import { Route as AdminCommunityChatRouteImport } from './routes/admin.community.chat'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
@@ -786,6 +787,11 @@ const AdminNewsletterCampaignsRoute =
     path: '/campaigns',
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
+const AdminCommunityChatRoute = AdminCommunityChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AdminCommunityRoute,
+} as any)
 const AdminAppearancePostSidebarRoute =
   AdminAppearancePostSidebarRouteImport.update({
     id: '/post-sidebar',
@@ -945,6 +951,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1078,6 +1085,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1218,6 +1226,7 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1359,6 +1368,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/community/chat'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -1492,6 +1502,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/community/chat'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -1631,6 +1642,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/community/chat'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -2614,6 +2626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/community/chat': {
+      id: '/admin/community/chat'
+      path: '/chat'
+      fullPath: '/admin/community/chat'
+      preLoaderRoute: typeof AdminCommunityChatRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/appearance/post-sidebar': {
       id: '/admin/appearance/post-sidebar'
       path: '/post-sidebar'
@@ -2708,10 +2727,12 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
 )
 
 interface AdminCommunityRouteChildren {
+  AdminCommunityChatRoute: typeof AdminCommunityChatRoute
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
 }
 
 const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
+  AdminCommunityChatRoute: AdminCommunityChatRoute,
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
 }
 
