@@ -64,7 +64,7 @@ function AdminContactPage() {
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = lang === "pl" ? PL : EN;
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
+    <div className="space-y-4">
       <header className="flex items-center gap-2">
         <Mail className="w-5 h-5 text-brand" />
         <h1 className="text-xl font-semibold">{L.title}</h1>

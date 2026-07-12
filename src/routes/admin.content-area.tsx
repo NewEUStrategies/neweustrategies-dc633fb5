@@ -276,7 +276,7 @@ function Page() {
 
   return (
     <AdminShell hideSidebar>
-      <div className="mx-auto max-w-4xl space-y-6 p-6">
+      <div className="space-y-6">
         <header className="sticky top-0 z-10 -mx-6 flex items-center justify-between gap-4 border-b border-border/60 bg-background/95 px-6 py-3 backdrop-blur">
           <div>
             <h1 className="font-display text-2xl leading-tight">{t("admin.contentArea.title")}</h1>

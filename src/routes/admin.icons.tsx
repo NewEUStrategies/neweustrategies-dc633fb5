@@ -60,7 +60,7 @@ function IconsAdmin() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["icon-library", kind] });
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <div className="space-y-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">{t("admin.icons.title")}</h1>
         <p className="text-sm text-muted-foreground">{t("admin.icons.subtitle")}</p>

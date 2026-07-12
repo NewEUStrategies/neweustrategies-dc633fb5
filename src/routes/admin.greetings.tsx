@@ -194,7 +194,7 @@ function GreetingsAdmin() {
   for (const i of issues) if (i.reason === "empty") emptyPerLang[i.lang]++;
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-2xl flex items-center gap-2">
