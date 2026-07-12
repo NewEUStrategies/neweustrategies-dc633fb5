@@ -71,6 +71,9 @@ export async function fetchCommunityModules(): Promise<CommunityModulesSettings>
     events_enabled: raw.events_enabled !== false,
     qa_enabled: raw.qa_enabled !== false,
     polls_enabled: raw.polls_enabled !== false,
+    contributor_program_enabled: raw.contributor_program_enabled !== false,
+    badges_enabled: raw.badges_enabled !== false,
+    push_enabled: raw.push_enabled !== false,
     default_message_ttl_seconds:
       typeof raw.default_message_ttl_seconds === "number" ? raw.default_message_ttl_seconds : null,
   };
