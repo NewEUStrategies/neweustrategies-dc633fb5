@@ -805,6 +805,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          edited_at: string | null
           id: string
           parent_id: string | null
           post_id: string
@@ -816,6 +817,7 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           parent_id?: string | null
           post_id: string
@@ -827,6 +829,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           parent_id?: string | null
           post_id?: string
@@ -2116,6 +2119,7 @@ export type Database = {
           deleted_at: string | null
           edited_at: string | null
           expires_at: string | null
+          forwarded: boolean
           id: string
           kind: string
           reply_to_id: string | null
@@ -2134,6 +2138,7 @@ export type Database = {
           deleted_at?: string | null
           edited_at?: string | null
           expires_at?: string | null
+          forwarded?: boolean
           id?: string
           kind?: string
           reply_to_id?: string | null
@@ -2152,6 +2157,7 @@ export type Database = {
           deleted_at?: string | null
           edited_at?: string | null
           expires_at?: string | null
+          forwarded?: boolean
           id?: string
           kind?: string
           reply_to_id?: string | null

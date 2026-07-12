@@ -50,8 +50,13 @@ const MAX_SIZE: Record<UploadKind, number> = {
   cover: 5 * 1024 * 1024,
 };
 
+// `bio` here is the canonical localized bio (bio_pl); we read bio_pl and fall
+// back to legacy single-language `bio`. The single-field inline editor edits
+// the primary locale; the /profile/social editor manages full PL/EN. All
+// user-bio editors thus converge on profiles.bio_pl (mirror trigger keeps the
+// legacy `bio` column populated for older readers).
 const FIELDS =
-  "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
+  "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
 
 /**
  * Inline profile editor: per-field optimistic save with toast feedback.
@@ -74,7 +79,11 @@ export function useProfileEditor() {
       .select(FIELDS)
       .eq("id", uid)
       .maybeSingle();
-    if (row) setData(row as ProfileEditorRow);
+    if (row) {
+      const r = row as ProfileEditorRow & { bio_pl?: string | null };
+      // Canonical bio = bio_pl (fallback to legacy single-language `bio`).
+      setData({ ...r, bio: r.bio_pl ?? r.bio ?? null });
+    }
     setLoading(false);
   }, []);
 
@@ -98,7 +107,10 @@ export function useProfileEditor() {
       const prev = data[field];
       // optimistic
       setData((d) => ({ ...d, [field]: value }));
-      const patch = { [field]: value } as { [P in K]: ProfileEditorRow[P] };
+      // "bio" is canonical bio_pl on the wire, so a single-field edit writes the
+      // same column the social/public surfaces read (no more divergent bios).
+      const column = field === "bio" ? "bio_pl" : field;
+      const patch = { [column]: value } as Record<string, ProfileEditorRow[K]>;
       const { error } = await supabase
         .from("profiles")
         .update(patch as never)

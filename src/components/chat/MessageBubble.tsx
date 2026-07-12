@@ -5,7 +5,17 @@
 // supplies its own `message`), so long threads re-render only touched rows.
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, CheckCheck, Clock, Pencil, Reply, SmilePlus, Star, Trash2 } from "lucide-react";
+import {
+  Check,
+  CheckCheck,
+  Clock,
+  Forward,
+  Pencil,
+  Reply,
+  SmilePlus,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
 import { computeReceipt, type ReceiptState } from "@/lib/chat/receipts";
@@ -38,6 +48,7 @@ export interface MessageBubbleProps {
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
   onToggleStar?: (message: ChatMessage, starred: boolean) => void;
+  onForward?: (message: ChatMessage) => void;
   /** Scroll/jump to the quoted original message (if still in the loaded window). */
   onJumpToReply?: (messageId: string) => void;
 }
@@ -121,6 +132,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     onDelete,
     onDiscardFailed,
     onToggleStar,
+    onForward,
     onJumpToReply,
   } = props;
   const { t } = useTranslation();
@@ -206,6 +218,17 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           <Star className={cn("h-3.5 w-3.5", starred && "fill-current")} aria-hidden />
         </button>
       )}
+      {onForward && message.kind === "text" && (
+        <button
+          type="button"
+          onClick={() => onForward(message)}
+          className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          aria-label={t("chat.forward.action")}
+          title={t("chat.forward.action")}
+        >
+          <Forward className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
       {editable && (
         <button
           type="button"
@@ -231,6 +254,61 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     </div>
   );
 
+  // Shared footer (time · edited · star · receipt). `onGradient` tunes contrast
+  // for the sender's brand-gradient bubble vs a neutral surface.
+  const metaLine = (onGradient: boolean) => (
+    <p
+      className={cn(
+        "mt-0.5 flex items-center gap-1 text-[10px] font-normal leading-snug tabular-nums",
+        mine ? "justify-end" : "",
+        onGradient ? "opacity-90" : "text-muted-foreground/70",
+      )}
+    >
+      <span>{timeTitle}</span>
+      {message.edited_at && <span aria-hidden>·</span>}
+      {message.edited_at && <span>{t("chat.edited")}</span>}
+      {starred && (
+        <Star className="h-2.5 w-2.5 fill-current opacity-80" aria-label={t("chat.star.starred")} />
+      )}
+      {receipt && (
+        <span
+          className="ml-0.5 inline-flex items-center"
+          title={t(`chat.receipt.${receipt}`)}
+          aria-label={t(`chat.receipt.${receipt}`)}
+        >
+          {receipt === "pending" ? (
+            <Clock className="h-3 w-3" aria-hidden />
+          ) : receipt === "sent" ? (
+            <Check className="h-3 w-3" aria-hidden />
+          ) : receipt === "delivered" ? (
+            <CheckCheck className="h-3 w-3" aria-hidden />
+          ) : (
+            <CheckCheck
+              className="h-3 w-3"
+              style={{ color: "var(--chat-user-tick-read)" }}
+              aria-hidden
+            />
+          )}
+        </span>
+      )}
+    </p>
+  );
+
+  // "Forwarded" marker (WhatsApp shows it above the content, italic + arrow).
+  const forwardedTag = message.forwarded ? (
+    <p
+      className={cn(
+        "mb-0.5 flex items-center gap-1 text-[10px] italic",
+        mine ? "justify-end text-muted-foreground/70" : "text-muted-foreground/70",
+      )}
+    >
+      <Forward className="h-3 w-3" aria-hidden />
+      {t("chat.forward.tag")}
+    </p>
+  ) : null;
+
+  const caption = message.body?.trim() ? message.body : null;
+
   let content: React.ReactNode;
   if (deleted) {
     content = (
@@ -243,33 +321,67 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
         {t("chat.deletedMessage")}
       </div>
     );
-  } else if (message.kind === "image" && message.attachment_path) {
+  } else if (message.kind === "image" || message.kind === "audio" || message.kind === "file") {
+    const media =
+      message.kind === "image" && message.attachment_path ? (
+        <AttachmentImage
+          path={message.attachment_path}
+          name={message.attachment_name}
+          mine={mine}
+        />
+      ) : message.kind === "audio" && message.attachment_path ? (
+        <AttachmentAudio
+          path={message.attachment_path}
+          duration={message.attachment_duration}
+          mine={mine}
+        />
+      ) : message.kind === "file" && message.attachment_path ? (
+        <AttachmentFile
+          path={message.attachment_path}
+          name={message.attachment_name}
+          mime={message.attachment_mime}
+          size={message.attachment_size}
+          mine={mine}
+          lang={lang}
+        />
+      ) : null;
     content = (
-      <AttachmentImage path={message.attachment_path} name={message.attachment_name} mine={mine} />
-    );
-  } else if (message.kind === "audio" && message.attachment_path) {
-    content = (
-      <AttachmentAudio
-        path={message.attachment_path}
-        duration={message.attachment_duration}
-        mine={mine}
-      />
-    );
-  } else if (message.kind === "file" && message.attachment_path) {
-    content = (
-      <AttachmentFile
-        path={message.attachment_path}
-        name={message.attachment_name}
-        mime={message.attachment_mime}
-        size={message.attachment_size}
-        mine={mine}
-        lang={lang}
-      />
+      <div className={cn("flex flex-col", mine ? "items-end" : "items-start")}>
+        {forwardedTag}
+        {media}
+        {caption ? (
+          <div
+            className={cn(
+              "mt-0.5 max-w-full whitespace-pre-wrap break-words px-3 py-1.5 text-[13px] leading-snug",
+              bubbleRadius(mine, groupStart, groupEnd),
+              !mine && "bg-muted text-foreground",
+            )}
+            style={
+              mine
+                ? {
+                    background:
+                      "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
+                    color: "var(--chat-user-foreground)",
+                  }
+                : undefined
+            }
+          >
+            <p style={mine ? { color: "var(--chat-user-foreground)" } : undefined}>{caption}</p>
+            {metaLine(mine)}
+          </div>
+        ) : (
+          <div className={cn("px-0.5", mine ? "self-end" : "self-start")}>{metaLine(false)}</div>
+        )}
+      </div>
     );
   } else if (emojiOnly) {
     content = (
-      <div className="px-1 py-0.5 text-[2rem] leading-tight" title={timeTitle}>
-        {message.body}
+      <div className={cn("flex flex-col", mine ? "items-end" : "items-start")}>
+        {forwardedTag}
+        <div className="px-1 py-0.5 text-[2rem] leading-tight" title={timeTitle}>
+          {message.body}
+        </div>
+        <div className={cn("px-0.5", mine ? "self-end" : "self-start")}>{metaLine(false)}</div>
       </div>
     );
   } else {
@@ -289,60 +401,14 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
         )}
         style={bubbleStyle}
       >
+        {forwardedTag}
         <p
           className="whitespace-pre-wrap break-words text-[13px] font-normal leading-snug tracking-normal"
           style={mine ? { color: "var(--chat-user-foreground)" } : undefined}
         >
           {message.body}
         </p>
-        <p
-          className={cn(
-            "mt-0.5 flex items-center gap-1 text-[10px] font-normal leading-snug tabular-nums",
-            mine ? "opacity-90 justify-end" : "text-muted-foreground/70",
-          )}
-        >
-          <span>{timeTitle}</span>
-          {message.edited_at && <span aria-hidden>·</span>}
-          {message.edited_at && <span>{t("chat.edited")}</span>}
-          {starred && (
-            <Star
-              className="h-2.5 w-2.5 fill-current opacity-80"
-              aria-label={t("chat.star.starred")}
-            />
-          )}
-          {receipt && (
-            <span
-              className="ml-0.5 inline-flex items-center"
-              title={t(`chat.receipt.${receipt}`, {
-                defaultValue:
-                  receipt === "pending"
-                    ? "Wysyłanie..."
-                    : receipt === "sent"
-                      ? "Wysłano"
-                      : receipt === "delivered"
-                        ? "Dostarczono"
-                        : "Przeczytano",
-              })}
-              aria-label={t(`chat.receipt.${receipt}`, {
-                defaultValue: receipt,
-              })}
-            >
-              {receipt === "pending" ? (
-                <Clock className="h-3 w-3" aria-hidden />
-              ) : receipt === "sent" ? (
-                <Check className="h-3 w-3" aria-hidden />
-              ) : receipt === "delivered" ? (
-                <CheckCheck className="h-3 w-3" aria-hidden />
-              ) : (
-                <CheckCheck
-                  className="h-3 w-3"
-                  style={{ color: "var(--chat-user-tick-read)" }}
-                  aria-hidden
-                />
-              )}
-            </span>
-          )}
-        </p>
+        {metaLine(mine)}
       </div>
     );
   }

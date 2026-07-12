@@ -32,6 +32,10 @@ export interface MessageListProps {
   ttlSeconds?: number | null;
   /** Caller's starred message ids (bubble star state). */
   starredIds?: ReadonlySet<string>;
+  /** Oldest unread message id at open (renders the "unread" divider before it). */
+  firstUnreadId?: string | null;
+  /** Unread count snapshot at open (drives the divider label + initial jump). */
+  unreadCount?: number;
   hasOlder: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
@@ -41,6 +45,7 @@ export interface MessageListProps {
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
   onToggleStar?: (message: ChatMessage, starred: boolean) => void;
+  onForward?: (message: ChatMessage) => void;
   canEdit: (message: ChatMessage) => boolean;
   className?: string;
 }
@@ -84,6 +89,8 @@ export function MessageList(props: MessageListProps) {
     peerTyping,
     ttlSeconds,
     starredIds = NO_STARS,
+    firstUnreadId,
+    unreadCount = 0,
     hasOlder,
     loadingOlder,
     onLoadOlder,
@@ -93,6 +100,7 @@ export function MessageList(props: MessageListProps) {
     onDelete,
     onDiscardFailed,
     onToggleStar,
+    onForward,
     canEdit,
     className,
   } = props;
@@ -100,6 +108,8 @@ export function MessageList(props: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Scroll-to-bottom pill visibility mirrors the stick-to-bottom heuristic.
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+  // New messages that arrived while the user was scrolled up (pill badge).
+  const [newCount, setNewCount] = useState(0);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const prevHeightRef = useRef<number | null>(null);
@@ -176,6 +186,7 @@ export function MessageList(props: MessageListProps) {
     // Pill threshold is looser than the stick threshold so it never flickers
     // while smooth-scrolling the last few pixels.
     setAwayFromBottom(distance > 240);
+    if (distance < 80) setNewCount(0);
   };
 
   const scrollToBottom = useCallback(() => {
@@ -183,6 +194,7 @@ export function MessageList(props: MessageListProps) {
     if (!el) return;
     stickToBottomRef.current = true;
     setAwayFromBottom(false);
+    setNewCount(0);
     if (!reducedMotion) smoothUntilRef.current = Date.now() + 400;
     el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion ? "auto" : "smooth" });
   }, [reducedMotion]);
@@ -222,7 +234,18 @@ export function MessageList(props: MessageListProps) {
     if (seenIdsRef.current === null) {
       if (messages.length > 0) {
         seenIdsRef.current = new Set(messages.map((m) => m.id));
-        el.scrollTop = el.scrollHeight;
+        // Open at the first unread message (WhatsApp) when there are unreads
+        // and the divider is in the loaded window; otherwise at the bottom.
+        const divider =
+          firstUnreadId && unreadCount > 0
+            ? el.querySelector<HTMLElement>(`[data-unread-divider="1"]`)
+            : null;
+        if (divider) {
+          divider.scrollIntoView({ block: "start" });
+          stickToBottomRef.current = false;
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
         prevCountRef.current = messages.length;
       }
       return;
@@ -233,10 +256,13 @@ export function MessageList(props: MessageListProps) {
     } else if (messages.length !== prevCountRef.current && stickToBottomRef.current) {
       if (!reducedMotion) smoothUntilRef.current = Date.now() + 400;
       el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion ? "auto" : "smooth" });
+    } else if (messages.length > prevCountRef.current && !stickToBottomRef.current) {
+      // New arrivals while scrolled up feed the pill badge.
+      setNewCount((n) => n + (messages.length - prevCountRef.current));
     }
     prevCountRef.current = messages.length;
     for (const m of messages) seenIdsRef.current.add(m.id);
-  }, [messages, reducedMotion]);
+  }, [messages, reducedMotion, firstUnreadId, unreadCount]);
 
   // Typing bubble appearing/disappearing keeps the pin too.
   useEffect(() => {
@@ -332,6 +358,16 @@ export function MessageList(props: MessageListProps) {
                       </span>
                     </div>
                   )}
+                  {firstUnreadId === message.id && unreadCount > 0 && (
+                    <div
+                      className="flex items-center justify-center py-1.5"
+                      data-unread-divider="1"
+                    >
+                      <span className="rounded-[6px] bg-[var(--brand)]/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">
+                        {t("chat.unreadDivider", { count: unreadCount })}
+                      </span>
+                    </div>
+                  )}
                   <MessageBubble
                     message={message}
                     mine={message.sender_id === myUserId}
@@ -358,6 +394,7 @@ export function MessageList(props: MessageListProps) {
                     onDelete={onDelete}
                     onDiscardFailed={onDiscardFailed}
                     onToggleStar={onToggleStar}
+                    onForward={onForward}
                     onJumpToReply={jumpToMessage}
                   />
                 </div>
@@ -398,6 +435,14 @@ export function MessageList(props: MessageListProps) {
           title={t("chat.scrollToBottom")}
         >
           <ChevronDown className="h-4 w-4" aria-hidden />
+          {newCount > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
+              aria-label={t("chat.unread", { count: newCount })}
+            >
+              {newCount > 99 ? "99+" : newCount}
+            </span>
+          )}
         </button>
       )}
     </div>

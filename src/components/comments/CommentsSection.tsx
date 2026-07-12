@@ -6,14 +6,17 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Trash2 } from "@/lib/lucide-shim";
-import { MessageCircle, Reply } from "lucide-react";
+import { MessageCircle, Pencil, Reply } from "lucide-react";
 import {
+  canEditComment,
   createComment,
+  editComment,
   fetchPostComments,
   softDeleteComment,
   type CommentWithAuthor,
@@ -76,6 +79,18 @@ export function CommentsSection({ postId, lang }: Props) {
     staleTime: 30_000,
   });
 
+  // Realtime: any insert/update to this post's comments refreshes the list, so
+  // a peer's new (approved) comment or an edit shows up without a manual reload.
+  // RLS still gates what non-owners can read (only `approved` streams to them).
+  useEffect(() => {
+    return subscribeToTable(
+      { table: "comments", filter: `post_id=eq.${postId}` },
+      () => void qc.invalidateQueries({ queryKey: listKey }),
+    );
+    // listKey is derived from postId; qc is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, qc]);
+
   const create = useMutation({
     mutationFn: (input: { body: string; parentId?: string | null }) =>
       createComment({ postId, body: input.body, parentId: input.parentId ?? null }),
@@ -108,6 +123,27 @@ export function CommentsSection({ postId, lang }: Props) {
       toast.success(t("comments.deleted"));
     },
     onError: () => toast.error(t("comments.errors.generic")),
+  });
+
+  const edit = useMutation({
+    mutationFn: (input: { id: string; body: string }) => editComment(input.id, input.body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: listKey });
+      toast.success(t("comments.editSaved", { defaultValue: "Komentarz zaktualizowany" }));
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "error";
+      if (msg.includes("edit window expired"))
+        toast.error(
+          t("comments.errors.editExpired", {
+            defaultValue:
+              lang === "pl"
+                ? "Komentarz można edytować tylko przez 15 minut od dodania."
+                : "Comments can only be edited within 15 minutes of posting.",
+          }),
+        );
+      else toast.error(t("comments.errors.generic"));
+    },
   });
 
   const tree = useMemo(() => buildCommentTree(data ?? []), [data]);
@@ -171,6 +207,7 @@ export function CommentsSection({ postId, lang }: Props) {
               allowReplies={commentsOpen}
               onReply={(body, parentId) => create.mutate({ body, parentId })}
               onDelete={(id) => remove.mutate(id)}
+              onEdit={(id, body) => edit.mutate({ id, body })}
               submittingReply={create.isPending}
             />
           ))
@@ -206,16 +243,25 @@ function CommentComposer({
   lang,
   placeholder,
   onCancel,
+  initialValue,
+  submitLabel,
 }: {
   onSubmit: (body: string) => void;
   submitting: boolean;
   lang: "pl" | "en";
   placeholder?: string;
   onCancel?: () => void;
+  /** Non-empty seeds edit mode (prefills the current body). */
+  initialValue?: string;
+  submitLabel?: string;
 }) {
   const { t } = useTranslation();
-  const [body, setBody] = useState("");
-  const disabled = body.trim().length < 1 || body.trim().length > 5000 || submitting;
+  const [body, setBody] = useState(initialValue ?? "");
+  const disabled =
+    body.trim().length < 1 ||
+    body.trim().length > 5000 ||
+    submitting ||
+    body.trim() === (initialValue ?? "").trim();
   return (
     <form
       onSubmit={(e) => {
@@ -237,7 +283,7 @@ function CommentComposer({
       />
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={disabled}>
-          {t("comments.submit")}
+          {submitLabel ?? t("comments.submit")}
         </Button>
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>
@@ -259,6 +305,7 @@ function CommentNode({
   allowReplies,
   onReply,
   onDelete,
+  onEdit,
   submittingReply,
 }: {
   node: Node;
@@ -268,6 +315,7 @@ function CommentNode({
   allowReplies: boolean;
   onReply: (body: string, parentId: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, body: string) => void;
   submittingReply: boolean;
 }) {
   const [replying, setReplying] = useState(false);
@@ -281,6 +329,7 @@ function CommentNode({
         onReplyToggle={() => setReplying((v) => !v)}
         replyOpen={replying}
         onDelete={onDelete}
+        onEdit={onEdit}
       />
       {replying && allowReplies && (
         <div className="ml-6 pl-4 border-l border-border">
@@ -307,6 +356,7 @@ function CommentNode({
               onReplyToggle={undefined}
               replyOpen={false}
               onDelete={onDelete}
+              onEdit={onEdit}
             />
           ))}
         </div>
@@ -323,6 +373,7 @@ function CommentItem({
   onReplyToggle,
   replyOpen,
   onDelete,
+  onEdit,
 }: {
   c: CommentWithAuthor;
   currentUserId: string | null;
@@ -331,11 +382,14 @@ function CommentItem({
   onReplyToggle?: () => void;
   replyOpen: boolean;
   onDelete: (id: string) => void;
+  onEdit?: (id: string, body: string) => void;
 }) {
   const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
   const isOwn = currentUserId && c.user_id === currentUserId;
   const isPending = c.status === "pending";
   const isDeleted = c.status === "deleted";
+  const canEdit = !!onEdit && canEditComment(c, currentUserId);
   const name = c.author?.display_name?.trim() || t("comments.anonymous");
   const initials = name.slice(0, 2).toUpperCase();
   const when = new Date(c.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-US");
@@ -368,20 +422,44 @@ function CommentItem({
           <time className="text-xs text-muted-foreground" dateTime={c.created_at}>
             {when}
           </time>
+          {c.edited_at && !isDeleted && (
+            <span
+              className="text-xs text-muted-foreground/70"
+              title={t("comments.edited", { defaultValue: "edytowano" })}
+            >
+              ({t("comments.edited", { defaultValue: "edytowano" })})
+            </span>
+          )}
           {isPending && (
             <span className="text-xs rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5">
               {t("comments.pendingBadge")}
             </span>
           )}
         </header>
-        <div className="mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words">
-          {isDeleted ? (
-            <em className="text-muted-foreground">{t("comments.deletedPlaceholder")}</em>
-          ) : (
-            c.body
-          )}
-        </div>
-        {!isDeleted && (
+        {editing && !isDeleted ? (
+          <div className="mt-2">
+            <CommentComposer
+              lang={lang}
+              submitting={false}
+              initialValue={c.body ?? ""}
+              submitLabel={t("comments.saveEdit", { defaultValue: "Zapisz zmiany" })}
+              onSubmit={(body) => {
+                onEdit?.(c.id, body);
+                setEditing(false);
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          </div>
+        ) : (
+          <div className="mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words">
+            {isDeleted ? (
+              <em className="text-muted-foreground">{t("comments.deletedPlaceholder")}</em>
+            ) : (
+              c.body
+            )}
+          </div>
+        )}
+        {!isDeleted && !editing && (
           <footer className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
             {canReply && onReplyToggle && (
               <button
@@ -392,6 +470,16 @@ function CommentItem({
               >
                 <Reply className="w-3.5 h-3.5" aria-hidden />
                 {t("comments.reply")}
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-1 hover:text-foreground"
+              >
+                <Pencil className="w-3.5 h-3.5" aria-hidden />
+                {t("comments.edit", { defaultValue: lang === "pl" ? "Edytuj" : "Edit" })}
               </button>
             )}
             {isOwn && (

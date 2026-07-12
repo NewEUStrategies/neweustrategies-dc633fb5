@@ -79,9 +79,12 @@ export function useMessages(
 export interface SendMessageInput {
   conversationId: string;
   kind: "text" | "image" | "file" | "audio";
+  /** Text body; doubles as an attachment caption for image/file/audio kinds. */
   body?: string;
   attachment?: { path: string; name: string; mime: string; size: number; duration?: number };
   replyToId?: string | null;
+  /** True when this message was forwarded from another conversation. */
+  forwarded?: boolean;
 }
 
 export function useSendMessage() {
@@ -106,6 +109,7 @@ export function useSendMessage() {
           attachment_size: input.attachment?.size ?? null,
           attachment_duration: input.attachment?.duration ?? null,
           reply_to_id: input.replyToId ?? null,
+          forwarded: input.forwarded ?? false,
         })
         .select("*")
         .single();
@@ -137,6 +141,7 @@ export function useSendMessage() {
         attachment_size: input.attachment?.size ?? null,
         attachment_duration: input.attachment?.duration ?? null,
         reply_to_id: input.replyToId ?? null,
+        forwarded: input.forwarded ?? false,
         edited_at: null,
         deleted_at: null,
         // The server stamps the real value from the conversation TTL; the

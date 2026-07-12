@@ -109,6 +109,12 @@ export async function uploadChatAttachment(params: {
   const invalid = validateAttachment(file);
   if (invalid) throw new Error(`chat-attachment:${invalid}`);
 
+  // Server-side upload rate limit (20/min per user). Uploads land in storage
+  // BEFORE the message row exists, so the message rate-limit trigger cannot
+  // gate them - this RPC is the enforcement point against storage abuse.
+  const { error: quotaError } = await supabase.rpc("chat_check_upload_quota");
+  if (quotaError) throw new Error("chat-attachment:rate-limited");
+
   const path = `${tenantId}/${conversationId}/${userId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
   const { data: signed, error: signError } = await supabase.storage
     .from("chat-attachments")
@@ -133,7 +139,10 @@ export async function uploadChatAttachment(params: {
   return { path, name: file.name, mime: file.type, size: file.size };
 }
 
-const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1h; query refreshes well before expiry
+// 15 min: short-lived so a leaked/cached signed URL has a small window; the
+// per-path query refreshes ~5 min before expiry, so playback/preview never
+// break mid-session. (Was 1h - tightened for attachment confidentiality.)
+const SIGNED_URL_TTL_SECONDS = 15 * 60;
 
 /**
  * Batch-sign every not-yet-cached attachment of a thread in ONE storage call

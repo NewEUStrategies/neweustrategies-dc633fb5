@@ -12,6 +12,7 @@ function c(overrides: Partial<CommentWithAuthor> & { id: string }): CommentWithA
     status: overrides.status ?? "approved",
     created_at: overrides.created_at ?? "2026-01-01T10:00:00.000Z",
     updated_at: overrides.updated_at ?? "2026-01-01T10:00:00.000Z",
+    edited_at: overrides.edited_at ?? null,
     tenant_id: overrides.tenant_id ?? "tenant-1",
     author: overrides.author ?? null,
   };
