@@ -4,10 +4,19 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Vote, Trash2, Play, Pause, BarChart2 } from "lucide-react";
+import { Vote, Trash2, Play, Pause, BarChart2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -18,6 +27,7 @@ import {
 import {
   fetchAdminPolls,
   fetchPollResults,
+  createPoll,
   deletePoll,
   updatePollStatus,
   type PollStatus,
