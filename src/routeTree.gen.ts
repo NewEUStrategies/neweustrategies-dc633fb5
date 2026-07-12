@@ -137,8 +137,13 @@ import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.news
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminCommunityQaRouteImport } from './routes/admin.community.qa'
+import { Route as AdminCommunityPollsRouteImport } from './routes/admin.community.polls'
+import { Route as AdminCommunityNotificationsRouteImport } from './routes/admin.community.notifications'
 import { Route as AdminCommunityEventsRouteImport } from './routes/admin.community.events'
+import { Route as AdminCommunityEngagementRouteImport } from './routes/admin.community.engagement'
+import { Route as AdminCommunityContributorsRouteImport } from './routes/admin.community.contributors'
 import { Route as AdminCommunityChatRouteImport } from './routes/admin.community.chat'
+import { Route as AdminCommunityBadgesRouteImport } from './routes/admin.community.badges'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
@@ -794,14 +799,42 @@ const AdminCommunityQaRoute = AdminCommunityQaRouteImport.update({
   path: '/qa',
   getParentRoute: () => AdminCommunityRoute,
 } as any)
+const AdminCommunityPollsRoute = AdminCommunityPollsRouteImport.update({
+  id: '/polls',
+  path: '/polls',
+  getParentRoute: () => AdminCommunityRoute,
+} as any)
+const AdminCommunityNotificationsRoute =
+  AdminCommunityNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
 const AdminCommunityEventsRoute = AdminCommunityEventsRouteImport.update({
   id: '/events',
   path: '/events',
   getParentRoute: () => AdminCommunityRoute,
 } as any)
+const AdminCommunityEngagementRoute =
+  AdminCommunityEngagementRouteImport.update({
+    id: '/engagement',
+    path: '/engagement',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
+const AdminCommunityContributorsRoute =
+  AdminCommunityContributorsRouteImport.update({
+    id: '/contributors',
+    path: '/contributors',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
 const AdminCommunityChatRoute = AdminCommunityChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => AdminCommunityRoute,
+} as any)
+const AdminCommunityBadgesRoute = AdminCommunityBadgesRouteImport.update({
+  id: '/badges',
+  path: '/badges',
   getParentRoute: () => AdminCommunityRoute,
 } as any)
 const AdminAppearancePostSidebarRoute =
@@ -963,8 +996,13 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/community/badges': typeof AdminCommunityBadgesRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
+  '/admin/community/contributors': typeof AdminCommunityContributorsRoute
+  '/admin/community/engagement': typeof AdminCommunityEngagementRoute
   '/admin/community/events': typeof AdminCommunityEventsRoute
+  '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
+  '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
@@ -1099,8 +1137,13 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/community/badges': typeof AdminCommunityBadgesRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
+  '/admin/community/contributors': typeof AdminCommunityContributorsRoute
+  '/admin/community/engagement': typeof AdminCommunityEngagementRoute
   '/admin/community/events': typeof AdminCommunityEventsRoute
+  '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
+  '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
@@ -1242,8 +1285,13 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/community/badges': typeof AdminCommunityBadgesRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
+  '/admin/community/contributors': typeof AdminCommunityContributorsRoute
+  '/admin/community/engagement': typeof AdminCommunityEngagementRoute
   '/admin/community/events': typeof AdminCommunityEventsRoute
+  '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
+  '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
@@ -1386,8 +1434,13 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/community/badges'
     | '/admin/community/chat'
+    | '/admin/community/contributors'
+    | '/admin/community/engagement'
     | '/admin/community/events'
+    | '/admin/community/notifications'
+    | '/admin/community/polls'
     | '/admin/community/qa'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
@@ -1522,8 +1575,13 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/community/badges'
     | '/admin/community/chat'
+    | '/admin/community/contributors'
+    | '/admin/community/engagement'
     | '/admin/community/events'
+    | '/admin/community/notifications'
+    | '/admin/community/polls'
     | '/admin/community/qa'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
@@ -1664,8 +1722,13 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/community/badges'
     | '/admin/community/chat'
+    | '/admin/community/contributors'
+    | '/admin/community/engagement'
     | '/admin/community/events'
+    | '/admin/community/notifications'
+    | '/admin/community/polls'
     | '/admin/community/qa'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
@@ -2657,6 +2720,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommunityQaRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
+    '/admin/community/polls': {
+      id: '/admin/community/polls'
+      path: '/polls'
+      fullPath: '/admin/community/polls'
+      preLoaderRoute: typeof AdminCommunityPollsRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
+    '/admin/community/notifications': {
+      id: '/admin/community/notifications'
+      path: '/notifications'
+      fullPath: '/admin/community/notifications'
+      preLoaderRoute: typeof AdminCommunityNotificationsRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/community/events': {
       id: '/admin/community/events'
       path: '/events'
@@ -2664,11 +2741,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommunityEventsRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
+    '/admin/community/engagement': {
+      id: '/admin/community/engagement'
+      path: '/engagement'
+      fullPath: '/admin/community/engagement'
+      preLoaderRoute: typeof AdminCommunityEngagementRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
+    '/admin/community/contributors': {
+      id: '/admin/community/contributors'
+      path: '/contributors'
+      fullPath: '/admin/community/contributors'
+      preLoaderRoute: typeof AdminCommunityContributorsRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/community/chat': {
       id: '/admin/community/chat'
       path: '/chat'
       fullPath: '/admin/community/chat'
       preLoaderRoute: typeof AdminCommunityChatRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
+    '/admin/community/badges': {
+      id: '/admin/community/badges'
+      path: '/badges'
+      fullPath: '/admin/community/badges'
+      preLoaderRoute: typeof AdminCommunityBadgesRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
     '/admin/appearance/post-sidebar': {
@@ -2765,15 +2863,25 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
 )
 
 interface AdminCommunityRouteChildren {
+  AdminCommunityBadgesRoute: typeof AdminCommunityBadgesRoute
   AdminCommunityChatRoute: typeof AdminCommunityChatRoute
+  AdminCommunityContributorsRoute: typeof AdminCommunityContributorsRoute
+  AdminCommunityEngagementRoute: typeof AdminCommunityEngagementRoute
   AdminCommunityEventsRoute: typeof AdminCommunityEventsRoute
+  AdminCommunityNotificationsRoute: typeof AdminCommunityNotificationsRoute
+  AdminCommunityPollsRoute: typeof AdminCommunityPollsRoute
   AdminCommunityQaRoute: typeof AdminCommunityQaRoute
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
 }
 
 const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
+  AdminCommunityBadgesRoute: AdminCommunityBadgesRoute,
   AdminCommunityChatRoute: AdminCommunityChatRoute,
+  AdminCommunityContributorsRoute: AdminCommunityContributorsRoute,
+  AdminCommunityEngagementRoute: AdminCommunityEngagementRoute,
   AdminCommunityEventsRoute: AdminCommunityEventsRoute,
+  AdminCommunityNotificationsRoute: AdminCommunityNotificationsRoute,
+  AdminCommunityPollsRoute: AdminCommunityPollsRoute,
   AdminCommunityQaRoute: AdminCommunityQaRoute,
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
 }
