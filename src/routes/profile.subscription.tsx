@@ -9,6 +9,7 @@ import {
   resumeMySubscription,
 } from "@/lib/billing/queries";
 import { formatMoney, planName } from "@/lib/billing/types";
+import { tierName, useCurrentTier } from "@/lib/billing/tiers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,7 +84,10 @@ function SubscriptionPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("profile.subscription.title")}</CardTitle>
+        <CardTitle className="flex items-center justify-between gap-2">
+          <span>{t("profile.subscription.title")}</span>
+          <TierChip />
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {!data?.plan ? (
@@ -172,5 +176,18 @@ function SubscriptionPage() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
+function TierChip() {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const tier = useCurrentTier();
+  if (!tier.data) return null;
+  return (
+    <Badge variant="secondary" className="shrink-0">
+      {tierName(tier.data, lang)}
+    </Badge>
   );
 }

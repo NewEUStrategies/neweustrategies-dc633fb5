@@ -30,10 +30,12 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WebStoriesIndexRouteImport } from './routes/web-stories.index'
+import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
+import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
@@ -59,6 +61,7 @@ import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminTrackerRouteImport } from './routes/admin.tracker'
 import { Route as AdminTocRouteImport } from './routes/admin.toc'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
 import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
@@ -78,6 +81,7 @@ import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
 import { Route as AdminNamesRouteImport } from './routes/admin.names'
+import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
@@ -107,6 +111,7 @@ import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-t
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
 import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open'
 import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
+import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
@@ -245,6 +250,11 @@ const WebStoriesIndexRoute = WebStoriesIndexRouteImport.update({
   path: '/web-stories/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TrackerIndexRoute = TrackerIndexRouteImport.update({
+  id: '/tracker/',
+  path: '/tracker/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -263,6 +273,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const WebStoriesSlugRoute = WebStoriesSlugRouteImport.update({
   id: '/web-stories/$slug',
   path: '/web-stories/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackerSlugRoute = TrackerSlugRouteImport.update({
+  id: '/tracker/$slug',
+  path: '/tracker/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TagSlugRoute = TagSlugRouteImport.update({
@@ -390,6 +405,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminTrackerRoute = AdminTrackerRouteImport.update({
+  id: '/tracker',
+  path: '/tracker',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminTocRoute = AdminTocRouteImport.update({
   id: '/toc',
   path: '/toc',
@@ -483,6 +503,11 @@ const AdminNewsletterRoute = AdminNewsletterRouteImport.update({
 const AdminNamesRoute = AdminNamesRouteImport.update({
   id: '/names',
   path: '/names',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMembershipRoute = AdminMembershipRouteImport.update({
+  id: '/membership',
+  path: '/membership',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
@@ -630,6 +655,11 @@ const ApiPublicNlOpenRoute = ApiPublicNlOpenRouteImport.update({
 const ApiPublicNlClickRoute = ApiPublicNlClickRouteImport.update({
   id: '/api/public/nl-click',
   path: '/api/public/nl-click',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicCommunityCronRoute = ApiPublicCommunityCronRouteImport.update({
+  id: '/api/public/community-cron',
+  path: '/api/public/community-cron',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
@@ -843,6 +873,7 @@ export interface FileRoutesByFullPath {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/membership': typeof AdminMembershipRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -862,6 +893,7 @@ export interface FileRoutesByFullPath {
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/toc': typeof AdminTocRoute
+  '/admin/tracker': typeof AdminTrackerRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
@@ -887,10 +919,12 @@ export interface FileRoutesByFullPath {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
+  '/tracker/$slug': typeof TrackerSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
@@ -920,6 +954,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
@@ -973,6 +1008,7 @@ export interface FileRoutesByTo {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/membership': typeof AdminMembershipRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
@@ -990,6 +1026,7 @@ export interface FileRoutesByTo {
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/toc': typeof AdminTocRoute
+  '/admin/tracker': typeof AdminTrackerRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -1014,10 +1051,12 @@ export interface FileRoutesByTo {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
+  '/tracker/$slug': typeof TrackerSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
@@ -1047,6 +1086,7 @@ export interface FileRoutesByTo {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
@@ -1103,6 +1143,7 @@ export interface FileRoutesById {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/membership': typeof AdminMembershipRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -1122,6 +1163,7 @@ export interface FileRoutesById {
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/toc': typeof AdminTocRoute
+  '/admin/tracker': typeof AdminTrackerRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
@@ -1147,10 +1189,12 @@ export interface FileRoutesById {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
+  '/tracker/$slug': typeof TrackerSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
@@ -1180,6 +1224,7 @@ export interface FileRoutesById {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
+  '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
@@ -1237,6 +1282,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/membership'
     | '/admin/names'
     | '/admin/newsletter'
     | '/admin/pages'
@@ -1256,6 +1302,7 @@ export interface FileRouteTypes {
     | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/toc'
+    | '/admin/tracker'
     | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
@@ -1281,10 +1328,12 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/tag/$slug'
+    | '/tracker/$slug'
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
@@ -1314,6 +1363,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/community-cron'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
@@ -1367,6 +1417,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/membership'
     | '/admin/names'
     | '/admin/pages'
     | '/admin/paywall'
@@ -1384,6 +1435,7 @@ export interface FileRouteTypes {
     | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/toc'
+    | '/admin/tracker'
     | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
@@ -1408,10 +1460,12 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/tag/$slug'
+    | '/tracker/$slug'
     | '/web-stories/$slug'
     | '/admin'
     | '/blog'
     | '/profile'
+    | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
@@ -1441,6 +1495,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/community-cron'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
@@ -1496,6 +1551,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/membership'
     | '/admin/names'
     | '/admin/newsletter'
     | '/admin/pages'
@@ -1515,6 +1571,7 @@ export interface FileRouteTypes {
     | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/toc'
+    | '/admin/tracker'
     | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
@@ -1540,10 +1597,12 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/tag/$slug'
+    | '/tracker/$slug'
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
@@ -1573,6 +1632,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
+    | '/api/public/community-cron'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
@@ -1622,12 +1682,15 @@ export interface RootRouteChildren {
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
+  TrackerSlugRoute: typeof TrackerSlugRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  TrackerIndexRoute: typeof TrackerIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
+  ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
   ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
   ApiPublicNlOpenRoute: typeof ApiPublicNlOpenRoute
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
@@ -1787,6 +1850,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebStoriesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tracker/': {
+      id: '/tracker/'
+      path: '/tracker'
+      fullPath: '/tracker/'
+      preLoaderRoute: typeof TrackerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile/': {
       id: '/profile/'
       path: '/'
@@ -1813,6 +1883,13 @@ declare module '@tanstack/react-router' {
       path: '/web-stories/$slug'
       fullPath: '/web-stories/$slug'
       preLoaderRoute: typeof WebStoriesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tracker/$slug': {
+      id: '/tracker/$slug'
+      path: '/tracker/$slug'
+      fullPath: '/tracker/$slug'
+      preLoaderRoute: typeof TrackerSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tag/$slug': {
@@ -1990,6 +2067,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/tracker': {
+      id: '/admin/tracker'
+      path: '/tracker'
+      fullPath: '/admin/tracker'
+      preLoaderRoute: typeof AdminTrackerRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/toc': {
       id: '/admin/toc'
       path: '/toc'
@@ -2121,6 +2205,13 @@ declare module '@tanstack/react-router' {
       path: '/names'
       fullPath: '/admin/names'
       preLoaderRoute: typeof AdminNamesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/membership': {
+      id: '/admin/membership'
+      path: '/membership'
+      fullPath: '/admin/membership'
+      preLoaderRoute: typeof AdminMembershipRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/media': {
@@ -2324,6 +2415,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/nl-click'
       fullPath: '/api/public/nl-click'
       preLoaderRoute: typeof ApiPublicNlClickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/community-cron': {
+      id: '/api/public/community-cron'
+      path: '/api/public/community-cron'
+      fullPath: '/api/public/community-cron'
+      preLoaderRoute: typeof ApiPublicCommunityCronRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/client-errors': {
@@ -2711,6 +2809,7 @@ interface AdminRouteChildren {
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminMembershipRoute: typeof AdminMembershipRoute
   AdminNamesRoute: typeof AdminNamesRoute
   AdminNewsletterRoute: typeof AdminNewsletterRouteWithChildren
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
@@ -2730,6 +2829,7 @@ interface AdminRouteChildren {
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
   AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
   AdminTocRoute: typeof AdminTocRoute
+  AdminTrackerRoute: typeof AdminTrackerRoute
   AdminUsersRoute: typeof AdminUsersRouteWithChildren
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -2756,6 +2856,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminMembershipRoute: AdminMembershipRoute,
   AdminNamesRoute: AdminNamesRoute,
   AdminNewsletterRoute: AdminNewsletterRouteWithChildren,
   AdminPagesRoute: AdminPagesRouteWithChildren,
@@ -2775,6 +2876,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminThemeDesignRoute: AdminThemeDesignRoute,
   AdminThemeOptionsRoute: AdminThemeOptionsRoute,
   AdminTocRoute: AdminTocRoute,
+  AdminTrackerRoute: AdminTrackerRoute,
   AdminUsersRoute: AdminUsersRouteWithChildren,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminIndexRoute: AdminIndexRoute,
@@ -2852,12 +2954,15 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
+  TrackerSlugRoute: TrackerSlugRoute,
   WebStoriesSlugRoute: WebStoriesSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
+  TrackerIndexRoute: TrackerIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
+  ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
   ApiPublicNlClickRoute: ApiPublicNlClickRoute,
   ApiPublicNlOpenRoute: ApiPublicNlOpenRoute,
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,

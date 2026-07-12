@@ -34,6 +34,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
+import {
+  BADGE_ORDER,
+  badgeLabel,
+  grantBadge,
+  revokeBadge,
+  useUserBadges,
+} from "@/lib/profile/badges";
+import { ProfileBadges } from "@/components/profile/ProfileBadges";
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
@@ -288,6 +296,10 @@ function UserDetail() {
             {data.gender && <Field label={L("Płeć", "Gender")} value={String(data.gender)} />}
           </Card>
 
+          <Card title={L("Odznaki", "Badges")}>
+            <BadgesEditor userId={data.id} tenantId={tenantId ?? null} />
+          </Card>
+
           <Card title={L("Akcje", "Actions")}>
             <div className="flex flex-col gap-2">
               <Link to="/admin/users" className="text-sm text-primary hover:underline">
@@ -508,6 +520,54 @@ function AvatarEditor({
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+// Nadawanie/odbieranie odznak profilowych (verified/expert/contributor/staff).
+// Nadanie triggeruje w DB powiadomienie do użytkownika.
+function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string | null }) {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const qc = useQueryClient();
+  const badgesQ = useUserBadges(userId);
+  const current = badgesQ.data ?? [];
+
+  const toggle = async (badge: (typeof BADGE_ORDER)[number], has: boolean) => {
+    try {
+      if (has) {
+        await revokeBadge(userId, badge);
+      } else {
+        if (!tenantId) throw new Error("tenant");
+        await grantBadge(userId, badge, tenantId);
+      }
+      await qc.invalidateQueries({ queryKey: ["profile-badges"] });
+    } catch {
+      toast.error(lang === "pl" ? "Nie udało się zmienić odznaki" : "Could not update the badge");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <ProfileBadges badges={current} size="md" />
+      <div className="flex flex-wrap gap-2">
+        {BADGE_ORDER.map((badge) => {
+          const has = current.includes(badge);
+          return (
+            <Button
+              key={badge}
+              type="button"
+              size="sm"
+              variant={has ? "default" : "outline"}
+              disabled={badgesQ.isLoading}
+              onClick={() => void toggle(badge, has)}
+            >
+              {has ? "− " : "+ "}
+              {badgeLabel(badge, lang)}
+            </Button>
+          );
+        })}
+      </div>
     </div>
   );
 }

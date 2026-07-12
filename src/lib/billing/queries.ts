@@ -9,7 +9,7 @@ import type {
 } from "./types";
 
 const PLAN_COLUMNS =
-  "id, tenant_id, name_pl, name_en, description_pl, description_en, price_cents, currency, interval, active, sort_order, features_pl, features_en, badge_pl, badge_en, highlighted, trial_days";
+  "id, tenant_id, name_pl, name_en, description_pl, description_en, price_cents, currency, interval, active, sort_order, features_pl, features_en, badge_pl, badge_en, highlighted, trial_days, tier_key";
 
 function castFeatures(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
@@ -35,6 +35,7 @@ function rowToPlan(row: Record<string, unknown>): AccessPlan {
     badge_en: (row.badge_en as string | null) ?? null,
     highlighted: Boolean(row.highlighted),
     trial_days: Number(row.trial_days ?? 0),
+    tier_key: (row.tier_key as string | null) ?? null,
   };
 }
 

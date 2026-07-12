@@ -32,6 +32,8 @@ import {
   type PeopleFilters,
 } from "@/lib/chat/usePeopleDirectory";
 import type { PersonHit } from "@/lib/chat/types";
+import { useBadgesForUsers, type ProfileBadgeKind } from "@/lib/profile/badges";
+import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-chat";
 
@@ -134,13 +136,24 @@ function FacetSelect({
   );
 }
 
-function PersonCard({ person, online }: { person: PersonHit; online: boolean }) {
+function PersonCard({
+  person,
+  online,
+  badges,
+}: {
+  person: PersonHit;
+  online: boolean;
+  badges?: ProfileBadgeKind[];
+}) {
   const { t } = useTranslation();
   const start = useStartConversation();
 
   const details = (
     <>
-      <p className="truncate text-sm font-semibold">{person.display_name}</p>
+      <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
+        <span className="truncate">{person.display_name}</span>
+        <ProfileBadges badges={badges} className="shrink-0" />
+      </p>
       {(person.job_title || person.current_company) && (
         <p className="truncate text-xs text-muted-foreground">
           {[person.job_title, person.current_company].filter(Boolean).join(" - ")}
@@ -219,6 +232,8 @@ function PeopleInner() {
     [peopleQ.data],
   );
   const total = peopleQ.data?.pages[0]?.[0]?.total_count ?? people.length;
+  // Sygnały zaufania: odznaki dla całej widocznej partii jednym zapytaniem.
+  const badgesQ = useBadgesForUsers(people.map((p) => p.id));
   const hasActiveFilters =
     filters.specialization !== null || filters.company !== null || filters.location !== null;
 
@@ -331,7 +346,12 @@ function PeopleInner() {
         <>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {people.map((person) => (
-              <PersonCard key={person.id} person={person} online={online.has(person.id)} />
+              <PersonCard
+                key={person.id}
+                person={person}
+                online={online.has(person.id)}
+                badges={badgesQ.data?.get(person.id)}
+              />
             ))}
           </ul>
           {peopleQ.hasNextPage && (
