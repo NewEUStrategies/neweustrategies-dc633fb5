@@ -84,6 +84,7 @@ import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaw
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
+import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
@@ -510,6 +511,11 @@ const AdminGreetingsRoute = AdminGreetingsRouteImport.update({
   path: '/greetings',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminReadingTimeRoute = AdminReadingTimeRouteImport.update({
+  id: '/reading-time',
+  path: '/reading-time',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
   id: '/experiments',
   path: '/experiments',
@@ -807,6 +813,7 @@ export interface FileRoutesByFullPath {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
+  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
@@ -932,6 +939,7 @@ export interface FileRoutesByTo {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
+  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
@@ -1057,6 +1065,7 @@ export interface FileRoutesById {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
+  '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
@@ -1186,6 +1195,7 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/experiments'
     | '/admin/greetings'
+    | '/admin/reading-time'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/key-takeaways'
@@ -1311,6 +1321,7 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/experiments'
     | '/admin/greetings'
+    | '/admin/reading-time'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/key-takeaways'
@@ -1435,6 +1446,7 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/experiments'
     | '/admin/greetings'
+    | '/admin/reading-time'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/key-takeaways'
@@ -2101,6 +2113,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGreetingsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/reading-time': {
+      id: '/admin/reading-time'
+      path: '/reading-time'
+      fullPath: '/admin/reading-time'
+      preLoaderRoute: typeof AdminReadingTimeRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/experiments': {
       id: '/admin/experiments'
       path: '/experiments'
@@ -2606,6 +2625,7 @@ interface AdminRouteChildren {
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
+  AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
   AdminKeyTakeawaysRoute: typeof AdminKeyTakeawaysRoute
@@ -2650,6 +2670,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
+  AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
   AdminKeyTakeawaysRoute: AdminKeyTakeawaysRoute,

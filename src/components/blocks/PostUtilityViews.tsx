@@ -6,6 +6,8 @@ import type * as React from "react";
 import { XIcon } from "@/components/atoms/XIcon";
 import { useMemo, useState, useCallback } from "react";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { useReadingTimeSettings } from "@/hooks/useReadingTimeSettings";
+import { computeReadingMinutes } from "@/lib/readingTime";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   ChevronRight,
@@ -121,18 +123,27 @@ interface ReadingTimeProps {
   cls?: string;
 }
 
-export function ReadingTimeView({ wpm = 220, prefix = "", lang = "pl", cls }: ReadingTimeProps) {
+export function ReadingTimeView({ wpm, prefix = "", lang = "pl", cls }: ReadingTimeProps) {
   const ctx = useCurrentPostCtx();
+  // Parametry z /admin/reading-time; jawne `wpm` ustawione na bloku w CMS
+  // nadal wygrywa jako świadomy override tego jednego widgetu.
+  const settings = useReadingTimeSettings();
   const t = L[lang];
 
   const minutes = useMemo(() => {
+    if (!settings.enabled) return null;
+    // ctx.readingTimeMin jest liczony w $.tsx tym samym rdzeniem (jedno
+    // źródło prawdy) - fallback poniżej działa tylko poza stroną wpisu.
     if (typeof ctx?.readingTimeMin === "number" && ctx.readingTimeMin > 0)
       return ctx.readingTimeMin;
     const text = lang === "pl" ? ctx?.excerpt_pl : ctx?.excerpt_en;
-    const words = (text ?? "").trim().split(/\s+/).filter(Boolean).length;
-    if (!words) return 1;
-    return Math.max(1, Math.round(words / Math.max(60, wpm)));
-  }, [ctx?.readingTimeMin, ctx?.excerpt_pl, ctx?.excerpt_en, lang, wpm]);
+    if (!(text ?? "").trim()) return null;
+    const effective = wpm ? { ...settings, wpm_pl: wpm, wpm_en: wpm } : settings;
+    const m = computeReadingMinutes({ extraText: text }, lang, effective);
+    return m > 0 ? m : null;
+  }, [settings, ctx?.readingTimeMin, ctx?.excerpt_pl, ctx?.excerpt_en, lang, wpm]);
+
+  if (minutes == null) return null;
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-sm text-muted-foreground ${cls ?? ""}`}>
