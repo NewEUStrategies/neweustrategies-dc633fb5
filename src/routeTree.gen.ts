@@ -136,6 +136,7 @@ import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newslet
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
+import { Route as AdminCommunityQaRouteImport } from './routes/admin.community.qa'
 import { Route as AdminCommunityEventsRouteImport } from './routes/admin.community.events'
 import { Route as AdminCommunityChatRouteImport } from './routes/admin.community.chat'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
@@ -788,6 +789,11 @@ const AdminNewsletterCampaignsRoute =
     path: '/campaigns',
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
+const AdminCommunityQaRoute = AdminCommunityQaRouteImport.update({
+  id: '/qa',
+  path: '/qa',
+  getParentRoute: () => AdminCommunityRoute,
+} as any)
 const AdminCommunityEventsRoute = AdminCommunityEventsRouteImport.update({
   id: '/events',
   path: '/events',
@@ -959,6 +965,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/community/events': typeof AdminCommunityEventsRoute
+  '/admin/community/qa': typeof AdminCommunityQaRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1094,6 +1101,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/community/events': typeof AdminCommunityEventsRoute
+  '/admin/community/qa': typeof AdminCommunityQaRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1236,6 +1244,7 @@ export interface FileRoutesById {
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/community/events': typeof AdminCommunityEventsRoute
+  '/admin/community/qa': typeof AdminCommunityQaRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1379,6 +1388,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/post-sidebar'
     | '/admin/community/chat'
     | '/admin/community/events'
+    | '/admin/community/qa'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -1514,6 +1524,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/post-sidebar'
     | '/admin/community/chat'
     | '/admin/community/events'
+    | '/admin/community/qa'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -1655,6 +1666,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/post-sidebar'
     | '/admin/community/chat'
     | '/admin/community/events'
+    | '/admin/community/qa'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -2638,6 +2650,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/community/qa': {
+      id: '/admin/community/qa'
+      path: '/qa'
+      fullPath: '/admin/community/qa'
+      preLoaderRoute: typeof AdminCommunityQaRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/community/events': {
       id: '/admin/community/events'
       path: '/events'
@@ -2748,12 +2767,14 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
 interface AdminCommunityRouteChildren {
   AdminCommunityChatRoute: typeof AdminCommunityChatRoute
   AdminCommunityEventsRoute: typeof AdminCommunityEventsRoute
+  AdminCommunityQaRoute: typeof AdminCommunityQaRoute
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
 }
 
 const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
   AdminCommunityChatRoute: AdminCommunityChatRoute,
   AdminCommunityEventsRoute: AdminCommunityEventsRoute,
+  AdminCommunityQaRoute: AdminCommunityQaRoute,
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
 }
 
