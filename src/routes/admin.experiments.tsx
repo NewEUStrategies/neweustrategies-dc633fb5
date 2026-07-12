@@ -38,7 +38,7 @@ function ExperimentsPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       <header>
         <h1 className="font-display text-2xl font-bold inline-flex items-center gap-2">
           <FlaskConical className="w-6 h-6 text-brand" />

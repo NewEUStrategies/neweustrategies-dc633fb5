@@ -90,7 +90,7 @@ function PaywallAdmin() {
 
   return (
     <AdminShell hideSidebar>
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="space-y-6">
         <header>
           <h1 className="font-display text-2xl font-bold">{t("admin.paywall.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("admin.paywall.subtitle")}</p>

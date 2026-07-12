@@ -174,7 +174,7 @@ function MobileDrawerEditor() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-8">
+    <div className="space-y-8">
       <header className="space-y-1">
         <p className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
           {t("Super-admin", "Super-admin")}

@@ -2069,10 +2069,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          conversation_id?: string
+          conversation_id: string
           created_at?: string
           message_id: string
-          tenant_id?: string
+          tenant_id: string
           user_id: string
         }
         Update: {
@@ -5362,6 +5362,31 @@ export type Database = {
         }
         Returns: Database["public"]["Enums"]["app_role"][]
       }
+      chat_allow_messages_from: { Args: { _user: string }; Returns: string }
+      chat_clear_history: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
+      }
+      chat_purge_expired_messages: { Args: never; Returns: number }
+      chat_read_receipts_enabled: { Args: { _user: string }; Returns: boolean }
+      chat_set_archived: {
+        Args: { p_archived: boolean; p_conversation_id: string }
+        Returns: undefined
+      }
+      chat_set_message_ttl: {
+        Args: { p_conversation_id: string; p_ttl_seconds: number }
+        Returns: undefined
+      }
+      chat_set_muted: {
+        Args: { p_conversation_id: string; p_seconds: number }
+        Returns: undefined
+      }
+      chat_set_pinned: {
+        Args: { p_conversation_id: string; p_pinned: boolean }
+        Returns: undefined
+      }
+      chat_show_online_status: { Args: { _user: string }; Returns: boolean }
+      chat_topic_conversation_id: { Args: { _topic: string }; Returns: string }
       claim_command: {
         Args: { p_command: string; p_key: string }
         Returns: Json
@@ -5388,30 +5413,6 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
-      }
-      chat_check_upload_quota: {
-        Args: never
-        Returns: undefined
-      }
-      chat_clear_history: {
-        Args: { p_conversation_id: string }
-        Returns: undefined
-      }
-      chat_set_archived: {
-        Args: { p_conversation_id: string; p_archived: boolean }
-        Returns: undefined
-      }
-      chat_set_message_ttl: {
-        Args: { p_conversation_id: string; p_ttl_seconds: number | null }
-        Returns: undefined
-      }
-      chat_set_muted: {
-        Args: { p_conversation_id: string; p_seconds: number | null }
-        Returns: undefined
-      }
-      chat_set_pinned: {
-        Args: { p_conversation_id: string; p_pinned: boolean }
-        Returns: undefined
       }
       complete_command: {
         Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
@@ -5793,6 +5794,10 @@ export type Database = {
       }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
+      is_tenant_conversation_member: {
+        Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
@@ -5809,10 +5814,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: undefined
       }
-      mark_conversations_delivered: {
-        Args: never
-        Returns: undefined
-      }
+      mark_conversations_delivered: { Args: never; Returns: undefined }
       mark_notification_unread: { Args: { p_id: string }; Returns: undefined }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: number }
       mark_notifications_unread: { Args: { p_ids: string[] }; Returns: number }
