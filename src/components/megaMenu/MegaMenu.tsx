@@ -6,7 +6,9 @@
 //   - "category" : recent posts from a category with thumbnails (AJAX-style)
 import { memo, useEffect, useId, useRef, useState, type FocusEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "@/lib/lucide-shim";
+import "@/lib/i18n-public";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -83,9 +85,10 @@ interface Props {
 const pickLang = (a?: string, b?: string): string => (a && a.length ? a : (b ?? ""));
 
 export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }: Props) {
+  const { t } = useTranslation();
   const trigger =
     pickLang(lang === "pl" ? config.trigger_pl : config.trigger_en, config.trigger_pl) ||
-    (lang === "pl" ? "Menu" : "Menu");
+    t("megaMenu.menu");
   const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
@@ -283,6 +286,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
  * from the chosen category and renders a 2-column thumbnail grid with title.
  */
 function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
+  const { t } = useTranslation();
   const slug = (col.categorySlug ?? "").trim();
   const limit = Math.min(Math.max(Number(col.postCount) || 4, 1), 8);
   const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
@@ -304,7 +308,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
               href={viewAll}
               className="text-[10px] font-semibold text-brand-ink hover:underline uppercase tracking-wider"
             >
-              {lang === "pl" ? "Zobacz" : "View all"} →
+              {t("megaMenu.viewAll")} →
             </AppLink>
           )}
         </div>
@@ -349,14 +353,10 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
         </ul>
       )}
       {!isLoading && data && data.posts.length === 0 && slug && (
-        <div className="text-xs text-muted-foreground italic">
-          {lang === "pl" ? "Brak wpisów w kategorii." : "No posts in this category."}
-        </div>
+        <div className="text-xs text-muted-foreground italic">{t("megaMenu.emptyCategory")}</div>
       )}
       {!slug && (
-        <div className="text-xs text-muted-foreground italic">
-          {lang === "pl" ? "Wybierz kategorię w edytorze." : "Pick a category in the editor."}
-        </div>
+        <div className="text-xs text-muted-foreground italic">{t("megaMenu.pickCategory")}</div>
       )}
     </div>
   );

@@ -326,9 +326,15 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                   <span className="text-sm">
                     {t("paywall.buy")}:{" "}
                     <strong>
-                      {formatMoney(rule.one_time_price_cents, rule.one_time_currency || "PLN", lang)}
+                      {formatMoney(
+                        rule.one_time_price_cents,
+                        rule.one_time_currency || "PLN",
+                        lang,
+                      )}
                     </strong>
-                    <span className="text-xs text-muted-foreground ml-1">{t("paywall.oneTime")}</span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {t("paywall.oneTime")}
+                    </span>
                   </span>
                   <Button size="sm" onClick={startOneTime} disabled={busy}>
                     {busy ? t("paywall.processing") : t("paywall.buy")}

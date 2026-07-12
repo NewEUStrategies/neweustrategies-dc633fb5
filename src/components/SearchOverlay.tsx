@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Search, X, Loader2, ArrowRight, Clock } from "@/lib/lucide-shim";
+import "@/lib/i18n-public";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
@@ -20,6 +22,7 @@ type Props = {
 };
 
 export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit, lang }: Props) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[]>([]);
@@ -122,8 +125,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   if (!open) return null;
 
-  const placeholder =
-    heading || (lang === "pl" ? "Czego dzisiaj szukasz?" : "What are you looking for today?");
+  const placeholder = heading || t("searchOverlay.placeholder");
   const hasQuery = q.trim().length >= 2;
   const showEmpty = liveResults && hasQuery && !loading && results.length === 0;
   const showResults = liveResults && hasQuery && results.length > 0;
@@ -141,7 +143,6 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           onClose={onClose}
           placeholder={placeholder}
           compact
-          lang={lang}
           listboxId={listboxId}
           activeOptionId={showResults ? optionId(active) : undefined}
           expanded={showResults}
@@ -152,7 +153,6 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             active={active}
             setActive={setActive}
             onSelect={() => selectAndClose(q)}
-            lang={lang}
             empty={showEmpty}
             compact
             listboxId={listboxId}
@@ -173,7 +173,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           ref={panelRef}
           role="dialog"
           aria-modal="true"
-          aria-label={lang === "pl" ? "Wyszukiwarka" : "Search"}
+          aria-label={t("searchOverlay.dialogLabel")}
           className="w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-top-4 duration-300"
           onClick={(e) => e.stopPropagation()}
         >
@@ -184,7 +184,6 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             loading={loading}
             onClose={onClose}
             placeholder={placeholder}
-            lang={lang}
             listboxId={listboxId}
             activeOptionId={showResults ? optionId(active) : undefined}
             expanded={showResults}
@@ -196,7 +195,6 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                 active={active}
                 setActive={setActive}
                 onSelect={() => selectAndClose(q)}
-                lang={lang}
                 empty={showEmpty}
                 listboxId={listboxId}
                 optionId={optionId}
@@ -208,7 +206,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                   className="flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-sm font-medium text-brand-ink transition hover:bg-muted/40"
                 >
                   <span>
-                    {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
+                    {t("searchOverlay.viewAllFor")}
                     <span className="font-semibold">„{q.trim()}"</span>
                   </span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -220,11 +218,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               <div className="mx-auto w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
                 <Search className="w-5 h-5 text-muted-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground">
-                {lang === "pl"
-                  ? "Zacznij pisać, aby wyszukać artykuły"
-                  : "Start typing to search articles"}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("searchOverlay.startTyping")}</p>
               {recent.length > 0 && (
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {recent.map((term) => (
@@ -242,7 +236,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               )}
             </div>
           )}
-          <Footer lang={lang} />
+          <Footer />
         </div>
       </div>
     </div>
@@ -257,7 +251,6 @@ function SearchBar({
   onClose,
   placeholder,
   compact,
-  lang,
   listboxId,
   activeOptionId,
   expanded,
@@ -269,11 +262,11 @@ function SearchBar({
   onClose: () => void;
   placeholder: string;
   compact?: boolean;
-  lang: "pl" | "en";
   listboxId: string;
   activeOptionId?: string;
   expanded: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className={`flex items-center gap-3 border-b border-border ${compact ? "px-3 py-2.5" : "px-5 py-4"}`}
@@ -299,12 +292,12 @@ function SearchBar({
           onClick={() => setQ("")}
           className="text-xs text-muted-foreground hover:text-foreground transition px-2 py-0.5 rounded hover:bg-muted"
         >
-          {lang === "pl" ? "Wyczyść" : "Clear"}
+          {t("searchOverlay.clear")}
         </button>
       )}
       <button
         onClick={onClose}
-        aria-label={lang === "pl" ? "Zamknij" : "Close"}
+        aria-label={t("searchOverlay.close")}
         className="shrink-0 inline-flex items-center justify-center w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
       >
         <X className="w-4 h-4" />
@@ -318,7 +311,6 @@ function ResultsList({
   active,
   setActive,
   onSelect,
-  lang,
   empty,
   compact,
   listboxId,
@@ -328,19 +320,19 @@ function ResultsList({
   active: number;
   setActive: (i: number) => void;
   onSelect: () => void;
-  lang: "pl" | "en";
   empty: boolean;
   compact?: boolean;
   listboxId: string;
   optionId: (i: number) => string;
 }) {
+  const { t } = useTranslation();
   if (empty) {
     return (
       <div
         role="status"
         className={`text-center text-sm text-muted-foreground ${compact ? "px-4 py-8" : "px-6 py-12"}`}
       >
-        {lang === "pl" ? "Brak wyników" : "No results"}
+        {t("searchOverlay.noResults")}
       </div>
     );
   }
@@ -348,7 +340,7 @@ function ResultsList({
     <ul
       id={listboxId}
       role="listbox"
-      aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
+      aria-label={t("searchOverlay.resultsLabel")}
       className={`overflow-y-auto divide-y divide-border/60 ${compact ? "max-h-[60vh]" : "max-h-[52vh]"}`}
     >
       {results.map((r, i) => {
@@ -394,7 +386,8 @@ function ResultsList({
   );
 }
 
-function Footer({ lang }: { lang: "pl" | "en" }) {
+function Footer() {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-4 px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
       <div className="flex items-center gap-3">
@@ -405,19 +398,19 @@ function Footer({ lang }: { lang: "pl" | "en" }) {
           <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
             ↓
           </kbd>
-          {lang === "pl" ? "nawiguj" : "navigate"}
+          {t("searchOverlay.footerNavigate")}
         </span>
         <span className="inline-flex items-center gap-1">
           <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
             ↵
           </kbd>
-          {lang === "pl" ? "otwórz" : "open"}
+          {t("searchOverlay.footerOpen")}
         </span>
         <span className="inline-flex items-center gap-1">
           <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
             esc
           </kbd>
-          {lang === "pl" ? "zamknij" : "close"}
+          {t("searchOverlay.footerClose")}
         </span>
       </div>
     </div>

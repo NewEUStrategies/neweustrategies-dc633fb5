@@ -47,7 +47,9 @@ describe("resolveAudioFetch (kryterium ElevenLabs fallback)", () => {
   });
 
   it("mockowany fetch: wgrany MP3 nie trafia do endpointu TTS", async () => {
-    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response("ok"));
+    const fetchSpy = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) => new Response("ok"),
+    );
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchSpy as unknown as typeof fetch;
     try {

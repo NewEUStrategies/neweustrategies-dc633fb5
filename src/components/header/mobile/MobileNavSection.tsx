@@ -87,8 +87,7 @@ export function MobileNavSection({ items, isPl, onNavigate }: Props) {
             </a>
           );
         }
-        const active =
-          typeof window !== "undefined" && window.location.pathname === item.href;
+        const active = typeof window !== "undefined" && window.location.pathname === item.href;
         return (
           <Link
             key={item.id}

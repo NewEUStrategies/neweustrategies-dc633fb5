@@ -8,7 +8,6 @@
 //     kiedyś podniesie --brand do AA, ten test przypomni, że tokeny można scalić.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 function relativeLuminance(hex: string): number {
   const c = hex.replace("#", "");
@@ -23,7 +22,9 @@ function contrastRatio(a: string, b: string): number {
   return (l1 + 0.05) / (l2 + 0.05);
 }
 
-const css = readFileSync(resolve(__dirname, "../../styles.css"), "utf8");
+// Ścieżka względem rootu repo (vitest uruchamia się z katalogu projektu);
+// unika i __dirname (brak w ESM), i import.meta.url (nie-file scheme w vitest).
+const css = readFileSync("src/styles.css", "utf8");
 
 /** Wyciąga kolejne wartości hex danego tokenu (jasny motyw pierwszy). */
 function tokenValues(name: string): string[] {

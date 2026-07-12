@@ -6,7 +6,9 @@
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
 // custom fields zdefiniowane w builderze — całość leci do CRM przez server.
 import { useMemo, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
+import "@/lib/i18n-public";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
@@ -72,6 +74,7 @@ export function NewsletterForm({
   variant = "card",
   widgetConfig,
 }: Props) {
+  const { t } = useTranslation();
   const { data: s } = useNewsletterSettings();
   // Inside the CMS builder canvas the widget must stay visible even when the
   // newsletter is disabled — otherwise it silently vanishes mid-edit.
@@ -128,40 +131,35 @@ export function NewsletterForm({
 
   // Labels / placeholders (widget override > sensible defaults).
   const L = {
-    firstName: readI18nOverride(cfg, "firstNameLabel", lang, lang === "en" ? "First name" : "Imię"),
-    lastName: readI18nOverride(
-      cfg,
-      "lastNameLabel",
-      lang,
-      lang === "en" ? "Last name" : "Nazwisko",
-    ),
-    email: readI18nOverride(cfg, "emailLabel", lang, lang === "en" ? "Email" : "E-mail"),
-    company: readI18nOverride(cfg, "companyLabel", lang, lang === "en" ? "Company" : "Firma"),
+    firstName: readI18nOverride(cfg, "firstNameLabel", lang, t("newsletterForm.firstNameLabel")),
+    lastName: readI18nOverride(cfg, "lastNameLabel", lang, t("newsletterForm.lastNameLabel")),
+    email: readI18nOverride(cfg, "emailLabel", lang, t("newsletterForm.emailLabel")),
+    company: readI18nOverride(cfg, "companyLabel", lang, t("newsletterForm.companyLabel")),
   };
   const P = {
     firstName: readI18nOverride(
       cfg,
       "firstNamePlaceholder",
       lang,
-      lang === "en" ? "First name" : "Imię",
+      t("newsletterForm.firstNamePlaceholder"),
     ),
     lastName: readI18nOverride(
       cfg,
       "lastNamePlaceholder",
       lang,
-      lang === "en" ? "Last name" : "Nazwisko",
+      t("newsletterForm.lastNamePlaceholder"),
     ),
-    email: readI18nOverride(
+    email: readI18nOverride(cfg, "emailPlaceholder", lang, t("newsletterForm.emailPlaceholder")),
+    company: readI18nOverride(
       cfg,
-      "emailPlaceholder",
+      "companyPlaceholder",
       lang,
-      lang === "en" ? "your@email.com" : "twoj@email.com",
+      t("newsletterForm.companyPlaceholder"),
     ),
-    company: readI18nOverride(cfg, "companyPlaceholder", lang, lang === "en" ? "Company" : "Firma"),
-    name: lang === "en" ? "Name (optional)" : "Imię (opcjonalnie)",
+    name: t("newsletterForm.namePlaceholder"),
   };
-  const requiredText = lang === "en" ? "Required field" : "Pole wymagane";
-  const invalidEmailText = lang === "en" ? "Invalid e-mail address." : "Niepoprawny adres e-mail.";
+  const requiredText = t("newsletterForm.requiredField");
+  const invalidEmailText = t("newsletterForm.invalidEmail");
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -190,10 +188,7 @@ export function NewsletterForm({
 
     try {
       const consentText =
-        (lang === "en" ? s.policy_html_en : s.policy_html_pl) ||
-        (lang === "en"
-          ? "I agree to receive the newsletter and processing of my e-mail address for that purpose."
-          : "Wyrażam zgodę na otrzymywanie newslettera i przetwarzanie mojego adresu e-mail w tym celu.");
+        (lang === "en" ? s.policy_html_en : s.policy_html_pl) || t("newsletterForm.consentDefault");
 
       const displayName =
         [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || name.trim() || undefined;
@@ -219,9 +214,7 @@ export function NewsletterForm({
       if (!res.ok) {
         setErrMsg(
           res.error === "not_configured" || res.error === "disabled"
-            ? lang === "en"
-              ? "Newsletter is not configured."
-              : "Newsletter nie jest skonfigurowany."
+            ? t("newsletterForm.notConfigured")
             : res.error,
         );
         setState("err");
@@ -359,7 +352,7 @@ export function NewsletterForm({
                 disabled={state === "loading"}
                 className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-60 w-full sm:w-auto"
               >
-                {state === "loading" ? "…" : lang === "en" ? "Subscribe" : "Zapisz się"}
+                {state === "loading" ? "…" : t("newsletterForm.subscribe")}
               </button>
             </>
           ) : (
@@ -386,7 +379,7 @@ export function NewsletterForm({
                 disabled={state === "loading"}
                 className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-60"
               >
-                {state === "loading" ? "…" : lang === "en" ? "Subscribe" : "Zapisz się"}
+                {state === "loading" ? "…" : t("newsletterForm.subscribe")}
               </button>
             </>
           )}
@@ -443,6 +436,7 @@ function CustomFieldRender({
   inputCls: string;
   showMark?: boolean;
 }) {
+  const { t } = useTranslation();
   const label = pickLabel(field, lang);
   const placeholder = pickPlaceholder(field, lang);
   const name = `custom_${field.id}`;
@@ -477,7 +471,7 @@ function CustomFieldRender({
           defaultValue=""
         >
           <option value="" disabled>
-            {placeholder || (lang === "pl" ? "Wybierz..." : "Select...")}
+            {placeholder || t("newsletterForm.selectPlaceholder")}
           </option>
           {(field.options ?? []).map((o) => (
             <option key={o.value} value={o.value}>

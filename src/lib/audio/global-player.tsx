@@ -354,92 +354,94 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         const src = resolveAudioFetch(postId, lang, audioUrl);
         const res = await fetch(src.url, { ...src.init, signal: controller.signal });
 
-      if (!res.ok) {
-        // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
-        // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
-        // Pozostałe błędy zachowują dotychczasowe zachowanie (treść serwera).
-        if (res.status === 402) {
-          throw new Error("Wyczerpano limit lektora / TTS quota exceeded");
-        }
-        if (res.status === 429) {
-          throw new Error("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
-        }
-        const msg = await res.text().catch(() => "");
-        throw new Error(msg || `HTTP ${res.status}`);
-      }
-
-      // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
-      const totalHeader = res.headers.get("content-length");
-      const totalBytes = totalHeader ? Number(totalHeader) : null;
-      setTts({
-        stage: "synthesizing",
-        percent: 0,
-        bytes: 0,
-        totalBytes,
-        elapsedMs: performance.now() - startedAt,
-      });
-
-      // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
-      // `res.blob()` gdy body nie jest czytelne (np. stary browser).
-      let blob: Blob;
-      const body = res.body;
-      if (body && typeof body.getReader === "function") {
-        const reader = body.getReader();
-        const chunks: Uint8Array[] = [];
-        let received = 0;
-        let announcedStreaming = false;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            received += value.byteLength;
-            if (!announcedStreaming) {
-              announcedStreaming = true;
-            }
-            setTts({
-              stage: "streaming",
-              percent:
-                totalBytes && totalBytes > 0
-                  ? Math.min(99, Math.round((received / totalBytes) * 100))
-                  : 0,
-              bytes: received,
-              totalBytes,
-              elapsedMs: performance.now() - startedAt,
-            });
+        if (!res.ok) {
+          // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
+          // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
+          // Pozostałe błędy zachowują dotychczasowe zachowanie (treść serwera).
+          if (res.status === 402) {
+            throw new Error("Wyczerpano limit lektora / TTS quota exceeded");
           }
+          if (res.status === 429) {
+            throw new Error("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
+          }
+          const msg = await res.text().catch(() => "");
+          throw new Error(msg || `HTTP ${res.status}`);
         }
-        blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
-      } else {
-        blob = await res.blob();
-      }
 
-      const url = URL.createObjectURL(blob);
-      // Cache + zwolnienie starego/eksmitowanego bloba (chronimy aktywny).
-      setCachedBlob(key, url, audioRef.current?.src ?? null);
-      setTts({
-        stage: "ready",
-        percent: 100,
-        bytes: blob.size,
-        totalBytes: totalBytes ?? blob.size,
-        elapsedMs: performance.now() - startedAt,
-      });
-      return url;
-    } catch (e) {
-      // Przerwane przez nowsze żądanie - cicho, nowe pobieranie steruje UI.
-      if (controller.signal.aborted) throw e;
-      setTts({
-        stage: "error",
-        percent: 0,
-        bytes: 0,
-        totalBytes: null,
-        elapsedMs: performance.now() - startedAt,
-      });
-      throw e;
-    } finally {
-      if (fetchAbortRef.current === controller) fetchAbortRef.current = null;
-    }
-  }, []);
+        // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
+        const totalHeader = res.headers.get("content-length");
+        const totalBytes = totalHeader ? Number(totalHeader) : null;
+        setTts({
+          stage: "synthesizing",
+          percent: 0,
+          bytes: 0,
+          totalBytes,
+          elapsedMs: performance.now() - startedAt,
+        });
+
+        // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
+        // `res.blob()` gdy body nie jest czytelne (np. stary browser).
+        let blob: Blob;
+        const body = res.body;
+        if (body && typeof body.getReader === "function") {
+          const reader = body.getReader();
+          const chunks: Uint8Array[] = [];
+          let received = 0;
+          let announcedStreaming = false;
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              chunks.push(value);
+              received += value.byteLength;
+              if (!announcedStreaming) {
+                announcedStreaming = true;
+              }
+              setTts({
+                stage: "streaming",
+                percent:
+                  totalBytes && totalBytes > 0
+                    ? Math.min(99, Math.round((received / totalBytes) * 100))
+                    : 0,
+                bytes: received,
+                totalBytes,
+                elapsedMs: performance.now() - startedAt,
+              });
+            }
+          }
+          blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
+        } else {
+          blob = await res.blob();
+        }
+
+        const url = URL.createObjectURL(blob);
+        // Cache + zwolnienie starego/eksmitowanego bloba (chronimy aktywny).
+        setCachedBlob(key, url, audioRef.current?.src ?? null);
+        setTts({
+          stage: "ready",
+          percent: 100,
+          bytes: blob.size,
+          totalBytes: totalBytes ?? blob.size,
+          elapsedMs: performance.now() - startedAt,
+        });
+        return url;
+      } catch (e) {
+        // Przerwane przez nowsze żądanie - cicho, nowe pobieranie steruje UI.
+        if (controller.signal.aborted) throw e;
+        setTts({
+          stage: "error",
+          percent: 0,
+          bytes: 0,
+          totalBytes: null,
+          elapsedMs: performance.now() - startedAt,
+        });
+        throw e;
+      } finally {
+        if (fetchAbortRef.current === controller) fetchAbortRef.current = null;
+      }
+    },
+    [],
+  );
 
   const loadAndPlay = useCallback(
     async (meta: AudioTrackMeta) => {

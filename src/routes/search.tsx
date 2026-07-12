@@ -335,8 +335,7 @@ function SearchPage() {
                     <div className="mt-6">
                       <p className="text-sm font-medium mb-2">
                         {t("search.didYouMean", {
-                          defaultValue:
-                            lang === "en" ? "Did you mean:" : "Czy chodziło Ci o:",
+                          defaultValue: lang === "en" ? "Did you mean:" : "Czy chodziło Ci o:",
                         })}
                       </p>
                       <ul className="space-y-1.5">

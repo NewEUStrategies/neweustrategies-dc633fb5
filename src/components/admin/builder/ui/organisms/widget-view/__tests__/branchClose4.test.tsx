@@ -48,12 +48,20 @@ vi.mock("@/integrations/supabase/client", () => {
     },
   };
 });
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k,
-    i18n: { language: "pl", changeLanguage: () => {} },
-  }),
-}));
+vi.mock("react-i18next", () => {
+  // Keys asserted below must resolve to the real public dictionary strings
+  // (src/lib/i18n-public.ts); everything else keeps the defaultValue/key echo.
+  // Declared inside the factory - vi.mock is hoisted above file-scope consts.
+  const dict: Record<string, string> = {
+    "authForms.noToken": "Open the password-reset link from your email to continue.",
+  };
+  return {
+    useTranslation: () => ({
+      t: (k: string, o?: { defaultValue?: string }) => dict[k] ?? o?.defaultValue ?? k,
+      i18n: { language: "pl", changeLanguage: () => {} },
+    }),
+  };
+});
 vi.mock("@tanstack/react-router", async (orig) => {
   const actual = await orig<typeof import("@tanstack/react-router")>();
   return {

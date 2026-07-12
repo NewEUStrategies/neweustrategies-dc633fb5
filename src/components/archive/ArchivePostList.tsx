@@ -13,7 +13,13 @@ interface Props {
   getExcerptOverride?: (post: BlogListItem) => React.ReactNode | undefined;
 }
 
-export function ArchivePostList({ posts, lang, emptyText, emptyAction, getExcerptOverride }: Props) {
+export function ArchivePostList({
+  posts,
+  lang,
+  emptyText,
+  emptyAction,
+  getExcerptOverride,
+}: Props) {
   if (posts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">

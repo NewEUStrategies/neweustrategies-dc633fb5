@@ -274,10 +274,8 @@ export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARC
       });
       if (matchError) throw matchError;
       const rows = (matchRows ?? []).map(
-        ({
-          rank: _rank,
-          ...row
-        }): Omit<SearchResultItem, "href"> & { author_id: string | null } => row,
+        ({ rank: _rank, ...row }): Omit<SearchResultItem, "href"> & { author_id: string | null } =>
+          row,
       );
 
       const posts = (await hydrateHref(rows)) as SearchResultItem[];
