@@ -18,6 +18,9 @@ export type NotificationKind =
   | "security"
   | "message";
 
+/** Who may START a new conversation with the user (existing threads live on). */
+export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
+
 export interface NotificationPreferences {
   enabled_message: boolean;
   enabled_comment: boolean;
@@ -28,6 +31,19 @@ export interface NotificationPreferences {
   enabled_security: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
+  /**
+   * Chat privacy (enforced server-side, not just in the UI):
+   * - read_receipts_enabled: reciprocal - turning it off hides your read state
+   *   from peers AND their read state from you (RLS on participants),
+   * - typing_indicators_enabled: stop broadcasting "typing..." pings,
+   * - show_online_status: stop announcing yourself on the presence channel,
+   * - allow_messages_from: 'nobody' also mutes incoming sends in existing
+   *   threads (DB trigger), 'existing' only blocks NEW conversations.
+   */
+  read_receipts_enabled: boolean;
+  typing_indicators_enabled: boolean;
+  show_online_status: boolean;
+  allow_messages_from: AllowMessagesFrom;
 }
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -40,6 +56,10 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_security: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
+  read_receipts_enabled: true,
+  typing_indicators_enabled: true,
+  show_online_status: true,
+  allow_messages_from: "everyone",
 };
 
 const prefsKey = (uid: string | undefined) =>
@@ -242,12 +262,15 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation",
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from",
         )
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data ?? {}) };
+      return {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        ...((data ?? {}) as Partial<NotificationPreferences>),
+      };
     },
     staleTime: 60_000,
   });

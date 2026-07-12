@@ -47,8 +47,11 @@ export function useEntityPresence(
       setPeers([]);
       return;
     }
+    // private:true - Realtime Authorization ogranicza topic do tenanta
+    // wołającego (dotąd publiczny topic ujawniał nazwiska edytorów każdemu,
+    // kto odgadł `presence:<tenant>:<typ>:<id>`).
     const channel = supabase.channel(`presence:${tenantId}:${entityType}:${entityId}`, {
-      config: { presence: { key: userId } },
+      config: { private: true, presence: { key: userId } },
     });
 
     const sync = () => {

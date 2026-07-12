@@ -39,6 +39,7 @@ import {
 } from "@/lib/chat/useMessages";
 import { toast } from "sonner";
 import { useBlockUser, useMyBlocks, useUnblockUser } from "@/lib/chat/useBlocks";
+import { useNotificationPreferences } from "@/lib/notifications/useNotifications";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { usePrefetchAttachmentUrls } from "@/lib/chat/attachments";
 import type { ChatLang } from "@/lib/chat/time";
@@ -113,6 +114,11 @@ export function ChatWindow(props: ChatWindowProps) {
   const blockUser = useBlockUser();
   const unblockUser = useUnblockUser();
   const peerBlocked = !!peerId && !!blocksQ.data?.has(peerId);
+
+  // Privacy preference: with typing indicators off we never broadcast our own
+  // "typing..." pings (receiving the peer's stays unaffected).
+  const prefsQ = useNotificationPreferences();
+  const typingEnabled = prefsQ.data?.typing_indicators_enabled ?? true;
 
   const [peerTyping, setPeerTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -252,22 +258,30 @@ export function ChatWindow(props: ChatWindowProps) {
   const handleLoadOlder = useCallback(() => void fetchNextPage(), [fetchNextPage]);
   const handleClearReply = useCallback(() => setReplyTo(null), []);
   const handleCancelEdit = useCallback(() => setEditTarget(null), []);
+  const handleTyping = useCallback(
+    (typing?: boolean) => {
+      if (typingEnabled) sendTyping(typing);
+    },
+    [typingEnabled, sendTyping],
+  );
   const { mutate: mutateSend } = sendMessage;
   const handleSend = useCallback(
     (input: SendMessageInput) => {
       // The outgoing message supersedes the typing state on the peer's side -
       // broadcast an explicit stop so their indicator clears instantly.
-      sendTyping(false);
+      handleTyping(false);
       mutateSend(input, {
         onError: (err) => {
           // The mutation's own onError already flipped the optimistic row to
           // its failed state; here we only translate the server verdict.
           if (err.message.includes("chat: blocked")) toast.error(t("chat.block.sendBlocked"));
+          else if (err.message.includes("recipient unavailable"))
+            toast.error(t("chat.recipientUnavailable"));
           else if (err.message.includes("rate limited")) toast.error(t("chat.rateLimited"));
         },
       });
     },
-    [mutateSend, sendTyping, t],
+    [mutateSend, handleTyping, t],
   );
   const { mutate: mutateBlock } = blockUser;
   const { mutate: mutateUnblock } = unblockUser;
@@ -369,7 +383,7 @@ export function ChatWindow(props: ChatWindowProps) {
           onSend={handleSend}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
-          onTyping={sendTyping}
+          onTyping={handleTyping}
           autoFocus={autoFocus}
         />
       )}

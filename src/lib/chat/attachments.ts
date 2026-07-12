@@ -9,11 +9,12 @@ import { chatKeys } from "./keys";
 
 export const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024; // 30 MB
 
+// No SVG: active content (embedded scripts) - the server-side bucket allowlist
+// rejects it, so offering it here only produced a late, confusing error.
 export const IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/jpeg",
   "image/png",
   "image/gif",
-  "image/svg+xml",
   "image/webp",
 ]);
 

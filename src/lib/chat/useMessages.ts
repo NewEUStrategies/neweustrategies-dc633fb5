@@ -407,8 +407,14 @@ function acquireTypingChannel(
     const listeners = new Set<(event: TypingEvent) => void>();
     // self:false - never echo our own ping back to us (the listener also
     // guards on userId, but this saves a needless round trip).
+    // private:true - Realtime Authorization: RLS on realtime.messages admits
+    // only members of THIS conversation within their current tenant, so a
+    // stranger who knows the conversation UUID can no longer join the topic
+    // to observe or spoof typing activity.
     const channel = supabase
-      .channel(`chat-conv:${conversationId}`, { config: { broadcast: { self: false } } })
+      .channel(`chat-conv:${conversationId}`, {
+        config: { private: true, broadcast: { self: false } },
+      })
       .on("broadcast", { event: "typing" }, (payload) => {
         const data = (payload as { payload?: TypingEvent }).payload;
         if (!data?.userId) return;

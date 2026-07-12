@@ -42,7 +42,7 @@ export const chatPl = {
     loadOlder: "Pokaż starsze wiadomości",
     attachmentTooLarge: "Plik jest za duży - maksymalny rozmiar to 30 MB.",
     attachmentWrongType:
-      "Nieobsługiwany typ pliku. Dozwolone: obrazy (JPG, PNG, SVG, GIF), PDF, dokumenty, arkusze i prezentacje.",
+      "Nieobsługiwany typ pliku. Dozwolone: obrazy (JPG, PNG, GIF, WebP), PDF, dokumenty, arkusze i prezentacje.",
     uploadFailed: "Nie udało się przesłać pliku. Spróbuj ponownie.",
     photo: "Zdjęcie",
     file: "Plik",
@@ -62,6 +62,7 @@ export const chatPl = {
     cancelEdit: "Anuluj edycję",
     editExpired: "Edycja możliwa tylko przez 5 minut od wysłania.",
     rateLimited: "Zwolnij - za dużo wiadomości na raz.",
+    recipientUnavailable: "Ta osoba nie przyjmuje teraz wiadomości.",
     block: {
       block: "Zablokuj",
       unblock: "Odblokuj",
@@ -174,6 +175,21 @@ export const chatPl = {
     discoverableOff: "Profil ukryty - nikt nie znajdzie Cię w wyszukiwarce",
     externalNote:
       "Niezależnie od tego ustawienia Twój profil nigdy nie jest widoczny ani indeksowany poza platformą - osoby niezalogowane i roboty wyszukiwarek nie mają do niego dostępu.",
+    allowMessagesLabel: "Kto może rozpocząć z Tobą nową rozmowę",
+    allowMessagesHint:
+      "Egzekwowane po stronie serwera. „Tylko dotychczasowi rozmówcy” blokuje nowe konwersacje, ale istniejące wątki działają dalej. „Nikt” dodatkowo wycisza wiadomości przychodzące także w istniejących wątkach - dopóki nie zmienisz ustawienia.",
+    allowMessagesEveryone: "Wszyscy w Twojej organizacji",
+    allowMessagesExisting: "Tylko dotychczasowi rozmówcy",
+    allowMessagesNobody: "Nikt (tryb cichy)",
+    readReceiptsLabel: "Potwierdzenia odczytu",
+    readReceiptsHint:
+      "Działa wzajemnie: gdy wyłączysz, rozmówcy nie zobaczą, że przeczytałeś/aś ich wiadomości, ale Ty też przestaniesz widzieć ich potwierdzenia. Egzekwowane w bazie danych, nie tylko w interfejsie.",
+    typingLabel: "Wskaźnik pisania („pisze...”)",
+    typingHint:
+      "Gdy wyłączysz, rozmówcy nie zobaczą, że właśnie piszesz wiadomość. Ty nadal widzisz, gdy piszą inni.",
+    onlineStatusLabel: "Status dostępności (zielona kropka)",
+    onlineStatusHint:
+      "Gdy wyłączysz, nie ogłaszasz swojej obecności online innym użytkownikom. Ty nadal widzisz, kto jest dostępny.",
     saved: "Ustawienia widoczności zapisane",
     saveError: "Nie udało się zapisać ustawienia. Spróbuj ponownie.",
   },
@@ -216,7 +232,7 @@ export const chatEn = {
     loadOlder: "Show older messages",
     attachmentTooLarge: "File is too large - the maximum size is 30 MB.",
     attachmentWrongType:
-      "Unsupported file type. Allowed: images (JPG, PNG, SVG, GIF), PDF, documents, spreadsheets and presentations.",
+      "Unsupported file type. Allowed: images (JPG, PNG, GIF, WebP), PDF, documents, spreadsheets and presentations.",
     uploadFailed: "File upload failed. Please try again.",
     photo: "Photo",
     file: "File",
@@ -234,6 +250,7 @@ export const chatEn = {
     cancelEdit: "Cancel editing",
     editExpired: "Messages can only be edited within 5 minutes of sending.",
     rateLimited: "Slow down - too many messages at once.",
+    recipientUnavailable: "This person is not accepting messages right now.",
     block: {
       block: "Block",
       unblock: "Unblock",
@@ -341,6 +358,21 @@ export const chatEn = {
     discoverableOff: "Profile hidden - nobody can find you in the search",
     externalNote:
       "Regardless of this setting, your profile is never visible or indexable outside the platform - anonymous visitors and search engine bots have no access to it.",
+    allowMessagesLabel: "Who can start a new conversation with you",
+    allowMessagesHint:
+      "Enforced server-side. “Existing contacts only” blocks new conversations while existing threads keep working. “Nobody” additionally mutes incoming messages in existing threads too - until you change the setting.",
+    allowMessagesEveryone: "Everyone in your organization",
+    allowMessagesExisting: "Existing contacts only",
+    allowMessagesNobody: "Nobody (quiet mode)",
+    readReceiptsLabel: "Read receipts",
+    readReceiptsHint:
+      "Reciprocal: when off, peers no longer see that you read their messages, but you stop seeing their read receipts too. Enforced in the database, not just in the UI.",
+    typingLabel: "Typing indicator (“typing...”)",
+    typingHint:
+      "When off, peers no longer see that you are composing a message. You still see when others are typing.",
+    onlineStatusLabel: "Online status (green dot)",
+    onlineStatusHint:
+      "When off, your presence is not announced to other users. You still see who is online.",
     saved: "Visibility settings saved",
     saveError: "Could not save the setting. Please try again.",
   },
