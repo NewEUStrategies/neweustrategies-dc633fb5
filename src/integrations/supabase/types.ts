@@ -80,6 +80,58 @@ export type Database = {
         }
         Relationships: []
       }
+      ad_events: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          path: string | null
+          placement_id: string | null
+          slot_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          path?: string | null
+          placement_id?: string | null
+          slot_id: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          path?: string | null
+          placement_id?: string | null
+          slot_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_events_placement_id_fkey"
+            columns: ["placement_id"]
+            isOneToOne: false
+            referencedRelation: "ad_placements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_events_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "ad_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_placements: {
         Row: {
           active: boolean
@@ -1253,10 +1305,10 @@ export type Database = {
           last_sync_error: string | null
           last_sync_status: string | null
           merydian_api_base: string | null
-          merydian_api_key: string | null
+          merydian_api_key_id: string | null
           merydian_enabled: boolean
           merydian_mode: string
-          merydian_webhook_secret: string | null
+          merydian_webhook_secret_id: string | null
           merydian_webhook_url: string | null
           merydian_workspace_id: string | null
           tenant_id: string
@@ -1271,10 +1323,10 @@ export type Database = {
           last_sync_error?: string | null
           last_sync_status?: string | null
           merydian_api_base?: string | null
-          merydian_api_key?: string | null
+          merydian_api_key_id?: string | null
           merydian_enabled?: boolean
           merydian_mode?: string
-          merydian_webhook_secret?: string | null
+          merydian_webhook_secret_id?: string | null
           merydian_webhook_url?: string | null
           merydian_workspace_id?: string | null
           tenant_id?: string
@@ -1289,10 +1341,10 @@ export type Database = {
           last_sync_error?: string | null
           last_sync_status?: string | null
           merydian_api_base?: string | null
-          merydian_api_key?: string | null
+          merydian_api_key_id?: string | null
           merydian_enabled?: boolean
           merydian_mode?: string
-          merydian_webhook_secret?: string | null
+          merydian_webhook_secret_id?: string | null
           merydian_webhook_url?: string | null
           merydian_workspace_id?: string | null
           tenant_id?: string
@@ -2166,6 +2218,58 @@ export type Database = {
           vocative_pl?: string | null
         }
         Relationships: []
+      }
+      newsletter_campaign_events: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          kind: string
+          subscriber_id: string | null
+          tenant_id: string
+          url: string | null
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          subscriber_id?: string | null
+          tenant_id?: string
+          url?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_events_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       newsletter_campaign_recipients: {
         Row: {
@@ -3110,6 +3214,45 @@ export type Database = {
           },
           {
             foreignKeyName: "podcasts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      popup_events: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          popup_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          popup_id: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          popup_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "popup_events_popup_id_fkey"
+            columns: ["popup_id"]
+            isOneToOne: false
+            referencedRelation: "builder_popups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "popup_events_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5169,7 +5312,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      crm_get_merydian_secrets: {
+        Args: { _tenant?: string }
+        Returns: {
+          api_key: string
+          webhook_secret: string
+        }[]
+      }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
+      crm_set_merydian_secret: {
+        Args: { _kind: string; _plaintext: string }
+        Returns: undefined
+      }
       crm_upsert_from_form:
         | {
             Args: {
