@@ -72,6 +72,7 @@ import { cn } from "@/lib/utils";
 import { ChatAvatar } from "./ChatAvatar";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMediaPanel } from "./ChatMediaPanel";
+import { ForwardDialog } from "./ForwardDialog";
 import { MessageList } from "./MessageList";
 
 const TYPING_VISIBLE_MS = 4000;
@@ -188,6 +189,22 @@ export function ChatWindow(props: ChatWindowProps) {
     return () => clearInterval(timer);
   }, []);
 
+  // Snapshot the unread state the first time this conversation's row is seen,
+  // BEFORE mark-read fires - so the "unread" divider lands where the user left
+  // off rather than collapsing to zero the moment the thread opens.
+  const unreadSnapshotRef = useRef<{
+    convId: string;
+    count: number;
+    lastReadAt: string | null;
+  } | null>(null);
+  if (view && unreadSnapshotRef.current?.convId !== conversationId) {
+    unreadSnapshotRef.current = {
+      convId: conversationId,
+      count: view.me.unread_count,
+      lastReadAt: view.me.last_read_at,
+    };
+  }
+
   const messages: ChatMessage[] = useMemo(() => {
     // editTick keeps the expiry cutoff fresh: disappearing messages vanish on
     // the minute tick instead of waiting for the next refetch (RLS is the
@@ -221,6 +238,19 @@ export function ChatWindow(props: ChatWindowProps) {
               : 0,
     );
   }, [messagesQ.data, editTick]);
+
+  const unreadSnapshot =
+    unreadSnapshotRef.current?.convId === conversationId ? unreadSnapshotRef.current : null;
+  const firstUnreadId = useMemo(() => {
+    if (!user || !unreadSnapshot || unreadSnapshot.count <= 0) return null;
+    const cutoff = unreadSnapshot.lastReadAt ? new Date(unreadSnapshot.lastReadAt).getTime() : 0;
+    for (const m of messages) {
+      if (m.sender_id !== user.id && new Date(m.created_at).getTime() > cutoff) return m.id;
+    }
+    return null;
+    // unreadSnapshot is a per-conversation ref snapshot; messages drive recompute.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, conversationId, user?.id]);
 
   // One batched storage call signs every attachment in the loaded history.
   const attachmentPaths = useMemo(
@@ -259,6 +289,7 @@ export function ChatWindow(props: ChatWindowProps) {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editTarget, setEditTarget] = useState<ChatMessage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
+  const [forwardTarget, setForwardTarget] = useState<ChatMessage | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
 
@@ -266,6 +297,7 @@ export function ChatWindow(props: ChatWindowProps) {
     setReplyTo(null);
     setEditTarget(null);
     setDeleteTarget(null);
+    setForwardTarget(null);
     setBlockDialogOpen(false);
   }, [conversationId]);
 
@@ -287,6 +319,7 @@ export function ChatWindow(props: ChatWindowProps) {
     setEditTarget(message);
   }, []);
   const handleDelete = useCallback((message: ChatMessage) => setDeleteTarget(message), []);
+  const handleForward = useCallback((message: ChatMessage) => setForwardTarget(message), []);
   const handleDiscardFailed = useCallback(
     (message: ChatMessage) => discardFailed(message.id),
     [discardFailed],
@@ -589,6 +622,8 @@ export function ChatWindow(props: ChatWindowProps) {
         peerTyping={peerTypingSafe}
         ttlSeconds={ttlSeconds}
         starredIds={starredIdsQ.data}
+        firstUnreadId={firstUnreadId}
+        unreadCount={unreadSnapshot?.count ?? 0}
         hasOlder={!!messagesQ.hasNextPage}
         loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
         onLoadOlder={handleLoadOlder}
@@ -598,6 +633,7 @@ export function ChatWindow(props: ChatWindowProps) {
         onDelete={handleDelete}
         onDiscardFailed={handleDiscardFailed}
         onToggleStar={handleToggleStar}
+        onForward={handleForward}
         canEdit={canEdit}
       />
       {peerBlocked ? (
@@ -666,6 +702,11 @@ export function ChatWindow(props: ChatWindowProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ForwardDialog
+        message={forwardTarget}
+        excludeConversationId={conversationId}
+        onClose={() => setForwardTarget(null)}
+      />
       <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

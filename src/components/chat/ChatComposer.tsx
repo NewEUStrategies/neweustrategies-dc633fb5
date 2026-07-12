@@ -27,6 +27,7 @@ import {
   formatBytes,
   uploadChatAttachment,
   validateAttachment,
+  type AttachmentKind,
 } from "@/lib/chat/attachments";
 import { formatVoiceDuration, useVoiceRecorder, type RecordedVoice } from "@/lib/chat/voice";
 import type { SendMessageInput } from "@/lib/chat/useMessages";
@@ -75,9 +76,32 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [text, setText] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null);
+  // A picked attachment waits here so the user can add a caption before it is
+  // uploaded+sent (WhatsApp flow). previewUrl is an object URL for images.
+  const [staged, setStaged] = useState<{
+    file: File;
+    kind: AttachmentKind;
+    previewUrl: string | null;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastTypingRef = useRef(0);
+
+  const clearStaged = () => {
+    setStaged((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+  };
+  // Never leak the object URL if the composer unmounts while staged.
+  useEffect(() => {
+    return () => {
+      setStaged((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+    };
+  }, []);
 
   const resize = () => {
     const el = textareaRef.current;
@@ -113,16 +137,76 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing?.id]);
 
-  const sendText = () => {
+  // Validate + stage a picked file (upload happens on send, with the caption).
+  const stageFile = (file: File) => {
+    const invalid = validateAttachment(file);
+    if (invalid === "size") {
+      toast.error(t("chat.attachmentTooLarge"));
+      return;
+    }
+    if (invalid === "type") {
+      toast.error(t("chat.attachmentWrongType"));
+      return;
+    }
+    const kind = attachmentKindForMime(file.type);
+    if (!kind) return;
+    clearStaged();
+    setStaged({
+      file,
+      kind,
+      previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
+    });
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  // Unified submit: edit save, or staged attachment + caption, or plain text.
+  const submit = async () => {
     const body = text.trim();
-    if (!body) return;
     if (editing) {
-      if (body !== (editing.body ?? "").trim()) {
+      if (body && body !== (editing.body ?? "").trim()) {
         onSaveEdit(editing.id, body.slice(0, MAX_BODY_LENGTH));
       }
       onCancelEdit();
       return;
     }
+
+    if (staged) {
+      if (!user || !tenantId) return;
+      const { file, kind } = staged;
+      const caption = body.slice(0, 2000) || undefined; // DB caps captions at 2000
+      clearStaged();
+      setText("");
+      requestAnimationFrame(resize);
+      setUploading({ name: file.name, percent: 0 });
+      try {
+        const uploaded = await uploadChatAttachment({
+          file,
+          tenantId,
+          conversationId,
+          userId: user.id,
+          onProgress: (percent) => setUploading({ name: file.name, percent }),
+        });
+        onSend({
+          conversationId,
+          kind,
+          body: caption,
+          attachment: uploaded,
+          replyToId: replyTo?.id ?? null,
+        });
+        onClearReply();
+      } catch (err) {
+        toast.error(
+          err instanceof Error && err.message.includes("rate-limited")
+            ? t("chat.uploadRateLimited")
+            : t("chat.uploadFailed"),
+        );
+      } finally {
+        setUploading(null);
+      }
+      return;
+    }
+
+    if (!body) return;
     onSend({
       conversationId,
       kind: "text",
@@ -135,42 +219,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       resize();
       textareaRef.current?.focus();
     });
-  };
-
-  const sendFile = async (file: File) => {
-    if (!user || !tenantId) return;
-    const invalid = validateAttachment(file);
-    if (invalid === "size") {
-      toast.error(t("chat.attachmentTooLarge"));
-      return;
-    }
-    if (invalid === "type") {
-      toast.error(t("chat.attachmentWrongType"));
-      return;
-    }
-    const kind = attachmentKindForMime(file.type);
-    if (!kind) return;
-    setUploading({ name: file.name, percent: 0 });
-    try {
-      const uploaded = await uploadChatAttachment({
-        file,
-        tenantId,
-        conversationId,
-        userId: user.id,
-        onProgress: (percent) => setUploading({ name: file.name, percent }),
-      });
-      onSend({
-        conversationId,
-        kind,
-        attachment: uploaded,
-        replyToId: replyTo?.id ?? null,
-      });
-      onClearReply();
-    } catch {
-      toast.error(t("chat.uploadFailed"));
-    } finally {
-      setUploading(null);
-    }
   };
 
   // --- Voice notes ---------------------------------------------------------
@@ -287,6 +335,37 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         </div>
       )}
 
+      {staged && !uploading && (
+        <div className="mb-1.5 flex items-center gap-2.5 rounded-[6px] bg-muted/60 px-2.5 py-2">
+          {staged.previewUrl ? (
+            <img
+              src={staged.previewUrl}
+              alt={staged.file.name}
+              className="h-11 w-11 shrink-0 rounded-[6px] object-cover"
+            />
+          ) : (
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] bg-background text-muted-foreground">
+              <FileText className="h-5 w-5" aria-hidden />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-medium">{staged.file.name}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {t("chat.caption.hint")} · {formatBytes(staged.file.size, lang)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={clearStaged}
+            className="shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+            aria-label={t("chat.caption.remove")}
+            title={t("chat.caption.remove")}
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      )}
+
       {recording ? (
         <div
           className="flex h-10 items-center gap-2 rounded-[6px] border border-destructive/30 bg-destructive/5 px-2"
@@ -331,7 +410,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void sendFile(file);
+              if (file) stageFile(file);
               e.target.value = "";
             }}
           />
@@ -339,7 +418,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={!!uploading}
+              disabled={!!uploading || !!staged}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
               aria-label={t("chat.attach")}
               title={`${t("chat.attach")} (max ${formatBytes(30 * 1024 * 1024, lang)})`}
@@ -363,17 +442,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  sendText();
+                  void submit();
                 } else if (e.key === "Escape" && editing) {
                   // Cancel the edit only - do not bubble up to the dock
                   // window's Escape-to-close handler.
                   e.preventDefault();
                   e.stopPropagation();
                   onCancelEdit();
+                } else if (e.key === "Escape" && staged) {
+                  e.preventDefault();
+                  clearStaged();
                 }
               }}
-              placeholder={t("chat.inputPlaceholder")}
-              aria-label={t("chat.inputPlaceholder")}
+              placeholder={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
+              aria-label={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
               className="max-h-[120px] w-full resize-none rounded-[6px] border border-input bg-muted/40 py-1.5 pl-3 pr-9 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -409,8 +491,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             </Popover>
           </div>
 
-          {!editing && !text.trim() && recorder.supported ? (
-            // WhatsApp morph: empty input shows the mic, typing swaps it for send.
+          {!editing && !text.trim() && !staged && recorder.supported ? (
+            // WhatsApp morph: empty input shows the mic, typing/staging swaps
+            // it for send.
             <button
               type="button"
               onClick={() => void recorder.start()}
@@ -424,8 +507,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           ) : (
             <button
               type="button"
-              onClick={sendText}
-              disabled={!text.trim()}
+              onClick={() => void submit()}
+              disabled={!text.trim() && !staged}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--brand)] transition-all hover:bg-muted disabled:opacity-35"
               aria-label={editing ? t("chat.saveEdit") : t("chat.send")}
               title={editing ? t("chat.saveEdit") : t("chat.send")}

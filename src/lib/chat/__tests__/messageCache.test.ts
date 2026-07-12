@@ -23,6 +23,7 @@ function msg(overrides: Partial<ChatMessage> & { id: string }): ChatMessage {
     attachment_size: overrides.attachment_size ?? null,
     attachment_duration: overrides.attachment_duration ?? null,
     reply_to_id: overrides.reply_to_id ?? null,
+    forwarded: overrides.forwarded ?? false,
     edited_at: overrides.edited_at ?? null,
     deleted_at: overrides.deleted_at ?? null,
     expires_at: overrides.expires_at ?? null,
