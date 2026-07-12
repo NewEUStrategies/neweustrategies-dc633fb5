@@ -3,18 +3,9 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { LayoutDashboard, MessageCircle, Calendar, HelpCircle, Users2 } from "lucide-react";
 
-interface Tab {
-  to: string;
-  key: string;
-  icon: typeof LayoutDashboard;
-  labelPl: string;
-  labelEn: string;
-  exact?: boolean;
-}
-
-const tabs: readonly Tab[] = [
+const tabs = [
   {
-    to: "/admin/community",
+    to: "/admin/community" as const,
     key: "overview",
     icon: LayoutDashboard,
     labelPl: "Podsumowanie",
@@ -22,27 +13,30 @@ const tabs: readonly Tab[] = [
     exact: true,
   },
   {
-    to: "/admin/community/chat",
+    to: "/admin/community/chat" as const,
     key: "chat",
     icon: MessageCircle,
     labelPl: "Chat",
     labelEn: "Chat",
+    exact: false,
   },
   {
-    to: "/admin/community/events",
+    to: "/admin/community/events" as const,
     key: "events",
     icon: Calendar,
     labelPl: "Wydarzenia",
     labelEn: "Events",
+    exact: false,
   },
   {
-    to: "/admin/community/qa",
+    to: "/admin/community/qa" as const,
     key: "qa",
     icon: HelpCircle,
     labelPl: "Q&A",
     labelEn: "Q&A",
+    exact: false,
   },
-] as const;
+];
 
 export function CommunitySubNav() {
   const { i18n } = useTranslation();
