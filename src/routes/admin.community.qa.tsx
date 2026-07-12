@@ -400,3 +400,138 @@ function QuestionCard({
     </div>
   );
 }
+
+function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [slug, setSlug] = useState("");
+  const [titlePl, setTitlePl] = useState("");
+  const [titleEn, setTitleEn] = useState("");
+  const [introPl, setIntroPl] = useState("");
+  const [introEn, setIntroEn] = useState("");
+  const [opensAt, setOpensAt] = useState("");
+  const [closesAt, setClosesAt] = useState("");
+  const [status, setStatus] = useState<QaSessionStatus>("draft");
+
+  const reset = () => {
+    setSlug(""); setTitlePl(""); setTitleEn("");
+    setIntroPl(""); setIntroEn("");
+    setOpensAt(""); setClosesAt(""); setStatus("draft");
+  };
+
+  const m = useMutation({
+    mutationFn: () =>
+      createQaSession({
+        slug: slug.trim(),
+        title_pl: titlePl.trim(),
+        title_en: titleEn.trim(),
+        intro_pl: introPl.trim() || undefined,
+        intro_en: introEn.trim() || undefined,
+        opens_at: opensAt ? new Date(opensAt).toISOString() : null,
+        closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+        status,
+      }),
+    onSuccess: () => {
+      toast.success(isPl ? "Utworzono" : "Created");
+      onCreated();
+      setOpen(false);
+      reset();
+    },
+    onError: (e: Error) => toast.error(e.message || (isPl ? "Błąd" : "Failed")),
+  });
+
+  const canSubmit =
+    slug.trim().length >= 2 && titlePl.trim().length > 0 && titleEn.trim().length > 0;
+
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        <Plus className="w-4 h-4 mr-1" />
+        {isPl ? "Nowa sesja" : "New session"}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{isPl ? "Nowa sesja Q&A" : "New Q&A session"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Slug</Label>
+              <Input
+                value={slug}
+                onChange={(e) =>
+                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+                }
+                placeholder="np-ai-act-2026"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isPl ? "Tytuł (PL)" : "Title (PL)"}</Label>
+                <Input value={titlePl} onChange={(e) => setTitlePl(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>{isPl ? "Tytuł (EN)" : "Title (EN)"}</Label>
+                <Input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isPl ? "Wstęp (PL)" : "Intro (PL)"}</Label>
+                <Textarea
+                  value={introPl}
+                  onChange={(e) => setIntroPl(e.target.value)}
+                  className="min-h-[80px]"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isPl ? "Wstęp (EN)" : "Intro (EN)"}</Label>
+                <Textarea
+                  value={introEn}
+                  onChange={(e) => setIntroEn(e.target.value)}
+                  className="min-h-[80px]"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label>{isPl ? "Otwiera się" : "Opens at"}</Label>
+                <Input
+                  type="datetime-local"
+                  value={opensAt}
+                  onChange={(e) => setOpensAt(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isPl ? "Zamyka się" : "Closes at"}</Label>
+                <Input
+                  type="datetime-local"
+                  value={closesAt}
+                  onChange={(e) => setClosesAt(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as QaSessionStatus)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">{isPl ? "Roboczy" : "Draft"}</SelectItem>
+                    <SelectItem value="scheduled">{isPl ? "Zaplanowany" : "Scheduled"}</SelectItem>
+                    <SelectItem value="open">{isPl ? "Otwarty" : "Open"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {isPl ? "Anuluj" : "Cancel"}
+            </Button>
+            <Button onClick={() => m.mutate()} disabled={!canSubmit || m.isPending}>
+              {isPl ? "Utwórz" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
