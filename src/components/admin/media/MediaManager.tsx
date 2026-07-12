@@ -1525,9 +1525,9 @@ function GridView({
                   {m.filename}
                 </div>
               )}
-              <div className="text-muted-foreground flex justify-between !text-[9px] leading-[11px] gap-1 uppercase tracking-wide">
-                <span>{formatBytes(m.size_bytes)}</span>
-                <span>{extOf(m.filename)}</span>
+              <div className="text-muted-foreground flex justify-between gap-1 uppercase tracking-wide">
+                <span className="text-[9px] leading-[11px]">{formatBytes(m.size_bytes)}</span>
+                <span className="text-[9px] leading-[11px]">{extOf(m.filename)}</span>
               </div>
             </div>
           </div>
