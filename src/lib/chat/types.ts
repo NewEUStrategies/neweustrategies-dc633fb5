@@ -8,7 +8,11 @@ export type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 export type ReactionRow = Database["public"]["Tables"]["message_reactions"]["Row"];
 
 export type PeerProfile = Database["public"]["Functions"]["get_chat_peers"]["Returns"][number];
-export type PersonHit = Database["public"]["Functions"]["search_people"]["Returns"][number];
+// `verified` dołożone ręcznie do czasu regeneracji typów (migracja
+// 20260713160000 dodaje kolumnę wyniku search_people).
+export type PersonHit = Database["public"]["Functions"]["search_people"]["Returns"][number] & {
+  verified?: boolean;
+};
 
 export type MessageKind = "text" | "image" | "file";
 
