@@ -55,6 +55,9 @@ import { clearAllLiveWidgetTypography } from "@/lib/builder/liveTypography";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
 import { readClipboard } from "@/lib/builder/clipboard";
+import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
+import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
+import { BUILDER_TOUR_STEPS } from "@/lib/onboarding/tours";
 
 interface Props {
   value: BuilderDocument | null;
@@ -383,48 +386,106 @@ export function Builder({
     toggleHidden,
   ]);
 
+  const tour = useOnboardingTour({ id: "builder", steps: BUILDER_TOUR_STEPS });
+
   return (
-    <div
-      className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[260px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}
-    >
-      {/* LEFT PANEL */}
-      <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
-        {sidebarCollapsed ? (
-          <button
-            onClick={() => setSidebarCollapsed(false)}
-            className="flex-1 w-full flex flex-col items-center gap-2 py-3 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
-            title="Rozwiń panel"
-          >
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-[10px] font-medium uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">
-              Widgety
-            </span>
-          </button>
-        ) : (
-          <>
-            {hasSelection ? (
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="p-3 border-b border-border flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => setSelection({ kind: null, id: null })}
-                    className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" /> Widgety
-                  </button>
-                  <h3 className="text-sm font-medium inline-flex items-center gap-2">
-                    <SettingsIcon className="w-4 h-4" />
-                    {selectedWidget
-                      ? "Widget"
-                      : selectedColumn
-                        ? "Kolumna"
-                        : selectedInner
-                          ? "Sekcja wewn."
-                          : "Sekcja"}
-                  </h3>
-                  <div className="inline-flex items-center gap-1">
-                    <button onClick={() => setSelection({ kind: null, id: null })} title="Zamknij">
-                      <X className="w-4 h-4" />
+    <>
+      <div
+        className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[260px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}
+      >
+        {/* LEFT PANEL */}
+        <aside
+          data-tour="builder-widgets"
+          className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start"
+        >
+          {sidebarCollapsed ? (
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="flex-1 w-full flex flex-col items-center gap-2 py-3 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
+              title="Rozwiń panel"
+            >
+              <ChevronRight className="w-4 h-4" />
+              <span className="text-[10px] font-medium uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">
+                Widgety
+              </span>
+            </button>
+          ) : (
+            <>
+              {hasSelection ? (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => setSelection({ kind: null, id: null })}
+                      className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> Widgety
                     </button>
+                    <h3 className="text-sm font-medium inline-flex items-center gap-2">
+                      <SettingsIcon className="w-4 h-4" />
+                      {selectedWidget
+                        ? "Widget"
+                        : selectedColumn
+                          ? "Kolumna"
+                          : selectedInner
+                            ? "Sekcja wewn."
+                            : "Sekcja"}
+                    </h3>
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        onClick={() => setSelection({ kind: null, id: null })}
+                        title="Zamknij"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setSidebarCollapsed(true)}
+                        title="Zwiń panel"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3">
+                    {selectedWidget && (
+                      <WidgetProperties
+                        widget={selectedWidget}
+                        lang={lang}
+                        device={device}
+                        mode={mode}
+                        onModeChange={setMode}
+                        onChange={(mut) => updateWidget(selectedWidget.id, mut)}
+                      />
+                    )}
+                    {selectedSection && (
+                      <SectionProperties
+                        section={selectedSection}
+                        device={device}
+                        onChange={(mut) => updateSection(selectedSection.id, mut)}
+                      />
+                    )}
+                    {selectedColumn && (
+                      <ColumnProperties
+                        column={selectedColumn}
+                        device={device}
+                        mode={mode}
+                        onModeChange={setMode}
+                        onChange={(mut) => updateColumn(selectedColumn.id, mut)}
+                      />
+                    )}
+                    {selectedInner && (
+                      <div className="text-xs text-muted-foreground">
+                        Sekcja wewnętrzna - wybierz kolumnę aby ją edytować.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="px-3 py-2 border-b border-border flex items-center justify-between bg-muted/20">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Widgety
+                    </span>
                     <button
                       onClick={() => setSidebarCollapsed(true)}
                       title="Zwiń panel"
@@ -433,226 +494,181 @@ export function Builder({
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-3">
-                  {selectedWidget && (
-                    <WidgetProperties
-                      widget={selectedWidget}
-                      lang={lang}
-                      device={device}
-                      mode={mode}
-                      onModeChange={setMode}
-                      onChange={(mut) => updateWidget(selectedWidget.id, mut)}
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <WidgetLibrary
+                      onPickWidget={addWidgetToFocused}
+                      onPickStructure={addSection}
+                      onPickTemplate={insertTemplateSection}
+                      onPickGlobal={addGlobalWidgetToFocused}
                     />
-                  )}
-                  {selectedSection && (
-                    <SectionProperties
-                      section={selectedSection}
-                      device={device}
-                      onChange={(mut) => updateSection(selectedSection.id, mut)}
-                    />
-                  )}
-                  {selectedColumn && (
-                    <ColumnProperties
-                      column={selectedColumn}
-                      device={device}
-                      mode={mode}
-                      onModeChange={setMode}
-                      onChange={(mut) => updateColumn(selectedColumn.id, mut)}
-                    />
-                  )}
-                  {selectedInner && (
-                    <div className="text-xs text-muted-foreground">
-                      Sekcja wewnętrzna - wybierz kolumnę aby ją edytować.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="px-3 py-2 border-b border-border flex items-center justify-between bg-muted/20">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Widgety
-                  </span>
-                  <button
-                    onClick={() => setSidebarCollapsed(true)}
-                    title="Zwiń panel"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  <WidgetLibrary
-                    onPickWidget={addWidgetToFocused}
-                    onPickStructure={addSection}
-                    onPickTemplate={insertTemplateSection}
-                    onPickGlobal={addGlobalWidgetToFocused}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="border-t border-border">
-              <button
-                onClick={() => setShowNavigator((v) => !v)}
-                className="w-full text-left px-3 py-2 text-xs inline-flex items-center justify-between bg-muted/30 hover:bg-muted"
-              >
-                <span className="inline-flex items-center gap-2">Nawigator</span>
-                {showNavigator ? (
-                  <ChevronDown className="w-3.5 h-3.5" />
-                ) : (
-                  <ChevronUp className="w-3.5 h-3.5" />
-                )}
-              </button>
-              {showNavigator && (
-                <Navigator
-                  doc={doc}
-                  selection={selection}
-                  device={device}
-                  onSelect={setSelection}
-                  onToggleHidden={toggleHidden}
-                />
+                  </div>
+                </>
               )}
-            </div>
-          </>
-        )}
-      </aside>
 
-      {/* CANVAS */}
-      <div className="bg-muted/20 border border-border rounded-lg flex flex-col min-w-0">
-        <div className="sticky top-3 z-20">
-          <Toolbar
-            lang={lang}
-            onLangChange={onLangChange}
-            device={device}
-            setDevice={setDevice}
-            mode={mode}
-            setMode={setMode}
-            canUndo={history.canUndo}
-            canRedo={history.canRedo}
-            onUndo={undo}
-            onRedo={redo}
-          />
-        </div>
+              <div className="border-t border-border">
+                <button
+                  onClick={() => setShowNavigator((v) => !v)}
+                  data-tour="builder-navigator"
+                  className="w-full text-left px-3 py-2 text-xs inline-flex items-center justify-between bg-muted/30 hover:bg-muted"
+                >
+                  <span className="inline-flex items-center gap-2">Nawigator</span>
+                  {showNavigator ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                {showNavigator && (
+                  <Navigator
+                    doc={doc}
+                    selection={selection}
+                    device={device}
+                    onSelect={setSelection}
+                    onToggleHidden={toggleHidden}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </aside>
 
-        {/* `.light` (not just the absence of `.dark`) is required: with a dark
+        {/* CANVAS */}
+        <div className="bg-muted/20 border border-border rounded-lg flex flex-col min-w-0">
+          <div data-tour="builder-toolbar" className="sticky top-3 z-20">
+            <Toolbar
+              lang={lang}
+              onLangChange={onLangChange}
+              device={device}
+              setDevice={setDevice}
+              mode={mode}
+              setMode={setMode}
+              canUndo={history.canUndo}
+              canRedo={history.canRedo}
+              onUndo={undo}
+              onRedo={redo}
+            />
+          </div>
+
+          {/* `.light` (not just the absence of `.dark`) is required: with a dark
             admin theme the dark tokens cascade from <html>, so light preview
             must explicitly re-scope the light tokens for the canvas subtree. */}
-        <div
-          className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : "light"}`}
-          onClick={() => setSelection({ kind: null, id: null })}
-          onContextMenu={onCanvasContextMenu}
-        >
-          <BuilderModeProvider mode={mode}>
-            <div
-              className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
-                device === "desktop"
-                  ? "max-w-[1440px]"
-                  : device === "tablet"
-                    ? "max-w-[820px]"
-                    : "max-w-[390px]"
-              } ${scope !== "page" ? "rounded-md" : ""}`}
-            >
-              {/* Site chrome - Header preview with hover edit overlay (page editor only) */}
-              {!hideChrome && scope === "page" && (
-                <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
-                  <Header />
-                </ChromeFrame>
-              )}
+          <div
+            className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : "light"}`}
+            onClick={() => setSelection({ kind: null, id: null })}
+            onContextMenu={onCanvasContextMenu}
+          >
+            <BuilderModeProvider mode={mode}>
+              <div
+                data-tour="builder-canvas"
+                className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
+                  device === "desktop"
+                    ? "max-w-[1440px]"
+                    : device === "tablet"
+                      ? "max-w-[820px]"
+                      : "max-w-[390px]"
+                } ${scope !== "page" ? "rounded-md" : ""}`}
+              >
+                {/* Site chrome - Header preview with hover edit overlay (page editor only) */}
+                {!hideChrome && scope === "page" && (
+                  <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
+                    <Header />
+                  </ChromeFrame>
+                )}
 
-              {scope !== "page" && (
-                <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Edytujesz:{" "}
-                  {scope === "header"
-                    ? "Nagłówek"
-                    : scope === "footer"
-                      ? "Stopkę"
-                      : scope === "popup"
-                        ? "Popup"
-                        : "Menu"}
-                </div>
-              )}
+                {scope !== "page" && (
+                  <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Edytujesz:{" "}
+                    {scope === "header"
+                      ? "Nagłówek"
+                      : scope === "footer"
+                        ? "Stopkę"
+                        : scope === "popup"
+                          ? "Popup"
+                          : "Menu"}
+                  </div>
+                )}
 
-              <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
-                <CanvasActionBar
-                  canUndo={history.canUndo}
-                  canRedo={history.canRedo}
-                  onUndo={undo}
-                  onRedo={redo}
-                  selection={selection}
-                  onDelete={() => {
-                    if (!selection.id) return;
-                    if (selection.kind === "section") askRemoveSection(selection.id);
-                    else if (selection.kind === "column") askRemoveColumn(selection.id);
-                    else if (selection.kind === "widget") askRemoveWidget(selection.id);
-                  }}
-                />
+                <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
+                  <CanvasActionBar
+                    canUndo={history.canUndo}
+                    canRedo={history.canRedo}
+                    onUndo={undo}
+                    onRedo={redo}
+                    selection={selection}
+                    onDelete={() => {
+                      if (!selection.id) return;
+                      if (selection.kind === "section") askRemoveSection(selection.id);
+                      else if (selection.kind === "column") askRemoveColumn(selection.id);
+                      else if (selection.kind === "widget") askRemoveWidget(selection.id);
+                    }}
+                  />
 
-                {/* Readable fallback when the document is empty (no sections yet):
+                  {/* Readable fallback when the document is empty (no sections yet):
                     every scope gets a scope-specific empty state + StructurePicker
                     so the user can create the first section (i.e. start the
                     document). "Load homepage layout" is page-only. */}
-                {isEmptyDocument(doc) && (
-                  <EmptyState
-                    onAdd={addSection}
-                    title={copy.title}
-                    hint={copy.hint}
-                    onLoadHomepage={scope === "page" ? loadHomepage : undefined}
+                  {isEmptyDocument(doc) && (
+                    <EmptyState
+                      onAdd={addSection}
+                      title={copy.title}
+                      hint={copy.hint}
+                      onLoadHomepage={scope === "page" ? loadHomepage : undefined}
+                    />
+                  )}
+                  <VisualCanvas
+                    doc={doc}
+                    lang={lang}
+                    device={device}
+                    selection={selection}
+                    setSelection={setSelection}
+                    onInsertSection={insertSectionAt}
+                    onRemoveSection={askRemoveSection}
+                    onMoveWidget={moveWidgetTo}
+                    onMoveWidgetToColumn={moveWidgetToColumn}
+                    onMoveWidgetToSection={moveWidgetToSection}
+                    onMoveSection={moveSectionTo}
+                    onDropNewWidgetToColumn={addWidgetToColumn}
+                    onDropNewWidgetNear={insertWidgetNear}
+                    onDropNewWidgetToSection={appendWidgetToSection}
+                    firstLabel={copy.first}
+                    lastLabel={copy.last}
                   />
-                )}
-                <VisualCanvas
-                  doc={doc}
-                  lang={lang}
-                  device={device}
-                  selection={selection}
-                  setSelection={setSelection}
-                  onInsertSection={insertSectionAt}
-                  onRemoveSection={askRemoveSection}
-                  onMoveWidget={moveWidgetTo}
-                  onMoveWidgetToColumn={moveWidgetToColumn}
-                  onMoveWidgetToSection={moveWidgetToSection}
-                  onMoveSection={moveSectionTo}
-                  onDropNewWidgetToColumn={addWidgetToColumn}
-                  onDropNewWidgetNear={insertWidgetNear}
-                  onDropNewWidgetToSection={appendWidgetToSection}
-                  firstLabel={copy.first}
-                  lastLabel={copy.last}
-                />
-              </div>
+                </div>
 
-              {!hideChrome && scope === "page" && (
-                <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
-                  <Footer />
-                </ChromeFrame>
-              )}
-            </div>
-          </BuilderModeProvider>
+                {!hideChrome && scope === "page" && (
+                  <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
+                    <Footer />
+                  </ChromeFrame>
+                )}
+              </div>
+            </BuilderModeProvider>
+          </div>
         </div>
-      </div>
-      {/* Floating font-size toolbar for [data-edit-target] elements. Mounted
+        {/* Floating font-size toolbar for [data-edit-target] elements. Mounted
           OUTSIDE the canvas click-wrapper so clicks inside the (portaled)
           toolbar can never bubble into the "deselect on canvas click" handler
           above — that bubbling was one of the ways the old toolbar vanished. */}
-      <InlineSizeToolbar
-        doc={doc}
-        selection={selection}
-        setSelection={setSelection}
-        updateWidget={updateWidget}
-      />
-      <ConfirmDeleteDialog
-        pending={pendingDelete}
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (!pendingDelete) return;
-          if (pendingDelete.kind === "section") removeSection(pendingDelete.id);
-          else if (pendingDelete.kind === "column") removeColumn(pendingDelete.id);
-          else if (pendingDelete.kind === "widget") removeWidget(pendingDelete.id);
-          setSelection({ kind: null, id: null });
-          setPendingDelete(null);
-        }}
-      />
-      <BuilderContextMenu target={ctx} actions={ctxActions} onClose={() => setCtx(null)} />
-    </div>
+        <InlineSizeToolbar
+          doc={doc}
+          selection={selection}
+          setSelection={setSelection}
+          updateWidget={updateWidget}
+        />
+        <ConfirmDeleteDialog
+          pending={pendingDelete}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            if (!pendingDelete) return;
+            if (pendingDelete.kind === "section") removeSection(pendingDelete.id);
+            else if (pendingDelete.kind === "column") removeColumn(pendingDelete.id);
+            else if (pendingDelete.kind === "widget") removeWidget(pendingDelete.id);
+            setSelection({ kind: null, id: null });
+            setPendingDelete(null);
+          }}
+        />
+        <BuilderContextMenu target={ctx} actions={ctxActions} onClose={() => setCtx(null)} />
+      </div>
+      <CoachmarkTour controller={tour} />
+    </>
   );
 }

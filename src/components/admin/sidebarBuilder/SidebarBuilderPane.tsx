@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import {
   Bookmark,
   ChevronDown,
@@ -162,7 +163,7 @@ export function SidebarBuilderPane() {
       await qc.invalidateQueries({ queryKey: ["post-sidebar-layout"] });
       toast.success(lang === "pl" ? "Zapisano układ sidebaru" : "Sidebar layout saved");
     },
-    onError: (e: unknown) => toast.error((e as Error).message),
+    onError: (e: unknown) => toastError(e, "save"),
   });
 
   const createMutation = useMutation({
@@ -196,7 +197,7 @@ export function SidebarBuilderPane() {
       setActiveId(id);
       toast.success(lang === "pl" ? "Utworzono układ" : "Layout created");
     },
-    onError: (e: unknown) => toast.error((e as Error).message),
+    onError: (e: unknown) => toastError(e, "save"),
   });
 
   const layouts = layoutsQuery.data ?? [];

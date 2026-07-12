@@ -79,7 +79,7 @@ export function PageParentSelect(props: PageParentSelectProps) {
 
   return (
     <div>
-      <Label>{label}</Label>
+      {label ? <Label>{label}</Label> : null}
       <Select
         value={value ?? "__none__"}
         onValueChange={(v) => onChange(v === "__none__" ? null : v)}

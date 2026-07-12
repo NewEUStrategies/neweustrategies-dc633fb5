@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Check, X, Folder, Upload, Loader2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 
 interface PickerRow {
   id: string;
@@ -105,7 +106,7 @@ export function MediaPickerDialog({
         await qc.invalidateQueries({ queryKey: ["media-picker", tenantId, accept] });
         if (lastUrl) setPickedUrl(lastUrl);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err));
+        toastError(err, "upload");
       } finally {
         setUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -176,7 +177,7 @@ export function MediaPickerDialog({
       await qc.invalidateQueries({ queryKey: ["media-picker"] });
       toast.success("Zapisano alt");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "save");
     } finally {
       setSavingAlt(false);
     }

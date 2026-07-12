@@ -47,6 +47,7 @@ import {
   FolderOpen,
   FolderPlus,
   Upload,
+  Loader2,
   Trash2,
   Copy,
   Scissors,
@@ -71,6 +72,7 @@ import {
   Image,
 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import {
   registerMediaUpload,
   bulkDeleteMedia,
@@ -350,7 +352,7 @@ export function MediaManager() {
         toast.success(t("admin.media.uploaded", { defaultValue: "Wgrano pliki" }));
         invalidateAll();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err));
+        toastError(err, "upload");
       } finally {
         setBusy(false);
       }
@@ -381,7 +383,7 @@ export function MediaManager() {
       if (recordHistory) pushUndo({ kind: "move", ids, from: before, to: normalizePath(target) });
       invalidateAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "save");
     }
   };
 
@@ -395,7 +397,7 @@ export function MediaManager() {
       if (recordHistory) pushUndo({ kind: "rename", id, from, to: newName });
       invalidateAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "save");
     }
   };
 
@@ -407,7 +409,7 @@ export function MediaManager() {
       clearSelection();
       invalidateAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "delete");
     }
   };
 
@@ -419,7 +421,7 @@ export function MediaManager() {
         toast.success(t("admin.media.pasted", { defaultValue: "Wklejono" }));
         invalidateAll();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err));
+        toastError(err, "save");
       }
     } else {
       await doMove(clipboard.ids, currentPath);
@@ -473,7 +475,7 @@ export function MediaManager() {
       setNewFolderName("");
       invalidateAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "save");
     }
   };
 
@@ -492,7 +494,7 @@ export function MediaManager() {
       setRenamingFolderDraft("");
       invalidateAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "save");
     }
   };
 
@@ -502,7 +504,7 @@ export function MediaManager() {
       if (currentPath.startsWith(path)) setCurrentPath(parentOf(path));
       invalidateAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toastError(err, "delete");
     }
   };
 
@@ -705,8 +707,17 @@ export function MediaManager() {
           {t("admin.nav.media", { defaultValue: "Media" })}
         </h1>
         <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy}>
-          <Upload className="w-4 h-4 mr-1.5" />
-          {busy ? "…" : t("admin.media.upload", { defaultValue: "Wgraj" })}
+          {busy ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              {t("admin.media.uploading", { defaultValue: "Wgrywanie…" })}
+            </>
+          ) : (
+            <>
+              <Upload className="w-4 h-4 mr-1.5" />
+              {t("admin.media.upload", { defaultValue: "Wgraj" })}
+            </>
+          )}
         </Button>
         <input ref={fileInputRef} type="file" multiple hidden onChange={onFilesPicked} />
         <Button size="sm" variant="outline" onClick={() => setNewFolderOpen(true)}>
@@ -976,7 +987,7 @@ export function MediaManager() {
                   await updateMeta({ data: { mediaId: id, altText } });
                   invalidateAll();
                 } catch (err) {
-                  toast.error(err instanceof Error ? err.message : String(err));
+                  toastError(err, "save");
                 }
               }}
             />

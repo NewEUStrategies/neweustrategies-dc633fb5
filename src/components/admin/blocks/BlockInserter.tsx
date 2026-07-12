@@ -66,7 +66,11 @@ export function BlockInserter({
     { id: "text", label: t("blocks.categories.text") },
     { id: "media", label: t("blocks.categories.media") },
     { id: "layout", label: t("blocks.categories.layout") },
-    { id: "advanced", label: t("blocks.categories.advanced") },
+    { id: "dynamic", label: t("blocks.categories.dynamic") },
+    { id: "widgets", label: t("blocks.categories.widgets") },
+    { id: "forms", label: t("blocks.categories.forms") },
+    { id: "marketing", label: t("blocks.categories.marketing") },
+    { id: "data", label: t("blocks.categories.data") },
   ];
 
   if (!open) {

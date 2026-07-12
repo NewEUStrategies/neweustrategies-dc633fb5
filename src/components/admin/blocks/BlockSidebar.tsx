@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectTrigger,
@@ -68,6 +69,24 @@ export function BlockSidebar({
 
 type AlignValue = NonNullable<BlockStyle["align"]>;
 
+// Block types with dedicated, hand-built inspector controls below. Every other
+// block type still gets the shared Layout section (align/spacing/visibility)
+// plus a "edited in the canvas" hint, so unconfigured blocks no longer look
+// broken with a lone alignment select.
+const HANDLED_TYPES = new Set([
+  "heading",
+  "image",
+  "list",
+  "quote",
+  "embed",
+  "video",
+  "callout",
+  "button",
+  "separator",
+  "code",
+  "html",
+]);
+
 function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block) => void }) {
   const { t } = useTranslation();
   const spec = BLOCK_SPECS[block.type];
@@ -75,6 +94,10 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
 
   const set = (key: string, value: string | number | boolean) => {
     onChange({ ...block, data: { ...block.data, [key]: value } });
+  };
+
+  const setStyle = (key: keyof BlockStyle, value: number | boolean | undefined) => {
+    onChange({ ...block, style: { ...block.style, [key]: value } });
   };
 
   return (
@@ -86,6 +109,10 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
           <p className="text-[10px] text-muted-foreground">{spec.description}</p>
         </div>
       </div>
+
+      {!HANDLED_TYPES.has(block.type) && (
+        <p className="text-[11px] text-muted-foreground italic">{t("blocks.sidebar.canvasEdit")}</p>
+      )}
 
       {block.type === "heading" && (
         <>
@@ -308,25 +335,77 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
         </div>
       )}
 
-      <div className="pt-2 border-t border-border">
-        <Label className="text-xs">{t("blocks.settings.align")}</Label>
-        <Select
-          value={block.style?.align ?? "left"}
-          onValueChange={(v) =>
-            onChange({ ...block, style: { ...block.style, align: v as AlignValue } })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="left">{t("blocks.settings.alignLeft")}</SelectItem>
-            <SelectItem value="center">{t("blocks.settings.alignCenter")}</SelectItem>
-            <SelectItem value="right">{t("blocks.settings.alignRight")}</SelectItem>
-            <SelectItem value="wide">{t("blocks.settings.alignWide")}</SelectItem>
-            <SelectItem value="full">{t("blocks.settings.alignFull")}</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Shared Layout section — renders for EVERY block type so unconfigured
+          blocks show a full inspector (alignment + spacing + visibility). */}
+      <div className="pt-2 border-t border-border space-y-3">
+        <div>
+          <Label className="text-xs">{t("blocks.settings.align")}</Label>
+          <Select
+            value={block.style?.align ?? "left"}
+            onValueChange={(v) =>
+              onChange({ ...block, style: { ...block.style, align: v as AlignValue } })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left">{t("blocks.settings.alignLeft")}</SelectItem>
+              <SelectItem value="center">{t("blocks.settings.alignCenter")}</SelectItem>
+              <SelectItem value="right">{t("blocks.settings.alignRight")}</SelectItem>
+              <SelectItem value="wide">{t("blocks.settings.alignWide")}</SelectItem>
+              <SelectItem value="full">{t("blocks.settings.alignFull")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-xs">{t("blocks.settings.spacing")}</Label>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">
+                {t("blocks.settings.marginTop")}
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={400}
+                value={block.style?.marginTop ?? ""}
+                onChange={(e) =>
+                  setStyle("marginTop", e.target.value === "" ? undefined : Number(e.target.value))
+                }
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">
+                {t("blocks.settings.marginBottom")}
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={400}
+                value={block.style?.marginBottom ?? ""}
+                onChange={(e) =>
+                  setStyle(
+                    "marginBottom",
+                    e.target.value === "" ? undefined : Number(e.target.value),
+                  )
+                }
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">{t("blocks.settings.visibility")}</Label>
+          <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            {t("blocks.settings.hideOnPublish")}
+            <Switch
+              checked={block.style?.hidden ?? false}
+              onCheckedChange={(checked) => setStyle("hidden", checked ? true : undefined)}
+            />
+          </label>
+        </div>
       </div>
     </div>
   );

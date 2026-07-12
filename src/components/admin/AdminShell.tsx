@@ -104,7 +104,7 @@ export function SidebarRowButton({
       title={title}
       data-sidebar="menu-button"
       className={cn(
-        "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-left transition",
+        "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] text-left transition",
         tone === "destructive" && "text-destructive hover:bg-destructive/10",
         tone === "accent" &&
           (active
@@ -211,6 +211,19 @@ function AdminShellInner({
             defaultValue: lang === "pl" ? "Testy A/B" : "A/B tests",
           }),
         },
+        { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
+        { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
+        {
+          to: "/admin/crm",
+          icon: Users,
+          label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
+        },
+      ],
+    },
+    {
+      id: "community",
+      label: t("admin.navGroups.community"),
+      items: [
         {
           to: "/admin/contact",
           icon: Inbox,
@@ -234,13 +247,6 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
-        { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
-        { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
-        {
-          to: "/admin/crm",
-          icon: Users,
-          label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
-        },
       ],
     },
     {
@@ -395,7 +401,7 @@ function AdminShellInner({
                 {group.label && !compact && (
                   <div
                     data-sidebar="group-label"
-                    className="px-2 pt-1 pb-0 text-[9px] uppercase tracking-wider text-muted-foreground font-semibold"
+                    className="px-2 pt-1 pb-0 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold"
                   >
                     {group.label}
                   </div>
@@ -410,7 +416,7 @@ function AdminShellInner({
                         title={label}
                         data-sidebar="menu-button"
                         data-active={active ? "true" : "false"}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] leading-tight transition ${
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] leading-tight transition ${
                           active
                             ? "bg-brand text-brand-foreground"
                             : "text-foreground hover:bg-muted"
@@ -430,7 +436,7 @@ function AdminShellInner({
                 {extras.title && (
                   <div
                     data-sidebar="group-label"
-                    className="px-2 pb-1 text-[8px] uppercase tracking-wider text-muted-foreground font-medium"
+                    className="px-2 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold"
                   >
                     {extras.title}
                   </div>
@@ -455,7 +461,7 @@ function AdminShellInner({
               to="/"
               title={t("admin.viewSite")}
               data-sidebar="menu-button"
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted"
             >
               <Home className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>

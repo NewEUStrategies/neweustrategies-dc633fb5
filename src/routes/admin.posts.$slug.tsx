@@ -51,8 +51,10 @@ import {
   Link as LinkIconLucide,
   Mic,
 } from "@/lib/lucide-shim";
-import { History, Database, ListChecks } from "lucide-react";
+import { History, Database, ListChecks, HelpCircle } from "lucide-react";
 import { ChevronDown } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
@@ -162,6 +164,27 @@ function SidebarSection({
   );
 }
 
+// Small inline help affordance: a "?" icon that reveals a tooltip on
+// hover/focus. Keeps the dense editor controls self-explanatory without adding
+// permanent visual clutter. Requires a <TooltipProvider> ancestor (mounted
+// once around the whole EditPost tree).
+function InfoHint({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={text}
+          className="inline-flex align-middle text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function EditPost() {
   const { slug: routeSlug } = Route.useParams();
   const { t, i18n } = useTranslation();
@@ -245,6 +268,18 @@ function EditPost() {
   // Two-step flow: "details" shows metadata + titles + descriptions in both
   // languages; "content" opens the actual editor (builder / rich text).
   const [step, setStep] = useState<"details" | "content">("details");
+  // Content-first: an established post (already titled) opens straight in the
+  // editor so writing — not the dense metadata — is the landing view. Brand-new
+  // / untitled posts stay on "details" so the author sets a title first. Runs
+  // exactly once after the post loads and never fights later manual navigation.
+  const autoStepRef = useRef(false);
+  useEffect(() => {
+    if (autoStepRef.current || !form) return;
+    autoStepRef.current = true;
+    if (form.title_pl?.trim() || form.title_en?.trim()) {
+      setStep("content");
+    }
+  }, [form]);
   type DetailsTab =
     | "general"
     | "takeaways"
@@ -693,63 +728,102 @@ function EditPost() {
       icon={SettingsIcon}
     >
       {workflowSection}
+      <SidebarSection
+        title={t("admin.posts.editorAdvanced", { defaultValue: "Zaawansowane: typ edytora" })}
+        icon={Layers}
+        defaultOpen={false}
+      >
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          {t("admin.posts.editorAdvancedHint", {
+            defaultValue:
+              "Domyślnie używany jest edytor blokowy. Zmień tylko jeśli wiesz, czego potrzebujesz.",
+          })}
+        </p>
+        <div>
+          <Label className="inline-flex items-center gap-1">
+            {t("admin.posts.editor")}
+            <InfoHint
+              text={t("admin.posts.editorHint", {
+                defaultValue:
+                  "Bloki = zalecany edytor. Visual Builder = układ przeciągnij-i-upuść. Rich text / Markdown = starsze tryby tekstowe.",
+              })}
+            />
+          </Label>
+          <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="blocks">
+                {t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}
+              </SelectItem>
+              <SelectItem value="builder">
+                {t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}
+              </SelectItem>
+              <SelectItem value="richtext">
+                {t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}
+              </SelectItem>
+              <SelectItem value="markdown">
+                {t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {form.editor !== "blocks" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={async () => {
+                try {
+                  const res = await migrate$({ data: { id: form.id } });
+                  toast.success(
+                    t("admin.posts.migrateOk", {
+                      defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
+                      src: res.source,
+                    }),
+                  );
+                  await qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
+                } catch (e) {
+                  toastError(e, "generic");
+                }
+              }}
+            >
+              {t("admin.posts.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
+            </Button>
+          )}
+        </div>
+      </SidebarSection>
       <div>
-        <Label>{t("admin.posts.editor")}</Label>
-        <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="blocks">
-              {t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}
-            </SelectItem>
-            <SelectItem value="builder">
-              {t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}
-            </SelectItem>
-            <SelectItem value="richtext">
-              {t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}
-            </SelectItem>
-            <SelectItem value="markdown">
-              {t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        {form.editor !== "blocks" && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2 w-full"
-            onClick={async () => {
-              try {
-                const res = await migrate$({ data: { id: form.id } });
-                toast.success(
-                  t("admin.posts.migrateOk", {
-                    defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
-                    src: res.source,
-                  }),
-                );
-                await qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : String(e));
-              }
-            }}
-          >
-            {t("admin.posts.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
-          </Button>
-        )}
-      </div>
-      <div>
-        <Label>Slug</Label>
+        <Label className="inline-flex items-center gap-1">
+          Slug
+          <InfoHint
+            text={t("admin.posts.slugHint", {
+              defaultValue:
+                "Część adresu URL wpisu. Zmiana slug zmienia link; przy kolizji serwer dopisze sufiks.",
+            })}
+          />
+        </Label>
         <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
       </div>
-      <PageParentSelect
-        tenantId={tenantId}
-        value={form.parent_page_id}
-        onChange={(v) => v && set("parent_page_id", v)}
-        label="Strona nadrzędna"
-        noneLabel="- wybierz stronę -"
-      />
+      <div>
+        <Label className="inline-flex items-center gap-1">
+          {t("admin.posts.parentLabel", { defaultValue: "Strona nadrzędna" })}
+          <InfoHint
+            text={t("admin.posts.parentHint", {
+              defaultValue:
+                "Umieszcza wpis w ścieżce URL wybranej strony i wpływa na nawigację/breadcrumbs.",
+            })}
+          />
+        </Label>
+        <PageParentSelect
+          tenantId={tenantId}
+          value={form.parent_page_id}
+          onChange={(v) => v && set("parent_page_id", v)}
+          label=""
+          noneLabel={t("admin.posts.parentNone", { defaultValue: "- wybierz stronę -" })}
+        />
+      </div>
       <div>
         <Label>{t("admin.posts.readMinutes")}</Label>
         <Input
@@ -833,8 +907,16 @@ function EditPost() {
           );
         })()}
       <div className="space-y-1.5 pt-2 border-t border-border">
-        <p className="text-xs text-muted-foreground mb-1">
-          Nadpisz sekcje stopki (puste = z globalnych):
+        <p className="text-xs text-muted-foreground mb-1 inline-flex items-center gap-1">
+          {t("admin.posts.layoutOverrideHint", {
+            defaultValue: "Nadpisz sekcje stopki (puste = z globalnych):",
+          })}
+          <InfoHint
+            text={t("admin.posts.layoutTriHint", {
+              defaultValue:
+                "Globalne = dziedzicz ustawienie globalne. Włącz/Wyłącz = wymuś dla tego wpisu, ignorując globalne.",
+            })}
+          />
         </p>
         {(
           [
@@ -992,496 +1074,513 @@ function EditPost() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        {step === "details" ? (
-          <Link
-            to="/admin/posts"
-            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-          >
-            <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
-          </Link>
-        ) : (
-          <button
-            onClick={() => setStep("details")}
-            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-          >
-            <ArrowLeft className="w-4 h-4" /> Szczegóły wpisu
-          </button>
-        )}
-        <div className="flex items-center gap-2">
-          {/* Step indicator */}
-          <div className="hidden md:flex items-center gap-1 mr-2 text-xs">
+    <TooltipProvider delayDuration={200}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          {step === "details" ? (
+            <Link
+              to="/admin/posts"
+              className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
+            </Link>
+          ) : (
             <button
               onClick={() => setStep("details")}
-              className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
+              className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
             >
-              <SettingsIcon className="w-3.5 h-3.5" /> 1. Szczegóły
+              <ArrowLeft className="w-4 h-4" /> Szczegóły wpisu
             </button>
-            <span className="text-muted-foreground">→</span>
-            <button
-              onClick={() => setStep("content")}
-              className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
-            >
-              <FileText className="w-3.5 h-3.5" /> 2. Treść
-            </button>
+          )}
+          <div className="flex items-center gap-2">
+            {/* Step indicator */}
+            <div className="hidden md:flex items-center gap-1 mr-2 text-xs">
+              <button
+                onClick={() => setStep("details")}
+                className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
+              >
+                <SettingsIcon className="w-3.5 h-3.5" /> 1. Szczegóły
+              </button>
+              <span className="text-muted-foreground">→</span>
+              <button
+                onClick={() => setStep("content")}
+                className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
+              >
+                <FileText className="w-3.5 h-3.5" /> 2. Treść
+              </button>
+            </div>
+            <AutosaveBar
+              status={autosave.status}
+              error={autosave.error}
+              canUndo={history.canUndo}
+              canRedo={history.canRedo}
+              onUndo={history.undo}
+              onRedo={history.redo}
+              onDiscard={discardToSaved}
+            />
+
+            <Button variant="ghost" size="sm" onClick={del}>
+              <Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}
+            </Button>
+            <Button onClick={save} disabled={busy}>
+              <Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}
+            </Button>
           </div>
-          <AutosaveBar
-            status={autosave.status}
-            error={autosave.error}
-            canUndo={history.canUndo}
-            canRedo={history.canRedo}
-            onUndo={history.undo}
-            onRedo={history.redo}
-            onDiscard={discardToSaved}
-          />
-
-          <Button variant="ghost" size="sm" onClick={del}>
-            <Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}
-          </Button>
-          <Button onClick={save} disabled={busy}>
-            <Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}
-          </Button>
         </div>
-      </div>
 
-      <EditPresenceBanner entityType="post" entityId={id} />
+        <EditPresenceBanner entityType="post" entityId={id} />
 
-      {step === "details" ? (
-        (() => {
-          type TabDef = {
-            id: DetailsTab;
-            label: string;
-            icon: typeof SettingsIcon;
-            hint?: string;
-          };
-          const groups: { id: string; label: string; tabs: TabDef[] }[] = [
-            {
-              id: "content",
-              label: "Treść",
-              tabs: [
-                { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
-                {
-                  id: "takeaways",
-                  label: "Dowiesz się…",
-                  icon: ListChecks,
-                  hint: "Kluczowe punkty PL/EN + wariant",
-                },
-                {
-                  id: "audio",
-                  label: "Audio (MP3)",
-                  icon: Mic,
-                  hint: "PL/EN · fallback do lektora AI",
-                },
-              ],
-            },
-            {
-              id: "structure",
-              label: "Struktura",
-              tabs: [
-                {
-                  id: "settings",
-                  label: "Ustawienia strony",
-                  icon: SettingsIcon,
-                  hint: "Spis treści · Ochrona treści",
-                },
-                { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
-                { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
-                { id: "related", label: "Powiązane wpisy", icon: LinkIconLucide, hint: "Override" },
-              ],
-            },
-            {
-              id: "seo",
-              label: "SEO i meta",
-              tabs: [
-                {
-                  id: "seo",
-                  label: "SEO i podgląd",
-                  icon: Search,
-                  hint: "Meta title/description, OG",
-                },
-                { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
-              ],
-            },
-            {
-              id: "publication",
-              label: "Publikacja",
-              tabs: [
-                {
-                  id: "publish",
-                  label: "Publikacja",
-                  icon: SettingsIcon,
-                  hint: "Status, slug, cover",
-                },
-                { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
-              ],
-            },
-            {
-              id: "history",
-              label: "Historia",
-              tabs: [{ id: "revisions", label: "Historia zmian", icon: History }],
-            },
-          ];
-          return (
-            <div className="flex flex-col md:flex-row gap-6">
-              <aside className="md:w-64 shrink-0">
-                <nav className="bg-card border border-border rounded-lg p-2 space-y-3 sticky top-4">
-                  {groups.map((group, gi) => (
-                    <div key={group.id} className={gi > 0 ? "pt-2 border-t border-border" : ""}>
-                      <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-                        {group.label}
-                      </div>
-                      <div className="space-y-0.5">
-                        {group.tabs.map((tab) => {
-                          const Icon = tab.icon;
-                          const active = detailsTab === tab.id;
-                          return (
-                            <button
-                              key={tab.id}
-                              type="button"
-                              onClick={() => setDetailsTab(tab.id)}
-                              aria-current={active ? "page" : undefined}
-                              className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-start gap-2.5 ${
-                                active
-                                  ? "bg-brand text-brand-foreground"
-                                  : "text-foreground hover:bg-muted"
-                              }`}
-                            >
-                              <Icon
-                                className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`}
-                              />
-                              <span className="flex-1 min-w-0">
-                                <span className="block font-medium leading-tight">{tab.label}</span>
-                                {tab.hint && (
-                                  <span
-                                    className={`block text-[11px] leading-tight mt-0.5 ${
-                                      active ? "text-brand-foreground/80" : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    {tab.hint}
+        {step === "details" ? (
+          (() => {
+            type TabDef = {
+              id: DetailsTab;
+              label: string;
+              icon: typeof SettingsIcon;
+              hint?: string;
+            };
+            const groups: { id: string; label: string; tabs: TabDef[] }[] = [
+              {
+                id: "content",
+                label: "Treść",
+                tabs: [
+                  { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
+                  {
+                    id: "takeaways",
+                    label: "Dowiesz się…",
+                    icon: ListChecks,
+                    hint: "Kluczowe punkty PL/EN + wariant",
+                  },
+                  {
+                    id: "audio",
+                    label: "Audio (MP3)",
+                    icon: Mic,
+                    hint: "PL/EN · fallback do lektora AI",
+                  },
+                ],
+              },
+              {
+                id: "structure",
+                label: "Struktura",
+                tabs: [
+                  {
+                    id: "settings",
+                    label: "Ustawienia strony",
+                    icon: SettingsIcon,
+                    hint: "Spis treści · Ochrona treści",
+                  },
+                  { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
+                  { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
+                  {
+                    id: "related",
+                    label: "Powiązane wpisy",
+                    icon: LinkIconLucide,
+                    hint: "Override",
+                  },
+                ],
+              },
+              {
+                id: "seo",
+                label: "SEO i meta",
+                tabs: [
+                  {
+                    id: "seo",
+                    label: "SEO i podgląd",
+                    icon: Search,
+                    hint: "Meta title/description, OG",
+                  },
+                  { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
+                ],
+              },
+              {
+                id: "publication",
+                label: "Publikacja",
+                tabs: [
+                  {
+                    id: "publish",
+                    label: "Publikacja",
+                    icon: SettingsIcon,
+                    hint: "Status, slug, cover",
+                  },
+                  { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
+                ],
+              },
+              {
+                id: "history",
+                label: "Historia",
+                tabs: [{ id: "revisions", label: "Historia zmian", icon: History }],
+              },
+            ];
+            return (
+              <div className="flex flex-col md:flex-row gap-6">
+                <aside className="md:w-64 shrink-0">
+                  <nav className="bg-card border border-border rounded-lg p-2 space-y-3 sticky top-4">
+                    {groups.map((group, gi) => (
+                      <div key={group.id} className={gi > 0 ? "pt-2 border-t border-border" : ""}>
+                        <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                          {group.label}
+                        </div>
+                        <div className="space-y-0.5">
+                          {group.tabs.map((tab) => {
+                            const Icon = tab.icon;
+                            const active = detailsTab === tab.id;
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setDetailsTab(tab.id)}
+                                aria-current={active ? "page" : undefined}
+                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-start gap-2.5 ${
+                                  active
+                                    ? "bg-brand text-brand-foreground"
+                                    : "text-foreground hover:bg-muted"
+                                }`}
+                              >
+                                <Icon
+                                  className={`w-4 h-4 mt-0.5 shrink-0 ${active ? "" : "text-muted-foreground"}`}
+                                />
+                                <span className="flex-1 min-w-0">
+                                  <span className="block font-medium leading-tight">
+                                    {tab.label}
                                   </span>
-                                )}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </nav>
-              </aside>
-              <section className="flex-1 min-w-0">
-                <div className="bg-card border border-border rounded-lg p-5 md:p-6 space-y-5">
-                  {detailsTab === "general" && (
-                    <PostGeneralOverview
-                      entityId={id}
-                      titlePl={form.title_pl}
-                      titleEn={form.title_en}
-                      onTitlePlChange={(v) => set("title_pl", v)}
-                      onTitleEnChange={(v) => set("title_en", v)}
-                      excerptPl={form.excerpt_pl ?? ""}
-                      excerptEn={form.excerpt_en ?? ""}
-                      onExcerptPlChange={(v) => set("excerpt_pl", v)}
-                      onExcerptEnChange={(v) => set("excerpt_en", v)}
-                      status={form.status}
-                      slug={form.slug}
-                      coverImageUrl={form.cover_image_url}
-                      publishedAt={form.published_at}
-                      publishAt={form.publish_at}
-                      seoTitlePl={form.seo_title_pl}
-                      seoTitleEn={form.seo_title_en}
-                      seoDescriptionPl={form.seo_description_pl}
-                      seoDescriptionEn={form.seo_description_en}
-                      seoNoindex={form.seo_noindex}
-                      seoIssues={seoIssues}
-                      tocOverride={form.toc_override ?? null}
-                      takeawaysPl={form.takeaways_pl ?? []}
-                      takeawaysEn={form.takeaways_en ?? []}
-                      customMeta={form.custom_meta}
-                      relatedOverride={form.related_override}
-                      postFormat={(form.post_format ?? "standard") as PostFormat}
-                      layoutOverrides={form.layout_overrides}
-                      selectedCatNames={(allCats ?? [])
-                        .filter((c) => selectedCats.includes(c.id))
-                        .map((c) =>
-                          uiLang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
-                        )}
-                      selectedTagNames={(allTags ?? [])
-                        .filter((tg) => selectedTags.includes(tg.id))
-                        .map((tg) => tg.name)}
-                      onNavigate={(tab) => setDetailsTab(tab)}
-                    />
-                  )}
-
-                  {detailsTab === "settings" && (
-                    <PostSettingsMetabox
-                      entityType="post"
-                      entityId={id}
-                      tocOverride={form.toc_override ?? null}
-                      onTocOverrideChange={(next) => set("toc_override", next)}
-                      postBlocks={form.blocks_data ?? null}
-                      hideTakeawaysTab
-                    />
-                  )}
-
-                  {detailsTab === "takeaways" && (
-                    <section className="rounded-xl border border-border bg-card overflow-hidden">
-                      <header className="px-4 py-3 border-b border-border bg-muted/30">
-                        <h3 className="text-sm font-semibold">Dowiesz się…</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Kluczowe punkty wpisu w PL i EN. Wybierz wariant wizualny lub zostaw
-                          globalny.
-                        </p>
-                      </header>
-                      <div className="p-4">
-                        <TakeawaysTab
-                          pl={form.takeaways_pl ?? []}
-                          en={form.takeaways_en ?? []}
-                          onChange={(lang, next) =>
-                            set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
-                          }
-                          variantOverride={form.takeaways_variant ?? null}
-                          onVariantChange={(next) => set("takeaways_variant", next)}
-                        />
-                      </div>
-                    </section>
-                  )}
-
-                  {detailsTab === "seo" && (
-                    <SeoPanel
-                      value={{
-                        seo_title_pl: form.seo_title_pl,
-                        seo_title_en: form.seo_title_en,
-                        seo_description_pl: form.seo_description_pl,
-                        seo_description_en: form.seo_description_en,
-                        seo_canonical_url: form.seo_canonical_url,
-                        seo_noindex: form.seo_noindex ?? false,
-                        seo_og_image_url: form.seo_og_image_url,
-                        og_image_generated_url: form.og_image_generated_url,
-                      }}
-                      onChange={(patch) =>
-                        history.set((f) => (f ? { ...f, ...patch } : f), {
-                          coalesceKey: Object.keys(patch).sort().join("|"),
-                        })
-                      }
-                      entity={{ kind: "post", id }}
-                      slug={form.slug}
-                      pathSourcePageId={form.parent_page_id}
-                      fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
-                      fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
-                      coverImageUrl={form.cover_image_url}
-                      ogKicker={allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null}
-                      onIssuesChange={setSeoIssues}
-                    />
-                  )}
-
-                  {detailsTab === "meta" && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-lg font-display font-semibold">Custom meta</h2>
-                          <p className="text-xs text-muted-foreground">
-                            Wartości własnych pól dla tego wpisu.
-                          </p>
+                                  {tab.hint && (
+                                    <span
+                                      className={`block text-[11px] leading-tight mt-0.5 ${
+                                        active
+                                          ? "text-brand-foreground/80"
+                                          : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {tab.hint}
+                                    </span>
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <Link to="/admin/custom-meta" className="text-xs text-brand underline">
-                          Edytuj definicje
-                        </Link>
                       </div>
-                      <CustomMetaValuesEditor
-                        tenantId={tenantId}
-                        lang="pl"
-                        values={form.custom_meta}
-                        onChange={(next) => set("custom_meta", next)}
+                    ))}
+                  </nav>
+                </aside>
+                <section className="flex-1 min-w-0">
+                  <div className="bg-card border border-border rounded-lg p-5 md:p-6 space-y-5">
+                    {detailsTab === "general" && (
+                      <PostGeneralOverview
+                        entityId={id}
+                        titlePl={form.title_pl}
+                        titleEn={form.title_en}
+                        onTitlePlChange={(v) => set("title_pl", v)}
+                        onTitleEnChange={(v) => set("title_en", v)}
+                        excerptPl={form.excerpt_pl ?? ""}
+                        excerptEn={form.excerpt_en ?? ""}
+                        onExcerptPlChange={(v) => set("excerpt_pl", v)}
+                        onExcerptEnChange={(v) => set("excerpt_en", v)}
+                        status={form.status}
+                        slug={form.slug}
+                        coverImageUrl={form.cover_image_url}
+                        publishedAt={form.published_at}
+                        publishAt={form.publish_at}
+                        seoTitlePl={form.seo_title_pl}
+                        seoTitleEn={form.seo_title_en}
+                        seoDescriptionPl={form.seo_description_pl}
+                        seoDescriptionEn={form.seo_description_en}
+                        seoNoindex={form.seo_noindex}
+                        seoIssues={seoIssues}
+                        tocOverride={form.toc_override ?? null}
+                        takeawaysPl={form.takeaways_pl ?? []}
+                        takeawaysEn={form.takeaways_en ?? []}
+                        customMeta={form.custom_meta}
+                        relatedOverride={form.related_override}
+                        postFormat={(form.post_format ?? "standard") as PostFormat}
+                        layoutOverrides={form.layout_overrides}
+                        selectedCatNames={(allCats ?? [])
+                          .filter((c) => selectedCats.includes(c.id))
+                          .map((c) =>
+                            uiLang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
+                          )}
+                        selectedTagNames={(allTags ?? [])
+                          .filter((tg) => selectedTags.includes(tg.id))
+                          .map((tg) => tg.name)}
+                        onNavigate={(tab) => setDetailsTab(tab)}
                       />
-                    </div>
-                  )}
+                    )}
 
-                  {detailsTab === "related" && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-lg font-display font-semibold">
-                            Powiązane wpisy - override
-                          </h2>
-                          <p className="text-xs text-muted-foreground">
-                            Nadpisuje globalną konfigurację dla tego wpisu.
+                    {detailsTab === "settings" && (
+                      <PostSettingsMetabox
+                        entityType="post"
+                        entityId={id}
+                        tocOverride={form.toc_override ?? null}
+                        onTocOverrideChange={(next) => set("toc_override", next)}
+                        postBlocks={form.blocks_data ?? null}
+                        hideTakeawaysTab
+                      />
+                    )}
+
+                    {detailsTab === "takeaways" && (
+                      <section className="rounded-xl border border-border bg-card overflow-hidden">
+                        <header className="px-4 py-3 border-b border-border bg-muted/30">
+                          <h3 className="text-sm font-semibold">Dowiesz się…</h3>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Kluczowe punkty wpisu w PL i EN. Wybierz wariant wizualny lub zostaw
+                            globalny.
                           </p>
+                        </header>
+                        <div className="p-4">
+                          <TakeawaysTab
+                            pl={form.takeaways_pl ?? []}
+                            en={form.takeaways_en ?? []}
+                            onChange={(lang, next) =>
+                              set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
+                            }
+                            variantOverride={form.takeaways_variant ?? null}
+                            onVariantChange={(next) => set("takeaways_variant", next)}
+                          />
                         </div>
-                        <Link to="/admin/related-posts" className="text-xs text-brand underline">
-                          Konfiguracja globalna
-                        </Link>
-                      </div>
-                      <RelatedOverrideEditor
-                        value={form.related_override}
-                        onChange={(next: Record<string, unknown> | null) =>
-                          set("related_override", next)
+                      </section>
+                    )}
+
+                    {detailsTab === "seo" && (
+                      <SeoPanel
+                        value={{
+                          seo_title_pl: form.seo_title_pl,
+                          seo_title_en: form.seo_title_en,
+                          seo_description_pl: form.seo_description_pl,
+                          seo_description_en: form.seo_description_en,
+                          seo_canonical_url: form.seo_canonical_url,
+                          seo_noindex: form.seo_noindex ?? false,
+                          seo_og_image_url: form.seo_og_image_url,
+                          og_image_generated_url: form.og_image_generated_url,
+                        }}
+                        onChange={(patch) =>
+                          history.set((f) => (f ? { ...f, ...patch } : f), {
+                            coalesceKey: Object.keys(patch).sort().join("|"),
+                          })
                         }
+                        entity={{ kind: "post", id }}
+                        slug={form.slug}
+                        pathSourcePageId={form.parent_page_id}
+                        fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
+                        fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
+                        coverImageUrl={form.cover_image_url}
+                        ogKicker={
+                          allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
+                        }
+                        onIssuesChange={setSeoIssues}
                       />
-                    </div>
-                  )}
+                    )}
 
-                  {detailsTab === "publish" && <div className="space-y-4">{metaCard}</div>}
-
-                  {detailsTab === "layout" && <div className="space-y-4">{layoutCard}</div>}
-
-                  {detailsTab === "taxonomy" && (
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {catsCard}
-                      {tagsCard}
-                    </div>
-                  )}
-
-                  {detailsTab === "access" && (
-                    <AccessSettingsPane entityType="post" entityId={id} />
-                  )}
-
-                  {detailsTab === "audio" && (
-                    <section className="rounded-xl border border-border bg-card overflow-hidden">
-                      <header className="px-4 py-3 border-b border-border bg-muted/30">
-                        <h3 className="text-sm font-semibold inline-flex items-center gap-2">
-                          <Mic className="w-4 h-4 text-brand" />
-                          Audio wpisu (MP3)
-                        </h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Wgraj własny plik audio dla PL i/lub EN. Dla języka bez wgranego pliku
-                          użyty zostanie automatyczny lektor AI (ElevenLabs). Max 50 MB · MP3, M4A,
-                          AAC, OGG, WAV.
-                        </p>
-                      </header>
-                      <div className="p-4 grid md:grid-cols-2 gap-4">
-                        <AudioPicker
-                          label="Plik audio - polski (PL)"
-                          value={form.audio_url_pl ?? ""}
-                          onChange={(v: string) => set("audio_url_pl", v || null)}
-                          hint="Wgrany plik zastępuje ElevenLabs dla PL. Usuń, aby wrócić do lektora AI."
-                        />
-                        <AudioPicker
-                          label="Plik audio - angielski (EN)"
-                          value={form.audio_url_en ?? ""}
-                          onChange={(v: string) => set("audio_url_en", v || null)}
-                          hint="Wgrany plik zastępuje ElevenLabs dla EN. Usuń, aby wrócić do lektora AI."
+                    {detailsTab === "meta" && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h2 className="text-lg font-display font-semibold">Custom meta</h2>
+                            <p className="text-xs text-muted-foreground">
+                              Wartości własnych pól dla tego wpisu.
+                            </p>
+                          </div>
+                          <Link to="/admin/custom-meta" className="text-xs text-brand underline">
+                            Edytuj definicje
+                          </Link>
+                        </div>
+                        <CustomMetaValuesEditor
+                          tenantId={tenantId}
+                          lang="pl"
+                          values={form.custom_meta}
+                          onChange={(next) => set("custom_meta", next)}
                         />
                       </div>
-                    </section>
-                  )}
+                    )}
 
-                  {detailsTab === "revisions" && (
+                    {detailsTab === "related" && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h2 className="text-lg font-display font-semibold">
+                              Powiązane wpisy - override
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
+                              Nadpisuje globalną konfigurację dla tego wpisu.
+                            </p>
+                          </div>
+                          <Link to="/admin/related-posts" className="text-xs text-brand underline">
+                            Konfiguracja globalna
+                          </Link>
+                        </div>
+                        <RelatedOverrideEditor
+                          value={form.related_override}
+                          onChange={(next: Record<string, unknown> | null) =>
+                            set("related_override", next)
+                          }
+                        />
+                      </div>
+                    )}
+
+                    {detailsTab === "publish" && <div className="space-y-4">{metaCard}</div>}
+
+                    {detailsTab === "layout" && <div className="space-y-4">{layoutCard}</div>}
+
+                    {detailsTab === "taxonomy" && (
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {catsCard}
+                        {tagsCard}
+                      </div>
+                    )}
+
+                    {detailsTab === "access" && (
+                      <AccessSettingsPane entityType="post" entityId={id} />
+                    )}
+
+                    {detailsTab === "audio" && (
+                      <section className="rounded-xl border border-border bg-card overflow-hidden">
+                        <header className="px-4 py-3 border-b border-border bg-muted/30">
+                          <h3 className="text-sm font-semibold inline-flex items-center gap-2">
+                            <Mic className="w-4 h-4 text-brand" />
+                            Audio wpisu (MP3)
+                          </h3>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Wgraj własny plik audio dla PL i/lub EN. Dla języka bez wgranego pliku
+                            użyty zostanie automatyczny lektor AI (ElevenLabs). Max 50 MB · MP3,
+                            M4A, AAC, OGG, WAV.
+                          </p>
+                        </header>
+                        <div className="p-4 grid md:grid-cols-2 gap-4">
+                          <AudioPicker
+                            label="Plik audio - polski (PL)"
+                            value={form.audio_url_pl ?? ""}
+                            onChange={(v: string) => set("audio_url_pl", v || null)}
+                            hint="Wgrany plik zastępuje ElevenLabs dla PL. Usuń, aby wrócić do lektora AI."
+                          />
+                          <AudioPicker
+                            label="Plik audio - angielski (EN)"
+                            value={form.audio_url_en ?? ""}
+                            onChange={(v: string) => set("audio_url_en", v || null)}
+                            hint="Wgrany plik zastępuje ElevenLabs dla EN. Usuń, aby wrócić do lektora AI."
+                          />
+                        </div>
+                      </section>
+                    )}
+
+                    {detailsTab === "revisions" && (
+                      <RevisionsCard
+                        entityType="post"
+                        entityId={id}
+                        onRestored={onRevisionRestored}
+                      />
+                    )}
+
+                    <div className="flex justify-end pt-2 border-t border-border">
+                      <Button
+                        onClick={() => setStep("content")}
+                        disabled={!form.title_pl.trim() && !form.title_en.trim()}
+                      >
+                        Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            );
+          })()
+        ) : (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3 bg-card border border-border rounded-lg p-2 pl-4">
+              <div className="text-xs text-muted-foreground">
+                {t("admin.posts.editorMode", { defaultValue: "Tryb edytora" })}
+              </div>
+              <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+                <button
+                  type="button"
+                  onClick={() => set("editor", "blocks")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${form.editor === "blocks" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  aria-pressed={form.editor === "blocks"}
+                >
+                  Gutenberg
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set("editor", "builder")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${form.editor === "builder" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  aria-pressed={form.editor === "builder"}
+                >
+                  Elementor
+                </button>
+              </div>
+            </div>
+            {form.editor === "blocks" ? (
+              <PostBlockEditor
+                value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
+                onChange={(v) => set("blocks_data", v)}
+                canvasWrap={(canvas, lang) => {
+                  if (!globalLayout) return canvas;
+                  const effective = mergeOverrides(globalLayout, ov);
+                  const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
+                  const title =
+                    lang === "en" ? form.title_en || form.title_pl : form.title_pl || form.title_en;
+                  const excerpt = lang === "en" ? form.excerpt_en : form.excerpt_pl;
+                  return (
+                    <LayoutScaffold
+                      format={currentFormat}
+                      layoutId={layoutId}
+                      settings={effective}
+                      title={title}
+                      excerpt={excerpt}
+                      coverImageUrl={form.cover_image_url}
+                    >
+                      {canvas}
+                    </LayoutScaffold>
+                  );
+                }}
+                documentPane={
+                  <div className="space-y-4">
+                    {metaCard}
+                    {layoutCard}
+                    {catsCard}
+                    {tagsCard}
+                    <AccessSettingsPane entityType="post" entityId={id} />
                     <RevisionsCard
                       entityType="post"
                       entityId={id}
                       onRestored={onRevisionRestored}
                     />
-                  )}
-
-                  <div className="flex justify-end pt-2 border-t border-border">
-                    <Button
-                      onClick={() => setStep("content")}
-                      disabled={!form.title_pl.trim() && !form.title_en.trim()}
-                    >
-                      Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
                   </div>
-                </div>
-              </section>
-            </div>
-          );
-        })()
-      ) : (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between gap-3 bg-card border border-border rounded-lg p-2 pl-4">
-            <div className="text-xs text-muted-foreground">
-              {t("admin.posts.editorMode", { defaultValue: "Tryb edytora" })}
-            </div>
-            <div className="inline-flex rounded-md border border-border bg-background p-0.5">
-              <button
-                type="button"
-                onClick={() => set("editor", "blocks")}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${form.editor === "blocks" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                aria-pressed={form.editor === "blocks"}
-              >
-                Gutenberg
-              </button>
-              <button
-                type="button"
-                onClick={() => set("editor", "builder")}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${form.editor === "builder" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                aria-pressed={form.editor === "builder"}
-              >
-                Elementor
-              </button>
-            </div>
+                }
+              />
+            ) : form.editor === "builder" ? (
+              <BuilderPane form={form} set={set} />
+            ) : (
+              <Tabs defaultValue="pl">
+                <TabsList>
+                  <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
+                  <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+                </TabsList>
+                <TabsContent value="pl" className="space-y-4 mt-4">
+                  <div>
+                    <Label>{t("admin.posts.content")} (PL)</Label>
+                    <PostEditor
+                      mode={form.editor === "markdown" ? "markdown" : "richtext"}
+                      value={form.content_pl ?? ""}
+                      onChange={(v) => set("content_pl", v)}
+                      onPickImage={pickImage}
+                    />
+                  </div>
+                </TabsContent>
+                <TabsContent value="en" className="space-y-4 mt-4">
+                  <div>
+                    <Label>{t("admin.posts.content")} (EN)</Label>
+                    <PostEditor
+                      mode={form.editor === "markdown" ? "markdown" : "richtext"}
+                      value={form.content_en ?? ""}
+                      onChange={(v) => set("content_en", v)}
+                      onPickImage={pickImage}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
           </div>
-          {form.editor === "blocks" ? (
-            <PostBlockEditor
-              value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
-              onChange={(v) => set("blocks_data", v)}
-              canvasWrap={(canvas, lang) => {
-                if (!globalLayout) return canvas;
-                const effective = mergeOverrides(globalLayout, ov);
-                const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
-                const title =
-                  lang === "en" ? form.title_en || form.title_pl : form.title_pl || form.title_en;
-                const excerpt = lang === "en" ? form.excerpt_en : form.excerpt_pl;
-                return (
-                  <LayoutScaffold
-                    format={currentFormat}
-                    layoutId={layoutId}
-                    settings={effective}
-                    title={title}
-                    excerpt={excerpt}
-                    coverImageUrl={form.cover_image_url}
-                  >
-                    {canvas}
-                  </LayoutScaffold>
-                );
-              }}
-              documentPane={
-                <div className="space-y-4">
-                  {metaCard}
-                  {layoutCard}
-                  {catsCard}
-                  {tagsCard}
-                  <AccessSettingsPane entityType="post" entityId={id} />
-                  <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
-                </div>
-              }
-            />
-          ) : form.editor === "builder" ? (
-            <BuilderPane form={form} set={set} />
-          ) : (
-            <Tabs defaultValue="pl">
-              <TabsList>
-                <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-                <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-              </TabsList>
-              <TabsContent value="pl" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.content")} (PL)</Label>
-                  <PostEditor
-                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
-                    value={form.content_pl ?? ""}
-                    onChange={(v) => set("content_pl", v)}
-                    onPickImage={pickImage}
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="en" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.content")} (EN)</Label>
-                  <PostEditor
-                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
-                    value={form.content_en ?? ""}
-                    onChange={(v) => set("content_en", v)}
-                    onPickImage={pickImage}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
 

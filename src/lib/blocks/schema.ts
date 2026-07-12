@@ -19,6 +19,7 @@ const BlockStyleSchema = z
     align: z.enum(["left", "center", "right", "wide", "full"]).optional(),
     marginTop: z.number().int().min(0).max(400).optional(),
     marginBottom: z.number().int().min(0).max(400).optional(),
+    hidden: z.boolean().optional(),
   })
   .strict();
 
