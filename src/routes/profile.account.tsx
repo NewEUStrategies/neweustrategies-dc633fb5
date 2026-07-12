@@ -241,7 +241,7 @@ function AccountPage() {
     const { data: row } = await supabase
       .from("profiles")
       .select(
-        "display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender",
+        "display_name, first_name, last_name, job_title, current_company, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender",
       )
       .eq("id", uid)
       .maybeSingle();
@@ -259,12 +259,15 @@ function AccountPage() {
     const metaDisplay = meta.display_name || meta.name || nameFromFull || "";
     const metaAvatar = meta.avatar_url || meta.picture || "";
 
+    const rowBioPl = (row as { bio_pl?: string | null }).bio_pl;
     const merged: ProfileRow = {
       ...(row as ProfileRow),
       first_name: row.first_name || metaFirst || null,
       last_name: row.last_name || metaLast || null,
       display_name: row.display_name || metaDisplay || null,
       avatar_url: row.avatar_url || metaAvatar || null,
+      // Canonical bio = bio_pl (fallback to legacy single-language `bio`).
+      bio: rowBioPl ?? row.bio ?? null,
     };
     setData(merged);
 
@@ -365,7 +368,9 @@ function AccountPage() {
         current_company: data.current_company,
         location: data.location,
         phone: data.phone,
-        bio: data.bio,
+        // Canonical localized bio (mirror trigger keeps legacy `bio` in sync);
+        // keeps this editor consistent with /profile/social and public pages.
+        bio_pl: data.bio,
         avatar_url: data.avatar_url,
         cover_url: data.cover_url,
         gender: data.gender,

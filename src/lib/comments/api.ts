@@ -21,6 +21,19 @@ export interface CommentWithAuthor extends CommentRow {
 
 export type CommentStatus = "pending" | "approved" | "spam" | "deleted";
 
+/** Author edit window (mirrors the DB guard comments_guard_update: 15 min). */
+export const COMMENT_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+/** Whether the caller may still edit this comment (own, not deleted, in window). */
+export function canEditComment(c: CommentWithAuthor, currentUserId: string | null): boolean {
+  return (
+    !!currentUserId &&
+    c.user_id === currentUserId &&
+    c.status !== "deleted" &&
+    Date.now() - new Date(c.created_at).getTime() < COMMENT_EDIT_WINDOW_MS
+  );
+}
+
 /**
  * Fetch approved comments for a post, plus the caller's own pending replies
  * (RLS-permitted via `comments_own_select`). Sorted oldest-first at the top
@@ -33,7 +46,9 @@ export type CommentStatus = "pending" | "approved" | "spam" | "deleted";
 export async function fetchPostComments(postId: string, limit = 500): Promise<CommentWithAuthor[]> {
   const { data, error } = await supabase
     .from("comments")
-    .select("id, post_id, user_id, parent_id, body, status, created_at, updated_at, tenant_id")
+    .select(
+      "id, post_id, user_id, parent_id, body, status, created_at, updated_at, edited_at, tenant_id",
+    )
     .eq("post_id", postId)
     .in("status", ["approved", "pending"])
     .order("created_at", { ascending: true })
@@ -78,6 +93,24 @@ export async function createComment(input: {
       parent_id: input.parentId ?? null,
       body: trimmed,
     })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as CommentRow;
+}
+
+/**
+ * Edit an own comment's body. The DB guard (comments_guard_update) accepts this
+ * only within 15 minutes of creation and stamps edited_at; outside the window
+ * it raises 'comments: edit window expired'.
+ */
+export async function editComment(id: string, body: string): Promise<CommentRow> {
+  const trimmed = body.trim();
+  if (trimmed.length < 1 || trimmed.length > 5000) throw new Error("invalid_length");
+  const { data, error } = await supabase
+    .from("comments")
+    .update({ body: trimmed })
+    .eq("id", id)
     .select("*")
     .single();
   if (error) throw error;
