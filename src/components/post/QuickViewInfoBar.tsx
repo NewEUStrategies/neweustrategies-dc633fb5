@@ -1,5 +1,6 @@
 import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { formatDate } from "@/lib/i18n/format";
 
 type Category =
   | { slug: string; name_pl?: string | null; name_en?: string | null }
@@ -36,11 +37,7 @@ export function QuickViewInfoBar({
     updatedAt && publishedAt && new Date(updatedAt) > new Date(publishedAt),
   );
   const dateText = displayDate
-    ? new Date(displayDate).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
+    ? formatDate(displayDate, lang, { year: "numeric", month: "short", day: "numeric" })
     : null;
 
   if (!catLabel && !readMinutes && !dateText) return null;

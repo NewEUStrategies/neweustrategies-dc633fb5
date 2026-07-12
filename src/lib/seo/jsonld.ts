@@ -10,6 +10,7 @@
 import { SITE_NAME, SITE_DEFAULT_DESCRIPTION, absoluteUrl, type Lang } from "@/lib/seo/meta";
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
+import { homeLabel } from "@/lib/i18n/commonLabels";
 
 /**
  * Serialize a JSON-LD graph for embedding inside a <script> element. Plain
@@ -94,7 +95,7 @@ export function breadcrumbListJsonLd(
   origin: string,
   lang: Lang,
 ): Record<string, unknown> {
-  const home: BreadcrumbItem = { label: lang === "en" ? "Home" : "Start", href: "/" };
+  const home: BreadcrumbItem = { label: homeLabel(lang), href: "/" };
   const all = [home, ...items];
   return {
     "@context": "https://schema.org",

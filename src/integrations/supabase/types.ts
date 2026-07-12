@@ -5645,9 +5645,21 @@ export type Database = {
           total_count: number
         }[]
       }
+      log_search_query: {
+        Args: { _lang?: string; _q: string; _results?: number }
+        Returns: undefined
+      }
+      popular_searches: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          cnt: number
+          q: string
+        }[]
+      }
       search_posts: {
         Args: {
           _author?: string
+          _category?: string
           _date_from?: string
           _date_to?: string
           _limit?: number
@@ -5658,10 +5670,22 @@ export type Database = {
           cover_image_url: string
           excerpt_en: string
           excerpt_pl: string
+          headline_en: string
+          headline_pl: string
           id: string
           parent_page_id: string
           published_at: string
           rank: number
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
+      search_suggest: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          id: string
+          sim: number
           slug: string
           title_en: string
           title_pl: string

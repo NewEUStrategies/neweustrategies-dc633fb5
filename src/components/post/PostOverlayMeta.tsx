@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ReadingTimeView } from "@/components/blocks/PostUtilityViews";
 import { Clock, User as UserIcon } from "@/lib/lucide-shim";
+import { formatDate } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -40,11 +41,7 @@ interface Props {
 
 function fmtDate(iso: string, lang: Lang): string {
   try {
-    return new Intl.DateTimeFormat(lang === "en" ? "en-US" : "pl-PL", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(iso));
+    return formatDate(iso, lang, { day: "2-digit", month: "2-digit", year: "numeric" });
   } catch {
     return iso;
   }

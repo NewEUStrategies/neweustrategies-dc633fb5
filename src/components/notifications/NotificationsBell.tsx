@@ -21,6 +21,7 @@ import {
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
+import { formatDateShort } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -44,7 +45,7 @@ function relTime(iso: string, lang: Lang): string {
   if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
   if (abs < 86400) return rtf.format(Math.round(diff / 3600), "hour");
   if (abs < 604800) return rtf.format(Math.round(diff / 86400), "day");
-  return new Date(iso).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL");
+  return formatDateShort(iso, lang);
 }
 
 function kebabToPascal(name: string): string {

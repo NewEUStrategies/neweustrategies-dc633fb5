@@ -9,9 +9,11 @@ interface Props {
   emptyText: string;
   /** Optional recovery action rendered under the empty message. */
   emptyAction?: React.ReactNode;
+  /** Optional per-post excerpt override (e.g. search-hit snippet with <mark>). */
+  getExcerptOverride?: (post: BlogListItem) => React.ReactNode | undefined;
 }
 
-export function ArchivePostList({ posts, lang, emptyText, emptyAction }: Props) {
+export function ArchivePostList({ posts, lang, emptyText, emptyAction, getExcerptOverride }: Props) {
   if (posts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
@@ -24,7 +26,14 @@ export function ArchivePostList({ posts, lang, emptyText, emptyAction }: Props) 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {posts.map((p) => (
-        <PostListCard key={p.id} post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+        <PostListCard
+          key={p.id}
+          post={p}
+          href={p.href}
+          lang={lang}
+          viewTransitionId={p.id}
+          excerptOverride={getExcerptOverride?.(p)}
+        />
       ))}
     </div>
   );

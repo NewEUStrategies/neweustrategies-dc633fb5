@@ -5,6 +5,7 @@ import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { formatDate as intlFormatDate, formatDateShort } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -21,8 +22,8 @@ function formatDate(iso: string | undefined, format: string, lang: Lang): string
     if (Math.abs(days) < 365) return rtf.format(-Math.round(days / 30), "month");
     return rtf.format(-Math.round(days / 365), "year");
   }
-  if (format === "short") return new Intl.DateTimeFormat(lang === "en" ? "en" : "pl").format(d);
-  return new Intl.DateTimeFormat(lang === "en" ? "en" : "pl", { dateStyle: "long" }).format(d);
+  if (format === "short") return formatDateShort(d, lang);
+  return intlFormatDate(d, lang, { dateStyle: "long" });
 }
 
 export function PostTitleView({ level, lang, cls }: { level: number; lang: Lang; cls: string }) {

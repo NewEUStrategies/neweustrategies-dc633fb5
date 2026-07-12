@@ -17,6 +17,7 @@ import {
 } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { formatDate } from "@/lib/i18n/format";
 import {
   User,
   Mail,
@@ -518,9 +519,7 @@ export function RelatedPostsView({
                     className="text-xs text-muted-foreground mt-1 block"
                     dateTime={p.published_at}
                   >
-                    {new Intl.DateTimeFormat(lang === "en" ? "en" : "pl", {
-                      dateStyle: "medium",
-                    }).format(new Date(p.published_at))}
+                    {formatDate(p.published_at, lang, { dateStyle: "medium" })}
                   </time>
                 )}
               </div>

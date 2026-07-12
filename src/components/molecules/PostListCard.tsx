@@ -10,6 +10,7 @@
 import { Link } from "@tanstack/react-router";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { formatDateShort } from "@/lib/i18n/format";
 
 // Karty renderują się w siatce 1/2/3 kolumny w kontenerze max 1200px.
 const CARD_IMAGE_SIZES = "(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92vw";
@@ -44,6 +45,8 @@ interface PostListCardProps {
    * płynnie "przenosi" okładkę z listy do nagłówka wpisu.
    */
   viewTransitionId?: string;
+  /** Zamiennik excerptu (np. snippet trafienia wyszukiwarki z <mark>). */
+  excerptOverride?: React.ReactNode;
 }
 
 export function PostListCard({
@@ -55,6 +58,7 @@ export function PostListCard({
   link = "router",
   imageZoom = true,
   viewTransitionId,
+  excerptOverride,
 }: PostListCardProps) {
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
@@ -82,10 +86,14 @@ export function PostListCard({
       )}
       <div className="p-5">
         <h2 className={`font-display mb-2 line-clamp-2 ${titleClassName}`}>{title}</h2>
-        {excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>}
+        {excerptOverride ? (
+          <p className="text-sm text-muted-foreground line-clamp-3">{excerptOverride}</p>
+        ) : (
+          excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>
+        )}
         {post.published_at && (
           <time className="block mt-3 text-xs text-muted-foreground">
-            {new Date(post.published_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL")}
+            {formatDateShort(post.published_at, lang)}
           </time>
         )}
       </div>

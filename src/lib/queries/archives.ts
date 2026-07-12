@@ -4,6 +4,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
+import { currentLang } from "@/lib/i18n/localeRuntime";
 
 const TTL = 2 * 60_000;
 
@@ -245,14 +246,22 @@ export interface SearchFacets {
   authors: Array<{ id: string; name: string; count: number }>;
 }
 
+/** Wynik /search: pozycja listy + (opcjonalny) snippet trafienia z ts_headline
+ *  (delimitery [[[ ]]] zamieniane na <mark> w komponencie SearchSnippet). */
+export type SearchResultItem = BlogListItem & {
+  headline_pl?: string | null;
+  headline_en?: string | null;
+};
+
 export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARCH_PAGE_SIZE) =>
   queryOptions({
     queryKey: ["public", "search", filters, { limit }] as const,
     enabled: filters.q.trim().length >= 2,
-    queryFn: async (): Promise<{ posts: BlogListItem[]; facets: SearchFacets }> => {
+    queryFn: async (): Promise<{ posts: SearchResultItem[]; facets: SearchFacets }> => {
       // Postgres full-text search (ranked, unaccent + prefix matching, indexuje
-      // też treść blocks_data/builder_data) zamiast ILIKE %q%. Author/data są
-      // filtrowane w RPC, kategoria pozostaje filtrem po stronie klienta (join).
+      // też treść blocks_data/builder_data) zamiast ILIKE %q%. Author/data/
+      // kategoria są filtrowane w RPC (pushdown kategorii naprawia audytowany
+      // defekt: filtr po stronie klienta zwężał już przycięte okno wyników).
       // search_posts nie ma offsetu, więc "load more" rośnie przez _limit
       // (60 → 120 → ...), z twardym sufitem SEARCH_LIMIT_MAX.
       const { data: matchRows, error: matchError } = await supabase.rpc("search_posts", {
@@ -261,29 +270,33 @@ export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARC
         _author: filters.authorId ?? undefined,
         _date_from: filters.dateFrom ?? undefined,
         _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
+        _category: filters.categoryId ?? undefined,
       });
       if (matchError) throw matchError;
-      let rows = (matchRows ?? []).map(
-        ({ rank: _rank, ...row }): Omit<BlogListItem, "href"> & { author_id: string | null } => row,
+      const rows = (matchRows ?? []).map(
+        ({
+          rank: _rank,
+          ...row
+        }): Omit<SearchResultItem, "href"> & { author_id: string | null } => row,
       );
 
-      // Category filter is post-join: filter ids via post_categories.
-      if (filters.categoryId && rows.length > 0) {
-        const ids = rows.map((r) => r.id);
-        const { data: pc, error: pcError } = await supabase
-          .from("post_categories")
-          .select("post_id")
-          .eq("category_id", filters.categoryId)
-          .in("post_id", ids);
-        if (pcError) throw pcError;
-        const allow = new Set((pc ?? []).map((r) => r.post_id as string));
-        rows = rows.filter((r) => allow.has(r.id));
-      }
+      const posts = (await hydrateHref(rows)) as SearchResultItem[];
 
-      const posts = await hydrateHref(rows);
+      // Telemetria zapytań (fundament podpowiedzi/trendów) - fire-and-forget,
+      // odporna na brak funkcji przed wdrożeniem migracji.
+      void supabase
+        .rpc("log_search_query", {
+          _q: filters.q.trim(),
+          _lang: currentLang(),
+          _results: rows.length,
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
 
-      // Facets: derived from the (pre-category-filter) match set so users can
-      // discover other matching categories.
+      // Facets: liczone z przefiltrowanego zbioru (po pushdownie kategorii
+      // aktywna kategoria zawęża facety; odznaczenie przywraca pełen zestaw).
       const facets = await computeFacets(
         rows.map((r) => r.id),
         rows,
