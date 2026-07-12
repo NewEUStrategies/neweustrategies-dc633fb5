@@ -246,6 +246,10 @@ const pl = {
     trial: "{{days}} dni za darmo",
     popular: "Najpopularniejszy",
     empty: "Brak dostępnych planów.",
+    intervalMonthly: "Miesięcznie",
+    intervalYearly: "Rocznie",
+    compareTitle: "Porównanie planów",
+    compareFeature: "Funkcja",
     trust: {
       secure: "Bezpieczne płatności Stripe",
       cancel: "Anuluj w każdej chwili",
@@ -547,6 +551,10 @@ const en: typeof pl = {
     trial: "{{days}}-day free trial",
     popular: "Most popular",
     empty: "No plans available.",
+    intervalMonthly: "Monthly",
+    intervalYearly: "Yearly",
+    compareTitle: "Compare plans",
+    compareFeature: "Feature",
     trust: {
       secure: "Secure payments by Stripe",
       cancel: "Cancel anytime",
