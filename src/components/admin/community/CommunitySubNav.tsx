@@ -1,41 +1,27 @@
 // Sticky sub-nav dla /admin/community/* (Chat / Events / Q&A).
-import { Link, useRouterState } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
-import { LayoutDashboard, MessageCircle, Calendar, HelpCircle, Users2 } from "lucide-react";
+import {
+  LayoutDashboard,
+  MessageCircle,
+  Calendar,
+  HelpCircle,
+  Vote,
+  UserPlus,
+  Award,
+  Bell,
+  BarChart3,
+  Users2,
+} from "lucide-react";
 
 const tabs = [
-  {
-    to: "/admin/community" as const,
-    key: "overview",
-    icon: LayoutDashboard,
-    labelPl: "Podsumowanie",
-    labelEn: "Overview",
-    exact: true,
-  },
-  {
-    to: "/admin/community/chat" as const,
-    key: "chat",
-    icon: MessageCircle,
-    labelPl: "Chat",
-    labelEn: "Chat",
-    exact: false,
-  },
-  {
-    to: "/admin/community/events" as const,
-    key: "events",
-    icon: Calendar,
-    labelPl: "Wydarzenia",
-    labelEn: "Events",
-    exact: false,
-  },
-  {
-    to: "/admin/community/qa" as const,
-    key: "qa",
-    icon: HelpCircle,
-    labelPl: "Q&A",
-    labelEn: "Q&A",
-    exact: false,
-  },
+  { to: "/admin/community" as const, key: "overview", icon: LayoutDashboard, labelPl: "Podsumowanie", labelEn: "Overview", exact: true },
+  { to: "/admin/community/chat" as const, key: "chat", icon: MessageCircle, labelPl: "Chat", labelEn: "Chat", exact: false },
+  { to: "/admin/community/events" as const, key: "events", icon: Calendar, labelPl: "Wydarzenia", labelEn: "Events", exact: false },
+  { to: "/admin/community/qa" as const, key: "qa", icon: HelpCircle, labelPl: "Q&A", labelEn: "Q&A", exact: false },
+  { to: "/admin/community/polls" as const, key: "polls", icon: Vote, labelPl: "Ankiety", labelEn: "Polls", exact: false },
+  { to: "/admin/community/contributors" as const, key: "contributors", icon: UserPlus, labelPl: "Współtwórcy", labelEn: "Contributors", exact: false },
+  { to: "/admin/community/badges" as const, key: "badges", icon: Award, labelPl: "Odznaki", labelEn: "Badges", exact: false },
+  { to: "/admin/community/notifications" as const, key: "notifications", icon: Bell, labelPl: "Powiadomienia", labelEn: "Notifications", exact: false },
+  { to: "/admin/community/engagement" as const, key: "engagement", icon: BarChart3, labelPl: "Zaangażowanie", labelEn: "Engagement", exact: false },
 ];
 
 export function CommunitySubNav() {
