@@ -401,10 +401,18 @@ export async function grantBadge(
   badge: string,
   note?: string,
 ): Promise<void> {
+  const { data: profile, error: pErr } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (pErr) throw pErr;
+  if (!profile?.tenant_id) throw new Error("Cannot resolve tenant for user");
   const { error } = await supabase.from("profile_badges").insert({
     user_id: userId,
     badge,
     note: note ?? null,
+    tenant_id: profile.tenant_id,
   });
   if (error) throw error;
 }
