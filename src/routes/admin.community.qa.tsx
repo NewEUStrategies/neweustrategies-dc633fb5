@@ -100,22 +100,28 @@ function AdminCommunityQa() {
               : "Q&A sessions. Click one to moderate its questions."}
           </p>
         </div>
-        <Select
-          value={sessionStatus}
-          onValueChange={(v) => setSessionStatus(v as QaSessionStatus | "all")}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
-            <SelectItem value="draft">{isPl ? "Robocze" : "Draft"}</SelectItem>
-            <SelectItem value="scheduled">{isPl ? "Zaplanowane" : "Scheduled"}</SelectItem>
-            <SelectItem value="open">{isPl ? "Otwarte" : "Open"}</SelectItem>
-            <SelectItem value="answering">{isPl ? "Odpowiadanie" : "Answering"}</SelectItem>
-            <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select
+            value={sessionStatus}
+            onValueChange={(v) => setSessionStatus(v as QaSessionStatus | "all")}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
+              <SelectItem value="draft">{isPl ? "Robocze" : "Draft"}</SelectItem>
+              <SelectItem value="scheduled">{isPl ? "Zaplanowane" : "Scheduled"}</SelectItem>
+              <SelectItem value="open">{isPl ? "Otwarte" : "Open"}</SelectItem>
+              <SelectItem value="answering">{isPl ? "Odpowiadanie" : "Answering"}</SelectItem>
+              <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
+            </SelectContent>
+          </Select>
+          <CreateQaSessionButton
+            isPl={isPl}
+            onCreated={() => qc.invalidateQueries({ queryKey: ["admin-qa-sessions"] })}
+          />
+        </div>
       </header>
 
       <Card>
