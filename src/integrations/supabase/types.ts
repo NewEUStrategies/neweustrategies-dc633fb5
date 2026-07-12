@@ -2624,7 +2624,6 @@ export type Database = {
       }
       notification_preferences: {
         Row: {
-          allow_messages_from: string
           auto_mark_on_open: boolean
           created_at: string
           enabled_comment: boolean
@@ -2635,15 +2634,11 @@ export type Database = {
           enabled_subscription: boolean
           enabled_system: boolean
           group_by_conversation: boolean
-          read_receipts_enabled: boolean
-          show_online_status: boolean
           tenant_id: string
-          typing_indicators_enabled: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
-          allow_messages_from?: string
           auto_mark_on_open?: boolean
           created_at?: string
           enabled_comment?: boolean
@@ -2654,15 +2649,11 @@ export type Database = {
           enabled_subscription?: boolean
           enabled_system?: boolean
           group_by_conversation?: boolean
-          read_receipts_enabled?: boolean
-          show_online_status?: boolean
           tenant_id: string
-          typing_indicators_enabled?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
-          allow_messages_from?: string
           auto_mark_on_open?: boolean
           created_at?: string
           enabled_comment?: boolean
@@ -2673,10 +2664,7 @@ export type Database = {
           enabled_subscription?: boolean
           enabled_system?: boolean
           group_by_conversation?: boolean
-          read_receipts_enabled?: boolean
-          show_online_status?: boolean
           tenant_id?: string
-          typing_indicators_enabled?: boolean
           updated_at?: string
           user_id?: string
         }
