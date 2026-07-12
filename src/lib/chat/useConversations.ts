@@ -335,7 +335,7 @@ export function useSetMessageTtl() {
     async (args: { conversationId: string; ttlSeconds: number | null }) => {
       const { error } = await supabase.rpc("chat_set_message_ttl", {
         p_conversation_id: args.conversationId,
-        p_ttl_seconds: args.ttlSeconds,
+        p_ttl_seconds: args.ttlSeconds as number,
       });
       if (error) throw error;
     },
