@@ -3,7 +3,16 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { LayoutDashboard, MessageCircle, Calendar, HelpCircle, Users2 } from "lucide-react";
 
-const tabs = [
+interface Tab {
+  to: string;
+  key: string;
+  icon: typeof LayoutDashboard;
+  labelPl: string;
+  labelEn: string;
+  exact?: boolean;
+}
+
+const tabs: readonly Tab[] = [
   {
     to: "/admin/community",
     key: "overview",
