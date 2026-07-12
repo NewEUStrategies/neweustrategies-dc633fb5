@@ -16,6 +16,7 @@ const prefs: NotificationPreferences = {
   typing_indicators_enabled: true,
   show_online_status: true,
   allow_messages_from: "everyone",
+  email_digest_frequency: "off",
 };
 
 describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {

@@ -8,11 +8,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { tickNewsletterCampaigns } from "@/lib/newsletter-campaigns.functions";
+import {
+  processNotificationDigests,
+  processPushOutbox,
+} from "@/lib/server/notificationsTick.server";
 
 type DbClient = SupabaseClient<Database>;
 
 export interface JobsTickResult {
   newsletter: { fired: number; continued: number; sent: number } | { error: string };
+  push: { delivered: number; failed: number; skipped: boolean } | { error: string };
+  digests: { sent: number; skipped: number } | { error: string };
 }
 
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
@@ -22,7 +28,19 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   } catch (err) {
     newsletter = { error: err instanceof Error ? err.message : String(err) };
   }
-  return { newsletter };
+  let push: JobsTickResult["push"];
+  try {
+    push = await processPushOutbox(admin, {});
+  } catch (err) {
+    push = { error: err instanceof Error ? err.message : String(err) };
+  }
+  let digests: JobsTickResult["digests"];
+  try {
+    digests = await processNotificationDigests(admin, {});
+  } catch (err) {
+    digests = { error: err instanceof Error ? err.message : String(err) };
+  }
+  return { newsletter, push, digests };
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */

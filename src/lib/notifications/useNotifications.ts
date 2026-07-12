@@ -44,7 +44,11 @@ export interface NotificationPreferences {
   typing_indicators_enabled: boolean;
   show_online_status: boolean;
   allow_messages_from: AllowMessagesFrom;
+  /** E-mailowe podsumowanie nieprzeczytanych powiadomień (opt-in). */
+  email_digest_frequency: EmailDigestFrequency;
 }
+
+export type EmailDigestFrequency = "off" | "daily" | "weekly";
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_message: true,
@@ -60,6 +64,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   typing_indicators_enabled: true,
   show_online_status: true,
   allow_messages_from: "everyone",
+  email_digest_frequency: "off",
 };
 
 const prefsKey = (uid: string | undefined) =>
@@ -262,7 +267,7 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from",
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, email_digest_frequency" as never,
         )
         .eq("user_id", user!.id)
         .maybeSingle();
@@ -289,12 +294,13 @@ export function useUpdateNotificationPreferences() {
         .maybeSingle();
       if (pErr) throw pErr;
       if (!profile?.tenant_id) throw new Error("Profile tenant not found");
+      // email_digest_frequency jest nowsze niż wygenerowane typy -> cast.
       const { error } = await supabase.from("notification_preferences").upsert(
         {
           user_id: user.id,
           tenant_id: profile.tenant_id,
           ...patch,
-        },
+        } as never,
         { onConflict: "user_id" },
       );
       if (error) throw error;
