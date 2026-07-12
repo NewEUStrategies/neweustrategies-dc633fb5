@@ -193,10 +193,12 @@ export function ThemeDesignPane() {
     // Overlay typography: only push the fields that actually changed vs. the
     // server snapshot, so we don't overwrite unrelated columns.
     if (overlayData && overlayDraft) {
-      const patch: Partial<typeof overlayData> = {};
-      for (const key of Object.keys(overlayDraft) as Array<keyof typeof overlayDraft>) {
-        if (overlayDraft[key] !== overlayData[key]) {
-          (patch as Record<string, unknown>)[key as string] = overlayDraft[key];
+      const patch: Record<string, unknown> = {};
+      const draftRec = overlayDraft as unknown as Record<string, unknown>;
+      const dataRec = overlayData as unknown as Record<string, unknown>;
+      for (const key of Object.keys(draftRec)) {
+        if (draftRec[key] !== dataRec[key]) {
+          patch[key] = draftRec[key];
         }
       }
       if (Object.keys(patch).length > 0) saveOverlay.mutate(patch);
