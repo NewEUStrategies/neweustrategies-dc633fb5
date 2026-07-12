@@ -16,8 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AdminDateTimePicker } from "@/components/admin/blocks/AdminDatePicker";
-import { Save, Plus, Copy, Trash2, Check, Undo2, Redo2, X } from "@/lib/lucide-shim";
+import { Save, Plus, Copy, Trash2, Check, Undo2, Redo2, X, Loader2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { publishTickerDraft, clearTickerDraft } from "@/lib/views/tickerDraftBridge";
@@ -66,6 +67,7 @@ const COPY = {
     pinnedUntil: "Wyświetlaj do (data i godzina)",
     full: "Pełna szerokość",
     save: "Zapisz",
+    saving: "Zapisywanie…",
     preview: "Podgląd na żywo",
     saved: "Zapisano",
     pickPost: "Wybierz wpis",
@@ -136,6 +138,7 @@ const COPY = {
     pinnedUntil: "Display until (date & time)",
     full: "Full width",
     save: "Save",
+    saving: "Saving…",
     preview: "Live preview",
     saved: "Saved",
     pickPost: "Pick a post",
@@ -334,7 +337,7 @@ export function TrendingTickerPane() {
       qc.invalidateQueries({ queryKey: ["site_settings_public", "header"] });
       toast.success(t.saved);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toastError(e, "save"),
   });
 
   const patchActive = (patch: Partial<TickerConfig>): void => {
@@ -897,7 +900,15 @@ export function TrendingTickerPane() {
             <X className="w-4 h-4 mr-1" /> {t.cancel}
           </Button>
           <Button onClick={() => save.mutate(settings)} disabled={save.isPending}>
-            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : t.save}
+            {save.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t.saving}
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" /> {t.save}
+              </>
+            )}
           </Button>
         </div>
       </div>

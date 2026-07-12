@@ -3,6 +3,7 @@
 // and applied live via <DesignTokensStyle />.
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { DesignSubNav } from "@/components/admin/DesignSubNav";
 import { Plus, Trash2, Copy, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -71,6 +72,7 @@ function DesignSettings() {
 
   return (
     <div>
+      <DesignSubNav />
       <h2 className="font-display text-xl mb-1">Tokeny marki</h2>
       <p className="text-sm text-muted-foreground mb-4">
         Fonty i kolory definiują wygląd całej strony. Wartości zapisują się jako zmienne CSS (

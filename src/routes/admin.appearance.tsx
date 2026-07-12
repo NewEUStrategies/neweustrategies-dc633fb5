@@ -1,6 +1,7 @@
 // Appearance layout: spójny pasek nawigacji + Outlet dla pod-zakładek.
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { DesignSubNav } from "@/components/admin/DesignSubNav";
 
 export const Route = createFileRoute("/admin/appearance")({
   component: AppearanceLayout,
@@ -23,6 +24,7 @@ function AppearanceLayout() {
   ];
   return (
     <div className="space-y-4">
+      <DesignSubNav />
       <nav className="flex flex-wrap gap-1 border-b border-border">
         {tabs.map((tab) => {
           const active = path.startsWith(tab.to);

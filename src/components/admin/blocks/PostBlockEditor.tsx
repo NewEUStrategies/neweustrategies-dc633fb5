@@ -13,6 +13,9 @@ import { BlockSidebar } from "./BlockSidebar";
 import { useLocalizedBlocksHistory } from "./hooks/useLocalizedBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
 import { Undo, Redo } from "@/lib/lucide-shim";
+import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
+import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
+import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
 
 interface Props {
   value: LocalizedBlocks | null;
@@ -89,9 +92,15 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
     [history],
   );
 
+  const tour = useOnboardingTour({ id: "blocks", steps: BLOCK_TOUR_STEPS });
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 min-h-[600px]">
-      <div className="bg-background border border-border rounded-lg p-4 lg:p-6">
+      <CoachmarkTour controller={tour} />
+      <div
+        data-tour="blocks-canvas"
+        className="bg-background border border-border rounded-lg p-4 lg:p-6"
+      >
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <Tabs
             value={lang}
@@ -100,12 +109,15 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
               setActiveId(null);
             }}
           >
-            <TabsList>
+            <TabsList data-tour="blocks-lang">
               <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
               <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1">
+          <div
+            data-tour="blocks-history"
+            className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
+          >
             <IconButton
               onClick={history.undo}
               disabled={!history.canUndo}
@@ -142,7 +154,10 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
         </Tabs>
       </div>
 
-      <aside className="bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
+      <aside
+        data-tour="blocks-sidebar"
+        className="bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+      >
         <BlockSidebar
           doc={history.doc}
           activeBlock={activeBlock}

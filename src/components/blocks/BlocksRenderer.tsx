@@ -162,20 +162,49 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
       className="blocks-content prose prose-lg dark:prose-invert max-w-none"
       lang={lang}
     >
-      {safe.blocks.map((b) => (
+      {safe.blocks.map((b) => {
+        // Visibility flag from the block inspector: hidden blocks are dropped
+        // from the published render (still editable in the admin canvas).
+        if (b.style?.hidden) return null;
+        // Honor per-block spacing overrides (marginTop/marginBottom). Wrap ONLY
+        // when a margin is set, so the untouched majority keep their natural
+        // prose sibling spacing and wide/full alignment.
+        const mt = b.style?.marginTop;
+        const mb = b.style?.marginBottom;
+        const spacing =
+          mt != null || mb != null
+            ? {
+                marginTop: mt != null ? `${mt}px` : undefined,
+                marginBottom: mb != null ? `${mb}px` : undefined,
+              }
+            : undefined;
         // Per-block isolation, mirroring the builder's per-widget boundary: one
         // malformed block degrades to nothing (prod) / a diagnostic (dev) instead
         // of crashing the whole article via the global boundary.
-        <RenderErrorBoundary key={b.id} label={`block:${b.type}:${b.id}`}>
-          <BlockView
-            block={b}
-            fnHtml={fnHtml}
-            lang={lang}
-            postId={postId}
-            allBlocks={safe.blocks}
-          />
-        </RenderErrorBoundary>
-      ))}
+        return (
+          <RenderErrorBoundary key={b.id} label={`block:${b.type}:${b.id}`}>
+            {spacing ? (
+              <div style={spacing}>
+                <BlockView
+                  block={b}
+                  fnHtml={fnHtml}
+                  lang={lang}
+                  postId={postId}
+                  allBlocks={safe.blocks}
+                />
+              </div>
+            ) : (
+              <BlockView
+                block={b}
+                fnHtml={fnHtml}
+                lang={lang}
+                postId={postId}
+                allBlocks={safe.blocks}
+              />
+            )}
+          </RenderErrorBoundary>
+        );
+      })}
       {fn.notes.length > 0 && (
         <section
           className="footnotes mt-10 pt-6 border-t border-border text-sm"
@@ -742,9 +771,7 @@ function BlockView({
     case "toc": {
       const cols = String(block.data.columns ?? "col-1");
       const columns = (cols === "col-2" || cols === "half" ? cols : "col-1") as
-        | "col-1"
-        | "col-2"
-        | "half";
+        "col-1" | "col-2" | "half";
       return (
         <div className={cls}>
           <TocBlockView
@@ -764,8 +791,7 @@ function BlockView({
       const title = String(block.data.title ?? "");
       const description = String(block.data.description ?? "");
       const variant = (String(block.data.variant ?? "card") === "inline" ? "inline" : "card") as
-        | "card"
-        | "inline";
+        "card" | "inline";
       return (
         <section
           className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}

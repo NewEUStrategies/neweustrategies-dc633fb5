@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +31,7 @@ import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges"
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
+import { escapeLike } from "@/lib/admin/listFilters";
 
 export const Route = createFileRoute("/admin/posts")({
   component: PostsLayout,
@@ -66,6 +67,13 @@ function PostsList() {
   const [trashTo, setTrashTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  // Debounce the search box so server-side filtering fires per pause, not per
+  // keystroke.
+  const [searchDebounced, setSearchDebounced] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setSearchDebounced(search), 250);
+    return () => clearTimeout(id);
+  }, [search]);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = useMemo(
@@ -73,9 +81,22 @@ function PostsList() {
     [authorsQ.data],
   );
 
-  const { data: posts, isLoading } = useQuery({
+  const { data: postsResult, isLoading } = useQuery({
     enabled: !!tenantId,
-    queryKey: ["admin-posts", tenantId, view],
+    placeholderData: keepPreviousData,
+    queryKey: [
+      "admin-posts",
+      tenantId,
+      view,
+      searchDebounced,
+      statusFilter,
+      langFilter,
+      authorFilter,
+      trashFrom,
+      trashTo,
+      page,
+      pageSize,
+    ],
     queryFn: async () => {
       // Opportunistic tick: flip due scheduled posts to published even when
       // pg_cron is unavailable (local/dev). Harmless no-op otherwise.
@@ -83,17 +104,54 @@ function PostsList() {
         () => undefined,
         () => undefined,
       );
+      const isTrashView = view === "trash";
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
       let q = supabase
         .from("posts")
         .select(
           "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, published_at, publish_at, updated_at, author_id, deleted_at",
+          { count: "exact" },
         )
-        .eq("tenant_id", tenantId!)
-        .order(view === "trash" ? "deleted_at" : "updated_at", { ascending: false });
-      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
-      const { data, error } = await q;
+        .eq("tenant_id", tenantId!);
+      q = isTrashView ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
+      // Search: title_pl / title_en / slug (case-insensitive substring).
+      const term = searchDebounced.trim();
+      if (term) {
+        const like = `%${escapeLike(term)}%`;
+        q = q.or(`title_pl.ilike.${like},title_en.ilike.${like},slug.ilike.${like}`);
+      }
+      // Status (active view only — trash hides the status filter).
+      if (!isTrashView && statusFilter !== "all") q = q.eq("status", statusFilter);
+      // Author.
+      if (authorFilter !== "all") q = q.eq("author_id", authorFilter);
+      // Language coverage: "present" = not null AND not empty string.
+      if (langFilter === "complete") {
+        q = q
+          .not("title_pl", "is", null)
+          .neq("title_pl", "")
+          .not("title_en", "is", null)
+          .neq("title_en", "");
+      } else if (langFilter === "missing_any") {
+        q = q.or("title_pl.is.null,title_pl.eq.,title_en.is.null,title_en.eq.");
+      } else if (langFilter === "pl_only") {
+        q = q.not("title_pl", "is", null).neq("title_pl", "").or("title_en.is.null,title_en.eq.");
+      } else if (langFilter === "en_only") {
+        q = q.not("title_en", "is", null).neq("title_en", "").or("title_pl.is.null,title_pl.eq.");
+      }
+      // Trash date range on deleted_at (inclusive day boundaries).
+      if (isTrashView) {
+        if (trashFrom) q = q.gte("deleted_at", new Date(trashFrom).toISOString());
+        if (trashTo)
+          q = q.lte(
+            "deleted_at",
+            new Date(new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString(),
+          );
+      }
+      q = q.order(isTrashView ? "deleted_at" : "updated_at", { ascending: false }).range(from, to);
+      const { data, count, error } = await q;
       if (error) throw error;
-      return data;
+      return { rows: data ?? [], count: count ?? 0 };
     },
   });
 
@@ -111,6 +169,24 @@ function PostsList() {
     },
   });
 
+  // Unfiltered row count for the current view — distinguishes "view is empty"
+  // from "filters excluded everything" now that the paginated result no longer
+  // holds the full set.
+  const { data: viewCount } = useQuery({
+    enabled: !!tenantId,
+    queryKey: ["admin-posts-view-count", tenantId, view],
+    queryFn: async () => {
+      let q = supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!);
+      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   const isTrash = view === "trash";
 
   const coverageOf = (p: { title_pl: string | null; title_en: string | null }) => ({
@@ -118,44 +194,13 @@ function PostsList() {
     en: !!(p.title_en && p.title_en.trim()),
   });
 
-  const filteredPosts = useMemo(() => {
-    if (!posts) return [];
-    const q = search.trim().toLowerCase();
-    const fromTs = trashFrom ? new Date(trashFrom).getTime() : null;
-    const toTs = trashTo ? new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
-    return posts.filter((p) => {
-      if (q) {
-        const t1 = (p.title_pl ?? "").toLowerCase();
-        const t2 = (p.title_en ?? "").toLowerCase();
-        const s = (p.slug ?? "").toLowerCase();
-        if (!t1.includes(q) && !t2.includes(q) && !s.includes(q)) return false;
-      }
-      if (!isTrash && statusFilter !== "all" && p.status !== statusFilter) return false;
-      if (authorFilter !== "all" && p.author_id !== authorFilter) return false;
-      if (langFilter !== "all") {
-        const c = coverageOf(p);
-        if (langFilter === "complete" && !(c.pl && c.en)) return false;
-        if (langFilter === "missing_any" && c.pl && c.en) return false;
-        if (langFilter === "pl_only" && !(c.pl && !c.en)) return false;
-        if (langFilter === "en_only" && !(c.en && !c.pl)) return false;
-      }
-      if (isTrash && (fromTs !== null || toTs !== null)) {
-        const d = p.deleted_at ? new Date(p.deleted_at).getTime() : 0;
-        if (fromTs !== null && d < fromTs) return false;
-        if (toTs !== null && d > toTs) return false;
-      }
-      return true;
-    });
-  }, [posts, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
-
-  const pagedPosts = useMemo(() => {
-    const startIdx = (page - 1) * pageSize;
-    return filteredPosts.slice(startIdx, startIdx + pageSize);
-  }, [filteredPosts, page, pageSize]);
+  // Rows + total now come straight from the server (filtered + paginated).
+  const pagedPosts = useMemo(() => postsResult?.rows ?? [], [postsResult]);
+  const total = postsResult?.count ?? 0;
   const allIds = useMemo(() => pagedPosts.map((p) => p.id), [pagedPosts]);
   useEffect(() => {
     setPage(1);
-  }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
+  }, [view, searchDebounced, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -173,6 +218,7 @@ function PostsList() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin-posts"] });
     qc.invalidateQueries({ queryKey: ["admin-posts-trash-count"] });
+    qc.invalidateQueries({ queryKey: ["admin-posts-view-count"] });
   };
 
   const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
@@ -320,7 +366,7 @@ function PostsList() {
         <div>
           <h1 className="font-display text-2xl font-bold">{t("admin.posts.title")}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {filteredPosts.length} {t("admin.posts.count")}
+            {total} {t("admin.posts.count")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -372,8 +418,8 @@ function PostsList() {
         author={authorFilter}
         onAuthor={setAuthorFilter}
         authors={authorsQ.data ?? []}
-        resultsCount={filteredPosts.length}
-        totalCount={posts?.length}
+        resultsCount={total}
+        totalCount={viewCount}
       />
 
       {isTrash && (
@@ -441,13 +487,13 @@ function PostsList() {
         )}
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground text-xs">…</div>
-        ) : !filteredPosts.length ? (
+        ) : !total ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
             {isTrash
-              ? posts?.length
+              ? viewCount
                 ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
                 : t("admin.list.trashEmpty", { defaultValue: "Kosz jest pusty" })
-              : posts?.length
+              : viewCount
                 ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
                 : t("admin.posts.empty")}
           </div>
@@ -623,7 +669,7 @@ function PostsList() {
             <AdminPagination
               page={page}
               pageSize={pageSize}
-              total={filteredPosts.length}
+              total={total}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
             />

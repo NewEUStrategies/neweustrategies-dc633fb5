@@ -18,8 +18,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Save, Undo as RotateCcw } from "@/lib/lucide-shim";
+import { Save, Undo as RotateCcw, Loader2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { FooterChromePane } from "@/components/admin/FooterChromePane";
 import { TrendingTickerPane } from "@/components/admin/TrendingTickerPane";
@@ -82,7 +83,7 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
       qc.invalidateQueries({ queryKey: ["site_settings_public", settingsKey] });
       toast.success("Zapisano");
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => toastError(e, "save"),
   });
 
   const onChange = useCallback((v: BuilderDocument) => setDoc(v), []);
@@ -124,7 +125,15 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
             </AlertDialog>
           ) : null}
           <Button onClick={() => save.mutate(doc)} disabled={save.isPending}>
-            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : "Zapisz"}
+            {save.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Zapisywanie…
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" /> Zapisz
+              </>
+            )}
           </Button>
         </div>
       </div>

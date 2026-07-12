@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Save } from "@/lib/lucide-shim";
+import { toastError } from "@/lib/toastError";
+import { Save, Loader2 } from "@/lib/lucide-shim";
 import {
   FooterChromeSchema,
   defaultFooterChrome,
@@ -61,7 +62,7 @@ export function FooterChromePane() {
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
       toast.success("Zapisano");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toastError(e, "save"),
   });
 
   if (!c) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
@@ -151,7 +152,15 @@ export function FooterChromePane() {
       </div>
 
       <Button onClick={() => save.mutate(c)} disabled={save.isPending}>
-        <Save className="w-4 h-4 mr-2" /> {save.isPending ? "…" : "Zapisz"}
+        {save.isPending ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Zapisywanie…
+          </>
+        ) : (
+          <>
+            <Save className="w-4 h-4 mr-2" /> Zapisz
+          </>
+        )}
       </Button>
     </div>
   );

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { Button } from "@/components/ui/button";
 import { Clock, Undo2 } from "@/lib/lucide-shim";
 import { listRevisions, restoreRevision } from "@/lib/revisions.functions";
@@ -75,7 +76,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
           await refetch();
           onRestored();
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : String(e));
+          toastError(e, "generic");
         } finally {
           setBusyId(null);
         }

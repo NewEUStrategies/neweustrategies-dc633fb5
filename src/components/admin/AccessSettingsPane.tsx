@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 
 type Props = { entityType: AccessEntityType; entityId: string | null };
 
@@ -106,7 +107,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       .upsert(payload, { onConflict: "entity_type,entity_id" });
     if (error) {
       setSaving(false);
-      return toast.error(error.message);
+      return toastError(error, "save");
     }
 
     // Password mutations run through SECURITY DEFINER RPCs so the plaintext is
@@ -121,7 +122,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       });
       if (rpcErr) {
         setSaving(false);
-        return toast.error(rpcErr.message);
+        return toastError(rpcErr, "save");
       }
       setPwd((s) => ({ ...s, hasPassword: true, newPassword: "" }));
     } else if (rule.mode !== "password" && pwd.hasPassword) {
@@ -143,7 +144,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       _entity_type: entityType,
       _entity_id: entityId,
     });
-    if (error) return toast.error(error.message);
+    if (error) return toastError(error, "delete");
     setPwd({ hasPassword: false, newPassword: "", hintPl: "", hintEn: "" });
     toast.success("Hasło usunięte");
   };

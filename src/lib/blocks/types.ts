@@ -123,6 +123,7 @@ export interface BlockStyle {
   align?: "left" | "center" | "right" | "wide" | "full";
   marginTop?: number; // px
   marginBottom?: number;
+  hidden?: boolean; // hidden on the published site, still shown/editable in the admin canvas
 }
 
 export interface Block {

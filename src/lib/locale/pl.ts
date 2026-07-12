@@ -222,8 +222,55 @@ export const pl = {
       content: "Treści",
       monetization: "Monetyzacja",
       engagement: "Zaangażowanie",
+      community: "Społeczność i media",
       design: "Wygląd",
       system: "System",
+    },
+    onboarding: {
+      common: {
+        next: "Dalej",
+        back: "Wstecz",
+        skip: "Pomiń przewodnik",
+        done: "Gotowe",
+        stepOf: "Krok {{current}} z {{total}}",
+        close: "Zamknij",
+      },
+      builder: {
+        widgets: {
+          title: "Biblioteka widgetów",
+          body: "Tutaj znajdziesz wszystkie widgety. Przeciągnij je na kanwę albo kliknij, aby dodać do zaznaczonej sekcji.",
+        },
+        toolbar: {
+          title: "Pasek narzędzi",
+          body: "Przełączaj język (PL/EN), podgląd na różnych urządzeniach oraz tryb jasny/ciemny. Cofanie i ponawianie zmian również jest tutaj.",
+        },
+        canvas: {
+          title: "Kanwa",
+          body: "To podgląd Twojej strony. Kliknij dowolny element, aby go zaznaczyć i edytować jego właściwości w panelu po lewej.",
+        },
+        navigator: {
+          title: "Nawigator",
+          body: "Nawigator pokazuje drzewo sekcji, kolumn i widgetów. Użyj go, aby szybko odnaleźć i zaznaczyć zagnieżdżone elementy.",
+        },
+      },
+      blocks: {
+        lang: {
+          title: "Wersje językowe",
+          body: "Każdy wpis ma osobną treść PL i EN z niezależną historią zmian. Przełącz zakładkę, aby edytować drugą wersję.",
+        },
+        canvas: {
+          title: "Obszar edycji",
+          body: "Pisz jak w edytorze tekstu. Naciśnij Enter, aby dodać nowy blok, lub użyj przycisku „+”, aby wstawić obraz, cytat, tabelę i inne.",
+        },
+        history: {
+          title: "Cofnij i ponów",
+          body: "Pomyłka? Cofnij ją stąd lub skrótem Ctrl/Cmd+Z. Ponów zmianę skrótem Ctrl/Cmd+Shift+Z.",
+        },
+        sidebar: {
+          title: "Ustawienia bloku i dokumentu",
+          body: "Zaznacz blok, aby dostroić jego ustawienia w zakładce „Blok”. Zakładka „Dokument” zawiera meta, kategorie i układ wpisu.",
+        },
+      },
     },
     performance: {
       title: "Wydajność (RUM)",
@@ -870,6 +917,19 @@ export const pl = {
       excerpt: "Lead / zajawka",
       content: "Treść",
       editor: "Edytor",
+      editorAdvanced: "Zaawansowane: typ edytora",
+      editorAdvancedHint:
+        "Domyślnie używany jest edytor blokowy. Zmień tylko jeśli wiesz, czego potrzebujesz.",
+      editorHint:
+        "Bloki = zalecany edytor. Visual Builder = układ przeciągnij-i-upuść. Rich text / Markdown = starsze tryby tekstowe.",
+      slugHint:
+        "Część adresu URL wpisu. Zmiana slug zmienia link; przy kolizji serwer dopisze sufiks.",
+      parentLabel: "Strona nadrzędna",
+      parentNone: "- wybierz stronę -",
+      parentHint: "Umieszcza wpis w ścieżce URL wybranej strony i wpływa na nawigację/breadcrumbs.",
+      layoutOverrideHint: "Nadpisz sekcje stopki (puste = z globalnych):",
+      layoutTriHint:
+        "Globalne = dziedzicz ustawienie globalne. Włącz/Wyłącz = wymuś dla tego wpisu, ignorując globalne.",
       readMinutes: "Czas czytania (min)",
       cover: "Obrazek wyróżniający",
       noCats: "Najpierw dodaj kategorie",
@@ -900,6 +960,7 @@ export const pl = {
     media: {
       upload: "Wgraj",
       uploaded: "Wgrano",
+      uploading: "Wgrywanie…",
     },
     personalized: {
       title: "Personalized System",
@@ -1040,6 +1101,11 @@ export const pl = {
       media: "Media",
       layout: "Layout",
       advanced: "Zaawansowane",
+      dynamic: "Dynamiczne",
+      widgets: "Widżety",
+      forms: "Formularze",
+      marketing: "Marketing",
+      data: "Dane",
     },
     actions: {
       up: "W górę",
@@ -1054,6 +1120,7 @@ export const pl = {
       block: "Blok",
       document: "Dokument",
       selectBlock: "Wybierz blok, aby zobaczyć ustawienia.",
+      canvasEdit: "Treść tego bloku edytujesz bezpośrednio w obszarze roboczym.",
     },
     slash: {
       hint: "Wpisz / aby wybrać blok",
@@ -1204,6 +1271,11 @@ export const pl = {
       alignRight: "Do prawej",
       alignWide: "Szerokie",
       alignFull: "Pełna szerokość",
+      spacing: "Odstępy",
+      marginTop: "Margines górny (px)",
+      marginBottom: "Margines dolny (px)",
+      visibility: "Widoczność",
+      hideOnPublish: "Ukryj na opublikowanej stronie",
     },
     fields: {
       url: "URL",

@@ -111,7 +111,7 @@ export interface BlockSpec {
   label: string;
   description: string;
   icon: LucideIcon;
-  category: "text" | "media" | "layout" | "advanced";
+  category: "text" | "media" | "layout" | "dynamic" | "widgets" | "forms" | "marketing" | "data";
   /** Tworzy domyślną instancję bloku. */
   create: () => Block;
 }
@@ -167,7 +167,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Kod",
     description: "Blok kodu z podświetlaniem.",
     icon: CodeIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({ id: newBlockId(), type: "code", data: { lang: "ts", code: "" } }),
   },
   embed: {
@@ -215,7 +215,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Tabela",
     description: "Wiersze i kolumny.",
     icon: TableIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({ id: newBlockId(), type: "table", data: { rows: [[""]], header: false } }),
   },
   button: {
@@ -243,7 +243,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "HTML",
     description: "Surowy HTML (sanitizowany).",
     icon: FileCode,
-    category: "advanced",
+    category: "widgets",
     create: () => ({ id: newBlockId(), type: "html", data: { html: "" } }),
   },
   liveblog: {
@@ -251,7 +251,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Live Blog",
     description: "Wpisy na żywo z auto-odświeżaniem (timestamped).",
     icon: RadioIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "liveblog",
@@ -263,7 +263,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Recenzja (Review Box)",
     description: "Ocena z paskami kryteriów + CTA (Foxiz-style).",
     icon: StarIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "review",
@@ -285,7 +285,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Plusy i minusy",
     description: "Dwie kolumny: zalety i wady.",
     icon: ProsConsIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "proscons",
@@ -301,7 +301,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Spoiler / Rozwijany",
     description: "Ukryty blok, otwierany po kliknięciu.",
     icon: SpoilerIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "spoiler",
@@ -313,7 +313,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "FAQ",
     description: "Lista pytań i odpowiedzi (schema.org FAQPage).",
     icon: FaqIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "faq",
@@ -328,7 +328,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Spis treści",
     description: "Auto-generowany z nagłówków H2/H3.",
     icon: TocIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "toc",
@@ -340,7 +340,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Newsletter (inline)",
     description: "Formularz zapisu osadzony w treści wpisu.",
     icon: MailIcon,
-    category: "advanced",
+    category: "forms",
     create: () => ({
       id: newBlockId(),
       type: "newsletter",
@@ -352,7 +352,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Produkt afiliacyjny",
     description: "Karta produktu z ceną, sklepem i CTA.",
     icon: AffiliateIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "affiliate",
@@ -375,7 +375,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "X Quote (Click-to-Tweet)",
     description: "Wyróżniony cytat w stylu X/Twittera z udostępnianiem.",
     icon: XIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "xquote",
@@ -387,7 +387,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Before / After",
     description: "Slider porównujący dwa obrazy.",
     icon: CompareIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "compare",
@@ -404,7 +404,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Logowanie",
     description: "Strukturalny formularz logowania (email/hasło, remember-me, OAuth).",
     icon: LoginIcon,
-    category: "advanced",
+    category: "forms",
     create: () => ({
       id: newBlockId(),
       type: "login-form",
@@ -432,7 +432,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Rejestracja",
     description: "Strukturalny formularz rejestracji (imię, e-mail, hasło, RODO).",
     icon: RegisterIcon,
-    category: "advanced",
+    category: "forms",
     create: () => ({
       id: newBlockId(),
       type: "register-form",
@@ -460,7 +460,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Reset hasła (zapomniałem)",
     description: "Formularz wysyłki linku resetującego hasło.",
     icon: LostPasswordIcon,
-    category: "advanced",
+    category: "forms",
     create: () => ({
       id: newBlockId(),
       type: "lost-password-form",
@@ -482,7 +482,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Ustaw nowe hasło",
     description: "Formularz ustawienia nowego hasła (token z URL recovery).",
     icon: ResetPasswordIcon,
-    category: "advanced",
+    category: "forms",
     create: () => ({
       id: newBlockId(),
       type: "reset-password-form",
@@ -691,7 +691,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Najnowsze wpisy",
     description: "Lista lub siatka ostatnich publikacji.",
     icon: LatestPostsIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "latest-posts",
@@ -704,7 +704,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Chmura tagów",
     description: "Lista tagów z proporcjonalnym rozmiarem.",
     icon: TagCloudIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "tag-cloud", data: { count: 30, showCount: false } }),
   },
   "categories-list": {
@@ -712,7 +712,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Lista kategorii",
     description: "Lista kategorii lub dropdown.",
     icon: CategoriesIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "categories-list",
@@ -724,7 +724,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Archiwa",
     description: "Archiwa miesięczne (lista lub dropdown).",
     icon: ArchivesIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "archives",
@@ -736,7 +736,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Kalendarz",
     description: "Kalendarz publikacji w danym miesiącu.",
     icon: CalendarIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "calendar", data: { month: "" } }),
   },
   // ===== Phase 2 - theme/post (Query) blocks =====
@@ -745,7 +745,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Tytuł wpisu",
     description: "Dynamiczny tytuł bieżącego wpisu.",
     icon: PostTitleIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "post-title", data: { level: 1 } }),
   },
   "post-date": {
@@ -753,7 +753,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Data wpisu",
     description: "Data publikacji (lub aktualizacji).",
     icon: PostDateIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "post-date",
@@ -765,7 +765,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Autor wpisu",
     description: "Awatar, imię i (opcjonalnie) bio.",
     icon: PostAuthorIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "post-author",
@@ -777,7 +777,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Zajawka wpisu",
     description: "Krótki opis (excerpt).",
     icon: PostExcerptIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "post-excerpt", data: { showMore: false } }),
   },
   "post-featured-image": {
@@ -785,7 +785,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Obraz wyróżniony",
     description: "Cover wpisu z proporcjami.",
     icon: PostFeaturedIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "post-featured-image",
@@ -797,7 +797,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Taksonomie wpisu",
     description: "Kategorie lub tagi powiązane z wpisem.",
     icon: PostTermsIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "post-terms", data: { taxonomy: "categories" } }),
   },
   "site-title": {
@@ -805,7 +805,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Tytuł witryny",
     description: "Nazwa witryny z site_settings.",
     icon: SiteTitleIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "site-title", data: { level: 1 } }),
   },
   "site-tagline": {
@@ -813,7 +813,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Slogan witryny",
     description: "Tagline witryny.",
     icon: SiteTaglineIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "site-tagline", data: {} }),
   },
   "site-logo": {
@@ -821,7 +821,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Logo witryny",
     description: "Logo z linkiem do strony głównej.",
     icon: SiteLogoIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "site-logo", data: { width: 120 } }),
   },
   navigation: {
@@ -841,7 +841,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Poprzedni / Następny wpis",
     description: "Link do poprzedniego lub następnego wpisu.",
     icon: PostNavIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "post-navigation-link",
@@ -853,7 +853,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Pętla zapytań",
     description: "Lista wpisów wg filtrów (kategoria, limit, sortowanie).",
     icon: QueryLoopIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "query-loop",
@@ -873,7 +873,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Okruszki",
     description: "Ścieżka nawigacji do bieżącej strony.",
     icon: BreadcrumbsIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "breadcrumbs",
@@ -885,7 +885,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Czas czytania",
     description: "Szacowany czas czytania wpisu.",
     icon: ReadingTimeIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "reading-time", data: { wpm: 220, prefix: "" } }),
   },
   "share-buttons": {
@@ -893,7 +893,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Udostępnij",
     description: "Przyciski udostępniania w social media.",
     icon: ShareIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "share-buttons",
@@ -905,7 +905,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Wyświetlenia",
     description: "Licznik wyświetleń wpisu.",
     icon: ViewsIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "post-views", data: { suffix: "" } }),
   },
   "author-bio": {
@@ -913,7 +913,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Bio autora",
     description: "Karta autora z avatarem, bio i linkami.",
     icon: AuthorBioIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "author-bio",
@@ -925,7 +925,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Powiązane wpisy",
     description: "Sugerowane wpisy z tej samej kategorii.",
     icon: RelatedIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "related-posts",
@@ -938,7 +938,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Pasek meta wpisu",
     description: "Data, autor, kategoria, czas, wyświetlenia w jednej linii.",
     icon: StatsIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "post-stats",
@@ -950,7 +950,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Ocena czytelnika",
     description: "5 lub 10 gwiazdek do oceny wpisu.",
     icon: RatingIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({ id: newBlockId(), type: "post-rating", data: { max: 5, label: "" } }),
   },
   loginout: {
@@ -958,7 +958,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Zaloguj / Wyloguj",
     description: "Dynamiczny link logowania / awatar + wyloguj.",
     icon: LoginOutIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "loginout",
@@ -970,7 +970,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Polecane wpisy (pasek)",
     description: "Siatka miniaturek - najnowsze, popularne lub z kategorii.",
     icon: MorePostsIcon,
-    category: "advanced",
+    category: "dynamic",
     create: () => ({
       id: newBlockId(),
       type: "more-posts",
@@ -1018,7 +1018,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Odliczanie",
     description: "Licznik do wybranej daty (kampanie, premiery).",
     icon: CountdownIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "countdown",
@@ -1030,7 +1030,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Pasek postępu",
     description: "Wskaźnik wypełnienia z etykietą.",
     icon: ProgressIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "progress",
@@ -1054,7 +1054,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Liczniki / statystyki",
     description: "Animowane liczby z etykietami.",
     icon: StatsCounterIcon,
-    category: "advanced",
+    category: "widgets",
     create: () => ({
       id: newBlockId(),
       type: "stats-counter",
@@ -1073,7 +1073,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Opinie / Testimoniale",
     description: "Karty opinii z oceną, awatarami.",
     icon: TestimonialsIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "testimonials",
@@ -1088,7 +1088,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Tabela cenowa",
     description: "Plany cenowe z funkcjami i CTA.",
     icon: PricingIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "pricing-table",
@@ -1123,7 +1123,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Oś czasu",
     description: "Lista wydarzeń z datami.",
     icon: TimelineIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "timeline",
@@ -1183,7 +1183,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Formularz kontaktowy",
     description: "Formularz z polami i wysyłką do bazy.",
     icon: ContactFormIcon,
-    category: "advanced",
+    category: "forms",
     create: () => ({
       id: newBlockId(),
       type: "contact-form",
@@ -1266,7 +1266,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Banner alertu",
     description: "Komunikat info / success / warning / danger z CTA.",
     icon: AlertBannerIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "alert-banner",
@@ -1319,7 +1319,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Tabela porównawcza",
     description: "Matryca funkcji vs plany (✓ / ✗ / tekst).",
     icon: ComparisonTableIcon,
-    category: "advanced",
+    category: "marketing",
     create: () => ({
       id: newBlockId(),
       type: "comparison-table",
@@ -1386,7 +1386,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Wykres",
     description: "Animowany, interaktywny wykres: linia, pole, kolumny, słupki, kołowy.",
     icon: ChartBlockIcon,
-    category: "advanced",
+    category: "data",
     create: () => ({
       id: newBlockId(),
       type: "chart",
@@ -1415,7 +1415,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     label: "Mapa danych",
     description: "Interaktywna choropleta Europy lub świata z wartościami per kraj.",
     icon: DataMapIcon,
-    category: "advanced",
+    category: "data",
     create: () => ({
       id: newBlockId(),
       type: "data-map",

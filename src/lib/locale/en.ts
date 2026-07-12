@@ -221,8 +221,55 @@ export const en = {
       content: "Content",
       monetization: "Monetization",
       engagement: "Engagement",
+      community: "Community & media",
       design: "Appearance",
       system: "System",
+    },
+    onboarding: {
+      common: {
+        next: "Next",
+        back: "Back",
+        skip: "Skip tour",
+        done: "Done",
+        stepOf: "Step {{current}} of {{total}}",
+        close: "Close",
+      },
+      builder: {
+        widgets: {
+          title: "Widget library",
+          body: "All your widgets live here. Drag one onto the canvas, or click to drop it into the selected section.",
+        },
+        toolbar: {
+          title: "Toolbar",
+          body: "Switch language (PL/EN), preview across devices, and toggle light/dark mode. Undo and redo live here too.",
+        },
+        canvas: {
+          title: "Canvas",
+          body: "This is a live preview of your page. Click any element to select it and edit its properties in the left panel.",
+        },
+        navigator: {
+          title: "Navigator",
+          body: "The Navigator shows the tree of sections, columns and widgets. Use it to quickly find and select nested elements.",
+        },
+      },
+      blocks: {
+        lang: {
+          title: "Language versions",
+          body: "Each post keeps separate PL and EN content with independent undo history. Switch tabs to edit the other version.",
+        },
+        canvas: {
+          title: "Editing area",
+          body: "Write like a document. Press Enter to add a new block, or use the “+” button to insert images, quotes, tables and more.",
+        },
+        history: {
+          title: "Undo & redo",
+          body: "Made a mistake? Undo it here or with Ctrl/Cmd+Z. Redo with Ctrl/Cmd+Shift+Z.",
+        },
+        sidebar: {
+          title: "Block & document settings",
+          body: "Select a block to fine-tune it under the “Block” tab. The “Document” tab holds post meta, categories and layout.",
+        },
+      },
     },
     performance: {
       title: "Performance (RUM)",
@@ -863,6 +910,20 @@ export const en = {
       excerpt: "Excerpt",
       content: "Content",
       editor: "Editor",
+      editorAdvanced: "Advanced: editor type",
+      editorAdvancedHint:
+        "The block editor is used by default. Only change this if you know what you need.",
+      editorHint:
+        "Blocks = recommended editor. Visual Builder = drag-and-drop layout. Rich text / Markdown = legacy text modes.",
+      slugHint:
+        "The URL segment of the post. Changing it changes the link; on a collision the server appends a suffix.",
+      parentLabel: "Parent page",
+      parentNone: "- choose a page -",
+      parentHint:
+        "Places the post under the chosen page's URL path and affects navigation/breadcrumbs.",
+      layoutOverrideHint: "Override footer sections (empty = from globals):",
+      layoutTriHint:
+        "Global = inherit the global setting. On/Off = force it for this post, ignoring globals.",
       readMinutes: "Read time (min)",
       cover: "Cover image",
       noCats: "Create categories first",
@@ -893,6 +954,7 @@ export const en = {
     media: {
       upload: "Upload",
       uploaded: "Uploaded",
+      uploading: "Uploading…",
     },
     personalized: {
       title: "Personalized System",
@@ -1032,6 +1094,11 @@ export const en = {
       media: "Media",
       layout: "Layout",
       advanced: "Advanced",
+      dynamic: "Dynamic",
+      widgets: "Widgets",
+      forms: "Forms",
+      marketing: "Marketing",
+      data: "Data",
     },
     actions: {
       up: "Move up",
@@ -1046,6 +1113,7 @@ export const en = {
       block: "Block",
       document: "Document",
       selectBlock: "Select a block to see its settings.",
+      canvasEdit: "Edit this block's content directly in the canvas.",
     },
     slash: {
       hint: "Type / to pick a block",
@@ -1196,6 +1264,11 @@ export const en = {
       alignRight: "Right",
       alignWide: "Wide",
       alignFull: "Full width",
+      spacing: "Spacing",
+      marginTop: "Top margin (px)",
+      marginBottom: "Bottom margin (px)",
+      visibility: "Visibility",
+      hideOnPublish: "Hide on published site",
     },
     fields: {
       url: "URL",

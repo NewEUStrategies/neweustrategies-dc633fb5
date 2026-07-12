@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -145,7 +146,7 @@ export function SeoPanel(props: SeoPanelProps) {
       onChange({ og_image_generated_url: url });
       toast.success(t("admin.seo.og.generated", { defaultValue: "Karta OG wygenerowana" }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toastError(e);
     } finally {
       setGenerating(false);
     }

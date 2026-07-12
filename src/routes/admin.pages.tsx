@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +32,8 @@ import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges"
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
+import { escapeLike } from "@/lib/admin/listFilters";
+import { toastError } from "@/lib/toastError";
 
 type Reading = {
   posts_per_page: number;
@@ -79,6 +81,11 @@ function PagesList() {
   const [trashTo, setTrashTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [searchDebounced, setSearchDebounced] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setSearchDebounced(search), 250);
+    return () => clearTimeout(id);
+  }, [search]);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = useMemo(
@@ -86,19 +93,65 @@ function PagesList() {
     [authorsQ.data],
   );
 
-  const { data: pages, isLoading } = useQuery({
+  const { data: pagesResult, isLoading } = useQuery({
     enabled: !!tenantId,
-    queryKey: ["admin-pages", tenantId, view],
+    placeholderData: keepPreviousData,
+    queryKey: [
+      "admin-pages",
+      tenantId,
+      view,
+      searchDebounced,
+      statusFilter,
+      langFilter,
+      authorFilter,
+      trashFrom,
+      trashTo,
+      page,
+      pageSize,
+    ],
     queryFn: async () => {
+      const isTrashView = view === "trash";
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
       let q = supabase
         .from("pages")
-        .select("id, slug, title_pl, title_en, status, updated_at, deleted_at, author_id")
-        .eq("tenant_id", tenantId!)
-        .order(view === "trash" ? "deleted_at" : "updated_at", { ascending: false });
-      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
-      const { data, error } = await q;
+        .select("id, slug, title_pl, title_en, status, updated_at, deleted_at, author_id", {
+          count: "exact",
+        })
+        .eq("tenant_id", tenantId!);
+      q = isTrashView ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
+      const term = searchDebounced.trim();
+      if (term) {
+        const like = `%${escapeLike(term)}%`;
+        q = q.or(`title_pl.ilike.${like},title_en.ilike.${like},slug.ilike.${like}`);
+      }
+      if (!isTrashView && statusFilter !== "all") q = q.eq("status", statusFilter);
+      if (authorFilter !== "all") q = q.eq("author_id", authorFilter);
+      if (langFilter === "complete") {
+        q = q
+          .not("title_pl", "is", null)
+          .neq("title_pl", "")
+          .not("title_en", "is", null)
+          .neq("title_en", "");
+      } else if (langFilter === "missing_any") {
+        q = q.or("title_pl.is.null,title_pl.eq.,title_en.is.null,title_en.eq.");
+      } else if (langFilter === "pl_only") {
+        q = q.not("title_pl", "is", null).neq("title_pl", "").or("title_en.is.null,title_en.eq.");
+      } else if (langFilter === "en_only") {
+        q = q.not("title_en", "is", null).neq("title_en", "").or("title_pl.is.null,title_pl.eq.");
+      }
+      if (isTrashView) {
+        if (trashFrom) q = q.gte("deleted_at", new Date(trashFrom).toISOString());
+        if (trashTo)
+          q = q.lte(
+            "deleted_at",
+            new Date(new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString(),
+          );
+      }
+      q = q.order(isTrashView ? "deleted_at" : "updated_at", { ascending: false }).range(from, to);
+      const { data, count, error } = await q;
       if (error) throw error;
-      return data;
+      return { rows: data ?? [], count: count ?? 0 };
     },
   });
 
@@ -111,6 +164,23 @@ function PagesList() {
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId!)
         .not("deleted_at", "is", null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  // Unfiltered row count for the current view — distinguishes "view is empty"
+  // from "filters excluded everything".
+  const { data: viewCount } = useQuery({
+    enabled: !!tenantId,
+    queryKey: ["admin-pages-view-count", tenantId, view],
+    queryFn: async () => {
+      let q = supabase
+        .from("pages")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!);
+      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
+      const { count, error } = await q;
       if (error) throw error;
       return count ?? 0;
     },
@@ -132,7 +202,7 @@ function PagesList() {
       await reading.save.mutateAsync(next);
       toast.success(`Ustawiono "${title || slug}" jako stronę główną`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toastError(e, "save");
     }
   };
 
@@ -143,44 +213,12 @@ function PagesList() {
     en: !!(p.title_en && p.title_en.trim()),
   });
 
-  const filteredPages = useMemo(() => {
-    if (!pages) return [];
-    const q = search.trim().toLowerCase();
-    const fromTs = trashFrom ? new Date(trashFrom).getTime() : null;
-    const toTs = trashTo ? new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
-    return pages.filter((p) => {
-      if (q) {
-        const t1 = (p.title_pl ?? "").toLowerCase();
-        const t2 = (p.title_en ?? "").toLowerCase();
-        const s = (p.slug ?? "").toLowerCase();
-        if (!t1.includes(q) && !t2.includes(q) && !s.includes(q)) return false;
-      }
-      if (!isTrash && statusFilter !== "all" && p.status !== statusFilter) return false;
-      if (authorFilter !== "all" && p.author_id !== authorFilter) return false;
-      if (langFilter !== "all") {
-        const c = coverageOf(p);
-        if (langFilter === "complete" && !(c.pl && c.en)) return false;
-        if (langFilter === "missing_any" && c.pl && c.en) return false;
-        if (langFilter === "pl_only" && !(c.pl && !c.en)) return false;
-        if (langFilter === "en_only" && !(c.en && !c.pl)) return false;
-      }
-      if (isTrash && (fromTs !== null || toTs !== null)) {
-        const d = p.deleted_at ? new Date(p.deleted_at).getTime() : 0;
-        if (fromTs !== null && d < fromTs) return false;
-        if (toTs !== null && d > toTs) return false;
-      }
-      return true;
-    });
-  }, [pages, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
-
-  const pagedPages = useMemo(() => {
-    const startIdx = (page - 1) * pageSize;
-    return filteredPages.slice(startIdx, startIdx + pageSize);
-  }, [filteredPages, page, pageSize]);
+  const pagedPages = useMemo(() => pagesResult?.rows ?? [], [pagesResult]);
+  const total = pagesResult?.count ?? 0;
   const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
   useEffect(() => {
     setPage(1);
-  }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
+  }, [view, searchDebounced, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -198,6 +236,7 @@ function PagesList() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
     qc.invalidateQueries({ queryKey: ["admin-pages-trash-count"] });
+    qc.invalidateQueries({ queryKey: ["admin-pages-view-count"] });
   };
 
   const del = (id: string, title: string) => {
@@ -335,7 +374,7 @@ function PagesList() {
         <div>
           <h1 className="font-display text-2xl font-bold">{t("admin.pages.title")}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {filteredPages.length} {t("admin.pages.count")}
+            {total} {t("admin.pages.count")}
           </p>
         </div>
         <Link to="/admin/pages/new">
@@ -376,8 +415,8 @@ function PagesList() {
         author={authorFilter}
         onAuthor={setAuthorFilter}
         authors={authorsQ.data ?? []}
-        resultsCount={filteredPages.length}
-        totalCount={pages?.length}
+        resultsCount={total}
+        totalCount={viewCount}
       />
 
       {isTrash && (
@@ -437,13 +476,13 @@ function PagesList() {
         )}
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground text-xs">…</div>
-        ) : !filteredPages.length ? (
+        ) : !total ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
             {isTrash
-              ? pages?.length
+              ? viewCount
                 ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
                 : t("admin.list.trashEmpty", { defaultValue: "Kosz jest pusty" })
-              : pages?.length
+              : viewCount
                 ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
                 : t("admin.pages.empty")}
           </div>
@@ -648,7 +687,7 @@ function PagesList() {
             <AdminPagination
               page={page}
               pageSize={pageSize}
-              total={filteredPages.length}
+              total={total}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
             />
