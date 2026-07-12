@@ -82,15 +82,18 @@ function PollsAdmin() {
           <Vote className="w-4 h-4" />
           <h2 className="text-lg font-semibold">{isPl ? "Ankiety" : "Polls"}</h2>
         </div>
-        <Select value={status} onValueChange={(v) => setStatus(v as PollStatus | "all")}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
-            <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
-            <SelectItem value="open">{isPl ? "Otwarte" : "Open"}</SelectItem>
-            <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={status} onValueChange={(v) => setStatus(v as PollStatus | "all")}>
+            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
+              <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
+              <SelectItem value="open">{isPl ? "Otwarte" : "Open"}</SelectItem>
+              <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
+            </SelectContent>
+          </Select>
+          <CreatePollButton isPl={isPl} onCreated={() => qc.invalidateQueries({ queryKey: ["admin-polls"] })} />
+        </div>
       </div>
 
       <Card>
