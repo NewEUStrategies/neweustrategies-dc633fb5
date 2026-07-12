@@ -160,7 +160,7 @@ function ReadingTimeAdmin() {
   const resetDefaults = () => setDraft(DEFAULT_READING_TIME_SETTINGS);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 font-display text-2xl">

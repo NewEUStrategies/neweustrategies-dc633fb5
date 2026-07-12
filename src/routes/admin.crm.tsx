@@ -351,7 +351,7 @@ function AdminCrmPage() {
   }, []);
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
+    <div className="space-y-4">
       <header className="flex items-center gap-2">
         <Users className="w-5 h-5 text-brand" />
         <div>

@@ -252,7 +252,7 @@ function LiveBlogAdmin() {
     navigate({ search: (p: SearchParams) => ({ ...p, ...patch }) });
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       <header>
         <h1 className="font-display text-2xl">Live Blog - moderacja</h1>
         <p className="text-sm text-muted-foreground mt-1">

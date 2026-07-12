@@ -248,7 +248,7 @@ function Editor({
   const cur = d.pages[activePage];
 
   return (
-    <section className="bg-card border border-border rounded-lg p-5 space-y-5 max-w-5xl">
+    <section className="bg-card border border-border rounded-lg space-y-5">
       <div className="grid sm:grid-cols-3 gap-3">
         <div>
           <Label>Slug</Label>

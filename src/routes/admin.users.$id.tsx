@@ -100,7 +100,7 @@ function UserDetail() {
     [data.first_name, data.last_name].filter(Boolean).join(" ") || data.display_name || "-";
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <BackLink label={L("Wróć do listy", "Back to list")} />
         <div className="flex items-center gap-2">

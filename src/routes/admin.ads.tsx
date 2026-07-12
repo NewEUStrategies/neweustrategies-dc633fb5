@@ -70,7 +70,7 @@ function emptyPlacement(): Partial<AdPlacement> {
 function AdsAdmin() {
   return (
     <AdminShell hideSidebar>
-      <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="space-y-6">
         <header>
           <h1 className="font-display text-2xl font-bold">Reklamy</h1>
           <p className="text-sm text-muted-foreground mt-1">

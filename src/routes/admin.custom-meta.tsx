@@ -120,7 +120,7 @@ function CustomMetaAdmin() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl">Custom meta</h1>
