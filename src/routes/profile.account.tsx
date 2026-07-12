@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Eye, EyeOff } from "lucide-react";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { toast } from "sonner";
+import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
@@ -283,6 +284,7 @@ function AccountPage() {
 
   return (
     <TooltipProvider>
+      <IdentityEditorsHint current="account" />
       <Card>
         <CardHeader>
           <CardTitle>{t("profile.nav.account")}</CardTitle>

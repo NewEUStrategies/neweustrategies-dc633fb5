@@ -20,16 +20,22 @@ type NavKey =
 
 type NavItem = { to: string; key: NavKey; search?: Record<string, string> };
 
-const MAIN: NavItem[] = [
+// 13 pozycji w płaskiej liście przytłaczało (audyt IA profilu) - nawigacja
+// jest pogrupowana w trzy nazwane sekcje: tożsamość / treści / płatności.
+const IDENTITY: NavItem[] = [
   { to: "/profile", key: "overview" },
   { to: "/profile/account", key: "account" },
   { to: "/profile/author", key: "author" },
   { to: "/profile/social", key: "social" },
+];
+
+const CONTENT: NavItem[] = [
   { to: "/profile/interests", key: "interests" },
   { to: "/profile/personality", key: "personality" },
   { to: "/profile/bookmarks", key: "bookmarks" },
-  { to: "/messages", search: { view: "notifications" }, key: "notifications" },
   { to: "/profile/follows", key: "follows" },
+  // Świadomie linkuje POZA profil (centrum wiadomości) - stąd na końcu grupy.
+  { to: "/messages", search: { view: "notifications" }, key: "notifications" },
 ];
 
 const FINANCE: NavItem[] = [
@@ -44,7 +50,7 @@ export function ProfileNav() {
   const { pathname } = useLocation();
   const { roles } = useAuth();
   const canAuthor = roles.some((r) => r === "author" || r === "admin" || r === "super_admin");
-  const visibleMain = canAuthor ? MAIN : MAIN.filter((i) => i.key !== "author");
+  const identity = canAuthor ? IDENTITY : IDENTITY.filter((i) => i.key !== "author");
 
   const isActive = (to: string) =>
     pathname === to || (to !== "/profile" && pathname.startsWith(to));
@@ -76,10 +82,19 @@ export function ProfileNav() {
     );
   };
 
+  const groupHeading = (key: string) => (
+    <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 first:pt-0">
+      {t(key)}
+    </p>
+  );
+
   return (
     <nav className="flex flex-col gap-0.5" aria-label={t("profile.title")}>
-      {visibleMain.map(renderItem)}
-      <div className="my-3 h-px bg-border/70" role="separator" />
+      {groupHeading("profile.navGroups.identity")}
+      {identity.map(renderItem)}
+      {groupHeading("profile.navGroups.content")}
+      {CONTENT.map(renderItem)}
+      {groupHeading("profile.navGroups.finance")}
       {FINANCE.map(renderItem)}
     </nav>
   );

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
+import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 
 export const Route = createFileRoute("/profile/social")({
   component: SocialPage,
@@ -286,6 +287,7 @@ function SocialPage() {
 
   return (
     <TooltipProvider>
+      <IdentityEditorsHint current="social" />
       <Card>
         <CardHeader>
           <CardTitle>{t("profile.social.title")}</CardTitle>

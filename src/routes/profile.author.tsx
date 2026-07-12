@@ -14,6 +14,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, ShieldAlert } from "lucide-react";
+import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 
 export const Route = createFileRoute("/profile/author")({
   component: AuthorProfilePage,
@@ -219,6 +220,7 @@ function AuthorProfilePage() {
 
   return (
     <TooltipProvider>
+      <IdentityEditorsHint current="author" />
       <Card>
         <CardHeader>
           <CardTitle>{t("profile.author.title", { defaultValue: "Profil autora" })}</CardTitle>
