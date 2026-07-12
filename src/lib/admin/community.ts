@@ -298,3 +298,207 @@ export async function moderateQaQuestion(
   const { error } = await supabase.from("qa_questions").update(patch).eq("id", id);
   if (error) throw error;
 }
+
+// ------- Polls --------
+
+export type PollRow = Database["public"]["Tables"]["polls"]["Row"];
+export type PollStatus = "draft" | "open" | "closed";
+
+export async function fetchAdminPolls(status?: PollStatus | "all"): Promise<PollRow[]> {
+  const query = supabase.from("polls").select("*").order("created_at", { ascending: false }).limit(200);
+  if (status && status !== "all") query.eq("status", status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function updatePollStatus(id: string, status: PollStatus): Promise<void> {
+  const { error } = await supabase.from("polls").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deletePoll(id: string): Promise<void> {
+  const { error } = await supabase.from("polls").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function fetchPollResults(pollId: string): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from("poll_votes").select("option_id").eq("poll_id", pollId);
+  if (error) throw error;
+  const map: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const key = row.option_id as string;
+    map[key] = (map[key] ?? 0) + 1;
+  }
+  return map;
+}
+
+// ------- Contributors --------
+
+export type ContributorSubmissionRow =
+  Database["public"]["Tables"]["contributor_submissions"]["Row"];
+export type ContributorStatus = "pending" | "approved" | "rejected";
+
+export async function fetchContributorSubmissions(
+  status?: ContributorStatus | "all",
+): Promise<ContributorSubmissionRow[]> {
+  const query = supabase
+    .from("contributor_submissions")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (status && status !== "all") query.eq("status", status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function reviewContributorSubmission(
+  id: string,
+  status: ContributorStatus,
+  editorNote?: string,
+): Promise<void> {
+  const patch: Partial<Database["public"]["Tables"]["contributor_submissions"]["Update"]> = {
+    status,
+    reviewed_at: new Date().toISOString(),
+  };
+  if (editorNote !== undefined) patch.editor_note = editorNote;
+  const { error } = await supabase.from("contributor_submissions").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+// ------- Badges --------
+
+export type BadgeRow = Database["public"]["Tables"]["profile_badges"]["Row"];
+
+export interface BadgeCatalogEntry {
+  key: string;
+  labelPl: string;
+  labelEn: string;
+}
+
+export const BADGE_CATALOG: BadgeCatalogEntry[] = [
+  { key: "verified", labelPl: "Zweryfikowany", labelEn: "Verified" },
+  { key: "contributor", labelPl: "Współtwórca", labelEn: "Contributor" },
+  { key: "expert", labelPl: "Ekspert", labelEn: "Expert" },
+  { key: "moderator", labelPl: "Moderator", labelEn: "Moderator" },
+  { key: "early_adopter", labelPl: "Wczesny użytkownik", labelEn: "Early adopter" },
+  { key: "supporter", labelPl: "Wspierający", labelEn: "Supporter" },
+];
+
+export async function fetchBadges(): Promise<BadgeRow[]> {
+  const { data, error } = await supabase
+    .from("profile_badges")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(300);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function grantBadge(
+  userId: string,
+  badge: string,
+  note?: string,
+): Promise<void> {
+  const { error } = await supabase.from("profile_badges").insert({
+    user_id: userId,
+    badge,
+    note: note ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function revokeBadge(id: string): Promise<void> {
+  const { error } = await supabase.from("profile_badges").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ------- Notifications / Push --------
+
+export interface NotificationStats {
+  push_subscriptions_active: number;
+  push_subscriptions_failed: number;
+  notifications_last_24h: number;
+  notifications_unread: number;
+  digest_daily_users: number;
+  digest_weekly_users: number;
+}
+
+export async function fetchNotificationStats(): Promise<NotificationStats> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const [subs, subsFailed, last24, unread, digDaily, digWeekly] = await Promise.all([
+    supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).is("failed_at", null),
+    supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).not("failed_at", "is", null),
+    supabase.from("notifications").select("id", { count: "exact", head: true }).gte("created_at", since),
+    supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+    supabase.from("notification_preferences").select("user_id", { count: "exact", head: true }).eq("email_digest", "daily"),
+    supabase.from("notification_preferences").select("user_id", { count: "exact", head: true }).eq("email_digest", "weekly"),
+  ]);
+  return {
+    push_subscriptions_active: subs.count ?? 0,
+    push_subscriptions_failed: subsFailed.count ?? 0,
+    notifications_last_24h: last24.count ?? 0,
+    notifications_unread: unread.count ?? 0,
+    digest_daily_users: digDaily.count ?? 0,
+    digest_weekly_users: digWeekly.count ?? 0,
+  };
+}
+
+export async function cleanupFailedPushSubscriptions(): Promise<number> {
+  const { data, error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .not("failed_at", "is", null)
+    .select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+// ------- Engagement overview --------
+
+export interface EngagementSnapshot {
+  total_users: number;
+  new_users_7d: number;
+  crm_leads_total: number;
+  comments_last_7d: number;
+  poll_votes_last_7d: number;
+  event_rsvps_upcoming: number;
+  qa_questions_last_7d: number;
+  contributor_pending: number;
+}
+
+export async function fetchEngagementSnapshot(): Promise<EngagementSnapshot> {
+  const since7 = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const now = new Date().toISOString();
+  const [
+    users,
+    newUsers,
+    crmLeads,
+    comments7,
+    pollVotes7,
+    rsvpsUpcoming,
+    qa7,
+    contribPending,
+  ] = await Promise.all([
+    supabase.from("profiles").select("id", { count: "exact", head: true }),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since7),
+    supabase.from("crm_leads").select("id", { count: "exact", head: true }),
+    supabase.from("comments").select("id", { count: "exact", head: true }).gte("created_at", since7),
+    supabase.from("poll_votes").select("id", { count: "exact", head: true }).gte("created_at", since7),
+    supabase.from("event_rsvps").select("id", { count: "exact", head: true }).gte("created_at", since7),
+    supabase.from("qa_questions").select("id", { count: "exact", head: true }).gte("created_at", since7),
+    supabase.from("contributor_submissions").select("id", { count: "exact", head: true }).eq("status", "pending"),
+  ]);
+  void now;
+  return {
+    total_users: users.count ?? 0,
+    new_users_7d: newUsers.count ?? 0,
+    crm_leads_total: crmLeads.count ?? 0,
+    comments_last_7d: comments7.count ?? 0,
+    poll_votes_last_7d: pollVotes7.count ?? 0,
+    event_rsvps_upcoming: rsvpsUpcoming.count ?? 0,
+    qa_questions_last_7d: qa7.count ?? 0,
+    contributor_pending: contribPending.count ?? 0,
+  };
+}
