@@ -3,12 +3,16 @@ import {
   requestOverlaySlot,
   cancelOverlayRequest,
   setConsentOverlayVisible,
+  setMarketingConsent,
   __resetOverlayCoordinator,
 } from "@/lib/overlayCoordinator";
 
 describe("overlayCoordinator", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // Pin a realistic non-zero base time so the persisted budget's "last shown"
+    // timestamp behaves as it would in production (Date.now() is never 0 there).
+    vi.setSystemTime(new Date("2026-07-11T10:00:00Z"));
     __resetOverlayCoordinator();
   });
   afterEach(() => {
@@ -61,5 +65,53 @@ describe("overlayCoordinator", () => {
     setConsentOverlayVisible(false);
     await vi.runOnlyPendingTimersAsync();
     expect(granted).not.toHaveBeenCalled();
+  });
+
+  it("grants the highest-priority waiter first, not FIFO", async () => {
+    const order: string[] = [];
+    // Hold the queue until both are enqueued, then release.
+    setConsentOverlayVisible(true);
+    void requestOverlaySlot("low", { priority: 0 }).then(() => order.push("low"));
+    void requestOverlaySlot("high", { priority: 5 }).then(() => order.push("high"));
+    setConsentOverlayVisible(false);
+    await vi.runOnlyPendingTimersAsync();
+    expect(order).toEqual(["high"]);
+  });
+
+  it("suppresses marketing overlays when marketing consent is denied", async () => {
+    setMarketingConsent(false);
+    const granted = vi.fn();
+    void requestOverlaySlot("newsletter", { marketing: true }).then(granted);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(granted).not.toHaveBeenCalled();
+    // Granting marketing consent releases it.
+    setMarketingConsent(true);
+    await vi.runOnlyPendingTimersAsync();
+    expect(granted).toHaveBeenCalledTimes(1);
+  });
+
+  it("still grants non-marketing coordinated overlays when marketing is denied", async () => {
+    setMarketingConsent(false);
+    const granted = vi.fn();
+    void requestOverlaySlot("app-dialog", { marketing: false }).then(granted);
+    await vi.runOnlyPendingTimersAsync();
+    expect(granted).toHaveBeenCalledTimes(1);
+  });
+
+  it("enforces a minimum gap between marketing overlays across the budget", async () => {
+    setMarketingConsent(true);
+    let releaseA: (() => void) | null = null;
+    void requestOverlaySlot("nl-a", { marketing: true }).then((r) => {
+      releaseA = r;
+    });
+    await vi.runOnlyPendingTimersAsync();
+    expect(releaseA).not.toBeNull();
+    releaseA!();
+    // Past the 30s in-memory cooldown but well inside the 20-minute marketing gap.
+    await vi.advanceTimersByTimeAsync(35_000);
+    const grantedB = vi.fn();
+    void requestOverlaySlot("nl-b", { marketing: true }).then(grantedB);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(grantedB).not.toHaveBeenCalled();
   });
 });

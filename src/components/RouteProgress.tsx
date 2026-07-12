@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useIsFetching, useIsMutating } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 /**
  * Slim top-of-viewport progress bar that visualises any in-flight work:
@@ -19,6 +20,7 @@ export function RouteProgress() {
   const fetching = useIsFetching();
   const mutating = useIsMutating();
   const busy = routerBusy || fetching > 0 || mutating > 0;
+  const { t } = useTranslation();
 
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -79,20 +81,28 @@ export function RouteProgress() {
   }, [busy, visible]);
 
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none fixed inset-x-0 top-0 z-[9999] h-[2px]"
-      style={{ contain: "layout style" }}
-    >
+    <>
       <div
-        className="h-full origin-left bg-[var(--accent,#FA9346)] shadow-[0_0_8px_rgba(250,147,70,0.6)]"
-        style={{
-          width: `${progress}%`,
-          opacity: visible ? 1 : 0,
-          transition: "width 220ms cubic-bezier(.22,1,.36,1), opacity 280ms ease-out",
-          willChange: "width, opacity",
-        }}
-      />
-    </div>
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-[9999] h-[2px]"
+        style={{ contain: "layout style" }}
+      >
+        <div
+          className="h-full origin-left bg-[var(--accent,#FA9346)] shadow-[0_0_8px_rgba(250,147,70,0.6)]"
+          style={{
+            width: `${progress}%`,
+            opacity: visible ? 1 : 0,
+            transition: "width 220ms cubic-bezier(.22,1,.36,1), opacity 280ms ease-out",
+            willChange: "width, opacity",
+          }}
+        />
+      </div>
+      {/* The bar itself is decorative (aria-hidden); announce route navigation
+          to screen readers via a polite live region. Only route transitions
+          (not every background query) are announced, to avoid chatter. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {routerBusy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
+      </div>
+    </>
   );
 }

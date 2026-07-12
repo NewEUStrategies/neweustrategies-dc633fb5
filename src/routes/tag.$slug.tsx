@@ -1,11 +1,14 @@
 // Tag archive: /tag/$slug - same shape as category, reuses TaxonomyPage logic.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
@@ -42,7 +45,8 @@ export const Route = createFileRoute("/tag/$slug")({
     });
   },
   component: TagArchivePage,
-  notFoundComponent: NotFound,
+  pendingComponent: () => <ArchiveSkeleton />,
+  notFoundComponent: PublicNotFound,
   errorComponent: (props) => <RouteErrorFallback {...props} />,
 });
 
@@ -61,7 +65,7 @@ function TagArchivePage() {
   // Parytet z nagłówkiem kategorii: tag też można obserwować z archiwum
   // (wcześniej jedyną drogą był konfigurator zainteresowań).
   const personalized = usePersonalizedSettings();
-  if (!data) return <NotFound />;
+  if (!data) return <PublicNotFound />;
   const { taxonomy, posts } = data;
   const name =
     lang === "en" ? taxonomy.name_en || taxonomy.name_pl : taxonomy.name_pl || taxonomy.name_en;
@@ -69,7 +73,7 @@ function TagArchivePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 w-full">
+      <div className="flex-1 w-full">
         {taxonomy.featured_section && (
           <section className="border-b border-border">
             <BuilderRenderer
@@ -79,6 +83,7 @@ function TagArchivePage() {
           </section>
         )}
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-10">
+          <Breadcrumbs items={[{ label: `#${name}` }]} />
           <header className="mb-8">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               {t("archive.tag", { defaultValue: "Tag" })}
@@ -118,23 +123,7 @@ function TagArchivePage() {
             </div>
           )}
         </section>
-      </main>
-    </div>
-  );
-}
-
-function NotFound() {
-  const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 flex items-center justify-center px-4">
-        <h1 className="font-display text-3xl">
-          {t("archive.tagNotFound", {
-            defaultValue: lang === "en" ? "Tag not found" : "Tag nie znaleziony",
-          })}
-        </h1>
-      </main>
+      </div>
     </div>
   );
 }

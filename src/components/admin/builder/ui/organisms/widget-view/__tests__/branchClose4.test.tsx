@@ -36,7 +36,10 @@ vi.mock("@/integrations/supabase/client", () => {
   return {
     supabase: {
       from: (t: string) => mk(t),
-      rpc: async () => ({ data: [], error: null }),
+      rpc: async (name: string) => ({
+        data: name === "search_posts" ? (db.tables.posts ?? []) : [],
+        error: null,
+      }),
       auth: {
         getSession: async () => ({ data: { session: null }, error: null }),
         getUser: async () => ({ data: { user: null }, error: null }),

@@ -85,7 +85,7 @@ export function PostListCard({
         {excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>}
         {post.published_at && (
           <time className="block mt-3 text-xs text-muted-foreground">
-            {new Date(post.published_at).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL")}
+            {new Date(post.published_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL")}
           </time>
         )}
       </div>

@@ -142,7 +142,7 @@ function Index() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 w-full">
+      <div className="flex-1 w-full">
         {/* Screen-reader-only H1 so the homepage always exposes a descriptive
             landmark heading, even when the CMS builder renders its own visual
             hierarchy. Search engines and assistive tech get the brand headline
@@ -166,15 +166,13 @@ function Index() {
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">
-              Strona główna nie ma jeszcze treści. Zbuduj ją w{" "}
-              <a href="/admin/pages" className="text-brand hover:underline">
-                panelu CMS
-              </a>
-              .
+              {lang === "en"
+                ? "There's nothing here yet — please check back soon."
+                : "Nie ma tu jeszcze treści — zajrzyj wkrótce."}
             </p>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

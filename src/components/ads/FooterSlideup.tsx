@@ -1,12 +1,14 @@
 // Slide-up reklamowy przyklejony do dołu viewportu. Pojawia się po opóźnieniu,
 // można go zamknąć (per-sesja, sessionStorage). Honoruje zgodę marketingową
-// poprzez AdSlotView.
-import { useEffect, useState } from "react";
+// poprzez AdSlotView, a przez koordynator nakładek nie nakłada się na popupy
+// (jedna nakładka naraz + wspólny budżet przerwań).
+import { useEffect, useRef, useState } from "react";
 import { X } from "@/lib/lucide-shim";
 import { AdSlotView } from "@/components/AdSlot";
 import { useAdPlacements } from "@/lib/ads/queries";
 import type { AdPageType } from "@/lib/ads/types";
 import { useTranslation } from "react-i18next";
+import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 
 interface Props {
   pageType: AdPageType;
@@ -19,11 +21,13 @@ export function FooterSlideup({ pageType, pageId }: Props) {
   const { data } = useAdPlacements("footer_slideup", pageType, pageId);
   const { t } = useTranslation();
   const [visibleId, setVisibleId] = useState<string | null>(null);
+  const releaseSlotRef = useRef<(() => void) | null>(null);
 
   const placement = data?.[0];
 
   useEffect(() => {
     if (!placement) return;
+    const slotId = `footer-slideup:${placement.id}`;
     const cfg = placement.config as { delay_ms?: number; dismissible?: boolean };
     const dismissible = cfg.dismissible ?? true;
     if (dismissible) {
@@ -33,9 +37,28 @@ export function FooterSlideup({ pageType, pageId }: Props) {
         // ignore storage errors
       }
     }
+    let disposed = false;
     const delay = Math.max(0, Number(cfg.delay_ms ?? 3000));
-    const handle = setTimeout(() => setVisibleId(placement.id), delay);
-    return () => clearTimeout(handle);
+    const handle = setTimeout(() => {
+      // Ask the coordinator for a slot: a non-modal slide-up still counts as an
+      // interruption, must not appear on top of a popup, and shares the budget.
+      // Lowest priority (-1) so any pending popup wins.
+      void requestOverlaySlot(slotId, { marketing: true, priority: -1 }).then((release) => {
+        if (disposed) {
+          release();
+          return;
+        }
+        releaseSlotRef.current = release;
+        setVisibleId(placement.id);
+      });
+    }, delay);
+    return () => {
+      disposed = true;
+      clearTimeout(handle);
+      cancelOverlayRequest(slotId);
+      releaseSlotRef.current?.();
+      releaseSlotRef.current = null;
+    };
   }, [placement]);
 
   if (!placement || visibleId !== placement.id) return null;
@@ -49,6 +72,8 @@ export function FooterSlideup({ pageType, pageId }: Props) {
     } catch {
       // ignore
     }
+    releaseSlotRef.current?.();
+    releaseSlotRef.current = null;
     setVisibleId(null);
   };
 

@@ -379,6 +379,7 @@ function LoginPage() {
 
         {/* Form column */}
         <main
+          id="main-content"
           className={`bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col ${layout.form}`}
         >
           {/* Mobile mode tabs */}

@@ -1,6 +1,8 @@
 // Public search page: /search?q=...&category=&author=&from=&to=
 // Facets are derived from the match set so users can drill down.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useState, useEffect } from "react";
@@ -16,6 +18,8 @@ import {
   type SearchFilters,
 } from "@/lib/queries/archives";
 import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead } from "@/lib/seo/meta";
 import "@/lib/i18n-search";
 
 const SearchParams = z.object({
@@ -31,18 +35,21 @@ type SearchInput = z.infer<typeof SearchParams>;
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
   head: () => {
-    const lang = activeLang();
-    return {
-      meta: [
-        { title: lang === "en" ? "Search" : "Szukaj" },
-        {
-          name: "description",
-          content: lang === "en" ? "Article search" : "Wyszukiwarka wpisów",
-        },
-      ],
-    };
+    // Route through buildContentHead so /search emits the canonical + hreflang
+    // (x-default / pl / en) cluster like the other public routes, instead of a
+    // hand-rolled meta list that skipped it.
+    const url = getRequestUrl() || "/search";
+    const lang = activeLang(url);
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: lang === "en" ? "Search" : "Szukaj",
+      description: lang === "en" ? "Article search" : "Wyszukiwarka wpisów",
+    });
   },
   component: SearchPage,
+  pendingComponent: () => <ArchiveSkeleton />,
 });
 
 function SearchPage() {
@@ -106,7 +113,8 @@ function SearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+        <Breadcrumbs items={[{ label: t("search.title") }]} />
         <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title")}</h1>
         <form onSubmit={submit} className="flex gap-2 mb-8">
           <div className="relative flex-1">
@@ -115,6 +123,7 @@ function SearchPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={t("search.placeholder")}
+              aria-label={t("search.placeholder")}
               className="icon-input"
               autoFocus
             />
@@ -267,7 +276,7 @@ function SearchPage() {
             </section>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

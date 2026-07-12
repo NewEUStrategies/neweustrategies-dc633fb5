@@ -3,7 +3,7 @@
 //   /<parent>/<child>/...
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
-import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
@@ -335,7 +336,7 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
     console.error(error);
   }, [error]);
   return (
-    <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
+    <div className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
       <h1 className="font-display text-2xl">{copy.errorTitle}</h1>
       <p className="text-sm text-muted-foreground mt-2">{copy.errorBody}</p>
       <button
@@ -347,7 +348,7 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
       >
         {copy.tryAgain}
       </button>
-    </main>
+    </div>
   );
 }
 
@@ -647,7 +648,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
-        <main style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
+        <div style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
           <Breadcrumbs items={crumbs} />
           <AdZone
             position="top_of_post"
@@ -801,7 +802,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
               lang={lang}
             />
           )}
-        </main>
+        </div>
 
         <FooterSlideup pageType={adPageType} pageId={it.id} />
       </div>
@@ -821,7 +822,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         data-page-header-override={page.header_override ?? "default"}
       >
         <h1 className="sr-only">{title}</h1>
-        <main className="flex-1 w-full">{contentBlock}</main>
+        <div className="flex-1 w-full">{contentBlock}</div>
         <FooterSlideup pageType={adPageType} pageId={it.id} />
       </div>
     );
@@ -866,7 +867,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   if (tpl.bare) {
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template={tpl.id}>
-        <main className="flex-1 w-full">{pageBody}</main>
+        <div className="flex-1 w-full">{pageBody}</div>
       </div>
     );
   }
@@ -877,31 +878,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       data-page-template={tpl.id}
       data-page-header-override={page.header_override ?? "default"}
     >
-      <main
+      <div
         style={pageFullWidth ? undefined : outerMaxStyle}
         className={`flex-1 ${pageFullWidth ? "max-w-none" : ""} w-full mx-auto px-4 lg:px-8 py-10`}
       >
         {pageBody}
-      </main>
+      </div>
       <FooterSlideup pageType={adPageType} pageId={it.id} />
     </div>
   );
 }
 
-function PublicNotFound() {
-  const copy = errorCopy();
-  return (
-    <main className="flex-1 flex items-center justify-center px-4 py-20">
-      <div className="text-center">
-        <h1 className="font-display text-3xl">404 &middot; {copy.notFoundTitle}</h1>
-        <p className="text-sm text-muted-foreground mt-2">{copy.notFoundBody}</p>
-        <Link
-          to="/"
-          className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
-        >
-          {copy.goHome}
-        </Link>
-      </div>
-    </main>
-  );
-}
+// PublicNotFound is shared with the taxonomy/author archives (see
+// @/components/molecules/PublicNotFound) so 404 copy never diverges.

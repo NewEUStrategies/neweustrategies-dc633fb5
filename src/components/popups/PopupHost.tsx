@@ -88,7 +88,11 @@ export function PopupHost() {
     // behind the consent banner / another marketing overlay (e.g. the
     // newsletter popup), so overlays never stack.
     const fire = () => {
-      void requestOverlaySlot(`builder-popup:${candidate.id}`).then((release) => {
+      // Targeted builder popups outrank the generic newsletter popup (priority 1).
+      void requestOverlaySlot(`builder-popup:${candidate.id}`, {
+        marketing: true,
+        priority: 1,
+      }).then((release) => {
         if (disposed) {
           release();
           return;

@@ -1,8 +1,16 @@
-// Live search widget, extracted from SimpleWidgets.
-import { useEffect, useRef, useState } from "react";
+// Live search widget (desktop header + builder header), extracted from
+// SimpleWidgets. Uses the SAME ranked full-text engine as /search and the
+// mobile overlay (search_posts RPC: unaccent, prefix matching, indexes
+// blocks/builder content) - previously it ran a plain title-only ILIKE, so the
+// primary desktop entry point returned different results from every other
+// search surface. Exposes the WAI-ARIA combobox/listbox pattern with arrow-key
+// navigation, recent searches, and a "view all results" link into /search.
+import { useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
+import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
 import type { Lang } from "./frame";
 
 type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
@@ -27,13 +35,19 @@ export function SearchButtonWidget({
   radius: number;
   fontSize: number;
 }) {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [recent, setRecent] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const reqIdRef = useRef(0);
+  const listboxId = useId();
+  const optionId = (i: number): string => `${listboxId}-opt-${i}`;
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -60,34 +74,31 @@ export function SearchButtonWidget({
       setSearched(false);
       return;
     }
+    const reqId = ++reqIdRef.current;
     setLoading(true);
-    const titleCol = lang === "pl" ? "title_pl" : "title_en";
-    const excerptCol = lang === "pl" ? "excerpt_pl" : "excerpt_en";
-    const { data } = await supabase
-      .from("posts")
-      .select(`id, slug, ${titleCol}, ${excerptCol}`)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .ilike(titleCol, `%${t}%`)
-      .limit(Math.max(1, Math.min(limit, 20)));
-    // Kolumny są wybierane dynamicznie (per język), więc wiersz ma kształt
-    // slownika - bez any.
-    const rows = (data ?? []) as Array<Record<string, string | null>>;
+    // Same ranked FTS RPC as /search and the mobile overlay.
+    const { data } = await supabase.rpc("search_posts", {
+      _q: t,
+      _limit: Math.max(1, Math.min(limit, 20)),
+    });
+    // Ignore out-of-order responses (a slower earlier request landing last).
+    if (reqId !== reqIdRef.current) return;
     setResults(
-      rows.map((r) => ({
-        id: r.id ?? "",
-        slug: r.slug ?? "",
-        title: r[titleCol] || "",
-        excerpt: r[excerptCol] || null,
+      (data ?? []).map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl || "",
+        excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || null,
       })),
     );
+    setActive(-1);
     setLoading(false);
     setSearched(true);
   };
 
   useEffect(() => {
     if (!liveResults) return;
-    const h = setTimeout(() => runSearch(q), 220);
+    const h = setTimeout(() => runSearch(q), 200);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, liveResults]);
@@ -95,7 +106,48 @@ export function SearchButtonWidget({
   const placeholder = label || heading || (lang === "pl" ? "Szukaj" : "Search");
   const hasQuery = q.trim().length >= 2;
   const showEmpty = hasQuery && !loading && searched && results.length === 0;
-  const showPopover = focused && hasQuery;
+  const showRecent = focused && !hasQuery && recent.length > 0;
+  const showPopover = (focused && hasQuery) || showRecent;
+  const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
+
+  const openFocus = () => {
+    setFocused(true);
+    setRecent(getRecentSearches());
+  };
+
+  const goToResult = () => {
+    addRecentSearch(q);
+    setFocused(false);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      // Search-on-submit mode (live results off): run the query inline and keep
+      // the popover open, rather than navigating away.
+      if (!liveResults) {
+        void runSearch(q);
+        setFocused(true);
+        return;
+      }
+      const r = active >= 0 ? results[active] : undefined;
+      if (r) {
+        addRecentSearch(q);
+        setFocused(false);
+        void router.navigate({ href: `/post/${r.slug}` } as never);
+      } else if (hasQuery) {
+        addRecentSearch(q);
+        setFocused(false);
+        void router.navigate({ href: searchAllHref } as never);
+      }
+    }
+  };
 
   const h = Math.max(24, Math.min(120, height || 40));
   const pad = Math.max(8, Math.round(h * 0.3));
@@ -121,6 +173,11 @@ export function SearchButtonWidget({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={showPopover}
+          aria-controls={listboxId}
+          aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+          aria-autocomplete="list"
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="none"
@@ -128,14 +185,8 @@ export function SearchButtonWidget({
           inputMode="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              runSearch(q);
-              setFocused(true);
-            }
-          }}
+          onFocus={openFocus}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           aria-label={label || placeholder}
           dir="ltr"
@@ -169,6 +220,7 @@ export function SearchButtonWidget({
               setQ("");
               setResults([]);
               setSearched(false);
+              setActive(-1);
               inputRef.current?.focus();
             }}
             className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
@@ -179,34 +231,61 @@ export function SearchButtonWidget({
       </div>
 
       {showPopover && (
-        <div
-          className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-md border border-input bg-card text-card-foreground shadow-lg"
-          role="dialog"
-          aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
-        >
+        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-md border border-input bg-card text-card-foreground shadow-lg">
           <div className="max-h-[380px] overflow-y-auto py-1">
-            {loading && (
+            {/* Recent searches (query empty) */}
+            {showRecent && (
+              <ul aria-label={lang === "pl" ? "Ostatnie wyszukiwania" : "Recent searches"}>
+                {recent.map((term) => (
+                  <li key={term}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setQ(term);
+                        setActive(-1);
+                        inputRef.current?.focus();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+                    >
+                      <LucideIcons.Clock className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{term}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {focused && hasQuery && loading && (
               <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
                 <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
                 {lang === "pl" ? "Szukam…" : "Searching…"}
               </div>
             )}
 
-            {!loading && showEmpty && (
+            {focused && hasQuery && !loading && showEmpty && (
               <div className="px-4 py-5 text-xs text-muted-foreground">
                 {lang === "pl" ? "Brak wyników dla " : "No results for "}
                 <span className="font-medium text-foreground">„{q.trim()}"</span>
               </div>
             )}
 
-            {!loading && results.length > 0 && (
-              <ul className="divide-y divide-border/70">
-                {results.map((r) => (
-                  <li key={r.id}>
+            {focused && hasQuery && !loading && results.length > 0 && (
+              <ul
+                id={listboxId}
+                role="listbox"
+                aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
+                className="divide-y divide-border/70"
+              >
+                {results.map((r, i) => (
+                  <li key={r.id} id={optionId(i)} role="option" aria-selected={i === active}>
                     <AppLink
                       href={`/post/${r.slug}`}
-                      onClick={() => setFocused(false)}
-                      className="block px-4 py-3 transition-colors hover:bg-muted/50"
+                      onClick={goToResult}
+                      onMouseEnter={() => setActive(i)}
+                      className={`block px-4 py-3 transition-colors ${
+                        i === active ? "bg-muted/70" : "hover:bg-muted/50"
+                      }`}
                     >
                       <div className="text-sm font-medium text-foreground truncate">{r.title}</div>
                       {r.excerpt && (
@@ -218,6 +297,24 @@ export function SearchButtonWidget({
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* "View all results" link into the full /search page */}
+            {focused && hasQuery && !loading && (results.length > 0 || showEmpty) && (
+              <AppLink
+                href={searchAllHref}
+                onClick={() => {
+                  addRecentSearch(q);
+                  setFocused(false);
+                }}
+                className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs font-medium text-brand transition-colors hover:bg-muted/50"
+              >
+                <span>
+                  {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
+                  <span className="font-semibold">„{q.trim()}"</span>
+                </span>
+                <LucideIcons.ArrowRight className="w-3.5 h-3.5 shrink-0" />
+              </AppLink>
             )}
           </div>
         </div>

@@ -290,6 +290,7 @@ export function NewsletterPopupForm({
           <input
             className={inputCls}
             placeholder={t("Imię", "Name")}
+            aria-label={t("Imię", "Name")}
             value={v.name}
             onChange={(e) => upd("name", e.target.value)}
             maxLength={80}
@@ -297,6 +298,7 @@ export function NewsletterPopupForm({
           <input
             className={inputCls}
             placeholder={t("Nazwisko", "Surname")}
+            aria-label={t("Nazwisko", "Surname")}
             value={v.surname}
             onChange={(e) => upd("surname", e.target.value)}
             maxLength={80}
@@ -304,6 +306,7 @@ export function NewsletterPopupForm({
           <input
             className={inputCls}
             placeholder={t("Stanowisko", "Job position")}
+            aria-label={t("Stanowisko", "Job position")}
             value={v.job}
             onChange={(e) => upd("job", e.target.value)}
             maxLength={120}
@@ -311,6 +314,7 @@ export function NewsletterPopupForm({
           <input
             className={inputCls}
             placeholder={t("Firma / organizacja", "Company")}
+            aria-label={t("Firma / organizacja", "Company")}
             value={v.company}
             onChange={(e) => upd("company", e.target.value)}
             maxLength={120}
@@ -318,6 +322,7 @@ export function NewsletterPopupForm({
           <input
             className={inputCls}
             placeholder="LinkedIn"
+            aria-label="LinkedIn"
             value={v.linkedin}
             onChange={(e) => upd("linkedin", e.target.value)}
             maxLength={200}
@@ -329,6 +334,7 @@ export function NewsletterPopupForm({
         type="email"
         required
         placeholder={t("Twój e-mail", "Your e-mail")}
+        aria-label={t("Twój e-mail", "Your e-mail")}
         value={v.email}
         onChange={(e) => upd("email", e.target.value)}
         maxLength={254}
@@ -338,13 +344,19 @@ export function NewsletterPopupForm({
           className={inputCls}
           type="tel"
           placeholder={t("Numer telefonu", "Phone number")}
+          aria-label={t("Numer telefonu", "Phone number")}
           value={v.phone}
           onChange={(e) => upd("phone", e.target.value)}
           maxLength={32}
         />
       )}
       {showLists && (
-        <select className={inputCls} value={v.list} onChange={(e) => upd("list", e.target.value)}>
+        <select
+          className={inputCls}
+          aria-label={t("Wybierz listę mailingową", "Choose your main mailing list")}
+          value={v.list}
+          onChange={(e) => upd("list", e.target.value)}
+        >
           <option value="">{t("Wybierz listę mailingową", "Choose your main mailing list")}</option>
           {lists.map((l) => (
             <option key={l.id} value={l.id}>

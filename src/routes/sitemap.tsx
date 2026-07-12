@@ -105,7 +105,7 @@ function SiteMapPage() {
 
   return (
     <div className="flex flex-col bg-background text-foreground" data-page-template="sitemap">
-      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <h1 className="font-display text-4xl lg:text-5xl mb-2">{copy.title}</h1>
         <p className="text-sm text-muted-foreground mb-8">{copy.description}</p>
 
@@ -175,7 +175,7 @@ function SiteMapPage() {
             </ul>
           </section>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

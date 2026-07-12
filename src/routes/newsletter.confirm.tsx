@@ -42,7 +42,7 @@ function Page() {
   }, []);
 
   return (
-    <main className="min-h-[60vh] flex items-center justify-center p-6">
+    <div className="min-h-[60vh] flex items-center justify-center p-6">
       <div className="max-w-md w-full text-center border border-border rounded-xl p-8 bg-card space-y-3">
         {state === "loading" && (
           <>
@@ -90,6 +90,6 @@ function Page() {
           {t("newsletter.confirmPage.backHome")}
         </Link>
       </div>
-    </main>
+    </div>
   );
 }

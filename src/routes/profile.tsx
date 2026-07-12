@@ -101,13 +101,13 @@ function ProfileLayout() {
               </aside>
 
               {/* Main content */}
-              <main
+              <div
                 className={
                   isRoot ? "min-w-0 flex-1 bg-card p-5 md:p-8" : "min-w-0 flex-1 bg-card p-5 md:p-8"
                 }
               >
                 <Outlet />
-              </main>
+              </div>
             </div>
           </div>
         </div>
