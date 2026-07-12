@@ -18,6 +18,7 @@ import {
   User as UserIcon,
   CreditCard,
   ListOrdered,
+  Clock,
 } from "@/lib/lucide-shim";
 
 export type CommandSection =
@@ -221,6 +222,15 @@ const STATIC_COMMANDS: PaletteCommand[] = [
     label_en: "Advertising",
     to: "/admin/ads",
     icon: Icon(Megaphone),
+    adminOnly: true,
+  },
+  {
+    id: "adm:reading-time",
+    section: "settings",
+    label_pl: "Czas czytania",
+    label_en: "Reading time",
+    to: "/admin/reading-time",
+    icon: Icon(Clock),
     adminOnly: true,
   },
   {

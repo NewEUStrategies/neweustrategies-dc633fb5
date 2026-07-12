@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { computeBilingualReadingStats } from "@/lib/readingTime";
+import { useReadingTimeSettings } from "@/hooks/useReadingTimeSettings";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -483,6 +485,37 @@ function EditPost() {
     ],
   );
 
+  // Symultaniczny podgląd czasu czytania PL/EN dla hinta przy read_minutes -
+  // ten sam rdzeń i ustawienia (/admin/reading-time) co strona publiczna.
+  const readingTimeSettings = useReadingTimeSettings();
+  const autoReadMinutes = useMemo(
+    () =>
+      computeBilingualReadingStats(
+        {
+          pl: {
+            html: form?.content_pl ?? "",
+            docs: [form?.builder_data, form?.blocks_data?.pl],
+            extraText: form?.excerpt_pl ?? undefined,
+          },
+          en: {
+            html: form?.content_en ?? "",
+            docs: [form?.builder_data, form?.blocks_data?.en],
+            extraText: form?.excerpt_en ?? undefined,
+          },
+        },
+        readingTimeSettings,
+      ),
+    [
+      form?.content_pl,
+      form?.content_en,
+      form?.builder_data,
+      form?.blocks_data,
+      form?.excerpt_pl,
+      form?.excerpt_en,
+      readingTimeSettings,
+    ],
+  );
+
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
   const autoValue = useMemo(
     () => ({ form, cats: selectedCats, tags: selectedTags }),
@@ -830,7 +863,18 @@ function EditPost() {
           type="number"
           value={form.read_minutes ?? ""}
           onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)}
+          placeholder={t("admin.posts.readMinutesAuto", { defaultValue: "auto" })}
         />
+        {/* Symultaniczny podgląd automatu dla OBU wersji językowych, liczony
+            tym samym rdzeniem i ustawieniami co strona publiczna
+            (/admin/reading-time). Puste pole = czytelnik dostaje automat. */}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("admin.posts.readMinutesHint", {
+            defaultValue: "Auto: PL {{pl}} min · EN {{en}} min. Puste pole = automat.",
+            pl: autoReadMinutes.pl.minutes,
+            en: autoReadMinutes.en.minutes,
+          })}
+        </p>
       </div>
       <div>
         <CoverImagePicker

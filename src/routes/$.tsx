@@ -5,7 +5,7 @@
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 // Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
 // persist across navigations - never re-import them here.
@@ -37,7 +37,8 @@ import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
-import { estimateReadingMinutes } from "@/lib/readingTime";
+import { resolveReadMinutes } from "@/lib/readingTime";
+import { useReadingTimeSettings } from "@/hooks/useReadingTimeSettings";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
 import { usePasswordUnlock } from "@/hooks/usePasswordUnlock";
 import {
@@ -481,6 +482,39 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const relatedOverride = (post?.related_override ?? null) as RelatedPostsOverride | null;
   const relatedCfg = mergeRelatedConfig(relatedGlobalCfg, relatedOverride);
 
+  // Czas czytania - JEDNO źródło dla meta przy tytule, quick-view, widżetu
+  // odsłuchu, JSON-LD i bloku reading-time. Parametry z /admin/reading-time
+  // (site_settings.reading_time), treść AKTYWNEGO języka (PL i EN liczą się
+  // niezależnie), a ręczne posts.read_minutes działa jako override redakcji.
+  const readingTimeSettings = useReadingTimeSettings();
+  const readMinutes = useMemo(
+    () =>
+      isPost
+        ? resolveReadMinutes({
+            manual: post?.read_minutes ?? null,
+            sources: {
+              html: processedHtml,
+              docs: [doc, blocksDoc],
+              extraText: post?.excerpt_pl || post?.excerpt_en || undefined,
+            },
+            lang,
+            settings: readingTimeSettings,
+          })
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      isPost,
+      post?.read_minutes,
+      post?.excerpt_pl,
+      post?.excerpt_en,
+      processedHtml,
+      doc,
+      blocksDoc,
+      lang,
+      readingTimeSettings,
+    ],
+  );
+
   // Prev/next footer navigation (show_prev_next). Client-side only and gated:
   // the query fires exclusively when the toggle is effectively on (global
   // setting or per-post override) for a published post, so it costs nothing
@@ -538,18 +572,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     excerpt_en: post?.excerpt_en ?? undefined,
     coverUrl: it.cover_image_url ?? undefined,
     publishedAt: it.published_at ?? undefined,
-    readingTimeMin: isPost
-      ? estimateReadingMinutes(
-          {
-            html: processedHtml,
-            docs: [doc, blocksDoc],
-            extraText: post?.excerpt_pl || post?.excerpt_en || undefined,
-          },
-          { lang },
-        ) ||
-        post?.read_minutes ||
-        undefined
-      : undefined,
+    readingTimeMin: readMinutes ?? undefined,
     author: postAuthor
       ? {
           id: postAuthor.id,
@@ -597,7 +620,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           {(() => {
             const hasBullets = takeaways.length > 0;
             const tocOverride = (post?.toc_override ?? null) as TocOverride | null;
-            const readMinutes = post?.read_minutes ?? null;
             return (
               <>
                 {/* Tylko realne punkty trafiają na stronę publiczną - placeholder
@@ -670,7 +692,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 lang={lang}
                 author={postAuthor}
                 publishedAt={it.published_at}
-                readMinutes={post.read_minutes}
+                readMinutes={readMinutes}
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
                 }
@@ -686,7 +708,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 {merged.quick_view_info && (
                   <QuickViewInfoBar
                     lang={lang}
-                    readMinutes={post.read_minutes}
+                    readMinutes={readMinutes}
                     publishedAt={it.published_at}
                     updatedAt={it.updated_at}
                     primaryCategory={postCategories[0]}
@@ -737,7 +759,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                                 .join(" ") ||
                               null,
                             authorHref: postAuthor?.slug ? `/author/${postAuthor.slug}` : null,
-                            readMinutes: post.read_minutes ?? null,
+                            readMinutes,
                             audioUrl:
                               (lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null,
                           }

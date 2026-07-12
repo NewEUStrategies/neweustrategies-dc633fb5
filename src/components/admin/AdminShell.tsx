@@ -38,7 +38,7 @@ import {
   Link as LinkIcon,
   Search,
 } from "@/lib/lucide-shim";
-import { Inbox, MessageCircle, ListChecks, Radio } from "lucide-react";
+import { Clock, Inbox, MessageCircle, ListChecks, Radio } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -268,6 +268,13 @@ function AdminShellInner({
           icon: ListChecks,
           label: t("admin.nav.toc", {
             defaultValue: lang === "pl" ? "Spis treści (ToC)" : "Table of contents",
+          }),
+        },
+        {
+          to: "/admin/reading-time",
+          icon: Clock,
+          label: t("admin.nav.readingTime", {
+            defaultValue: lang === "pl" ? "Czas czytania" : "Reading time",
           }),
         },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
