@@ -4,16 +4,14 @@
 // Limit i rola miejsc egzekwowane serwerowo (RPC org_add_seat); current_
 // membership_tier() rozstrzyga potem realną warstwę zajętego miejsca.
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Landmark, Building2, Plus, Save, Trash2, Users, Mail } from "lucide-react";
+import { Landmark, Building2, Plus, Trash2, Users, Mail, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -22,19 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
   fetchOrganizations,
-  createOrganization,
   updateOrganization,
   deleteOrganization,
   fetchAdminOrgSeats,
@@ -46,6 +35,7 @@ import {
 export const Route = createFileRoute("/admin/organizations")({
   component: AdminOrganizationsPage,
 });
+
 
 type Lang = "pl" | "en";
 const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
