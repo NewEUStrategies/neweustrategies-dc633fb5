@@ -237,39 +237,57 @@ export function ExpertLayoutPreview({
       </label>
 
       <div
-        className={`rounded-lg border border-border overflow-hidden shadow-sm ${theme === "dark" ? "dark" : ""}`}
+        className={`rounded-lg border border-border overflow-hidden shadow-sm ${theme === "dark" && mode === "draft" ? "dark" : ""}`}
         style={previewStyle}
       >
-        <div className="bg-background text-foreground">
-          {!effectiveSlug ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">{t.noSample}</div>
-          ) : isLoading || !hub ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              {lang === "en" ? "Loading preview..." : "Ładowanie podglądu..."}
-            </div>
+        {mode === "published" ? (
+          !effectiveSlug ? (
+            <div className="p-8 text-center text-xs text-muted-foreground bg-background">{t.noSample}</div>
           ) : (
-            <ExpertMockup
-              hub={hub}
-              settings={settings}
-              lang={lang}
-              heroBg={heroBg}
-              heroText={heroText}
-              maxWidth={settings.max_width}
+            <iframe
+              ref={iframeRef}
+              key={`${effectiveSlug}-${lang}-${iframeNonce}`}
+              src={iframeSrc}
+              title="Podgląd publicznej strony eksperta"
+              onLoad={applyThemeToIframe}
+              className="w-full h-[1000px] bg-background"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
             />
-          )}
-
-          {hub && effectiveSlug && (
-            <div className="mx-auto" style={{ maxWidth: settings.max_width }}>
-              <div className="grid gap-6 p-4 md:p-6">
-                {order.map((key) => {
-                  if (!isSectionVisible(settings, key)) return null;
-                  if (key === "hero_cover") return null; // hero renderowany w mockupie
-                  return <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} />;
-                })}
+          )
+        ) : (
+          <div className="bg-background text-foreground">
+            {!effectiveSlug ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">{t.noSample}</div>
+            ) : isLoading || !hub ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                {lang === "en" ? "Loading preview..." : "Ładowanie podglądu..."}
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <ExpertMockup
+                hub={hub}
+                settings={settings}
+                lang={lang}
+                heroBg={heroBg}
+                heroText={heroText}
+                maxWidth={settings.max_width}
+              />
+            )}
+
+            {hub && effectiveSlug && (
+              <div className="mx-auto" style={{ maxWidth: settings.max_width }}>
+                <div className="grid gap-6 p-4 md:p-6">
+                  {order.map((key) => {
+                    if (!isSectionVisible(settings, key)) return null;
+                    if (key === "hero_cover") return null;
+                    return (
+                      <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="text-[11px] text-muted-foreground">
