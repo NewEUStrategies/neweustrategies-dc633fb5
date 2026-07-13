@@ -828,3 +828,119 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     </Card>
   );
 }
+
+// Kanały doręczeń poza aplikacją: Web Push na tym urządzeniu + e-mailowy
+// digest nieprzeczytanych. In-app (realtime) działa zawsze; push wymaga
+// zgody przeglądarki i skonfigurowanego VAPID po stronie serwera.
+function ChannelsSettings({
+  prefs,
+  pending,
+  onPatch,
+}: {
+  prefs: NotificationPreferences;
+  pending: boolean;
+  onPatch: (patch: Partial<NotificationPreferences>) => void;
+}) {
+  const { t } = useTranslation();
+  const push = usePushSubscription();
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold">
+        {t("notifications.settings.channelsHeader", { defaultValue: "Kanały doręczeń" })}
+      </h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {t("notifications.settings.channelsSubtitle", {
+          defaultValue: "Docieraj do powiadomień także poza otwartą aplikacją.",
+        })}
+      </p>
+      <div className="mt-3 space-y-2">
+        {push.supported && (
+          <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+            <div className="min-w-0">
+              <Label htmlFor="pref-push" className="text-sm font-normal">
+                {t("notifications.settings.push", {
+                  defaultValue: "Powiadomienia push na tym urządzeniu",
+                })}
+              </Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {!push.configured
+                  ? t("notifications.settings.pushUnconfigured", {
+                      defaultValue:
+                        "Kanał push nie jest jeszcze skonfigurowany po stronie serwera (VAPID).",
+                    })
+                  : push.permissionDenied
+                    ? t("notifications.settings.pushDenied", {
+                        defaultValue:
+                          "Przeglądarka blokuje powiadomienia dla tej strony - zmień to w jej ustawieniach.",
+                      })
+                    : t("notifications.settings.pushHint", {
+                        defaultValue: "Systemowe powiadomienia również przy zamkniętej karcie.",
+                      })}
+              </p>
+            </div>
+            <Switch
+              id="pref-push"
+              checked={push.enabled}
+              disabled={push.busy || !push.configured || push.permissionDenied}
+              onCheckedChange={(v) => {
+                if (v) {
+                  void push.subscribe().then((ok) => {
+                    if (ok) {
+                      toast.success(
+                        t("notifications.settings.pushEnabled", {
+                          defaultValue: "Push włączony na tym urządzeniu",
+                        }),
+                      );
+                    }
+                  });
+                } else {
+                  void push.unsubscribe();
+                }
+              }}
+            />
+          </div>
+        )}
+        <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+          <div className="min-w-0">
+            <Label className="text-sm font-normal">
+              {t("notifications.settings.digest", {
+                defaultValue: "E-mailowe podsumowanie nieprzeczytanych",
+              })}
+            </Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t("notifications.settings.digestHint", {
+                defaultValue:
+                  "Zbiorczy e-mail z powiadomieniami, których nie przeczytasz w aplikacji. Puste podsumowania nie są wysyłane.",
+              })}
+            </p>
+          </div>
+          <Select
+            value={prefs.email_digest}
+            onValueChange={(v) =>
+              onPatch({
+                email_digest: v as NotificationPreferences["email_digest"],
+              })
+            }
+            disabled={pending}
+          >
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">
+                {t("notifications.settings.digestOff", { defaultValue: "Wyłączone" })}
+              </SelectItem>
+              <SelectItem value="daily">
+                {t("notifications.settings.digestDaily", { defaultValue: "Codziennie" })}
+              </SelectItem>
+              <SelectItem value="weekly">
+                {t("notifications.settings.digestWeekly", { defaultValue: "Co tydzień" })}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}

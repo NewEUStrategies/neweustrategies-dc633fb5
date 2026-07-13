@@ -1,22 +1,13 @@
 // Szczegóły wydarzenia + RSVP. URL: /events/$slug
-// Zapisy i linki (transmisja/nagranie) idą WYŁĄCZNIE przez utwardzone RPC:
-// rsvp_event (limit miejsc pod FOR UPDATE, bramka warstwy/pro_briefings,
-// statusy going/interested/cancelled) i get_event_access (join_url oraz
-// recording_url są odcięte od klienta grantem kolumnowym).
+// RSVP jest trój-stanowe (going / interested / cancelled). Ponowne kliknięcie
+// tego samego statusu = cofnięcie do 'cancelled'. Zmiana statusu robi UPDATE
+// istniejącego wiersza (unique index event_id+user_id), więc jeden użytkownik
+// zawsze ma dokładnie jeden RSVP na wydarzenie.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  Calendar,
-  MapPin,
-  Users,
-  ShieldQuestion,
-  Video,
-  ArrowLeft,
-  Lock,
-  BadgeCheck,
-} from "lucide-react";
+import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft, Check, Star, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   fetchEventAccess,
@@ -33,6 +24,8 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import "@/lib/i18n-community";
+
+type RsvpStatus = "going" | "interested" | "cancelled";
 
 export const Route = createFileRoute("/events/$slug")({
   component: EventDetail,
@@ -79,7 +72,7 @@ function EventDetail() {
         .eq("event_id", eventId)
         .eq("user_id", user.id)
         .maybeSingle();
-      return data;
+      return data as { id: string; status: RsvpStatus } | null;
     },
     enabled: !!eventId && !!user,
   });
@@ -106,22 +99,40 @@ function EventDetail() {
   };
 
   const rsvpM = useMutation({
-    mutationFn: (status: "going" | "cancelled") => rsvpEvent(eventId!, status),
-    onSuccess: (res) => {
-      invalidate();
-      toast.success(
-        res.status === "going"
-          ? t("community.events.rsvpDone")
-          : t("community.events.rsvpCancelled"),
-      );
+    mutationFn: async (target: RsvpStatus) => {
+      if (!eventQ.data || !user) throw new Error("no user");
+      // Ponowne kliknięcie tego samego statusu = cancel (poza samym 'cancelled').
+      const nextStatus: RsvpStatus =
+        rsvpQ.data?.status === target && target !== "cancelled" ? "cancelled" : target;
+      if (rsvpQ.data) {
+        const { error } = await supabase
+          .from("event_rsvps")
+          .update({ status: nextStatus, updated_at: new Date().toISOString() })
+          .eq("id", rsvpQ.data.id);
+        if (error) throw error;
+      } else {
+        const tenant_id = await getPublicTenantId();
+        const { error } = await supabase.from("event_rsvps").insert({
+          event_id: eventQ.data.id,
+          user_id: user.id,
+          tenant_id,
+          status: nextStatus,
+        });
+        if (error) throw error;
+      }
+      return nextStatus;
     },
-    onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("events: full")) toast.error(t("community.events.rsvpFull"));
-      else if (msg.includes("events: membership required"))
-        toast.error(t("community.events.rsvpTierError"));
-      else toast.error(t("community.events.rsvpError"));
+    onSuccess: (nextStatus) => {
+      qc.invalidateQueries({ queryKey: ["event-rsvp", eventQ.data?.id, user?.id] });
+      const key =
+        nextStatus === "going"
+          ? "community.events.toastGoing"
+          : nextStatus === "interested"
+            ? "community.events.toastInterested"
+            : "community.events.toastCancelled";
+      toast.success(t(key));
     },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
 
   if (!modules.events_enabled) return <CommunityDisabled />;
@@ -285,27 +296,72 @@ function EventDetail() {
         {!isPast && !user && (
           <p className="text-sm text-muted-foreground">{t("community.events.rsvpSignInHint")}</p>
         )}
-        {!isPast && user && !tierBlocked && (
-          <>
-            <Button
-              onClick={() => rsvpM.mutate(isGoing ? "cancelled" : "going")}
-              disabled={rsvpM.isPending || (!isGoing && isFull)}
-            >
-              {isGoing ? t("community.events.rsvpCancel") : t("community.events.rsvp")}
-            </Button>
-            {isGoing && (
-              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                <BadgeCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-                {t("community.events.rsvpRegistered")}
-              </span>
-            )}
-            {!isGoing && access?.reason === "rsvp_required" && (
-              <p className="text-sm text-muted-foreground">{t("community.events.joinAfterRsvp")}</p>
-            )}
-          </>
+        {!isPast && user && (
+          <RsvpControls
+            current={rsvpQ.data?.status ?? null}
+            pending={rsvpM.isPending}
+            onChoose={(s) => rsvpM.mutate(s)}
+          />
         )}
       </div>
+      {!isPast && user && rsvpQ.data && rsvpQ.data.status !== "cancelled" && (
+        <p
+          key={rsvpQ.data.status}
+          className="mt-3 text-sm text-primary animate-fade-in"
+          aria-live="polite"
+        >
+          {rsvpQ.data.status === "going"
+            ? t("community.events.rsvpStatusGoing")
+            : t("community.events.rsvpStatusInterested")}
+        </p>
+      )}
     </article>
+  );
+}
+
+function RsvpControls({
+  current,
+  pending,
+  onChoose,
+}: {
+  current: RsvpStatus | null;
+  pending: boolean;
+  onChoose: (s: RsvpStatus) => void;
+}) {
+  const { t } = useTranslation();
+  const active = current && current !== "cancelled" ? current : null;
+  return (
+    <div className="inline-flex flex-wrap items-center gap-2" role="group" aria-label="RSVP">
+      <Button
+        variant={active === "going" ? "default" : "outline"}
+        onClick={() => onChoose("going")}
+        disabled={pending}
+        aria-pressed={active === "going"}
+      >
+        <Check className="mr-2 h-4 w-4" aria-hidden="true" />
+        {t("community.events.rsvpGoing")}
+      </Button>
+      <Button
+        variant={active === "interested" ? "default" : "outline"}
+        onClick={() => onChoose("interested")}
+        disabled={pending}
+        aria-pressed={active === "interested"}
+      >
+        <Star className="mr-2 h-4 w-4" aria-hidden="true" />
+        {t("community.events.rsvpInterested")}
+      </Button>
+      {active && (
+        <Button
+          variant="ghost"
+          onClick={() => onChoose("cancelled")}
+          disabled={pending}
+          aria-label={t("community.events.rsvpCancel")}
+        >
+          <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("community.events.rsvpCancel")}
+        </Button>
+      )}
+    </div>
   );
 }
 

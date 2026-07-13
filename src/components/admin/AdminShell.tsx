@@ -38,7 +38,7 @@ import {
   Link as LinkIcon,
   Search,
 } from "@/lib/lucide-shim";
-import { Clock, Inbox, MessageCircle, ListChecks, Radio, Crown, Landmark } from "lucide-react";
+import { Clock, Inbox, MessageCircle, ListChecks, Radio, Crown, Landmark, TrendingUp } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";

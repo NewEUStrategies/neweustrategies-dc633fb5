@@ -3,7 +3,20 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Select, SaveBar } from "@/components/admin/settings/fields";
+import {
+  LinkedSourceHeader,
+  LinkedImagePreview,
+} from "@/components/admin/settings/LinkedSource";
 import { setIconPack, type IconPack } from "@/lib/iconPack";
+
+type ThemeLogo = {
+  main?: string;
+  main_dark?: string;
+  bookmark_ios?: string;
+  organization?: string;
+};
+type ThemeOptionsShape = { logo?: ThemeLogo };
+const THEME_OPTIONS_DEFAULTS: ThemeOptionsShape = { logo: {} };
 
 type General = {
   site_name: string;
@@ -42,6 +55,8 @@ export const Route = createFileRoute("/admin/settings/general")({
 function GeneralSettings() {
   const { t } = useTranslation();
   const { query, save } = useSettings<General>("general", DEFAULTS);
+  const themeOptions = useSettings<ThemeOptionsShape>("theme_options", THEME_OPTIONS_DEFAULTS);
+  const themeLogo = themeOptions.query.data?.logo ?? {};
   const [draft, setDraft] = useDraft(query.data);
 
   useEffect(() => {
@@ -63,17 +78,41 @@ function GeneralSettings() {
         <Text value={draft.tagline} onChange={(e) => set("tagline", e.target.value)} />
       </Field>
       <Field label={t("admin.general.siteIcon")} hint={t("admin.general.siteIconHint")}>
+        <LinkedSourceHeader
+          sourceLabel={t("admin.linkedSource.themeOptionsBookmark", {
+            defaultValue: "Opcje motywu - Zakładka (bookmark)",
+          })}
+          sourceHref="/admin/theme-options#logo"
+          sourceValue={themeLogo.bookmark_ios}
+          preview={<LinkedImagePreview src={themeLogo.bookmark_ios} />}
+          hint={t("admin.linkedSource.overrideHint", {
+            defaultValue:
+              "Puste pole = użyj wartości ze źródła. Wpisz URL, aby nadpisać dla tej witryny.",
+          })}
+        />
         <Text
           value={draft.site_icon_url}
           onChange={(e) => set("site_icon_url", e.target.value)}
-          placeholder="https://…"
+          placeholder={themeLogo.bookmark_ios || "https://…"}
         />
       </Field>
       <Field label={t("admin.general.siteLogo")}>
+        <LinkedSourceHeader
+          sourceLabel={t("admin.linkedSource.themeOptionsLogo", {
+            defaultValue: "Opcje motywu - Logo główne",
+          })}
+          sourceHref="/admin/theme-options#logo"
+          sourceValue={themeLogo.main}
+          preview={<LinkedImagePreview src={themeLogo.main} />}
+          hint={t("admin.linkedSource.overrideHint", {
+            defaultValue:
+              "Puste pole = użyj wartości ze źródła. Wpisz URL, aby nadpisać dla tej witryny.",
+          })}
+        />
         <Text
           value={draft.site_logo_url}
           onChange={(e) => set("site_logo_url", e.target.value)}
-          placeholder="https://…"
+          placeholder={themeLogo.main || "https://…"}
         />
       </Field>
       <Field label={t("admin.general.siteUrl")}>

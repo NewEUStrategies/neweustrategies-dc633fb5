@@ -8,6 +8,10 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, NumberInput, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import {
+  LinkedSourceHeader,
+  LinkedImagePreview,
+} from "@/components/admin/settings/LinkedSource";
+import {
   AI_SEARCH_CRAWLERS,
   AI_TRAINING_CRAWLERS,
   DEFAULT_SEO_SETTINGS,
@@ -15,6 +19,10 @@ import {
   type SeoSettings,
 } from "@/lib/seo/settings";
 import { SITE_NAME } from "@/lib/seo/meta";
+
+type ThemeLogo = { main?: string; organization?: string };
+type ThemeOptionsShape = { logo?: ThemeLogo };
+const THEME_OPTIONS_DEFAULTS: ThemeOptionsShape = { logo: {} };
 
 export const Route = createFileRoute("/admin/settings/seo")({
   component: SeoSettingsTab,
@@ -24,6 +32,9 @@ export const Route = createFileRoute("/admin/settings/seo")({
 function SeoSettingsTab() {
   const { t } = useTranslation();
   const { query, save } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
+  const themeOptions = useSettings<ThemeOptionsShape>("theme_options", THEME_OPTIONS_DEFAULTS);
+  const themeLogo = themeOptions.query.data?.logo ?? {};
+  const publisherLogoSource = themeLogo.organization || themeLogo.main || "";
   const [draft, setDraft] = useDraft<SeoSettings>(query.data);
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
@@ -181,9 +192,21 @@ function SeoSettingsTab() {
             "Używane w JSON-LD (NewsArticle/Organization) - wymagane do rich results w Google News.",
         })}
       >
+        <LinkedSourceHeader
+          sourceLabel={t("admin.linkedSource.themeOptionsOrgLogo", {
+            defaultValue: "Opcje motywu - Logo organizacji",
+          })}
+          sourceHref="/admin/theme-options#logo"
+          sourceValue={publisherLogoSource}
+          preview={<LinkedImagePreview src={publisherLogoSource} />}
+          hint={t("admin.linkedSource.overrideHint", {
+            defaultValue:
+              "Puste pole = użyj wartości ze źródła. Wgraj obraz poniżej, aby nadpisać dla SEO/JSON-LD.",
+          })}
+        />
         <ImageSlot
           label=""
-          value={draft.publisher_logo_url}
+          value={draft.publisher_logo_url || publisherLogoSource}
           onChange={(v) => set("publisher_logo_url", v)}
           folder="branding"
         />
