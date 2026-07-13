@@ -2400,6 +2400,30 @@ export type Database = {
           },
         ]
       }
+      job_runner_settings: {
+        Row: {
+          base_url: string
+          enabled: boolean
+          id: number
+          secret: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string
+          enabled?: boolean
+          id?: number
+          secret?: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          enabled?: boolean
+          id?: number
+          secret?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       live_blog_entries: {
         Row: {
           block_id: string
