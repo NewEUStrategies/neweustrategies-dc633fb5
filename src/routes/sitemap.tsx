@@ -47,6 +47,7 @@ const COMMUNITY_LINKS = [
   { href: "/qa", pl: "Sesje Q&A", en: "Q&A sessions" },
   { href: "/polls", pl: "Ankiety", en: "Polls" },
   { href: "/tracker", pl: "Tracker legislacyjny UE", en: "EU policy tracker" },
+  { href: "/experts", pl: "Eksperci", en: "Experts" },
   { href: "/people", pl: "Katalog osób", en: "People directory" },
   { href: "/contribute", pl: "Zostań kontrybutorem", en: "Become a contributor" },
   { href: "/podcasts", pl: "Podcasty", en: "Podcasts" },

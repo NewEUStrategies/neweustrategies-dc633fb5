@@ -398,6 +398,13 @@ function AdminShellInner({
                   defaultValue: lang === "pl" ? "Autorzy" : "Authors",
                 }),
               },
+              {
+                to: "/admin/programs",
+                icon: Briefcase,
+                label: t("admin.nav.programs", {
+                  defaultValue: lang === "pl" ? "Programy" : "Programs",
+                }),
+              },
               ...(isSuperAdmin
                 ? [
                     {
