@@ -718,6 +718,7 @@ function SectionRenderer({
           ? hub.areas.map((a) => (lang === "en" ? a.name_en : a.name_pl))
           : ph.areas;
       const isPlaceholder = hub.areas.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       return (
         <div className="flex flex-wrap gap-1.5 items-center">
           {areas.map((label, i) => (
@@ -736,6 +737,7 @@ function SectionRenderer({
     case "details": {
       const bio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
       const isPlaceholder = !bio;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.bio}
@@ -777,6 +779,7 @@ function SectionRenderer({
       const hasContact = e.contact_email || e.website_url;
       const hasMedia = e.media_contact_email || e.media_contact_phone;
       const isPlaceholder = !hasContact && !hasMedia;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.contact}
@@ -814,6 +817,7 @@ function SectionRenderer({
           ? hub.mediaMentions.slice(0, 4).map((m) => ({ outlet: m.outlet, title: m.title, date: m.published_on }))
           : ph.mentions;
       const isPlaceholder = hub.mediaMentions.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.inMedia}
@@ -838,6 +842,7 @@ function SectionRenderer({
     case "podcast_strip": {
       const podcasts = hub.materials.filter((m) => m.kind === "podcast").slice(0, 3);
       const isPlaceholder = podcasts.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       const items = isPlaceholder
         ? ph.podcasts
         : podcasts.map((p) => ({ title: (lang === "en" ? p.title_en : p.title_pl) ?? "", date: p.date ?? "" }));
@@ -860,6 +865,7 @@ function SectionRenderer({
     case "materials": {
       const real = hub.materials.slice(0, 6);
       const isPlaceholder = real.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.materials}
@@ -923,6 +929,7 @@ function SectionRenderer({
     }
     case "programs": {
       const isPlaceholder = hub.programs.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       const items = isPlaceholder
         ? ph.programs
         : hub.programs.slice(0, 6).map((p) => ({
