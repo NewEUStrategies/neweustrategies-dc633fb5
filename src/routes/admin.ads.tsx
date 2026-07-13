@@ -15,6 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { toast } from "sonner";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
 import {
@@ -679,28 +680,19 @@ function PlacementsPanel() {
 
           <div>
             <Label>Aktywne od</Label>
-            <Input
-              type="datetime-local"
-              value={draft.starts_at?.slice(0, 16) ?? ""}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  starts_at: e.target.value ? new Date(e.target.value).toISOString() : null,
-                })
-              }
+            <DateTimePicker
+              value={draft.starts_at ?? null}
+              onChange={(iso) => setDraft({ ...draft, starts_at: iso })}
+              placeholder="Od razu (bez ograniczenia)"
             />
           </div>
           <div>
             <Label>Aktywne do</Label>
-            <Input
-              type="datetime-local"
-              value={draft.ends_at?.slice(0, 16) ?? ""}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  ends_at: e.target.value ? new Date(e.target.value).toISOString() : null,
-                })
-              }
+            <DateTimePicker
+              value={draft.ends_at ?? null}
+              onChange={(iso) => setDraft({ ...draft, ends_at: iso })}
+              placeholder="Bezterminowo"
+              minDate={draft.starts_at ? new Date(draft.starts_at) : undefined}
             />
           </div>
 
