@@ -324,6 +324,14 @@ export function ExpertLayoutPreview({
             value={theme}
             onChange={(v) => setTheme(v as Theme)}
           />
+          <ToggleGroup
+            options={[
+              { v: "on", label: lang === "en" ? "Sample: on" : "Przykład: wł" },
+              { v: "off", label: lang === "en" ? "Sample: off" : "Przykład: wył" },
+            ]}
+            value={showPlaceholders ? "on" : "off"}
+            onChange={(v) => setShowPlaceholders(v === "on")}
+          />
           {mode === "published" && (
             <button
               type="button"
