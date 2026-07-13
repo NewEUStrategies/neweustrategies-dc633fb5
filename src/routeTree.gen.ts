@@ -37,6 +37,7 @@ import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WebStoriesIndexRouteImport } from './routes/web-stories.index'
 import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
+import { Route as ProgramsIndexRouteImport } from './routes/programs.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -46,6 +47,7 @@ import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
+import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
@@ -82,6 +84,7 @@ import { Route as AdminSeoRouteImport } from './routes/admin.seo'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
 import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
+import { Route as AdminProgramsRouteImport } from './routes/admin.programs'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
@@ -312,6 +315,11 @@ const TrackerIndexRoute = TrackerIndexRouteImport.update({
   path: '/tracker/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProgramsIndexRoute = ProgramsIndexRouteImport.update({
+  id: '/programs/',
+  path: '/programs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -356,6 +364,11 @@ const QaSlugRoute = QaSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => QaRoute,
+} as any)
+const ProgramsSlugRoute = ProgramsSlugRouteImport.update({
+  id: '/programs/$slug',
+  path: '/programs/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
@@ -535,6 +548,11 @@ const AdminRedirectsRoute = AdminRedirectsRouteImport.update({
 const AdminReadingTimeRoute = AdminReadingTimeRouteImport.update({
   id: '/reading-time',
   path: '/reading-time',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminProgramsRoute = AdminProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
@@ -1060,6 +1078,7 @@ export interface FileRoutesByFullPath {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -1096,6 +1115,7 @@ export interface FileRoutesByFullPath {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/programs/$slug': typeof ProgramsSlugRoute
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
@@ -1105,6 +1125,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/programs/': typeof ProgramsIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1220,6 +1241,7 @@ export interface FileRoutesByTo {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -1254,6 +1276,7 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/programs/$slug': typeof ProgramsSlugRoute
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
@@ -1263,6 +1286,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/programs': typeof ProgramsIndexRoute
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1382,6 +1406,7 @@ export interface FileRoutesById {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -1418,6 +1443,7 @@ export interface FileRoutesById {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/programs/$slug': typeof ProgramsSlugRoute
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
@@ -1427,6 +1453,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/programs/': typeof ProgramsIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1548,6 +1575,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
@@ -1584,6 +1612,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/programs/$slug'
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
@@ -1593,6 +1622,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/programs/'
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
@@ -1708,6 +1738,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
@@ -1742,6 +1773,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/programs/$slug'
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
@@ -1751,6 +1783,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/profile'
+    | '/programs'
     | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
@@ -1869,6 +1902,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
@@ -1905,6 +1939,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/programs/$slug'
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
@@ -1914,6 +1949,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/programs/'
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
@@ -2011,12 +2047,14 @@ export interface RootRouteChildren {
   PodcastSlugRoute: typeof PodcastSlugRoute
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PostSlugRoute: typeof PostSlugRoute
+  ProgramsSlugRoute: typeof ProgramsSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   TrackerSlugRoute: typeof TrackerSlugRoute
   TrackerChangesRoute: typeof TrackerChangesRoute
   TrackerExplorerRoute: typeof TrackerExplorerRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
+  ProgramsIndexRoute: typeof ProgramsIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -2232,6 +2270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrackerIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/programs/': {
+      id: '/programs/'
+      path: '/programs'
+      fullPath: '/programs/'
+      preLoaderRoute: typeof ProgramsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile/': {
       id: '/profile/'
       path: '/'
@@ -2294,6 +2339,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/qa/$slug'
       preLoaderRoute: typeof QaSlugRouteImport
       parentRoute: typeof QaRoute
+    }
+    '/programs/$slug': {
+      id: '/programs/$slug'
+      path: '/programs/$slug'
+      fullPath: '/programs/$slug'
+      preLoaderRoute: typeof ProgramsSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/profile/subscription': {
       id: '/profile/subscription'
@@ -2545,6 +2597,13 @@ declare module '@tanstack/react-router' {
       path: '/reading-time'
       fullPath: '/admin/reading-time'
       preLoaderRoute: typeof AdminReadingTimeRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/programs': {
+      id: '/admin/programs'
+      path: '/programs'
+      fullPath: '/admin/programs'
+      preLoaderRoute: typeof AdminProgramsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/posts': {
@@ -3376,6 +3435,7 @@ interface AdminRouteChildren {
   AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminProgramsRoute: typeof AdminProgramsRoute
   AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
@@ -3428,6 +3488,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPopupsRoute: AdminPopupsRouteWithChildren,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminProgramsRoute: AdminProgramsRoute,
   AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
@@ -3554,12 +3615,14 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastSlugRoute: PodcastSlugRoute,
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PostSlugRoute: PostSlugRoute,
+  ProgramsSlugRoute: ProgramsSlugRoute,
   TagSlugRoute: TagSlugRoute,
   TrackerSlugRoute: TrackerSlugRoute,
   TrackerChangesRoute: TrackerChangesRoute,
   TrackerExplorerRoute: TrackerExplorerRoute,
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
+  ProgramsIndexRoute: ProgramsIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,

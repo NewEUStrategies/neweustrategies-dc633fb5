@@ -4,6 +4,7 @@
 import { describe, it, expect } from "vitest";
 import { supportPl, supportEn } from "@/lib/i18n-support";
 import { trackerPl, trackerEn } from "@/lib/i18n-tracker";
+import { programsPl, programsEn } from "@/lib/i18n-programs";
 
 function keyPaths(obj: Record<string, unknown>, prefix = ""): string[] {
   const out: string[] = [];
@@ -44,6 +45,15 @@ describe("i18n bundle trackera (pl/en)", () => {
     expectParity(
       trackerPl as unknown as Record<string, unknown>,
       trackerEn as unknown as Record<string, unknown>,
+    );
+  });
+});
+
+describe("i18n bundle programów badawczych (pl/en)", () => {
+  it("PL i EN mają identyczną strukturę kluczy", () => {
+    expectParity(
+      programsPl as unknown as Record<string, unknown>,
+      programsEn as unknown as Record<string, unknown>,
     );
   });
 });

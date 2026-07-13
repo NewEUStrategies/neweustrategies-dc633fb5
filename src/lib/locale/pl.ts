@@ -90,6 +90,7 @@ export const pl = {
       contentArea: "Content Area",
       newsletter: "Newsletter",
       podcasts: "Podcasty",
+      programs: "Programy badawcze",
       webStories: "Web Stories",
       personalized: "Personalizacja",
       performance: "Wydajność",

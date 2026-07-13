@@ -20,6 +20,7 @@ const SPLIT_WIDGETS = [
   "RichTextView",
   "ChartWidgetView",
   "DataMapWidgetView",
+  "DonationsWidgetView",
   "SliderRender",
   "AnimatedHeadingRender",
 ] as const;

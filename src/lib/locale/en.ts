@@ -89,6 +89,7 @@ export const en = {
       contentArea: "Content Area",
       newsletter: "Newsletter",
       podcasts: "Podcasts",
+      programs: "Research programs",
       webStories: "Web Stories",
       personalized: "Personalization",
       performance: "Performance",

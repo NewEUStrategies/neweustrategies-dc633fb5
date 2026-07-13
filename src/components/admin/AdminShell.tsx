@@ -286,6 +286,13 @@ function AdminShellInner({
         },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         {
+          to: "/admin/programs",
+          icon: FlaskConical,
+          label: t("admin.nav.programs", {
+            defaultValue: lang === "pl" ? "Programy badawcze" : "Research programs",
+          }),
+        },
+        {
           to: "/admin/live-blog",
           icon: Radio,
           label: t("admin.nav.liveBlog", {
