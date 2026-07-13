@@ -19,6 +19,7 @@ import { rateLimit } from "@/lib/server/rate-limit.server";
 import { requestPublicHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import type { BlocksDoc, Block, Json, LocalizedBlocks } from "@/lib/blocks/types";
+import type { Database } from "@/integrations/supabase/types";
 
 const MAX_CHARS = 5000;
 const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb"; // George
@@ -206,6 +207,44 @@ export const Route = createFileRoute("/api/public/post-tts")({
         if (post.status !== "published") {
           // Ten sam kod co "brak wpisu" - 403 zdradzałoby istnienie szkicu.
           return jsonError(404, "Post not found");
+        }
+
+        // Paywall: gated posts (members/paid/password) must NOT be read aloud to
+        // a caller without access - otherwise TTS is a full content-gate bypass.
+        // `has_content_access` returns true for public/unset and for members/paid
+        // only with a matching entitlement; `password` always returns false here,
+        // so password-gated posts are conservatively not synthesized (no unlock
+        // proof reaches this endpoint). Public posts stay open to anon callers.
+        const { data: accessRow } = await supabaseAdmin
+          .from("content_access")
+          .select("mode")
+          .eq("entity_type", "post")
+          .eq("entity_id", postId)
+          .maybeSingle();
+        if (accessRow && accessRow.mode !== "public") {
+          const authHeader = request.headers.get("authorization");
+          const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+          const supabaseUrl = process.env.SUPABASE_URL;
+          const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+          let entitled = false;
+          if (token && supabaseUrl && supabasePublishableKey) {
+            const { createClient } = await import("@supabase/supabase-js");
+            // Client bound to the caller's JWT: has_content_access() reads auth.uid()
+            // from it. An invalid/expired token makes the RPC run as anon -> false.
+            const authed = createClient<Database>(supabaseUrl, supabasePublishableKey, {
+              global: { headers: { Authorization: `Bearer ${token}` } },
+              auth: { persistSession: false, autoRefreshToken: false },
+            });
+            const { data: allowed, error: accessErr } = await authed.rpc("has_content_access", {
+              _entity_type: "post",
+              _entity_id: postId,
+            });
+            entitled = !accessErr && allowed === true;
+          }
+          if (!entitled) {
+            // Same 404 as unpublished/missing - never confirm a gated body via TTS.
+            return jsonError(404, "Post not found");
+          }
         }
 
         const title =

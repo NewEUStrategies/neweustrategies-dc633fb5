@@ -6,6 +6,7 @@
 // Colors are split into two: `color` (static text - non-animated) and
 // `accentColor` (animated text + the shape stroke - duo tone).
 import { useEffect, useState, type CSSProperties } from "react";
+import { hardenStyleCss } from "@/lib/sanitize";
 
 export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline" | "hover-allsides";
 
@@ -378,7 +379,7 @@ function ShapeSvg({
     };
     return (
       <>
-        <style>{css2}</style>
+        <style>{hardenStyleCss(css2)}</style>
         <svg viewBox="0 0 200 20" preserveAspectRatio="none" style={positionScribble}>
           <g
             fill="none"
@@ -544,7 +545,7 @@ function ShapeSvg({
 
   return (
     <>
-      <style>{css}</style>
+      <style>{hardenStyleCss(css)}</style>
       <svg viewBox={viewBox} preserveAspectRatio="none" style={position}>
         <g
           fill="none"

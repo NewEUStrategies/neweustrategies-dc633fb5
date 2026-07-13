@@ -22,6 +22,7 @@ import {
   validateCustom,
   type CustomField,
 } from "@/lib/builder/formFields";
+import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
@@ -202,8 +203,10 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const borderColor = s(data, "borderColor");
   const radiusPx = num(data, "radiusPx", 12);
   const paddingPx = num(data, "paddingPx", 32);
-  const bgImage = s(data, "bgImage");
-  const bgImageMobile = s(data, "bgImageMobile");
+  // Validate as image URLs at the source: rejects javascript:/other schemes and
+  // any breakout payload before either the inline style or the mobile <style>.
+  const bgImage = safeImageUrl(s(data, "bgImage"));
+  const bgImageMobile = safeImageUrl(s(data, "bgImageMobile"));
   const bgOverlay = num(data, "bgOverlay", 0);
 
   // Font-size overrides (px). 0 = leave default.
@@ -423,7 +426,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           }}
         >
           {bgImageMobile && (
-            <style>{`@media(max-width:640px){[data-cf-id="${formId}"] .cf-bg--image{background-image:url("${bgImageMobile}")}}`}</style>
+            <style
+              dangerouslySetInnerHTML={{
+                __html: hardenStyleCss(
+                  `@media(max-width:640px){[data-cf-id="${formId}"] .cf-bg--image{background-image:url("${bgImageMobile}")}}`,
+                ),
+              }}
+            />
           )}
           {bgOverlay > 0 && (
             <span
