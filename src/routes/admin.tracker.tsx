@@ -310,10 +310,11 @@ function AdminTrackerPage() {
                 />
               </Field>
               <Field label={L("Data kamienia", "Milestone date")}>
-                <Input
-                  type="date"
-                  value={draft.next_milestone_at}
-                  onChange={(e) => set({ next_milestone_at: e.target.value })}
+                <AdminDatePicker
+                  value={draft.next_milestone_at || null}
+                  onChange={(v) => set({ next_milestone_at: v ?? "" })}
+                  lang={lang}
+                  aria-label={L("Data kamienia", "Milestone date")}
                 />
               </Field>
             </div>
