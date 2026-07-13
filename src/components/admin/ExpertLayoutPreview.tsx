@@ -61,6 +61,7 @@ const LABELS: Record<Lang, Record<string, string>> = {
     expertise: "Obszary ekspertyzy",
     noSample: "Brak eksperta z ustawionym slug-iem. Dodaj slug w profilu, aby zobaczyć podgląd.",
     empty: "Brak danych do wyświetlenia w tej sekcji.",
+    placeholder: "Przykładowa treść",
   },
   en: {
     bio: "Biography",
@@ -74,8 +75,126 @@ const LABELS: Record<Lang, Record<string, string>> = {
     expertise: "Areas of expertise",
     noSample: "No expert with a slug set. Add a slug to a profile to see the preview.",
     empty: "No data to render in this section.",
+    placeholder: "Sample content",
   },
 };
+
+// Placeholdery - używane, gdy dane eksperta są puste. Dzięki temu każdy preset
+// pokazuje pełen szkielet strony (avatar, okładka, bio, listy) niezależnie od
+// tego, czy wybrany ekspert ma wypełnione pola.
+const PLACEHOLDER = {
+  pl: {
+    bio: "To miejsce wypełni pełna biografia eksperta - dorobek, obszary badawcze, ważne publikacje, doświadczenie zawodowe oraz osiągnięcia. Tekst dostosowuje się do wybranego layoutu.",
+    role: "Ekspert · Instytucja",
+    email: "kontakt@przyklad.pl",
+    mediaEmail: "media@przyklad.pl",
+    phone: "+48 000 000 000",
+    website: "przyklad.pl",
+    areas: ["Bezpieczeństwo", "Polityka UE", "Gospodarka", "Energetyka"],
+    mentions: [
+      { outlet: "Rzeczpospolita", title: "Komentarz eksperta w kontekście polityki UE", date: "2026-06-12" },
+      { outlet: "TVP Info", title: "Rozmowa o bezpieczeństwie regionalnym", date: "2026-05-30" },
+      { outlet: "Gazeta Wyborcza", title: "Analiza sytuacji gospodarczej", date: "2026-05-14" },
+    ],
+    podcasts: [
+      { title: "Rozmowy o Europie - odcinek 12", date: "2026-06-01" },
+      { title: "Bezpieczeństwo XXI wieku", date: "2026-05-18" },
+      { title: "Strategia i geopolityka", date: "2026-04-22" },
+    ],
+    materials: [
+      "Raport roczny 2026",
+      "Analiza polityki zagranicznej",
+      "Studium przypadku - energetyka",
+      "Prezentacja: Nowa strategia UE",
+      "Wywiad ekspercki",
+      "Publikacja naukowa",
+    ],
+    programs: [
+      { name: "Program badawczy: Bezpieczeństwo", role: "Kierownik" },
+      { name: "Inicjatywa Europa 2030", role: "Ekspert" },
+      { name: "Panel gospodarczy", role: "Członek" },
+      { name: "Projekt energetyczny", role: "Konsultant" },
+    ],
+  },
+  en: {
+    bio: "This is where the expert's full biography appears - achievements, research areas, key publications, professional experience, and awards. The text adapts to the selected layout.",
+    role: "Expert · Institution",
+    email: "contact@example.com",
+    mediaEmail: "media@example.com",
+    phone: "+1 000 000 000",
+    website: "example.com",
+    areas: ["Security", "EU policy", "Economy", "Energy"],
+    mentions: [
+      { outlet: "The Times", title: "Expert commentary on EU policy", date: "2026-06-12" },
+      { outlet: "Reuters", title: "Interview on regional security", date: "2026-05-30" },
+      { outlet: "The Guardian", title: "Analysis of economic trends", date: "2026-05-14" },
+    ],
+    podcasts: [
+      { title: "Europe Talks - episode 12", date: "2026-06-01" },
+      { title: "21st Century Security", date: "2026-05-18" },
+      { title: "Strategy and Geopolitics", date: "2026-04-22" },
+    ],
+    materials: [
+      "Annual report 2026",
+      "Foreign policy analysis",
+      "Case study - energy",
+      "Presentation: New EU strategy",
+      "Expert interview",
+      "Scientific publication",
+    ],
+    programs: [
+      { name: "Research program: Security", role: "Lead" },
+      { name: "Europe 2030 initiative", role: "Expert" },
+      { name: "Economic panel", role: "Member" },
+      { name: "Energy project", role: "Consultant" },
+    ],
+  },
+} as const;
+
+function AvatarPlaceholder({
+  name,
+  className = "",
+  rounded = "rounded-full",
+}: {
+  name: string;
+  className?: string;
+  rounded?: string;
+}) {
+  const initials = (name || "?")
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <div
+      className={`${className} ${rounded} flex items-center justify-center font-display text-2xl select-none`}
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 30%, transparent), color-mix(in oklab, var(--pv-accent) 10%, transparent))",
+        color: "var(--pv-accent)",
+        border: "2px solid var(--pv-accent)",
+      }}
+      aria-hidden
+    >
+      {initials || "??"}
+    </div>
+  );
+}
+
+function CoverPlaceholder({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={className}
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 40%, transparent) 0%, color-mix(in oklab, var(--pv-accent) 15%, transparent) 60%, transparent 100%), repeating-linear-gradient(45deg, rgba(0,0,0,0.04) 0 8px, transparent 8px 16px)",
+      }}
+      aria-hidden
+    />
+  );
+}
 
 export function ExpertLayoutPreview({
   settings,
@@ -344,10 +463,13 @@ function ExpertMockup({
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const e = hub.expert;
-  const name = e.display_name ?? "-";
+  const ph = PLACEHOLDER[lang];
+  const name = e.display_name ?? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert");
   const role = e.job_title ?? "";
   const company = e.company ?? "";
-  const roleLine = [role, company].filter(Boolean).join(" · ");
+  const roleLine = [role, company].filter(Boolean).join(" · ") || ph.role;
+  const bioText = (lang === "en" ? e.bio_en : e.bio_pl) ?? ph.bio;
+  const hasCover = Boolean(e.cover_url);
 
   const heroStyle: React.CSSProperties = {
     backgroundColor: heroBg ?? undefined,
@@ -356,62 +478,56 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
+  const avatar = (className: string, rounded = "rounded-full") =>
+    e.avatar_url ? (
+      <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
+    ) : (
+      <AvatarPlaceholder name={name} className={className} rounded={rounded} />
+    );
+
+  const cover = (className: string) =>
+    hasCover ? (
+      <div className={`${className} bg-cover bg-center`} style={{ backgroundImage: `url(${e.cover_url})` }} />
+    ) : (
+      <CoverPlaceholder className={className} />
+    );
+
   if (preset.heroKind === "centered") {
     return (
       <div className="w-full" style={heroStyle}>
         <div className="mx-auto text-center px-4 py-10" style={{ maxWidth }}>
-          {e.avatar_url && (
-            <img
-              src={e.avatar_url}
-              alt={name}
-              className="mx-auto h-24 w-24 rounded-full object-cover border-2"
-              style={{ borderColor: "var(--pv-accent)" }}
-            />
-          )}
-          <h1
-            className="mt-4 font-display leading-tight"
-            style={{ fontSize: settings.name_size_lg }}
-          >
+          <div className="mx-auto inline-block">
+            {avatar("h-24 w-24 mx-auto border-2", "rounded-full")}
+          </div>
+          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
             {name}
           </h1>
-          {roleLine && (
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-              {roleLine}
-            </p>
-          )}
+          <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            {roleLine}
+          </p>
           <SocialRow expert={e} className="mt-4 justify-center" />
         </div>
       </div>
     );
   }
 
-  if (preset.heroKind === "cover-overlay" && e.cover_url) {
+  if (preset.heroKind === "cover-overlay") {
     return (
       <div style={heroStyle}>
-        <div
-          className="relative w-full h-56 bg-cover bg-center"
-          style={{ backgroundImage: `url(${e.cover_url})` }}
-        >
+        <div className="relative w-full h-56">
+          {cover("absolute inset-0 w-full h-full")}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
-            {e.avatar_url && (
-              <img
-                src={e.avatar_url}
-                alt={name}
-                className="-mt-16 h-24 w-24 rounded-md object-cover border-4 border-background shadow"
-              />
-            )}
+            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-md")}</div>
             <div>
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
               </h1>
-              {roleLine && (
-                <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-                  {roleLine}
-                </p>
-              )}
+              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+                {roleLine}
+              </p>
             </div>
           </div>
         </div>
@@ -427,18 +543,14 @@ function ExpertMockup({
             className={`rounded-lg border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
             style={heroStyle}
           >
-            {e.avatar_url && (
-              <img src={e.avatar_url} alt={name} className="h-28 w-28 rounded object-cover" />
-            )}
+            {avatar("h-28 w-28", "rounded")}
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
-            {roleLine && <p className="text-xs opacity-80">{roleLine}</p>}
+            <p className="text-xs opacity-80">{roleLine}</p>
             <SocialRow expert={e} className="mt-3" />
           </aside>
-          <div className="text-sm text-muted-foreground">
-            {lang === "en" ? e.bio_en ?? "" : e.bio_pl ?? ""}
-          </div>
+          <div className="text-sm text-muted-foreground whitespace-pre-line">{bioText}</div>
         </div>
       </div>
     );
@@ -452,11 +564,9 @@ function ExpertMockup({
           <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
             {name}
           </h1>
-          {roleLine && (
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-              {roleLine}
-            </p>
-          )}
+          <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            {roleLine}
+          </p>
         </div>
       </div>
     );
@@ -469,18 +579,14 @@ function ExpertMockup({
           className="rounded-xl border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
           style={heroStyle}
         >
-          {e.avatar_url && (
-            <img src={e.avatar_url} alt={name} className="h-24 w-24 rounded-lg object-cover" />
-          )}
+          {avatar("h-24 w-24", "rounded-lg")}
           <div className={centered ? "text-center mx-auto" : ""}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
             </h1>
-            {roleLine && (
-              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-                {roleLine}
-              </p>
-            )}
+            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+              {roleLine}
+            </p>
             <SocialRow expert={e} className="mt-3" />
           </div>
         </div>
@@ -491,35 +597,29 @@ function ExpertMockup({
   if (preset.heroKind === "editorial") {
     return (
       <div style={heroStyle}>
-        {e.cover_url && (
-          <div
-            className="relative w-full h-64 bg-cover bg-center"
-            style={{ backgroundImage: `url(${e.cover_url})` }}
-          >
-            <div className="absolute inset-0 bg-black/50" />
-            <div className="absolute inset-0 flex items-end">
-              <div className="mx-auto w-full px-4 pb-6" style={{ maxWidth }}>
-                <h1
-                  className="font-serif text-white"
-                  style={{ fontSize: settings.name_size_lg, fontFamily: "'Playfair Display', Georgia, serif" }}
-                >
-                  {name}
-                </h1>
-                {roleLine && <p className="text-white/80 italic mt-1">{roleLine}</p>}
-              </div>
+        <div className="relative w-full h-64">
+          {cover("absolute inset-0 w-full h-full")}
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="absolute inset-0 flex items-end">
+            <div className="mx-auto w-full px-4 pb-6" style={{ maxWidth }}>
+              <h1
+                className="font-serif text-white"
+                style={{ fontSize: settings.name_size_lg, fontFamily: "'Playfair Display', Georgia, serif" }}
+              >
+                {name}
+              </h1>
+              <p className="text-white/80 italic mt-1">{roleLine}</p>
             </div>
           </div>
-        )}
-        {(lang === "en" ? e.bio_en : e.bio_pl) && (
-          <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
-            <blockquote
-              className="border-l-4 pl-4 italic text-lg"
-              style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif" }}
-            >
-              {(lang === "en" ? e.bio_en : e.bio_pl) as string}
-            </blockquote>
-          </div>
-        )}
+        </div>
+        <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
+          <blockquote
+            className="border-l-4 pl-4 italic text-lg"
+            style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif" }}
+          >
+            {bioText}
+          </blockquote>
+        </div>
       </div>
     );
   }
@@ -529,23 +629,16 @@ function ExpertMockup({
     <div style={heroStyle}>
       <div className="mx-auto px-4 py-8" style={{ maxWidth }}>
         <div className={`flex flex-col md:flex-row gap-5 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
-          {e.avatar_url && (
-            <img
-              src={e.avatar_url}
-              alt={name}
-              className="h-32 w-32 md:h-40 md:w-32 rounded-sm object-cover"
-              style={{ outline: "2px solid var(--pv-accent)" }}
-            />
-          )}
+          <div style={{ outline: e.avatar_url ? "2px solid var(--pv-accent)" : undefined }}>
+            {avatar("h-32 w-32 md:h-40 md:w-32", "rounded-sm")}
+          </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
               {name}
             </h1>
-            {roleLine && (
-              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-                {roleLine}
-              </p>
-            )}
+            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+              {roleLine}
+            </p>
             <SocialRow expert={e} className={`mt-3 ${centered ? "justify-center" : ""}`} />
           </div>
         </div>
@@ -567,7 +660,7 @@ function SectionRenderer({
   lang: Lang;
 }) {
   const preset = findExpertPreset(settings.default_preset);
-  const wrap = (title: string, icon: React.ReactNode, children: React.ReactNode) => {
+  const wrap = (title: React.ReactNode, icon: React.ReactNode, children: React.ReactNode) => {
     const inner = (
       <>
         <h2 className="flex items-center gap-2 font-display text-lg">
@@ -589,97 +682,135 @@ function SectionRenderer({
 
   const t = LABELS[lang];
   const e = hub.expert;
+  const ph = PLACEHOLDER[lang];
+  const placeholderTag = (
+    <span
+      className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+      style={{ backgroundColor: "color-mix(in oklab, var(--pv-accent) 15%, transparent)", color: "var(--pv-accent)" }}
+    >
+      {t.placeholder}
+    </span>
+  );
 
   switch (k) {
     case "expertise_bar": {
-      if (hub.areas.length === 0) return null;
+      const areas =
+        hub.areas.length > 0
+          ? hub.areas.map((a) => (lang === "en" ? a.name_en : a.name_pl))
+          : ph.areas;
+      const isPlaceholder = hub.areas.length === 0;
       return (
-        <div className="flex flex-wrap gap-1.5">
-          {hub.areas.map((a) => (
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {areas.map((label, i) => (
             <span
-              key={a.id}
+              key={`${label}-${i}`}
               className="text-xs px-2 py-1 rounded-full border"
               style={{ borderColor: "var(--pv-accent)", color: "var(--pv-accent)" }}
             >
-              {lang === "en" ? a.name_en : a.name_pl}
+              {label}
             </span>
           ))}
+          {isPlaceholder && placeholderTag}
         </div>
       );
     }
     case "details": {
       const bio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
-      if (!bio) return null;
+      const isPlaceholder = !bio;
       return wrap(
-        t.bio,
+        <>
+          {t.bio}
+          {isPlaceholder && placeholderTag}
+        </>,
         <BookOpen className="h-4 w-4" />,
-        <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">{bio}</p>,
+        <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
+          {bio ?? ph.bio}
+        </p>,
       );
     }
     case "social_row": {
+      const hasAny =
+        e.website_url || e.linkedin_url || e.twitter_url || e.contact_email;
       return wrap(
-        "Social",
+        <>
+          Social
+          {!hasAny && placeholderTag}
+        </>,
         <Layers className="h-4 w-4" />,
-        <SocialRow expert={e} />,
+        hasAny ? (
+          <SocialRow expert={e} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {[Globe, Linkedin, Twitter, Mail].map((Icon, i) => (
+              <span
+                key={i}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-dashed"
+                style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)" }}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+            ))}
+          </div>
+        ),
       );
     }
     case "contact_card": {
-      if (!e.contact_email && !e.website_url && !e.media_contact_email) return null;
+      const hasContact = e.contact_email || e.website_url;
+      const hasMedia = e.media_contact_email || e.media_contact_phone;
+      const isPlaceholder = !hasContact && !hasMedia;
       return wrap(
-        t.contact,
+        <>
+          {t.contact}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Mail className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
-          {(e.contact_email || e.website_url) && (
-            <div className="rounded border border-border p-3 space-y-1">
-              {e.contact_email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.contact_email}
-                </div>
-              )}
-              {e.website_url && (
-                <div className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.website_url.replace(/^https?:\/\//, "")}
-                </div>
-              )}
+          <div className="rounded border border-border p-3 space-y-1">
+            <div className="flex items-center gap-2">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.contact_email ?? ph.email}
             </div>
-          )}
-          {(e.media_contact_email || e.media_contact_phone) && (
-            <div className="rounded border border-border p-3 space-y-1">
-              <div className="text-xs font-semibold">{t.mediaContact}</div>
-              {e.media_contact_email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.media_contact_email}
-                </div>
-              )}
-              {e.media_contact_phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.media_contact_phone}
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.website_url ? e.website_url.replace(/^https?:\/\//, "") : ph.website}
             </div>
-          )}
+          </div>
+          <div className="rounded border border-border p-3 space-y-1">
+            <div className="text-xs font-semibold">{t.mediaContact}</div>
+            <div className="flex items-center gap-2">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.media_contact_email ?? ph.mediaEmail}
+            </div>
+            <div className="flex items-center gap-2">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.media_contact_phone ?? ph.phone}
+            </div>
+          </div>
         </div>,
       );
     }
     case "media_mentions": {
-      if (hub.mediaMentions.length === 0) return null;
+      const items =
+        hub.mediaMentions.length > 0
+          ? hub.mediaMentions.slice(0, 4).map((m) => ({ outlet: m.outlet, title: m.title, date: m.published_on }))
+          : ph.mentions;
+      const isPlaceholder = hub.mediaMentions.length === 0;
       return wrap(
-        t.inMedia,
+        <>
+          {t.inMedia}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Newspaper className="h-4 w-4" />,
         <ul className="divide-y divide-border/60 rounded border border-border">
-          {hub.mediaMentions.slice(0, 4).map((m) => (
-            <li key={m.id} className="px-3 py-2 text-sm flex justify-between gap-3">
+          {items.map((m, i) => (
+            <li key={i} className="px-3 py-2 text-sm flex justify-between gap-3">
               <div className="min-w-0">
                 <span className="font-medium" style={{ color: "var(--pv-accent)" }}>
                   {m.outlet}
                 </span>{" "}
                 <span className="text-muted-foreground truncate">{m.title}</span>
               </div>
-              <time className="text-xs text-muted-foreground shrink-0">{m.published_on}</time>
+              <time className="text-xs text-muted-foreground shrink-0">{m.date}</time>
             </li>
           ))}
         </ul>,
@@ -687,14 +818,20 @@ function SectionRenderer({
     }
     case "podcast_strip": {
       const podcasts = hub.materials.filter((m) => m.kind === "podcast").slice(0, 3);
-      if (podcasts.length === 0) return null;
+      const isPlaceholder = podcasts.length === 0;
+      const items = isPlaceholder
+        ? ph.podcasts
+        : podcasts.map((p) => ({ title: (lang === "en" ? p.title_en : p.title_pl) ?? "", date: p.date ?? "" }));
       return wrap(
-        t.podcasts,
+        <>
+          {t.podcasts}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Mic className="h-4 w-4" />,
         <div className="grid sm:grid-cols-3 gap-3">
-          {podcasts.map((p) => (
-            <div key={p.id} className="rounded border border-border p-3 text-sm">
-              <div className="font-medium truncate">{lang === "en" ? p.title_en : p.title_pl}</div>
+          {items.map((p, i) => (
+            <div key={i} className="rounded border border-border p-3 text-sm">
+              <div className="font-medium truncate">{p.title}</div>
               {p.date && <div className="text-xs text-muted-foreground mt-1">{p.date}</div>}
             </div>
           ))}
@@ -702,51 +839,88 @@ function SectionRenderer({
       );
     }
     case "materials": {
-      const items = hub.materials.slice(0, 6);
-      if (items.length === 0) return null;
+      const real = hub.materials.slice(0, 6);
+      const isPlaceholder = real.length === 0;
       return wrap(
-        t.materials,
+        <>
+          {t.materials}
+          {isPlaceholder && placeholderTag}
+        </>,
         <BookOpen className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {items.map((m) => (
-            <div key={m.id} className="rounded border border-border overflow-hidden bg-card">
-              {m.cover_url && <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />}
-              <div className="p-2 text-sm">
-                <div className="text-[10px] uppercase text-muted-foreground">{m.kind}</div>
-                <div className="font-medium line-clamp-2">
-                  {lang === "en" ? m.title_en : m.title_pl}
+          {isPlaceholder
+            ? ph.materials.map((title, i) => (
+                <div key={i} className="rounded border border-border overflow-hidden bg-card">
+                  <CoverPlaceholder className="w-full h-24" />
+                  <div className="p-2 text-sm">
+                    <div className="text-[10px] uppercase text-muted-foreground">
+                      {i % 3 === 0 ? "report" : i % 3 === 1 ? "article" : "video"}
+                    </div>
+                    <div className="font-medium line-clamp-2">{title}</div>
+                  </div>
                 </div>
+              ))
+            : real.map((m) => (
+                <div key={m.id} className="rounded border border-border overflow-hidden bg-card">
+                  {m.cover_url ? (
+                    <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />
+                  ) : (
+                    <CoverPlaceholder className="w-full h-24" />
+                  )}
+                  <div className="p-2 text-sm">
+                    <div className="text-[10px] uppercase text-muted-foreground">{m.kind}</div>
+                    <div className="font-medium line-clamp-2">
+                      {lang === "en" ? m.title_en : m.title_pl}
+                    </div>
+                  </div>
+                </div>
+              ))}
+        </div>,
+      );
+    }
+    case "cv": {
+      return wrap(
+        <>
+          {t.cv}
+          {placeholderTag}
+        </>,
+        <GraduationCap className="h-4 w-4" />,
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="rounded border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--pv-accent)" }} />
+                <span className="font-medium">
+                  {lang === "en" ? `Position ${i + 1}` : `Stanowisko ${i + 1}`}
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {lang === "en" ? "Institution · 2020 - 2024" : "Instytucja · 2020 - 2024"}
               </div>
             </div>
           ))}
         </div>,
       );
     }
-    case "cv": {
-      return wrap(
-        t.cv,
-        <GraduationCap className="h-4 w-4" />,
-        <p className="text-sm text-muted-foreground">
-          {lang === "en"
-            ? "CV entries (experience, education, skills) render here."
-            : "Wpisy CV (doświadczenie, edukacja, umiejętności) pojawią się tutaj."}
-        </p>,
-      );
-    }
     case "programs": {
-      if (hub.programs.length === 0) return null;
+      const isPlaceholder = hub.programs.length === 0;
+      const items = isPlaceholder
+        ? ph.programs
+        : hub.programs.slice(0, 6).map((p) => ({
+            name: (lang === "en" ? p.name_en : p.name_pl) ?? "",
+            role: (lang === "en" ? p.role_en : p.role_pl) ?? "",
+          }));
       return wrap(
-        t.programs,
+        <>
+          {t.programs}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Briefcase className="h-4 w-4" />,
         <ul className="grid sm:grid-cols-2 gap-2">
-          {hub.programs.slice(0, 6).map((p) => (
-            <li key={p.id} className="rounded border border-border p-2 text-sm">
-              <div className="font-medium">{lang === "en" ? p.name_en : p.name_pl}</div>
-              {(lang === "en" ? p.role_en : p.role_pl) && (
-                <div className="text-xs text-muted-foreground">
-                  {(lang === "en" ? p.role_en : p.role_pl) as string}
-                </div>
-              )}
+          {items.map((p, i) => (
+            <li key={i} className="rounded border border-border p-2 text-sm">
+              <div className="font-medium">{p.name}</div>
+              {p.role && <div className="text-xs text-muted-foreground">{p.role}</div>}
             </li>
           ))}
         </ul>,
