@@ -589,7 +589,10 @@ export async function fetchEngagementSnapshot(): Promise<EngagementSnapshot> {
     supabase.from("poll_votes").select("id", { count: "exact", head: true }).gte("created_at", since7),
     supabase.from("event_rsvps").select("id", { count: "exact", head: true }).gte("created_at", since7),
     supabase.from("qa_questions").select("id", { count: "exact", head: true }).gte("created_at", since7),
-    supabase.from("contributor_submissions").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase
+      .from("contributor_submissions")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["submitted", "in_review"]),
   ]);
   void now;
   return {
