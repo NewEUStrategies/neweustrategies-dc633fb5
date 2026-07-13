@@ -750,12 +750,23 @@ function ExpertMockup({
           </div>
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
-          <blockquote
-            className="border-l-4 pl-4 italic text-lg"
-            style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif", color: heroText ?? undefined }}
-          >
-            {bioText}
-          </blockquote>
+          {bioItems.length > 0 && (
+            <ul
+              className="border-l-4 pl-4 italic text-lg space-y-2 list-none"
+              style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif", color: heroText ?? undefined }}
+            >
+              {bioItems.map((item, i) => (
+                <li key={i} className="flex gap-2 items-start">
+                  <span
+                    aria-hidden
+                    className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-[6px]"
+                    style={{ backgroundColor: "var(--pv-bio-bullet)" }}
+                  />
+                  <span className="flex-1">{item}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-4">
             {social("")}
             {contact("")}
