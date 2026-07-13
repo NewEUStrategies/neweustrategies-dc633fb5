@@ -155,8 +155,8 @@ export function ExpertLayoutSettingsDialog() {
           </DialogTitle>
           <DialogDescription className="text-xs">
             {L(
-              "Wybierz zapisany szablon dla konkretnego eksperta. „Domyślny" = globalny layout z tej sekcji.",
-              "Assign a saved template per expert. \"Default\" uses the global layout from this section.",
+              'Wybierz zapisany szablon dla konkretnego eksperta. „Domyślny" = globalny layout z tej sekcji.',
+              'Assign a saved template per expert. "Default" uses the global layout from this section.',
             )}
           </DialogDescription>
         </DialogHeader>
