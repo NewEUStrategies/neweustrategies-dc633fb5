@@ -114,7 +114,7 @@ function TrackerGuidePage() {
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
             {L(
-              "Każde dossier (eu_policy_items) ma etap i status. Publikacja („published") pokazuje je na /tracker; szkic („draft") jest ukryty na powierzchni publicznej dzięki RLS.",
+              `Każde dossier (eu_policy_items) ma etap i status. Publikacja („published") pokazuje je na /tracker; szkic („draft") jest ukryty na powierzchni publicznej dzięki RLS.`,
               `Every dossier (eu_policy_items) has a stage and a status. "published" exposes it on /tracker; "draft" is hidden from public surfaces by RLS.`,
             )}
           </p>
