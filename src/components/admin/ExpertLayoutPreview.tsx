@@ -467,6 +467,7 @@ function ExpertMockup({
   heroBg,
   heroText,
   maxWidth,
+  showPlaceholders,
 }: {
   hub: ExpertHubData;
   settings: ExpertLayoutSettings;
@@ -474,6 +475,7 @@ function ExpertMockup({
   heroBg: string | null;
   heroText: string | null;
   maxWidth: number;
+  showPlaceholders: boolean;
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const e = hub.expert;
