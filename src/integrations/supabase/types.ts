@@ -1882,7 +1882,7 @@ export type Database = {
           note_en?: string | null
           note_pl?: string | null
           stance: string
-          tenant_id?: string
+          tenant_id: string
           updated_at?: string
           updated_by?: string | null
         }
@@ -6877,8 +6877,8 @@ export type Database = {
         Returns: boolean
       }
       has_tier_feature: { Args: { _feature: string }; Returns: boolean }
-      has_verified_mfa: { Args: never; Returns: boolean }
       has_tier_rank: { Args: { _min: number }; Returns: boolean }
+      has_verified_mfa: { Args: never; Returns: boolean }
       install_workflow_template: { Args: { p_key: string }; Returns: string }
       integration_endpoint_get_secret: {
         Args: { _endpoint_id: string }

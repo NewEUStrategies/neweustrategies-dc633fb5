@@ -424,14 +424,19 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      // tenant_id jest pinowany serwerowo przez trigger tg_eu_policy_position_pin;
+      // wartość podana z klienta jest ignorowana. Typ wymaga stringa, więc
+      // przekazujemy placeholder - trigger nadpisze go tenantem właściciela dossier.
       const upserts: {
         item_id: string;
         country_code: string;
         stance: string;
         note_pl: string | null;
         note_en: string | null;
+        tenant_id: string;
       }[] = [];
       const deletes: string[] = [];
+      const TENANT_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
       for (const c of EU_COUNTRIES) {
         const row = rowFor(c.code);
         const had = existing?.some((p) => p.country_code === c.code) ?? false;
@@ -445,6 +450,7 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
           stance: row.stance,
           note_pl: nullifyEmpty(row.note_pl),
           note_en: nullifyEmpty(row.note_en),
+          tenant_id: TENANT_PLACEHOLDER,
         });
       }
       if (upserts.length > 0) {
