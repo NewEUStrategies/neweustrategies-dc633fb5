@@ -837,7 +837,7 @@ function SectionRenderer({
             {[Globe, Linkedin, Twitter, Mail].map((Icon, i) => (
               <span
                 key={i}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-dashed"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-dashed"
                 style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)" }}
               >
                 <Icon className="h-4 w-4" />
