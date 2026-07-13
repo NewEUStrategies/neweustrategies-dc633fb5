@@ -546,10 +546,11 @@ function ExpertMockup({
           <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
             {name}
           </h1>
-          <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+          <p className="mt-1" style={roleStyle}>
             {roleLine}
           </p>
           <SocialRow expert={e} className="mt-4 justify-center" />
+          <BioBlock className="mt-4 mx-auto max-w-2xl" />
         </div>
       </div>
     );
@@ -569,11 +570,12 @@ function ExpertMockup({
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
               </h1>
-              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+              <p className="mt-1" style={roleStyle}>
                 {roleLine}
               </p>
             </div>
           </div>
+          <BioBlock className="mt-4" />
         </div>
       </div>
     );
@@ -591,10 +593,12 @@ function ExpertMockup({
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
-            <p className="text-xs opacity-80">{roleLine}</p>
+            <p className="text-xs" style={{ ...roleStyle, fontSize: 12 }}>{roleLine}</p>
             <SocialRow expert={e} className="mt-3" />
           </aside>
-          <div className="text-sm text-muted-foreground whitespace-pre-line">{bioText}</div>
+          <div style={heroStyle}>
+            <BioBlock />
+          </div>
         </div>
       </div>
     );
@@ -608,9 +612,10 @@ function ExpertMockup({
           <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
             {name}
           </h1>
-          <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+          <p className="mt-1" style={roleStyle}>
             {roleLine}
           </p>
+          <BioBlock className={`mt-4 ${centered ? "mx-auto max-w-2xl" : "max-w-2xl"}`} />
         </div>
       </div>
     );
@@ -624,14 +629,15 @@ function ExpertMockup({
           style={heroStyle}
         >
           {avatar("h-24 w-24", "rounded-[6px]")}
-          <div className={centered ? "text-center mx-auto" : ""}>
+          <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
             </h1>
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            <p className="mt-1" style={roleStyle}>
               {roleLine}
             </p>
             <SocialRow expert={e} className="mt-3" />
+            <BioBlock className="mt-3" />
           </div>
         </div>
       </div>
@@ -659,7 +665,7 @@ function ExpertMockup({
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <blockquote
             className="border-l-4 pl-4 italic text-lg"
-            style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif" }}
+            style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif", color: heroText ?? undefined }}
           >
             {bioText}
           </blockquote>
@@ -691,17 +697,19 @@ function ExpertMockup({
             >
               {name}
             </h1>
-            <p className="mt-2 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            <p className="mt-2" style={roleStyle}>
               {roleLine}
             </p>
             <div className="mt-3 h-px w-full bg-border/60" />
             <SocialRow expert={e} className={`mt-3 ${centered ? "justify-center" : ""}`} />
+            <BioBlock className="mt-4" />
           </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ---------- SEKCJE --------------------------------------------------------
 function SectionRenderer({
