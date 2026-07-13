@@ -402,6 +402,7 @@ export function ExpertLayoutPreview({
                 heroBg={heroBg}
                 heroText={heroText}
                 maxWidth={settings.max_width}
+                showPlaceholders={showPlaceholders}
               />
             )}
 
@@ -412,7 +413,7 @@ export function ExpertLayoutPreview({
                     if (!isSectionVisible(settings, key)) return null;
                     if (key === "hero_cover") return null;
                     return (
-                      <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} />
+                      <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} showPlaceholders={showPlaceholders} />
                     );
                   })}
                 </div>
