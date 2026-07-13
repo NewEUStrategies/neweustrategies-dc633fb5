@@ -724,7 +724,7 @@ function SectionRenderer({
           {areas.map((label, i) => (
             <span
               key={`${label}-${i}`}
-              className="text-xs px-2 py-1 rounded-full border"
+              className="text-xs px-2 py-1 rounded-[6px] border"
               style={{ borderColor: "var(--pv-accent)", color: "var(--pv-accent)" }}
             >
               {label}
