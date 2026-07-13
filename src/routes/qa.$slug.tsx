@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -76,9 +77,11 @@ function QaDetail() {
   const askM = useMutation({
     mutationFn: async ({ body, anonymous }: { body: string; anonymous: boolean }) => {
       if (!user || !sessionId) throw new Error("no user");
+      const tenant_id = await getPublicTenantId();
       const { error } = await supabase.from("qa_questions").insert({
         session_id: sessionId,
         user_id: user.id,
+        tenant_id,
         body,
         is_anonymous: anonymous,
         status: "pending",
@@ -96,9 +99,10 @@ function QaDetail() {
   const voteM = useMutation({
     mutationFn: async (questionId: string) => {
       if (!user) throw new Error("no user");
+      const tenant_id = await getPublicTenantId();
       const { error } = await supabase
         .from("qa_question_votes")
-        .insert({ question_id: questionId, user_id: user.id });
+        .insert({ question_id: questionId, user_id: user.id, tenant_id });
       if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["public-qa-votes"] }),

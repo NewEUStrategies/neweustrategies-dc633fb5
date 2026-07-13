@@ -16,6 +16,7 @@ import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -111,9 +112,10 @@ function PollCard({
     mutationFn: async (optionIdx: number) => {
       if (!userId) throw new Error("no user");
       if (myChoice === null) {
+        const tenant_id = await getPublicTenantId();
         const { error } = await supabase
           .from("poll_votes")
-          .insert({ poll_id: poll.id, user_id: userId, option_idx: optionIdx });
+          .insert({ poll_id: poll.id, user_id: userId, tenant_id, option_idx: optionIdx });
         if (error) throw error;
       } else {
         const { error } = await supabase

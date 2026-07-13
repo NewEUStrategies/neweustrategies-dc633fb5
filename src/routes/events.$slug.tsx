@@ -10,6 +10,7 @@ import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -70,9 +71,11 @@ function EventDetail() {
         if (error) throw error;
         return "removed" as const;
       }
+      const tenant_id = await getPublicTenantId();
       const { error } = await supabase.from("event_rsvps").insert({
         event_id: eventQ.data.id,
         user_id: user.id,
+        tenant_id,
         status: "registered",
       });
       if (error) throw error;
