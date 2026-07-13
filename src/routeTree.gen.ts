@@ -176,6 +176,7 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as AdminAppearanceExpertLayoutRouteImport } from './routes/admin.appearance.expert-layout'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
@@ -1027,6 +1028,12 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AdminAppearanceExpertLayoutRoute =
+  AdminAppearanceExpertLayoutRouteImport.update({
+    id: '/expert-layout',
+    path: '/expert-layout',
+    getParentRoute: () => AdminAppearanceRoute,
+  } as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -1184,6 +1191,7 @@ export interface FileRoutesByFullPath {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/appearance/expert-layout': typeof AdminAppearanceExpertLayoutRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -1353,6 +1361,7 @@ export interface FileRoutesByTo {
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/appearance/expert-layout': typeof AdminAppearanceExpertLayoutRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -1528,6 +1537,7 @@ export interface FileRoutesById {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/appearance/expert-layout': typeof AdminAppearanceExpertLayoutRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -1705,6 +1715,7 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/appearance/expert-layout'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -1874,6 +1885,7 @@ export interface FileRouteTypes {
     | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/appearance/expert-layout'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -2048,6 +2060,7 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/appearance/expert-layout'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -3342,6 +3355,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/admin/appearance/expert-layout': {
+      id: '/admin/appearance/expert-layout'
+      path: '/expert-layout'
+      fullPath: '/admin/appearance/expert-layout'
+      preLoaderRoute: typeof AdminAppearanceExpertLayoutRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
       path: '/.mcp/invoke-tool/$tool'
@@ -3388,6 +3408,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminAppearanceRouteChildren {
+  AdminAppearanceExpertLayoutRoute: typeof AdminAppearanceExpertLayoutRoute
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
   AdminAppearanceGlobalColorsRoute: typeof AdminAppearanceGlobalColorsRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
@@ -3396,6 +3417,7 @@ interface AdminAppearanceRouteChildren {
 }
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
+  AdminAppearanceExpertLayoutRoute: AdminAppearanceExpertLayoutRoute,
   AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
   AdminAppearanceGlobalColorsRoute: AdminAppearanceGlobalColorsRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,

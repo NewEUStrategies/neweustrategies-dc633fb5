@@ -22,6 +22,9 @@ import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
+import { expertLayoutQueryOptions } from "@/lib/experts/layout";
+import { ExpertRenderProvider } from "@/lib/experts/renderContext";
+import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -105,6 +108,8 @@ function ExpertHubPage() {
   const badgesQ = useUserBadges(data?.expert.id);
   // Agregacja odcinków, w których ekspert prowadzi/gości lub jest autorem.
   const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.expert.id ?? ""));
+  // Rozwiązanie layoutu buildera dla eksperta (per-ekspert override → globalny → null).
+  const layoutQ = useQuery(expertLayoutQueryOptions(data?.expert.id ?? null));
   if (!data) return <PublicNotFound />;
   const { expert } = data;
   // Pełny zestaw odznak; duplikat "Zweryfikowany" odpada, gdy pill verified świeci.
@@ -116,6 +121,19 @@ function ExpertHubPage() {
   const functions = expert.org_functions
     .map((f) => (lang === "en" ? f.en || f.pl : f.pl || f.en))
     .filter(Boolean);
+
+  // Jeśli admin ustawił layout buildera (globalny lub per-ekspert) - renderujemy go
+  // zamiast klasycznego CSIS-hero. Kontekst udostępnia hub dla widget'ów expert.*.
+  const layoutDoc = layoutQ.data?.doc ?? null;
+  if (layoutDoc && layoutDoc.sections.length > 0) {
+    return (
+      <ExpertRenderProvider hub={data} lang={lang}>
+        <div className="flex min-h-screen flex-col bg-background text-foreground">
+          <BuilderRenderer doc={layoutDoc} lang={lang} />
+        </div>
+      </ExpertRenderProvider>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
