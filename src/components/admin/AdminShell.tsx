@@ -334,6 +334,13 @@ function AdminShellInner({
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         {
+          to: "/admin/appearance/expert-layout",
+          icon: UserSquare,
+          label: t("admin.nav.expertLayout", {
+            defaultValue: lang === "pl" ? "Strona eksperta" : "Expert page",
+          }),
+        },
+        {
           to: "/admin/key-takeaways",
           icon: ListChecks,
           label: t("admin.nav.keyTakeaways", {
