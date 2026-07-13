@@ -44,8 +44,8 @@ function ExpertLayoutRoute() {
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <p>
           {lang === "pl"
-            ? "Ten layout jest wspólny dla wszystkich ekspertów. Aby przypisać alternatywny szablon dla wybranej osoby, użyj przycisku „Ustawienia per-ekspert"."
-            : "This layout is shared across all experts. Use the „Per-expert settings" dialog to assign an alternate template to a specific person."}
+            ? 'Ten layout jest wspólny dla wszystkich ekspertów. Aby przypisać alternatywny szablon dla wybranej osoby, użyj przycisku „Ustawienia per-ekspert".'
+            : 'This layout is shared across all experts. Use the „Per-expert settings" dialog to assign an alternate template to a specific person.'}
         </p>
       </div>
 
