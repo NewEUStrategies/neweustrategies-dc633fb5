@@ -4,16 +4,14 @@
 // Limit i rola miejsc egzekwowane serwerowo (RPC org_add_seat); current_
 // membership_tier() rozstrzyga potem realną warstwę zajętego miejsca.
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Landmark, Building2, Plus, Save, Trash2, Users, Mail } from "lucide-react";
+import { Landmark, Building2, Plus, Trash2, Users, Mail, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -22,19 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
   fetchOrganizations,
-  createOrganization,
   updateOrganization,
   deleteOrganization,
   fetchAdminOrgSeats,
@@ -47,6 +36,7 @@ export const Route = createFileRoute("/admin/organizations")({
   component: AdminOrganizationsPage,
 });
 
+
 type Lang = "pl" | "en";
 const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -56,7 +46,8 @@ function AdminOrganizationsPage() {
   const { i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const L = tr(lang);
-  const qc = useQueryClient();
+  
+
 
   const tiersQ = useMembershipTiers();
   const tiers = useMemo<MembershipTierRow[]>(() => tiersQ.data ?? [], [tiersQ.data]);
@@ -74,46 +65,33 @@ function AdminOrganizationsPage() {
   };
 
   const orgsQ = useQuery({ queryKey: ORGS_KEY, queryFn: fetchOrganizations });
-
-  const createOrg = useMutation({
-    mutationFn: (input: {
-      name: string;
-      tier_key: string;
-      seats_limit: number;
-      contact_email: string | null;
-      note: string | null;
-    }) => createOrganization(input),
-    onSuccess: () => {
-      toast.success(L("Utworzono organizację", "Organization created"));
-      void qc.invalidateQueries({ queryKey: ORGS_KEY });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  void tierOptions;
 
   const orgs = orgsQ.data ?? [];
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-4 p-5">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Landmark className="h-6 w-6" aria-hidden="true" />
+          <h1 className="flex items-center gap-2 text-lg font-semibold">
+            <Landmark className="h-4 w-4 text-primary" aria-hidden="true" />
             {L("Organizacje członkowskie", "Member organizations")}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground">
             {L(
-              "Członkostwo korporacyjne i partnerstwo strategiczne z wieloma kontami-miejscami. Sprzedaż prowadzona offline - tu zakładasz organizację i zarządzasz jej miejscami.",
-              "Corporate membership and strategic partnership with multiple seat accounts. Sold offline - here you set up the organization and manage its seats.",
+              "Członkostwo korporacyjne i partnerstwo strategiczne z wieloma kontami-miejscami. Sprzedaż offline - tu zarządzasz organizacjami, marką i miejscami.",
+              "Corporate membership and strategic partnership with multiple seat accounts. Sold offline - here you manage organizations, branding and seats.",
             )}
           </p>
         </div>
-        <NewOrgDialog
-          lang={lang}
-          tierOptions={tierOptions}
-          onCreate={(v) => createOrg.mutate(v)}
-          isPending={createOrg.isPending}
-        />
+        <Button asChild size="sm" className="h-8">
+          <Link to="/admin/organizations/new">
+            <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            {L("Nowa organizacja", "New organization")}
+          </Link>
+        </Button>
       </header>
+
 
       {orgsQ.isLoading ? (
         <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
@@ -199,13 +177,20 @@ function OrgCard({
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
         </CardTitle>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{tierLabel}</Badge>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="text-[10px]">{tierLabel}</Badge>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             {L("limit miejsc", "seat limit")}: {org.seats_limit}
           </span>
+          <Button asChild size="sm" variant="outline" className="ml-auto h-6 text-[10px]">
+            <Link to="/admin/organizations/$id" params={{ id: org.id }}>
+              <Settings2 className="mr-1 h-3 w-3" aria-hidden="true" />
+              {L("Zarządzaj", "Manage")}
+            </Link>
+          </Button>
         </div>
       </CardHeader>
+
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2">
           <div className="flex items-center gap-2">
@@ -395,146 +380,3 @@ function SeatManager({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Dialog: nowa organizacja - nazwa, warstwa, limit miejsc, kontakt, notatka.
-// ---------------------------------------------------------------------------
-function NewOrgDialog({
-  lang,
-  tierOptions,
-  onCreate,
-  isPending,
-}: {
-  lang: Lang;
-  tierOptions: MembershipTierRow[];
-  onCreate: (v: {
-    name: string;
-    tier_key: string;
-    seats_limit: number;
-    contact_email: string | null;
-    note: string | null;
-  }) => void;
-  isPending: boolean;
-}) {
-  const L = tr(lang);
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [tierKey, setTierKey] = useState("corporate");
-  const [seatsLimit, setSeatsLimit] = useState(5);
-  const [contactEmail, setContactEmail] = useState("");
-  const [note, setNote] = useState("");
-
-  const canSubmit =
-    name.trim().length > 0 && tierKey.length > 0 && seatsLimit >= 1 && seatsLimit <= 500;
-
-  const reset = () => {
-    setName("");
-    setTierKey("corporate");
-    setSeatsLimit(5);
-    setContactEmail("");
-    setNote("");
-  };
-
-  const submit = () => {
-    if (!canSubmit) return;
-    onCreate({
-      name: name.trim(),
-      tier_key: tierKey,
-      seats_limit: seatsLimit,
-      contact_email: contactEmail.trim() || null,
-      note: note.trim() || null,
-    });
-    setOpen(false);
-    reset();
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (!v) reset();
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {L("Nowa organizacja", "New organization")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{L("Nowa organizacja", "New organization")}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label className="text-xs">{L("Nazwa", "Name")}</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={L("np. Acme Sp. z o.o.", "e.g. Acme Ltd.")}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">{L("Warstwa", "Tier")}</Label>
-              <Select value={tierKey} onValueChange={setTierKey}>
-                <SelectTrigger>
-                  <SelectValue placeholder={L("Wybierz warstwę", "Select tier")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tierOptions.map((tier) => (
-                    <SelectItem key={tier.key} value={tier.key}>
-                      {tier.key} ({tierName(tier, lang)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">{L("Limit miejsc", "Seat limit")}</Label>
-              <Input
-                type="number"
-                min={1}
-                max={500}
-                value={seatsLimit}
-                onChange={(e) => setSeatsLimit(Number(e.target.value))}
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs">
-              {L("E-mail kontaktowy (opcjonalnie)", "Contact email (optional)")}
-            </Label>
-            <Input
-              type="email"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              placeholder="kontakt@firma.pl"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">{L("Notatka (opcjonalnie)", "Note (optional)")}</Label>
-            <Textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder={L(
-                "np. warunki umowy, osoba kontaktowa",
-                "e.g. contract terms, contact person",
-              )}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            {L("Anuluj", "Cancel")}
-          </Button>
-          <Button onClick={submit} disabled={!canSubmit || isPending}>
-            <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {L("Utwórz", "Create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

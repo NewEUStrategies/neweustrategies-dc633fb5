@@ -309,6 +309,8 @@ export type Database = {
           bio_pl: string | null
           company: string | null
           contact_email: string | null
+          counterpart_lang: string | null
+          counterpart_user_id: string | null
           created_at: string
           custom_socials: Json
           facebook_url: string | null
@@ -318,6 +320,8 @@ export type Database = {
           instagram_url: string | null
           is_public: boolean
           job_title: string | null
+          layout_overrides: Json | null
+          layout_template_id: string | null
           linkedin_url: string | null
           media_contact_email: string | null
           media_contact_name: string | null
@@ -337,6 +341,8 @@ export type Database = {
           bio_pl?: string | null
           company?: string | null
           contact_email?: string | null
+          counterpart_lang?: string | null
+          counterpart_user_id?: string | null
           created_at?: string
           custom_socials?: Json
           facebook_url?: string | null
@@ -346,6 +352,8 @@ export type Database = {
           instagram_url?: string | null
           is_public?: boolean
           job_title?: string | null
+          layout_overrides?: Json | null
+          layout_template_id?: string | null
           linkedin_url?: string | null
           media_contact_email?: string | null
           media_contact_name?: string | null
@@ -365,6 +373,8 @@ export type Database = {
           bio_pl?: string | null
           company?: string | null
           contact_email?: string | null
+          counterpart_lang?: string | null
+          counterpart_user_id?: string | null
           created_at?: string
           custom_socials?: Json
           facebook_url?: string | null
@@ -374,6 +384,8 @@ export type Database = {
           instagram_url?: string | null
           is_public?: boolean
           job_title?: string | null
+          layout_overrides?: Json | null
+          layout_template_id?: string | null
           linkedin_url?: string | null
           media_contact_email?: string | null
           media_contact_name?: string | null
@@ -388,6 +400,20 @@ export type Database = {
           x_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "author_profiles_layout_template_id_fkey"
+            columns: ["layout_template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "author_profiles_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -2759,49 +2785,91 @@ export type Database = {
       }
       member_organizations: {
         Row: {
+          brand_accent: string | null
+          brand_ink: string | null
+          brand_primary: string | null
+          city: string | null
           contact_email: string | null
+          country: string | null
           created_at: string
           created_by: string | null
+          description: string | null
           expires_at: string | null
           id: string
+          logo_favicon: string | null
+          logo_h_dark: string | null
+          logo_h_light: string | null
+          logo_v_dark: string | null
+          logo_v_light: string | null
           name: string
           note: string | null
           seats_limit: number
+          sector: string | null
+          slug: string | null
           starts_at: string
           status: string
           tenant_id: string
           tier_key: string
           updated_at: string
+          website_url: string | null
         }
         Insert: {
+          brand_accent?: string | null
+          brand_ink?: string | null
+          brand_primary?: string | null
+          city?: string | null
           contact_email?: string | null
+          country?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           expires_at?: string | null
           id?: string
+          logo_favicon?: string | null
+          logo_h_dark?: string | null
+          logo_h_light?: string | null
+          logo_v_dark?: string | null
+          logo_v_light?: string | null
           name: string
           note?: string | null
           seats_limit?: number
+          sector?: string | null
+          slug?: string | null
           starts_at?: string
           status?: string
           tenant_id?: string
           tier_key?: string
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
+          brand_accent?: string | null
+          brand_ink?: string | null
+          brand_primary?: string | null
+          city?: string | null
           contact_email?: string | null
+          country?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           expires_at?: string | null
           id?: string
+          logo_favicon?: string | null
+          logo_h_dark?: string | null
+          logo_h_light?: string | null
+          logo_v_dark?: string | null
+          logo_v_light?: string | null
           name?: string
           note?: string | null
           seats_limit?: number
+          sector?: string | null
+          slug?: string | null
           starts_at?: string
           status?: string
           tenant_id?: string
           tier_key?: string
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: [
           {
