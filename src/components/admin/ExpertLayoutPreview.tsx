@@ -583,7 +583,7 @@ function ExpertMockup({
       <div className="w-full" style={heroStyle}>
         <div className="mx-auto text-center px-4 py-10" style={{ maxWidth }}>
           <div className="mx-auto inline-block">
-            {avatar("h-24 w-24 mx-auto border-2", "rounded-full")}
+            {avatar("h-24 w-24 mx-auto border-2", "rounded-full", "400×400 px")}
           </div>
           <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
             {name}
