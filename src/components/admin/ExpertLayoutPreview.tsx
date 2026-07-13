@@ -286,6 +286,7 @@ export function ExpertLayoutPreview({
   const heroBg = theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color;
   const heroText = theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color;
   const accent = theme === "dark" ? settings.accent_color_dark : settings.accent_color;
+  const bioBullet = theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color;
 
   const t = LABELS[lang];
 
@@ -293,8 +294,9 @@ export function ExpertLayoutPreview({
     () =>
       ({
         "--pv-accent": accent ?? "hsl(var(--brand))",
+        "--pv-bio-bullet": bioBullet ?? accent ?? "hsl(var(--brand))",
       }) as React.CSSProperties,
-    [accent],
+    [accent, bioBullet],
   );
 
   return (
