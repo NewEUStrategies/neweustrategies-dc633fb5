@@ -303,8 +303,8 @@ function AdminIntegrationsPage() {
           <CardTitle>{L("Endpointy", "Endpoints")}</CardTitle>
           <CardDescription>
             {L(
-              "Wpis „wyłączony" jest pomijany przy dispatchu (delivery kończy się z powodem „endpoint disabled" - nie ma retry).",
-              "A disabled endpoint is skipped by the dispatcher (delivery finishes with reason \"endpoint disabled\", no retry).",
+              'Wpis wyłączony jest pomijany przy dispatchu (delivery kończy się z powodem "endpoint disabled" - nie ma retry).',
+              'A disabled endpoint is skipped by the dispatcher (delivery finishes with reason "endpoint disabled", no retry).',
             )}
           </CardDescription>
         </CardHeader>
