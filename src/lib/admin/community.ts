@@ -394,29 +394,65 @@ export async function fetchPollResults(pollId: string): Promise<Record<string, n
 
 export type ContributorSubmissionRow =
   Database["public"]["Tables"]["contributor_submissions"]["Row"];
+
+// UI/API surface: "pending" | "approved" | "rejected". DB CHECK constraint
+// przyjmuje: 'submitted' | 'in_review' | 'accepted' | 'rejected'. Mapowanie
+// trzymamy jednostronnie tutaj, żeby konsumenci (routes, engagement snapshot)
+// nie znały wewnętrznego enumu bazy.
 export type ContributorStatus = "pending" | "approved" | "rejected";
+type ContributorDbStatus = "submitted" | "in_review" | "accepted" | "rejected";
+
+const DB_TO_UI: Record<ContributorDbStatus, ContributorStatus> = {
+  submitted: "pending",
+  in_review: "pending",
+  accepted: "approved",
+  rejected: "rejected",
+};
+
+const UI_TO_DB_ACTION: Record<Exclude<ContributorStatus, "pending">, ContributorDbStatus> = {
+  approved: "accepted",
+  rejected: "rejected",
+};
+
+const UI_TO_DB_FILTER: Record<ContributorStatus, ContributorDbStatus[]> = {
+  pending: ["submitted", "in_review"],
+  approved: ["accepted"],
+  rejected: ["rejected"],
+};
+
+/** Row w formacie UI - `status` już zremapowany do 3 kategorii. */
+export interface ContributorSubmissionView
+  extends Omit<ContributorSubmissionRow, "status"> {
+  status: ContributorStatus;
+  db_status: ContributorDbStatus;
+}
 
 export async function fetchContributorSubmissions(
   status?: ContributorStatus | "all",
-): Promise<ContributorSubmissionRow[]> {
+  language?: "pl" | "en" | "all",
+): Promise<ContributorSubmissionView[]> {
   const query = supabase
     .from("contributor_submissions")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(200);
-  if (status && status !== "all") query.eq("status", status);
+  if (status && status !== "all") query.in("status", UI_TO_DB_FILTER[status]);
+  if (language && language !== "all") query.eq("language", language);
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((r) => {
+    const db = r.status as ContributorDbStatus;
+    return { ...r, status: DB_TO_UI[db] ?? "pending", db_status: db };
+  });
 }
 
 export async function reviewContributorSubmission(
   id: string,
-  status: ContributorStatus,
+  status: Exclude<ContributorStatus, "pending">,
   editorNote?: string,
 ): Promise<void> {
   const patch: Partial<Database["public"]["Tables"]["contributor_submissions"]["Update"]> = {
-    status,
+    status: UI_TO_DB_ACTION[status],
     reviewed_at: new Date().toISOString(),
   };
   if (editorNote !== undefined) patch.editor_note = editorNote;
