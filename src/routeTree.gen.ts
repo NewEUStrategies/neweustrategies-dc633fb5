@@ -150,6 +150,7 @@ import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.n
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
+import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminCommunityQaRouteImport } from './routes/admin.community.qa'
 import { Route as AdminCommunityPollsRouteImport } from './routes/admin.community.polls'
 import { Route as AdminCommunityNotificationsRouteImport } from './routes/admin.community.notifications'
@@ -878,6 +879,12 @@ const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
   path: '/inline',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminNewsletterCampaignsRoute =
+  AdminNewsletterCampaignsRouteImport.update({
+    id: '/campaigns',
+    path: '/campaigns',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminCommunityQaRoute = AdminCommunityQaRouteImport.update({
   id: '/qa',
   path: '/qa',
@@ -956,9 +963,9 @@ const Char91DotmcpChar93InvokeToolToolRoute =
   } as any)
 const AdminNewsletterCampaignsIndexRoute =
   AdminNewsletterCampaignsIndexRouteImport.update({
-    id: '/campaigns/',
-    path: '/campaigns/',
-    getParentRoute: () => AdminNewsletterRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
@@ -979,9 +986,9 @@ const ApiPublicNewsletterConfirmRoute =
   } as any)
 const AdminNewsletterCampaignsIdRoute =
   AdminNewsletterCampaignsIdRouteImport.update({
-    id: '/campaigns/$id',
-    path: '/campaigns/$id',
-    getParentRoute: () => AdminNewsletterRoute,
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1107,6 +1114,7 @@ export interface FileRoutesByFullPath {
   '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
   '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1426,6 +1434,7 @@ export interface FileRoutesById {
   '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
   '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
+  '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1590,6 +1599,7 @@ export interface FileRouteTypes {
     | '/admin/community/notifications'
     | '/admin/community/polls'
     | '/admin/community/qa'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -1908,6 +1918,7 @@ export interface FileRouteTypes {
     | '/admin/community/notifications'
     | '/admin/community/polls'
     | '/admin/community/qa'
+    | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -3000,6 +3011,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterInlineRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/campaigns': {
+      id: '/admin/newsletter/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/newsletter/campaigns'
+      preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/community/qa': {
       id: '/admin/community/qa'
       path: '/qa'
@@ -3100,10 +3118,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/newsletter/campaigns/': {
       id: '/admin/newsletter/campaigns/'
-      path: '/campaigns'
+      path: '/'
       fullPath: '/admin/newsletter/campaigns/'
       preLoaderRoute: typeof AdminNewsletterCampaignsIndexRouteImport
-      parentRoute: typeof AdminNewsletterRoute
+      parentRoute: typeof AdminNewsletterCampaignsRoute
     }
     '/api/public/webhooks/stripe': {
       id: '/api/public/webhooks/stripe'
@@ -3128,10 +3146,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/newsletter/campaigns/$id': {
       id: '/admin/newsletter/campaigns/$id'
-      path: '/campaigns/$id'
+      path: '/$id'
       fullPath: '/admin/newsletter/campaigns/$id'
       preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
-      parentRoute: typeof AdminNewsletterRoute
+      parentRoute: typeof AdminNewsletterCampaignsRoute
     }
   }
 }
@@ -3184,24 +3202,38 @@ const AdminCommunityRouteWithChildren = AdminCommunityRoute._addFileChildren(
   AdminCommunityRouteChildren,
 )
 
+interface AdminNewsletterCampaignsRouteChildren {
+  AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
+  AdminNewsletterCampaignsIndexRoute: typeof AdminNewsletterCampaignsIndexRoute
+}
+
+const AdminNewsletterCampaignsRouteChildren: AdminNewsletterCampaignsRouteChildren =
+  {
+    AdminNewsletterCampaignsIdRoute: AdminNewsletterCampaignsIdRoute,
+    AdminNewsletterCampaignsIndexRoute: AdminNewsletterCampaignsIndexRoute,
+  }
+
+const AdminNewsletterCampaignsRouteWithChildren =
+  AdminNewsletterCampaignsRoute._addFileChildren(
+    AdminNewsletterCampaignsRouteChildren,
+  )
+
 interface AdminNewsletterRouteChildren {
+  AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRouteWithChildren
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
   AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
   AdminNewsletterIndexRoute: typeof AdminNewsletterIndexRoute
-  AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
-  AdminNewsletterCampaignsIndexRoute: typeof AdminNewsletterCampaignsIndexRoute
 }
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
+  AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRouteWithChildren,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
   AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
   AdminNewsletterIndexRoute: AdminNewsletterIndexRoute,
-  AdminNewsletterCampaignsIdRoute: AdminNewsletterCampaignsIdRoute,
-  AdminNewsletterCampaignsIndexRoute: AdminNewsletterCampaignsIndexRoute,
 }
 
 const AdminNewsletterRouteWithChildren = AdminNewsletterRoute._addFileChildren(
