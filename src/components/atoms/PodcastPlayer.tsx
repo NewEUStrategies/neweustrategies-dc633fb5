@@ -19,6 +19,11 @@ interface Props {
   autoPlay?: boolean;
   className?: string;
   lang?: "pl" | "en";
+  /**
+   * Rejestruje zewnętrzny seek (sekundy) - lista rozdziałów na stronie
+   * odcinka przeskakuje nim do znacznika i od razu startuje odtwarzanie.
+   */
+  registerSeek?: (seek: (seconds: number) => void) => void;
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -83,6 +88,7 @@ export function PodcastPlayer({
   autoPlay = false,
   className,
   lang = "pl",
+  registerSeek,
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Unikalny identyfikator instancji na szynie arbitrażu odtwarzania.
@@ -231,6 +237,20 @@ export function PodcastPlayer({
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted;
   }, [muted]);
+
+  // Udostępnij funkcję seek rodzicowi (lista rozdziałów): przeskocz do
+  // znacznika i od razu odtwarzaj. clamp do [0, duration], gdy znamy długość.
+  useEffect(() => {
+    if (!registerSeek) return;
+    registerSeek((seconds: number) => {
+      const a = audioRef.current;
+      if (!a) return;
+      const target = Math.max(0, Math.min(seconds, a.duration || seconds));
+      a.currentTime = target;
+      setTime(target);
+      void a.play();
+    });
+  }, [registerSeek]);
 
   // Stan `playing` napędzają zdarzenia audio (patrz efekt wyżej); toggle tylko
   // steruje odtwarzaniem.

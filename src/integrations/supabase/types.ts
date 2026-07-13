@@ -3842,6 +3842,64 @@ export type Database = {
           },
         ]
       }
+      podcast_episode_people: {
+        Row: {
+          created_at: string
+          display_name: string
+          episode_id: string
+          id: string
+          profile_id: string | null
+          role: string
+          sort_order: number
+          tenant_id: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          episode_id: string
+          id?: string
+          profile_id?: string | null
+          role?: string
+          sort_order?: number
+          tenant_id: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          episode_id?: string
+          id?: string
+          profile_id?: string | null
+          role?: string
+          sort_order?: number
+          tenant_id?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_episode_people_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_episode_people_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_episode_people_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcast_settings: {
         Row: {
           apple_url: string | null
@@ -3896,10 +3954,77 @@ export type Database = {
           },
         ]
       }
+      podcast_shows: {
+        Row: {
+          apple_url: string | null
+          cover_image_url: string | null
+          created_at: string
+          deleted_at: string | null
+          description_en: string
+          description_pl: string
+          id: string
+          slug: string
+          sort_order: number
+          spotify_url: string | null
+          status: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          youtube_url: string | null
+        }
+        Insert: {
+          apple_url?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description_en?: string
+          description_pl?: string
+          id?: string
+          slug: string
+          sort_order?: number
+          spotify_url?: string | null
+          status?: string
+          tenant_id: string
+          title_en?: string
+          title_pl: string
+          updated_at?: string
+          youtube_url?: string | null
+        }
+        Update: {
+          apple_url?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description_en?: string
+          description_pl?: string
+          id?: string
+          slug?: string
+          sort_order?: number
+          spotify_url?: string | null
+          status?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_shows_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcasts: {
         Row: {
           audio_url: string
           author_id: string | null
+          category_id: string | null
+          chapters: Json
           cover_image_url: string | null
           created_at: string
           deleted_at: string | null
@@ -3909,7 +4034,10 @@ export type Database = {
           excerpt_pl: string
           id: string
           published_at: string | null
+          quotes: Json
+          resources: Json
           season: number | null
+          show_id: string | null
           show_notes_en: string
           show_notes_pl: string
           slug: string
@@ -3924,6 +4052,8 @@ export type Database = {
         Insert: {
           audio_url: string
           author_id?: string | null
+          category_id?: string | null
+          chapters?: Json
           cover_image_url?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -3933,7 +4063,10 @@ export type Database = {
           excerpt_pl?: string
           id?: string
           published_at?: string | null
+          quotes?: Json
+          resources?: Json
           season?: number | null
+          show_id?: string | null
           show_notes_en?: string
           show_notes_pl?: string
           slug: string
@@ -3948,6 +4081,8 @@ export type Database = {
         Update: {
           audio_url?: string
           author_id?: string | null
+          category_id?: string | null
+          chapters?: Json
           cover_image_url?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -3957,7 +4092,10 @@ export type Database = {
           excerpt_pl?: string
           id?: string
           published_at?: string | null
+          quotes?: Json
+          resources?: Json
           season?: number | null
+          show_id?: string | null
           show_notes_en?: string
           show_notes_pl?: string
           slug?: string
@@ -3975,6 +4113,20 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_shows"
             referencedColumns: ["id"]
           },
           {

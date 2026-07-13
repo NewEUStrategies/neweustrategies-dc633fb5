@@ -394,33 +394,41 @@ pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 `src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
 `src/lib/__tests__/i18nCohesion.test.ts`.
 
----
+## 6. Podcast: sieć programów (nie płaska lista plików)
 
-## 6. NES Digital Features (widgety danych w builderze)
+Podcast jest modelowany jako **katalog odrębnych programów** (wzorzec RUSI/CSIS),
+a nie pojedynczy strumień odcinków. Model danych:
 
-> **Status:** wdrożony. Formalny moduł interaktywnych „digital features"
-> (model CSIS: _Charts_ / _Digital Features_ / _Microsites_). Pełna
-> dokumentacja: **`docs/DIGITAL_FEATURES.md`**.
+```
+program (podcast_shows)
+├── sezony ── odcinki       (podcasts.show_id + season/episode_number)
+├── prowadzący / goście     (podcast_episode_people, opcjonalnie profil eksperta)
+├── specjalizacja           (podcasts.category_id -> categories)
+├── rozdziały               (podcasts.chapters   jsonb)
+├── cytaty do udostępnienia (podcasts.quotes     jsonb)
+└── źródła i materiały       (podcasts.resources  jsonb, kind: source|related)
+```
 
-Dziewięć widgetów `feature-*` (oś czasu, sankey, porównywarka państw, macierz
-ryzyka, karta wskaźnika, sieć powiązań, mapa korytarzy, biblioteka źródeł, nota
-metodologiczna) obok istniejących `chart` / `data-map`. Digital Feature = strona
-buildera łącząca te widgety; Microsite = zestaw takich stron z własnym menu.
-Silnik nie jest osobną platformą - to zwykłe widgety buildera.
-
-- **Silnik:** `src/components/features/*` (czyste SVG/HTML, zero nowych zależności).
-- **Adapter treść→config:** `…/widget-view/FeatureWidgets.tsx`; parsery
-  formatu tekstowego: `src/lib/features/parse.ts` (separator `;`, i18n inline `PL|EN`).
-- **Rejestracja:** kategoria `"features"` w `registry.tsx`, typy w
-  `builder/types.ts` + `WIDGET_TYPES` w `schema.ts` (drift guard), dispatch w
-  `WidgetView.tsx`, code-split przez `lazyWidgets.tsx` (jeden chunk `FeatureWidgets`).
-- **Reguły (te same co silnik wykresów):** kolory tylko z tokenów `--chart-*`,
-  animacje przez `useRevealOnScroll` (SSR = stan końcowy), dostępność przez
-  tabelę/listę niezależną od grafiki (nigdy sam tooltip).
-- **Mapa korytarzy:** reużywa `public/geo/*.v1.json`. Generator
-  (`scripts/generate-geo-maps.ts`) osadza metadane projekcji (`proj`), a
-  `src/lib/features/geoProject.ts` odtwarza z nich `lon/lat → px` bez
-  duplikowania kodu projekcji. Zmiana zasobów jest wstecznie zgodna - geometria
-  krajów bez zmian, dochodzi tylko pole `proj`.
-
-Testy: `src/lib/features/__tests__/*`, `src/components/features/__tests__/features.test.tsx`.
+- **Serie ≠ odcinki.** `podcast_shows` to program (status/RLS jak w `podcasts`).
+  Odcinek wskazuje program przez `podcasts.show_id` (NULL = luzem). Powiązania
+  addytywne: istniejące odcinki i globalny kanał RSS działają bez zmian.
+- **Ludzie.** `podcast_episode_people` (rola `host|guest`). `profile_id` linkuje
+  do profilu eksperta - to on napędza agregację odcinka na `/author/$slug`;
+  gość zewnętrzny funkcjonuje po `display_name` + opcjonalnym `url`. Zapis w
+  adminie strategią "zastąp wszystko" (delete + insert per odcinek).
+- **Warstwy odcinka** (`chapters`/`quotes`/`resources`) to kolumny jsonb;
+  kształt egzekwują defensywne parsery w `src/lib/podcast/types.ts`
+  (`parseChapters`/`parseQuotes`/`parseResources`) - złe wpisy odpadają zamiast
+  wywracać UI. Rozdziały sterują odtwarzaczem przez `PodcastPlayer.registerSeek`.
+- **Trasy.** `/podcasts` (katalog: programy + najnowsze odcinki, `podcasts.index.tsx`),
+  `/podcasts/$show` (program: sezony + prowadzący), `/podcast/$slug` (odcinek).
+- **RSS osobno dla całości i per program.** Sieć: `/podcast/rss.xml`
+  (`fetchPublishedPodcasts`). Program: `/podcasts/$show/rss.xml`
+  (`fetchPublishedShowBySlug` + `fetchPublishedPodcastsByShow`). Oba przez
+  service role, fail-closed po hoście tenanta, wspólny builder
+  `src/lib/seo/podcastRss.ts`. Programy i odcinki są też w `sitemap.xml`.
+- **Agregacja.** Sekcja "Podcasty" pojawia się na profilu eksperta
+  (`podcastsByProfileQueryOptions`: występy + autorstwo) i na stronie
+  specjalizacji/kategorii (`podcastsByCategoryQueryOptions`), przez wspólny
+  `src/components/podcast/PodcastEpisodeStrip.tsx`.
+- **JSON-LD.** Program emituje `PodcastSeries`, odcinek `PodcastEpisode`.

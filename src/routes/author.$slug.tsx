@@ -2,7 +2,7 @@
 // Slug param may also be the user UUID for back-compat.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Globe, Linkedin } from "lucide-react";
@@ -19,6 +19,8 @@ import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { authorBySlugQueryOptions, ARCHIVE_PAGE_SIZE } from "@/lib/queries/archives";
+import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
+import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -83,6 +85,8 @@ function AuthorArchivePage() {
   // Pełny zestaw odznak (ekspert/redakcja/autor gościnny) - parytet z /people;
   // duplikat "Zweryfikowany" odpada, gdy pill verified_at już świeci.
   const badgesQ = useUserBadges(data?.author.id);
+  // Agregacja odcinków, w których ekspert prowadzi/gości lub jest autorem.
+  const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.author.id ?? ""));
   if (!data) return <PublicNotFound />;
   const { author, posts } = data;
   const extraBadges = (badgesQ.data ?? []).filter(
@@ -178,6 +182,15 @@ function AuthorArchivePage() {
           </div>
         </header>
         <AuthorCvSections userId={author.id} />
+        {podcastsQ.data && podcastsQ.data.length > 0 && (
+          <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-4">
+            <PodcastEpisodeStrip
+              episodes={podcastsQ.data}
+              lang={lang}
+              title={lang === "en" ? "Podcasts" : "Podcasty"}
+            />
+          </section>
+        )}
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
           <h2 className="font-display text-2xl mb-5">
             {lang === "en" ? "Author's posts" : "Wpisy autora"}
