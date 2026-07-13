@@ -74,10 +74,29 @@ export interface GeoAssetCountry {
   d: string;
 }
 
+/**
+ * Metadane projekcji + dopasowania osadzone w zasobie przez generator
+ * (scripts/generate-geo-maps.ts). Pozwalają rzutować dowolne lon/lat
+ * (korytarze, markery miast) na TEN SAM canvas co geometria krajów:
+ * px = (raw - min) * scale + padding, gdzie raw = projekcja z odwróconym y.
+ */
+export interface GeoProjectionMeta {
+  type: "laea" | "naturalEarth1";
+  /** Środek LAEA - tylko dla type "laea". */
+  lat0?: number;
+  lon0?: number;
+  minX: number;
+  minY: number;
+  scale: number;
+  padding: number;
+}
+
 export interface GeoAsset {
   v: 1;
   license: string;
   viewBox: string;
+  /** Opcjonalne (starsze zcache'owane kopie zasobu mogą go nie mieć). */
+  proj?: GeoProjectionMeta;
   countries: GeoAssetCountry[];
 }
 

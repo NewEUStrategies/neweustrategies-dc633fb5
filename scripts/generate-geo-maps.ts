@@ -262,13 +262,26 @@ function extend(b: Bounds, x: number, y: number): void {
 
 type Project = (lon: number, lat: number) => [number, number];
 
+/**
+ * Affine fit of the raw (projected, y-flipped) plane into the viewBox:
+ * px = (raw - min) * scale + padding. Embedded in the asset (`proj`) so the
+ * runtime can project extra lon/lat points (corridor lines, city markers)
+ * onto the SAME canvas without shipping any geometry code duplication drift.
+ */
+interface FitTransform {
+  minX: number;
+  minY: number;
+  scale: number;
+  padding: number;
+}
+
 /** Project every ring, flip y for SVG, fit into width x height with padding. */
 function projectAndFit(
   features: CountryFeature[],
   project: Project,
   width: number,
   padding: number,
-): { projected: Map<string, number[][][][]>; height: number } {
+): { projected: Map<string, number[][][][]>; height: number; fit: FitTransform } {
   const bounds = emptyBounds();
   const rawByCountry = new Map<string, number[][][][]>();
   for (const f of features) {
@@ -308,7 +321,11 @@ function projectAndFit(
       ),
     );
   }
-  return { projected, height };
+  return {
+    projected,
+    height,
+    fit: { minX: bounds.minX, minY: bounds.minY, scale, padding },
+  };
 }
 
 /** Drop points that move less than `epsilon` px - cheap, shape-preserving. */
@@ -361,11 +378,28 @@ interface OutCountry {
   d: string;
 }
 
+/**
+ * Projection + fit metadata embedded in the asset. Mirrors
+ * `GeoProjectionMeta` in src/lib/charts/types.ts - lets the runtime project
+ * arbitrary lon/lat (corridor waypoints, city markers) onto the same canvas.
+ */
+interface GeoProjectionMeta {
+  type: "laea" | "naturalEarth1";
+  /** LAEA center - present only for type "laea". */
+  lat0?: number;
+  lon0?: number;
+  minX: number;
+  minY: number;
+  scale: number;
+  padding: number;
+}
+
 interface GeoAsset {
   v: 1;
   /** Attribution kept inside the asset so it travels with the data. */
   license: string;
   viewBox: string;
+  proj: GeoProjectionMeta;
   countries: OutCountry[];
 }
 
@@ -383,10 +417,11 @@ function identify(f: CountryFeature): { id: string; pl: string; en: string } | n
 function buildAsset(
   features: CountryFeature[],
   project: Project,
+  projMeta: Pick<GeoProjectionMeta, "type" | "lat0" | "lon0">,
   width: number,
   epsilon: number,
 ): GeoAsset {
-  const { projected, height } = projectAndFit(features, project, width, 8);
+  const { projected, height, fit } = projectAndFit(features, project, width, 8);
   const countries: OutCountry[] = [];
   for (const f of features) {
     const identity = identify(f);
@@ -403,6 +438,13 @@ function buildAsset(
     license:
       "Geometry: Natural Earth (public domain) via world-atlas (ISC). Projection code ported from d3-geo (ISC).",
     viewBox: `0 0 ${width} ${height}`,
+    proj: {
+      ...projMeta,
+      minX: fit.minX,
+      minY: fit.minY,
+      scale: fit.scale,
+      padding: fit.padding,
+    },
     countries,
   };
 }
@@ -439,7 +481,7 @@ const worldFeatures = decodeCountries(world110)
       polygon.flatMap((ring) => splitAtAntimeridian(ring, -90, 90)),
     ),
   }));
-const worldAsset = buildAsset(worldFeatures, naturalEarth1, 960, 0.4);
+const worldAsset = buildAsset(worldFeatures, naturalEarth1, { type: "naturalEarth1" }, 960, 0.4);
 writeFileSync(join(outDir, "world-110m.v1.json"), JSON.stringify(worldAsset));
 
 // --- Europe (50m detail, LAEA "EU-style", clipped to the Europe window) ---
@@ -461,7 +503,13 @@ for (const f of decodeCountries(world50)) {
   }
   if (polygons.length) europeFeatures.push({ ...f, polygons });
 }
-const europeAsset = buildAsset(europeFeatures, makeLaea(52, 10), 960, 0.5);
+const europeAsset = buildAsset(
+  europeFeatures,
+  makeLaea(52, 10),
+  { type: "laea", lat0: 52, lon0: 10 },
+  960,
+  0.5,
+);
 writeFileSync(join(outDir, "europe-50m.v1.json"), JSON.stringify(europeAsset));
 
 const worldKb = (JSON.stringify(worldAsset).length / 1024).toFixed(1);

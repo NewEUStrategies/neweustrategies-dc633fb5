@@ -19,6 +19,7 @@ import {
   XCircle,
   BadgeCheck,
   Lock,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -29,7 +30,7 @@ import {
   rsvpEvent,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
-import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
+import { useMembershipTiers, tierName, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
@@ -104,6 +105,7 @@ function EventDetail() {
   });
 
   const tiersQ = useMembershipTiers();
+  const currentTierQ = useCurrentTier();
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["event-rsvp", eventId, user?.id] });
@@ -133,7 +135,15 @@ function EventDetail() {
             : "community.events.toastCancelled";
       toast.success(t(key));
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => {
+      // Surowe komunikaty RPC rsvp_event mapujemy na czytelne i18n.
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("full")) toast.error(t("community.events.rsvpFull"));
+      else if (msg.includes("rsvp not open")) toast.error(t("community.events.rsvpNotOpenToast"));
+      else if (msg.includes("membership required"))
+        toast.error(t("community.events.rsvpTierError"));
+      else toast.error(t("community.events.rsvpError"));
+    },
   });
 
   if (!modules.events_enabled) return <CommunityDisabled />;
@@ -189,6 +199,29 @@ function EventDetail() {
 
   const tierBlocked = access?.reason === "tier_required";
 
+  // Pierwszeństwo rejestracji: okno rsvp_opens_at + wcześniejszy dostęp dla
+  // członków o randze >= early_rsvp_rank. Twardo egzekwuje to rsvp_event; tu
+  // rozstrzygamy tylko, co pokazać (przyciski vs komunikat "jeszcze nieotwarta").
+  const rsvpOpensAt = ev.rsvp_opens_at ? new Date(ev.rsvp_opens_at) : null;
+  const rsvpBeforeOpen = !!rsvpOpensAt && rsvpOpensAt.getTime() > Date.now();
+  const earlyRank = ev.early_rsvp_rank ?? null;
+  const myRank = currentTierQ.data?.rank ?? 0;
+  const hasEarlyAccess = earlyRank !== null && myRank >= earlyRank;
+  // Rejestracja zamknięta dla wołającego, dopóki nie ma wcześniejszego dostępu.
+  const rsvpLockedByWindow = rsvpBeforeOpen && !hasEarlyAccess;
+  const whenOpens = rsvpOpensAt
+    ? rsvpOpensAt.toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
+        dateStyle: "long",
+        timeStyle: "short",
+      })
+    : "";
+  const requiredEarlyTierName = (() => {
+    if (earlyRank === null || earlyRank <= 0) return null;
+    const tiers = tiersQ.data ?? [];
+    const match = [...tiers].sort((a, b) => a.rank - b.rank).find((tier) => tier.rank >= earlyRank);
+    return match ? tierName(match, lang) : null;
+  })();
+
   return (
     <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
       <Link
@@ -220,6 +253,12 @@ function EventDetail() {
         {isFull && !isPast && (
           <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
             {t("community.events.capacityFull")}
+          </span>
+        )}
+        {!isPast && rsvpBeforeOpen && earlyRank !== null && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("community.events.earlyForMembers")}
           </span>
         )}
       </div>
@@ -297,14 +336,28 @@ function EventDetail() {
         {!isPast && !user && (
           <p className="text-sm text-muted-foreground">{t("community.events.rsvpSignInHint")}</p>
         )}
-        {!isPast && user && (
+        {!isPast && user && rsvpLockedByWindow ? (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {requiredEarlyTierName
+              ? t("community.events.rsvpEarlyForMembers", {
+                  when: whenOpens,
+                  tier: requiredEarlyTierName,
+                })
+              : t("community.events.rsvpNotOpen", { when: whenOpens })}
+          </p>
+        ) : !isPast && user ? (
           <RsvpControls
             current={rsvpQ.data?.status ?? null}
             pending={rsvpM.isPending}
             onChoose={(s) => rsvpM.mutate(s)}
           />
-        )}
+        ) : null}
       </div>
+      {!isPast && user && !rsvpLockedByWindow && rsvpBeforeOpen && hasEarlyAccess && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
+          {t("community.events.rsvpEarlyAccessOpen", { when: whenOpens })}
+        </p>
+      )}
       {!isPast && user && rsvpQ.data && rsvpQ.data.status !== "cancelled" && (
         <p
           key={rsvpQ.data.status}

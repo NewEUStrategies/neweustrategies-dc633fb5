@@ -23,8 +23,18 @@ export interface CurrentTier {
   features: Json;
 }
 
-/** Rangi kanoniczne (seed DB): reader=0, member=10, pro=20. */
-export const TIER_RANKS = { reader: 0, member: 10, pro: 20 } as const;
+/**
+ * Rangi kanoniczne (seed DB): konto bezpłatne=0, wspierający=5, członek=10,
+ * ekspercki=20, korporacyjny=30, partner strategiczny=40.
+ */
+export const TIER_RANKS = {
+  reader: 0,
+  supporter: 5,
+  member: 10,
+  pro: 20,
+  corporate: 30,
+  partner: 40,
+} as const;
 
 export function parseTierBenefits(benefits: Json): TierBenefit[] {
   if (!Array.isArray(benefits)) return [];
@@ -44,6 +54,12 @@ export function tierName(
   lang: string,
 ): string {
   return lang === "en" ? tier.name_en || tier.name_pl : tier.name_pl || tier.name_en;
+}
+
+/** Czy zestaw flag features (JSON) ma daną flagę ustawioną na true. */
+export function tierHasFeature(features: Json, key: string): boolean {
+  if (!features || typeof features !== "object" || Array.isArray(features)) return false;
+  return (features as Record<string, unknown>)[key] === true;
 }
 
 export async function fetchMembershipTiers(): Promise<MembershipTierRow[]> {

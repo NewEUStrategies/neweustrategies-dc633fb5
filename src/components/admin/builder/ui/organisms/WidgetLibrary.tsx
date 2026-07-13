@@ -60,10 +60,20 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }:
     basic: "Podstawowe",
     media: "Media",
     dynamic: "Dynamiczne",
+    features: "NES Digital Features",
     form: "Formularze",
     navigation: "Nawigacja",
     blocks: "Bloki",
   };
+  const categoryOrder = [
+    "basic",
+    "blocks",
+    "media",
+    "dynamic",
+    "features",
+    "form",
+    "navigation",
+  ] as const;
   const tpl = useSectionTemplates();
   const globals = useGlobalWidgets();
   const filteredGlobals = globals.items.filter((g) =>
@@ -240,7 +250,7 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }:
             ))}
         </section>
 
-        {(["basic", "blocks", "media", "dynamic", "form", "navigation"] as const).map((cat) => {
+        {categoryOrder.map((cat) => {
           const items = filtered.filter((w) => w.category === cat);
           if (!items.length) return null;
           const isCollapsed = !!collapsed[cat];

@@ -17,12 +17,23 @@ const SPLIT_WIDGETS = [
   "RatedListView",
   "TabsBlock",
   "AdSlotById",
+  "DonationsWidgetView",
   "RichTextView",
   "ChartWidgetView",
   "DataMapWidgetView",
   "DonationsWidgetView",
   "SliderRender",
   "AnimatedHeadingRender",
+  // NES Digital Features
+  "TimelineWidgetView",
+  "SankeyWidgetView",
+  "CompareWidgetView",
+  "RiskMatrixWidgetView",
+  "IndicatorWidgetView",
+  "NetworkWidgetView",
+  "CorridorMapWidgetView",
+  "SourcesWidgetView",
+  "MethodologyWidgetView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

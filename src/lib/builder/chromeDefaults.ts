@@ -185,6 +185,11 @@ const defaultHeaderDoc = (): BuilderDocument =>
                     title_en: "Community",
                     links: [
                       { label_pl: "Wydarzenia", label_en: "Events", href: "/events" },
+                      {
+                        label_pl: "Biblioteka materiałów",
+                        label_en: "Members' library",
+                        href: "/library",
+                      },
                       { label_pl: "Sesje Q&A", label_en: "Q&A sessions", href: "/qa" },
                       { label_pl: "Ankiety", label_en: "Polls", href: "/polls" },
                       {

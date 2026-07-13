@@ -49,6 +49,8 @@ import {
   TrendingUp,
   HandHeart,
   Cable,
+  BookOpen,
+  Briefcase,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -207,6 +209,20 @@ function AdminShellInner({
           icon: Crown,
           label: t("admin.nav.membership", {
             defaultValue: lang === "pl" ? "Członkostwo" : "Membership",
+          }),
+        },
+        {
+          to: "/admin/organizations",
+          icon: Landmark,
+          label: t("admin.nav.organizations", {
+            defaultValue: lang === "pl" ? "Organizacje" : "Organisations",
+          }),
+        },
+        {
+          to: "/admin/library",
+          icon: BookOpen,
+          label: t("admin.nav.library", {
+            defaultValue: lang === "pl" ? "Biblioteka" : "Library",
           }),
         },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
@@ -388,6 +404,13 @@ function AdminShellInner({
                 icon: Users,
                 label: t("admin.nav.authors", {
                   defaultValue: lang === "pl" ? "Autorzy" : "Authors",
+                }),
+              },
+              {
+                to: "/admin/programs",
+                icon: Briefcase,
+                label: t("admin.nav.programs", {
+                  defaultValue: lang === "pl" ? "Programy" : "Programs",
                 }),
               },
               ...(isSuperAdmin

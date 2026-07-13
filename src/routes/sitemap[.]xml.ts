@@ -114,6 +114,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { loc: `${origin}/tracker`, changefreq: "daily", priority: "0.7" },
           { loc: `${origin}/programs`, changefreq: "weekly", priority: "0.7" },
           { loc: `${origin}/people`, changefreq: "weekly", priority: "0.5" },
+          { loc: `${origin}/experts`, changefreq: "weekly", priority: "0.7" },
           { loc: `${origin}/contribute`, changefreq: "monthly", priority: "0.4" },
           { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
         ];
@@ -151,6 +152,23 @@ export const Route = createFileRoute("/sitemap.xml")({
               lastmod: (p.updated_at ?? p.published_at ?? "").slice(0, 10) || undefined,
               changefreq: "monthly",
               priority: "0.7",
+            });
+          }
+
+          // Published podcast programs (series) - each program has its own page.
+          const { data: shows } = await supabaseAdmin
+            .from("podcast_shows")
+            .select("slug, updated_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published")
+            .is("deleted_at", null);
+          for (const row of shows ?? []) {
+            const sh = row as { slug: string; updated_at: string | null };
+            entries.push({
+              loc: `${origin}/podcasts/${sh.slug}`,
+              lastmod: (sh.updated_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.6",
             });
           }
 
@@ -256,6 +274,41 @@ export const Route = createFileRoute("/sitemap.xml")({
               changefreq: "weekly",
               priority: "0.6",
             });
+          }
+
+          // Huby ekspertów - profile z odznaką 'expert' i publicznym profilem
+          // autorskim są pełnoprawnymi landing page (indeksowalne).
+          const { data: expertBadges } = await supabaseAdmin
+            .from("profile_badges")
+            .select("user_id")
+            .eq("tenant_id", tenantId)
+            .eq("badge", "expert");
+          const expertIds = Array.from(
+            new Set((expertBadges ?? []).map((b) => (b as { user_id: string }).user_id)),
+          );
+          if (expertIds.length > 0) {
+            const [{ data: expertProfiles }, { data: publicAps }] = await Promise.all([
+              supabaseAdmin.from("profiles").select("id, slug, updated_at").in("id", expertIds),
+              supabaseAdmin
+                .from("author_profiles")
+                .select("user_id, is_public")
+                .in("user_id", expertIds),
+            ]);
+            const publicIds = new Set(
+              (publicAps ?? [])
+                .filter((a) => (a as { is_public: boolean }).is_public)
+                .map((a) => (a as { user_id: string }).user_id),
+            );
+            for (const row of expertProfiles ?? []) {
+              const pr = row as { id: string; slug: string | null; updated_at: string | null };
+              if (!pr.slug || !publicIds.has(pr.id)) continue;
+              entries.push({
+                loc: `${origin}/author/${pr.slug}`,
+                lastmod: (pr.updated_at ?? "").slice(0, 10) || undefined,
+                changefreq: "weekly",
+                priority: "0.7",
+              });
+            }
           }
         } catch (e) {
           console.warn("[seo] sitemap content read failed:", e);

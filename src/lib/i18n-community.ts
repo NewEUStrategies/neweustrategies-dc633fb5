@@ -57,6 +57,13 @@ export const communityPl = {
       rsvpError: "Nie udało się zapisać. Spróbuj ponownie.",
       rsvpDone: "Zapisano na wydarzenie",
       rsvpCancelled: "Rezygnacja zapisana",
+      earlyForMembers: "Wcześniej dla członków",
+      rsvpNotOpen: "Rejestracja jeszcze nieotwarta. Startuje {{when}}.",
+      rsvpNotOpenToast: "Rejestracja na to wydarzenie jeszcze się nie otworzyła.",
+      rsvpEarlyForMembers:
+        "Rejestracja otwiera się dla wszystkich {{when}}. Wcześniejszy zapis mają członkowie od poziomu: {{tier}}.",
+      rsvpEarlyAccessOpen:
+        "Masz wcześniejszy dostęp jako członek — ogólna rejestracja rusza {{when}}.",
     },
     polls: {
       title: "Ankiety",
@@ -184,6 +191,13 @@ export const communityEn = {
       rsvpError: "Could not save your RSVP. Please try again.",
       rsvpDone: "You're on the list",
       rsvpCancelled: "RSVP cancelled",
+      earlyForMembers: "Early access for members",
+      rsvpNotOpen: "Registration isn't open yet. Opens {{when}}.",
+      rsvpNotOpenToast: "Registration for this event hasn't opened yet.",
+      rsvpEarlyForMembers:
+        "Registration opens for everyone {{when}}. Members from level {{tier}} can register earlier.",
+      rsvpEarlyAccessOpen:
+        "You have early access as a member — general registration opens {{when}}.",
     },
     polls: {
       title: "Polls",

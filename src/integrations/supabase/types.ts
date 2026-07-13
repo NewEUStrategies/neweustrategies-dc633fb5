@@ -312,11 +312,17 @@ export type Database = {
           created_at: string
           custom_socials: Json
           facebook_url: string | null
+          full_bio_en: string | null
+          full_bio_pl: string | null
           id: string
           instagram_url: string | null
           is_public: boolean
           job_title: string | null
           linkedin_url: string | null
+          media_contact_email: string | null
+          media_contact_name: string | null
+          media_contact_phone: string | null
+          org_functions: Json
           phone: string | null
           spotify_url: string | null
           tenant_id: string
@@ -334,11 +340,17 @@ export type Database = {
           created_at?: string
           custom_socials?: Json
           facebook_url?: string | null
+          full_bio_en?: string | null
+          full_bio_pl?: string | null
           id?: string
           instagram_url?: string | null
           is_public?: boolean
           job_title?: string | null
           linkedin_url?: string | null
+          media_contact_email?: string | null
+          media_contact_name?: string | null
+          media_contact_phone?: string | null
+          org_functions?: Json
           phone?: string | null
           spotify_url?: string | null
           tenant_id: string
@@ -356,11 +368,17 @@ export type Database = {
           created_at?: string
           custom_socials?: Json
           facebook_url?: string | null
+          full_bio_en?: string | null
+          full_bio_pl?: string | null
           id?: string
           instagram_url?: string | null
           is_public?: boolean
           job_title?: string | null
           linkedin_url?: string | null
+          media_contact_email?: string | null
+          media_contact_name?: string | null
+          media_contact_phone?: string | null
+          org_functions?: Json
           phone?: string | null
           spotify_url?: string | null
           tenant_id?: string
@@ -684,8 +702,10 @@ export type Database = {
           description_pl: string | null
           featured_template_id: string | null
           id: string
+          kind: string
           name_en: string
           name_pl: string
+          parent_id: string | null
           slug: string
           tenant_id: string
         }
@@ -696,8 +716,10 @@ export type Database = {
           description_pl?: string | null
           featured_template_id?: string | null
           id?: string
+          kind?: string
           name_en: string
           name_pl: string
+          parent_id?: string | null
           slug: string
           tenant_id: string
         }
@@ -708,8 +730,10 @@ export type Database = {
           description_pl?: string | null
           featured_template_id?: string | null
           id?: string
+          kind?: string
           name_en?: string
           name_pl?: string
+          parent_id?: string | null
           slug?: string
           tenant_id?: string
         }
@@ -719,6 +743,13 @@ export type Database = {
             columns: ["featured_template_id"]
             isOneToOne: false
             referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
           {
@@ -1709,6 +1740,7 @@ export type Database = {
           provider_session_id: string
           status: string
           tenant_id: string
+          user_id: string | null
         }
         Insert: {
           amount_cents: number
@@ -1722,6 +1754,7 @@ export type Database = {
           provider_session_id: string
           status?: string
           tenant_id?: string
+          user_id?: string | null
         }
         Update: {
           amount_cents?: number
@@ -1735,6 +1768,7 @@ export type Database = {
           provider_session_id?: string
           status?: string
           tenant_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2067,6 +2101,32 @@ export type Database = {
           },
         ]
       }
+      event_speakers: {
+        Row: {
+          event_id: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          event_id: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          event_id?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_speakers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           capacity: number | null
@@ -2076,6 +2136,7 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
+          early_rsvp_rank: number | null
           ends_at: string | null
           host_user_id: string | null
           id: string
@@ -2083,7 +2144,10 @@ export type Database = {
           kind: string
           location: string | null
           min_tier_rank: number
+          program_id: string | null
           recording_url: string | null
+          region_id: string | null
+          rsvp_opens_at: string | null
           slug: string
           starts_at: string
           status: string
@@ -2102,6 +2166,7 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          early_rsvp_rank?: number | null
           ends_at?: string | null
           host_user_id?: string | null
           id?: string
@@ -2109,7 +2174,10 @@ export type Database = {
           kind?: string
           location?: string | null
           min_tier_rank?: number
+          program_id?: string | null
           recording_url?: string | null
+          region_id?: string | null
+          rsvp_opens_at?: string | null
           slug: string
           starts_at: string
           status?: string
@@ -2128,6 +2196,7 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          early_rsvp_rank?: number | null
           ends_at?: string | null
           host_user_id?: string | null
           id?: string
@@ -2135,7 +2204,10 @@ export type Database = {
           kind?: string
           location?: string | null
           min_tier_rank?: number
+          program_id?: string | null
           recording_url?: string | null
+          region_id?: string | null
+          rsvp_opens_at?: string | null
           slug?: string
           starts_at?: string
           status?: string
@@ -2148,7 +2220,85 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "events_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expert_expertise_areas: {
+        Row: {
+          area_id: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          area_id: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          area_id?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expert_expertise_areas_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "expertise_areas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expertise_areas: {
+        Row: {
+          created_at: string
+          id: string
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order?: number
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name_en?: string
+          name_pl?: string
+          slug?: string
+          sort_order?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expertise_areas_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2553,6 +2703,263 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: []
+      }
+      media_mentions: {
+        Row: {
+          created_at: string
+          id: string
+          is_public: boolean
+          kind: string
+          language: string | null
+          outlet: string
+          published_on: string
+          tenant_id: string
+          title: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          kind?: string
+          language?: string | null
+          outlet: string
+          published_on: string
+          tenant_id?: string
+          title: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          kind?: string
+          language?: string | null
+          outlet?: string
+          published_on?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_mentions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_organizations: {
+        Row: {
+          contact_email: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          name: string
+          note: string | null
+          seats_limit: number
+          starts_at: string
+          status: string
+          tenant_id: string
+          tier_key: string
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          name: string
+          note?: string | null
+          seats_limit?: number
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          tier_key?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          name?: string
+          note?: string | null
+          seats_limit?: number
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          tier_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_organizations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_organizations_tenant_id_tier_key_fkey"
+            columns: ["tenant_id", "tier_key"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["tenant_id", "key"]
+          },
+        ]
+      }
+      member_resources: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          download_count: number
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          min_tier_rank: number
+          published: boolean
+          sort_order: number
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          download_count?: number
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          min_tier_rank?: number
+          published?: boolean
+          sort_order?: number
+          tenant_id?: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          download_count?: number
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          min_tier_rank?: number
+          published?: boolean
+          sort_order?: number
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_resources_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_grants: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          granted_by: string | null
+          id: string
+          note: string | null
+          revoked_at: string | null
+          source: string
+          source_donation_id: string | null
+          starts_at: string
+          tenant_id: string
+          tier_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          id?: string
+          note?: string | null
+          revoked_at?: string | null
+          source?: string
+          source_donation_id?: string | null
+          starts_at?: string
+          tenant_id: string
+          tier_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          id?: string
+          note?: string | null
+          revoked_at?: string | null
+          source?: string
+          source_donation_id?: string | null
+          starts_at?: string
+          tenant_id?: string
+          tier_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_grants_source_donation_id_fkey"
+            columns: ["source_donation_id"]
+            isOneToOne: false
+            referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_grants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_grants_tenant_id_tier_key_fkey"
+            columns: ["tenant_id", "tier_key"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["tenant_id", "key"]
+          },
+        ]
       }
       membership_tiers: {
         Row: {
@@ -3496,6 +3903,54 @@ export type Database = {
           },
         ]
       }
+      organization_seats: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          id: string
+          invited_email: string
+          org_id: string
+          role: string
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          invited_email: string
+          org_id: string
+          role?: string
+          tenant_id: string
+          user_id?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          invited_email?: string
+          org_id?: string
+          role?: string
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_seats_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_seats_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pages: {
         Row: {
           author_id: string | null
@@ -3842,6 +4297,64 @@ export type Database = {
           },
         ]
       }
+      podcast_episode_people: {
+        Row: {
+          created_at: string
+          display_name: string
+          episode_id: string
+          id: string
+          profile_id: string | null
+          role: string
+          sort_order: number
+          tenant_id: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          episode_id: string
+          id?: string
+          profile_id?: string | null
+          role?: string
+          sort_order?: number
+          tenant_id: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          episode_id?: string
+          id?: string
+          profile_id?: string | null
+          role?: string
+          sort_order?: number
+          tenant_id?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_episode_people_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_episode_people_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_episode_people_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcast_settings: {
         Row: {
           apple_url: string | null
@@ -3896,10 +4409,77 @@ export type Database = {
           },
         ]
       }
+      podcast_shows: {
+        Row: {
+          apple_url: string | null
+          cover_image_url: string | null
+          created_at: string
+          deleted_at: string | null
+          description_en: string
+          description_pl: string
+          id: string
+          slug: string
+          sort_order: number
+          spotify_url: string | null
+          status: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          youtube_url: string | null
+        }
+        Insert: {
+          apple_url?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description_en?: string
+          description_pl?: string
+          id?: string
+          slug: string
+          sort_order?: number
+          spotify_url?: string | null
+          status?: string
+          tenant_id: string
+          title_en?: string
+          title_pl: string
+          updated_at?: string
+          youtube_url?: string | null
+        }
+        Update: {
+          apple_url?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description_en?: string
+          description_pl?: string
+          id?: string
+          slug?: string
+          sort_order?: number
+          spotify_url?: string | null
+          status?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_shows_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcasts: {
         Row: {
           audio_url: string
           author_id: string | null
+          category_id: string | null
+          chapters: Json
           cover_image_url: string | null
           created_at: string
           deleted_at: string | null
@@ -3908,8 +4488,13 @@ export type Database = {
           excerpt_en: string
           excerpt_pl: string
           id: string
+          program_id: string | null
           published_at: string | null
+          quotes: Json
+          region_id: string | null
+          resources: Json
           season: number | null
+          show_id: string | null
           show_notes_en: string
           show_notes_pl: string
           slug: string
@@ -3924,6 +4509,8 @@ export type Database = {
         Insert: {
           audio_url: string
           author_id?: string | null
+          category_id?: string | null
+          chapters?: Json
           cover_image_url?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -3932,8 +4519,13 @@ export type Database = {
           excerpt_en?: string
           excerpt_pl?: string
           id?: string
+          program_id?: string | null
           published_at?: string | null
+          quotes?: Json
+          region_id?: string | null
+          resources?: Json
           season?: number | null
+          show_id?: string | null
           show_notes_en?: string
           show_notes_pl?: string
           slug: string
@@ -3948,6 +4540,8 @@ export type Database = {
         Update: {
           audio_url?: string
           author_id?: string | null
+          category_id?: string | null
+          chapters?: Json
           cover_image_url?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -3956,8 +4550,13 @@ export type Database = {
           excerpt_en?: string
           excerpt_pl?: string
           id?: string
+          program_id?: string | null
           published_at?: string | null
+          quotes?: Json
+          region_id?: string | null
+          resources?: Json
           season?: number | null
+          show_id?: string | null
           show_notes_en?: string
           show_notes_pl?: string
           slug?: string
@@ -3975,6 +4574,34 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_shows"
             referencedColumns: ["id"]
           },
           {
@@ -4120,6 +4747,32 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_authors: {
+        Row: {
+          post_id: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          post_id: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          post_id?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_authors_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
             referencedColumns: ["id"]
           },
         ]
@@ -4339,6 +4992,66 @@ export type Database = {
           wide_align_max_width?: number
         }
         Relationships: []
+      }
+      post_programs: {
+        Row: {
+          post_id: string
+          program_id: string
+        }
+        Insert: {
+          post_id: string
+          program_id: string
+        }
+        Update: {
+          post_id?: string
+          program_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_programs_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_programs_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_regions: {
+        Row: {
+          post_id: string
+          region_id: string
+        }
+        Insert: {
+          post_id: string
+          region_id: string
+        }
+        Update: {
+          post_id?: string
+          region_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_regions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_regions_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_sidebar_layouts: {
         Row: {
@@ -4989,6 +5702,8 @@ export type Database = {
           tenant_id: string
           twitter_url: string | null
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
           website_url: string | null
         }
         Insert: {
@@ -5020,6 +5735,8 @@ export type Database = {
           tenant_id: string
           twitter_url?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
           website_url?: string | null
         }
         Update: {
@@ -5051,11 +5768,104 @@ export type Database = {
           tenant_id?: string
           twitter_url?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
           website_url?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_members: {
+        Row: {
+          created_at: string
+          program_id: string
+          role_en: string | null
+          role_pl: string | null
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          program_id: string
+          role_en?: string | null
+          role_pl?: string | null
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          program_id?: string
+          role_en?: string | null
+          role_pl?: string | null
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_members_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programs: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          description_en: string | null
+          description_pl: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name_en?: string
+          name_pl?: string
+          slug?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5368,6 +6178,44 @@ export type Database = {
           },
         ]
       }
+      regions: {
+        Row: {
+          created_at: string
+          id: string
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order?: number
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name_en?: string
+          name_pl?: string
+          slug?: string
+          sort_order?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       related_posts_config: {
         Row: {
           after_paragraph: number
@@ -5439,321 +6287,38 @@ export type Database = {
           },
         ]
       }
-      research_program_items: {
-        Row: {
-          created_at: string
-          event_id: string | null
-          id: string
-          item_type: string
-          podcast_id: string | null
-          post_id: string | null
-          program_id: string
-          sort_order: number
-          tenant_id: string
-        }
-        Insert: {
-          created_at?: string
-          event_id?: string | null
-          id?: string
-          item_type: string
-          podcast_id?: string | null
-          post_id?: string | null
-          program_id: string
-          sort_order?: number
-          tenant_id?: string
-        }
-        Update: {
-          created_at?: string
-          event_id?: string | null
-          id?: string
-          item_type?: string
-          podcast_id?: string | null
-          post_id?: string | null
-          program_id?: string
-          sort_order?: number
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "research_program_items_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_items_podcast_id_fkey"
-            columns: ["podcast_id"]
-            isOneToOne: false
-            referencedRelation: "podcasts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_items_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_items_program_id_fkey"
-            columns: ["program_id"]
-            isOneToOne: false
-            referencedRelation: "research_programs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_items_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      research_program_members: {
+      resource_downloads: {
         Row: {
           created_at: string
           id: string
-          is_lead: boolean
-          member_role_en: string | null
-          member_role_pl: string | null
-          profile_id: string
-          program_id: string
-          sort_order: number
+          resource_id: string
           tenant_id: string
+          user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          is_lead?: boolean
-          member_role_en?: string | null
-          member_role_pl?: string | null
-          profile_id: string
-          program_id: string
-          sort_order?: number
-          tenant_id?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_lead?: boolean
-          member_role_en?: string | null
-          member_role_pl?: string | null
-          profile_id?: string
-          program_id?: string
-          sort_order?: number
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "research_program_members_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_members_program_id_fkey"
-            columns: ["program_id"]
-            isOneToOne: false
-            referencedRelation: "research_programs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_members_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      research_program_partners: {
-        Row: {
-          created_at: string
-          id: string
-          logo_url: string | null
-          name: string
-          program_id: string
-          sort_order: number
+          resource_id: string
           tenant_id: string
-          url: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          logo_url?: string | null
-          name: string
-          program_id: string
-          sort_order?: number
-          tenant_id?: string
-          url?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          logo_url?: string | null
-          name?: string
-          program_id?: string
-          sort_order?: number
+          resource_id?: string
           tenant_id?: string
-          url?: string | null
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "research_program_partners_program_id_fkey"
-            columns: ["program_id"]
+            foreignKeyName: "resource_downloads_resource_id_fkey"
+            columns: ["resource_id"]
             isOneToOne: false
-            referencedRelation: "research_programs"
+            referencedRelation: "member_resources"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "research_program_partners_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      research_program_projects: {
-        Row: {
-          created_at: string
-          id: string
-          name_en: string
-          name_pl: string
-          program_id: string
-          project_status: string
-          sort_order: number
-          summary_en: string | null
-          summary_pl: string | null
-          tenant_id: string
-          updated_at: string
-          url: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name_en: string
-          name_pl: string
-          program_id: string
-          project_status?: string
-          sort_order?: number
-          summary_en?: string | null
-          summary_pl?: string | null
-          tenant_id?: string
-          updated_at?: string
-          url?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name_en?: string
-          name_pl?: string
-          program_id?: string
-          project_status?: string
-          sort_order?: number
-          summary_en?: string | null
-          summary_pl?: string | null
-          tenant_id?: string
-          updated_at?: string
-          url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "research_program_projects_program_id_fkey"
-            columns: ["program_id"]
-            isOneToOne: false
-            referencedRelation: "research_programs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_program_projects_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      research_programs: {
-        Row: {
-          accent_color: string
-          category_id: string | null
-          contact_email: string | null
-          created_at: string
-          created_by: string | null
-          hero_image_url: string | null
-          icon: string
-          id: string
-          name_en: string
-          name_pl: string
-          research_questions: Json
-          scope_en: string | null
-          scope_pl: string | null
-          slug: string
-          sort_order: number
-          status: string
-          tagline_en: string | null
-          tagline_pl: string | null
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          accent_color?: string
-          category_id?: string | null
-          contact_email?: string | null
-          created_at?: string
-          created_by?: string | null
-          hero_image_url?: string | null
-          icon?: string
-          id?: string
-          name_en: string
-          name_pl: string
-          research_questions?: Json
-          scope_en?: string | null
-          scope_pl?: string | null
-          slug: string
-          sort_order?: number
-          status?: string
-          tagline_en?: string | null
-          tagline_pl?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          accent_color?: string
-          category_id?: string | null
-          contact_email?: string | null
-          created_at?: string
-          created_by?: string | null
-          hero_image_url?: string | null
-          icon?: string
-          id?: string
-          name_en?: string
-          name_pl?: string
-          research_questions?: Json
-          scope_en?: string | null
-          scope_pl?: string | null
-          slug?: string
-          sort_order?: number
-          status?: string
-          tagline_en?: string | null
-          tagline_pl?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "research_programs_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_programs_tenant_id_fkey"
+            foreignKeyName: "resource_downloads_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5798,6 +6363,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      saved_searches: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          params: Json
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          params?: Json
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          params?: Json
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       search_query_log: {
         Row: {
@@ -6673,6 +7265,31 @@ export type Database = {
           website_url: string
         }[]
       }
+      admin_grant_membership: {
+        Args: {
+          p_email: string
+          p_months?: number
+          p_note?: string
+          p_tier_key: string
+        }
+        Returns: string
+      }
+      admin_list_membership_grants: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          expires_at: string
+          id: string
+          note: string
+          revoked_at: string
+          source: string
+          starts_at: string
+          tier_key: string
+          user_id: string
+        }[]
+      }
       admin_list_users: {
         Args: never
         Returns: {
@@ -6735,6 +7352,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_set_profile_verification: {
+        Args: { p_user_id: string; p_verified: boolean }
+        Returns: undefined
+      }
       admin_soft_delete_message: {
         Args: { p_message_id: string }
         Returns: undefined
@@ -6748,6 +7369,14 @@ export type Database = {
         Returns: string
       }
       assert_admin_tenant: { Args: never; Returns: string }
+      authorize_resource_download: {
+        Args: { p_resource: string }
+        Returns: {
+          file_name: string
+          file_path: string
+          mime_type: string
+        }[]
+      }
       bump_tenant_counter: {
         Args: { p_delta: number; p_key: string; p_tenant_id: string }
         Returns: undefined
@@ -6831,6 +7460,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_my_org_seats: { Args: never; Returns: number }
       claim_push_jobs: {
         Args: { p_limit?: number }
         Returns: {
@@ -7101,6 +7731,8 @@ export type Database = {
           tenant_id: string
           twitter_url: string | null
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
           website_url: string | null
         }[]
         SetofOptions: {
@@ -7314,6 +7946,7 @@ export type Database = {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
+      is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_tenant_conversation_member: {
@@ -7365,6 +7998,45 @@ export type Database = {
         Returns: undefined
       }
       member_conversation_ids: { Args: never; Returns: string[] }
+      my_event_participation: {
+        Args: never
+        Returns: {
+          ends_at: string
+          event_id: string
+          event_status: string
+          kind: string
+          rsvp_status: string
+          rsvp_updated_at: string
+          slug: string
+          starts_at: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
+      my_organization: {
+        Args: never
+        Returns: {
+          expires_at: string
+          my_role: string
+          name: string
+          org_id: string
+          seats_limit: number
+          seats_used: number
+          starts_at: string
+          status: string
+          tier_key: string
+        }[]
+      }
+      my_resource_downloads: {
+        Args: never
+        Returns: {
+          category: string
+          downloaded_at: string
+          resource_id: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
         Args: {
@@ -7379,6 +8051,7 @@ export type Database = {
         }
         Returns: unknown
       }
+      nes_pl_light_stem: { Args: { _term: string }; Returns: string }
       nes_posts_search_vector: {
         Args: {
           _blocks: Json
@@ -7396,6 +8069,16 @@ export type Database = {
         Returns: unknown
       }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
+      newsletter_min_tier_emails: {
+        Args: { p_min: number; p_tenant: string }
+        Returns: {
+          email: string
+        }[]
+      }
+      org_add_seat: {
+        Args: { p_email: string; p_org: string; p_role?: string }
+        Returns: string
+      }
       page_breadcrumbs: {
         Args: { _page_id: string }
         Returns: {
@@ -7494,6 +8177,40 @@ export type Database = {
         }
         Returns: undefined
       }
+      search_autosuggest: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          id: string
+          kind: string
+          label_en: string
+          label_pl: string
+          parent_page_id: string
+          score: number
+          slug: string
+        }[]
+      }
+      search_facets: {
+        Args: {
+          _access?: string
+          _author?: string
+          _category?: string
+          _date_from?: string
+          _date_to?: string
+          _format?: string
+          _lang?: string
+          _q?: string
+          _terms?: string[]
+        }
+        Returns: {
+          cnt: number
+          dim: string
+          id: string
+          label_en: string
+          label_pl: string
+          parent_id: string
+          slug: string
+        }[]
+      }
       search_people: {
         Args: {
           p_company?: string
@@ -7517,27 +8234,36 @@ export type Database = {
       }
       search_posts: {
         Args: {
+          _access?: string
           _author?: string
           _category?: string
           _date_from?: string
           _date_to?: string
+          _format?: string
+          _lang?: string
           _limit?: number
-          _q: string
+          _q?: string
+          _sort?: string
+          _terms?: string[]
         }
         Returns: {
+          access_mode: string
           author_id: string
           cover_image_url: string
           excerpt_en: string
           excerpt_pl: string
+          fuzzy: boolean
           headline_en: string
           headline_pl: string
           id: string
           parent_page_id: string
+          post_format: string
           published_at: string
           rank: number
           slug: string
           title_en: string
           title_pl: string
+          total_count: number
         }[]
       }
       search_quick: {
@@ -7582,6 +8308,10 @@ export type Database = {
         Returns: boolean
       }
       user_is_editorial: { Args: { p_user: string }; Returns: boolean }
+      user_tier_rank: {
+        Args: { p_tenant?: string; p_user: string }
+        Returns: number
+      }
       verify_content_password: {
         Args: {
           _entity_id: string

@@ -38,72 +38,9 @@ async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<Blo
 const POST_COLS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id";
 
-// ---------- AUTHOR ---------------------------------------------------------
-
-export interface AuthorProfile {
-  id: string;
-  slug: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  cover_url: string | null;
-  bio_pl: string | null;
-  bio_en: string | null;
-  twitter_url: string | null;
-  linkedin_url: string | null;
-  website_url: string | null;
-  /** Weryfikacja zawodowa nadana przez admina (odznaka przy nazwisku). */
-  verified_at: string | null;
-}
-
-// verified_at jest nowsze niż wygenerowane typy (migracja 20260713160000),
-// stąd rzutowania wyników poniżej.
-const PROFILE_COLS =
-  "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export const authorBySlugQueryOptions = (slugOrId: string, limit: number = ARCHIVE_PAGE_SIZE) =>
-  queryOptions({
-    queryKey: ["public", "author", slugOrId, { limit }] as const,
-    queryFn: async (): Promise<{ author: AuthorProfile; posts: BlogListItem[] } | null> => {
-      // Try slug first, then fall back to id (uuid). Errors are THROWN (never
-      // swallowed into a fake 404): a network/RLS failure must hit the route
-      // error boundary, only a genuinely missing row resolves to null.
-      const bySlug = await supabase
-        .from("profiles")
-        .select(PROFILE_COLS)
-        .eq("slug", slugOrId)
-        .maybeSingle();
-      if (bySlug.error) throw bySlug.error;
-      let prof = bySlug.data as AuthorProfile | null;
-      if (!prof && UUID_RE.test(slugOrId)) {
-        const byId = await supabase
-          .from("profiles")
-          .select(PROFILE_COLS)
-          .eq("id", slugOrId)
-          .maybeSingle();
-        if (byId.error) throw byId.error;
-        prof = byId.data as AuthorProfile | null;
-      }
-      if (!prof) return null;
-
-      const { data: rows, error } = await supabase
-        .from("posts")
-        .select(POST_COLS)
-        .eq("author_id", prof.id)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-
-      const posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
-      return { author: prof as AuthorProfile, posts };
-    },
-    staleTime: TTL,
-  });
-
 // ---------- TAXONOMY (category / tag) --------------------------------------
+// (Profil autora/eksperta przeniesiony do lib/experts/queries.ts - hub
+//  agreguje materiały wielu typów, nie tylko wpisy.)
 
 export type TaxonomyKind = "category" | "tag";
 
@@ -237,17 +174,64 @@ export const taxonomyArchiveQueryOptions = (
 
 // ---------- SEARCH ---------------------------------------------------------
 
+/** Kolejność wyników (mapuje się 1:1 na parametr _sort funkcji search_posts). */
+export type SearchSort = "relevance" | "newest" | "popular";
+
+/** Wymiary fasetowe. Wymiary taksonomii = categories.kind; pozostałe są
+ *  wyliczane z pól posta (autor / format / język / dostępność / rok). */
+export type FacetDim =
+  | "category" // specjalizacja (dotychczasowe kategorie treści)
+  | "pub_type" // typ publikacji (analiza / raport / komentarz…)
+  | "region" // region i państwo (hierarchia parent_id)
+  | "topic" // temat
+  | "project" // projekt
+  | "series" // seria
+  | "author"
+  | "format"
+  | "lang"
+  | "access"
+  | "year";
+
+/** Wymiary taksonomii filtrowane przez tablicę id termów (`_terms`, AND). */
+export const TAXONOMY_DIMS = [
+  "category",
+  "pub_type",
+  "region",
+  "topic",
+  "project",
+  "series",
+] as const;
+
+/** Podzbiór wymiarów opartych na kontrolowanej taksonomii (categories.kind). */
+export type TaxonomyDim = (typeof TAXONOMY_DIMS)[number];
+
 export interface SearchFilters {
   q: string;
-  categoryId?: string;
   authorId?: string;
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
+  /** Legacy pojedyncza kategoria (pushdown _category) - zachowana kompatybilnie. */
+  categoryId?: string;
+  /** Id termów kontrolowanej taksonomii (AND, z ekspansją hierarchii). */
+  terms?: string[];
+  /** post_format (standard / video / audio / gallery). */
+  format?: string;
+  /** Wariant językowy dostępny dla wpisu. */
+  lang?: "pl" | "en";
+  /** content_access.mode: public / members / paid. */
+  access?: string;
+  sort?: SearchSort;
 }
 
-export interface SearchFacets {
-  categories: Array<{ id: string; slug: string; name: string; count: number }>;
-  authors: Array<{ id: string; name: string; count: number }>;
+/** Pojedyncza wartość fasety z licznikiem (płaska lista; UI grupuje po `dim`). */
+export interface FacetValue {
+  dim: FacetDim;
+  id: string | null;
+  slug: string;
+  label_pl: string;
+  label_en: string;
+  parentId: string | null;
+  count: number;
 }
 
 /** Wynik /search: pozycja listy + (opcjonalny) snippet trafienia z ts_headline
@@ -255,102 +239,160 @@ export interface SearchFacets {
 export type SearchResultItem = BlogListItem & {
   headline_pl?: string | null;
   headline_en?: string | null;
+  post_format?: string | null;
+  access_mode?: string | null;
 };
+
+export interface SearchResult {
+  posts: SearchResultItem[];
+  facets: FacetValue[];
+  /** Dokładna liczność zbioru trafień (z okna total_count RPC). */
+  total: number;
+  /** true, gdy wyniki pochodzą z fallbacku trigramowego (tolerancja literówek). */
+  fuzzy: boolean;
+}
+
+/** Stabilizuje tablicę termów pod klucz React Query (kolejność bez znaczenia). */
+const sortedTerms = (terms?: string[]): string[] | undefined =>
+  terms && terms.length > 0 ? [...terms].sort() : undefined;
+
+/** Wyszukiwanie przeglądowe działa też bez frazy (>=2 znaki), o ile jest
+ *  aktywny którykolwiek filtr - inaczej pokazalibyśmy całe archiwum od zera. */
+function hasActiveFilter(f: SearchFilters): boolean {
+  return (
+    !!f.authorId ||
+    !!f.dateFrom ||
+    !!f.dateTo ||
+    !!f.categoryId ||
+    !!f.format ||
+    !!f.lang ||
+    !!f.access ||
+    (f.terms?.length ?? 0) > 0
+  );
+}
+
+export function searchEnabled(f: SearchFilters): boolean {
+  return f.q.trim().length >= 2 || hasActiveFilter(f);
+}
+
+/** Wspólny zestaw argumentów RPC (search_posts i search_facets dzielą filtry). */
+function rpcFilterArgs(filters: SearchFilters) {
+  const q = filters.q.trim();
+  return {
+    _q: q.length >= 2 ? q : undefined,
+    _author: filters.authorId ?? undefined,
+    _date_from: filters.dateFrom ?? undefined,
+    _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
+    _category: filters.categoryId ?? undefined,
+    _terms: sortedTerms(filters.terms),
+    _format: filters.format ?? undefined,
+    _lang: filters.lang ?? undefined,
+    _access: filters.access ?? undefined,
+  };
+}
 
 export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARCH_PAGE_SIZE) =>
   queryOptions({
-    queryKey: ["public", "search", filters, { limit }] as const,
-    enabled: filters.q.trim().length >= 2,
-    queryFn: async (): Promise<{ posts: SearchResultItem[]; facets: SearchFacets }> => {
-      // Postgres full-text search (ranked, unaccent + prefix matching, indexuje
-      // też treść blocks_data/builder_data) zamiast ILIKE %q%. Author/data/
-      // kategoria są filtrowane w RPC (pushdown kategorii naprawia audytowany
-      // defekt: filtr po stronie klienta zwężał już przycięte okno wyników).
-      // search_posts nie ma offsetu, więc "load more" rośnie przez _limit
-      // (60 → 120 → ...), z twardym sufitem SEARCH_LIMIT_MAX.
-      const { data: matchRows, error: matchError } = await supabase.rpc("search_posts", {
-        _q: filters.q.trim(),
-        _limit: Math.min(limit, SEARCH_LIMIT_MAX),
-        _author: filters.authorId ?? undefined,
-        _date_from: filters.dateFrom ?? undefined,
-        _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
-        _category: filters.categoryId ?? undefined,
-      });
+    queryKey: [
+      "public",
+      "search",
+      { ...filters, terms: sortedTerms(filters.terms) },
+      { limit },
+    ] as const,
+    enabled: searchEnabled(filters),
+    queryFn: async (): Promise<SearchResult> => {
+      // Postgres full-text search (ranked, unaccent + prefiks + polska fleksja,
+      // indeksuje też treść blocks_data/builder_data). Wszystkie filtry są w
+      // RPC (pushdown), a fasety liczy osobny RPC po PEŁNYM zbiorze trafień -
+      // nie po przyciętym oknie. search_posts nie ma offsetu, więc "load more"
+      // rośnie przez _limit (60 → 120 → …) z sufitem SEARCH_LIMIT_MAX.
+      const args = rpcFilterArgs(filters);
+      const [{ data: matchRows, error: matchError }, { data: facetRows, error: facetError }] =
+        await Promise.all([
+          supabase.rpc("search_posts", {
+            ...args,
+            _limit: Math.min(limit, SEARCH_LIMIT_MAX),
+            _sort: filters.sort ?? "relevance",
+          }),
+          supabase.rpc("search_facets", args),
+        ]);
       if (matchError) throw matchError;
-      const rows = (matchRows ?? []).map(
-        ({ rank: _rank, ...row }): Omit<SearchResultItem, "href"> & { author_id: string | null } =>
-          row,
+      if (facetError) throw facetError;
+
+      const raw = matchRows ?? [];
+      const total = raw.length > 0 ? Number(raw[0].total_count ?? raw.length) : 0;
+      const fuzzy = raw.length > 0 && !!raw[0].fuzzy;
+      const rows = raw.map(
+        ({
+          rank: _rank,
+          total_count: _tc,
+          fuzzy: _fz,
+          ...row
+        }): Omit<SearchResultItem, "href"> & { author_id: string | null } => row,
       );
 
       const posts = (await hydrateHref(rows)) as SearchResultItem[];
 
       // Telemetria zapytań (fundament podpowiedzi/trendów) - fire-and-forget,
-      // odporna na brak funkcji przed wdrożeniem migracji.
-      void supabase
-        .rpc("log_search_query", {
-          _q: filters.q.trim(),
-          _lang: currentLang(),
-          _results: rows.length,
-        })
-        .then(
-          () => undefined,
-          () => undefined,
-        );
+      // odporna na brak funkcji przed wdrożeniem migracji. Logujemy tylko realne
+      // frazy, nie czyste przeglądanie po filtrach.
+      const qTrim = filters.q.trim();
+      if (qTrim.length >= 2) {
+        void supabase
+          .rpc("log_search_query", { _q: qTrim, _lang: currentLang(), _results: total })
+          .then(
+            () => undefined,
+            () => undefined,
+          );
+      }
 
-      // Facets: liczone z przefiltrowanego zbioru (po pushdownie kategorii
-      // aktywna kategoria zawęża facety; odznaczenie przywraca pełen zestaw).
-      const facets = await computeFacets(
-        rows.map((r) => r.id),
-        rows,
-      );
-      return { posts, facets };
+      const facets: FacetValue[] = (facetRows ?? []).map((r) => ({
+        dim: r.dim as FacetDim,
+        id: (r.id as string | null) ?? null,
+        slug: r.slug as string,
+        label_pl: (r.label_pl as string | null) ?? (r.slug as string),
+        label_en: (r.label_en as string | null) ?? (r.slug as string),
+        parentId: (r.parent_id as string | null) ?? null,
+        count: Number(r.cnt ?? 0),
+      }));
+
+      return { posts, facets, total, fuzzy };
     },
     staleTime: 30_000,
   });
 
-async function computeFacets(
-  postIds: string[],
-  rows: Array<Omit<BlogListItem, "href"> & { author_id: string | null }>,
-): Promise<SearchFacets> {
-  if (postIds.length === 0) return { categories: [], authors: [] };
-  const [{ data: pc }, { data: cats }, { data: profs }] = await Promise.all([
-    supabase.from("post_categories").select("post_id, category_id").in("post_id", postIds),
-    supabase.from("categories").select("id, slug, name_pl, name_en"),
-    supabase
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", Array.from(new Set(rows.map((r) => r.author_id).filter(Boolean) as string[]))),
-  ]);
+// ---------- AUTOSUGGEST ----------------------------------------------------
 
-  // Category counts
-  const catCount = new Map<string, number>();
-  (pc ?? []).forEach((r) => {
-    const id = r.category_id as string;
-    catCount.set(id, (catCount.get(id) ?? 0) + 1);
-  });
-  const categories = (cats ?? [])
-    .filter((c) => catCount.has(c.id as string))
-    .map((c) => ({
-      id: c.id as string,
-      slug: c.slug as string,
-      name: (c.name_pl as string) || (c.name_en as string) || (c.slug as string),
-      count: catCount.get(c.id as string) ?? 0,
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  // Author counts
-  const authorCount = new Map<string, number>();
-  rows.forEach((r) => {
-    if (r.author_id) authorCount.set(r.author_id, (authorCount.get(r.author_id) ?? 0) + 1);
-  });
-  const authors = (profs ?? [])
-    .map((p) => ({
-      id: p.id as string,
-      name: (p.display_name as string | null) ?? "Autor",
-      count: authorCount.get(p.id as string) ?? 0,
-    }))
-    .filter((a) => a.count > 0)
-    .sort((a, b) => b.count - a.count);
-
-  return { categories, authors };
+export interface AutosuggestItem {
+  kind: "author" | "post" | FacetDim;
+  id: string | null;
+  slug: string | null;
+  label_pl: string;
+  label_en: string;
+  parentPageId: string | null;
+  score: number;
 }
+
+export const searchAutosuggestQueryOptions = (q: string, limit: number = 8) =>
+  queryOptions({
+    queryKey: ["public", "search-autosuggest", q.trim(), { limit }] as const,
+    enabled: q.trim().length >= 2,
+    staleTime: 30_000,
+    queryFn: async (): Promise<AutosuggestItem[]> => {
+      try {
+        const { data } = await supabase.rpc("search_autosuggest", { _q: q.trim(), _limit: limit });
+        return (data ?? []).map((r) => ({
+          kind: r.kind as AutosuggestItem["kind"],
+          id: (r.id as string | null) ?? null,
+          slug: (r.slug as string | null) ?? null,
+          label_pl: (r.label_pl as string | null) ?? "",
+          label_en: (r.label_en as string | null) ?? "",
+          parentPageId: (r.parent_page_id as string | null) ?? null,
+          score: Number(r.score ?? 0),
+        }));
+      } catch {
+        // Odporność przed wdrożeniem migracji: brak funkcji → brak podpowiedzi.
+        return [];
+      }
+    },
+  });

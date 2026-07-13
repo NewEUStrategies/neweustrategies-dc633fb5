@@ -1,4 +1,5 @@
-// Command palette i18n bundle (PL/EN). Loaded once on import.
+// Command palette + faceted archive search i18n bundle (PL/EN). Loaded once on
+// import.
 import i18n from "./i18n";
 
 const pl = {
@@ -25,9 +26,10 @@ const pl = {
     description: "Wyszukiwarka wpisów",
     placeholder: "Wpisz frazę...",
     submit: "Szukaj",
-    min_chars: "Wpisz co najmniej 2 znaki.",
+    min_chars: "Wpisz co najmniej 2 znaki lub wybierz filtr.",
     filters: "Filtry",
     clear: "Wyczyść",
+    clear_all: "Wyczyść wszystko",
     date: "Data",
     date_from: "Od",
     date_to: "Do",
@@ -35,8 +37,65 @@ const pl = {
     authors: "Autorzy",
     searching: "Szukam...",
     results_count: "Wyników: {{count}}",
+    results_count_plus: "Wyników: {{n}}+",
     empty: "Brak wyników. Spróbuj innej frazy lub zmień filtry.",
     author_fallback: "Autor",
+    // Wymiary fasetowe
+    dim: {
+      category: "Specjalizacja",
+      pub_type: "Typ publikacji",
+      region: "Region i państwo",
+      topic: "Temat",
+      project: "Projekt",
+      series: "Seria",
+      author: "Autor",
+      format: "Format",
+      lang: "Język",
+      access: "Dostępność",
+      year: "Rok",
+    },
+    // Formaty treści (post_format)
+    format: {
+      standard: "Artykuł",
+      video: "Wideo",
+      audio: "Audio",
+      gallery: "Galeria",
+    },
+    // Dostępność (content_access.mode)
+    access: {
+      public: "Publiczna",
+      members: "Członkowska",
+      paid: "Płatna",
+    },
+    lang: {
+      pl: "Polski",
+      en: "Angielski",
+    },
+    sort: {
+      label: "Sortuj",
+      relevance: "Trafność",
+      newest: "Najnowsze",
+      popular: "Najpopularniejsze",
+    },
+    active_filters: "Aktywne filtry",
+    remove_filter: "Usuń filtr",
+    fuzzy_note: "Brak dokładnych trafień — pokazujemy przybliżone wyniki.",
+    suggest: {
+      authors: "Autorzy",
+      terms: "Filtry",
+      posts: "Publikacje",
+    },
+    saved: {
+      title: "Zapisane wyszukiwania",
+      save: "Zapisz wyszukiwanie",
+      name_placeholder: "Nazwa wyszukiwania",
+      empty: "Nie masz jeszcze zapisanych wyszukiwań.",
+      login_hint: "Zaloguj się, aby zapisywać wyszukiwania.",
+      saved_toast: "Zapisano wyszukiwanie",
+      deleted_toast: "Usunięto zapisane wyszukiwanie",
+      apply: "Zastosuj",
+      delete: "Usuń",
+    },
   },
 };
 const en = {
@@ -63,9 +122,10 @@ const en = {
     description: "Article search",
     placeholder: "Type a phrase...",
     submit: "Search",
-    min_chars: "Type at least 2 characters.",
+    min_chars: "Type at least 2 characters or pick a filter.",
     filters: "Filters",
     clear: "Clear",
+    clear_all: "Clear all",
     date: "Date",
     date_from: "From",
     date_to: "To",
@@ -73,8 +133,62 @@ const en = {
     authors: "Authors",
     searching: "Searching...",
     results_count: "Results: {{count}}",
+    results_count_plus: "Results: {{n}}+",
     empty: "No results. Try a different phrase or adjust filters.",
     author_fallback: "Author",
+    dim: {
+      category: "Specialization",
+      pub_type: "Publication type",
+      region: "Region & country",
+      topic: "Topic",
+      project: "Project",
+      series: "Series",
+      author: "Author",
+      format: "Format",
+      lang: "Language",
+      access: "Access",
+      year: "Year",
+    },
+    format: {
+      standard: "Article",
+      video: "Video",
+      audio: "Audio",
+      gallery: "Gallery",
+    },
+    access: {
+      public: "Public",
+      members: "Members",
+      paid: "Paid",
+    },
+    lang: {
+      pl: "Polish",
+      en: "English",
+    },
+    sort: {
+      label: "Sort",
+      relevance: "Relevance",
+      newest: "Newest",
+      popular: "Most popular",
+    },
+    active_filters: "Active filters",
+    remove_filter: "Remove filter",
+    fuzzy_note: "No exact matches — showing approximate results.",
+    suggest: {
+      authors: "Authors",
+      terms: "Filters",
+      posts: "Articles",
+    },
+    saved: {
+      title: "Saved searches",
+      save: "Save search",
+      name_placeholder: "Search name",
+      empty: "You have no saved searches yet.",
+      login_hint: "Sign in to save searches.",
+      saved_toast: "Search saved",
+      deleted_toast: "Saved search removed",
+      apply: "Apply",
+      delete: "Delete",
+    },
   },
 };
 
