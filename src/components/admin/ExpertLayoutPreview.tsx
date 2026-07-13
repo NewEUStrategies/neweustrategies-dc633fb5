@@ -167,11 +167,23 @@ export function ExpertLayoutPreview({
         <div>
           <h2 className="font-display text-base">Podgląd na żywo</h2>
           <p className="text-[11px] text-muted-foreground">
-            Zmiany widać od razu po kliknięciu - dane realnego eksperta, ale wariant/kolejność/kolory
-            pochodzą z niezapisanych ustawień powyżej. Zapis utrwala je publicznie.
+            {mode === "draft"
+              ? "Roboczy podgląd - klik w preset / kolor / kolejność zmienia widok od razu. Zapis przełącza podgląd na wersję publiczną."
+              : "Wersja opublikowana - dokładnie to samo, co widzi publiczność na /author/…. Wróć do trybu roboczego, aby dalej edytować."}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
+          <ToggleGroup
+            options={[
+              { v: "draft", label: "Roboczy" },
+              { v: "published", label: "Publiczny" },
+            ]}
+            value={mode}
+            onChange={(v) => {
+              setMode(v as "draft" | "published");
+              if (v === "published") setIframeNonce((n) => n + 1);
+            }}
+          />
           <ToggleGroup
             options={[
               { v: "pl", label: "PL" },
@@ -188,9 +200,19 @@ export function ExpertLayoutPreview({
             value={theme}
             onChange={(v) => setTheme(v as Theme)}
           />
-          {effectiveSlug && (
+          {mode === "published" && (
+            <button
+              type="button"
+              onClick={() => setIframeNonce((n) => n + 1)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
+              title="Odśwież iframe"
+            >
+              Odśwież
+            </button>
+          )}
+          {publicHref && (
             <a
-              href={`${lang === "en" ? "/en" : ""}/author/${encodeURIComponent(effectiveSlug)}`}
+              href={publicHref}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
