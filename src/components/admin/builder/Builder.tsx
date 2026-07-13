@@ -67,7 +67,7 @@ interface Props {
   /** Hide the surrounding site Header/Footer preview chrome. */
   hideChrome?: boolean;
   /** Editor scope - controls empty-state copy and drop-zone labels. */
-  scope?: "page" | "header" | "footer" | "menu" | "popup";
+  scope?: "page" | "header" | "footer" | "menu" | "popup" | "expert_profile";
 }
 
 const SCOPE_COPY = {
@@ -100,6 +100,12 @@ const SCOPE_COPY = {
     hint: "Dodaj pierwszą sekcję popupu (nagłówek, tekst, przycisk lub newsletter).",
     first: "Wstaw sekcję popupu",
     last: "Dodaj sekcję na końcu popupu",
+  },
+  expert_profile: {
+    title: "Zbuduj stronę eksperta",
+    hint: "Dodaj sekcje profilu eksperta (hero, biografia, materiały, media, CV, kontakt).",
+    first: "Wstaw sekcję profilu",
+    last: "Dodaj sekcję na końcu profilu",
   },
 } as const;
 
