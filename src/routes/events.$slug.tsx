@@ -266,10 +266,6 @@ function RsvpControls({
     </div>
   );
 }
-      </div>
-    </article>
-  );
-}
 
 function MetaRow({
   icon,
