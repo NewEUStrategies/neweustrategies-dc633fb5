@@ -1,9 +1,13 @@
 // Szczegóły wydarzenia + RSVP. URL: /events/$slug
+// RSVP jest trój-stanowe (going / interested / cancelled). Ponowne kliknięcie
+// tego samego statusu = cofnięcie do 'cancelled'. Zmiana statusu robi UPDATE
+// istniejącego wiersza (unique index event_id+user_id), więc jeden użytkownik
+// zawsze ma dokładnie jeden RSVP na wydarzenie.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft } from "lucide-react";
+import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft, Check, Star, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPublicEventBySlug } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
@@ -15,6 +19,8 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import "@/lib/i18n-community";
+
+type RsvpStatus = "going" | "interested" | "cancelled";
 
 export const Route = createFileRoute("/events/$slug")({
   component: EventDetail,
