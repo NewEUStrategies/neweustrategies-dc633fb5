@@ -393,3 +393,42 @@ etykiety rozwiązane w bazie) przez `useLinkedItems` / `LinkedItemsCard`.
 pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 `src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
 `src/lib/__tests__/i18nCohesion.test.ts`.
+
+## 6. Podcast: sieć programów (nie płaska lista plików)
+
+Podcast jest modelowany jako **katalog odrębnych programów** (wzorzec RUSI/CSIS),
+a nie pojedynczy strumień odcinków. Model danych:
+
+```
+program (podcast_shows)
+├── sezony ── odcinki       (podcasts.show_id + season/episode_number)
+├── prowadzący / goście     (podcast_episode_people, opcjonalnie profil eksperta)
+├── specjalizacja           (podcasts.category_id -> categories)
+├── rozdziały               (podcasts.chapters   jsonb)
+├── cytaty do udostępnienia (podcasts.quotes     jsonb)
+└── źródła i materiały       (podcasts.resources  jsonb, kind: source|related)
+```
+
+- **Serie ≠ odcinki.** `podcast_shows` to program (status/RLS jak w `podcasts`).
+  Odcinek wskazuje program przez `podcasts.show_id` (NULL = luzem). Powiązania
+  addytywne: istniejące odcinki i globalny kanał RSS działają bez zmian.
+- **Ludzie.** `podcast_episode_people` (rola `host|guest`). `profile_id` linkuje
+  do profilu eksperta - to on napędza agregację odcinka na `/author/$slug`;
+  gość zewnętrzny funkcjonuje po `display_name` + opcjonalnym `url`. Zapis w
+  adminie strategią "zastąp wszystko" (delete + insert per odcinek).
+- **Warstwy odcinka** (`chapters`/`quotes`/`resources`) to kolumny jsonb;
+  kształt egzekwują defensywne parsery w `src/lib/podcast/types.ts`
+  (`parseChapters`/`parseQuotes`/`parseResources`) - złe wpisy odpadają zamiast
+  wywracać UI. Rozdziały sterują odtwarzaczem przez `PodcastPlayer.registerSeek`.
+- **Trasy.** `/podcasts` (katalog: programy + najnowsze odcinki, `podcasts.index.tsx`),
+  `/podcasts/$show` (program: sezony + prowadzący), `/podcast/$slug` (odcinek).
+- **RSS osobno dla całości i per program.** Sieć: `/podcast/rss.xml`
+  (`fetchPublishedPodcasts`). Program: `/podcasts/$show/rss.xml`
+  (`fetchPublishedShowBySlug` + `fetchPublishedPodcastsByShow`). Oba przez
+  service role, fail-closed po hoście tenanta, wspólny builder
+  `src/lib/seo/podcastRss.ts`. Programy i odcinki są też w `sitemap.xml`.
+- **Agregacja.** Sekcja "Podcasty" pojawia się na profilu eksperta
+  (`podcastsByProfileQueryOptions`: występy + autorstwo) i na stronie
+  specjalizacji/kategorii (`podcastsByCategoryQueryOptions`), przez wspólny
+  `src/components/podcast/PodcastEpisodeStrip.tsx`.
+- **JSON-LD.** Program emituje `PodcastSeries`, odcinek `PodcastEpisode`.

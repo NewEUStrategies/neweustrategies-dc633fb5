@@ -32,10 +32,24 @@ import {
   FileText,
   Settings,
 } from "@/lib/lucide-shim";
-import { Upload, Loader2 } from "lucide-react";
-import type { Podcast, PodcastSettings, PodcastStatus } from "@/lib/podcast/types";
-import { parseDuration, formatDuration } from "@/lib/podcast/types";
-import { PODCAST_FIELDS } from "@/lib/queries/podcasts";
+import { Upload, Loader2, GripVertical, ListTree } from "lucide-react";
+import type {
+  Podcast,
+  PodcastSettings,
+  PodcastStatus,
+  PodcastShow,
+  PodcastChapter,
+  PodcastQuote,
+  PodcastResource,
+} from "@/lib/podcast/types";
+import {
+  parseDuration,
+  formatDuration,
+  parseChapters,
+  parseQuotes,
+  parseResources,
+} from "@/lib/podcast/types";
+import { PODCAST_FIELDS, PODCAST_SHOW_FIELDS } from "@/lib/queries/podcasts";
 import { useAuth } from "@/hooks/useAuth";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
@@ -76,7 +90,39 @@ type Row = Pick<
   | "season"
   | "audio_url"
   | "cover_image_url"
+  | "show_id"
 > & { published_at: string | null };
+
+/** Uczestnik w edytorze; profile_id albo display_name (jedno wymagane). */
+interface PersonDraft {
+  id?: string;
+  profile_id: string | null;
+  display_name: string;
+  role: "host" | "guest";
+  url: string;
+}
+
+interface CategoryOption {
+  id: string;
+  name_pl: string;
+  name_en: string;
+}
+
+interface ProfileOption {
+  id: string;
+  display_name: string | null;
+  slug: string | null;
+}
+
+interface EpisodeBundle {
+  episode: Podcast;
+  chapters: PodcastChapter[];
+  quotes: PodcastQuote[];
+  resources: PodcastResource[];
+  people: PersonDraft[];
+}
+
+type View = "episodes" | "settings" | "shows";
 
 function Page() {
   const qc = useQueryClient();
@@ -85,7 +131,7 @@ function Page() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PodcastStatus>("all");
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [view, setView] = useState<View>("episodes");
 
   const { data: rows } = useQuery({
     queryKey: ["admin", "podcasts"],
@@ -93,7 +139,7 @@ function Page() {
       const { data, error } = await supabase
         .from("podcasts")
         .select(
-          "id,slug,title_pl,title_en,status,duration_seconds,episode_number,season,audio_url,cover_image_url,published_at",
+          "id,slug,title_pl,title_en,status,duration_seconds,episode_number,season,audio_url,cover_image_url,published_at,show_id",
         )
         // Bez tego filtra „Usunięte" odcinki (soft-delete) zostawały na liście,
         // więc „Usuń" wyglądał jak brak reakcji.
@@ -103,6 +149,27 @@ function Page() {
       return (data ?? []) as Row[];
     },
   });
+
+  // Programy - do etykiet na liście odcinków i selektora w edytorze.
+  const { data: shows } = useQuery({
+    queryKey: ["admin", "podcast-shows"],
+    queryFn: async (): Promise<PodcastShow[]> => {
+      const { data, error } = await supabase
+        .from("podcast_shows")
+        .select(PODCAST_SHOW_FIELDS)
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: true })
+        .order("title_pl", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as PodcastShow[];
+    },
+  });
+
+  const showTitleById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of shows ?? []) m.set(s.id, s.title_pl || s.title_en || s.slug);
+    return m;
+  }, [shows]);
 
   const stats = useMemo(() => {
     const list = rows ?? [];
@@ -159,12 +226,18 @@ function Page() {
     status: "draft",
     published_at: null,
     author_id: null,
+    show_id: null,
+    category_id: null,
+    chapters: [],
+    quotes: [],
+    resources: [],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
 
   const save = useMutation({
-    mutationFn: async (p: Podcast) => {
+    mutationFn: async (bundle: EpisodeBundle) => {
+      const { episode: p, chapters, quotes, resources, people } = bundle;
       const slug = (p.slug || p.title_pl)
         .toLowerCase()
         .trim()
@@ -188,23 +261,62 @@ function Page() {
         season: p.season,
         cover_image_url: p.cover_image_url,
         status: p.status,
+        show_id: p.show_id,
+        category_id: p.category_id,
+        // Zapisujemy tylko poprawne wpisy (parsery odsiewają śmieci/puste).
+        chapters: parseChapters(chapters),
+        quotes: parseQuotes(quotes),
+        resources: parseResources(resources),
         published_at:
           p.status === "published" ? (p.published_at ?? new Date().toISOString()) : p.published_at,
       };
-      if (p.id) {
-        const { error } = await supabase.from("podcasts").update(payload).eq("id", p.id);
+
+      if (!tenantId) throw new Error("Brak kontekstu tenanta");
+      let episodeId = p.id;
+      if (episodeId) {
+        const { error } = await supabase.from("podcasts").update(payload).eq("id", episodeId);
         if (error) throw error;
       } else {
-        if (!tenantId) throw new Error("Brak kontekstu tenanta");
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("podcasts")
-          .insert({ ...payload, tenant_id: tenantId });
+          .insert({ ...payload, tenant_id: tenantId })
+          .select("id")
+          .single();
         if (error) throw error;
+        episodeId = (data as { id: string }).id;
+      }
+
+      // Uczestnicy w osobnej tabeli: strategia „zastąp wszystko" - usuń istniejące
+      // i wstaw bieżącą listę (proste i deterministyczne dla edytora admina).
+      const { error: delError } = await supabase
+        .from("podcast_episode_people")
+        .delete()
+        .eq("episode_id", episodeId);
+      if (delError) throw delError;
+
+      const cleanPeople = people
+        .map((person, idx) => ({
+          tenant_id: tenantId,
+          episode_id: episodeId,
+          profile_id: person.profile_id,
+          display_name: person.display_name.trim(),
+          role: person.role,
+          url: person.url.trim() || null,
+          sort_order: idx,
+        }))
+        // Wiersz musi mieć profil albo nazwisko (odpowiednik CHECK w DB).
+        .filter((person) => person.profile_id || person.display_name);
+      if (cleanPeople.length > 0) {
+        const { error: insError } = await supabase
+          .from("podcast_episode_people")
+          .insert(cleanPeople);
+        if (insError) throw insError;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "podcasts"] });
       qc.invalidateQueries({ queryKey: ["podcasts"] });
+      qc.invalidateQueries({ queryKey: ["podcast-people"] });
       toast.success("Zapisano");
       setEditing(null);
     },
@@ -236,13 +348,17 @@ function Page() {
             <div>
               <h1 className="font-display text-2xl leading-tight">Podcasty</h1>
               <p className="text-xs text-muted-foreground">
-                Zarządzanie odcinkami, transkrypcjami i publikacją
+                Sieć programów: serie, odcinki, prowadzący i transkrypcje
               </p>
             </div>
           </div>
-          {!editing && !showSettings && (
+          {!editing && view === "episodes" && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowSettings(true)}>
+              <Button variant="outline" onClick={() => setView("shows")}>
+                <ListTree className="w-4 h-4 mr-2" />
+                Programy
+              </Button>
+              <Button variant="outline" onClick={() => setView("settings")}>
                 <Settings className="w-4 h-4 mr-2" />
                 Ustawienia
               </Button>
@@ -254,9 +370,13 @@ function Page() {
           )}
         </div>
 
-        {showSettings && !editing && <PodcastSettingsPane onClose={() => setShowSettings(false)} />}
+        {view === "settings" && !editing && (
+          <PodcastSettingsPane onClose={() => setView("episodes")} />
+        )}
 
-        {!editing && !showSettings && (
+        {view === "shows" && !editing && <ShowsPane onClose={() => setView("episodes")} />}
+
+        {view === "episodes" && !editing && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <StatCard icon={Mic} label="Wszystkie" value={String(stats.total)} tone="default" />
@@ -317,10 +437,10 @@ function Page() {
                   <tr>
                     <th className="text-left p-3 w-16"></th>
                     <th className="text-left p-3">Tytuł</th>
+                    <th className="text-left p-3 w-40">Program</th>
                     <th className="text-left p-3 w-24">S/E</th>
                     <th className="text-left p-3 w-24">Czas</th>
                     <th className="text-left p-3 w-32">Status</th>
-                    <th className="text-left p-3 w-32">Publikacja</th>
                     <th className="p-3 w-24"></th>
                   </tr>
                 </thead>
@@ -352,6 +472,9 @@ function Page() {
                         </button>
                         <div className="text-xs text-muted-foreground font-mono">{r.slug}</div>
                       </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {r.show_id ? (showTitleById.get(r.show_id) ?? "—") : "—"}
+                      </td>
                       <td className="p-3 text-xs tabular-nums">
                         {r.season ? `S${r.season}` : "-"}
                         {r.episode_number ? ` E${r.episode_number}` : ""}
@@ -361,9 +484,6 @@ function Page() {
                       </td>
                       <td className="p-3">
                         <StatusBadge status={r.status} />
-                      </td>
-                      <td className="p-3 text-xs text-muted-foreground">
-                        {r.published_at ? new Date(r.published_at).toLocaleDateString() : "-"}
                       </td>
                       <td className="p-3 text-right">
                         <button
@@ -394,8 +514,9 @@ function Page() {
         {editing && (
           <EditorPane
             p={editing}
+            shows={shows ?? []}
             onCancel={() => setEditing(null)}
-            onSave={(p) => save.mutate(p)}
+            onSave={(bundle) => save.mutate(bundle)}
             saving={save.isPending}
           />
         )}
@@ -425,6 +546,360 @@ function Page() {
         </AlertDialogContent>
       </AlertDialog>
     </AdminShell>
+  );
+}
+
+// ============================================================================
+// Programy (serie)
+// ============================================================================
+
+function ShowsPane({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { tenantId } = useAuth();
+  const [editing, setEditing] = useState<PodcastShow | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const { data: shows } = useQuery({
+    queryKey: ["admin", "podcast-shows"],
+    queryFn: async (): Promise<PodcastShow[]> => {
+      const { data, error } = await supabase
+        .from("podcast_shows")
+        .select(PODCAST_SHOW_FIELDS)
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: true })
+        .order("title_pl", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as PodcastShow[];
+    },
+  });
+
+  const newShow = (): PodcastShow => ({
+    id: "",
+    tenant_id: "",
+    slug: "",
+    title_pl: "Nowy program",
+    title_en: "",
+    description_pl: "",
+    description_en: "",
+    cover_image_url: null,
+    spotify_url: null,
+    apple_url: null,
+    youtube_url: null,
+    sort_order: (shows?.length ?? 0) + 1,
+    status: "draft",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  const save = useMutation({
+    mutationFn: async (s: PodcastShow) => {
+      const slug = (s.slug || s.title_pl)
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      if (!slug) throw new Error("Slug wymagany");
+      const payload = {
+        slug,
+        title_pl: s.title_pl,
+        title_en: s.title_en,
+        description_pl: s.description_pl,
+        description_en: s.description_en,
+        cover_image_url: s.cover_image_url,
+        spotify_url: s.spotify_url || null,
+        apple_url: s.apple_url || null,
+        youtube_url: s.youtube_url || null,
+        sort_order: s.sort_order,
+        status: s.status,
+      };
+      if (s.id) {
+        const { error } = await supabase.from("podcast_shows").update(payload).eq("id", s.id);
+        if (error) throw error;
+      } else {
+        if (!tenantId) throw new Error("Brak kontekstu tenanta");
+        const { error } = await supabase
+          .from("podcast_shows")
+          .insert({ ...payload, tenant_id: tenantId });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "podcast-shows"] });
+      qc.invalidateQueries({ queryKey: ["podcast-shows"] });
+      toast.success("Zapisano program");
+      setEditing(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("podcast_shows")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "podcast-shows"] });
+      qc.invalidateQueries({ queryKey: ["podcast-shows"] });
+      toast.success("Usunięto program");
+    },
+  });
+
+  if (editing) {
+    return (
+      <ShowEditor
+        s={editing}
+        onCancel={() => setEditing(null)}
+        onSave={(s) => save.mutate(s)}
+        saving={save.isPending}
+      />
+    );
+  }
+
+  return (
+    <section className="bg-card border border-border rounded-lg p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-lg">Programy podcastowe</h2>
+          <p className="text-xs text-muted-foreground">
+            Serie grupujące odcinki. Każdy program ma własną stronę i kanał RSS.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setEditing(newShow())}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nowy program
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            Wróć do odcinków
+          </Button>
+        </div>
+      </div>
+
+      {(shows ?? []).length === 0 ? (
+        <p className="text-sm text-muted-foreground py-10 text-center">
+          Brak programów. Utwórz pierwszy, aby pogrupować odcinki w serie.
+        </p>
+      ) : (
+        <ul className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+          {(shows ?? []).map((s) => (
+            <li
+              key={s.id}
+              className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors"
+            >
+              {s.cover_image_url ? (
+                <img
+                  src={s.cover_image_url}
+                  alt=""
+                  className="w-12 h-12 rounded-md object-cover border border-border"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                  <Mic className="w-4 h-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <button
+                  className="font-medium hover:underline text-left"
+                  onClick={() => setEditing(s)}
+                >
+                  {s.title_pl || s.title_en || s.slug}
+                </button>
+                <div className="text-xs text-muted-foreground font-mono">{s.slug}</div>
+              </div>
+              <StatusBadge status={s.status} />
+              <button
+                onClick={() => setConfirmId(s.id)}
+                className="text-xs text-destructive hover:underline inline-flex items-center gap-1 ml-2"
+              >
+                <Trash2 className="w-3 h-3" />
+                Usuń
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <AlertDialog open={!!confirmId} onOpenChange={(o) => !o && setConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Usunąć program?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Program zniknie z katalogu i ze stron publicznych. Odcinki pozostaną, ale stracą
+              przypisanie do tej serii.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmId) remove.mutate(confirmId);
+                setConfirmId(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Usuń
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  );
+}
+
+function ShowEditor({
+  s,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  s: PodcastShow;
+  onSave: (s: PodcastShow) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [d, setD] = useState<PodcastShow>(s);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
+  const upd = (patch: Partial<PodcastShow>) => setD((prev) => ({ ...prev, ...patch }));
+
+  return (
+    <section className="bg-card border border-border rounded-lg p-5 space-y-5 max-w-3xl">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-lg">{d.id ? "Edycja programu" : "Nowy program"}</h2>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={onCancel}>
+            Anuluj
+          </Button>
+          <Button onClick={() => onSave(d)} disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "…" : "Zapisz"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <Label>Slug</Label>
+          <Input
+            value={d.slug}
+            onChange={(e) => upd({ slug: e.target.value })}
+            placeholder="np. gra-mocarstw"
+          />
+        </div>
+        <div>
+          <Label>Status</Label>
+          <select
+            className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+            value={d.status}
+            onChange={(e) => upd({ status: e.target.value as PodcastStatus })}
+          >
+            <option value="draft">Szkic</option>
+            <option value="published">Opublikowany</option>
+            <option value="archived">Archiwum</option>
+          </select>
+        </div>
+      </div>
+
+      <Tabs defaultValue="pl">
+        <TabsList>
+          <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
+          <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+        </TabsList>
+        <TabsContent value="pl" className="space-y-3 mt-4">
+          <div>
+            <Label>Tytuł</Label>
+            <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
+          </div>
+          <div>
+            <Label>Opis</Label>
+            <Textarea
+              rows={3}
+              value={d.description_pl}
+              onChange={(e) => upd({ description_pl: e.target.value })}
+            />
+          </div>
+        </TabsContent>
+        <TabsContent value="en" className="space-y-3 mt-4">
+          <div>
+            <Label>Title</Label>
+            <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
+          </div>
+          <div>
+            <Label>Description</Label>
+            <Textarea
+              rows={3}
+              value={d.description_en}
+              onChange={(e) => upd({ description_en: e.target.value })}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <Label>Okładka</Label>
+          <div className="flex gap-2">
+            <Input
+              value={d.cover_image_url ?? ""}
+              onChange={(e) => upd({ cover_image_url: e.target.value || null })}
+              placeholder="https://… lub wgraj obraz"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCoverPickerOpen(true)}
+              title="Wgraj / wybierz okładkę"
+            >
+              <Upload className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <div>
+          <Label>Kolejność</Label>
+          <Input
+            type="number"
+            value={d.sort_order}
+            onChange={(e) => upd({ sort_order: Number(e.target.value) || 0 })}
+          />
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-3">
+        <div>
+          <Label>Spotify URL</Label>
+          <Input
+            value={d.spotify_url ?? ""}
+            onChange={(e) => upd({ spotify_url: e.target.value })}
+            placeholder="https://open.spotify.com/show/…"
+          />
+        </div>
+        <div>
+          <Label>Apple URL</Label>
+          <Input
+            value={d.apple_url ?? ""}
+            onChange={(e) => upd({ apple_url: e.target.value })}
+            placeholder="https://podcasts.apple.com/…"
+          />
+        </div>
+        <div>
+          <Label>YouTube URL</Label>
+          <Input
+            value={d.youtube_url ?? ""}
+            onChange={(e) => upd({ youtube_url: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <MediaPickerDialog
+        open={coverPickerOpen}
+        onOpenChange={setCoverPickerOpen}
+        onPick={(url) => upd({ cover_image_url: url })}
+        accept="image"
+        title="Wybierz lub wgraj okładkę programu"
+      />
+    </section>
   );
 }
 
@@ -628,12 +1103,14 @@ function StatCard({
 
 function EditorPane({
   p,
+  shows,
   onSave,
   onCancel,
   saving,
 }: {
   p: Podcast;
-  onSave: (p: Podcast) => void;
+  shows: PodcastShow[];
+  onSave: (bundle: EpisodeBundle) => void;
   onCancel: () => void;
   saving: boolean;
 }) {
@@ -643,7 +1120,70 @@ function EditorPane({
   const [audioPickerOpen, setAudioPickerOpen] = useState(false);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [detectingDuration, setDetectingDuration] = useState(false);
+  const [chapters, setChapters] = useState<PodcastChapter[]>(() => parseChapters(p.chapters));
+  const [quotes, setQuotes] = useState<PodcastQuote[]>(() => parseQuotes(p.quotes));
+  const [resources, setResources] = useState<PodcastResource[]>(() => parseResources(p.resources));
+  const [people, setPeople] = useState<PersonDraft[]>([]);
   const upd = (patch: Partial<Podcast>) => setD((prev) => ({ ...prev, ...patch }));
+
+  // Kategorie (specjalizacje) do przypięcia odcinka.
+  const { data: categories } = useQuery({
+    queryKey: ["admin", "podcast-categories"],
+    queryFn: async (): Promise<CategoryOption[]> => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name_pl, name_en")
+        .order("name_pl");
+      if (error) throw error;
+      return (data ?? []) as CategoryOption[];
+    },
+  });
+
+  // Profile do wyboru prowadzących/gości (link do strony eksperta).
+  const { data: profiles } = useQuery({
+    queryKey: ["admin", "podcast-profiles"],
+    queryFn: async (): Promise<ProfileOption[]> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, slug")
+        .order("display_name")
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as ProfileOption[];
+    },
+  });
+
+  // Uczestnicy istniejącego odcinka: wczytujemy raz i inicjalizujemy stan.
+  useQuery({
+    queryKey: ["admin", "podcast-people", p.id],
+    enabled: !!p.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("podcast_episode_people")
+        .select("id, profile_id, display_name, role, url, sort_order")
+        .eq("episode_id", p.id)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        profile_id: string | null;
+        display_name: string;
+        role: string;
+        url: string | null;
+        sort_order: number;
+      }>;
+      setPeople(
+        rows.map((r) => ({
+          id: r.id,
+          profile_id: r.profile_id,
+          display_name: r.display_name ?? "",
+          role: r.role === "host" ? "host" : "guest",
+          url: r.url ?? "",
+        })),
+      );
+      return rows;
+    },
+  });
 
   // Wybór/wgranie pliku audio: ustaw URL i automatycznie wykryj czas trwania.
   const onAudioPicked = async (url: string) => {
@@ -680,7 +1220,10 @@ function EditorPane({
               <Button variant="outline" onClick={onCancel}>
                 Anuluj
               </Button>
-              <Button onClick={() => onSave(d)} disabled={saving}>
+              <Button
+                onClick={() => onSave({ episode: d, chapters, quotes, resources, people })}
+                disabled={saving}
+              >
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? "…" : "Zapisz"}
               </Button>
@@ -706,6 +1249,43 @@ function EditorPane({
                 <option value="draft">Szkic</option>
                 <option value="published">Opublikowany</option>
                 <option value="archived">Archiwum</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <FieldLabel tip="Seria (program), do której należy odcinek. Program grupuje odcinki w sezony i ma własną stronę oraz kanał RSS.">
+                Program
+              </FieldLabel>
+              <select
+                className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+                value={d.show_id ?? ""}
+                onChange={(e) => upd({ show_id: e.target.value || null })}
+              >
+                <option value="">— bez programu —</option>
+                {shows.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title_pl || s.title_en || s.slug}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel tip="Specjalizacja (kategoria) tematyczna. Odcinek pojawi się też w sekcji „Podcasty” na stronie tej kategorii.">
+                Specjalizacja
+              </FieldLabel>
+              <select
+                className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+                value={d.category_id ?? ""}
+                onChange={(e) => upd({ category_id: e.target.value || null })}
+              >
+                <option value="">— brak —</option>
+                {(categories ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name_pl || c.name_en}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -869,6 +1449,11 @@ function EditorPane({
             </div>
           </div>
 
+          <PeopleEditor people={people} setPeople={setPeople} profiles={profiles ?? []} />
+          <ChaptersEditor chapters={chapters} setChapters={setChapters} />
+          <QuotesEditor quotes={quotes} setQuotes={setQuotes} />
+          <ResourcesEditor resources={resources} setResources={setResources} />
+
           <div className="rounded-md border border-border bg-muted/30 p-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-medium">Publikuj od razu</div>
@@ -992,5 +1577,303 @@ function EditorPane({
         />
       </div>
     </TooltipProvider>
+  );
+}
+
+// ============================================================================
+// Powtarzalne edytory warstw odcinka
+// ============================================================================
+
+function SectionCard({
+  title,
+  hint,
+  onAdd,
+  addLabel,
+  children,
+}: {
+  title: string;
+  hint: string;
+  onAdd: () => void;
+  addLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-border p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-medium">{title}</div>
+          <div className="text-xs text-muted-foreground">{hint}</div>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={onAdd}>
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          {addLabel}
+        </Button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function RowShell({ onRemove, children }: { onRemove: () => void; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 rounded border border-border bg-muted/20 p-2">
+      <GripVertical className="w-4 h-4 text-muted-foreground/50 mt-2 shrink-0" />
+      <div className="flex-1 min-w-0 space-y-2">{children}</div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-muted-foreground hover:text-destructive p-1 mt-1"
+        aria-label="Usuń wiersz"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+function PeopleEditor({
+  people,
+  setPeople,
+  profiles,
+}: {
+  people: PersonDraft[];
+  setPeople: React.Dispatch<React.SetStateAction<PersonDraft[]>>;
+  profiles: ProfileOption[];
+}) {
+  const update = (i: number, patch: Partial<PersonDraft>) =>
+    setPeople((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const remove = (i: number) => setPeople((prev) => prev.filter((_, idx) => idx !== i));
+  const add = () =>
+    setPeople((prev) => [...prev, { profile_id: null, display_name: "", role: "guest", url: "" }]);
+
+  return (
+    <SectionCard
+      title="Prowadzący i goście"
+      hint="Powiąż z profilem eksperta (agregacja na jego stronie) lub dodaj gościa zewnętrznego."
+      onAdd={add}
+      addLabel="Dodaj osobę"
+    >
+      {people.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">
+          Brak osób. Dodaj prowadzącego lub gościa.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {people.map((person, i) => (
+            <RowShell key={person.id ?? i} onRemove={() => remove(i)}>
+              <div className="grid sm:grid-cols-[110px_1fr] gap-2">
+                <select
+                  className="px-2 py-1.5 rounded border border-input bg-background text-sm"
+                  value={person.role}
+                  onChange={(e) => update(i, { role: e.target.value as "host" | "guest" })}
+                >
+                  <option value="host">Prowadzący</option>
+                  <option value="guest">Gość</option>
+                </select>
+                <select
+                  className="px-2 py-1.5 rounded border border-input bg-background text-sm"
+                  value={person.profile_id ?? ""}
+                  onChange={(e) => {
+                    const id = e.target.value || null;
+                    const prof = profiles.find((x) => x.id === id);
+                    // Auto-uzupełnij nazwisko z profilu, gdy pole puste.
+                    update(i, {
+                      profile_id: id,
+                      display_name:
+                        !person.display_name && prof?.display_name
+                          ? prof.display_name
+                          : person.display_name,
+                    });
+                  }}
+                >
+                  <option value="">— gość zewnętrzny (bez profilu) —</option>
+                  {profiles.map((prof) => (
+                    <option key={prof.id} value={prof.id}>
+                      {prof.display_name || prof.slug || prof.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <Input
+                  value={person.display_name}
+                  onChange={(e) => update(i, { display_name: e.target.value })}
+                  placeholder="Wyświetlane nazwisko"
+                />
+                <Input
+                  value={person.url}
+                  onChange={(e) => update(i, { url: e.target.value })}
+                  placeholder="Link (opcjonalny, dla gościa bez profilu)"
+                />
+              </div>
+            </RowShell>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function ChaptersEditor({
+  chapters,
+  setChapters,
+}: {
+  chapters: PodcastChapter[];
+  setChapters: React.Dispatch<React.SetStateAction<PodcastChapter[]>>;
+}) {
+  const update = (i: number, patch: Partial<PodcastChapter>) =>
+    setChapters((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const remove = (i: number) => setChapters((prev) => prev.filter((_, idx) => idx !== i));
+  const add = () => setChapters((prev) => [...prev, { start: 0, title_pl: "", title_en: "" }]);
+
+  return (
+    <SectionCard
+      title="Rozdziały"
+      hint="Znaczniki czasu z tytułami. Na stronie odcinka klik przeskakuje odtwarzacz do rozdziału."
+      onAdd={add}
+      addLabel="Dodaj rozdział"
+    >
+      {chapters.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">Brak rozdziałów.</p>
+      ) : (
+        <div className="space-y-2">
+          {chapters.map((c, i) => (
+            <RowShell key={i} onRemove={() => remove(i)}>
+              <div className="grid sm:grid-cols-[120px_1fr_1fr] gap-2">
+                <Input
+                  value={formatDuration(c.start)}
+                  onChange={(e) => update(i, { start: parseDuration(e.target.value) })}
+                  placeholder="MM:SS"
+                  aria-label="Czas startu"
+                />
+                <Input
+                  value={c.title_pl}
+                  onChange={(e) => update(i, { title_pl: e.target.value })}
+                  placeholder="Tytuł (PL)"
+                />
+                <Input
+                  value={c.title_en}
+                  onChange={(e) => update(i, { title_en: e.target.value })}
+                  placeholder="Title (EN)"
+                />
+              </div>
+            </RowShell>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function QuotesEditor({
+  quotes,
+  setQuotes,
+}: {
+  quotes: PodcastQuote[];
+  setQuotes: React.Dispatch<React.SetStateAction<PodcastQuote[]>>;
+}) {
+  const update = (i: number, patch: Partial<PodcastQuote>) =>
+    setQuotes((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const remove = (i: number) => setQuotes((prev) => prev.filter((_, idx) => idx !== i));
+  const add = () => setQuotes((prev) => [...prev, { text_pl: "", text_en: "", attribution: "" }]);
+
+  return (
+    <SectionCard
+      title="Cytaty do udostępnienia"
+      hint="Wyróżnione fragmenty z przyciskiem kopiowania na stronie odcinka."
+      onAdd={add}
+      addLabel="Dodaj cytat"
+    >
+      {quotes.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">Brak cytatów.</p>
+      ) : (
+        <div className="space-y-2">
+          {quotes.map((q, i) => (
+            <RowShell key={i} onRemove={() => remove(i)}>
+              <Textarea
+                rows={2}
+                value={q.text_pl}
+                onChange={(e) => update(i, { text_pl: e.target.value })}
+                placeholder="Cytat (PL)"
+              />
+              <Textarea
+                rows={2}
+                value={q.text_en}
+                onChange={(e) => update(i, { text_en: e.target.value })}
+                placeholder="Quote (EN)"
+              />
+              <Input
+                value={q.attribution}
+                onChange={(e) => update(i, { attribution: e.target.value })}
+                placeholder="Autor cytatu (np. gen. Skrzypczak)"
+              />
+            </RowShell>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function ResourcesEditor({
+  resources,
+  setResources,
+}: {
+  resources: PodcastResource[];
+  setResources: React.Dispatch<React.SetStateAction<PodcastResource[]>>;
+}) {
+  const update = (i: number, patch: Partial<PodcastResource>) =>
+    setResources((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const remove = (i: number) => setResources((prev) => prev.filter((_, idx) => idx !== i));
+  const add = () =>
+    setResources((prev) => [...prev, { label_pl: "", label_en: "", url: "", kind: "source" }]);
+
+  return (
+    <SectionCard
+      title="Źródła i materiały dodatkowe"
+      hint="Bibliografia i powiązane analizy. „Źródło” i „Materiał powiązany” trafiają do osobnych kolumn."
+      onAdd={add}
+      addLabel="Dodaj pozycję"
+    >
+      {resources.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">Brak źródeł.</p>
+      ) : (
+        <div className="space-y-2">
+          {resources.map((r, i) => (
+            <RowShell key={i} onRemove={() => remove(i)}>
+              <div className="grid sm:grid-cols-[150px_1fr] gap-2">
+                <select
+                  className="px-2 py-1.5 rounded border border-input bg-background text-sm"
+                  value={r.kind}
+                  onChange={(e) =>
+                    update(i, { kind: e.target.value === "related" ? "related" : "source" })
+                  }
+                >
+                  <option value="source">Źródło</option>
+                  <option value="related">Materiał powiązany</option>
+                </select>
+                <Input
+                  value={r.url}
+                  onChange={(e) => update(i, { url: e.target.value })}
+                  placeholder="https://…"
+                />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <Input
+                  value={r.label_pl}
+                  onChange={(e) => update(i, { label_pl: e.target.value })}
+                  placeholder="Etykieta (PL)"
+                />
+                <Input
+                  value={r.label_en}
+                  onChange={(e) => update(i, { label_en: e.target.value })}
+                  placeholder="Label (EN)"
+                />
+              </div>
+            </RowShell>
+          ))}
+        </div>
+      )}
+    </SectionCard>
   );
 }

@@ -2,7 +2,7 @@
 // Renders featured area (builder template section) + post list.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { taxonomyArchiveQueryOptions, ARCHIVE_PAGE_SIZE } from "@/lib/queries/archives";
+import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
+import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -78,6 +80,11 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
   const personalized = usePersonalizedSettings();
   const showFollow =
     kind === "category" ? personalized.followInCategoryHeader : personalized.followInTagHeader;
+  // Odcinki przypięte do specjalizacji (tylko kategorie - podcasty nie mają tagów).
+  const podcastsQ = useQuery({
+    ...podcastsByCategoryQueryOptions(data?.taxonomy.id ?? ""),
+    enabled: kind === "category" && !!data?.taxonomy.id,
+  });
   if (!data) return <PublicNotFound />;
   const { taxonomy, posts } = data;
   const name =
@@ -138,6 +145,15 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
                       defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
                     })}
               </Button>
+            </div>
+          )}
+          {kind === "category" && podcastsQ.data && podcastsQ.data.length > 0 && (
+            <div className="pt-10">
+              <PodcastEpisodeStrip
+                episodes={podcastsQ.data}
+                lang={lang}
+                title={lang === "en" ? "Podcasts" : "Podcasty"}
+              />
             </div>
           )}
         </section>
