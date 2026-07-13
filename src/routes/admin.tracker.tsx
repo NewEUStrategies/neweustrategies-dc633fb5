@@ -102,6 +102,18 @@ function AdminTrackerPage() {
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_ITEM);
   const set = (patch: Partial<ItemDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
+  const runTick = useServerFn(runTrackerTickNow);
+  const runTickMut = useMutation({
+    mutationFn: () => runTick(),
+    onSuccess: (res) => {
+      const pushSent = typeof res.push === "object" && "sent" in res.push ? res.push.sent : 0;
+      toast.success(
+        L(`Tick uruchomiony. Wysłano push: ${pushSent}`, `Tick complete. Push sent: ${pushSent}`),
+      );
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const startNew = () => {
     setEditingId("new");
     setDraft(EMPTY_ITEM);
