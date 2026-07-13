@@ -431,9 +431,23 @@ function AuthorProfilePage() {
                   hidden
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) void upload(f);
+                    if (f) {
+                      setPendingFile(f);
+                      setCropOpen(true);
+                    }
                     e.target.value = "";
                   }}
+                />
+                <ImageCropDialog
+                  open={cropOpen}
+                  file={pendingFile}
+                  kind="avatar"
+                  preset={CROP_PRESETS.avatar}
+                  onOpenChange={(o) => {
+                    setCropOpen(o);
+                    if (!o) setPendingFile(null);
+                  }}
+                  onConfirm={(blob) => void upload(blob)}
                 />
               </div>
             </section>
