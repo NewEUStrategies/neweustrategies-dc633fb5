@@ -121,7 +121,8 @@ async function originFromRequest(): Promise<string> {
     // Dynamicznie: eksport tickNewsletterCampaigns (zwykła funkcja) trzyma ten
     // moduł w grafie klienta, a statyczny import react-start/server wywala
     // import-protection buildu.
-    const { getRequest } = await import("@tanstack/react-start/server");
+    const mod = "@tanstack/react-start/server";
+    const { getRequest } = (await import(/* @vite-ignore */ mod)) as typeof import("@tanstack/react-start/server");
     const req = getRequest();
     return new URL(req.url).origin;
   } catch {
