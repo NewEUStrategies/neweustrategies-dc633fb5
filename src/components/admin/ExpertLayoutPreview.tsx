@@ -520,8 +520,13 @@ function ExpertMockup({
       </p>
     ) : null;
 
-  const avatar = (className: string, rounded = "rounded-full") =>
-    e.avatar_url ? (
+  const sizeLabel = lang === "en" ? "Recommended" : "Zalecane";
+  const avatar = (
+    className: string,
+    rounded = "rounded-full",
+    recommend?: string,
+  ) => {
+    const inner = e.avatar_url ? (
       <img
         src={e.avatar_url}
         alt={name}
@@ -531,13 +536,39 @@ function ExpertMockup({
     ) : (
       <AvatarPlaceholder name={name} className={className} rounded={rounded} />
     );
+    if (!recommend || e.avatar_url) return inner;
+    return (
+      <div className="inline-flex flex-col items-center gap-1">
+        {inner}
+        <span
+          className="text-[10px] leading-none rounded-[6px] px-1.5 py-0.5 border border-dashed whitespace-nowrap"
+          style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)", backgroundColor: "color-mix(in oklab, var(--pv-accent) 6%, transparent)" }}
+        >
+          {sizeLabel}: {recommend}
+        </span>
+      </div>
+    );
+  };
 
-  const cover = (className: string) =>
-    hasCover ? (
+  const cover = (className: string, recommend?: string) => {
+    const inner = hasCover ? (
       <div className={`${className} bg-cover bg-center`} style={{ backgroundImage: `url(${e.cover_url})` }} />
     ) : (
       <CoverPlaceholder className={className} />
     );
+    if (!recommend || hasCover) return inner;
+    return (
+      <>
+        {inner}
+        <span
+          className="absolute left-2 top-2 z-10 text-[10px] leading-none rounded-[6px] px-1.5 py-0.5 border border-dashed whitespace-nowrap"
+          style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)", backgroundColor: "color-mix(in oklab, #ffffff 70%, transparent)" }}
+        >
+          {sizeLabel}: {recommend}
+        </span>
+      </>
+    );
+  };
 
 
   const social = (className: string) => (
