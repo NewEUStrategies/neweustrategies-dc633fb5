@@ -209,6 +209,7 @@ export function ExpertLayoutPreview({
 }) {
   const [lang, setLang] = useState<Lang>("pl");
   const [theme, setTheme] = useState<Theme>("light");
+  const [showPlaceholders, setShowPlaceholders] = useState<boolean>(true);
   // 'draft' = mockup napędzany niezapisanym `local`; 'published' = iframe
   // z realnie opublikowaną stroną /author/$slug. Po każdym zapisie
   // automatycznie przełączamy na 'published', żeby administrator widział
