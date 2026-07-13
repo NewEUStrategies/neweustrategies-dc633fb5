@@ -85,6 +85,7 @@ import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-desig
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSeoRouteImport } from './routes/admin.seo'
+import { Route as AdminResearchProgramsRouteImport } from './routes/admin.research-programs'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
 import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
@@ -560,6 +561,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
 const AdminSeoRoute = AdminSeoRouteImport.update({
   id: '/seo',
   path: '/seo',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminResearchProgramsRoute = AdminResearchProgramsRouteImport.update({
+  id: '/research-programs',
+  path: '/research-programs',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminRelatedPostsRoute = AdminRelatedPostsRouteImport.update({
@@ -1127,6 +1133,7 @@ export interface FileRoutesByFullPath {
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
+  '/admin/research-programs': typeof AdminResearchProgramsRoute
   '/admin/seo': typeof AdminSeoRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -1297,6 +1304,7 @@ export interface FileRoutesByTo {
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
+  '/admin/research-programs': typeof AdminResearchProgramsRoute
   '/admin/seo': typeof AdminSeoRoute
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
@@ -1469,6 +1477,7 @@ export interface FileRoutesById {
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
+  '/admin/research-programs': typeof AdminResearchProgramsRoute
   '/admin/seo': typeof AdminSeoRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -1645,6 +1654,7 @@ export interface FileRouteTypes {
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
+    | '/admin/research-programs'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/tags'
@@ -1815,6 +1825,7 @@ export interface FileRouteTypes {
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
+    | '/admin/research-programs'
     | '/admin/seo'
     | '/admin/tags'
     | '/admin/theme-design'
@@ -1986,6 +1997,7 @@ export interface FileRouteTypes {
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
+    | '/admin/research-programs'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/tags'
@@ -2691,6 +2703,13 @@ declare module '@tanstack/react-router' {
       path: '/seo'
       fullPath: '/admin/seo'
       preLoaderRoute: typeof AdminSeoRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/research-programs': {
+      id: '/admin/research-programs'
+      path: '/research-programs'
+      fullPath: '/admin/research-programs'
+      preLoaderRoute: typeof AdminResearchProgramsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/related-posts': {
@@ -3577,6 +3596,7 @@ interface AdminRouteChildren {
   AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
+  AdminResearchProgramsRoute: typeof AdminResearchProgramsRoute
   AdminSeoRoute: typeof AdminSeoRoute
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
@@ -3632,6 +3652,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
+  AdminResearchProgramsRoute: AdminResearchProgramsRoute,
   AdminSeoRoute: AdminSeoRoute,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
