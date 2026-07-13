@@ -634,7 +634,7 @@ function ExpertMockup({
             className={`rounded-[6px] border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
             style={heroStyle}
           >
-            {avatar("h-28 w-28", "rounded-[6px]")}
+            {avatar("h-28 w-28", "rounded-[6px]", "480×480 px")}
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
