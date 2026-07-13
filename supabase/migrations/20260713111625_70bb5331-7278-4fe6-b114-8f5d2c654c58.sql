@@ -1,0 +1,2 @@
+ALTER TABLE public.newsletter_campaigns ADD COLUMN IF NOT EXISTS lease_until timestamptz;
+CREATE INDEX IF NOT EXISTS idx_newsletter_campaigns_lease ON public.newsletter_campaigns (status, lease_until);
