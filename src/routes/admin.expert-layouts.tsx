@@ -39,7 +39,7 @@ function Page() {
   const { data } = useExpertLayoutSettings();
   const save = useSaveExpertLayoutSettings();
   const [local, setLocal] = useState<ExpertLayoutSettings | null>(null);
-  const [savedAt, setSavedAt] = useState<number>(0);
+  
 
   useEffect(() => {
     if (data && !local) setLocal(data);
@@ -60,7 +60,7 @@ function Page() {
     void _t;
     try {
       await save.mutateAsync(rest);
-      setSavedAt(Date.now());
+      
       toast.success("Zapisano - layout strony eksperta został zaktualizowany");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
@@ -324,7 +324,7 @@ function Page() {
           </div>
         </section>
 
-        <ExpertLayoutPreview savedAt={savedAt} />
+        <ExpertLayoutPreview settings={local} />
       </div>
     </AdminShell>
   );
