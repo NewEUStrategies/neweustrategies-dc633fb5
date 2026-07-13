@@ -159,6 +159,7 @@ import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
 import { Route as AdminOrganizationsNewRouteImport } from './routes/admin.organizations.new'
+import { Route as AdminOrganizationsIdRouteImport } from './routes/admin.organizations.$id'
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
@@ -937,6 +938,11 @@ const AdminOrganizationsNewRoute = AdminOrganizationsNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AdminOrganizationsRoute,
 } as any)
+const AdminOrganizationsIdRoute = AdminOrganizationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminOrganizationsRoute,
+} as any)
 const AdminNewsletterSubscribersRoute =
   AdminNewsletterSubscribersRouteImport.update({
     id: '/subscribers',
@@ -1216,6 +1222,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
@@ -1386,6 +1393,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
@@ -1564,6 +1572,7 @@ export interface FileRoutesById {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
@@ -1743,6 +1752,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
@@ -1913,6 +1923,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
@@ -2090,6 +2101,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
@@ -3248,6 +3260,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrganizationsNewRouteImport
       parentRoute: typeof AdminOrganizationsRoute
     }
+    '/admin/organizations/$id': {
+      id: '/admin/organizations/$id'
+      path: '/$id'
+      fullPath: '/admin/organizations/$id'
+      preLoaderRoute: typeof AdminOrganizationsIdRouteImport
+      parentRoute: typeof AdminOrganizationsRoute
+    }
     '/admin/newsletter/subscribers': {
       id: '/admin/newsletter/subscribers'
       path: '/subscribers'
@@ -3515,10 +3534,12 @@ const AdminNewsletterRouteWithChildren = AdminNewsletterRoute._addFileChildren(
 )
 
 interface AdminOrganizationsRouteChildren {
+  AdminOrganizationsIdRoute: typeof AdminOrganizationsIdRoute
   AdminOrganizationsNewRoute: typeof AdminOrganizationsNewRoute
 }
 
 const AdminOrganizationsRouteChildren: AdminOrganizationsRouteChildren = {
+  AdminOrganizationsIdRoute: AdminOrganizationsIdRoute,
   AdminOrganizationsNewRoute: AdminOrganizationsNewRoute,
 }
 
