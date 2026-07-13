@@ -2630,6 +2630,13 @@ export type Database = {
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "member_organizations_tenant_id_tier_key_fkey"
+            columns: ["tenant_id", "tier_key"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["tenant_id", "key"]
+          },
         ]
       }
       member_resources: {
@@ -2763,6 +2770,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_grants_tenant_id_tier_key_fkey"
+            columns: ["tenant_id", "tier_key"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["tenant_id", "key"]
           },
         ]
       }
@@ -7489,6 +7503,7 @@ export type Database = {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
+      is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_tenant_conversation_member: {
