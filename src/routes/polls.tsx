@@ -47,6 +47,7 @@ function PollsPage() {
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const modules = useCommunityModules();
   const { user } = useAuth();
+  const qc = useQueryClient();
 
   const pollsQ = useQuery({
     queryKey: ["public-polls"],
@@ -55,11 +56,40 @@ function PollsPage() {
   });
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
+  const idsKey = ids.join(",");
   const votesQ = useQuery({
-    queryKey: ["public-poll-votes", ids.join(","), user?.id ?? "anon"],
+    queryKey: ["public-poll-votes", idsKey, user?.id ?? "anon"],
     queryFn: () => fetchPollVotes(ids, user?.id ?? null),
     enabled: ids.length > 0,
   });
+
+  // Realtime: nasłuchuj zmian w poll_votes tylko dla widocznych ankiet i
+  // rzuć invalidate na cache wyników. Debounce, żeby seria głosów w tej samej
+  // sekundzie nie robiła kaskady refetchów.
+  useEffect(() => {
+    if (ids.length === 0) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        qc.invalidateQueries({ queryKey: ["public-poll-votes"] });
+      }, 250);
+    };
+    const filter = `poll_id=in.(${ids.join(",")})`;
+    const channel = supabase
+      .channel(`poll-votes-${idsKey}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "poll_votes", filter },
+        scheduleRefetch,
+      )
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [idsKey, ids, qc]);
 
   if (!modules.polls_enabled) return <CommunityDisabled />;
 
