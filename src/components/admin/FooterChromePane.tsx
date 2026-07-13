@@ -54,7 +54,7 @@ export function FooterChromePane() {
       const merged = { ...(data ?? {}), chrome: next };
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: "footer", value: merged as never }, { onConflict: "key" });
+        .upsert({ key: "footer", value: merged as never }, { onConflict: "tenant_id,key" });
       if (error) throw error;
     },
     onSuccess: () => {

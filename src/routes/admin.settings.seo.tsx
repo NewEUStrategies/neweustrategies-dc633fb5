@@ -7,10 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, NumberInput, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import { ImageSlot } from "@/components/admin/ImageSlot";
-import {
-  LinkedSourceHeader,
-  LinkedImagePreview,
-} from "@/components/admin/settings/LinkedSource";
+import { LinkedSourceHeader, LinkedImagePreview } from "@/components/admin/settings/LinkedSource";
 import {
   AI_SEARCH_CRAWLERS,
   AI_TRAINING_CRAWLERS,

@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { POLICY_AREAS, STAGE_LABELS, stageLabel } from "@/lib/tracker/stages";
-import type { PolicyItem } from "@/lib/tracker/queries";
+import { EU_COUNTRIES, STANCE_META } from "@/lib/tracker/euCountries";
+import type { PolicyItem, PolicyPosition } from "@/lib/tracker/queries";
 
 export const Route = createFileRoute("/admin/tracker")({
   component: AdminTrackerPage,
@@ -38,6 +39,9 @@ const EMPTY_ITEM = {
   importance: 2,
   reference: "",
   source_url: "",
+  rapporteur: "",
+  committee: "",
+  lead_dg: "",
   next_milestone_pl: "",
   next_milestone_en: "",
   next_milestone_at: "",
@@ -57,6 +61,9 @@ function itemToDraft(it: PolicyItem): ItemDraft {
     importance: it.importance,
     reference: it.reference ?? "",
     source_url: it.source_url ?? "",
+    rapporteur: it.rapporteur ?? "",
+    committee: it.committee ?? "",
+    lead_dg: it.lead_dg ?? "",
     next_milestone_pl: it.next_milestone_pl ?? "",
     next_milestone_en: it.next_milestone_en ?? "",
     next_milestone_at: it.next_milestone_at ?? "",
@@ -114,6 +121,9 @@ function AdminTrackerPage() {
         importance: draft.importance,
         reference: nullifyEmpty(draft.reference),
         source_url: nullifyEmpty(draft.source_url),
+        rapporteur: nullifyEmpty(draft.rapporteur),
+        committee: nullifyEmpty(draft.committee),
+        lead_dg: nullifyEmpty(draft.lead_dg),
         next_milestone_pl: nullifyEmpty(draft.next_milestone_pl),
         next_milestone_en: nullifyEmpty(draft.next_milestone_en),
         next_milestone_at: nullifyEmpty(draft.next_milestone_at),
@@ -264,6 +274,29 @@ function AdminTrackerPage() {
               </Field>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
+              <Field label={L("Sprawozdawca", "Rapporteur")}>
+                <Input
+                  value={draft.rapporteur}
+                  onChange={(e) => set({ rapporteur: e.target.value })}
+                  placeholder="Jan Kowalski (EPP)"
+                />
+              </Field>
+              <Field label={L("Komisja wiodąca", "Lead committee")}>
+                <Input
+                  value={draft.committee}
+                  onChange={(e) => set({ committee: e.target.value })}
+                  placeholder="LIBE"
+                />
+              </Field>
+              <Field label={L("DG Komisji", "Commission DG")}>
+                <Input
+                  value={draft.lead_dg}
+                  onChange={(e) => set({ lead_dg: e.target.value })}
+                  placeholder="DG CNECT"
+                />
+              </Field>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
               <Field label={L("Nast. kamień PL", "Next milestone PL")}>
                 <Input
                   value={draft.next_milestone_pl}
@@ -326,6 +359,7 @@ function AdminTrackerPage() {
               <Button variant="outline" size="sm" onClick={() => startEdit(it)}>
                 {L("Edytuj", "Edit")}
               </Button>
+              <PositionsButton itemId={it.id} label={L("Stanowiska", "Positions")} />
               <AddUpdateButton itemId={it.id} label={L("Aktualizacja", "Update")} />
             </div>
           </div>
@@ -340,6 +374,183 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <Label className="text-xs">{label}</Label>
       <div className="mt-1">{children}</div>
+    </div>
+  );
+}
+
+// Edytor stanowisk 27 państw członkowskich dla dossier. Wiersz bez wybranego
+// stanowiska nie jest zapisywany; wyczyszczenie istniejącego = DELETE.
+// tenant_id/updated_by przypina trigger eu_policy_position_pin w bazie.
+function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  type RowDraft = { stance: string; note_pl: string; note_en: string };
+  const [rows, setRows] = useState<Record<string, RowDraft>>({});
+
+  const existingQ = useQuery({
+    queryKey: ["admin", "tracker-positions", itemId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("eu_policy_positions")
+        .select("item_id,country_code,stance,note_pl,note_en,updated_at")
+        .eq("item_id", itemId);
+      if (error) throw error;
+      return (data ?? []) as unknown as PolicyPosition[];
+    },
+    enabled: open,
+  });
+
+  // Draft budowany z bazy przy każdym otwarciu (dane mogły się zmienić).
+  const openDialog = () => {
+    setRows({});
+    setOpen(true);
+  };
+  const existing = existingQ.data;
+  const rowFor = (code: string): RowDraft => {
+    if (rows[code]) return rows[code];
+    const fromDb = existing?.find((p) => p.country_code === code);
+    return {
+      stance: fromDb?.stance ?? "none",
+      note_pl: fromDb?.note_pl ?? "",
+      note_en: fromDb?.note_en ?? "",
+    };
+  };
+  const setRow = (code: string, patch: Partial<RowDraft>) =>
+    setRows((r) => ({ ...r, [code]: { ...rowFor(code), ...patch } }));
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const upserts: {
+        item_id: string;
+        country_code: string;
+        stance: string;
+        note_pl: string | null;
+        note_en: string | null;
+      }[] = [];
+      const deletes: string[] = [];
+      for (const c of EU_COUNTRIES) {
+        const row = rowFor(c.code);
+        const had = existing?.some((p) => p.country_code === c.code) ?? false;
+        if (row.stance === "none") {
+          if (had) deletes.push(c.code);
+          continue;
+        }
+        upserts.push({
+          item_id: itemId,
+          country_code: c.code,
+          stance: row.stance,
+          note_pl: nullifyEmpty(row.note_pl),
+          note_en: nullifyEmpty(row.note_en),
+        });
+      }
+      if (upserts.length > 0) {
+        const { error } = await supabase
+          .from("eu_policy_positions")
+          .upsert(upserts, { onConflict: "item_id,country_code" });
+        if (error) throw error;
+      }
+      if (deletes.length > 0) {
+        const { error } = await supabase
+          .from("eu_policy_positions")
+          .delete()
+          .eq("item_id", itemId)
+          .in("country_code", deletes);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(L("Zapisano stanowiska", "Positions saved"));
+      setOpen(false);
+      void qc.invalidateQueries({ queryKey: ["admin", "tracker-positions", itemId] });
+      void qc.invalidateQueries({ queryKey: ["tracker", "positions", itemId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  if (!open) {
+    return (
+      <Button variant="secondary" size="sm" onClick={openDialog}>
+        {label}
+      </Button>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-label={L("Stanowiska państw członkowskich", "Member state positions")}
+    >
+      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-lg bg-background shadow-lg">
+        <div className="border-b border-border/60 px-5 py-4">
+          <h3 className="text-base font-semibold">
+            {L("Stanowiska państw członkowskich", "Member state positions")}
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {L(
+              "Wiersz bez stanowiska nie jest publikowany. Nota jest opcjonalna (max 500 znaków).",
+              "A row without a stance is not published. The note is optional (max 500 chars).",
+            )}
+          </p>
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+          {existingQ.isLoading ? (
+            <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
+          ) : (
+            EU_COUNTRIES.map((c) => {
+              const row = rowFor(c.code);
+              return (
+                <div
+                  key={c.code}
+                  className="grid items-center gap-2 md:grid-cols-[9rem_10rem_1fr_1fr]"
+                >
+                  <span className="text-sm font-medium">{lang === "en" ? c.en : c.pl}</span>
+                  <Select value={row.stance} onValueChange={(v) => setRow(c.code, { stance: v })}>
+                    <SelectTrigger aria-label={`${c.code} — ${L("stanowisko", "stance")}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{L("— brak —", "— none —")}</SelectItem>
+                      {STANCE_META.map((s) => (
+                        <SelectItem key={s.key} value={s.key}>
+                          {lang === "en" ? s.en : s.pl}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={row.note_pl}
+                    maxLength={500}
+                    placeholder={L("Nota PL", "Note PL")}
+                    aria-label={`${c.code} — nota PL`}
+                    onChange={(e) => setRow(c.code, { note_pl: e.target.value })}
+                  />
+                  <Input
+                    value={row.note_en}
+                    maxLength={500}
+                    placeholder="Note EN"
+                    aria-label={`${c.code} — note EN`}
+                    onChange={(e) => setRow(c.code, { note_en: e.target.value })}
+                  />
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="flex gap-2 border-t border-border/60 px-5 py-4">
+          <Button disabled={save.isPending || existingQ.isLoading} onClick={() => save.mutate()}>
+            <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {L("Zapisz stanowiska", "Save positions")}
+          </Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            {L("Anuluj", "Cancel")}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

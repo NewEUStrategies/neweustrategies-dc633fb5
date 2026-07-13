@@ -30,7 +30,7 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
     mutationFn: async (next: T) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key, value: toJson(next) }, { onConflict: "key" });
+        .upsert({ key, value: toJson(next) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return next;
     },

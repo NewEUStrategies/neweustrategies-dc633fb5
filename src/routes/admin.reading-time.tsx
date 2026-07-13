@@ -144,7 +144,7 @@ function ReadingTimeAdmin() {
       .from("site_settings")
       .upsert(
         { key: READING_TIME_SETTINGS_KEY, value: parsed.data as never },
-        { onConflict: "key" },
+        { onConflict: "tenant_id,key" },
       );
     setBusy(false);
     if (error) {

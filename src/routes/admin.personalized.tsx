@@ -46,7 +46,10 @@ function PersonalizedAdmin() {
     setBusy(true);
     const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: PERSONALIZED_SETTINGS_KEY, value: s as never }, { onConflict: "key" });
+      .upsert(
+        { key: PERSONALIZED_SETTINGS_KEY, value: s as never },
+        { onConflict: "tenant_id,key" },
+      );
     setBusy(false);
     if (error) toast.error(error.message);
     else toast.success(t("admin.saved"));

@@ -100,6 +100,35 @@ async function handle(request: Request): Promise<Response> {
           ((session.customer_details as Record<string, unknown> | null)?.email as string | null) ??
           null;
 
+        // Darowizny (metadata.kind=donation) omijają payment_orders i silnik
+        // uprawnień - lądują w lekkiej tabeli księgowej donations. Unikalny
+        // provider_session_id czyni retry webhooka no-opem (ignoreDuplicates).
+        const meta = (session.metadata as Record<string, string> | null) ?? null;
+        if (meta?.kind === "donation") {
+          if (!sessionId || amountTotal === null || amountTotal <= 0) break;
+          const tenantId =
+            meta.tenant_id &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meta.tenant_id)
+              ? meta.tenant_id
+              : undefined;
+          const { error: donationErr } = await supabaseAdmin.from("donations").upsert(
+            {
+              // undefined -> klucz pominięty w JSON -> kolumna bierze DEFAULT.
+              tenant_id: tenantId,
+              amount_cents: amountTotal,
+              currency: (currency ?? "pln").toUpperCase(),
+              donor_email: customerEmail,
+              message: meta.message?.slice(0, 500) || null,
+              provider: "stripe",
+              provider_session_id: sessionId,
+              provider_intent_id: paymentIntent,
+            },
+            { onConflict: "provider_session_id", ignoreDuplicates: true },
+          );
+          if (donationErr) throw donationErr;
+          break;
+        }
+
         if (!orderId && !sessionId) break;
 
         // Load the order WITHOUT gating on status. Idempotency lives in
@@ -242,6 +271,13 @@ async function handle(request: Request): Promise<Response> {
         const charge = event.data.object;
         const paymentIntent = str(charge, "payment_intent");
         if (!paymentIntent) break;
+
+        // Darowizny: refund oznacza wiersz donations (nie ma payment_order).
+        // Dla zwykłych płatności dopasowanie trafia w zero wierszy - no-op.
+        await supabaseAdmin
+          .from("donations")
+          .update({ status: "refunded" })
+          .eq("provider_intent_id", paymentIntent);
 
         const { data: order } = await supabaseAdmin
           .from("payment_orders")

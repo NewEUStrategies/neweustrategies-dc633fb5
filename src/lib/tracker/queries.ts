@@ -17,6 +17,9 @@ export interface PolicyItem {
   importance: number;
   reference: string | null;
   source_url: string | null;
+  rapporteur: string | null;
+  committee: string | null;
+  lead_dg: string | null;
   next_milestone_pl: string | null;
   next_milestone_en: string | null;
   next_milestone_at: string | null;
@@ -47,7 +50,8 @@ export const TRACKER_PAGE_SIZE = 24;
 
 const ITEM_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,summary_pl,summary_en,policy_area,stage,importance," +
-  "reference,source_url,next_milestone_pl,next_milestone_en,next_milestone_at,status," +
+  "reference,source_url,rapporteur,committee,lead_dg," +
+  "next_milestone_pl,next_milestone_en,next_milestone_at,status," +
   "created_at,updated_at";
 
 const UPDATE_FIELDS =
@@ -204,6 +208,41 @@ export function useMyFollows(userId: string | undefined) {
     queryKey: ["tracker", "my-follows", userId ?? "anon"] as const,
     queryFn: () => fetchMyFollows(userId!),
     enabled: !!userId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stanowiska państw członkowskich (explorer)
+// ---------------------------------------------------------------------------
+
+export interface PolicyPosition {
+  item_id: string;
+  country_code: string;
+  stance: string;
+  note_pl: string | null;
+  note_en: string | null;
+  updated_at: string;
+}
+
+const POSITION_FIELDS = "item_id,country_code,stance,note_pl,note_en,updated_at";
+
+/** Stanowiska państw dla dossier (RLS: publiczne tylko dla opublikowanych). */
+export async function fetchPositions(itemId: string): Promise<PolicyPosition[]> {
+  const { data, error } = await supabase
+    .from("eu_policy_positions")
+    .select(POSITION_FIELDS)
+    .eq("item_id", itemId)
+    .order("country_code", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as PolicyPosition[];
+}
+
+export function useItemPositions(itemId: string | undefined) {
+  return useQuery({
+    queryKey: ["tracker", "positions", itemId ?? "none"] as const,
+    queryFn: () => fetchPositions(itemId!),
+    staleTime: 60_000,
+    enabled: !!itemId,
   });
 }
 

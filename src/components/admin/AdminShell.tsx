@@ -38,7 +38,17 @@ import {
   Link as LinkIcon,
   Search,
 } from "@/lib/lucide-shim";
-import { Clock, Inbox, MessageCircle, ListChecks, Radio, Crown, Landmark, TrendingUp } from "lucide-react";
+import {
+  Clock,
+  Inbox,
+  MessageCircle,
+  ListChecks,
+  Radio,
+  Crown,
+  Landmark,
+  TrendingUp,
+  HandHeart,
+} from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -199,6 +209,13 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
+        {
+          to: "/admin/donations",
+          icon: HandHeart,
+          label: t("admin.nav.donations", {
+            defaultValue: lang === "pl" ? "Darowizny" : "Donations",
+          }),
+        },
       ],
     },
     {

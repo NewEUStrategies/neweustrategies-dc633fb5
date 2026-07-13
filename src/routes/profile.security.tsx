@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { changeMyEmail, deleteMyAccount } from "@/lib/account.functions";
+import { exportMyData } from "@/lib/profile/export.functions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,32 @@ function SecurityPage() {
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [removePw, setRemovePw] = useState("");
   const [removeBusy, setRemoveBusy] = useState(false);
+
+  // Eksport danych (RODO art. 15/20): serwer składa JSON, klient pobiera plik.
+  const [exportBusy, setExportBusy] = useState(false);
+  const downloadMyData = async () => {
+    setExportBusy(true);
+    try {
+      const data = await exportMyData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `moje-dane-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(
+        isPl
+          ? "Nie udało się przygotować eksportu. Spróbuj ponownie."
+          : "Could not prepare the export. Please try again.",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  };
 
   const updatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -558,6 +585,38 @@ function SecurityPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("profile.security.export.title", {
+                defaultValue: i18n.language === "en" ? "Your data (GDPR)" : "Twoje dane (RODO)",
+              })}
+            </CardTitle>
+            <CardDescription>
+              {t("profile.security.export.subtitle", {
+                defaultValue:
+                  i18n.language === "en"
+                    ? "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR): profile, comments, follows, orders and preferences - as a JSON file."
+                    : "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO): profil, komentarze, obserwacje, zamówienia i preferencje - jako plik JSON.",
+              })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => void downloadMyData()} disabled={exportBusy}>
+              {exportBusy
+                ? t("profile.security.export.busy", {
+                    defaultValue: i18n.language === "en" ? "Preparing..." : "Przygotowywanie...",
+                  })
+                : t("profile.security.export.download", {
+                    defaultValue:
+                      i18n.language === "en"
+                        ? "Download my data (JSON)"
+                        : "Pobierz moje dane (JSON)",
+                  })}
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card className="border-destructive/40">
           <CardHeader>

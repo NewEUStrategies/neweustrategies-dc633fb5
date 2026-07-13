@@ -45,7 +45,7 @@ export function useSaveCarouselDefaults() {
     mutationFn: async (next: CarouselDefaults) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: KEY, value: toJson(next) }, { onConflict: "key" });
+        .upsert({ key: KEY, value: toJson(next) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return next;
     },

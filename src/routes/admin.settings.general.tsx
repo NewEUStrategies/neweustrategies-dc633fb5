@@ -3,10 +3,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Select, SaveBar } from "@/components/admin/settings/fields";
-import {
-  LinkedSourceHeader,
-  LinkedImagePreview,
-} from "@/components/admin/settings/LinkedSource";
+import { LinkedSourceHeader, LinkedImagePreview } from "@/components/admin/settings/LinkedSource";
 import { setIconPack, type IconPack } from "@/lib/iconPack";
 
 type ThemeLogo = {

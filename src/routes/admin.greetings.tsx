@@ -110,7 +110,7 @@ function GreetingsAdmin() {
     setBusy(true);
     const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: "greetings", value: dict as never }, { onConflict: "key" });
+      .upsert({ key: "greetings", value: dict as never }, { onConflict: "tenant_id,key" });
     setBusy(false);
     if (error) toast.error(error.message);
     else toast.success(t("admin.saved", { defaultValue: isPL ? "Zapisano" : "Saved" }));

@@ -41,6 +41,14 @@ export const trackerPl = {
     notFound: "Nie znaleziono dossier.",
     backToIndex: "Wróć do trackera",
     progressLabel: "Postęp procedury legislacyjnej",
+    rapporteur: "Sprawozdawca",
+    committee: "Komisja wiodąca",
+    leadDg: "DG Komisji",
+    positions: {
+      title: "Stanowiska państw członkowskich",
+      description:
+        "Zadeklarowane lub raportowane stanowiska rządów wobec tego dossier. Najedź na kraj lub otwórz tabelę danych.",
+    },
   },
 };
 
@@ -78,6 +86,14 @@ export const trackerEn = {
     notFound: "File not found.",
     backToIndex: "Back to the tracker",
     progressLabel: "Legislative procedure progress",
+    rapporteur: "Rapporteur",
+    committee: "Lead committee",
+    leadDg: "Commission DG",
+    positions: {
+      title: "Member state positions",
+      description:
+        "Declared or reported government positions on this file. Hover a country or open the data table.",
+    },
   },
 };
 

@@ -325,7 +325,7 @@ export function TrendingTickerPane() {
       const merged = { ...(data ?? {}), trending: next };
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: "header", value: merged as never }, { onConflict: "key" });
+        .upsert({ key: "header", value: merged as never }, { onConflict: "tenant_id,key" });
       if (error) throw error;
     },
     onSuccess: (_r, next) => {

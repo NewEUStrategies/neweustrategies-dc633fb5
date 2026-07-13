@@ -82,7 +82,10 @@ export function useSaveKeyTakeawaysSettings() {
     mutationFn: async (next: KeyTakeawaysSettings) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: KEY_TAKEAWAYS_SETTING_KEY, value: toJson(next) }, { onConflict: "key" });
+        .upsert(
+          { key: KEY_TAKEAWAYS_SETTING_KEY, value: toJson(next) },
+          { onConflict: "tenant_id,key" },
+        );
       if (error) throw error;
       return next;
     },

@@ -173,9 +173,7 @@ function PollCard({
                 onClick={() => canVote && voteM.mutate(idx)}
                 disabled={!canVote || voteM.isPending}
                 className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-                  mine
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-primary/50"
+                  mine ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
                 } ${!canVote ? "cursor-default" : "cursor-pointer"}`}
                 aria-pressed={mine}
               >

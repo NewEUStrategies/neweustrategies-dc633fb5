@@ -13,10 +13,12 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   itemBySlugQueryOptions,
   useItemBySlug,
+  useItemPositions,
   useItemUpdates,
   useMyFollows,
   useToggleFollowItem,
 } from "@/lib/tracker/queries";
+import { PolicyPositionsMap } from "@/components/tracker/PolicyPositionsMap";
 import { POLICY_STAGES, areaLabel, isTerminal, stageIndex, stageLabel } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -165,6 +167,7 @@ function TrackerDetail() {
   const itemQ = useItemBySlug(slug);
   const item = itemQ.data;
   const updatesQ = useItemUpdates(item?.id);
+  const positionsQ = useItemPositions(item?.id);
   const myFollows = useMyFollows(user?.id);
   const toggleFollow = useToggleFollowItem();
 
@@ -233,6 +236,24 @@ function TrackerDetail() {
             <span className="font-medium text-foreground">{item.reference}</span>
           </span>
         )}
+        {item.rapporteur && (
+          <span className="text-muted-foreground">
+            {t("tracker.rapporteur")}:{" "}
+            <span className="font-medium text-foreground">{item.rapporteur}</span>
+          </span>
+        )}
+        {item.committee && (
+          <span className="text-muted-foreground">
+            {t("tracker.committee")}:{" "}
+            <span className="font-medium text-foreground">{item.committee}</span>
+          </span>
+        )}
+        {item.lead_dg && (
+          <span className="text-muted-foreground">
+            {t("tracker.leadDg")}:{" "}
+            <span className="font-medium text-foreground">{item.lead_dg}</span>
+          </span>
+        )}
         {item.source_url && (
           <a
             href={item.source_url}
@@ -282,6 +303,17 @@ function TrackerDetail() {
         </Button>
         <span className="text-xs text-muted-foreground">{t("tracker.followHint")}</span>
       </div>
+
+      {(positionsQ.data?.length ?? 0) > 0 && (
+        <section className="mt-10" aria-label={t("tracker.positions.title")}>
+          <PolicyPositionsMap
+            positions={positionsQ.data!}
+            lang={lang}
+            title={t("tracker.positions.title")}
+            description={t("tracker.positions.description")}
+          />
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold">{t("tracker.timeline")}</h2>
