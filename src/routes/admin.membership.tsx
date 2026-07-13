@@ -214,7 +214,7 @@ function AdminMembershipPage() {
         />
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <section className="flex flex-col gap-4">
         {(tiersQ.data ?? []).map((tier) => {
           const draft = drafts[tier.id] ?? draftFromTier(tier);
           const set = (patch: Partial<TierDraft>) =>
