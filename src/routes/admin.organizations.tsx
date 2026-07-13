@@ -237,7 +237,7 @@ function OrgCard({
 // Zarządzanie miejscami organizacji: licznik użyte/limit, lista miejsc oraz
 // dodawanie po e-mailu z rolą. Limit i unikalność egzekwuje RPC org_add_seat.
 // ---------------------------------------------------------------------------
-function SeatManager({
+export function SeatManager({
   lang,
   orgId,
   seatsLimit,
