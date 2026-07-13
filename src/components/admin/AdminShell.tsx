@@ -51,6 +51,7 @@ import {
   Cable,
   BookOpen,
   Briefcase,
+  UserSquare,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -332,6 +333,13 @@ function AdminShellInner({
         { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
+        {
+          to: "/admin/appearance/expert-layout",
+          icon: UserSquare,
+          label: t("admin.nav.expertLayout", {
+            defaultValue: lang === "pl" ? "Strona eksperta" : "Expert page",
+          }),
+        },
         {
           to: "/admin/key-takeaways",
           icon: ListChecks,
