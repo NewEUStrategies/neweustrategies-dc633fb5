@@ -142,12 +142,14 @@ function AdminResearchPrograms() {
         .order("sort_order", { ascending: true })
         .order("name_pl", { ascending: true });
       if (error) throw error;
-      return (data ?? []).map((r) => ({
-        ...(r as unknown as ProgramRow),
-        research_questions: Array.isArray((r as { research_questions: unknown }).research_questions)
-          ? ((r as { research_questions: { pl: string; en: string }[] }).research_questions ?? [])
-          : [],
-      }));
+      return (data ?? []).map((r) => {
+        const rec = r as unknown as Record<string, unknown>;
+        const rq = rec.research_questions;
+        return {
+          ...(rec as unknown as ProgramRow),
+          research_questions: Array.isArray(rq) ? (rq as { pl: string; en: string }[]) : [],
+        };
+      });
     },
   });
 
