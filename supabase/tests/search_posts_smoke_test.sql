@@ -68,17 +68,20 @@ SELECT ok(
   'wynik niesie dodatni ranking trafności'
 );
 
--- Zapytania brzegowe → pusty zbiór (RPC nie rzuca, tq.q IS NULL ucina wyniki).
+-- Pusta fraza → tryb PRZEGLĄDANIA archiwum (fasetowe wyszukiwanie: użytkownik
+-- nie musi znać tytułu, zawęża kolekcję filtrami). Zwracany jest cały
+-- przefiltrowany zbiór widoczny publicznie - tu dokładnie jeden post nes-pub.
 SELECT is(
-  (SELECT count(*)::int FROM public.search_posts('')),
-  0,
-  'puste zapytanie → 0 wyników'
+  (SELECT array_agg(slug) FROM public.search_posts('')),
+  ARRAY['nes-pub'],
+  'pusta fraza → przeglądanie archiwum (opublikowane posty tenanta publicznego)'
 );
 
+-- Fraza bez dopasowania FTS ani trigramowego → pusty zbiór (RPC nie rzuca).
 SELECT is(
   (SELECT count(*)::int FROM public.search_posts('zzzznosuchterm')),
   0,
-  'brak dopasowania → 0 wyników'
+  'brak dopasowania (FTS + fuzzy) → 0 wyników'
 );
 
 SELECT * FROM finish();
