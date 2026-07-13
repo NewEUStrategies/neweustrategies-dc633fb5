@@ -176,7 +176,8 @@ function AvatarPlaceholder({
         background:
           "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 30%, transparent), color-mix(in oklab, var(--pv-accent) 10%, transparent))",
         color: "var(--pv-accent)",
-        border: "2px solid var(--pv-accent)",
+        border: "2px dashed var(--pv-accent)",
+        boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--pv-accent) 25%, transparent)",
       }}
       aria-hidden
     >
