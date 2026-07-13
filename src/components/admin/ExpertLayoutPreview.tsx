@@ -8,7 +8,7 @@
 //   1. publiczna strona konsumuje zapisane `expert_layout_settings`,
 //      a chcemy widzieć NIEZAPISANE zmiany od razu,
 //   2. iframe wymuszałby pełny reload przy każdym kliknięciu.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Mail,
