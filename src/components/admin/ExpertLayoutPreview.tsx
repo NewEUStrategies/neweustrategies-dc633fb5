@@ -752,6 +752,7 @@ function SectionRenderer({
     case "social_row": {
       const hasAny =
         e.website_url || e.linkedin_url || e.twitter_url || e.contact_email;
+      if (!hasAny && !showPlaceholders) return null;
       return wrap(
         <>
           Social
