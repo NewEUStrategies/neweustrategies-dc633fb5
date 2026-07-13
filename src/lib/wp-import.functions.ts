@@ -199,8 +199,8 @@ export const wpImportPages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((d: unknown) => importInput.parse(d))
   .handler(async ({ data, context }): Promise<{ results: ImportResultRow[] }> => {
-    const supabase = context.supabase as SupabaseClient<Database>;
-    const tenantId = await resolveTenant(supabase, context.userId);
+    const { supabase, userId } = context;
+    const tenantId = await resolveTenant(supabase, userId);
     const site = encodeURIComponent(data.siteDomain);
     const results: ImportResultRow[] = [];
 
