@@ -193,6 +193,7 @@ function CoverPlaceholder({ className = "" }: { className?: string }) {
       style={{
         background:
           "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 40%, transparent) 0%, color-mix(in oklab, var(--pv-accent) 15%, transparent) 60%, transparent 100%), repeating-linear-gradient(45deg, rgba(0,0,0,0.04) 0 8px, transparent 8px 16px)",
+        border: "1px dashed color-mix(in oklab, var(--pv-accent) 45%, transparent)",
       }}
       aria-hidden
     />
