@@ -155,6 +155,8 @@ export interface ExpertLayoutSettings {
   hero_text_color_dark: string | null;
   accent_color: string | null;
   accent_color_dark: string | null;
+  bio_bullet_color: string | null;
+  bio_bullet_color_dark: string | null;
   name_size_base: number;
   name_size_lg: number;
   role_size_base: number;
