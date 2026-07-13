@@ -83,6 +83,8 @@ export const WIDGET_TYPES = [
   "animated-heading",
   // Advertising
   "ad-slot",
+  // Donations / patronage
+  "donations",
   // News ticker
   "news-ticker",
   // Podcast

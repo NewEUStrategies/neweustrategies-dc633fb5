@@ -46,6 +46,7 @@ import {
   UserPlus,
   LineChart,
   Globe2,
+  HandHeart,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -780,6 +781,31 @@ export const WIDGETS: WidgetDef[] = [
     category: "blocks",
     icon: AdIcon,
     defaults: () => ({ slotId: "" }),
+  },
+  // Donations / patronage
+  {
+    type: "donations",
+    label: "Darowizny / Mecenat",
+    category: "form",
+    icon: HandHeart,
+    defaults: () => ({
+      variant: "hero",
+      title_pl: "Mecenat obywatelski",
+      title_en: "Citizen patronage",
+      subtitle_pl:
+        "Twoja darowizna finansuje niezależną analizę - tracker legislacyjny UE, raporty i debaty.",
+      subtitle_en:
+        "Your donation funds independent analysis - the EU legislative tracker, reports and debates.",
+      cta_pl: "Przekaż darowiznę",
+      cta_en: "Donate",
+      href: "/support",
+      showMonth: true,
+      showCount: true,
+      showRecent: false,
+      goalCents: 0,
+      accent: "",
+      currency: "PLN",
+    }),
   },
   // News ticker (horizontal scrolling latest posts)
   {

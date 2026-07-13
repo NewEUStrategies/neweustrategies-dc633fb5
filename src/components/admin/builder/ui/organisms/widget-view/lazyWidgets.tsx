@@ -164,6 +164,21 @@ export function AdSlotById(props: ComponentProps<typeof AdSlotByIdImpl>) {
   );
 }
 
+// Donations widget (public aggregate stats + CTA). Split off so pages that
+// don't render it never pay for the query client wrapper / server-fn hook path.
+const DonationsWidgetViewImpl = lazy(() =>
+  import("@/components/donations/DonationsWidgetView").then((m) => ({
+    default: m.DonationsWidgetView,
+  })),
+);
+export function DonationsWidgetView(props: ComponentProps<typeof DonationsWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <DonationsWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
 // The rich-text widget pulls in the whole blocks renderer (DOMPurify + every
 // block view), so it is split out of the shared Header/Footer bundle and only
 // downloaded on pages that actually embed rich content.

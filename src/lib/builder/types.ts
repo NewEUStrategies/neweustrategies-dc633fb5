@@ -400,6 +400,8 @@ export type WidgetType =
   | "animated-heading"
   // Advertising
   | "ad-slot"
+  // Donations / patronage (public aggregate stats + CTA)
+  | "donations"
   // News ticker
   | "news-ticker"
   // Podcast
