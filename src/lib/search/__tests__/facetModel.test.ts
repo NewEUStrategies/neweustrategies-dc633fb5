@@ -1,0 +1,149 @@
+import { describe, it, expect } from "vitest";
+import type { FacetValue } from "@/lib/queries/archives";
+import {
+  urlToFilters,
+  groupFacets,
+  orderTree,
+  activeSelections,
+  hasAnyFilter,
+  collectLabels,
+  DIM_PARAM,
+  PARAM_DIM,
+  type SearchUrl,
+} from "@/lib/search/facetModel";
+
+const fv = (p: Partial<FacetValue>): FacetValue => ({
+  dim: "region",
+  id: null,
+  slug: "x",
+  label_pl: "X",
+  label_en: "X",
+  parentId: null,
+  count: 0,
+  ...p,
+});
+
+describe("DIM_PARAM / PARAM_DIM", () => {
+  it("są wzajemnie odwrotne", () => {
+    for (const [dim, param] of Object.entries(DIM_PARAM)) {
+      expect(PARAM_DIM[param]).toBe(dim);
+    }
+  });
+});
+
+describe("urlToFilters", () => {
+  it("zbiera pojedyncze wybory wymiarów taksonomii w tablicę terms (AND)", () => {
+    const u: SearchUrl = { q: "energia", type: "t1", region: "r1", topic: "top1" };
+    const f = urlToFilters(u);
+    expect(f.q).toBe("energia");
+    expect(f.terms?.sort()).toEqual(["r1", "t1", "top1"].sort());
+  });
+
+  it("pusty zestaw termów daje undefined (nie pustą tablicę)", () => {
+    expect(urlToFilters({ q: "" }).terms).toBeUndefined();
+  });
+
+  it("rok mapuje się na zakres dat, gdy brak jawnych from/to", () => {
+    const f = urlToFilters({ q: "", year: "2026" });
+    expect(f.dateFrom).toBe("2026-01-01");
+    expect(f.dateTo).toBe("2026-12-31");
+  });
+
+  it("jawne from/to mają pierwszeństwo nad rokiem", () => {
+    const f = urlToFilters({ q: "", year: "2026", from: "2025-03-01" });
+    expect(f.dateFrom).toBe("2025-03-01");
+    expect(f.dateTo).toBeUndefined();
+  });
+
+  it("przepisuje skalarne filtry i domyślny sort", () => {
+    const f = urlToFilters({ q: "", author: "a1", format: "video", lang: "pl", access: "members" });
+    expect(f).toMatchObject({
+      authorId: "a1",
+      format: "video",
+      lang: "pl",
+      access: "members",
+      sort: "relevance",
+    });
+  });
+});
+
+describe("groupFacets", () => {
+  it("grupuje po wymiarze i sortuje malejąco po liczności", () => {
+    const facets: FacetValue[] = [
+      fv({ dim: "pub_type", id: "a", slug: "a", count: 2, label_pl: "A" }),
+      fv({ dim: "pub_type", id: "b", slug: "b", count: 5, label_pl: "B" }),
+      fv({ dim: "author", id: "c", slug: "c", count: 1 }),
+    ];
+    const g = groupFacets(facets);
+    expect(g.get("pub_type")!.map((x) => x.id)).toEqual(["b", "a"]);
+    expect(g.get("author")!).toHaveLength(1);
+  });
+});
+
+describe("orderTree", () => {
+  it("porządkuje rodzica przed potomkiem z narastającą głębokością", () => {
+    const values: FacetValue[] = [
+      fv({ id: "polska", slug: "polska", parentId: "europa", count: 1, label_pl: "Polska" }),
+      fv({ id: "europa", slug: "europa", parentId: null, count: 3, label_pl: "Europa" }),
+    ];
+    const ordered = orderTree(values);
+    expect(ordered.map((o) => o.value.id)).toEqual(["europa", "polska"]);
+    expect(ordered.map((o) => o.depth)).toEqual([0, 1]);
+  });
+
+  it("dziecko bez widocznego rodzica traktuje jako korzeń (depth 0)", () => {
+    const values: FacetValue[] = [
+      fv({ id: "polska", slug: "polska", parentId: "europa", count: 1, label_pl: "Polska" }),
+    ];
+    const ordered = orderTree(values);
+    expect(ordered).toHaveLength(1);
+    expect(ordered[0].depth).toBe(0);
+  });
+});
+
+describe("activeSelections / hasAnyFilter", () => {
+  it("wypisuje aktywne filtry z kluczami URL do wyczyszczenia", () => {
+    const u: SearchUrl = { q: "x", type: "t1", author: "a1", access: "members" };
+    const sels = activeSelections(u);
+    expect(sels.find((s) => s.dim === "pub_type")?.keys).toEqual(["type"]);
+    expect(sels.find((s) => s.dim === "author")?.value).toBe("a1");
+    expect(sels.some((s) => s.dim === "access")).toBe(true);
+    expect(hasAnyFilter(u)).toBe(true);
+  });
+
+  it("zakres dat to jeden chip czyszczący from+to", () => {
+    const sels = activeSelections({ q: "", from: "2020-01-01", to: "2020-12-31" });
+    const date = sels.find((s) => s.dim === "date");
+    expect(date?.keys).toEqual(["from", "to"]);
+  });
+
+  it("rok tłumi chip dat (rok jest źródłem prawdy)", () => {
+    const sels = activeSelections({ q: "", year: "2026", from: "2026-01-01", to: "2026-12-31" });
+    expect(sels.some((s) => s.dim === "date")).toBe(false);
+    expect(sels.some((s) => s.dim === "year")).toBe(true);
+  });
+
+  it("sama fraza nie jest filtrem", () => {
+    expect(hasAnyFilter({ q: "energia" })).toBe(false);
+  });
+});
+
+describe("collectLabels", () => {
+  it("buforuje etykiety termów po id oraz bez-id po dim:slug", () => {
+    const facets: FacetValue[] = [
+      fv({ dim: "region", id: "europa", slug: "europa", label_pl: "Europa", label_en: "Europe" }),
+      fv({ dim: "format", id: null, slug: "video", label_pl: "Wideo", label_en: "Video" }),
+    ];
+    const pl = collectLabels(facets, "pl", {});
+    expect(pl["europa"]).toBe("Europa");
+    expect(pl["format:video"]).toBe("Wideo");
+    const en = collectLabels(facets, "en", {});
+    expect(en["europa"]).toBe("Europe");
+  });
+
+  it("zachowuje wcześniejsze wpisy (merge, nie nadpisanie całości)", () => {
+    const merged = collectLabels([fv({ id: "a", label_pl: "A" })], "pl", { z: "Z" });
+    expect(merged["z"]).toBe("Z");
+    expect(merged["a"]).toBe("A");
+  });
+});

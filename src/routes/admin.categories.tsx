@@ -34,6 +34,26 @@ export const Route = createFileRoute("/admin/categories")({
   component: Categories,
 });
 
+type CategoryKind = "category" | "pub_type" | "region" | "topic" | "project" | "series";
+
+const KIND_ORDER: readonly CategoryKind[] = [
+  "category",
+  "pub_type",
+  "region",
+  "topic",
+  "project",
+  "series",
+];
+
+const KIND_LABEL: Record<CategoryKind, string> = {
+  category: "Specjalizacja",
+  pub_type: "Typ publikacji",
+  region: "Region / państwo",
+  topic: "Temat",
+  project: "Projekt",
+  series: "Seria",
+};
+
 interface CategoryRow {
   id: string;
   slug: string;
@@ -41,6 +61,8 @@ interface CategoryRow {
   name_en: string;
   description_pl: string | null;
   description_en: string | null;
+  kind: CategoryKind;
+  parent_id: string | null;
 }
 
 interface CategoryForm {
@@ -49,6 +71,8 @@ interface CategoryForm {
   slug: string;
   description_pl: string;
   description_en: string;
+  kind: CategoryKind;
+  parent_id: string | null;
 }
 
 const emptyForm: CategoryForm = {
@@ -57,6 +81,8 @@ const emptyForm: CategoryForm = {
   slug: "",
   description_pl: "",
   description_en: "",
+  kind: "category",
+  parent_id: null,
 };
 
 function Categories() {
@@ -80,7 +106,7 @@ function Categories() {
         .eq("tenant_id", tenantId)
         .order("name_pl");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as CategoryRow[];
     },
   });
 
@@ -104,6 +130,13 @@ function Categories() {
     });
   }, [data, search, langFilter]);
 
+  // Możliwi rodzice: kategorie tego samego wymiaru (hierarchia w obrębie kind),
+  // z wykluczeniem samej edytowanej pozycji.
+  const parentOptions = useMemo(
+    () => (data ?? []).filter((c) => c.kind === form.kind && c.id !== editing?.id),
+    [data, form.kind, editing?.id],
+  );
+
   const openNew = () => {
     setEditing(null);
     setForm(emptyForm);
@@ -117,6 +150,8 @@ function Categories() {
       slug: c.slug,
       description_pl: c.description_pl ?? "",
       description_en: c.description_en ?? "",
+      kind: c.kind,
+      parent_id: c.parent_id,
     });
     setOpen(true);
   };
@@ -132,6 +167,8 @@ function Categories() {
             slug: form.slug || undefined,
             description_pl: form.description_pl || null,
             description_en: form.description_en || null,
+            kind: form.kind,
+            parent_id: form.parent_id,
           },
         },
       });
@@ -197,6 +234,51 @@ function Categories() {
                   value={form.name_en}
                   onChange={(e) => setForm({ ...form, name_en: e.target.value })}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Wymiar</Label>
+                  <Select
+                    value={form.kind}
+                    onValueChange={(v) =>
+                      // Zmiana wymiaru unieważnia rodzica (rodzic jest per-wymiar).
+                      setForm({ ...form, kind: v as CategoryKind, parent_id: null })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {KIND_ORDER.map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {KIND_LABEL[k]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Rodzic</Label>
+                  <Select
+                    value={form.parent_id ?? "__none"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, parent_id: v === "__none" ? null : v })
+                    }
+                    disabled={parentOptions.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— brak —</SelectItem>
+                      {parentOptions.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name_pl || p.name_en || p.slug}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
                 <Label>Slug</Label>
@@ -288,6 +370,7 @@ function Categories() {
               <tr>
                 <th className="text-left p-2">Nazwa (PL)</th>
                 <th className="text-left p-2">Name (EN)</th>
+                <th className="text-left p-2 w-[130px]">Wymiar</th>
                 <th className="text-left p-2 w-[110px]">
                   {t("admin.list.lang.col", { defaultValue: "Języki" })}
                 </th>
@@ -308,7 +391,10 @@ function Categories() {
                       {c.name_en || <span className="italic text-muted-foreground">-</span>}
                     </td>
                     <td className="p-2">
-                      <LangCoverageBadges pl={pl} en={en} />
+                      <span className="inline-flex items-center rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {KIND_LABEL[c.kind] ?? c.kind}
+                        {c.parent_id ? " ↳" : ""}
+                      </span>
                     </td>
                     <td
                       className="p-2 text-[11px] text-muted-foreground truncate max-w-[180px]"

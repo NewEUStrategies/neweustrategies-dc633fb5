@@ -1054,6 +1054,9 @@ const CategoryCore = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, "color must be #rrggbb")
     .nullable()
     .optional(),
+  // Wymiar fasetowy (categories.kind) i hierarchia (region → państwo).
+  kind: z.enum(["category", "pub_type", "region", "topic", "project", "series"]).optional(),
+  parent_id: UUID.nullable().optional(),
 });
 
 export const upsertCategory = createServerFn({ method: "POST" })
@@ -1070,6 +1073,11 @@ export const upsertCategory = createServerFn({ method: "POST" })
         data.fields.slug || data.fields.name_pl || data.fields.name_en,
         data.id,
       );
+      if (data.id && data.fields.parent_id === data.id) {
+        throw new Error("Kategoria nie może być własnym rodzicem");
+      }
+      // undefined znika przy serializacji JSON, więc INSERT korzysta z domyślnej
+      // wartości kind ('category'); panel edycji zawsze wysyła kind jawnie.
       const payload = { ...data.fields, slug, tenant_id: tenantId };
 
       if (data.id) {

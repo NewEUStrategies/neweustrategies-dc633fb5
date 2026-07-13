@@ -21,6 +21,7 @@ const SPLIT_WIDGETS = [
   "RichTextView",
   "ChartWidgetView",
   "DataMapWidgetView",
+  "DonationsWidgetView",
   "SliderRender",
   "AnimatedHeadingRender",
   // NES Digital Features
