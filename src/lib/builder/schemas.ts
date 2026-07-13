@@ -696,6 +696,82 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
+  donations: [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "hero", label: "hero (duża liczba + CTA)" },
+        { value: "progress", label: "pasek celu (goal bar)" },
+        { value: "stats-strip", label: "pasek statystyk (3 pola)" },
+        { value: "compact-card", label: "karta boczna (kompakt)" },
+        { value: "inline-bar", label: "wąski pasek inline" },
+        { value: "thermometer", label: "termometr pionowy" },
+      ],
+    },
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł / opis" },
+    { key: "cta", type: "i18nText", label: "Etykieta CTA" },
+    {
+      key: "href",
+      type: "url",
+      label: "Link CTA",
+      placeholder: "/support",
+      hint: "Domyślnie /support (strona darowizn).",
+    },
+    {
+      key: "goalCents",
+      type: "number",
+      label: "Cel zbiórki (grosze)",
+      min: 0,
+      step: 10000,
+      hint: "0 = bez celu (dla wariantów progress/thermometer wymagane >0).",
+    },
+    {
+      key: "currency",
+      type: "select",
+      label: "Waluta",
+      options: [
+        { value: "PLN", label: "PLN (zł)" },
+        { value: "EUR", label: "EUR (€)" },
+        { value: "USD", label: "USD ($)" },
+      ],
+    },
+    {
+      key: "showMonth",
+      type: "select",
+      label: "Pokaż sumę miesięczną",
+      options: [
+        { value: "true", label: "tak" },
+        { value: "false", label: "nie" },
+      ],
+    },
+    {
+      key: "showCount",
+      type: "select",
+      label: "Pokaż liczbę darczyńców",
+      options: [
+        { value: "true", label: "tak" },
+        { value: "false", label: "nie" },
+      ],
+    },
+    {
+      key: "showRecent",
+      type: "select",
+      label: "Pokaż ostatnie kwoty (anonimowo)",
+      options: [
+        { value: "false", label: "nie" },
+        { value: "true", label: "tak - do 5 ostatnich" },
+      ],
+      hint: "Wyświetla wyłącznie kwoty (bez adresów e-mail i wiadomości).",
+    },
+    {
+      key: "accent",
+      type: "color",
+      label: "Kolor akcentu (opcjonalny)",
+    },
+  ],
   // Legacy "contact" alias - same fields as the new "contact-form" widget.
   // Actual array is attached after WIDGET_SCHEMAS is constructed (see bottom of file).
   contact: [],
