@@ -1696,6 +1696,56 @@ export type Database = {
           },
         ]
       }
+      donations: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          donor_email: string | null
+          id: string
+          message: string | null
+          provider: string
+          provider_intent_id: string | null
+          provider_session_id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          donor_email?: string | null
+          id?: string
+          message?: string | null
+          provider?: string
+          provider_intent_id?: string | null
+          provider_session_id: string
+          status?: string
+          tenant_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          donor_email?: string | null
+          id?: string
+          message?: string | null
+          provider?: string
+          provider_intent_id?: string | null
+          provider_session_id?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "donations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eu_policy_follows: {
         Row: {
           created_at: string
@@ -1734,14 +1784,17 @@ export type Database = {
       }
       eu_policy_items: {
         Row: {
+          committee: string | null
           created_at: string
           created_by: string | null
           id: string
           importance: number
+          lead_dg: string | null
           next_milestone_at: string | null
           next_milestone_en: string | null
           next_milestone_pl: string | null
           policy_area: string
+          rapporteur: string | null
           reference: string | null
           slug: string
           source_url: string | null
@@ -1755,14 +1808,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          committee?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           importance?: number
+          lead_dg?: string | null
           next_milestone_at?: string | null
           next_milestone_en?: string | null
           next_milestone_pl?: string | null
           policy_area?: string
+          rapporteur?: string | null
           reference?: string | null
           slug: string
           source_url?: string | null
@@ -1776,14 +1832,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          committee?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           importance?: number
+          lead_dg?: string | null
           next_milestone_at?: string | null
           next_milestone_en?: string | null
           next_milestone_pl?: string | null
           policy_area?: string
+          rapporteur?: string | null
           reference?: string | null
           slug?: string
           source_url?: string | null
@@ -1799,6 +1858,54 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "eu_policy_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eu_policy_positions: {
+        Row: {
+          country_code: string
+          item_id: string
+          note_en: string | null
+          note_pl: string | null
+          stance: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          country_code: string
+          item_id: string
+          note_en?: string | null
+          note_pl?: string | null
+          stance: string
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          country_code?: string
+          item_id?: string
+          note_en?: string | null
+          note_pl?: string | null
+          stance?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eu_policy_positions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "eu_policy_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eu_policy_positions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -6771,6 +6878,7 @@ export type Database = {
       }
       has_tier_feature: { Args: { _feature: string }; Returns: boolean }
       has_tier_rank: { Args: { _min: number }; Returns: boolean }
+      has_verified_mfa: { Args: never; Returns: boolean }
       install_workflow_template: { Args: { p_key: string }; Returns: string }
       integration_endpoint_get_secret: {
         Args: { _endpoint_id: string }
