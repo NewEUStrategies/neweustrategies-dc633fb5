@@ -199,10 +199,73 @@ function EventDetail() {
           <p className="text-sm text-muted-foreground">{t("community.events.rsvpSignInHint")}</p>
         )}
         {!isPast && user && (
-          <Button onClick={() => rsvpM.mutate()} disabled={rsvpM.isPending}>
-            {rsvpQ.data ? t("community.events.rsvpCancel") : t("community.events.rsvp")}
-          </Button>
+          <RsvpControls
+            current={rsvpQ.data?.status ?? null}
+            pending={rsvpM.isPending}
+            onChoose={(s) => rsvpM.mutate(s)}
+          />
         )}
+      </div>
+      {!isPast && user && rsvpQ.data && rsvpQ.data.status !== "cancelled" && (
+        <p
+          key={rsvpQ.data.status}
+          className="mt-3 text-sm text-primary animate-fade-in"
+          aria-live="polite"
+        >
+          {rsvpQ.data.status === "going"
+            ? t("community.events.rsvpStatusGoing")
+            : t("community.events.rsvpStatusInterested")}
+        </p>
+      )}
+    </article>
+  );
+}
+
+function RsvpControls({
+  current,
+  pending,
+  onChoose,
+}: {
+  current: RsvpStatus | null;
+  pending: boolean;
+  onChoose: (s: RsvpStatus) => void;
+}) {
+  const { t } = useTranslation();
+  const active = current && current !== "cancelled" ? current : null;
+  return (
+    <div className="inline-flex flex-wrap items-center gap-2" role="group" aria-label="RSVP">
+      <Button
+        variant={active === "going" ? "default" : "outline"}
+        onClick={() => onChoose("going")}
+        disabled={pending}
+        aria-pressed={active === "going"}
+      >
+        <Check className="mr-2 h-4 w-4" aria-hidden="true" />
+        {t("community.events.rsvpGoing")}
+      </Button>
+      <Button
+        variant={active === "interested" ? "default" : "outline"}
+        onClick={() => onChoose("interested")}
+        disabled={pending}
+        aria-pressed={active === "interested"}
+      >
+        <Star className="mr-2 h-4 w-4" aria-hidden="true" />
+        {t("community.events.rsvpInterested")}
+      </Button>
+      {active && (
+        <Button
+          variant="ghost"
+          onClick={() => onChoose("cancelled")}
+          disabled={pending}
+          aria-label={t("community.events.rsvpCancel")}
+        >
+          <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("community.events.rsvpCancel")}
+        </Button>
+      )}
+    </div>
+  );
+}
       </div>
     </article>
   );
