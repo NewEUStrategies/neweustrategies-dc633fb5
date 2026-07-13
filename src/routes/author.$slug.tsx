@@ -17,6 +17,8 @@ import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { FollowButton } from "@/components/FollowButton";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
+import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
+import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
