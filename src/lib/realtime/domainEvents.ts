@@ -23,6 +23,10 @@ export const DOMAIN_EVENT_TYPES = [
   "newsletter_subscriber.confirmed.v1",
   "newsletter_subscriber.unsubscribed.v1",
   "mention.created.v1",
+  // Events module (migracja 20260713093000) + EU policy tracker (20260713096000).
+  "event.published.v1",
+  "event.cancelled.v1",
+  "policy.updated.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -51,6 +55,8 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "crm_lead",
   "crm_note",
   "newsletter_subscriber",
+  "event",
+  "policy",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

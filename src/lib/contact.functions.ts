@@ -272,15 +272,27 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     // DOI confirmation) to the caller-supplied address, so it can be used to
     // bomb inboxes / burn the Resend quota. Cap submissions per client IP. Fail
     // open when the IP is unknown (rare) rather than blocking legitimate users.
-    if (clientIp) {
+    {
       const { rateLimit } = await import("@/lib/server/rate-limit.server");
-      const allowed = await rateLimit({
+      // Per-IP cap. Fail CLOSED on unknown IP (shared bucket) so stripping or
+      // rotating the x-forwarded-for header cannot bypass the limit.
+      const ipOk = await rateLimit({
         scope: "contact.submit",
-        subjectId: clientIp,
+        subjectId: clientIp ?? "unknown-ip",
         max: 5,
         windowMinutes: 10,
       });
-      if (!allowed) throw new Error("rate_limited");
+      if (!ipOk) throw new Error("rate_limited");
+      // Per-RECIPIENT cap: the auto-reply / DOI is sent to the submitted
+      // address, so this is the real inbox-bomb guard - it holds even when the
+      // attacker rotates IPs or strips the forwarded-for header.
+      const recipientOk = await rateLimit({
+        scope: "contact.recipient",
+        subjectId: data.email.trim().toLowerCase(),
+        max: 3,
+        windowMinutes: 60,
+      });
+      if (!recipientOk) throw new Error("rate_limited");
     }
 
     const { data: inserted, error } = await supabaseAdmin
