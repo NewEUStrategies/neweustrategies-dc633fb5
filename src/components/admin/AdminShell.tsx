@@ -49,6 +49,7 @@ import {
   TrendingUp,
   HandHeart,
   Cable,
+  Briefcase,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -381,6 +382,13 @@ function AdminShellInner({
                 icon: Users,
                 label: t("admin.nav.authors", {
                   defaultValue: lang === "pl" ? "Autorzy" : "Authors",
+                }),
+              },
+              {
+                to: "/admin/programs",
+                icon: Briefcase,
+                label: t("admin.nav.programs", {
+                  defaultValue: lang === "pl" ? "Programy" : "Programs",
                 }),
               },
               ...(isSuperAdmin

@@ -38,72 +38,9 @@ async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<Blo
 const POST_COLS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id";
 
-// ---------- AUTHOR ---------------------------------------------------------
-
-export interface AuthorProfile {
-  id: string;
-  slug: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  cover_url: string | null;
-  bio_pl: string | null;
-  bio_en: string | null;
-  twitter_url: string | null;
-  linkedin_url: string | null;
-  website_url: string | null;
-  /** Weryfikacja zawodowa nadana przez admina (odznaka przy nazwisku). */
-  verified_at: string | null;
-}
-
-// verified_at jest nowsze niż wygenerowane typy (migracja 20260713160000),
-// stąd rzutowania wyników poniżej.
-const PROFILE_COLS =
-  "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export const authorBySlugQueryOptions = (slugOrId: string, limit: number = ARCHIVE_PAGE_SIZE) =>
-  queryOptions({
-    queryKey: ["public", "author", slugOrId, { limit }] as const,
-    queryFn: async (): Promise<{ author: AuthorProfile; posts: BlogListItem[] } | null> => {
-      // Try slug first, then fall back to id (uuid). Errors are THROWN (never
-      // swallowed into a fake 404): a network/RLS failure must hit the route
-      // error boundary, only a genuinely missing row resolves to null.
-      const bySlug = await supabase
-        .from("profiles")
-        .select(PROFILE_COLS)
-        .eq("slug", slugOrId)
-        .maybeSingle();
-      if (bySlug.error) throw bySlug.error;
-      let prof = bySlug.data as AuthorProfile | null;
-      if (!prof && UUID_RE.test(slugOrId)) {
-        const byId = await supabase
-          .from("profiles")
-          .select(PROFILE_COLS)
-          .eq("id", slugOrId)
-          .maybeSingle();
-        if (byId.error) throw byId.error;
-        prof = byId.data as AuthorProfile | null;
-      }
-      if (!prof) return null;
-
-      const { data: rows, error } = await supabase
-        .from("posts")
-        .select(POST_COLS)
-        .eq("author_id", prof.id)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-
-      const posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
-      return { author: prof as AuthorProfile, posts };
-    },
-    staleTime: TTL,
-  });
-
 // ---------- TAXONOMY (category / tag) --------------------------------------
+// (Profil autora/eksperta przeniesiony do lib/experts/queries.ts - hub
+//  agreguje materiały wielu typów, nie tylko wpisy.)
 
 export type TaxonomyKind = "category" | "tag";
 

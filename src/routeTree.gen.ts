@@ -23,6 +23,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
 import { Route as PodcastsRouteImport } from './routes/podcasts'
 import { Route as PeopleRouteImport } from './routes/people'
+import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as McpRouteImport } from './routes/mcp'
@@ -113,6 +114,7 @@ import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
+import { Route as AdminProgramsRouteImport } from './routes/admin.programs'
 import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
@@ -240,6 +242,11 @@ const PodcastsRoute = PodcastsRouteImport.update({
 const PeopleRoute = PeopleRouteImport.update({
   id: '/people',
   path: '/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpertsRoute = ExpertsRouteImport.update({
+  id: '/experts',
+  path: '/experts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsSitemapDotxmlRoute = NewsSitemapDotxmlRouteImport.update({
@@ -692,6 +699,11 @@ const AdminAuthorsRoute = AdminAuthorsRouteImport.update({
   path: '/authors',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminProgramsRoute = AdminProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAudienceRoute = AdminAudienceRouteImport.update({
   id: '/audience',
   path: '/audience',
@@ -1010,6 +1022,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
+  '/experts': typeof ExpertsRoute
   '/people': typeof PeopleRoute
   '/podcasts': typeof PodcastsRoute
   '/polls': typeof PollsRoute
@@ -1057,6 +1070,7 @@ export interface FileRoutesByFullPath {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
@@ -1173,6 +1187,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
+  '/experts': typeof ExpertsRoute
   '/people': typeof PeopleRoute
   '/podcasts': typeof PodcastsRoute
   '/polls': typeof PollsRoute
@@ -1217,6 +1232,7 @@ export interface FileRoutesByTo {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
@@ -1332,6 +1348,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
+  '/experts': typeof ExpertsRoute
   '/people': typeof PeopleRoute
   '/podcasts': typeof PodcastsRoute
   '/polls': typeof PollsRoute
@@ -1379,6 +1396,7 @@ export interface FileRoutesById {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
@@ -1984,6 +2002,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   MessagesRoute: typeof MessagesRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
+  ExpertsRoute: typeof ExpertsRoute
   PeopleRoute: typeof PeopleRoute
   PodcastsRoute: typeof PodcastsRoute
   PollsRoute: typeof PollsRoute
@@ -2132,6 +2151,13 @@ declare module '@tanstack/react-router' {
       path: '/people'
       fullPath: '/people'
       preLoaderRoute: typeof PeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/experts': {
+      id: '/experts'
+      path: '/experts'
+      fullPath: '/experts'
+      preLoaderRoute: typeof ExpertsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news-sitemap.xml': {
@@ -2764,6 +2790,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuthorsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/programs': {
+      id: '/admin/programs'
+      path: '/programs'
+      fullPath: '/admin/programs'
+      preLoaderRoute: typeof AdminProgramsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/audience': {
       id: '/admin/audience'
       path: '/audience'
@@ -3346,6 +3379,7 @@ interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
+  AdminProgramsRoute: typeof AdminProgramsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
@@ -3398,6 +3432,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
+  AdminProgramsRoute: AdminProgramsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,
@@ -3526,6 +3561,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   MessagesRoute: MessagesRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
+  ExpertsRoute: ExpertsRoute,
   PeopleRoute: PeopleRoute,
   PodcastsRoute: PodcastsRoute,
   PollsRoute: PollsRoute,
