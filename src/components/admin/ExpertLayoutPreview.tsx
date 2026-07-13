@@ -682,97 +682,135 @@ function SectionRenderer({
 
   const t = LABELS[lang];
   const e = hub.expert;
+  const ph = PLACEHOLDER[lang];
+  const placeholderTag = (
+    <span
+      className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+      style={{ backgroundColor: "color-mix(in oklab, var(--pv-accent) 15%, transparent)", color: "var(--pv-accent)" }}
+    >
+      {t.placeholder}
+    </span>
+  );
 
   switch (k) {
     case "expertise_bar": {
-      if (hub.areas.length === 0) return null;
+      const areas =
+        hub.areas.length > 0
+          ? hub.areas.map((a) => (lang === "en" ? a.name_en : a.name_pl))
+          : ph.areas;
+      const isPlaceholder = hub.areas.length === 0;
       return (
-        <div className="flex flex-wrap gap-1.5">
-          {hub.areas.map((a) => (
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {areas.map((label, i) => (
             <span
-              key={a.id}
+              key={`${label}-${i}`}
               className="text-xs px-2 py-1 rounded-full border"
               style={{ borderColor: "var(--pv-accent)", color: "var(--pv-accent)" }}
             >
-              {lang === "en" ? a.name_en : a.name_pl}
+              {label}
             </span>
           ))}
+          {isPlaceholder && placeholderTag}
         </div>
       );
     }
     case "details": {
       const bio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
-      if (!bio) return null;
+      const isPlaceholder = !bio;
       return wrap(
-        t.bio,
+        <>
+          {t.bio}
+          {isPlaceholder && placeholderTag}
+        </>,
         <BookOpen className="h-4 w-4" />,
-        <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">{bio}</p>,
+        <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
+          {bio ?? ph.bio}
+        </p>,
       );
     }
     case "social_row": {
+      const hasAny =
+        e.website_url || e.linkedin_url || e.twitter_url || e.contact_email;
       return wrap(
-        "Social",
+        <>
+          Social
+          {!hasAny && placeholderTag}
+        </>,
         <Layers className="h-4 w-4" />,
-        <SocialRow expert={e} />,
+        hasAny ? (
+          <SocialRow expert={e} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {[Globe, Linkedin, Twitter, Mail].map((Icon, i) => (
+              <span
+                key={i}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-dashed"
+                style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)" }}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+            ))}
+          </div>
+        ),
       );
     }
     case "contact_card": {
-      if (!e.contact_email && !e.website_url && !e.media_contact_email) return null;
+      const hasContact = e.contact_email || e.website_url;
+      const hasMedia = e.media_contact_email || e.media_contact_phone;
+      const isPlaceholder = !hasContact && !hasMedia;
       return wrap(
-        t.contact,
+        <>
+          {t.contact}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Mail className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
-          {(e.contact_email || e.website_url) && (
-            <div className="rounded border border-border p-3 space-y-1">
-              {e.contact_email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.contact_email}
-                </div>
-              )}
-              {e.website_url && (
-                <div className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.website_url.replace(/^https?:\/\//, "")}
-                </div>
-              )}
+          <div className="rounded border border-border p-3 space-y-1">
+            <div className="flex items-center gap-2">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.contact_email ?? ph.email}
             </div>
-          )}
-          {(e.media_contact_email || e.media_contact_phone) && (
-            <div className="rounded border border-border p-3 space-y-1">
-              <div className="text-xs font-semibold">{t.mediaContact}</div>
-              {e.media_contact_email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.media_contact_email}
-                </div>
-              )}
-              {e.media_contact_phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                  {e.media_contact_phone}
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.website_url ? e.website_url.replace(/^https?:\/\//, "") : ph.website}
             </div>
-          )}
+          </div>
+          <div className="rounded border border-border p-3 space-y-1">
+            <div className="text-xs font-semibold">{t.mediaContact}</div>
+            <div className="flex items-center gap-2">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.media_contact_email ?? ph.mediaEmail}
+            </div>
+            <div className="flex items-center gap-2">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              {e.media_contact_phone ?? ph.phone}
+            </div>
+          </div>
         </div>,
       );
     }
     case "media_mentions": {
-      if (hub.mediaMentions.length === 0) return null;
+      const items =
+        hub.mediaMentions.length > 0
+          ? hub.mediaMentions.slice(0, 4).map((m) => ({ outlet: m.outlet, title: m.title, date: m.published_on }))
+          : ph.mentions;
+      const isPlaceholder = hub.mediaMentions.length === 0;
       return wrap(
-        t.inMedia,
+        <>
+          {t.inMedia}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Newspaper className="h-4 w-4" />,
         <ul className="divide-y divide-border/60 rounded border border-border">
-          {hub.mediaMentions.slice(0, 4).map((m) => (
-            <li key={m.id} className="px-3 py-2 text-sm flex justify-between gap-3">
+          {items.map((m, i) => (
+            <li key={i} className="px-3 py-2 text-sm flex justify-between gap-3">
               <div className="min-w-0">
                 <span className="font-medium" style={{ color: "var(--pv-accent)" }}>
                   {m.outlet}
                 </span>{" "}
                 <span className="text-muted-foreground truncate">{m.title}</span>
               </div>
-              <time className="text-xs text-muted-foreground shrink-0">{m.published_on}</time>
+              <time className="text-xs text-muted-foreground shrink-0">{m.date}</time>
             </li>
           ))}
         </ul>,
@@ -780,14 +818,20 @@ function SectionRenderer({
     }
     case "podcast_strip": {
       const podcasts = hub.materials.filter((m) => m.kind === "podcast").slice(0, 3);
-      if (podcasts.length === 0) return null;
+      const isPlaceholder = podcasts.length === 0;
+      const items = isPlaceholder
+        ? ph.podcasts
+        : podcasts.map((p) => ({ title: (lang === "en" ? p.title_en : p.title_pl) ?? "", date: p.date ?? "" }));
       return wrap(
-        t.podcasts,
+        <>
+          {t.podcasts}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Mic className="h-4 w-4" />,
         <div className="grid sm:grid-cols-3 gap-3">
-          {podcasts.map((p) => (
-            <div key={p.id} className="rounded border border-border p-3 text-sm">
-              <div className="font-medium truncate">{lang === "en" ? p.title_en : p.title_pl}</div>
+          {items.map((p, i) => (
+            <div key={i} className="rounded border border-border p-3 text-sm">
+              <div className="font-medium truncate">{p.title}</div>
               {p.date && <div className="text-xs text-muted-foreground mt-1">{p.date}</div>}
             </div>
           ))}
@@ -795,51 +839,88 @@ function SectionRenderer({
       );
     }
     case "materials": {
-      const items = hub.materials.slice(0, 6);
-      if (items.length === 0) return null;
+      const real = hub.materials.slice(0, 6);
+      const isPlaceholder = real.length === 0;
       return wrap(
-        t.materials,
+        <>
+          {t.materials}
+          {isPlaceholder && placeholderTag}
+        </>,
         <BookOpen className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {items.map((m) => (
-            <div key={m.id} className="rounded border border-border overflow-hidden bg-card">
-              {m.cover_url && <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />}
-              <div className="p-2 text-sm">
-                <div className="text-[10px] uppercase text-muted-foreground">{m.kind}</div>
-                <div className="font-medium line-clamp-2">
-                  {lang === "en" ? m.title_en : m.title_pl}
+          {isPlaceholder
+            ? ph.materials.map((title, i) => (
+                <div key={i} className="rounded border border-border overflow-hidden bg-card">
+                  <CoverPlaceholder className="w-full h-24" />
+                  <div className="p-2 text-sm">
+                    <div className="text-[10px] uppercase text-muted-foreground">
+                      {i % 3 === 0 ? "report" : i % 3 === 1 ? "article" : "video"}
+                    </div>
+                    <div className="font-medium line-clamp-2">{title}</div>
+                  </div>
                 </div>
+              ))
+            : real.map((m) => (
+                <div key={m.id} className="rounded border border-border overflow-hidden bg-card">
+                  {m.cover_url ? (
+                    <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />
+                  ) : (
+                    <CoverPlaceholder className="w-full h-24" />
+                  )}
+                  <div className="p-2 text-sm">
+                    <div className="text-[10px] uppercase text-muted-foreground">{m.kind}</div>
+                    <div className="font-medium line-clamp-2">
+                      {lang === "en" ? m.title_en : m.title_pl}
+                    </div>
+                  </div>
+                </div>
+              ))}
+        </div>,
+      );
+    }
+    case "cv": {
+      return wrap(
+        <>
+          {t.cv}
+          {placeholderTag}
+        </>,
+        <GraduationCap className="h-4 w-4" />,
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="rounded border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--pv-accent)" }} />
+                <span className="font-medium">
+                  {lang === "en" ? `Position ${i + 1}` : `Stanowisko ${i + 1}`}
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {lang === "en" ? "Institution · 2020 - 2024" : "Instytucja · 2020 - 2024"}
               </div>
             </div>
           ))}
         </div>,
       );
     }
-    case "cv": {
-      return wrap(
-        t.cv,
-        <GraduationCap className="h-4 w-4" />,
-        <p className="text-sm text-muted-foreground">
-          {lang === "en"
-            ? "CV entries (experience, education, skills) render here."
-            : "Wpisy CV (doświadczenie, edukacja, umiejętności) pojawią się tutaj."}
-        </p>,
-      );
-    }
     case "programs": {
-      if (hub.programs.length === 0) return null;
+      const isPlaceholder = hub.programs.length === 0;
+      const items = isPlaceholder
+        ? ph.programs
+        : hub.programs.slice(0, 6).map((p) => ({
+            name: (lang === "en" ? p.name_en : p.name_pl) ?? "",
+            role: (lang === "en" ? p.role_en : p.role_pl) ?? "",
+          }));
       return wrap(
-        t.programs,
+        <>
+          {t.programs}
+          {isPlaceholder && placeholderTag}
+        </>,
         <Briefcase className="h-4 w-4" />,
         <ul className="grid sm:grid-cols-2 gap-2">
-          {hub.programs.slice(0, 6).map((p) => (
-            <li key={p.id} className="rounded border border-border p-2 text-sm">
-              <div className="font-medium">{lang === "en" ? p.name_en : p.name_pl}</div>
-              {(lang === "en" ? p.role_en : p.role_pl) && (
-                <div className="text-xs text-muted-foreground">
-                  {(lang === "en" ? p.role_en : p.role_pl) as string}
-                </div>
-              )}
+          {items.map((p, i) => (
+            <li key={i} className="rounded border border-border p-2 text-sm">
+              <div className="font-medium">{p.name}</div>
+              {p.role && <div className="text-xs text-muted-foreground">{p.role}</div>}
             </li>
           ))}
         </ul>,
