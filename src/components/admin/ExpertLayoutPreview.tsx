@@ -520,8 +520,13 @@ function ExpertMockup({
       </p>
     ) : null;
 
-  const avatar = (className: string, rounded = "rounded-full") =>
-    e.avatar_url ? (
+  const sizeLabel = lang === "en" ? "Recommended" : "Zalecane";
+  const avatar = (
+    className: string,
+    rounded = "rounded-full",
+    recommend?: string,
+  ) => {
+    const inner = e.avatar_url ? (
       <img
         src={e.avatar_url}
         alt={name}
@@ -531,13 +536,39 @@ function ExpertMockup({
     ) : (
       <AvatarPlaceholder name={name} className={className} rounded={rounded} />
     );
+    if (!recommend || e.avatar_url) return inner;
+    return (
+      <div className="inline-flex flex-col items-center gap-1">
+        {inner}
+        <span
+          className="text-[10px] leading-none rounded-[6px] px-1.5 py-0.5 border border-dashed whitespace-nowrap"
+          style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)", backgroundColor: "color-mix(in oklab, var(--pv-accent) 6%, transparent)" }}
+        >
+          {sizeLabel}: {recommend}
+        </span>
+      </div>
+    );
+  };
 
-  const cover = (className: string) =>
-    hasCover ? (
+  const cover = (className: string, recommend?: string) => {
+    const inner = hasCover ? (
       <div className={`${className} bg-cover bg-center`} style={{ backgroundImage: `url(${e.cover_url})` }} />
     ) : (
       <CoverPlaceholder className={className} />
     );
+    if (!recommend || hasCover) return inner;
+    return (
+      <>
+        {inner}
+        <span
+          className="absolute left-2 top-2 z-10 text-[10px] leading-none rounded-[6px] px-1.5 py-0.5 border border-dashed whitespace-nowrap"
+          style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)", backgroundColor: "color-mix(in oklab, #ffffff 70%, transparent)" }}
+        >
+          {sizeLabel}: {recommend}
+        </span>
+      </>
+    );
+  };
 
 
   const social = (className: string) => (
@@ -552,7 +583,7 @@ function ExpertMockup({
       <div className="w-full" style={heroStyle}>
         <div className="mx-auto text-center px-4 py-10" style={{ maxWidth }}>
           <div className="mx-auto inline-block">
-            {avatar("h-24 w-24 mx-auto border-2", "rounded-full")}
+            {avatar("h-24 w-24 mx-auto border-2", "rounded-full", "400×400 px")}
           </div>
           <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
             {name}
@@ -572,12 +603,12 @@ function ExpertMockup({
     return (
       <div style={heroStyle}>
         <div className="relative w-full h-56">
-          {cover("absolute inset-0 w-full h-full")}
+          {cover("absolute inset-0 w-full h-full", "1600×600 px")}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
-            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]")}</div>
+            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]", "400×400 px")}</div>
             <div className="flex-1 min-w-0">
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
@@ -603,7 +634,7 @@ function ExpertMockup({
             className={`rounded-[6px] border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
             style={heroStyle}
           >
-            {avatar("h-28 w-28", "rounded-[6px]")}
+            {avatar("h-28 w-28", "rounded-[6px]", "480×480 px")}
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
@@ -645,7 +676,7 @@ function ExpertMockup({
           className="rounded-[6px] border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
           style={heroStyle}
         >
-          {avatar("h-24 w-24", "rounded-[6px]")}
+          {avatar("h-24 w-24", "rounded-[6px]", "400×400 px")}
           <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
@@ -666,7 +697,7 @@ function ExpertMockup({
     return (
       <div style={heroStyle}>
         <div className="relative w-full h-64">
-          {cover("absolute inset-0 w-full h-full")}
+          {cover("absolute inset-0 w-full h-full", "1600×720 px")}
           <div className="absolute inset-0 bg-black/50" />
           <div className="absolute inset-0 flex items-end">
             <div className="mx-auto w-full px-4 pb-6" style={{ maxWidth }}>
@@ -704,7 +735,7 @@ function ExpertMockup({
         <div className="h-0.5 w-12 mb-5" style={{ backgroundColor: "var(--pv-accent)" }} />
         <div className={`flex flex-col md:flex-row gap-6 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
           <div className="shrink-0">
-            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]")}
+            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]", "600×600 px")}
           </div>
           <div className="flex-1 min-w-0">
             <p
