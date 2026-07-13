@@ -139,7 +139,7 @@ function Page() {
               Wybrany: <b>{EXPERT_LAYOUT_PRESETS.find((p) => p.id === local.default_preset)?.label_pl}</b>
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {EXPERT_LAYOUT_PRESETS.map((p) => {
               const active = local.default_preset === p.id;
               return (
@@ -148,21 +148,22 @@ function Page() {
                   type="button"
                   onClick={() => upd({ default_preset: p.id as ExpertLayoutPresetId })}
                   aria-pressed={active}
-                  className={`text-left p-3 rounded-md border transition ${
+                  className={`text-left p-3 rounded-lg border-2 transition shadow-sm ${
                     active
-                      ? "border-brand ring-1 ring-brand/40 bg-brand/5"
-                      : "border-border hover:border-brand/50 bg-background/50"
+                      ? "border-brand ring-2 ring-brand/30 bg-brand/5"
+                      : "border-border hover:border-brand/60 bg-card"
                   }`}
                 >
                   <PresetThumb id={p.id} />
-                  <p className="mt-2 text-[12px] font-semibold">{p.label_pl}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                  <p className="mt-2.5 text-[13px] font-semibold text-foreground">{p.label_pl}</p>
+                  <p className="text-[11px] text-muted-foreground leading-snug mt-1">
                     {p.description_pl}
                   </p>
                 </button>
               );
             })}
           </div>
+
         </section>
 
         {/* Widoczność + kolejność sekcji */}
