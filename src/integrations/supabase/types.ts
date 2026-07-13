@@ -2203,7 +2203,7 @@ export type Database = {
           id: string
           integration: string
           name: string
-          secret: string | null
+          secret_id: string | null
           tenant_id: string
           updated_at: string
           url: string
@@ -2216,7 +2216,7 @@ export type Database = {
           id?: string
           integration?: string
           name: string
-          secret?: string | null
+          secret_id?: string | null
           tenant_id: string
           updated_at?: string
           url: string
@@ -2229,7 +2229,7 @@ export type Database = {
           id?: string
           integration?: string
           name?: string
-          secret?: string | null
+          secret_id?: string | null
           tenant_id?: string
           updated_at?: string
           url?: string
@@ -6772,6 +6772,14 @@ export type Database = {
       has_tier_feature: { Args: { _feature: string }; Returns: boolean }
       has_tier_rank: { Args: { _min: number }; Returns: boolean }
       install_workflow_template: { Args: { p_key: string }; Returns: string }
+      integration_endpoint_get_secret: {
+        Args: { _endpoint_id: string }
+        Returns: string
+      }
+      integration_endpoint_set_secret: {
+        Args: { _endpoint_id: string; _plaintext: string }
+        Returns: undefined
+      }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
