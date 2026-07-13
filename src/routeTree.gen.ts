@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as SearchRouteImport } from './routes/search'
@@ -97,6 +98,7 @@ import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
+import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
@@ -165,6 +167,11 @@ import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -605,6 +612,11 @@ const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
   path: '/experiments',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDonationsRoute = AdminDonationsRouteImport.update({
+  id: '/donations',
+  path: '/donations',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
   id: '/custom-meta',
   path: '/custom-meta',
@@ -980,6 +992,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -995,6 +1008,7 @@ export interface FileRoutesByFullPath {
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -1135,6 +1149,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -1149,6 +1164,7 @@ export interface FileRoutesByTo {
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -1289,6 +1305,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -1304,6 +1321,7 @@ export interface FileRoutesById {
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -1448,6 +1466,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sitemap'
     | '/sitemap.xml'
+    | '/support'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -1463,6 +1482,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/greetings'
     | '/admin/icons'
@@ -1603,6 +1623,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sitemap'
     | '/sitemap.xml'
+    | '/support'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -1617,6 +1638,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/greetings'
     | '/admin/icons'
@@ -1756,6 +1778,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sitemap'
     | '/sitemap.xml'
+    | '/support'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -1771,6 +1794,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/greetings'
     | '/admin/icons'
@@ -1914,6 +1938,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SitemapRoute: typeof SitemapRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SupportRoute: typeof SupportRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiTtsRoute: typeof ApiTtsRoute
@@ -1950,6 +1975,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -2564,6 +2596,13 @@ declare module '@tanstack/react-router' {
       path: '/experiments'
       fullPath: '/admin/experiments'
       preLoaderRoute: typeof AdminExperimentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/donations': {
+      id: '/admin/donations'
+      path: '/donations'
+      fullPath: '/admin/donations'
+      preLoaderRoute: typeof AdminDonationsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/custom-meta': {
@@ -3218,6 +3257,7 @@ interface AdminRouteChildren {
   AdminCrmRoute: typeof AdminCrmRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
+  AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
@@ -3267,6 +3307,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCrmRoute: AdminCrmRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
+  AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
@@ -3396,6 +3437,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SitemapRoute: SitemapRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SupportRoute: SupportRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
@@ -3433,13 +3475,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

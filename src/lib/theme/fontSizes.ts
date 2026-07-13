@@ -150,7 +150,7 @@ export function useSaveFontSizes() {
       const validated = FontSizesSchema.parse(next);
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: FONT_SIZES_KEY, value: toJson(validated) }, { onConflict: "key" });
+        .upsert({ key: FONT_SIZES_KEY, value: toJson(validated) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return validated;
     },

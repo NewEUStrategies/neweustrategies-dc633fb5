@@ -25,7 +25,7 @@ export function useSaveAuthSettings() {
     mutationFn: async (value: AuthSettings) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: AUTH_SETTINGS_KEY, value: toJson(value) }, { onConflict: "key" });
+        .upsert({ key: AUTH_SETTINGS_KEY, value: toJson(value) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
     },
     onSuccess: () => {

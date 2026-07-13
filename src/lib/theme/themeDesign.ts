@@ -430,7 +430,7 @@ export function useSaveThemeDesign() {
       const key = lang === "en" ? KEY_EN : KEY;
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key, value: toJson(next) }, { onConflict: "key" });
+        .upsert({ key, value: toJson(next) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return { next, lang };
     },
@@ -449,7 +449,7 @@ export function useSaveThemeDesignLangMode() {
     mutationFn: async (next: ThemeDesignLangSettings) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: KEY_LANG_MODE, value: toJson(next) }, { onConflict: "key" });
+        .upsert({ key: KEY_LANG_MODE, value: toJson(next) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return next;
     },

@@ -64,5 +64,29 @@ export const requireStaff = createMiddleware({ type: "function" })
       throw new Error("Forbidden: staff role (admin/editor/author) required");
     }
 
+    // Step-up MFA (audyt 2026-07-13, P1 #10): konto staffu z ZAREJESTROWANYM
+    // drugim składnikiem nie może mutować na sesji aal1 - skradziony token
+    // hasłowy przestaje wystarczac. Konta bez MFA dzialaja bez zmian (to
+    // wymuszenie weryfikacji, nie enrolmentu). Claim `aal` pochodzi ze
+    // zweryfikowanego JWT; liste faktorow czyta SECURITY DEFINER
+    // has_verified_mfa() wylacznie o wlasnym koncie wywolujacego.
+    const aal = (context.claims as { aal?: string }).aal;
+    if (aal !== "aal2") {
+      const { data: hasMfa, error: mfaError } = await context.supabase.rpc("has_verified_mfa");
+      if (mfaError) {
+        console.error("[requireStaff] mfa lookup failed", {
+          userId: context.userId,
+          message: mfaError.message,
+          code: mfaError.code,
+        });
+        throw new Error(`Forbidden: could not verify MFA status (${mfaError.message})`);
+      }
+      if (hasMfa === true) {
+        throw new Error(
+          "Forbidden: mfa_required - verify your second factor (aal2) to perform staff actions",
+        );
+      }
+    }
+
     return next();
   });

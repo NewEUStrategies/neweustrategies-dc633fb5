@@ -169,6 +169,80 @@ describe("stripe webhook handler", () => {
     expect(h.grant).toHaveBeenCalledWith(order, "sub_123");
   });
 
+  it("checkout.session.completed z metadata.kind=donation zapisuje darowiznę i NIE nadaje uprawnień", async () => {
+    const payload = JSON.stringify({
+      id: "evt_don",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_don_1",
+          payment_intent: "pi_don_1",
+          amount_total: 5000,
+          currency: "pln",
+          customer_email: "donor@example.com",
+          metadata: {
+            kind: "donation",
+            tenant_id: "6f9619ff-8b86-4d01-b42d-00c04fc964ff",
+            message: "keep going",
+          },
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+
+    // Zapis do donations, idempotentnie po provider_session_id.
+    expect(call("from")?.args).toEqual(["donations"]);
+    const upsert = call("upsert");
+    const row = upsert?.args[0] as Record<string, unknown>;
+    expect(row.provider_session_id).toBe("cs_don_1");
+    expect(row.amount_cents).toBe(5000);
+    expect(row.currency).toBe("PLN");
+    expect(row.donor_email).toBe("donor@example.com");
+    expect(row.message).toBe("keep going");
+    expect(upsert?.args[1]).toEqual({
+      onConflict: "provider_session_id",
+      ignoreDuplicates: true,
+    });
+
+    // Darowizna to wsparcie, nie zakup: zero grantów, zero update'ów zamówień.
+    expect(h.grant).not.toHaveBeenCalled();
+    expect(call("update")).toBeUndefined();
+  });
+
+  it("darowizna bez kwoty (amount_total null) jest ignorowana bez zapisu", async () => {
+    const payload = JSON.stringify({
+      id: "evt_don_bad",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_don_2",
+          amount_total: null,
+          metadata: { kind: "donation" },
+        },
+      },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    expect(call("upsert")).toBeUndefined();
+    expect(h.grant).not.toHaveBeenCalled();
+  });
+
+  it("charge.refunded oznacza darowiznę jako zwróconą po payment_intent", async () => {
+    const payload = JSON.stringify({
+      id: "evt_don_refund",
+      type: "charge.refunded",
+      data: { object: { payment_intent: "pi_don_1" } },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    // Pierwsza para (from, update) dotyczy donations - przed lookupem zamówienia.
+    expect(call("from")?.args).toEqual(["donations"]);
+    expect((call("update")?.args[0] as { status?: string }).status).toBe("refunded");
+    expect(call("eq")?.args).toEqual(["provider_intent_id", "pi_don_1"]);
+  });
+
   it("is idempotent: a replay of an already-paid order grants nothing", async () => {
     // `.neq("status","paid")` updates zero rows on replay -> order is null.
     h.state.result = { data: null, error: null };

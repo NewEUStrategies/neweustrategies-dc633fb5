@@ -70,7 +70,7 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
       const merged = { ...(data ?? {}), builder_data: next };
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: settingsKey, value: merged as never }, { onConflict: "key" });
+        .upsert({ key: settingsKey, value: merged as never }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return next;
     },

@@ -166,7 +166,7 @@ export function useSaveTocDefaults() {
     mutationFn: async (next: TocDefaults) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: TOC_SETTING_KEY, value: toJson(next) }, { onConflict: "key" });
+        .upsert({ key: TOC_SETTING_KEY, value: toJson(next) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
       return next;
     },
