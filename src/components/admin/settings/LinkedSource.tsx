@@ -5,7 +5,7 @@
 // value falls back to the linked source.
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ExternalLink } from "@/lib/lucide-shim";
+import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export type LinkedSourceProps = {
