@@ -64,32 +64,46 @@ function EventDetail() {
         .eq("event_id", eventQ.data.id)
         .eq("user_id", user.id)
         .maybeSingle();
-      return data;
+      return data as { id: string; status: RsvpStatus } | null;
     },
     enabled: !!eventQ.data && !!user,
   });
 
   const rsvpM = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (target: RsvpStatus) => {
       if (!eventQ.data || !user) throw new Error("no user");
+      // Ponowne kliknięcie tego samego statusu = cancel (poza samym 'cancelled').
+      const nextStatus: RsvpStatus =
+        rsvpQ.data?.status === target && target !== "cancelled" ? "cancelled" : target;
       if (rsvpQ.data) {
-        const { error } = await supabase.from("event_rsvps").delete().eq("id", rsvpQ.data.id);
+        const { error } = await supabase
+          .from("event_rsvps")
+          .update({ status: nextStatus, updated_at: new Date().toISOString() })
+          .eq("id", rsvpQ.data.id);
         if (error) throw error;
-        return "removed" as const;
+      } else {
+        const tenant_id = await getPublicTenantId();
+        const { error } = await supabase.from("event_rsvps").insert({
+          event_id: eventQ.data.id,
+          user_id: user.id,
+          tenant_id,
+          status: nextStatus,
+        });
+        if (error) throw error;
       }
-      const tenant_id = await getPublicTenantId();
-      const { error } = await supabase.from("event_rsvps").insert({
-        event_id: eventQ.data.id,
-        user_id: user.id,
-        tenant_id,
-        status: "registered",
-      });
-      if (error) throw error;
-      return "added" as const;
+      return nextStatus;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["event-rsvp", eventQ.data?.id, user?.id] }),
-    onError: (e: unknown) =>
-      toast.error(e instanceof Error ? e.message : "Error"),
+    onSuccess: (nextStatus) => {
+      qc.invalidateQueries({ queryKey: ["event-rsvp", eventQ.data?.id, user?.id] });
+      const key =
+        nextStatus === "going"
+          ? "community.events.toastGoing"
+          : nextStatus === "interested"
+            ? "community.events.toastInterested"
+            : "community.events.toastCancelled";
+      toast.success(t(key));
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
 
   if (!modules.events_enabled) return <CommunityDisabled />;
