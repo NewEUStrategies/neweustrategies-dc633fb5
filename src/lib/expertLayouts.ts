@@ -200,6 +200,8 @@ export function defaultExpertLayoutSettings(tenantId = ""): ExpertLayoutSettings
     hero_text_color_dark: null,
     accent_color: null,
     accent_color_dark: null,
+    bio_bullet_color: null,
+    bio_bullet_color_dark: null,
     name_size_base: 36,
     name_size_lg: 48,
     role_size_base: 16,
