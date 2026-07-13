@@ -83,6 +83,7 @@ export const pl = {
       appearance: "Nagłówek i stopka",
       themeOptions: "Opcje motywu",
       postLayouts: "Layouty wpisów",
+      expertLayouts: "Layouty stron ekspertów",
       icons: "Ikony",
       names: "Słownik imion",
       greetings: "Powitania",
