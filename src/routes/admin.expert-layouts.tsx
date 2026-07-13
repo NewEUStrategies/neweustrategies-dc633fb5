@@ -112,7 +112,8 @@ function Page() {
 
   return (
     <AdminShell hideSidebar>
-      <div className="space-y-6">
+      <div className="mx-auto max-w-[1200px] space-y-8 p-4 md:p-6">
+
         <header className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="font-display text-xl">Layouty stron ekspertów</h1>
@@ -138,7 +139,7 @@ function Page() {
               Wybrany: <b>{EXPERT_LAYOUT_PRESETS.find((p) => p.id === local.default_preset)?.label_pl}</b>
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {EXPERT_LAYOUT_PRESETS.map((p) => {
               const active = local.default_preset === p.id;
               return (
@@ -147,21 +148,22 @@ function Page() {
                   type="button"
                   onClick={() => upd({ default_preset: p.id as ExpertLayoutPresetId })}
                   aria-pressed={active}
-                  className={`text-left p-3 rounded-md border transition ${
+                  className={`text-left p-3 rounded-lg border-2 transition shadow-sm ${
                     active
-                      ? "border-brand ring-1 ring-brand/40 bg-brand/5"
-                      : "border-border hover:border-brand/50 bg-background/50"
+                      ? "border-brand ring-2 ring-brand/30 bg-brand/5"
+                      : "border-border hover:border-brand/60 bg-card"
                   }`}
                 >
                   <PresetThumb id={p.id} />
-                  <p className="mt-2 text-[12px] font-semibold">{p.label_pl}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                  <p className="mt-2.5 text-[13px] font-semibold text-foreground">{p.label_pl}</p>
+                  <p className="text-[11px] text-muted-foreground leading-snug mt-1">
                     {p.description_pl}
                   </p>
                 </button>
               );
             })}
           </div>
+
         </section>
 
         {/* Widoczność + kolejność sekcji */}
@@ -362,29 +364,43 @@ function ColorField({
   value: string | null;
   onChange: (v: string | null) => void;
 }) {
+  const isSet = Boolean(value);
   return (
-    <label className="block text-xs space-y-1">
-      <span className="text-muted-foreground">{label}</span>
+    <label className="block text-xs space-y-1.5 rounded-md border border-border bg-card p-2.5">
+      <span className="block font-medium text-foreground">{label}</span>
       <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value ?? "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-10 rounded border border-input bg-background"
-        />
+        <div
+          className="h-9 w-9 shrink-0 rounded border border-border relative overflow-hidden"
+          style={{
+            backgroundColor: isSet ? (value as string) : "transparent",
+            backgroundImage: isSet
+              ? undefined
+              : "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%)",
+            backgroundSize: isSet ? undefined : "10px 10px",
+          }}
+        >
+          <input
+            type="color"
+            value={value ?? "#3366cc"}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label={label}
+          />
+        </div>
         <input
           type="text"
-          placeholder="auto"
+          placeholder="auto (motyw)"
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value.trim() || null)}
-          className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
+          className="flex-1 min-w-0 px-2 py-1.5 rounded border border-input bg-background text-xs font-mono"
         />
-        {value && (
+        {isSet && (
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-[10px] text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground shrink-0 px-1"
             aria-label="Wyczyść"
+            title="Wyczyść (użyj koloru motywu)"
           >
             ✕
           </button>
@@ -394,10 +410,11 @@ function ColorField({
   );
 }
 
+
 // Uproszczony piktogram wariantu - schemat blokowy, żeby administrator od razu
 // widział strukturę hero. Bez ikon zewnętrznych, tylko div-y z tokenami.
 function PresetThumb({ id }: { id: ExpertLayoutPresetId }) {
-  const base = "h-16 w-full rounded border border-border/60 bg-muted/40 p-1.5 flex gap-1";
+  const base = "relative h-20 w-full rounded border border-border bg-muted/50 p-2 flex gap-1.5 overflow-hidden";
   switch (id) {
     case "classic":
       return (
