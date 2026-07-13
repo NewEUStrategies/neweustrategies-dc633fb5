@@ -684,8 +684,10 @@ export type Database = {
           description_pl: string | null
           featured_template_id: string | null
           id: string
+          kind: string
           name_en: string
           name_pl: string
+          parent_id: string | null
           slug: string
           tenant_id: string
         }
@@ -696,8 +698,10 @@ export type Database = {
           description_pl?: string | null
           featured_template_id?: string | null
           id?: string
+          kind?: string
           name_en: string
           name_pl: string
+          parent_id?: string | null
           slug: string
           tenant_id: string
         }
@@ -708,8 +712,10 @@ export type Database = {
           description_pl?: string | null
           featured_template_id?: string | null
           id?: string
+          kind?: string
           name_en?: string
           name_pl?: string
+          parent_id?: string | null
           slug?: string
           tenant_id?: string
         }
@@ -719,6 +725,13 @@ export type Database = {
             columns: ["featured_template_id"]
             isOneToOne: false
             referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
           {
@@ -5629,6 +5642,33 @@ export type Database = {
           },
         ]
       }
+      saved_searches: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          params: Json
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          params?: Json
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          params?: Json
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       search_query_log: {
         Row: {
           created_at: string
@@ -7194,6 +7234,7 @@ export type Database = {
         }
         Returns: unknown
       }
+      nes_pl_light_stem: { Args: { _term: string }; Returns: string }
       nes_posts_search_vector: {
         Args: {
           _blocks: Json
@@ -7309,6 +7350,40 @@ export type Database = {
         }
         Returns: undefined
       }
+      search_autosuggest: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          id: string
+          kind: string
+          label_en: string
+          label_pl: string
+          parent_page_id: string
+          score: number
+          slug: string
+        }[]
+      }
+      search_facets: {
+        Args: {
+          _access?: string
+          _author?: string
+          _category?: string
+          _date_from?: string
+          _date_to?: string
+          _format?: string
+          _lang?: string
+          _q?: string
+          _terms?: string[]
+        }
+        Returns: {
+          cnt: number
+          dim: string
+          id: string
+          label_en: string
+          label_pl: string
+          parent_id: string
+          slug: string
+        }[]
+      }
       search_people: {
         Args: {
           p_company?: string
@@ -7332,27 +7407,36 @@ export type Database = {
       }
       search_posts: {
         Args: {
+          _access?: string
           _author?: string
           _category?: string
           _date_from?: string
           _date_to?: string
+          _format?: string
+          _lang?: string
           _limit?: number
-          _q: string
+          _q?: string
+          _sort?: string
+          _terms?: string[]
         }
         Returns: {
+          access_mode: string
           author_id: string
           cover_image_url: string
           excerpt_en: string
           excerpt_pl: string
+          fuzzy: boolean
           headline_en: string
           headline_pl: string
           id: string
           parent_page_id: string
+          post_format: string
           published_at: string
           rank: number
           slug: string
           title_en: string
           title_pl: string
+          total_count: number
         }[]
       }
       search_quick: {
