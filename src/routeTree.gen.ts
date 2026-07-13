@@ -116,11 +116,13 @@ import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
+import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
 import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open'
 import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
+import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-tick'
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
@@ -700,6 +702,11 @@ const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminCommunityRoute,
 } as any)
+const WebStoriesSlugAmpRoute = WebStoriesSlugAmpRouteImport.update({
+  id: '/amp',
+  path: '/amp',
+  getParentRoute: () => WebStoriesSlugRoute,
+} as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   id: '/api/public/vitals',
   path: '/api/public/vitals',
@@ -723,6 +730,11 @@ const ApiPublicNlOpenRoute = ApiPublicNlOpenRouteImport.update({
 const ApiPublicNlClickRoute = ApiPublicNlClickRouteImport.update({
   id: '/api/public/nl-click',
   path: '/api/public/nl-click',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
+  id: '/api/public/jobs-tick',
+  path: '/api/public/jobs-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicCommunityCronRoute = ApiPublicCommunityCronRouteImport.update({
@@ -1040,7 +1052,7 @@ export interface FileRoutesByFullPath {
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
-  '/web-stories/$slug': typeof WebStoriesSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -1083,11 +1095,13 @@ export interface FileRoutesByFullPath {
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -1189,7 +1203,7 @@ export interface FileRoutesByTo {
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
-  '/web-stories/$slug': typeof WebStoriesSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -1232,11 +1246,13 @@ export interface FileRoutesByTo {
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
@@ -1345,7 +1361,7 @@ export interface FileRoutesById {
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
-  '/web-stories/$slug': typeof WebStoriesSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -1388,11 +1404,13 @@ export interface FileRoutesById {
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -1545,11 +1563,13 @@ export interface FileRouteTypes {
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/web-stories/$slug/amp'
     | '/admin/community/'
     | '/admin/newsletter/'
     | '/admin/settings/'
@@ -1694,11 +1714,13 @@ export interface FileRouteTypes {
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/web-stories/$slug/amp'
     | '/admin/community'
     | '/admin/newsletter'
     | '/admin/settings'
@@ -1849,11 +1871,13 @@ export interface FileRouteTypes {
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/web-stories/$slug/amp'
     | '/admin/community/'
     | '/admin/newsletter/'
     | '/admin/settings/'
@@ -1905,7 +1929,7 @@ export interface RootRouteChildren {
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   TrackerSlugRoute: typeof TrackerSlugRoute
-  WebStoriesSlugRoute: typeof WebStoriesSlugRoute
+  WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
@@ -1913,6 +1937,7 @@ export interface RootRouteChildren {
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
+  ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
   ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
   ApiPublicNlOpenRoute: typeof ApiPublicNlOpenRoute
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
@@ -2674,6 +2699,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommunityIndexRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
+    '/web-stories/$slug/amp': {
+      id: '/web-stories/$slug/amp'
+      path: '/amp'
+      fullPath: '/web-stories/$slug/amp'
+      preLoaderRoute: typeof WebStoriesSlugAmpRouteImport
+      parentRoute: typeof WebStoriesSlugRoute
+    }
     '/api/public/vitals': {
       id: '/api/public/vitals'
       path: '/api/public/vitals'
@@ -2707,6 +2739,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/nl-click'
       fullPath: '/api/public/nl-click'
       preLoaderRoute: typeof ApiPublicNlClickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs-tick': {
+      id: '/api/public/jobs-tick'
+      path: '/api/public/jobs-tick'
+      fullPath: '/api/public/jobs-tick'
+      preLoaderRoute: typeof ApiPublicJobsTickRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/community-cron': {
@@ -3319,6 +3358,18 @@ const QaRouteChildren: QaRouteChildren = {
 
 const QaRouteWithChildren = QaRoute._addFileChildren(QaRouteChildren)
 
+interface WebStoriesSlugRouteChildren {
+  WebStoriesSlugAmpRoute: typeof WebStoriesSlugAmpRoute
+}
+
+const WebStoriesSlugRouteChildren: WebStoriesSlugRouteChildren = {
+  WebStoriesSlugAmpRoute: WebStoriesSlugAmpRoute,
+}
+
+const WebStoriesSlugRouteWithChildren = WebStoriesSlugRoute._addFileChildren(
+  WebStoriesSlugRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
@@ -3361,7 +3412,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   TrackerSlugRoute: TrackerSlugRoute,
-  WebStoriesSlugRoute: WebStoriesSlugRoute,
+  WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
@@ -3369,6 +3420,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
+  ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
   ApiPublicNlClickRoute: ApiPublicNlClickRoute,
   ApiPublicNlOpenRoute: ApiPublicNlOpenRoute,
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
