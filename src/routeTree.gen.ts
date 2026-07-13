@@ -111,6 +111,7 @@ import { Route as AdminIntegrationsRouteImport } from './routes/admin.integratio
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
+import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
@@ -695,6 +696,11 @@ const AdminGreetingsRoute = AdminGreetingsRouteImport.update({
   path: '/greetings',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminExpertLayoutsRoute = AdminExpertLayoutsRouteImport.update({
+  id: '/expert-layouts',
+  path: '/expert-layouts',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
   id: '/experiments',
   path: '/experiments',
@@ -1120,6 +1126,7 @@ export interface FileRoutesByFullPath {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
+  '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -1294,6 +1301,7 @@ export interface FileRoutesByTo {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
+  '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -1468,6 +1476,7 @@ export interface FileRoutesById {
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
+  '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -1647,6 +1656,7 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/donations'
     | '/admin/experiments'
+    | '/admin/expert-layouts'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -1821,6 +1831,7 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/donations'
     | '/admin/experiments'
+    | '/admin/expert-layouts'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -1994,6 +2005,7 @@ export interface FileRouteTypes {
     | '/admin/custom-meta'
     | '/admin/donations'
     | '/admin/experiments'
+    | '/admin/expert-layouts'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -2911,6 +2923,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGreetingsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/expert-layouts': {
+      id: '/admin/expert-layouts'
+      path: '/expert-layouts'
+      fullPath: '/admin/expert-layouts'
+      preLoaderRoute: typeof AdminExpertLayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/experiments': {
       id: '/admin/experiments'
       path: '/experiments'
@@ -3622,6 +3641,7 @@ interface AdminRouteChildren {
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
+  AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
@@ -3678,6 +3698,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
+  AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
