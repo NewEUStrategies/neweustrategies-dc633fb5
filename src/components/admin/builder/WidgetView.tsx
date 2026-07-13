@@ -1164,7 +1164,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           subtitle={subtitle || undefined}
           cta={cta || undefined}
           href={getStr(c, "href") || "/support"}
-          goalCents={getNum(c, "goalCents") || 0}
+          goalCents={getNum(c, "goalCents", 0)}
           currency={getStr(c, "currency") || undefined}
           showMonth={bool("showMonth", true)}
           showCount={bool("showCount", true)}
