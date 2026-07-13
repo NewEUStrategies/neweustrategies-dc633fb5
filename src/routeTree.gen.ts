@@ -16,8 +16,10 @@ import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
+import { Route as QaRouteImport } from './routes/qa'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PollsRouteImport } from './routes/polls'
 import { Route as PodcastsRouteImport } from './routes/podcasts'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
@@ -26,6 +28,8 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as FeedRouteImport } from './routes/feed'
+import { Route as EventsRouteImport } from './routes/events'
+import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
@@ -37,6 +41,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
+import { Route as QaSlugRouteImport } from './routes/qa.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
@@ -53,6 +58,7 @@ import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -190,6 +196,11 @@ const ReadingListRoute = ReadingListRouteImport.update({
   path: '/reading-list',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QaRoute = QaRouteImport.update({
+  id: '/qa',
+  path: '/qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -198,6 +209,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PollsRoute = PollsRouteImport.update({
+  id: '/polls',
+  path: '/polls',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PodcastsRoute = PodcastsRouteImport.update({
@@ -238,6 +254,16 @@ const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
 const FeedRoute = FeedRouteImport.update({
   id: '/feed',
   path: '/feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContributeRoute = ContributeRouteImport.update({
+  id: '/contribute',
+  path: '/contribute',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -294,6 +320,11 @@ const TagSlugRoute = TagSlugRouteImport.update({
   id: '/tag/$slug',
   path: '/tag/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const QaSlugRoute = QaSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => QaRoute,
 } as any)
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
@@ -374,6 +405,11 @@ const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
   getParentRoute: () => rootRouteImport,
+} as any)
+const EventsSlugRoute = EventsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => EventsRoute,
 } as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
@@ -898,6 +934,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/contribute': typeof ContributeRoute
+  '/events': typeof EventsRouteWithChildren
   '/feed': typeof FeedRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
@@ -906,8 +944,10 @@ export interface FileRoutesByFullPath {
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/podcasts': typeof PodcastsRoute
+  '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/qa': typeof QaRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -966,6 +1006,7 @@ export interface FileRoutesByFullPath {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/events/$slug': typeof EventsSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
@@ -982,6 +1023,7 @@ export interface FileRoutesByFullPath {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
@@ -1044,6 +1086,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/contribute': typeof ContributeRoute
+  '/events': typeof EventsRouteWithChildren
   '/feed': typeof FeedRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
@@ -1052,7 +1096,9 @@ export interface FileRoutesByTo {
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/podcasts': typeof PodcastsRoute
+  '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
+  '/qa': typeof QaRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -1107,6 +1153,7 @@ export interface FileRoutesByTo {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/events/$slug': typeof EventsSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
@@ -1123,6 +1170,7 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
@@ -1187,6 +1235,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/contribute': typeof ContributeRoute
+  '/events': typeof EventsRouteWithChildren
   '/feed': typeof FeedRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
@@ -1195,8 +1245,10 @@ export interface FileRoutesById {
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/podcasts': typeof PodcastsRoute
+  '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/qa': typeof QaRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -1255,6 +1307,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/events/$slug': typeof EventsSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
@@ -1271,6 +1324,7 @@ export interface FileRoutesById {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
@@ -1336,6 +1390,8 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/contribute'
+    | '/events'
     | '/feed'
     | '/llms.txt'
     | '/login'
@@ -1344,8 +1400,10 @@ export interface FileRouteTypes {
     | '/news-sitemap.xml'
     | '/people'
     | '/podcasts'
+    | '/polls'
     | '/pricing'
     | '/profile'
+    | '/qa'
     | '/reading-list'
     | '/reset-password'
     | '/robots.txt'
@@ -1404,6 +1462,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/events/$slug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
@@ -1420,6 +1479,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/web-stories/$slug'
@@ -1482,6 +1542,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/contribute'
+    | '/events'
     | '/feed'
     | '/llms.txt'
     | '/login'
@@ -1490,7 +1552,9 @@ export interface FileRouteTypes {
     | '/news-sitemap.xml'
     | '/people'
     | '/podcasts'
+    | '/polls'
     | '/pricing'
+    | '/qa'
     | '/reading-list'
     | '/reset-password'
     | '/robots.txt'
@@ -1545,6 +1609,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/events/$slug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
@@ -1561,6 +1626,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/web-stories/$slug'
@@ -1624,6 +1690,8 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/contribute'
+    | '/events'
     | '/feed'
     | '/llms.txt'
     | '/login'
@@ -1632,8 +1700,10 @@ export interface FileRouteTypes {
     | '/news-sitemap.xml'
     | '/people'
     | '/podcasts'
+    | '/polls'
     | '/pricing'
     | '/profile'
+    | '/qa'
     | '/reading-list'
     | '/reset-password'
     | '/robots.txt'
@@ -1692,6 +1762,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/events/$slug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
@@ -1708,6 +1779,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/web-stories/$slug'
@@ -1772,6 +1844,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
+  ContributeRoute: typeof ContributeRoute
+  EventsRoute: typeof EventsRouteWithChildren
   FeedRoute: typeof FeedRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
@@ -1780,8 +1854,10 @@ export interface RootRouteChildren {
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
   PodcastsRoute: typeof PodcastsRoute
+  PollsRoute: typeof PollsRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
+  QaRoute: typeof QaRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
@@ -1873,6 +1949,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReadingListRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/qa': {
+      id: '/qa'
+      path: '/qa'
+      fullPath: '/qa'
+      preLoaderRoute: typeof QaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -1885,6 +1968,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/polls': {
+      id: '/polls'
+      path: '/polls'
+      fullPath: '/polls'
+      preLoaderRoute: typeof PollsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/podcasts': {
@@ -1941,6 +2031,20 @@ declare module '@tanstack/react-router' {
       path: '/feed'
       fullPath: '/feed'
       preLoaderRoute: typeof FeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contribute': {
+      id: '/contribute'
+      path: '/contribute'
+      fullPath: '/contribute'
+      preLoaderRoute: typeof ContributeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -2019,6 +2123,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tag/$slug'
       preLoaderRoute: typeof TagSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/qa/$slug': {
+      id: '/qa/$slug'
+      path: '/$slug'
+      fullPath: '/qa/$slug'
+      preLoaderRoute: typeof QaSlugRouteImport
+      parentRoute: typeof QaRoute
     }
     '/profile/subscription': {
       id: '/profile/subscription'
@@ -2131,6 +2242,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/newsletter/confirm'
       preLoaderRoute: typeof NewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/events/$slug': {
+      id: '/events/$slug'
+      path: '/$slug'
+      fullPath: '/events/$slug'
+      preLoaderRoute: typeof EventsSlugRouteImport
+      parentRoute: typeof EventsRoute
     }
     '/checkout/success': {
       id: '/checkout/success'
@@ -3106,6 +3224,17 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface EventsRouteChildren {
+  EventsSlugRoute: typeof EventsSlugRoute
+}
+
+const EventsRouteChildren: EventsRouteChildren = {
+  EventsSlugRoute: EventsSlugRoute,
+}
+
+const EventsRouteWithChildren =
+  EventsRoute._addFileChildren(EventsRouteChildren)
+
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileAuthorRoute: typeof ProfileAuthorRoute
@@ -3139,10 +3268,22 @@ const ProfileRouteChildren: ProfileRouteChildren = {
 const ProfileRouteWithChildren =
   ProfileRoute._addFileChildren(ProfileRouteChildren)
 
+interface QaRouteChildren {
+  QaSlugRoute: typeof QaSlugRoute
+}
+
+const QaRouteChildren: QaRouteChildren = {
+  QaSlugRoute: QaSlugRoute,
+}
+
+const QaRouteWithChildren = QaRoute._addFileChildren(QaRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
+  ContributeRoute: ContributeRoute,
+  EventsRoute: EventsRouteWithChildren,
   FeedRoute: FeedRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
@@ -3151,8 +3292,10 @@ const rootRouteChildren: RootRouteChildren = {
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
   PodcastsRoute: PodcastsRoute,
+  PollsRoute: PollsRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
+  QaRoute: QaRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
