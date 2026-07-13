@@ -292,6 +292,24 @@ stanie kodu na 2026-07-13.)*
 
 ---
 
+## 7a. Status wdrożenia rekomendacji (2026-07-13, ta sama gałąź)
+
+| Rekomendacja | Status | Gdzie |
+| --- | --- | --- |
+| P0.1-P0.2 Naprawa wydarzeń / ankiet / Q&A (UI → RPC) | ✅ **było już wdrożone** przed tą oceną (rundy napraw po audycie) | `publicQueries.ts` (rpc `rsvp_event`/`vote_poll`/`ask_qa_question`), migracja `20260713200000_community_rpc_alignment` |
+| P0.3 Cztery defekty krytyczne (XSS buildera, SSRF CRM, TTS-paywall, moderacja cross-tenant) | ✅ **było już wdrożone** | `hardenStyleCss` w `BuilderRenderer`, `egressGuard.server.ts`, `has_content_access` w `post-tts.ts`, migracja `20260713200000_chat_admin_tenant_scope_fix` |
+| P1.4 Pogłębienie trackera (pola strukturalne) | ✅ wdrożone w tej rundzie | migracja `20260714110000` (rapporteur/committee/lead_dg), admin + strona dossier |
+| P1.5 Explorer stanowisk państw UE | ✅ wdrożone w tej rundzie | `eu_policy_positions` + `PolicyPositionsMap` (mapa choropletowa na dossier), edytor 27 państw w adminie |
+| P1.6 Kanał darowizn / mecenatu | ✅ wdrożone w tej rundzie | `/support`, `donations.functions.ts` (rate-limit per-IP), tabela `donations` + webhook Stripe, `/admin/donations` |
+| P2 Eksport danych RODO (art. 15/20) | ✅ wdrożone w tej rundzie | `exportMyData` + karta na `/profile/security` |
+| P2 Wymuszenie MFA (aal2) dla staffu | ✅ wdrożone w tej rundzie | `has_verified_mfa()` (migracja `20260714112000`) + guard w `require-staff.ts` |
+| P2 Multi-tenant warstwy prezentacji | ✅ wdrożone w tej rundzie | PK `(tenant_id, key)` na `site_settings` (migracja `20260714113000`) + 16 upsertów na `onConflict: "tenant_id,key"` |
+| P2 Sprzedaż korporacyjna per-fotel | ⏳ świadomie odłożone | wymaga decyzji produktowej (model licencji), nie kodu |
+| P1.4b Digesty per-dossier | ⏳ częściowo | alerty obserwujących działają (trigger → notyfikacje → push/digest); dedykowany digest trackera do osobnej rundy |
+
+Bramki rundy wdrożeniowej: testy **1615 przechodzą** (+34 nowe), lint **0 błędów**, `tsc` bez nowych błędów
+(baseline środowiska bez zmian), drzewo tras zregenerowane. Nowe migracje wymagają `supabase db push` przy wdrożeniu.
+
 ## 8. Zastrzeżenia i źródła
 
 - **Stan platformy** — z kodu i audytów `docs/OCENA_PLATFORMY.md`, `docs/AUDYT_PLATFORMY_2026-07-13.md`; oceny
