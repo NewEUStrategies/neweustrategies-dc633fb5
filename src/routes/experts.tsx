@@ -102,7 +102,7 @@ function ExpertsDirectoryPage() {
               value={areaSlug ?? ALL}
               onValueChange={(next) =>
                 navigate({
-                  search: (prev) => ({ ...prev, area: next === ALL ? undefined : next }),
+                  search: (prev: ExpertsSearch) => ({ ...prev, area: next === ALL ? undefined : next }),
                 })
               }
             >
@@ -151,7 +151,7 @@ function ExpertsDirectoryPage() {
               className="h-9 text-xs"
               onClick={() => {
                 setProgramFilter(null);
-                navigate({ search: (prev) => ({ ...prev, area: undefined }) });
+                navigate({ search: (prev: ExpertsSearch) => ({ ...prev, area: undefined }) });
               }}
             >
               {t("expert.clearFilters")}

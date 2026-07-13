@@ -2146,6 +2146,7 @@ export type Database = {
           min_tier_rank: number
           program_id: string | null
           recording_url: string | null
+          region_id: string | null
           rsvp_opens_at: string | null
           slug: string
           starts_at: string
@@ -2175,6 +2176,7 @@ export type Database = {
           min_tier_rank?: number
           program_id?: string | null
           recording_url?: string | null
+          region_id?: string | null
           rsvp_opens_at?: string | null
           slug: string
           starts_at: string
@@ -2204,6 +2206,7 @@ export type Database = {
           min_tier_rank?: number
           program_id?: string | null
           recording_url?: string | null
+          region_id?: string | null
           rsvp_opens_at?: string | null
           slug?: string
           starts_at?: string
@@ -2700,6 +2703,59 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: []
+      }
+      media_mentions: {
+        Row: {
+          created_at: string
+          id: string
+          is_public: boolean
+          kind: string
+          language: string | null
+          outlet: string
+          published_on: string
+          tenant_id: string
+          title: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          kind?: string
+          language?: string | null
+          outlet: string
+          published_on: string
+          tenant_id?: string
+          title: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          kind?: string
+          language?: string | null
+          outlet?: string
+          published_on?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_mentions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       member_organizations: {
         Row: {
@@ -4435,6 +4491,7 @@ export type Database = {
           program_id: string | null
           published_at: string | null
           quotes: Json
+          region_id: string | null
           resources: Json
           season: number | null
           show_id: string | null
@@ -4465,6 +4522,7 @@ export type Database = {
           program_id?: string | null
           published_at?: string | null
           quotes?: Json
+          region_id?: string | null
           resources?: Json
           season?: number | null
           show_id?: string | null
@@ -4495,6 +4553,7 @@ export type Database = {
           program_id?: string | null
           published_at?: string | null
           quotes?: Json
+          region_id?: string | null
           resources?: Json
           season?: number | null
           show_id?: string | null
@@ -4511,20 +4570,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "podcasts_program_id_fkey"
-            columns: ["program_id"]
-            isOneToOne: false
-            referencedRelation: "programs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "podcasts_region_id_fkey"
-            columns: ["region_id"]
-            isOneToOne: false
-            referencedRelation: "regions"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "podcasts_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
@@ -4536,6 +4581,20 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
             referencedColumns: ["id"]
           },
           {
@@ -5643,6 +5702,8 @@ export type Database = {
           tenant_id: string
           twitter_url: string | null
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
           website_url: string | null
         }
         Insert: {
@@ -5674,6 +5735,8 @@ export type Database = {
           tenant_id: string
           twitter_url?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
           website_url?: string | null
         }
         Update: {
@@ -5705,6 +5768,8 @@ export type Database = {
           tenant_id?: string
           twitter_url?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
           website_url?: string | null
         }
         Relationships: [
@@ -7287,6 +7352,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_set_profile_verification: {
+        Args: { p_user_id: string; p_verified: boolean }
+        Returns: undefined
+      }
       admin_soft_delete_message: {
         Args: { p_message_id: string }
         Returns: undefined
@@ -7662,6 +7731,8 @@ export type Database = {
           tenant_id: string
           twitter_url: string | null
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
           website_url: string | null
         }[]
         SetofOptions: {
