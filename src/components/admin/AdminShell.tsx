@@ -242,6 +242,13 @@ function AdminShellInner({
           icon: Users,
           label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
         },
+        {
+          to: "/admin/integrations",
+          icon: Cable,
+          label: t("admin.nav.integrations", {
+            defaultValue: lang === "pl" ? "Integracje" : "Integrations",
+          }),
+        },
       ],
     },
     {
