@@ -202,6 +202,13 @@ function OrgCard({
           ) : null}
         </div>
 
+        <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
+          <Link to="/admin/organizations/$id" params={{ id: org.id }}>
+            <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            {L("Edytuj i branding", "Edit & branding")}
+          </Link>
+        </Button>
+
         <SeatManager lang={lang} orgId={org.id} seatsLimit={org.seats_limit} />
       </CardContent>
     </Card>
