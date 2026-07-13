@@ -2998,6 +2998,7 @@ export type Database = {
           html_pl: string
           id: string
           last_error: string | null
+          lease_until: string | null
           name: string
           recipient_count: number
           reply_to: string | null
@@ -3022,6 +3023,7 @@ export type Database = {
           html_pl?: string
           id?: string
           last_error?: string | null
+          lease_until?: string | null
           name: string
           recipient_count?: number
           reply_to?: string | null
@@ -3046,6 +3048,7 @@ export type Database = {
           html_pl?: string
           id?: string
           last_error?: string | null
+          lease_until?: string | null
           name?: string
           recipient_count?: number
           reply_to?: string | null
