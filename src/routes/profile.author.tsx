@@ -15,6 +15,7 @@ import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, ShieldAlert } from "lucide-react";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
+import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import type { OrgFunction } from "@/lib/experts/types";
 import "@/lib/i18n-experts";
