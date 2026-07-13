@@ -463,10 +463,13 @@ function ExpertMockup({
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const e = hub.expert;
-  const name = e.display_name ?? "-";
+  const ph = PLACEHOLDER[lang];
+  const name = e.display_name ?? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert");
   const role = e.job_title ?? "";
   const company = e.company ?? "";
-  const roleLine = [role, company].filter(Boolean).join(" · ");
+  const roleLine = [role, company].filter(Boolean).join(" · ") || ph.role;
+  const bioText = (lang === "en" ? e.bio_en : e.bio_pl) ?? ph.bio;
+  const hasCover = Boolean(e.cover_url);
 
   const heroStyle: React.CSSProperties = {
     backgroundColor: heroBg ?? undefined,
@@ -475,62 +478,56 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
+  const avatar = (className: string, rounded = "rounded-full") =>
+    e.avatar_url ? (
+      <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
+    ) : (
+      <AvatarPlaceholder name={name} className={className} rounded={rounded} />
+    );
+
+  const cover = (className: string) =>
+    hasCover ? (
+      <div className={`${className} bg-cover bg-center`} style={{ backgroundImage: `url(${e.cover_url})` }} />
+    ) : (
+      <CoverPlaceholder className={className} />
+    );
+
   if (preset.heroKind === "centered") {
     return (
       <div className="w-full" style={heroStyle}>
         <div className="mx-auto text-center px-4 py-10" style={{ maxWidth }}>
-          {e.avatar_url && (
-            <img
-              src={e.avatar_url}
-              alt={name}
-              className="mx-auto h-24 w-24 rounded-full object-cover border-2"
-              style={{ borderColor: "var(--pv-accent)" }}
-            />
-          )}
-          <h1
-            className="mt-4 font-display leading-tight"
-            style={{ fontSize: settings.name_size_lg }}
-          >
+          <div className="mx-auto inline-block">
+            {avatar("h-24 w-24 mx-auto border-2", "rounded-full")}
+          </div>
+          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
             {name}
           </h1>
-          {roleLine && (
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-              {roleLine}
-            </p>
-          )}
+          <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            {roleLine}
+          </p>
           <SocialRow expert={e} className="mt-4 justify-center" />
         </div>
       </div>
     );
   }
 
-  if (preset.heroKind === "cover-overlay" && e.cover_url) {
+  if (preset.heroKind === "cover-overlay") {
     return (
       <div style={heroStyle}>
-        <div
-          className="relative w-full h-56 bg-cover bg-center"
-          style={{ backgroundImage: `url(${e.cover_url})` }}
-        >
+        <div className="relative w-full h-56">
+          {cover("absolute inset-0 w-full h-full")}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
-            {e.avatar_url && (
-              <img
-                src={e.avatar_url}
-                alt={name}
-                className="-mt-16 h-24 w-24 rounded-md object-cover border-4 border-background shadow"
-              />
-            )}
+            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-md")}</div>
             <div>
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
               </h1>
-              {roleLine && (
-                <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-                  {roleLine}
-                </p>
-              )}
+              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+                {roleLine}
+              </p>
             </div>
           </div>
         </div>
@@ -546,18 +543,14 @@ function ExpertMockup({
             className={`rounded-lg border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
             style={heroStyle}
           >
-            {e.avatar_url && (
-              <img src={e.avatar_url} alt={name} className="h-28 w-28 rounded object-cover" />
-            )}
+            {avatar("h-28 w-28", "rounded")}
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
-            {roleLine && <p className="text-xs opacity-80">{roleLine}</p>}
+            <p className="text-xs opacity-80">{roleLine}</p>
             <SocialRow expert={e} className="mt-3" />
           </aside>
-          <div className="text-sm text-muted-foreground">
-            {lang === "en" ? e.bio_en ?? "" : e.bio_pl ?? ""}
-          </div>
+          <div className="text-sm text-muted-foreground whitespace-pre-line">{bioText}</div>
         </div>
       </div>
     );
@@ -571,11 +564,9 @@ function ExpertMockup({
           <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
             {name}
           </h1>
-          {roleLine && (
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-              {roleLine}
-            </p>
-          )}
+          <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            {roleLine}
+          </p>
         </div>
       </div>
     );
@@ -588,18 +579,14 @@ function ExpertMockup({
           className="rounded-xl border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
           style={heroStyle}
         >
-          {e.avatar_url && (
-            <img src={e.avatar_url} alt={name} className="h-24 w-24 rounded-lg object-cover" />
-          )}
+          {avatar("h-24 w-24", "rounded-lg")}
           <div className={centered ? "text-center mx-auto" : ""}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
             </h1>
-            {roleLine && (
-              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-                {roleLine}
-              </p>
-            )}
+            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+              {roleLine}
+            </p>
             <SocialRow expert={e} className="mt-3" />
           </div>
         </div>
@@ -610,35 +597,29 @@ function ExpertMockup({
   if (preset.heroKind === "editorial") {
     return (
       <div style={heroStyle}>
-        {e.cover_url && (
-          <div
-            className="relative w-full h-64 bg-cover bg-center"
-            style={{ backgroundImage: `url(${e.cover_url})` }}
-          >
-            <div className="absolute inset-0 bg-black/50" />
-            <div className="absolute inset-0 flex items-end">
-              <div className="mx-auto w-full px-4 pb-6" style={{ maxWidth }}>
-                <h1
-                  className="font-serif text-white"
-                  style={{ fontSize: settings.name_size_lg, fontFamily: "'Playfair Display', Georgia, serif" }}
-                >
-                  {name}
-                </h1>
-                {roleLine && <p className="text-white/80 italic mt-1">{roleLine}</p>}
-              </div>
+        <div className="relative w-full h-64">
+          {cover("absolute inset-0 w-full h-full")}
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="absolute inset-0 flex items-end">
+            <div className="mx-auto w-full px-4 pb-6" style={{ maxWidth }}>
+              <h1
+                className="font-serif text-white"
+                style={{ fontSize: settings.name_size_lg, fontFamily: "'Playfair Display', Georgia, serif" }}
+              >
+                {name}
+              </h1>
+              <p className="text-white/80 italic mt-1">{roleLine}</p>
             </div>
           </div>
-        )}
-        {(lang === "en" ? e.bio_en : e.bio_pl) && (
-          <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
-            <blockquote
-              className="border-l-4 pl-4 italic text-lg"
-              style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif" }}
-            >
-              {(lang === "en" ? e.bio_en : e.bio_pl) as string}
-            </blockquote>
-          </div>
-        )}
+        </div>
+        <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
+          <blockquote
+            className="border-l-4 pl-4 italic text-lg"
+            style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif" }}
+          >
+            {bioText}
+          </blockquote>
+        </div>
       </div>
     );
   }
@@ -648,23 +629,16 @@ function ExpertMockup({
     <div style={heroStyle}>
       <div className="mx-auto px-4 py-8" style={{ maxWidth }}>
         <div className={`flex flex-col md:flex-row gap-5 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
-          {e.avatar_url && (
-            <img
-              src={e.avatar_url}
-              alt={name}
-              className="h-32 w-32 md:h-40 md:w-32 rounded-sm object-cover"
-              style={{ outline: "2px solid var(--pv-accent)" }}
-            />
-          )}
+          <div style={{ outline: e.avatar_url ? "2px solid var(--pv-accent)" : undefined }}>
+            {avatar("h-32 w-32 md:h-40 md:w-32", "rounded-sm")}
+          </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
               {name}
             </h1>
-            {roleLine && (
-              <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
-                {roleLine}
-              </p>
-            )}
+            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+              {roleLine}
+            </p>
             <SocialRow expert={e} className={`mt-3 ${centered ? "justify-center" : ""}`} />
           </div>
         </div>
