@@ -326,7 +326,7 @@ function Page() {
           </div>
         </section>
 
-        <ExpertLayoutPreview settings={local} />
+        <ExpertLayoutPreview settings={local} savedAt={savedAt} />
       </div>
     </AdminShell>
   );
