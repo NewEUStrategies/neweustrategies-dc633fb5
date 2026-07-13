@@ -44,6 +44,16 @@ export const WIDGET_TYPES = [
   // Data visualization (engine: src/components/charts)
   "chart",
   "data-map",
+  // NES Digital Features (engine: src/components/features)
+  "feature-timeline",
+  "feature-sankey",
+  "feature-compare",
+  "feature-risk-matrix",
+  "feature-indicator",
+  "feature-network",
+  "feature-corridor-map",
+  "feature-sources",
+  "feature-methodology",
   // Dynamic
   "post-list",
   "carousel",

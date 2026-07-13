@@ -251,3 +251,108 @@ export function DataMapWidgetView(props: ComponentProps<typeof DataMapWidgetView
     </Suspense>
   );
 }
+
+// NES Digital Features - wszystkie renderery żyją w jednym module (FeatureWidgets),
+// więc dzielą jeden chunk "features" dociągany tylko na stronach, które osadzają
+// któryś z tych widgetów. SSR streaming renderuje je serwerowo (HTML bez zmian).
+const FeatureModule = () =>
+  import("@/components/admin/builder/ui/organisms/widget-view/FeatureWidgets");
+
+const TimelineWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.TimelineWidgetView })),
+);
+export function TimelineWidgetView(props: ComponentProps<typeof TimelineWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <TimelineWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const SankeyWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.SankeyWidgetView })),
+);
+export function SankeyWidgetView(props: ComponentProps<typeof SankeyWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <SankeyWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const CompareWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.CompareWidgetView })),
+);
+export function CompareWidgetView(props: ComponentProps<typeof CompareWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <CompareWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const RiskMatrixWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.RiskMatrixWidgetView })),
+);
+export function RiskMatrixWidgetView(props: ComponentProps<typeof RiskMatrixWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <RiskMatrixWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const IndicatorWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.IndicatorWidgetView })),
+);
+export function IndicatorWidgetView(props: ComponentProps<typeof IndicatorWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <IndicatorWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const NetworkWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.NetworkWidgetView })),
+);
+export function NetworkWidgetView(props: ComponentProps<typeof NetworkWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <NetworkWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const CorridorMapWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.CorridorMapWidgetView })),
+);
+export function CorridorMapWidgetView(props: ComponentProps<typeof CorridorMapWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <CorridorMapWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const SourcesWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.SourcesWidgetView })),
+);
+export function SourcesWidgetView(props: ComponentProps<typeof SourcesWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <SourcesWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}
+
+const MethodologyWidgetViewImpl = lazy(() =>
+  FeatureModule().then((m) => ({ default: m.MethodologyWidgetView })),
+);
+export function MethodologyWidgetView(props: ComponentProps<typeof MethodologyWidgetViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <MethodologyWidgetViewImpl {...props} />
+    </Suspense>
+  );
+}

@@ -393,3 +393,34 @@ etykiety rozwiązane w bazie) przez `useLinkedItems` / `LinkedItemsCard`.
 pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 `src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
 `src/lib/__tests__/i18nCohesion.test.ts`.
+
+---
+
+## 6. NES Digital Features (widgety danych w builderze)
+
+> **Status:** wdrożony. Formalny moduł interaktywnych „digital features"
+> (model CSIS: _Charts_ / _Digital Features_ / _Microsites_). Pełna
+> dokumentacja: **`docs/DIGITAL_FEATURES.md`**.
+
+Dziewięć widgetów `feature-*` (oś czasu, sankey, porównywarka państw, macierz
+ryzyka, karta wskaźnika, sieć powiązań, mapa korytarzy, biblioteka źródeł, nota
+metodologiczna) obok istniejących `chart` / `data-map`. Digital Feature = strona
+buildera łącząca te widgety; Microsite = zestaw takich stron z własnym menu.
+Silnik nie jest osobną platformą - to zwykłe widgety buildera.
+
+- **Silnik:** `src/components/features/*` (czyste SVG/HTML, zero nowych zależności).
+- **Adapter treść→config:** `…/widget-view/FeatureWidgets.tsx`; parsery
+  formatu tekstowego: `src/lib/features/parse.ts` (separator `;`, i18n inline `PL|EN`).
+- **Rejestracja:** kategoria `"features"` w `registry.tsx`, typy w
+  `builder/types.ts` + `WIDGET_TYPES` w `schema.ts` (drift guard), dispatch w
+  `WidgetView.tsx`, code-split przez `lazyWidgets.tsx` (jeden chunk `FeatureWidgets`).
+- **Reguły (te same co silnik wykresów):** kolory tylko z tokenów `--chart-*`,
+  animacje przez `useRevealOnScroll` (SSR = stan końcowy), dostępność przez
+  tabelę/listę niezależną od grafiki (nigdy sam tooltip).
+- **Mapa korytarzy:** reużywa `public/geo/*.v1.json`. Generator
+  (`scripts/generate-geo-maps.ts`) osadza metadane projekcji (`proj`), a
+  `src/lib/features/geoProject.ts` odtwarza z nich `lon/lat → px` bez
+  duplikowania kodu projekcji. Zmiana zasobów jest wstecznie zgodna - geometria
+  krajów bez zmian, dochodzi tylko pole `proj`.
+
+Testy: `src/lib/features/__tests__/*`, `src/components/features/__tests__/features.test.tsx`.

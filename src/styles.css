@@ -3325,6 +3325,117 @@ input.icon-input-with-action {
 }
 
 /* ============================================================
+   NES Digital Features (moduł interaktywnych "digital features" -
+   src/components/features). Ten sam język wizualny co wykresy: kolory
+   wyłącznie z tokenów --chart-* / --brand / --card / --border, animacje
+   wejścia przez useRevealOnScroll (klasy .neh-armed / .neh-run). Elementy
+   z .nes-feature-reveal wchodzą sekwencyjnie (stagger var(--nes-i)).
+   ============================================================ */
+
+/* Sekwencyjne wejście (opacity - bezpieczne dla SVG i HTML). */
+.neh-armed .nes-feature-reveal {
+  opacity: 0;
+}
+.neh-run .nes-feature-reveal {
+  transition: opacity 550ms ease;
+  transition-delay: calc(var(--nes-i, 0) * 50ms);
+  opacity: 1;
+}
+/* Elementy osi czasu (HTML) dodatkowo delikatnie się unoszą. */
+.neh-armed li.nes-feature-reveal {
+  transform: translateY(10px);
+}
+.neh-run li.nes-feature-reveal {
+  transition:
+    opacity 550ms ease,
+    transform 550ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition-delay: calc(var(--nes-i, 0) * 50ms);
+  transform: none;
+}
+
+/* Sankey: wstęgi półprzezroczyste, podświetlenie po najechaniu. */
+.nes-sankey-band {
+  stroke-opacity: 0.45;
+  cursor: pointer;
+  transition: stroke-opacity 160ms ease;
+}
+.nes-sankey-band[data-active="true"] {
+  stroke-opacity: 0.85;
+}
+.nes-sankey-band[data-dim="true"] {
+  stroke-opacity: 0.14;
+}
+.nes-sankey-node {
+  fill: var(--foreground);
+}
+.nes-sankey-label {
+  fill: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Sieć powiązań: krawędzie przygaszone, węzeł rośnie po najechaniu/focusie. */
+.nes-network-edge {
+  stroke-opacity: 0.4;
+  transition: stroke-opacity 160ms ease;
+}
+.nes-network-edge[data-dim="true"] {
+  stroke-opacity: 0.08;
+}
+.nes-network-node {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 160ms ease;
+}
+.nes-network-node[data-dim="true"] {
+  opacity: 0.3;
+}
+.nes-network-node circle {
+  transition: r 120ms ease;
+}
+.nes-network-node:hover circle,
+.nes-network-node:focus-visible circle {
+  r: 8;
+}
+.nes-network-label {
+  fill: var(--foreground);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* Mapa korytarzy: kraje jak w choroplecie, linie i markery na wierzchu. */
+.nes-corridor-map .neh-country {
+  stroke: var(--card);
+  stroke-width: 0.6;
+}
+.nes-corridor-line {
+  stroke-opacity: 0.9;
+}
+.nes-marker {
+  fill: var(--brand);
+  stroke: var(--card);
+  stroke-width: 1.5;
+  cursor: pointer;
+  outline: none;
+}
+.nes-marker:focus-visible,
+.nes-marker:hover {
+  stroke: var(--foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neh-armed .nes-feature-reveal,
+  .neh-armed li.nes-feature-reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .neh-run .nes-feature-reveal,
+  .neh-run li.nes-feature-reveal {
+    transition: none;
+  }
+}
+
+/* ============================================================
    Forced-light scope (builder canvas "Jasny" under a dark admin).
    `.light` re-declares the light tokens (see the `:root, .light` block
    at the top), which fixes every `var(--token)`-driven color by
