@@ -332,6 +332,7 @@ function AdminShellInner({
         { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
+        { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },
         {
           to: "/admin/key-takeaways",
           icon: ListChecks,
