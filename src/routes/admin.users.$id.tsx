@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import {
   ArrowLeft,
   UserCog,
@@ -473,8 +474,10 @@ function AvatarEditor({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
 
-  const handlePick = async (file: File) => {
+  const handlePick = (file: File) => {
     if (!tenantId) {
       toast.error("Brak kontekstu tenanta");
       return;
@@ -483,10 +486,20 @@ function AvatarEditor({
       toast.error("Plik za duży (max 5 MB)");
       return;
     }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Wymagany plik graficzny");
+      return;
+    }
+    setPendingFile(file);
+    setCropOpen(true);
+  };
+
+  const handleUpload = async (blob: Blob) => {
+    if (!tenantId) return;
     setBusy(true);
     try {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = tenantId + "/users/" + userId + "/avatar-" + Date.now() + "." + ext;
+      const path =
+        tenantId + "/users/" + userId + "/avatar-" + Date.now() + ".jpg";
       const { data: signed, error: signErr } = await supabase.storage
         .from("media")
         .createSignedUploadUrl(path);
@@ -494,14 +507,14 @@ function AvatarEditor({
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", signed.signedUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("Content-Type", "image/jpeg");
         xhr.setRequestHeader("x-upsert", "true");
         xhr.onload = () =>
           xhr.status >= 200 && xhr.status < 300
             ? resolve()
             : reject(new Error("HTTP " + xhr.status));
         xhr.onerror = () => reject(new Error("network"));
-        xhr.send(file);
+        xhr.send(blob);
       });
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       const { error: updErr } = await supabase.rpc("admin_update_user_avatar", {
@@ -515,6 +528,7 @@ function AvatarEditor({
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
+      setPendingFile(null);
     }
   };
 
@@ -538,7 +552,7 @@ function AvatarEditor({
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) void handlePick(f);
+              if (f) handlePick(f);
               e.currentTarget.value = "";
             }}
           />
@@ -552,6 +566,17 @@ function AvatarEditor({
           >
             {busy ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
           </button>
+          <ImageCropDialog
+            open={cropOpen}
+            file={pendingFile}
+            kind="avatar"
+            preset={CROP_PRESETS.avatar}
+            onOpenChange={(o) => {
+              setCropOpen(o);
+              if (!o) setPendingFile(null);
+            }}
+            onConfirm={(blob) => void handleUpload(blob)}
+          />
         </>
       )}
     </div>
