@@ -1865,6 +1865,55 @@ export type Database = {
           },
         ]
       }
+      eu_policy_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          item_id: string
+          related_item_id: string
+          relation: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          item_id: string
+          related_item_id: string
+          relation?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          item_id?: string
+          related_item_id?: string
+          relation?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eu_policy_links_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "eu_policy_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eu_policy_links_related_item_id_fkey"
+            columns: ["related_item_id"]
+            isOneToOne: false
+            referencedRelation: "eu_policy_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eu_policy_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eu_policy_positions: {
         Row: {
           country_code: string
@@ -3247,6 +3296,7 @@ export type Database = {
           enabled_security: boolean
           enabled_subscription: boolean
           enabled_system: boolean
+          enabled_tracker: boolean
           group_by_conversation: boolean
           push_enabled: boolean
           read_receipts_enabled: boolean
@@ -3269,6 +3319,7 @@ export type Database = {
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
+          enabled_tracker?: boolean
           group_by_conversation?: boolean
           push_enabled?: boolean
           read_receipts_enabled?: boolean
@@ -3291,6 +3342,7 @@ export type Database = {
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
+          enabled_tracker?: boolean
           group_by_conversation?: boolean
           push_enabled?: boolean
           read_receipts_enabled?: boolean
@@ -6858,6 +6910,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      get_tracker_stats: { Args: never; Returns: Json }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
