@@ -30,6 +30,23 @@ export function pickDigestText(
   return (primary ?? "").trim() || (fallback ?? "").trim();
 }
 
+/**
+ * Nagłówki sekcji digestu per rodzaj powiadomienia. Alerty trackera dostają
+ * własną sekcję na górze, żeby digest czytał się jak brief legislacyjny, a nie
+ * płaska lista - to krok w stronę produktu danych (Politico PRO). Kolejność w
+ * tej tablicy wyznacza kolejność sekcji; rodzaje spoza listy trafiają do
+ * sekcji "pozostałe" (kind === null).
+ */
+const DIGEST_SECTIONS: { kind: string | null; pl: string; en: string }[] = [
+  { kind: "tracker", pl: "Tracker legislacyjny UE", en: "EU legislative tracker" },
+  { kind: "content", pl: "Nowe treści", en: "New content" },
+  { kind: "comment", pl: "Komentarze", en: "Comments" },
+  { kind: "message", pl: "Wiadomości", en: "Messages" },
+  { kind: "follow", pl: "Obserwujący", en: "Followers" },
+  { kind: "subscription", pl: "Subskrypcja", en: "Subscription" },
+  { kind: null, pl: "Pozostałe", en: "Other" },
+];
+
 export function digestSubject(
   count: number,
   lang: DigestLang,
@@ -73,22 +90,38 @@ export function buildDigestHtml(opts: {
   const manage =
     lang === "en" ? "Manage notification settings" : "Zarządzaj ustawieniami powiadomień";
 
-  const rows = items
-    .map((item) => {
-      const title = pickDigestText(item, lang);
-      if (!title) return "";
-      const bodyRaw =
-        lang === "en" ? (item.body_en ?? item.body_pl) : (item.body_pl ?? item.body_en);
-      const body = (bodyRaw ?? "").trim();
-      const href = item.href ? new URL(item.href, siteUrl).toString() : null;
-      const titleHtml = href
-        ? `<a href="${esc(href)}" style="color:#1a3c8b;text-decoration:none;font-weight:600">${esc(title)}</a>`
-        : `<span style="font-weight:600">${esc(title)}</span>`;
-      return `<tr><td style="padding:10px 0;border-bottom:1px solid #e8e8ef">
+  const renderItem = (item: DigestItem): string => {
+    const title = pickDigestText(item, lang);
+    if (!title) return "";
+    const bodyRaw = lang === "en" ? (item.body_en ?? item.body_pl) : (item.body_pl ?? item.body_en);
+    const body = (bodyRaw ?? "").trim();
+    const href = item.href ? new URL(item.href, siteUrl).toString() : null;
+    const titleHtml = href
+      ? `<a href="${esc(href)}" style="color:#1a3c8b;text-decoration:none;font-weight:600">${esc(title)}</a>`
+      : `<span style="font-weight:600">${esc(title)}</span>`;
+    return `<tr><td style="padding:10px 0;border-bottom:1px solid #e8e8ef">
         ${titleHtml}
         ${body ? `<div style="color:#555;font-size:13px;margin-top:2px">${esc(body)}</div>` : ""}
       </td></tr>`;
-    })
+  };
+
+  // Grupowanie per rodzaj z nagłówkiem sekcji. Sekcja renderuje się tylko gdy
+  // ma pozycje; nagłówek pomijamy, jeśli wszystkie pozycje są jednego rodzaju
+  // (płaska lista czyta się lepiej niż jedna sekcja z nagłówkiem).
+  const distinctKinds = new Set(items.map((i) => i.kind));
+  const rows = DIGEST_SECTIONS.map((section) => {
+    const inSection = items.filter((i) =>
+      section.kind === null
+        ? !DIGEST_SECTIONS.some((s) => s.kind === i.kind)
+        : i.kind === section.kind,
+    );
+    if (inSection.length === 0) return "";
+    const body = inSection.map(renderItem).filter(Boolean).join("");
+    if (!body) return "";
+    if (distinctKinds.size <= 1) return body;
+    const heading = lang === "en" ? section.en : section.pl;
+    return `<tr><td style="padding:16px 0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#1a3c8b">${esc(heading)}</td></tr>${body}`;
+  })
     .filter(Boolean)
     .join("");
 

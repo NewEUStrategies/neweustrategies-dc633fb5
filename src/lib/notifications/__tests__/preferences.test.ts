@@ -10,6 +10,7 @@ const prefs: NotificationPreferences = {
   enabled_content: true,
   enabled_system: true,
   enabled_security: true,
+  enabled_tracker: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -21,13 +22,14 @@ const prefs: NotificationPreferences = {
 };
 
 describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
-  it("lists the six user-toggleable kinds and excludes security", () => {
+  it("lists the user-toggleable kinds and excludes security", () => {
     expect([...TOGGLEABLE_NOTIFICATION_KINDS]).toEqual([
       "message",
       "comment",
       "follow",
       "subscription",
       "content",
+      "tracker",
       "system",
     ]);
     expect(TOGGLEABLE_NOTIFICATION_KINDS).not.toContain("security");

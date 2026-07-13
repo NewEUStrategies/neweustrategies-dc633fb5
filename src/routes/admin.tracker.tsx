@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { POLICY_AREAS, STAGE_LABELS, stageLabel } from "@/lib/tracker/stages";
 import { EU_COUNTRIES, STANCE_META } from "@/lib/tracker/euCountries";
-import type { PolicyItem, PolicyPosition } from "@/lib/tracker/queries";
+import { POLICY_RELATIONS, type PolicyItem, type PolicyPosition } from "@/lib/tracker/queries";
 
 export const Route = createFileRoute("/admin/tracker")({
   component: AdminTrackerPage,
@@ -360,6 +360,11 @@ function AdminTrackerPage() {
                 {L("Edytuj", "Edit")}
               </Button>
               <PositionsButton itemId={it.id} label={L("Stanowiska", "Positions")} />
+              <LinksButton
+                itemId={it.id}
+                allItems={itemsQ.data ?? []}
+                label={L("Powiązania", "Links")}
+              />
               <AddUpdateButton itemId={it.id} label={L("Aktualizacja", "Update")} />
             </div>
           </div>
@@ -554,6 +559,163 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
           </Button>
           <Button variant="ghost" onClick={() => setOpen(false)}>
             {L("Anuluj", "Cancel")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Edytor powiązanych aktów: dodaj/usuń skierowaną krawędź do innego dossier
+// z typem relacji. Oba dossier muszą należeć do tego samego najemcy (guard DB).
+function LinksButton({
+  itemId,
+  allItems,
+  label,
+}: {
+  itemId: string;
+  allItems: PolicyItem[];
+  label: string;
+}) {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [targetId, setTargetId] = useState("");
+  const [relation, setRelation] = useState<string>("related");
+
+  const linksQ = useQuery({
+    queryKey: ["admin", "tracker-links", itemId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("eu_policy_links")
+        .select("related_item_id, relation")
+        .eq("item_id", itemId);
+      if (error) throw error;
+      return (data ?? []) as { related_item_id: string; relation: string }[];
+    },
+    enabled: open,
+  });
+
+  const titleOf = (id: string) => {
+    const it = allItems.find((i) => i.id === id);
+    if (!it) return id;
+    return lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
+  };
+
+  const addLink = useMutation({
+    mutationFn: async () => {
+      if (!targetId) return;
+      const { error } = await supabase
+        .from("eu_policy_links")
+        .upsert(
+          { item_id: itemId, related_item_id: targetId, relation },
+          { onConflict: "item_id,related_item_id" },
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setTargetId("");
+      void qc.invalidateQueries({ queryKey: ["admin", "tracker-links", itemId] });
+      void qc.invalidateQueries({ queryKey: ["tracker", "links", itemId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const removeLink = useMutation({
+    mutationFn: async (relatedId: string) => {
+      const { error } = await supabase
+        .from("eu_policy_links")
+        .delete()
+        .eq("item_id", itemId)
+        .eq("related_item_id", relatedId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "tracker-links", itemId] });
+      void qc.invalidateQueries({ queryKey: ["tracker", "links", itemId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  if (!open) {
+    return (
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        {label}
+      </Button>
+    );
+  }
+
+  const candidates = allItems.filter(
+    (i) => i.id !== itemId && !(linksQ.data ?? []).some((l) => l.related_item_id === i.id),
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-label={L("Powiązane akty", "Related files")}
+    >
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg bg-background shadow-lg">
+        <div className="border-b border-border/60 px-5 py-4">
+          <h3 className="text-base font-semibold">{L("Powiązane akty", "Related files")}</h3>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+          {(linksQ.data ?? []).map((l) => (
+            <div
+              key={l.related_item_id}
+              className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm"
+            >
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">{l.relation}</span>
+              <span className="truncate">{titleOf(l.related_item_id)}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto shrink-0 text-destructive"
+                onClick={() => removeLink.mutate(l.related_item_id)}
+              >
+                {L("Usuń", "Remove")}
+              </Button>
+            </div>
+          ))}
+          {(linksQ.data?.length ?? 0) === 0 && !linksQ.isLoading && (
+            <p className="text-sm text-muted-foreground">{L("Brak powiązań.", "No links yet.")}</p>
+          )}
+          <div className="grid gap-2 border-t border-border/60 pt-3 md:grid-cols-[1fr_10rem]">
+            <Select value={targetId} onValueChange={setTargetId}>
+              <SelectTrigger aria-label={L("Dossier", "Dossier")}>
+                <SelectValue placeholder={L("Wybierz dossier", "Choose a dossier")} />
+              </SelectTrigger>
+              <SelectContent>
+                {candidates.map((i) => (
+                  <SelectItem key={i.id} value={i.id}>
+                    {lang === "en" ? i.title_en || i.title_pl : i.title_pl || i.title_en}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={relation} onValueChange={setRelation}>
+              <SelectTrigger aria-label={L("Relacja", "Relation")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {POLICY_RELATIONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex gap-2 border-t border-border/60 px-5 py-4">
+          <Button disabled={!targetId || addLink.isPending} onClick={() => addLink.mutate()}>
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {L("Dodaj powiązanie", "Add link")}
+          </Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            {L("Zamknij", "Close")}
           </Button>
         </div>
       </div>

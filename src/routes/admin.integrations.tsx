@@ -327,10 +327,7 @@ function AdminIntegrationsPage() {
                 <li key={r.id} className="flex flex-col gap-3 py-3 md:flex-row md:items-center">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <WebhookIcon
-                        className="h-4 w-4 text-muted-foreground"
-                        aria-hidden
-                      />
+                      <WebhookIcon className="h-4 w-4 text-muted-foreground" aria-hidden />
                       <span className="font-medium">{r.name}</span>
                       <Badge variant="outline">{r.integration}</Badge>
                       {r.secret_id ? (
@@ -345,9 +342,7 @@ function AdminIntegrationsPage() {
                         </Badge>
                       )}
                     </div>
-                    <div className="mt-1 truncate text-xs text-muted-foreground">
-                      {r.url}
-                    </div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">{r.url}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {r.event_types.length === 0 ? (
                         <span className="text-xs italic text-muted-foreground">
@@ -366,9 +361,7 @@ function AdminIntegrationsPage() {
                     <label className="flex items-center gap-2 text-sm">
                       <Switch
                         checked={r.enabled}
-                        onCheckedChange={(v) =>
-                          toggleEnabled.mutate({ id: r.id, enabled: v })
-                        }
+                        onCheckedChange={(v) => toggleEnabled.mutate({ id: r.id, enabled: v })}
                         aria-label={L("Aktywny", "Enabled")}
                       />
                       <span className="text-muted-foreground">
@@ -462,19 +455,14 @@ function EndpointDialog({
 }) {
   if (!draft) return null;
   const set = (patch: Partial<DraftEndpoint>) => setDraft({ ...draft, ...patch });
-  const canSave =
-    draft.name.trim().length >= 2 &&
-    /^https:\/\//i.test(draft.url.trim()) &&
-    !saving;
+  const canSave = draft.name.trim().length >= 2 && /^https:\/\//i.test(draft.url.trim()) && !saving;
 
   return (
     <Dialog open={draft !== null} onOpenChange={(o) => (o ? undefined : setDraft(null))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {draft.id
-              ? L("Edytuj endpoint", "Edit endpoint")
-              : L("Nowy endpoint", "New endpoint")}
+            {draft.id ? L("Edytuj endpoint", "Edit endpoint") : L("Nowy endpoint", "New endpoint")}
           </DialogTitle>
           <DialogDescription>
             {L(
@@ -530,7 +518,10 @@ function EndpointDialog({
 
           <div className="grid gap-2">
             <Label htmlFor="int-events">
-              {L("Zdarzenia (oddzielone przecinkiem lub spacją)", "Events (comma or space separated)")}
+              {L(
+                "Zdarzenia (oddzielone przecinkiem lub spacją)",
+                "Events (comma or space separated)",
+              )}
             </Label>
             <Textarea
               id="int-events"
@@ -573,7 +564,10 @@ function EndpointDialog({
                 checked={draft.clear_secret}
                 onChange={(e) => set({ clear_secret: e.target.checked, new_secret: "" })}
               />
-              {L("Wyczyść sekret (endpoint będzie wysyłać bez podpisu)", "Clear secret (endpoint will send unsigned)")}
+              {L(
+                "Wyczyść sekret (endpoint będzie wysyłać bez podpisu)",
+                "Clear secret (endpoint will send unsigned)",
+              )}
             </label>
           </div>
         </div>
@@ -583,12 +577,12 @@ function EndpointDialog({
             {L("Anuluj", "Cancel")}
           </Button>
           <Button
-            onClick={() => onSave({ ...draft, name: nullifyEmpty(draft.name) ?? "", url: draft.url.trim() })}
+            onClick={() =>
+              onSave({ ...draft, name: nullifyEmpty(draft.name) ?? "", url: draft.url.trim() })
+            }
             disabled={!canSave}
           >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
             {L("Zapisz", "Save")}
           </Button>
         </DialogFooter>

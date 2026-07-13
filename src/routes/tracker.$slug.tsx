@@ -16,6 +16,7 @@ import {
   useItemPositions,
   useItemUpdates,
   useMyFollows,
+  useRelatedItems,
   useToggleFollowItem,
 } from "@/lib/tracker/queries";
 import { PolicyPositionsMap } from "@/components/tracker/PolicyPositionsMap";
@@ -168,6 +169,7 @@ function TrackerDetail() {
   const item = itemQ.data;
   const updatesQ = useItemUpdates(item?.id);
   const positionsQ = useItemPositions(item?.id);
+  const relatedQ = useRelatedItems(item?.id);
   const myFollows = useMyFollows(user?.id);
   const toggleFollow = useToggleFollowItem();
 
@@ -312,6 +314,33 @@ function TrackerDetail() {
             title={t("tracker.positions.title")}
             description={t("tracker.positions.description")}
           />
+        </section>
+      )}
+
+      {(relatedQ.data?.length ?? 0) > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">{t("tracker.related.title")}</h2>
+          <ul className="mt-3 flex flex-col gap-2">
+            {relatedQ.data!.map((r) => (
+              <li key={r.related_item_id}>
+                <Link
+                  to="/tracker/$slug"
+                  params={{ slug: r.slug }}
+                  className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm transition hover:border-primary/50 hover:bg-muted/40"
+                >
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    {t(`tracker.related.relation.${r.relation}`, { defaultValue: r.relation })}
+                  </Badge>
+                  <span className="truncate font-medium">
+                    {lang === "en" ? r.title_en || r.title_pl : r.title_pl || r.title_en}
+                  </span>
+                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                    {stageLabel(r.stage, lang)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

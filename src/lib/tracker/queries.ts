@@ -246,6 +246,190 @@ export function useItemPositions(itemId: string | undefined) {
   });
 }
 
+/** Stanowiska dla wielu dossier naraz (explorer/macierz koalicji). */
+export async function fetchPositionsForItems(itemIds: string[]): Promise<PolicyPosition[]> {
+  if (itemIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("eu_policy_positions")
+    .select(POSITION_FIELDS)
+    .in("item_id", itemIds);
+  if (error) throw error;
+  return (data ?? []) as unknown as PolicyPosition[];
+}
+
+export function usePositionsForItems(itemIds: string[]) {
+  const key = [...itemIds].sort().join(",");
+  return useQuery({
+    queryKey: ["tracker", "positions-bulk", key] as const,
+    queryFn: () => fetchPositionsForItems(itemIds),
+    staleTime: 60_000,
+    enabled: itemIds.length > 0,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Powiązane akty (relacje między dossier)
+// ---------------------------------------------------------------------------
+
+export const POLICY_RELATIONS = ["related", "amends", "implements", "supersedes"] as const;
+export type PolicyRelation = (typeof POLICY_RELATIONS)[number];
+
+export interface RelatedItem {
+  related_item_id: string;
+  relation: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  stage: string;
+}
+
+/** Powiązane, opublikowane dossier (RLS wymaga obu stron opublikowanych).
+ *  Embed PostgREST po kluczu obcym related_item_id -> eu_policy_items. */
+export async function fetchRelatedItems(itemId: string): Promise<RelatedItem[]> {
+  const { data, error } = await supabase
+    .from("eu_policy_links")
+    .select(
+      "related_item_id, relation, eu_policy_items!eu_policy_links_related_item_id_fkey(slug,title_pl,title_en,stage,status)",
+    )
+    .eq("item_id", itemId);
+  if (error) throw error;
+  type Row = {
+    related_item_id: string;
+    relation: string;
+    eu_policy_items: {
+      slug: string;
+      title_pl: string;
+      title_en: string;
+      stage: string;
+      status: string;
+    } | null;
+  };
+  return ((data ?? []) as unknown as Row[])
+    .filter((r) => r.eu_policy_items && r.eu_policy_items.status === "published")
+    .map((r) => ({
+      related_item_id: r.related_item_id,
+      relation: r.relation,
+      slug: r.eu_policy_items!.slug,
+      title_pl: r.eu_policy_items!.title_pl,
+      title_en: r.eu_policy_items!.title_en,
+      stage: r.eu_policy_items!.stage,
+    }));
+}
+
+export function useRelatedItems(itemId: string | undefined) {
+  return useQuery({
+    queryKey: ["tracker", "links", itemId ?? "none"] as const,
+    queryFn: () => fetchRelatedItems(itemId!),
+    staleTime: 60_000,
+    enabled: !!itemId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Globalny feed "co się zmieniło" (ostatnie aktualizacje wszystkich dossier)
+// ---------------------------------------------------------------------------
+
+export interface RecentUpdate {
+  id: string;
+  note_pl: string;
+  note_en: string;
+  stage_from: string | null;
+  stage_to: string | null;
+  source_url: string | null;
+  happened_on: string;
+  created_at: string;
+  item_slug: string;
+  item_title_pl: string;
+  item_title_en: string;
+  policy_area: string;
+}
+
+/** Ostatnie wpisy osi czasu ze WSZYSTKICH opublikowanych dossier.
+ *  RLS: eu_policy_updates public read wymaga opublikowanego dossier;
+ *  embed !inner odrzuca wpisy dla szkiców. */
+export async function fetchRecentUpdates(limit = 40): Promise<RecentUpdate[]> {
+  const { data, error } = await supabase
+    .from("eu_policy_updates")
+    .select(
+      "id,note_pl,note_en,stage_from,stage_to,source_url,happened_on,created_at," +
+        "eu_policy_items!inner(slug,title_pl,title_en,policy_area,status)",
+    )
+    .order("happened_on", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  type Row = {
+    id: string;
+    note_pl: string;
+    note_en: string;
+    stage_from: string | null;
+    stage_to: string | null;
+    source_url: string | null;
+    happened_on: string;
+    created_at: string;
+    eu_policy_items: {
+      slug: string;
+      title_pl: string;
+      title_en: string;
+      policy_area: string;
+      status: string;
+    } | null;
+  };
+  return ((data ?? []) as unknown as Row[])
+    .filter((r) => r.eu_policy_items && r.eu_policy_items.status === "published")
+    .map((r) => ({
+      id: r.id,
+      note_pl: r.note_pl,
+      note_en: r.note_en,
+      stage_from: r.stage_from,
+      stage_to: r.stage_to,
+      source_url: r.source_url,
+      happened_on: r.happened_on,
+      created_at: r.created_at,
+      item_slug: r.eu_policy_items!.slug,
+      item_title_pl: r.eu_policy_items!.title_pl,
+      item_title_en: r.eu_policy_items!.title_en,
+      policy_area: r.eu_policy_items!.policy_area,
+    }));
+}
+
+export function useRecentUpdates(limit = 40) {
+  return useQuery({
+    queryKey: ["tracker", "recent-updates", limit] as const,
+    queryFn: () => fetchRecentUpdates(limit),
+    staleTime: 60_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Statystyki trackera (dashboard) - RPC agregujący (same liczby, bez wierszy)
+// ---------------------------------------------------------------------------
+
+export interface TrackerStats {
+  total: number;
+  by_stage: Record<string, number>;
+  by_area: Record<string, number>;
+}
+
+export async function fetchTrackerStats(): Promise<TrackerStats> {
+  const { data, error } = await supabase.rpc("get_tracker_stats");
+  if (error) throw error;
+  const obj = (data ?? {}) as Partial<TrackerStats>;
+  return {
+    total: obj.total ?? 0,
+    by_stage: obj.by_stage ?? {},
+    by_area: obj.by_area ?? {},
+  };
+}
+
+export function useTrackerStats() {
+  return useQuery({
+    queryKey: ["tracker", "stats"] as const,
+    queryFn: fetchTrackerStats,
+    staleTime: 5 * 60_000,
+  });
+}
+
 /** Toggle obserwowania z invalidacją listy obserwacji i liczników. */
 export function useToggleFollowItem() {
   const queryClient = useQueryClient();

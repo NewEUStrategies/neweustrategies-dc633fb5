@@ -49,6 +49,40 @@ export const trackerPl = {
       description:
         "Zadeklarowane lub raportowane stanowiska rządów wobec tego dossier. Najedź na kraj lub otwórz tabelę danych.",
     },
+    related: {
+      title: "Powiązane akty",
+      relation: {
+        related: "Powiązane",
+        amends: "Nowelizuje",
+        implements: "Wdraża",
+        supersedes: "Zastępuje",
+      },
+    },
+    changes: {
+      title: "Co się zmieniło",
+      intro:
+        "Najnowsze aktualizacje wszystkich śledzonych dossier legislacyjnych UE - zmiany etapów i wpisy do osi czasu.",
+      empty: "Brak aktualizacji.",
+      loadMore: "Pokaż więcej",
+      today: "Dzisiaj",
+      yesterday: "Wczoraj",
+      viewDossier: "Zobacz dossier",
+    },
+    explorer: {
+      title: "Explorer stanowisk i koalicji",
+      intro:
+        "Przekrój stanowisk państw członkowskich wobec kluczowych dossier. Filtruj po obszarze polityki; kliknij dossier, aby zobaczyć mapę i oś czasu.",
+      allAreas: "Wszystkie obszary",
+      dossier: "Dossier",
+      noData: "Brak dossier ze stanowiskami dla wybranego filtra.",
+      stats: {
+        total: "Śledzone dossier",
+        byStage: "Wg etapu procedury",
+        byArea: "Wg obszaru polityki",
+      },
+      link: "Otwórz explorer",
+      changesLink: "Co się zmieniło",
+    },
   },
 };
 
@@ -93,6 +127,40 @@ export const trackerEn = {
       title: "Member state positions",
       description:
         "Declared or reported government positions on this file. Hover a country or open the data table.",
+    },
+    related: {
+      title: "Related files",
+      relation: {
+        related: "Related",
+        amends: "Amends",
+        implements: "Implements",
+        supersedes: "Supersedes",
+      },
+    },
+    changes: {
+      title: "What changed",
+      intro:
+        "The latest updates across all tracked EU legislative files - stage changes and timeline entries.",
+      empty: "No updates yet.",
+      loadMore: "Show more",
+      today: "Today",
+      yesterday: "Yesterday",
+      viewDossier: "View dossier",
+    },
+    explorer: {
+      title: "Positions & coalitions explorer",
+      intro:
+        "A cross-section of member state positions on key files. Filter by policy area; open a file for its map and timeline.",
+      allAreas: "All areas",
+      dossier: "Dossier",
+      noData: "No files with positions for the selected filter.",
+      stats: {
+        total: "Tracked files",
+        byStage: "By procedure stage",
+        byArea: "By policy area",
+      },
+      link: "Open explorer",
+      changesLink: "What changed",
     },
   },
 };
