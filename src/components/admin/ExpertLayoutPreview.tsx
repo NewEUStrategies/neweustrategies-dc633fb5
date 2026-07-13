@@ -160,7 +160,7 @@ function AvatarPlaceholder({
 }: {
   name: string;
   className?: string;
-  rounded-[6px]?: string;
+  rounded?: string;
 }) {
   const initials = (name || "?")
     .split(/\s+/)
@@ -171,7 +171,7 @@ function AvatarPlaceholder({
     .toUpperCase();
   return (
     <div
-      className={`${className} ${rounded-[6px]} flex items-center justify-center font-display text-2xl select-none`}
+      className={`${className} ${rounded} flex items-center justify-center font-display text-2xl select-none`}
       style={{
         background:
           "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 30%, transparent), color-mix(in oklab, var(--pv-accent) 10%, transparent))",
@@ -497,7 +497,7 @@ function ExpertMockup({
 
   const avatar = (className: string, rounded = "rounded-full") =>
     e.avatar_url ? (
-      <img src={e.avatar_url} alt={name} className={`${className} ${rounded-[6px]} object-cover`} />
+      <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
     ) : (
       <AvatarPlaceholder name={name} className={className} rounded-[6px]={rounded-[6px]} />
     );
