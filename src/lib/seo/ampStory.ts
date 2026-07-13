@@ -37,6 +37,18 @@ export function htmlEscape(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Page background colour is interpolated raw into `<style amp-custom>`. `<style>`
+// is a raw-text element, so a stored value like `red}</style><script>…` would
+// break out and run script. htmlEscape does NOT help inside <style> (entities
+// are not decoded there). Allow only characters that can appear in a real CSS
+// colour token (hex / rgb()/hsl() / named / var()) and cap the length; anything
+// else (`}`, `;`, `<`, `>`, quotes) collapses to a harmless fallback.
+export function safeCssColor(value: string | null | undefined): string {
+  const s = (value ?? "").trim();
+  if (!s) return "transparent";
+  return /^[#a-zA-Z0-9(),.%\s-]{1,64}$/.test(s) ? s : "transparent";
+}
+
 /** Poster pionowy jest w AMP wymagany: okładka, a w razie braku pierwsze medium. */
 export function resolvePosterPortrait(input: AmpStoryInput): string {
   const cover = input.story.cover_url?.trim();
@@ -109,7 +121,9 @@ export function buildAmpStoryHtml(input: AmpStoryInput): string {
   const hasVideo = story.pages.some((p) => p.background === "video" && p.media_url.trim() !== "");
 
   const colorRules = story.pages
-    .map((p, idx) => (p.background === "color" ? `.bg-${idx}{background-color:${p.color};}` : ""))
+    .map((p, idx) =>
+      p.background === "color" ? `.bg-${idx}{background-color:${safeCssColor(p.color)};}` : "",
+    )
     .filter(Boolean)
     .join("");
 

@@ -259,15 +259,26 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // email to a caller-supplied address, so it can be used to bomb inboxes /
     // burn the Resend quota (mirrors contact.functions.ts). Cap per client IP;
     // fail open when the IP is unknown rather than blocking legitimate users.
-    if (clientIp) {
+    {
       const { rateLimit } = await import("@/lib/server/rate-limit.server");
-      const allowed = await rateLimit({
+      // Per-IP cap. Fail CLOSED on unknown IP (shared bucket) so stripping or
+      // rotating the x-forwarded-for header cannot bypass the limit.
+      const ipOk = await rateLimit({
         scope: "newsletter.subscribe",
-        subjectId: clientIp,
+        subjectId: clientIp ?? "unknown-ip",
         max: 5,
         windowMinutes: 10,
       });
-      if (!allowed) return { ok: false, error: "rate_limited" };
+      if (!ipOk) return { ok: false, error: "rate_limited" };
+      // Per-RECIPIENT cap: the DOI email is sent to the submitted address, so
+      // this is the real inbox-bomb guard - it holds even across rotated IPs.
+      const recipientOk = await rateLimit({
+        scope: "newsletter.recipient",
+        subjectId: email.trim().toLowerCase(),
+        max: 3,
+        windowMinutes: 60,
+      });
+      if (!recipientOk) return { ok: false, error: "rate_limited" };
     }
 
     // `meta` is spread in only when present so a later signup (e.g. a plain form

@@ -59,7 +59,7 @@ export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
     for (const delivery of deliveries) {
       const { data: endpoint, error: endpointError } = await supabaseAdmin
         .from("integration_endpoints")
-        .select("url, secret, enabled")
+        .select("url, enabled")
         .eq("id", delivery.endpoint_id)
         .maybeSingle();
 
@@ -76,8 +76,15 @@ export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
           "content-type": "application/json",
           [EVENT_HEADER]: delivery.event_type,
         };
-        if (endpoint.secret) {
-          headers[SIGNATURE_HEADER] = await hmacSha256Hex(endpoint.secret, body);
+        // Signing secret now lives in Supabase Vault (migracja 20260714090000);
+        // read it via the service-role-only RPC, not a plaintext column.
+        const { data: secretVal } = await supabaseAdmin.rpc(
+          "integration_endpoint_get_secret" as never,
+          { _endpoint_id: delivery.endpoint_id } as never,
+        );
+        const signingSecret = typeof secretVal === "string" ? secretVal : null;
+        if (signingSecret) {
+          headers[SIGNATURE_HEADER] = await hmacSha256Hex(signingSecret, body);
         }
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);

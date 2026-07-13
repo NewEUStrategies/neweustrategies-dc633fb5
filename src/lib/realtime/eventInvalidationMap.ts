@@ -68,7 +68,29 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     pendingCounterKeys.user(ctx.userId),
     linkedItemsKeys.all,
   ],
+
+  // Events module: publish/cancel odświeża publiczne listy + panel admina.
+  "event.published.v1": () => eventKeys(),
+  "event.cancelled.v1": () => eventKeys(),
+
+  // EU policy tracker: aktualizacja dossier odświeża listy i oś czasu trackera.
+  "policy.updated.v1": () => [
+    ["tracker", "items"],
+    ["tracker", "item"],
+    ["tracker", "updates"],
+  ],
 };
+
+const eventKeysList: QueryKey[] = [
+  ["public-events"],
+  ["public-event"],
+  ["event-rsvp-counts"],
+  ["admin-community-events"],
+  ["admin-community-stats"],
+];
+function eventKeys(): QueryKey[] {
+  return eventKeysList;
+}
 
 /**
  * Klucze do inwalidacji dla zdarzenia; nieznany typ (nowszy backend, starszy

@@ -4,6 +4,7 @@ import {
   canBuildAmpStory,
   htmlEscape,
   resolvePosterPortrait,
+  safeCssColor,
   type AmpStoryInput,
 } from "@/lib/seo/ampStory";
 import { StoryPageSchema } from "@/lib/web-stories/types";
@@ -105,5 +106,40 @@ describe("canBuildAmpStory / resolvePosterPortrait", () => {
 describe("htmlEscape", () => {
   it("escapes AMP-breaking characters", () => {
     expect(htmlEscape(`<a href="x">&'`)).toBe("&lt;a href=&quot;x&quot;&gt;&amp;&#39;");
+  });
+});
+
+describe("safeCssColor", () => {
+  it("passes real CSS colour tokens through", () => {
+    const colors = [
+      "#fff",
+      "#ffffff",
+      "rgb(0,0,0)",
+      "rgba(0,0,0,.5)",
+      "hsl(210,50%,40%)",
+      "red",
+      "var(--brand)",
+    ];
+    for (const c of colors) {
+      expect(safeCssColor(c)).toBe(c);
+    }
+  });
+
+  it("collapses a </style> breakout payload to a harmless fallback", () => {
+    expect(safeCssColor(`red}</style><script>fetch('//evil')</script>`)).toBe("transparent");
+    expect(safeCssColor("blue;} body{display:none")).toBe("transparent");
+    expect(safeCssColor("")).toBe("transparent");
+  });
+
+  it("keeps the built AMP <style amp-custom> unbreakable for a hostile colour", () => {
+    const html = buildAmpStoryHtml(
+      input({
+        pages: [
+          page({ id: "p1", background: "color", color: `#000}</style><script>alert(1)</script>` }),
+        ],
+      }),
+    );
+    expect(html).not.toContain("</style><script>");
+    expect(html).not.toContain("alert(1)");
   });
 });
