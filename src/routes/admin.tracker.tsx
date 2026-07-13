@@ -2,12 +2,14 @@
 // czasu. Aktualizacja z ustawionym etapem przestawia etap dossier (trigger DB)
 // i wysyła alert obserwującym - stąd wyraźny komunikat po zapisie.
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Landmark, Plus, Save } from "lucide-react";
+import { BookOpen, Landmark, Plus, RefreshCw, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { runTrackerTickNow } from "@/lib/tracker-admin.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
