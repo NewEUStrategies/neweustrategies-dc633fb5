@@ -53,7 +53,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-export const Route = createFileRoute("/admin/newsletter/campaigns")({
+export const Route = createFileRoute("/admin/newsletter/campaigns/")({
   component: CampaignsList,
 });
 
