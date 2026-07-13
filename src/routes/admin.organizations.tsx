@@ -47,17 +47,9 @@ function AdminOrganizationsPage() {
   const { i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const L = tr(lang);
-  const qc = useQueryClient();
 
   const tiersQ = useMembershipTiers();
-  const tiers = useMemo<MembershipTierRow[]>(() => tiersQ.data ?? [], [tiersQ.data]);
-
-  // Warstwy organizacyjne: preferuj rangę >= 30 (korporacja / partner); gdy seed
-  // ich nie ma, pozwól wybrać spośród wszystkich aktywnych, by formularz działał.
-  const tierOptions = useMemo<MembershipTierRow[]>(() => {
-    const high = tiers.filter((t) => t.rank >= 30);
-    return high.length > 0 ? high : tiers;
-  }, [tiers]);
+  const tiers: MembershipTierRow[] = tiersQ.data ?? [];
 
   const tierLabel = (key: string): string => {
     const tier = tiers.find((t) => t.key === key);
@@ -65,53 +57,45 @@ function AdminOrganizationsPage() {
   };
 
   const orgsQ = useQuery({ queryKey: ORGS_KEY, queryFn: fetchOrganizations });
-
-  const createOrg = useMutation({
-    mutationFn: (input: {
-      name: string;
-      tier_key: string;
-      seats_limit: number;
-      contact_email: string | null;
-      note: string | null;
-    }) => createOrganization(input),
-    onSuccess: () => {
-      toast.success(L("Utworzono organizację", "Organization created"));
-      void qc.invalidateQueries({ queryKey: ORGS_KEY });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const orgs = orgsQ.data ?? [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Landmark className="h-6 w-6" aria-hidden="true" />
+          <h1 className="flex items-center gap-2 text-xl font-semibold">
+            <Landmark className="h-5 w-5" aria-hidden="true" />
             {L("Organizacje członkowskie", "Member organizations")}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
             {L(
-              "Członkostwo korporacyjne i partnerstwo strategiczne z wieloma kontami-miejscami. Sprzedaż prowadzona offline - tu zakładasz organizację i zarządzasz jej miejscami.",
-              "Corporate membership and strategic partnership with multiple seat accounts. Sold offline - here you set up the organization and manage its seats.",
+              "Członkostwo korporacyjne i partnerstwo strategiczne z wieloma kontami-miejscami. Sprzedaż offline - tu zakładasz organizację, zarządzasz brandingiem i miejscami.",
+              "Corporate membership and strategic partnership with multiple seat accounts. Sold offline - here you set up the organization, manage branding and seats.",
             )}
           </p>
         </div>
-        <NewOrgDialog
-          lang={lang}
-          tierOptions={tierOptions}
-          onCreate={(v) => createOrg.mutate(v)}
-          isPending={createOrg.isPending}
-        />
+        <Button size="sm" asChild>
+          <Link to="/admin/organizations/new">
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {L("Nowa organizacja", "New organization")}
+          </Link>
+        </Button>
       </header>
 
       {orgsQ.isLoading ? (
         <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
       ) : orgs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {L("Brak organizacji. Utwórz pierwszą.", "No organizations yet. Create the first one.")}
-        </p>
+        <div className="rounded-lg border border-dashed border-border/60 p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            {L("Brak organizacji. Utwórz pierwszą.", "No organizations yet. Create the first one.")}
+          </p>
+          <Button size="sm" className="mt-3" asChild>
+            <Link to="/admin/organizations/new">
+              <Plus className="mr-1.5 h-4 w-4" />
+              {L("Nowa organizacja", "New organization")}
+            </Link>
+          </Button>
+        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {orgs.map((org) => (
