@@ -126,7 +126,7 @@ function TrackerGuidePage() {
           </p>
           <p>
             {L(
-              "Endpoint /api/public/jobs-tick (autoryzowany sekretem z job_runner_settings) drenuje kolejkę push i wysyła digesty. W dev odpalisz go ręcznie przyciskiem „Uruchom tick teraz".",
+              `Endpoint /api/public/jobs-tick (autoryzowany sekretem z job_runner_settings) drenuje kolejkę push i wysyła digesty. W dev odpalisz go ręcznie przyciskiem „Uruchom tick teraz".`,
               `The /api/public/jobs-tick endpoint (secret-authorized via job_runner_settings) drains the push queue and dispatches digests. In dev run it via the "Run tick now" button.`,
             )}
           </p>
