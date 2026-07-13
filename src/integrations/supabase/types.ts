@@ -3133,6 +3133,8 @@ export type Database = {
           created_at: string
           digest_last_sent_at: string | null
           email_digest: string
+          email_digest_frequency: string
+          email_digest_last_at: string | null
           enabled_comment: boolean
           enabled_content: boolean
           enabled_follow: boolean
@@ -3155,6 +3157,8 @@ export type Database = {
           created_at?: string
           digest_last_sent_at?: string | null
           email_digest?: string
+          email_digest_frequency?: string
+          email_digest_last_at?: string | null
           enabled_comment?: boolean
           enabled_content?: boolean
           enabled_follow?: boolean
@@ -3177,6 +3181,8 @@ export type Database = {
           created_at?: string
           digest_last_sent_at?: string | null
           email_digest?: string
+          email_digest_frequency?: string
+          email_digest_last_at?: string | null
           enabled_comment?: boolean
           enabled_content?: boolean
           enabled_follow?: boolean
@@ -4877,6 +4883,48 @@ export type Database = {
           },
         ]
       }
+      push_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          dead_at: string | null
+          delivered_at: string | null
+          id: number
+          last_error: string | null
+          next_attempt_at: string
+          notification_id: string | null
+          payload: Json
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dead_at?: string | null
+          delivered_at?: string | null
+          id?: never
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id?: string | null
+          payload: Json
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dead_at?: string | null
+          delivered_at?: string | null
+          id?: never
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id?: string | null
+          payload?: Json
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string
@@ -6258,6 +6306,15 @@ export type Database = {
         Args: { p_command: string; p_key: string }
         Returns: Json
       }
+      claim_due_digest_users: {
+        Args: { p_limit?: number }
+        Returns: {
+          email: string
+          frequency: string
+          since: string
+          user_id: string
+        }[]
+      }
       claim_due_digests: {
         Args: { p_frequency: string; p_limit?: number }
         Returns: {
@@ -6307,6 +6364,28 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "notification_push_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_push_outbox: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          dead_at: string | null
+          delivered_at: string | null
+          id: number
+          last_error: string | null
+          next_attempt_at: string
+          notification_id: string | null
+          payload: Json
+          tenant_id: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "push_outbox"
           isOneToOne: false
           isSetofReturn: true
         }
