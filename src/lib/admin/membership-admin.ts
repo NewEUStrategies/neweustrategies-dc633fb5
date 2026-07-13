@@ -73,6 +73,22 @@ export interface OrgInput {
   seats_limit: number;
   contact_email: string | null;
   note: string | null;
+  slug?: string | null;
+  description?: string | null;
+  website_url?: string | null;
+  sector?: string | null;
+  city?: string | null;
+  country?: string | null;
+}
+
+export async function fetchOrganization(id: string): Promise<OrganizationRow | null> {
+  const { data, error } = await supabase
+    .from("member_organizations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 export async function createOrganization(input: OrgInput): Promise<OrganizationRow> {
