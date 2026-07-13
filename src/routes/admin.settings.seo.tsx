@@ -8,6 +8,10 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, NumberInput, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import {
+  LinkedSourceHeader,
+  LinkedImagePreview,
+} from "@/components/admin/settings/LinkedSource";
+import {
   AI_SEARCH_CRAWLERS,
   AI_TRAINING_CRAWLERS,
   DEFAULT_SEO_SETTINGS,
@@ -15,6 +19,10 @@ import {
   type SeoSettings,
 } from "@/lib/seo/settings";
 import { SITE_NAME } from "@/lib/seo/meta";
+
+type ThemeLogo = { main?: string; organization?: string };
+type ThemeOptionsShape = { logo?: ThemeLogo };
+const THEME_OPTIONS_DEFAULTS: ThemeOptionsShape = { logo: {} };
 
 export const Route = createFileRoute("/admin/settings/seo")({
   component: SeoSettingsTab,
