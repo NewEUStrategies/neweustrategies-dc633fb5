@@ -1060,7 +1060,7 @@ function SocialRow({
           href={s.href}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border hover:bg-muted"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-border hover:bg-muted"
           style={{ color: "var(--pv-accent)" }}
           aria-label={s.label}
         >
