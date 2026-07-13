@@ -48,6 +48,7 @@ import {
   Landmark,
   TrendingUp,
   HandHeart,
+  Cable,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -241,6 +242,13 @@ function AdminShellInner({
           to: "/admin/crm",
           icon: Users,
           label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
+        },
+        {
+          to: "/admin/integrations",
+          icon: Cable,
+          label: t("admin.nav.integrations", {
+            defaultValue: lang === "pl" ? "Integracje" : "Integrations",
+          }),
         },
       ],
     },
