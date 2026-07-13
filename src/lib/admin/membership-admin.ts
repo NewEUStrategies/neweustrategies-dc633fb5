@@ -73,6 +73,30 @@ export interface OrgInput {
   seats_limit: number;
   contact_email: string | null;
   note: string | null;
+  slug?: string | null;
+  description?: string | null;
+  website_url?: string | null;
+  sector?: string | null;
+  city?: string | null;
+  country?: string | null;
+  brand_primary?: string | null;
+  brand_accent?: string | null;
+  brand_ink?: string | null;
+  logo_h_light?: string | null;
+  logo_h_dark?: string | null;
+  logo_v_light?: string | null;
+  logo_v_dark?: string | null;
+  logo_favicon?: string | null;
+}
+
+export async function fetchOrganizationById(id: string): Promise<OrganizationRow | null> {
+  const { data, error } = await supabase
+    .from("member_organizations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 export async function createOrganization(input: OrgInput): Promise<OrganizationRow> {
@@ -85,6 +109,7 @@ export async function createOrganization(input: OrgInput): Promise<OrganizationR
   if (error) throw error;
   return data;
 }
+
 
 export async function updateOrganization(
   id: string,
