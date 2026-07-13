@@ -73,7 +73,7 @@ function PollsPage() {
       if (timer) return;
       timer = setTimeout(() => {
         timer = null;
-        qc.invalidateQueries({ queryKey: ["public-poll-votes"] });
+        qc.invalidateQueries({ queryKey: ["public-poll-results"] });
       }, 250);
     };
     const filter = `poll_id=in.(${ids.join(",")})`;
