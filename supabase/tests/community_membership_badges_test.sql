@@ -55,8 +55,8 @@ VALUES ('c1000000-0000-0000-0000-0000000000cc',
 SELECT is(
   (SELECT count(*)::int FROM public.membership_tiers
     WHERE tenant_id = 'c1111111-1111-1111-1111-111111111111'),
-  3,
-  'nowy tenant dostaje automatycznie reader/member/pro (trigger seedujacy)'
+  6,
+  'nowy tenant dostaje 6 warstw (reader/supporter/member/pro/corporate/partner)'
 );
 
 SELECT is(
@@ -80,7 +80,7 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::int FROM public.membership_tiers
     WHERE tenant_id = (SELECT public.public_tenant_id()) AND active),
-  3,
+  6,
   'anon widzi aktywne warstwy publicznego tenanta'
 );
 
