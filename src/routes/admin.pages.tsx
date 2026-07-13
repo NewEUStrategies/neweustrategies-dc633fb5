@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Home, Undo2, X } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Home, Undo2, X, Download } from "@/lib/lucide-shim";
+import { WordPressImportDialog } from "@/components/admin/WordPressImportDialog";
 import {
   deletePage,
   bulkDeletePages,
@@ -377,11 +378,21 @@ function PagesList() {
             {total} {t("admin.pages.count")}
           </p>
         </div>
-        <Link to="/admin/pages/new">
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-1.5" /> {t("admin.pages.new")}
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <WordPressImportDialog
+            trigger={
+              <Button size="sm" variant="outline">
+                <Download className="w-4 h-4 mr-1.5" />
+                {t("admin.pages.importWp", { defaultValue: "Import z WordPress" })}
+              </Button>
+            }
+          />
+          <Link to="/admin/pages/new">
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-1.5" /> {t("admin.pages.new")}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs
