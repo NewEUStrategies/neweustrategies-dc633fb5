@@ -918,10 +918,10 @@ function ChannelsSettings({
             </p>
           </div>
           <Select
-            value={prefs.email_digest_frequency}
+            value={prefs.email_digest}
             onValueChange={(v) =>
               onPatch({
-                email_digest_frequency: v as NotificationPreferences["email_digest_frequency"],
+                email_digest: v as NotificationPreferences["email_digest"],
               })
             }
             disabled={pending}
