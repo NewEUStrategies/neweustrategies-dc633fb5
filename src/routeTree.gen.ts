@@ -94,6 +94,7 @@ import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
 import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaways'
+import { Route as AdminIntegrationsRouteImport } from './routes/admin.integrations'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
@@ -592,6 +593,11 @@ const AdminKeyTakeawaysRoute = AdminKeyTakeawaysRouteImport.update({
   path: '/key-takeaways',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminIntegrationsRoute = AdminIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminImportWordpressRoute = AdminImportWordpressRouteImport.update({
   id: '/import-wordpress',
   path: '/import-wordpress',
@@ -1013,6 +1019,7 @@ export interface FileRoutesByFullPath {
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
@@ -1169,6 +1176,7 @@ export interface FileRoutesByTo {
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
@@ -1326,6 +1334,7 @@ export interface FileRoutesById {
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
@@ -1487,6 +1496,7 @@ export interface FileRouteTypes {
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
+    | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/live-blog'
     | '/admin/login-settings'
@@ -1643,6 +1653,7 @@ export interface FileRouteTypes {
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
+    | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/live-blog'
     | '/admin/login-settings'
@@ -1799,6 +1810,7 @@ export interface FileRouteTypes {
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
+    | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/live-blog'
     | '/admin/login-settings'
@@ -2570,6 +2582,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminKeyTakeawaysRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/integrations': {
+      id: '/admin/integrations'
+      path: '/integrations'
+      fullPath: '/admin/integrations'
+      preLoaderRoute: typeof AdminIntegrationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/import-wordpress': {
       id: '/admin/import-wordpress'
       path: '/import-wordpress'
@@ -3262,6 +3281,7 @@ interface AdminRouteChildren {
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
+  AdminIntegrationsRoute: typeof AdminIntegrationsRoute
   AdminKeyTakeawaysRoute: typeof AdminKeyTakeawaysRoute
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
@@ -3312,6 +3332,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
+  AdminIntegrationsRoute: AdminIntegrationsRoute,
   AdminKeyTakeawaysRoute: AdminKeyTakeawaysRoute,
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,

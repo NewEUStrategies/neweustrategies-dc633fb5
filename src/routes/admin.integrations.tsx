@@ -554,8 +554,8 @@ function EndpointDialog({
             </div>
             <p className="text-xs text-muted-foreground">
               {L(
-                "Sekret trzymamy w Vault - platforma go nigdy nie zwraca do przeglądarki. Wpisz nową wartość, żeby ustawić lub zrotować; zaznacz „wyczyść", żeby usunąć podpisywanie.",
-                "Secret lives in Vault — the platform never returns it to the browser. Type a new value to set or rotate it; tick \"clear\" to remove signing.",
+                'Sekret trzymamy w Vault - platforma go nigdy nie zwraca do przeglądarki. Wpisz nową wartość, żeby ustawić lub zrotować; zaznacz "wyczyść", żeby usunąć podpisywanie.',
+                'Secret lives in Vault - the platform never returns it to the browser. Type a new value to set or rotate it; tick "clear" to remove signing.',
               )}
             </p>
             <Input
