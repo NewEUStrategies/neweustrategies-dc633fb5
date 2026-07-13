@@ -7,8 +7,9 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft, Check, Star, XCircle } from "lucide-react";
+import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft, Check, Star, XCircle, BadgeCheck, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getPublicTenantId } from "@/lib/community/tenant";
 import {
   fetchEventAccess,
   fetchEventRsvpCounts,
