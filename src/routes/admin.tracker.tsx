@@ -2,12 +2,14 @@
 // czasu. Aktualizacja z ustawionym etapem przestawia etap dossier (trigger DB)
 // i wysyła alert obserwującym - stąd wyraźny komunikat po zapisie.
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Landmark, Plus, Save } from "lucide-react";
+import { BookOpen, Landmark, Plus, RefreshCw, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { runTrackerTickNow } from "@/lib/tracker-admin.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -100,6 +102,18 @@ function AdminTrackerPage() {
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_ITEM);
   const set = (patch: Partial<ItemDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
+  const runTick = useServerFn(runTrackerTickNow);
+  const runTickMut = useMutation({
+    mutationFn: () => runTick(),
+    onSuccess: (res) => {
+      const pushSent = typeof res.push === "object" && "sent" in res.push ? res.push.sent : 0;
+      toast.success(
+        L(`Tick uruchomiony. Wysłano push: ${pushSent}`, `Tick complete. Push sent: ${pushSent}`),
+      );
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const startNew = () => {
     setEditingId("new");
     setDraft(EMPTY_ITEM);
@@ -165,10 +179,22 @@ function AdminTrackerPage() {
             )}
           </p>
         </div>
-        <Button onClick={startNew}>
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {L("Nowe dossier", "New dossier")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/admin/tracker-guide">
+              <BookOpen className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {L("Jak to działa?", "How it works?")}
+            </Link>
+          </Button>
+          <Button variant="outline" onClick={() => runTickMut.mutate()} disabled={runTickMut.isPending}>
+            <RefreshCw className={`mr-1.5 h-4 w-4 ${runTickMut.isPending ? "animate-spin" : ""}`} aria-hidden="true" />
+            {L("Uruchom tick teraz", "Run tick now")}
+          </Button>
+          <Button onClick={startNew}>
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {L("Nowe dossier", "New dossier")}
+          </Button>
+        </div>
       </header>
 
       {editingId && (
