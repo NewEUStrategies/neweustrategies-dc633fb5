@@ -169,6 +169,76 @@ export async function fetchPublishedPodcasts(
   );
 }
 
+export interface PublishedWebStoryRow {
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  description_pl: string;
+  description_en: string;
+  cover_url: string | null;
+  pages: unknown;
+  published_at: string | null;
+  updated_at: string | null;
+}
+
+/** Pojedyncza opublikowana web story (wariant AMP renderuje ją server-side). */
+export async function fetchPublishedWebStoryBySlug(
+  tenantId: string,
+  slug: string,
+): Promise<PublishedWebStoryRow | null> {
+  return edgeTtlCache(`seo:web-story:${tenantId}:${slug}`, CACHE_TTL_MS, () =>
+    resilient("web-story", null, async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("web_stories")
+        .select(
+          "slug, title_pl, title_en, description_pl, description_en, cover_url, pages, published_at, updated_at",
+        )
+        .eq("tenant_id", tenantId)
+        .eq("slug", slug)
+        .eq("status", "published")
+        .maybeSingle();
+      return (data ?? null) as PublishedWebStoryRow | null;
+    }),
+  );
+}
+
+/**
+ * Rozmiar + MIME plików z biblioteki mediów po public_url. Podcastowy RSS
+ * wymaga `<enclosure length type>` - dla odcinków wgranych przez media
+ * library mamy prawdziwe wartości; URL-e zewnętrzne pozostają bez dopasowania
+ * (feed emituje wtedy length=0 + MIME z rozszerzenia, jak dotąd).
+ */
+export async function fetchMediaMetaByUrls(
+  tenantId: string,
+  urls: readonly string[],
+): Promise<Map<string, { sizeBytes: number | null; mimeType: string | null }>> {
+  const unique = Array.from(new Set(urls.filter((u) => !!u)));
+  if (unique.length === 0) return new Map();
+  return edgeTtlCache(
+    `seo:media-meta:${tenantId}:${unique.slice().sort().join("|").slice(0, 512)}`,
+    CACHE_TTL_MS,
+    () =>
+      resilient("media-meta", new Map(), async () => {
+        const supabaseAdmin = await getSupabaseAdmin();
+        const { data } = await supabaseAdmin
+          .from("media")
+          .select("public_url, size_bytes, mime_type")
+          .eq("tenant_id", tenantId)
+          .in("public_url", unique);
+        const map = new Map<string, { sizeBytes: number | null; mimeType: string | null }>();
+        for (const row of (data ?? []) as Array<{
+          public_url: string;
+          size_bytes: number | null;
+          mime_type: string | null;
+        }>) {
+          map.set(row.public_url, { sizeBytes: row.size_bytes, mimeType: row.mime_type });
+        }
+        return map;
+      }),
+  );
+}
+
 /** Site-wide SEO settings read server-side (service role, no RLS surprises). */
 export async function fetchSeoSettingsValue(tenantId: string): Promise<unknown> {
   return edgeTtlCache(`seo:settings:${tenantId}`, CACHE_TTL_MS, () =>

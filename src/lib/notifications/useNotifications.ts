@@ -301,12 +301,13 @@ export function useUpdateNotificationPreferences() {
         .maybeSingle();
       if (pErr) throw pErr;
       if (!profile?.tenant_id) throw new Error("Profile tenant not found");
+      // email_digest_frequency jest nowsze niż wygenerowane typy -> cast.
       const { error } = await supabase.from("notification_preferences").upsert(
         {
           user_id: user.id,
           tenant_id: profile.tenant_id,
           ...patch,
-        },
+        } as never,
         { onConflict: "user_id" },
       );
       if (error) throw error;

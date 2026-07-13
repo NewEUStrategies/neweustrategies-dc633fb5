@@ -27,6 +27,7 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as LiveRouteImport } from './routes/live'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ContributeRouteImport } from './routes/contribute'
@@ -106,6 +107,7 @@ import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
+import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -249,6 +251,11 @@ const LoginRoute = LoginRouteImport.update({
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   id: '/llms.txt',
   path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveRoute = LiveRouteImport.update({
+  id: '/live',
+  path: '/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedRoute = FeedRouteImport.update({
@@ -646,6 +653,11 @@ const AdminAuthorsRoute = AdminAuthorsRouteImport.update({
   path: '/authors',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAudienceRoute = AdminAudienceRouteImport.update({
+  id: '/audience',
+  path: '/audience',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAppearanceRoute = AdminAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -937,6 +949,7 @@ export interface FileRoutesByFullPath {
   '/contribute': typeof ContributeRoute
   '/events': typeof EventsRouteWithChildren
   '/feed': typeof FeedRoute
+  '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
@@ -959,6 +972,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
+  '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -1089,6 +1103,7 @@ export interface FileRoutesByTo {
   '/contribute': typeof ContributeRoute
   '/events': typeof EventsRouteWithChildren
   '/feed': typeof FeedRoute
+  '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
@@ -1110,6 +1125,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
+  '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -1238,6 +1254,7 @@ export interface FileRoutesById {
   '/contribute': typeof ContributeRoute
   '/events': typeof EventsRouteWithChildren
   '/feed': typeof FeedRoute
+  '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
@@ -1260,6 +1277,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
+  '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -1393,6 +1411,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/events'
     | '/feed'
+    | '/live'
     | '/llms.txt'
     | '/login'
     | '/mcp'
@@ -1415,6 +1434,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/appearance'
+    | '/admin/audience'
     | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -1545,6 +1565,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/events'
     | '/feed'
+    | '/live'
     | '/llms.txt'
     | '/login'
     | '/mcp'
@@ -1566,6 +1587,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/appearance'
+    | '/admin/audience'
     | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -1693,6 +1715,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/events'
     | '/feed'
+    | '/live'
     | '/llms.txt'
     | '/login'
     | '/mcp'
@@ -1715,6 +1738,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/appearance'
+    | '/admin/audience'
     | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -1847,6 +1871,7 @@ export interface RootRouteChildren {
   ContributeRoute: typeof ContributeRoute
   EventsRoute: typeof EventsRouteWithChildren
   FeedRoute: typeof FeedRoute
+  LiveRoute: typeof LiveRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
@@ -2024,6 +2049,13 @@ declare module '@tanstack/react-router' {
       path: '/llms.txt'
       fullPath: '/llms.txt'
       preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live': {
+      id: '/live'
+      path: '/live'
+      fullPath: '/live'
+      preLoaderRoute: typeof LiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed': {
@@ -2579,6 +2611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuthorsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/audience': {
+      id: '/admin/audience'
+      path: '/audience'
+      fullPath: '/admin/audience'
+      preLoaderRoute: typeof AdminAudienceRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/appearance': {
       id: '/admin/appearance'
       path: '/appearance'
@@ -3129,6 +3168,7 @@ const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
 interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
+  AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
@@ -3177,6 +3217,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAdsRoute: AdminAdsRoute,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
+  AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
@@ -3285,6 +3326,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContributeRoute: ContributeRoute,
   EventsRoute: EventsRouteWithChildren,
   FeedRoute: FeedRoute,
+  LiveRoute: LiveRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,

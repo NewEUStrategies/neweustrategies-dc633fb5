@@ -13,6 +13,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
@@ -396,6 +397,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             first_name: string | null;
             last_name: string | null;
             avatar_url: string | null;
+            bio_pl: string | null;
+            bio_en: string | null;
             author_profile?: {
               avatar_url: string | null;
               job_title: string | null;
@@ -584,8 +587,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           avatarUrl: postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? undefined,
           jobTitle: postAuthor.author_profile?.job_title ?? undefined,
           company: postAuthor.author_profile?.company ?? undefined,
-          bio_pl: postAuthor.author_profile?.bio_pl ?? undefined,
-          bio_en: postAuthor.author_profile?.bio_en ?? undefined,
+          bio_pl:
+            preferCanonicalBio(postAuthor.bio_pl, postAuthor.author_profile?.bio_pl) ?? undefined,
+          bio_en:
+            preferCanonicalBio(postAuthor.bio_en, postAuthor.author_profile?.bio_en) ?? undefined,
           contactEmail: postAuthor.author_profile?.contact_email ?? undefined,
           phone: postAuthor.author_profile?.phone ?? undefined,
           websiteUrl: postAuthor.author_profile?.website_url ?? undefined,
@@ -791,9 +796,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                           avatar_url:
                             postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? null,
                           bio:
-                            (lang === "en"
-                              ? postAuthor.author_profile?.bio_en
-                              : postAuthor.author_profile?.bio_pl) ?? null,
+                            lang === "en"
+                              ? preferCanonicalBio(
+                                  postAuthor.bio_en,
+                                  postAuthor.author_profile?.bio_en,
+                                )
+                              : preferCanonicalBio(
+                                  postAuthor.bio_pl,
+                                  postAuthor.author_profile?.bio_pl,
+                                ),
                         }
                       : null
                   }

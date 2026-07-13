@@ -332,6 +332,13 @@ function AdminShellInner({
             items: [
               { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
               {
+                to: "/admin/audience",
+                icon: TrendingUp,
+                label: t("admin.nav.audience", {
+                  defaultValue: lang === "pl" ? "Audytorium / retencja" : "Audience / retention",
+                }),
+              },
+              {
                 to: "/admin/seo",
                 icon: Search,
                 label: t("admin.nav.seo", { defaultValue: "SEO" }),

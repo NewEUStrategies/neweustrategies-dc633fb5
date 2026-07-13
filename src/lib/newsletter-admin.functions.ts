@@ -94,3 +94,64 @@ export const importNewsletterSubscribers = createServerFn({ method: "POST" })
 
     return { ok: true, imported, skipped, errors };
   });
+
+// ----------------------------------------------------------------------------
+// Job runner (automatyczny tick wysyłki) - konfiguracja pojedynczego wiersza
+// job_runner_settings. Tabela jest service-role-only; te funkcje są jedynym
+// interfejsem (staff). Sekret pokazujemy TYLKO adminom - jest wpinany w
+// cron/pg_net po stronie bazy, a tu służy wyłącznie diagnostyce.
+// ----------------------------------------------------------------------------
+
+export interface JobRunnerSettings {
+  enabled: boolean;
+  base_url: string;
+  /** Podgląd sekretu (pierwsze 6 znaków) - pełny sekret nie opuszcza serwera. */
+  secret_preview: string;
+  updated_at: string | null;
+}
+
+export const getJobRunnerSettings = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .handler(async (): Promise<JobRunnerSettings> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("job_runner_settings" as never)
+      .select("enabled, base_url, secret, updated_at")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const row = (data ?? null) as {
+      enabled: boolean;
+      base_url: string;
+      secret: string;
+      updated_at: string | null;
+    } | null;
+    return {
+      enabled: row?.enabled ?? false,
+      base_url: row?.base_url ?? "",
+      secret_preview: row?.secret ? `${row.secret.slice(0, 6)}…` : "",
+      updated_at: row?.updated_at ?? null,
+    };
+  });
+
+const JobRunnerUpdate = z.object({
+  enabled: z.boolean(),
+  base_url: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => v === "" || /^https:\/\/[^\s]+$/i.test(v), "https_url_required"),
+});
+
+export const updateJobRunnerSettings = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((data: unknown) => JobRunnerUpdate.parse(data))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("job_runner_settings" as never)
+      .update({ enabled: data.enabled, base_url: data.base_url.replace(/\/+$/, "") } as never)
+      .eq("id", 1);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

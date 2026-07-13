@@ -5,7 +5,7 @@ import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
-import { Globe, Linkedin } from "lucide-react";
+import { BadgeCheck, Globe, Linkedin } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
@@ -106,6 +106,20 @@ function AuthorArchivePage() {
               <div className="flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <h1 className="font-display text-3xl lg:text-4xl">{name}</h1>
+                  {author.verified_at && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300"
+                      title={t("people.verifiedBadge", {
+                        defaultValue:
+                          lang === "pl"
+                            ? "Profil zweryfikowany zawodowo"
+                            : "Professionally verified profile",
+                      })}
+                    >
+                      <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
+                      {lang === "pl" ? "Zweryfikowany" : "Verified"}
+                    </span>
+                  )}
                   {personalized.followInAuthorHeader && (
                     <FollowButton targetType="author" targetId={author.id} lang={lang} />
                   )}

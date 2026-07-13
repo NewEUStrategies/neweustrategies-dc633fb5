@@ -769,7 +769,9 @@ function BlockView({
     case "toc": {
       const cols = String(block.data.columns ?? "col-1");
       const columns = (cols === "col-2" || cols === "half" ? cols : "col-1") as
-        "col-1" | "col-2" | "half";
+        | "col-1"
+        | "col-2"
+        | "half";
       return (
         <div className={cls}>
           <TocBlockView
@@ -789,7 +791,8 @@ function BlockView({
       const title = String(block.data.title ?? "");
       const description = String(block.data.description ?? "");
       const variant = (String(block.data.variant ?? "card") === "inline" ? "inline" : "card") as
-        "card" | "inline";
+        | "card"
+        | "inline";
       return (
         <section
           className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}

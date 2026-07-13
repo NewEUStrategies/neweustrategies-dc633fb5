@@ -51,10 +51,14 @@ export interface AuthorProfile {
   twitter_url: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  /** Weryfikacja zawodowa nadana przez admina (odznaka przy nazwisku). */
+  verified_at: string | null;
 }
 
+// verified_at jest nowsze niż wygenerowane typy (migracja 20260713160000),
+// stąd rzutowania wyników poniżej.
 const PROFILE_COLS =
-  "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url";
+  "id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -71,7 +75,7 @@ export const authorBySlugQueryOptions = (slugOrId: string, limit: number = ARCHI
         .eq("slug", slugOrId)
         .maybeSingle();
       if (bySlug.error) throw bySlug.error;
-      let prof = bySlug.data;
+      let prof = bySlug.data as AuthorProfile | null;
       if (!prof && UUID_RE.test(slugOrId)) {
         const byId = await supabase
           .from("profiles")
@@ -79,7 +83,7 @@ export const authorBySlugQueryOptions = (slugOrId: string, limit: number = ARCHI
           .eq("id", slugOrId)
           .maybeSingle();
         if (byId.error) throw byId.error;
-        prof = byId.data;
+        prof = byId.data as AuthorProfile | null;
       }
       if (!prof) return null;
 

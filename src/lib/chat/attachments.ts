@@ -112,7 +112,7 @@ export async function uploadChatAttachment(params: {
   // Server-side upload rate limit (20/min per user). Uploads land in storage
   // BEFORE the message row exists, so the message rate-limit trigger cannot
   // gate them - this RPC is the enforcement point against storage abuse.
-  const { error: quotaError } = await supabase.rpc("chat_check_upload_quota");
+  const { error: quotaError } = await supabase.rpc("chat_check_upload_quota" as never);
   if (quotaError) throw new Error("chat-attachment:rate-limited");
 
   const path = `${tenantId}/${conversationId}/${userId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;

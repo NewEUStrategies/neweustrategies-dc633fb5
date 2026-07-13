@@ -140,6 +140,9 @@ interface PostAuthor {
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
+  /** Kanoniczne bio z profiles (author_profiles.bio_* to tylko legacy fallback). */
+  bio_pl: string | null;
+  bio_en: string | null;
   author_profile?: AuthorProfileOverlay | null;
 }
 
@@ -392,7 +395,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           const [{ data: authorRow }, { data: apRow }] = await Promise.all([
             supabase
               .from("profiles")
-              .select("id, slug, display_name, first_name, last_name, avatar_url")
+              .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
               .eq("id", post.author_id)
               .maybeSingle(),
             supabase

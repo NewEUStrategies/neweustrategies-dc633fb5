@@ -32,7 +32,9 @@ import {
   Music2,
   Camera,
   Loader2,
+  BadgeCheck,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import {
   BADGE_ORDER,
@@ -70,6 +72,38 @@ function UserDetail() {
       return { ...row, roles: (row.roles ?? []) as Role[] };
     },
   });
+
+  // Weryfikacja zawodowa - kolumna nowsza niż wygenerowane typy (20260713160000).
+  const verificationQ = useQuery({
+    queryKey: ["admin-user-verification", id],
+    queryFn: async (): Promise<{ verified_at: string | null }> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("verified_at" as never)
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? { verified_at: null }) as { verified_at: string | null };
+    },
+  });
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const setVerified = async (next: boolean) => {
+    setVerifyBusy(true);
+    const { error } = await supabase.rpc(
+      "admin_set_profile_verification" as never,
+      {
+        p_user_id: id,
+        p_verified: next,
+      } as never,
+    );
+    setVerifyBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(t("admin.saved", { defaultValue: L("Zapisano", "Saved") }));
+    qc.invalidateQueries({ queryKey: ["admin-user-verification", id] });
+  };
 
   const changeRole = async (role: Role) => {
     const { error } = await supabase.rpc("change_user_role", {

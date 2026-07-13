@@ -19,12 +19,18 @@ export interface PeopleFilters {
   specialization: string | null;
   company: string | null;
   location: string | null;
+  /** Rola/stanowisko (kolumna profiles.job_title). */
+  jobTitle: string | null;
+  /** Tylko profile z weryfikacją zawodową (profiles.verified_at). */
+  verifiedOnly: boolean;
 }
 
 export const EMPTY_PEOPLE_FILTERS: PeopleFilters = {
   specialization: null,
   company: null,
   location: null,
+  jobTitle: null,
+  verifiedOnly: false,
 };
 
 const PAGE_SIZE = 24;
@@ -45,12 +51,15 @@ export function usePeopleDirectory(
       filters.specialization,
       filters.company,
       filters.location,
+      filters.jobTitle,
+      filters.verifiedOnly,
       pageSize,
     ],
     enabled: !!user,
     staleTime: 30_000,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PersonHit[]> => {
+      // p_job_title/p_verified_only są nowsze niż wygenerowane typy - stąd cast.
       const { data, error } = await supabase.rpc("search_people", {
         p_query: q,
         p_specialization: filters.specialization ?? undefined,
@@ -58,9 +67,11 @@ export function usePeopleDirectory(
         p_location: filters.location ?? undefined,
         p_limit: pageSize,
         p_offset: pageParam,
-      });
+        p_job_title: filters.jobTitle ?? undefined,
+        p_verified_only: filters.verifiedOnly || undefined,
+      } as never);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as PersonHit[];
     },
     getNextPageParam: (lastPage, allPages) => {
       const total = lastPage[0]?.total_count ?? 0;
@@ -74,6 +85,7 @@ export interface PeopleFacets {
   specialization: { value: string; cnt: number }[];
   company: { value: string; cnt: number }[];
   location: { value: string; cnt: number }[];
+  job_title: { value: string; cnt: number }[];
 }
 
 export function usePeopleFacets(): UseQueryResult<PeopleFacets> {
@@ -85,9 +97,19 @@ export function usePeopleFacets(): UseQueryResult<PeopleFacets> {
     queryFn: async (): Promise<PeopleFacets> => {
       const { data, error } = await supabase.rpc("people_filter_options");
       if (error) throw error;
-      const facets: PeopleFacets = { specialization: [], company: [], location: [] };
+      const facets: PeopleFacets = {
+        specialization: [],
+        company: [],
+        location: [],
+        job_title: [],
+      };
       for (const row of data ?? []) {
-        if (row.field === "specialization" || row.field === "company" || row.field === "location") {
+        if (
+          row.field === "specialization" ||
+          row.field === "company" ||
+          row.field === "location" ||
+          row.field === "job_title"
+        ) {
           facets[row.field].push({ value: row.value, cnt: row.cnt });
         }
       }

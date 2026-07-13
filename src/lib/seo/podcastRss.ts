@@ -12,6 +12,10 @@ export interface PodcastRssItem {
   publishedAt: string | null;
   /** Absolute audio URL (the enclosure). */
   audioUrl: string;
+  /** Real file size in bytes (enclosure length); null/0 falls back to "0". */
+  audioBytes?: number | null;
+  /** Stored MIME (media library); null falls back to extension sniffing. */
+  audioMime?: string | null;
   /** Duration in seconds (emitted as itunes:duration). */
   durationSeconds: number;
   season?: number | null;
@@ -82,10 +86,14 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
       lines.push(`      <description>${xmlEscape(description)}</description>`);
       lines.push(`      <itunes:summary>${xmlEscape(description)}</itunes:summary>`);
     }
-    // RSS wymaga length; nie przechowujemy rozmiaru pliku, więc 0 (dopuszczalne
-    // przez większość agregatorów) - type wyprowadzany z rozszerzenia pliku.
+    // RSS wymaga length: dla plików z biblioteki mediów znamy prawdziwy rozmiar
+    // i MIME; dla URL-i zewnętrznych 0 (dopuszczalne przez większość
+    // agregatorów) + MIME z rozszerzenia pliku.
+    const length =
+      item.audioBytes != null && item.audioBytes > 0 ? String(Math.floor(item.audioBytes)) : "0";
+    const mime = item.audioMime?.trim() || enclosureMimeType(item.audioUrl);
     lines.push(
-      `      <enclosure url="${xmlEscape(item.audioUrl)}" length="0" type="${enclosureMimeType(item.audioUrl)}"/>`,
+      `      <enclosure url="${xmlEscape(item.audioUrl)}" length="${length}" type="${xmlEscape(mime)}"/>`,
     );
     if (item.durationSeconds > 0) {
       lines.push(

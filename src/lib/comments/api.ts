@@ -34,28 +34,76 @@ export function canEditComment(c: CommentWithAuthor, currentUserId: string | nul
   );
 }
 
+const COMMENT_COLS =
+  "id, post_id, user_id, parent_id, body, status, created_at, updated_at, edited_at, tenant_id";
+
+/** Safety ceiling for replies fetched under one page of threads (PostgREST caps at 1000 anyway). */
+const REPLIES_FETCH_CAP = 1000;
+
+export interface PostCommentsPage {
+  /** Windowed top-level comments plus ALL replies of those parents, oldest-first. */
+  comments: CommentWithAuthor[];
+  /** Total top-level threads visible to the caller (drives "load more"). */
+  topLevelCount: number;
+  /** Total approved comments for the post (honest header count, incl. beyond the window). */
+  approvedCount: number;
+}
+
 /**
- * Fetch approved comments for a post, plus the caller's own pending replies
- * (RLS-permitted via `comments_own_select`). Sorted oldest-first at the top
- * level; children stay adjacent to their parent for a stable 1-level tree.
+ * Fetch a page of comment THREADS for a post: `topLevelLimit` oldest top-level
+ * comments plus every reply belonging to them. Includes the caller's own
+ * pending rows (RLS-permitted via `comments_own_select`).
  *
- * `limit` windows the flat (parents + replies) list oldest-first; the caller
- * grows it for "load more" pagination. Replies whose parent falls outside the
- * window are dropped by the tree assembly - same as the previous fixed cap.
+ * Paginating threads (instead of windowing the flat parents+replies list, as
+ * before) guarantees a reply is never fetched without its parent - the old
+ * flat window dropped such replies at tree assembly, so around the window
+ * boundary threads appeared to lose answers.
  */
-export async function fetchPostComments(postId: string, limit = 500): Promise<CommentWithAuthor[]> {
-  const { data, error } = await supabase
+export async function fetchPostComments(
+  postId: string,
+  topLevelLimit = 50,
+): Promise<PostCommentsPage> {
+  const {
+    data: parentData,
+    error: parentError,
+    count: topLevelCount,
+  } = await supabase
     .from("comments")
-    .select(
-      "id, post_id, user_id, parent_id, body, status, created_at, updated_at, edited_at, tenant_id",
-    )
+    .select(COMMENT_COLS, { count: "exact" })
     .eq("post_id", postId)
     .in("status", ["approved", "pending"])
+    .is("parent_id", null)
     .order("created_at", { ascending: true })
-    .limit(limit);
-  if (error) throw error;
-  const rows = (data ?? []) as CommentRow[];
-  if (rows.length === 0) return [];
+    .order("id", { ascending: true })
+    .limit(topLevelLimit);
+  if (parentError) throw parentError;
+  const parents = (parentData ?? []) as CommentRow[];
+
+  const [repliesRes, approvedRes] = await Promise.all([
+    parents.length > 0
+      ? supabase
+          .from("comments")
+          .select(COMMENT_COLS)
+          .in(
+            "parent_id",
+            parents.map((r) => r.id),
+          )
+          .in("status", ["approved", "pending"])
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .limit(REPLIES_FETCH_CAP)
+      : Promise.resolve({ data: [] as CommentRow[], error: null }),
+    supabase
+      .from("comments")
+      .select("id", { count: "exact", head: true })
+      .eq("post_id", postId)
+      .eq("status", "approved"),
+  ]);
+  if (repliesRes.error) throw repliesRes.error;
+  const rows = [...parents, ...((repliesRes.data ?? []) as CommentRow[])];
+  if (rows.length === 0) {
+    return { comments: [], topLevelCount: topLevelCount ?? 0, approvedCount: 0 };
+  }
 
   const authorIds = Array.from(new Set(rows.map((r) => r.user_id)));
   const { data: profiles } = await supabase
@@ -71,7 +119,11 @@ export async function fetchPostComments(postId: string, limit = 500): Promise<Co
       slug: p.slug ?? null,
     });
   }
-  return rows.map((r) => ({ ...r, author: byId.get(r.user_id) ?? null }));
+  return {
+    comments: rows.map((r) => ({ ...r, author: byId.get(r.user_id) ?? null })),
+    topLevelCount: topLevelCount ?? parents.length,
+    approvedCount: approvedRes.count ?? 0,
+  };
 }
 
 export async function createComment(input: {

@@ -7,7 +7,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye, EyeOff, MapPin, MessageCircle, Search, Users, X } from "lucide-react";
+import { BadgeCheck, Eye, EyeOff, MapPin, MessageCircle, Search, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -235,7 +235,11 @@ function PeopleInner() {
   // Sygnały zaufania: odznaki dla całej widocznej partii jednym zapytaniem.
   const badgesQ = useBadgesForUsers(people.map((p) => p.id));
   const hasActiveFilters =
-    filters.specialization !== null || filters.company !== null || filters.location !== null;
+    filters.specialization !== null ||
+    filters.company !== null ||
+    filters.location !== null ||
+    filters.jobTitle !== null ||
+    filters.verifiedOnly;
 
   if (!user) return null;
 
@@ -281,12 +285,30 @@ function PeopleInner() {
           ariaLabel={t("people.filterCompany")}
         />
         <FacetSelect
+          value={filters.jobTitle}
+          onChange={(next) => setFilters((f) => ({ ...f, jobTitle: next }))}
+          options={facetsQ.data?.job_title ?? []}
+          allLabel={t("people.allJobTitles")}
+          ariaLabel={t("people.filterJobTitle")}
+        />
+        <FacetSelect
           value={filters.location}
           onChange={(next) => setFilters((f) => ({ ...f, location: next }))}
           options={facetsQ.data?.location ?? []}
           allLabel={t("people.allLocations")}
           ariaLabel={t("people.filterLocation")}
         />
+        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border border-input bg-muted/30 px-3 text-xs">
+          <Switch
+            checked={filters.verifiedOnly}
+            onCheckedChange={(next) => setFilters((f) => ({ ...f, verifiedOnly: next }))}
+            aria-label={t("people.verifiedOnly")}
+          />
+          <span className="inline-flex items-center gap-1">
+            <BadgeCheck className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" aria-hidden />
+            {t("people.verifiedOnly")}
+          </span>
+        </label>
         {hasActiveFilters && (
           <Button
             type="button"
