@@ -84,68 +84,70 @@ const LABELS: Record<Lang, Record<string, string>> = {
 // tego, czy wybrany ekspert ma wypełnione pola.
 const PLACEHOLDER = {
   pl: {
-    bio: "To miejsce wypełni pełna biografia eksperta - dorobek, obszary badawcze, ważne publikacje, doświadczenie zawodowe oraz osiągnięcia. Tekst dostosowuje się do wybranego layoutu.",
-    role: "Ekspert · Instytucja",
+    bio: "Dr Anna Kowalska jest starszą analityczką w zespole polityki europejskiej New European Strategies. Specjalizuje się w polityce bezpieczeństwa UE, relacjach transatlantyckich oraz strategicznej autonomii Europy. Autorka ponad 40 publikacji recenzowanych, komentatorka w czołowych mediach europejskich, doradczyni instytucji publicznych oraz think-tanków. Przed dołączeniem do NES pracowała w Ministerstwie Spraw Zagranicznych oraz w Parlamencie Europejskim, gdzie kierowała zespołem doradczym ds. polityki wschodniej. Regularnie występuje na konferencjach Munich Security Conference, GLOBSEC oraz Warsaw Security Forum.",
+    role: "Starsza analityczka · New European Strategies",
     email: "kontakt@przyklad.pl",
     mediaEmail: "media@przyklad.pl",
-    phone: "+48 000 000 000",
+    phone: "+48 22 000 00 00",
     website: "przyklad.pl",
-    areas: ["Bezpieczeństwo", "Polityka UE", "Gospodarka", "Energetyka"],
+    areas: ["Bezpieczeństwo europejskie", "Polityka UE", "Relacje transatlantyckie", "Strategia i geopolityka"],
     mentions: [
-      { outlet: "Rzeczpospolita", title: "Komentarz eksperta w kontekście polityki UE", date: "2026-06-12" },
-      { outlet: "TVP Info", title: "Rozmowa o bezpieczeństwie regionalnym", date: "2026-05-30" },
-      { outlet: "Gazeta Wyborcza", title: "Analiza sytuacji gospodarczej", date: "2026-05-14" },
+      { outlet: "Rzeczpospolita", title: "Komentarz eksperta w kontekście polityki bezpieczeństwa UE", date: "2026-06-12" },
+      { outlet: "Politico Europe", title: "Interview: Europe's strategic autonomy in 2026", date: "2026-05-30" },
+      { outlet: "TVN24", title: "Rozmowa o wojnie hybrydowej i odporności państw NATO", date: "2026-05-14" },
+      { outlet: "Financial Times", title: "Op-ed: How EU should respond to shifting alliances", date: "2026-04-28" },
     ],
     podcasts: [
-      { title: "Rozmowy o Europie - odcinek 12", date: "2026-06-01" },
-      { title: "Bezpieczeństwo XXI wieku", date: "2026-05-18" },
-      { title: "Strategia i geopolityka", date: "2026-04-22" },
+      { title: "Rozmowy o Europie - odc. 12: Nowy porządek bezpieczeństwa", date: "2026-06-01" },
+      { title: "Strategy Talks - Ekspertka o polityce wschodniej", date: "2026-05-18" },
+      { title: "Bezpieczeństwo XXI wieku - Cyfrowa suwerenność UE", date: "2026-04-22" },
     ],
     materials: [
-      "Raport roczny 2026",
-      "Analiza polityki zagranicznej",
-      "Studium przypadku - energetyka",
-      "Prezentacja: Nowa strategia UE",
-      "Wywiad ekspercki",
-      "Publikacja naukowa",
+      "Raport roczny 2026 - Bezpieczeństwo europejskie",
+      "Analiza: Polityka zagraniczna UE po 2025",
+      "Studium przypadku - Energetyka i geopolityka",
+      "Prezentacja: Nowa strategia UE wobec Wschodu",
+      "Wywiad ekspercki - Munich Security Conference",
+      "Publikacja naukowa - Journal of European Studies",
     ],
     programs: [
-      { name: "Program badawczy: Bezpieczeństwo", role: "Kierownik" },
-      { name: "Inicjatywa Europa 2030", role: "Ekspert" },
-      { name: "Panel gospodarczy", role: "Członek" },
-      { name: "Projekt energetyczny", role: "Konsultant" },
+      { name: "Program badawczy: Bezpieczeństwo Europy", role: "Kierowniczka" },
+      { name: "Inicjatywa Europa 2030", role: "Ekspertka" },
+      { name: "Panel gospodarczy NES", role: "Członkini" },
+      { name: "Projekt energetyczny", role: "Konsultantka" },
     ],
   },
   en: {
-    bio: "This is where the expert's full biography appears - achievements, research areas, key publications, professional experience, and awards. The text adapts to the selected layout.",
-    role: "Expert · Institution",
+    bio: "Dr. Anna Kowalska is a Senior Fellow at New European Strategies, where she leads research on European security policy, transatlantic relations, and Europe's strategic autonomy. She is the author of more than 40 peer-reviewed publications, a regular commentator in major European media, and an adviser to public institutions and leading think tanks. Prior to joining NES she served at the Ministry of Foreign Affairs and at the European Parliament, where she led the advisory team on Eastern policy. She is a recurring speaker at the Munich Security Conference, GLOBSEC, and Warsaw Security Forum.",
+    role: "Senior Fellow · New European Strategies",
     email: "contact@example.com",
     mediaEmail: "media@example.com",
-    phone: "+1 000 000 000",
+    phone: "+1 202 000 0000",
     website: "example.com",
-    areas: ["Security", "EU policy", "Economy", "Energy"],
+    areas: ["European security", "EU policy", "Transatlantic relations", "Strategy & geopolitics"],
     mentions: [
-      { outlet: "The Times", title: "Expert commentary on EU policy", date: "2026-06-12" },
-      { outlet: "Reuters", title: "Interview on regional security", date: "2026-05-30" },
-      { outlet: "The Guardian", title: "Analysis of economic trends", date: "2026-05-14" },
+      { outlet: "The Times", title: "Expert commentary on EU security policy", date: "2026-06-12" },
+      { outlet: "Politico Europe", title: "Interview: Europe's strategic autonomy in 2026", date: "2026-05-30" },
+      { outlet: "Reuters", title: "Analysis: Hybrid warfare and NATO resilience", date: "2026-05-14" },
+      { outlet: "Financial Times", title: "Op-ed: How the EU should respond to shifting alliances", date: "2026-04-28" },
     ],
     podcasts: [
-      { title: "Europe Talks - episode 12", date: "2026-06-01" },
-      { title: "21st Century Security", date: "2026-05-18" },
-      { title: "Strategy and Geopolitics", date: "2026-04-22" },
+      { title: "Europe Talks - ep. 12: A new security order", date: "2026-06-01" },
+      { title: "Strategy Talks - Eastern policy revisited", date: "2026-05-18" },
+      { title: "21st Century Security - EU digital sovereignty", date: "2026-04-22" },
     ],
     materials: [
-      "Annual report 2026",
-      "Foreign policy analysis",
-      "Case study - energy",
-      "Presentation: New EU strategy",
-      "Expert interview",
-      "Scientific publication",
+      "Annual report 2026 - European security",
+      "Analysis: EU foreign policy after 2025",
+      "Case study - Energy and geopolitics",
+      "Presentation: A new EU Eastern strategy",
+      "Expert interview - Munich Security Conference",
+      "Scientific publication - Journal of European Studies",
     ],
     programs: [
-      { name: "Research program: Security", role: "Lead" },
+      { name: "Research programme: European Security", role: "Lead" },
       { name: "Europe 2030 initiative", role: "Expert" },
-      { name: "Economic panel", role: "Member" },
+      { name: "NES economic panel", role: "Member" },
       { name: "Energy project", role: "Consultant" },
     ],
   },
@@ -174,7 +176,8 @@ function AvatarPlaceholder({
         background:
           "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 30%, transparent), color-mix(in oklab, var(--pv-accent) 10%, transparent))",
         color: "var(--pv-accent)",
-        border: "2px solid var(--pv-accent)",
+        border: "2px dashed var(--pv-accent)",
+        boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--pv-accent) 25%, transparent)",
       }}
       aria-hidden
     >
@@ -190,6 +193,7 @@ function CoverPlaceholder({ className = "" }: { className?: string }) {
       style={{
         background:
           "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 40%, transparent) 0%, color-mix(in oklab, var(--pv-accent) 15%, transparent) 60%, transparent 100%), repeating-linear-gradient(45deg, rgba(0,0,0,0.04) 0 8px, transparent 8px 16px)",
+        border: "1px dashed color-mix(in oklab, var(--pv-accent) 45%, transparent)",
       }}
       aria-hidden
     />
@@ -205,6 +209,7 @@ export function ExpertLayoutPreview({
 }) {
   const [lang, setLang] = useState<Lang>("pl");
   const [theme, setTheme] = useState<Theme>("light");
+  const [showPlaceholders, setShowPlaceholders] = useState<boolean>(true);
   // 'draft' = mockup napędzany niezapisanym `local`; 'published' = iframe
   // z realnie opublikowaną stroną /author/$slug. Po każdym zapisie
   // automatycznie przełączamy na 'published', żeby administrator widział
@@ -319,11 +324,19 @@ export function ExpertLayoutPreview({
             value={theme}
             onChange={(v) => setTheme(v as Theme)}
           />
+          <ToggleGroup
+            options={[
+              { v: "on", label: lang === "en" ? "Sample: on" : "Przykład: wł" },
+              { v: "off", label: lang === "en" ? "Sample: off" : "Przykład: wył" },
+            ]}
+            value={showPlaceholders ? "on" : "off"}
+            onChange={(v) => setShowPlaceholders(v === "on")}
+          />
           {mode === "published" && (
             <button
               type="button"
               onClick={() => setIframeNonce((n) => n + 1)}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] border border-border text-[11px] hover:bg-muted"
               title="Odśwież iframe"
             >
               Odśwież
@@ -334,7 +347,7 @@ export function ExpertLayoutPreview({
               href={publicHref}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] border border-border text-[11px] hover:bg-muted"
               title={lang === "en" ? "Open in a new tab" : "Otwórz w nowej karcie"}
             >
               <ExternalLink className="h-3 w-3" />
@@ -351,12 +364,12 @@ export function ExpertLayoutPreview({
           value={slug}
           onChange={(e) => setSlug(e.target.value.trim())}
           placeholder={sampleSlug ?? "np. jan-kowalski"}
-          className="mt-1 w-full max-w-xs px-2 py-1.5 rounded border border-input bg-background text-xs font-mono text-foreground"
+          className="mt-1 w-full max-w-xs px-2 py-1.5 rounded-[6px] border border-input bg-background text-xs font-mono text-foreground"
         />
       </label>
 
       <div
-        className={`rounded-lg border border-border overflow-hidden shadow-sm ${theme === "dark" && mode === "draft" ? "dark" : ""}`}
+        className={`rounded-[6px] border border-border overflow-hidden shadow-sm ${theme === "dark" && mode === "draft" ? "dark" : ""}`}
         style={previewStyle}
       >
         {mode === "published" ? (
@@ -389,6 +402,7 @@ export function ExpertLayoutPreview({
                 heroBg={heroBg}
                 heroText={heroText}
                 maxWidth={settings.max_width}
+                showPlaceholders={showPlaceholders}
               />
             )}
 
@@ -399,7 +413,7 @@ export function ExpertLayoutPreview({
                     if (!isSectionVisible(settings, key)) return null;
                     if (key === "hero_cover") return null;
                     return (
-                      <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} />
+                      <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} showPlaceholders={showPlaceholders} />
                     );
                   })}
                 </div>
@@ -427,7 +441,7 @@ function ToggleGroup<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex rounded border border-border overflow-hidden text-[11px]">
+    <div className="inline-flex rounded-[6px] border border-border overflow-hidden text-[11px]">
       {options.map((o, i) => (
         <button
           key={o.v}
@@ -453,6 +467,7 @@ function ExpertMockup({
   heroBg,
   heroText,
   maxWidth,
+  showPlaceholders,
 }: {
   hub: ExpertHubData;
   settings: ExpertLayoutSettings;
@@ -460,15 +475,17 @@ function ExpertMockup({
   heroBg: string | null;
   heroText: string | null;
   maxWidth: number;
+  showPlaceholders: boolean;
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const e = hub.expert;
   const ph = PLACEHOLDER[lang];
-  const name = e.display_name ?? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert");
+  const name = e.display_name ?? (showPlaceholders ? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert") : "");
   const role = e.job_title ?? "";
   const company = e.company ?? "";
-  const roleLine = [role, company].filter(Boolean).join(" · ") || ph.role;
-  const bioText = (lang === "en" ? e.bio_en : e.bio_pl) ?? ph.bio;
+  const realRoleLine = [role, company].filter(Boolean).join(" · ");
+  const roleLine = realRoleLine || (showPlaceholders ? ph.role : "");
+  const bioText = (lang === "en" ? e.bio_en : e.bio_pl) ?? (showPlaceholders ? ph.bio : "");
   const hasCover = Boolean(e.cover_url);
 
   const heroStyle: React.CSSProperties = {
@@ -480,7 +497,12 @@ function ExpertMockup({
 
   const avatar = (className: string, rounded = "rounded-full") =>
     e.avatar_url ? (
-      <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
+      <img
+        src={e.avatar_url}
+        alt={name}
+        className={`${className} ${rounded} object-cover`}
+        style={{ border: "2px solid var(--pv-accent)", boxShadow: "0 0 0 3px color-mix(in oklab, var(--pv-accent) 12%, transparent)" }}
+      />
     ) : (
       <AvatarPlaceholder name={name} className={className} rounded={rounded} />
     );
@@ -520,7 +542,7 @@ function ExpertMockup({
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
-            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-md")}</div>
+            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]")}</div>
             <div>
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
@@ -540,10 +562,10 @@ function ExpertMockup({
       <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
         <div className={`grid gap-6 ${preset.sidebar === "right" ? "md:grid-cols-[1fr_260px]" : "md:grid-cols-[260px_1fr]"}`}>
           <aside
-            className={`rounded-lg border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
+            className={`rounded-[6px] border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
             style={heroStyle}
           >
-            {avatar("h-28 w-28", "rounded")}
+            {avatar("h-28 w-28", "rounded-[6px]")}
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
@@ -576,10 +598,10 @@ function ExpertMockup({
     return (
       <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
         <div
-          className="rounded-xl border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
+          className="rounded-[6px] border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
           style={heroStyle}
         >
-          {avatar("h-24 w-24", "rounded-lg")}
+          {avatar("h-24 w-24", "rounded-[6px]")}
           <div className={centered ? "text-center mx-auto" : ""}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
@@ -624,21 +646,33 @@ function ExpertMockup({
     );
   }
 
-  // classic (split)
+  // classic (CSIS) — think-tank editorial: cienki akcent, wyraźna ramka avatara,
+  // spokojna typografia, subtelna linia oddzielająca hero od reszty.
   return (
-    <div style={heroStyle}>
-      <div className="mx-auto px-4 py-8" style={{ maxWidth }}>
-        <div className={`flex flex-col md:flex-row gap-5 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
-          <div style={{ outline: e.avatar_url ? "2px solid var(--pv-accent)" : undefined }}>
-            {avatar("h-32 w-32 md:h-40 md:w-32", "rounded-sm")}
+    <div style={heroStyle} className="border-b border-border/60">
+      <div className="mx-auto px-4 py-10" style={{ maxWidth }}>
+        <div className="h-0.5 w-12 mb-5" style={{ backgroundColor: "var(--pv-accent)" }} />
+        <div className={`flex flex-col md:flex-row gap-6 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
+          <div className="shrink-0">
+            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]")}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
+            <p
+              className="text-[11px] uppercase tracking-[0.18em] mb-1"
+              style={{ color: "var(--pv-accent)" }}
+            >
+              {lang === "en" ? "Expert profile" : "Profil eksperta"}
+            </p>
+            <h1
+              className="font-display leading-[1.05]"
+              style={{ fontSize: settings.name_size_lg }}
+            >
               {name}
             </h1>
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            <p className="mt-2 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
               {roleLine}
             </p>
+            <div className="mt-3 h-px w-full bg-border/60" />
             <SocialRow expert={e} className={`mt-3 ${centered ? "justify-center" : ""}`} />
           </div>
         </div>
@@ -653,11 +687,13 @@ function SectionRenderer({
   hub,
   settings,
   lang,
+  showPlaceholders,
 }: {
   k: ExpertSectionKey;
   hub: ExpertHubData;
   settings: ExpertLayoutSettings;
   lang: Lang;
+  showPlaceholders: boolean;
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const wrap = (title: React.ReactNode, icon: React.ReactNode, children: React.ReactNode) => {
@@ -672,7 +708,7 @@ function SectionRenderer({
     );
     if (preset.id === "card-stack") {
       return (
-        <section className="rounded-lg border border-border bg-card p-4 shadow-sm space-y-3">
+        <section className="rounded-[6px] border border-border bg-card p-4 shadow-sm space-y-3">
           {inner}
         </section>
       );
@@ -685,7 +721,7 @@ function SectionRenderer({
   const ph = PLACEHOLDER[lang];
   const placeholderTag = (
     <span
-      className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+      className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-[6px]"
       style={{ backgroundColor: "color-mix(in oklab, var(--pv-accent) 15%, transparent)", color: "var(--pv-accent)" }}
     >
       {t.placeholder}
@@ -699,12 +735,13 @@ function SectionRenderer({
           ? hub.areas.map((a) => (lang === "en" ? a.name_en : a.name_pl))
           : ph.areas;
       const isPlaceholder = hub.areas.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       return (
         <div className="flex flex-wrap gap-1.5 items-center">
           {areas.map((label, i) => (
             <span
               key={`${label}-${i}`}
-              className="text-xs px-2 py-1 rounded-full border"
+              className="text-xs px-2 py-1 rounded-[6px] border"
               style={{ borderColor: "var(--pv-accent)", color: "var(--pv-accent)" }}
             >
               {label}
@@ -717,6 +754,7 @@ function SectionRenderer({
     case "details": {
       const bio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
       const isPlaceholder = !bio;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.bio}
@@ -731,6 +769,7 @@ function SectionRenderer({
     case "social_row": {
       const hasAny =
         e.website_url || e.linkedin_url || e.twitter_url || e.contact_email;
+      if (!hasAny && !showPlaceholders) return null;
       return wrap(
         <>
           Social
@@ -758,6 +797,7 @@ function SectionRenderer({
       const hasContact = e.contact_email || e.website_url;
       const hasMedia = e.media_contact_email || e.media_contact_phone;
       const isPlaceholder = !hasContact && !hasMedia;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.contact}
@@ -765,7 +805,7 @@ function SectionRenderer({
         </>,
         <Mail className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
-          <div className="rounded border border-border p-3 space-y-1">
+          <div className="rounded-[6px] border border-border p-3 space-y-1">
             <div className="flex items-center gap-2">
               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
               {e.contact_email ?? ph.email}
@@ -775,7 +815,7 @@ function SectionRenderer({
               {e.website_url ? e.website_url.replace(/^https?:\/\//, "") : ph.website}
             </div>
           </div>
-          <div className="rounded border border-border p-3 space-y-1">
+          <div className="rounded-[6px] border border-border p-3 space-y-1">
             <div className="text-xs font-semibold">{t.mediaContact}</div>
             <div className="flex items-center gap-2">
               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
@@ -795,13 +835,14 @@ function SectionRenderer({
           ? hub.mediaMentions.slice(0, 4).map((m) => ({ outlet: m.outlet, title: m.title, date: m.published_on }))
           : ph.mentions;
       const isPlaceholder = hub.mediaMentions.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.inMedia}
           {isPlaceholder && placeholderTag}
         </>,
         <Newspaper className="h-4 w-4" />,
-        <ul className="divide-y divide-border/60 rounded border border-border">
+        <ul className="divide-y divide-border/60 rounded-[6px] border border-border">
           {items.map((m, i) => (
             <li key={i} className="px-3 py-2 text-sm flex justify-between gap-3">
               <div className="min-w-0">
@@ -819,6 +860,7 @@ function SectionRenderer({
     case "podcast_strip": {
       const podcasts = hub.materials.filter((m) => m.kind === "podcast").slice(0, 3);
       const isPlaceholder = podcasts.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       const items = isPlaceholder
         ? ph.podcasts
         : podcasts.map((p) => ({ title: (lang === "en" ? p.title_en : p.title_pl) ?? "", date: p.date ?? "" }));
@@ -830,7 +872,7 @@ function SectionRenderer({
         <Mic className="h-4 w-4" />,
         <div className="grid sm:grid-cols-3 gap-3">
           {items.map((p, i) => (
-            <div key={i} className="rounded border border-border p-3 text-sm">
+            <div key={i} className="rounded-[6px] border border-border p-3 text-sm">
               <div className="font-medium truncate">{p.title}</div>
               {p.date && <div className="text-xs text-muted-foreground mt-1">{p.date}</div>}
             </div>
@@ -841,6 +883,7 @@ function SectionRenderer({
     case "materials": {
       const real = hub.materials.slice(0, 6);
       const isPlaceholder = real.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
           {t.materials}
@@ -850,7 +893,7 @@ function SectionRenderer({
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {isPlaceholder
             ? ph.materials.map((title, i) => (
-                <div key={i} className="rounded border border-border overflow-hidden bg-card">
+                <div key={i} className="rounded-[6px] border border-border overflow-hidden bg-card">
                   <CoverPlaceholder className="w-full h-24" />
                   <div className="p-2 text-sm">
                     <div className="text-[10px] uppercase text-muted-foreground">
@@ -861,7 +904,7 @@ function SectionRenderer({
                 </div>
               ))
             : real.map((m) => (
-                <div key={m.id} className="rounded border border-border overflow-hidden bg-card">
+                <div key={m.id} className="rounded-[6px] border border-border overflow-hidden bg-card">
                   {m.cover_url ? (
                     <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />
                   ) : (
@@ -879,6 +922,7 @@ function SectionRenderer({
       );
     }
     case "cv": {
+      if (!showPlaceholders) return null;
       return wrap(
         <>
           {t.cv}
@@ -887,7 +931,7 @@ function SectionRenderer({
         <GraduationCap className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded border border-border p-3">
+            <div key={i} className="rounded-[6px] border border-border p-3">
               <div className="flex items-center gap-2">
                 <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--pv-accent)" }} />
                 <span className="font-medium">
@@ -904,6 +948,7 @@ function SectionRenderer({
     }
     case "programs": {
       const isPlaceholder = hub.programs.length === 0;
+      if (isPlaceholder && !showPlaceholders) return null;
       const items = isPlaceholder
         ? ph.programs
         : hub.programs.slice(0, 6).map((p) => ({
@@ -918,7 +963,7 @@ function SectionRenderer({
         <Briefcase className="h-4 w-4" />,
         <ul className="grid sm:grid-cols-2 gap-2">
           {items.map((p, i) => (
-            <li key={i} className="rounded border border-border p-2 text-sm">
+            <li key={i} className="rounded-[6px] border border-border p-2 text-sm">
               <div className="font-medium">{p.name}</div>
               {p.role && <div className="text-xs text-muted-foreground">{p.role}</div>}
             </li>
