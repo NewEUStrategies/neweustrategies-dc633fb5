@@ -15,6 +15,7 @@ import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, ShieldAlert } from "lucide-react";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
+import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import type { OrgFunction } from "@/lib/experts/types";
 import "@/lib/i18n-experts";
@@ -209,16 +210,15 @@ function AuthorProfilePage() {
     );
   }
 
-  const upload = async (file: File) => {
+  const upload = async (blob: Blob) => {
     if (!user || !tenantId) return;
-    if (file.size > MAX_AVATAR) {
+    if (blob.size > MAX_AVATAR) {
       toast.error(t("profile.account.fileTooLarge"));
       return;
     }
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${tenantId}/users/${user.id}/author-avatar-${Date.now()}.${ext}`;
+      const path = `${tenantId}/users/${user.id}/author-avatar-${Date.now()}.jpg`;
       const { data: signed, error: signErr } = await supabase.storage
         .from("media")
         .createSignedUploadUrl(path);
@@ -226,14 +226,14 @@ function AuthorProfilePage() {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", signed.signedUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("Content-Type", blob.type || "image/jpeg");
         xhr.setRequestHeader("x-upsert", "true");
         xhr.onload = () =>
           xhr.status >= 200 && xhr.status < 300
             ? resolve()
             : reject(new Error(`HTTP ${xhr.status}`));
         xhr.onerror = () => reject(new Error("network"));
-        xhr.send(file);
+        xhr.send(blob);
       });
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       setData((d) => ({ ...d, avatar_url: pub.publicUrl }));
@@ -244,6 +244,9 @@ function AuthorProfilePage() {
       setUploading(false);
     }
   };
+
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -428,9 +431,23 @@ function AuthorProfilePage() {
                   hidden
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) void upload(f);
+                    if (f) {
+                      setPendingFile(f);
+                      setCropOpen(true);
+                    }
                     e.target.value = "";
                   }}
+                />
+                <ImageCropDialog
+                  open={cropOpen}
+                  file={pendingFile}
+                  kind="avatar"
+                  preset={CROP_PRESETS.avatar}
+                  onOpenChange={(o) => {
+                    setCropOpen(o);
+                    if (!o) setPendingFile(null);
+                  }}
+                  onConfirm={(blob) => void upload(blob)}
                 />
               </div>
             </section>

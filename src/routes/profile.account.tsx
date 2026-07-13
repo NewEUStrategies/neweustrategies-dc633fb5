@@ -30,6 +30,7 @@ import {
 } from "@/lib/notifications/useNotifications";
 import { toast } from "sonner";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
+import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
@@ -236,6 +237,8 @@ function AccountPage() {
   });
   const avatarInput = useRef<HTMLInputElement | null>(null);
   const coverInput = useRef<HTMLInputElement | null>(null);
+  const [cropKind, setCropKind] = useState<"avatar" | "cover" | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const refresh = async (uid: string) => {
     const { data: row } = await supabase
@@ -293,10 +296,10 @@ function AccountPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const upload = async (file: File, kind: "avatar" | "cover") => {
+  const upload = async (blob: Blob, kind: "avatar" | "cover") => {
     if (!user || !data.tenant_id) return;
     const max = kind === "avatar" ? MAX_AVATAR : MAX_COVER;
-    if (file.size > max) {
+    if (blob.size > max) {
       setStatus((s) => ({ ...s, [kind]: "failed" }));
       toast.error(t("profile.account.fileTooLarge"));
       return;
@@ -305,7 +308,7 @@ function AccountPage() {
     setStatus((s) => ({ ...s, [kind]: "uploading" }));
     setProgress((p) => ({ ...p, [kind]: 0 }));
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const ext = "jpg";
     const path = `${data.tenant_id}/users/${user.id}/${kind}-${Date.now()}.${ext}`;
 
     try {
@@ -318,7 +321,7 @@ function AccountPage() {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", signed.signedUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("Content-Type", blob.type || "image/jpeg");
         xhr.setRequestHeader("x-upsert", "true");
         xhr.upload.onprogress = (evt) => {
           if (evt.lengthComputable) {
@@ -330,7 +333,7 @@ function AccountPage() {
             ? resolve()
             : reject(new Error(`HTTP ${xhr.status}`));
         xhr.onerror = () => reject(new Error("network"));
-        xhr.send(file);
+        xhr.send(blob);
       });
 
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
@@ -580,7 +583,10 @@ function AccountPage() {
                 hidden
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) void upload(f, "avatar");
+                  if (f) {
+                    setPendingFile(f);
+                    setCropKind("avatar");
+                  }
                   e.target.value = "";
                 }}
               />
@@ -591,8 +597,27 @@ function AccountPage() {
                 hidden
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) void upload(f, "cover");
+                  if (f) {
+                    setPendingFile(f);
+                    setCropKind("cover");
+                  }
                   e.target.value = "";
+                }}
+              />
+              <ImageCropDialog
+                open={cropKind !== null}
+                file={pendingFile}
+                kind={cropKind ?? "avatar"}
+                preset={CROP_PRESETS[cropKind ?? "avatar"]}
+                onOpenChange={(o) => {
+                  if (!o) {
+                    setCropKind(null);
+                    setPendingFile(null);
+                  }
+                }}
+                onConfirm={(blob) => {
+                  const k = cropKind;
+                  if (k) void upload(blob, k);
                 }}
               />
             </section>
