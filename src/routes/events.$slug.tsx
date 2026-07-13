@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft, Check, Star, XCircle, BadgeCheck, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getPublicTenantId } from "@/lib/community/tenant";
+
 import {
   fetchEventAccess,
   fetchEventRsvpCounts,
@@ -103,24 +103,12 @@ function EventDetail() {
     mutationFn: async (target: RsvpStatus) => {
       if (!eventQ.data || !user) throw new Error("no user");
       // Ponowne kliknięcie tego samego statusu = cancel (poza samym 'cancelled').
+      // Migracja 20260713200000 cofa granty INSERT/UPDATE/DELETE na event_rsvps -
+      // jedyną ścieżką zapisu jest RPC rsvp_event (limit miejsc, bramka warstwy,
+      // egzekwowanie flagi pro_briefings).
       const nextStatus: RsvpStatus =
         rsvpQ.data?.status === target && target !== "cancelled" ? "cancelled" : target;
-      if (rsvpQ.data) {
-        const { error } = await supabase
-          .from("event_rsvps")
-          .update({ status: nextStatus, updated_at: new Date().toISOString() })
-          .eq("id", rsvpQ.data.id);
-        if (error) throw error;
-      } else {
-        const tenant_id = await getPublicTenantId();
-        const { error } = await supabase.from("event_rsvps").insert({
-          event_id: eventQ.data.id,
-          user_id: user.id,
-          tenant_id,
-          status: nextStatus,
-        });
-        if (error) throw error;
-      }
+      await rsvpEvent(eventQ.data.id, nextStatus);
       return nextStatus;
     },
     onSuccess: (nextStatus) => {
