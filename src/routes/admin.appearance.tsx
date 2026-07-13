@@ -21,7 +21,6 @@ function AppearanceLayout() {
     { to: "/admin/appearance/menu", label: t("admin.appearance.menu") },
     { to: "/admin/appearance/post-sidebar", label: t("admin.appearance.postSidebar") },
     { to: "/admin/appearance/global-colors", label: t("admin.appearance.globalColors") },
-    { to: "/admin/appearance/expert-layout", label: "Strona eksperta" },
   ];
   return (
     <div className="space-y-4">

@@ -29,7 +29,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 interface Props {
   settingsKey: string;
   title: string;
-  scope?: "header" | "footer" | "menu" | "expert_profile";
+  scope?: "header" | "footer" | "menu";
 }
 
 type Json = Record<string, unknown>;

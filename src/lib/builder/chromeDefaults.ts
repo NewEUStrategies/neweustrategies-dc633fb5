@@ -460,13 +460,9 @@ const defaultMenuDoc = (): BuilderDocument =>
     "menu-default",
   );
 
-export const defaultDocFor = (
-  scope: "header" | "footer" | "menu" | "expert_profile",
-): BuilderDocument =>
+export const defaultDocFor = (scope: "header" | "footer" | "menu"): BuilderDocument =>
   scope === "header"
     ? defaultHeaderDoc()
     : scope === "footer"
       ? defaultFooterDoc()
-      : scope === "menu"
-        ? defaultMenuDoc()
-        : { version: 1, sections: [] };
+      : defaultMenuDoc();
