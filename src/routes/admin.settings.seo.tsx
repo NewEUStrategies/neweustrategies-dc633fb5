@@ -192,9 +192,21 @@ function SeoSettingsTab() {
             "Używane w JSON-LD (NewsArticle/Organization) - wymagane do rich results w Google News.",
         })}
       >
+        <LinkedSourceHeader
+          sourceLabel={t("admin.linkedSource.themeOptionsOrgLogo", {
+            defaultValue: "Opcje motywu - Logo organizacji",
+          })}
+          sourceHref="/admin/theme-options#logo"
+          sourceValue={publisherLogoSource}
+          preview={<LinkedImagePreview src={publisherLogoSource} />}
+          hint={t("admin.linkedSource.overrideHint", {
+            defaultValue:
+              "Puste pole = użyj wartości ze źródła. Wgraj obraz poniżej, aby nadpisać dla SEO/JSON-LD.",
+          })}
+        />
         <ImageSlot
           label=""
-          value={draft.publisher_logo_url}
+          value={draft.publisher_logo_url || publisherLogoSource}
           onChange={(v) => set("publisher_logo_url", v)}
           folder="branding"
         />
