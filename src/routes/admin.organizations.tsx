@@ -177,13 +177,20 @@ function OrgCard({
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
         </CardTitle>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{tierLabel}</Badge>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="text-[10px]">{tierLabel}</Badge>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             {L("limit miejsc", "seat limit")}: {org.seats_limit}
           </span>
+          <Button asChild size="sm" variant="outline" className="ml-auto h-6 text-[10px]">
+            <Link to="/admin/organizations/$id" params={{ id: org.id }}>
+              <Settings2 className="mr-1 h-3 w-3" aria-hidden="true" />
+              {L("Zarządzaj", "Manage")}
+            </Link>
+          </Button>
         </div>
       </CardHeader>
+
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2">
           <div className="flex items-center gap-2">
