@@ -480,11 +480,12 @@ function ExpertMockup({
   const preset = findExpertPreset(settings.default_preset);
   const e = hub.expert;
   const ph = PLACEHOLDER[lang];
-  const name = e.display_name ?? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert");
+  const name = e.display_name ?? (showPlaceholders ? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert") : "");
   const role = e.job_title ?? "";
   const company = e.company ?? "";
-  const roleLine = [role, company].filter(Boolean).join(" · ") || ph.role;
-  const bioText = (lang === "en" ? e.bio_en : e.bio_pl) ?? ph.bio;
+  const realRoleLine = [role, company].filter(Boolean).join(" · ");
+  const roleLine = realRoleLine || (showPlaceholders ? ph.role : "");
+  const bioText = (lang === "en" ? e.bio_en : e.bio_pl) ?? (showPlaceholders ? ph.bio : "");
   const hasCover = Boolean(e.cover_url);
 
   const heroStyle: React.CSSProperties = {
