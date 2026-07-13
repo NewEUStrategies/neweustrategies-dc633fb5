@@ -8,7 +8,7 @@
 //   1. publiczna strona konsumuje zapisane `expert_layout_settings`,
 //      a chcemy widzieć NIEZAPISANE zmiany od razu,
 //   2. iframe wymuszałby pełny reload przy każdym kliknięciu.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Mail,
@@ -77,9 +77,28 @@ const LABELS: Record<Lang, Record<string, string>> = {
   },
 };
 
-export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettings }) {
+export function ExpertLayoutPreview({
+  settings,
+  savedAt = 0,
+}: {
+  settings: ExpertLayoutSettings;
+  savedAt?: number;
+}) {
   const [lang, setLang] = useState<Lang>("pl");
   const [theme, setTheme] = useState<Theme>("light");
+  // 'draft' = mockup napędzany niezapisanym `local`; 'published' = iframe
+  // z realnie opublikowaną stroną /author/$slug. Po każdym zapisie
+  // automatycznie przełączamy na 'published', żeby administrator widział
+  // dokładnie to, co widzi publiczność.
+  const [mode, setMode] = useState<"draft" | "published">("draft");
+  const [iframeNonce, setIframeNonce] = useState(0);
+
+  useEffect(() => {
+    if (savedAt > 0) {
+      setMode("published");
+      setIframeNonce((n) => n + 1);
+    }
+  }, [savedAt]);
 
   const { data: sampleSlug } = useQuery({
     queryKey: ["admin", "expert-layout-preview", "sample-slug"] as const,
@@ -92,8 +111,37 @@ export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettin
 
   const { data: hub, isLoading } = useQuery({
     ...expertHubQueryOptions(effectiveSlug),
-    enabled: Boolean(effectiveSlug),
+    enabled: Boolean(effectiveSlug) && mode === "draft",
   });
+
+  const publicHref = effectiveSlug
+    ? `${lang === "en" ? "/en" : ""}/author/${encodeURIComponent(effectiveSlug)}`
+    : "";
+  const iframeSrc = publicHref ? `${publicHref}?__preview=${iframeNonce}` : "";
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const applyThemeToIframe = () => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      const doc = win.document;
+      doc.documentElement.classList.toggle("dark", theme === "dark");
+      doc.documentElement.style.colorScheme = theme;
+      try {
+        win.localStorage.setItem("theme", theme);
+      } catch {
+        /* storage może być zablokowane w sandboxie */
+      }
+    } catch {
+      /* cross-origin - iframe jest same-origin, ignorujemy */
+    }
+  };
+
+  useEffect(() => {
+    if (mode === "published") applyThemeToIframe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, mode]);
+
 
   const preset = findExpertPreset(settings.default_preset);
   const order = settings.section_order?.length ? settings.section_order : DEFAULT_EXPERT_SECTION_ORDER;
@@ -119,11 +167,23 @@ export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettin
         <div>
           <h2 className="font-display text-base">Podgląd na żywo</h2>
           <p className="text-[11px] text-muted-foreground">
-            Zmiany widać od razu po kliknięciu - dane realnego eksperta, ale wariant/kolejność/kolory
-            pochodzą z niezapisanych ustawień powyżej. Zapis utrwala je publicznie.
+            {mode === "draft"
+              ? "Roboczy podgląd - klik w preset / kolor / kolejność zmienia widok od razu. Zapis przełącza podgląd na wersję publiczną."
+              : "Wersja opublikowana - dokładnie to samo, co widzi publiczność na /author/…. Wróć do trybu roboczego, aby dalej edytować."}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
+          <ToggleGroup
+            options={[
+              { v: "draft", label: "Roboczy" },
+              { v: "published", label: "Publiczny" },
+            ]}
+            value={mode}
+            onChange={(v) => {
+              setMode(v as "draft" | "published");
+              if (v === "published") setIframeNonce((n) => n + 1);
+            }}
+          />
           <ToggleGroup
             options={[
               { v: "pl", label: "PL" },
@@ -140,9 +200,19 @@ export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettin
             value={theme}
             onChange={(v) => setTheme(v as Theme)}
           />
-          {effectiveSlug && (
+          {mode === "published" && (
+            <button
+              type="button"
+              onClick={() => setIframeNonce((n) => n + 1)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
+              title="Odśwież iframe"
+            >
+              Odśwież
+            </button>
+          )}
+          {publicHref && (
             <a
-              href={`${lang === "en" ? "/en" : ""}/author/${encodeURIComponent(effectiveSlug)}`}
+              href={publicHref}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
@@ -167,39 +237,57 @@ export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettin
       </label>
 
       <div
-        className={`rounded-lg border border-border overflow-hidden shadow-sm ${theme === "dark" ? "dark" : ""}`}
+        className={`rounded-lg border border-border overflow-hidden shadow-sm ${theme === "dark" && mode === "draft" ? "dark" : ""}`}
         style={previewStyle}
       >
-        <div className="bg-background text-foreground">
-          {!effectiveSlug ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">{t.noSample}</div>
-          ) : isLoading || !hub ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              {lang === "en" ? "Loading preview..." : "Ładowanie podglądu..."}
-            </div>
+        {mode === "published" ? (
+          !effectiveSlug ? (
+            <div className="p-8 text-center text-xs text-muted-foreground bg-background">{t.noSample}</div>
           ) : (
-            <ExpertMockup
-              hub={hub}
-              settings={settings}
-              lang={lang}
-              heroBg={heroBg}
-              heroText={heroText}
-              maxWidth={settings.max_width}
+            <iframe
+              ref={iframeRef}
+              key={`${effectiveSlug}-${lang}-${iframeNonce}`}
+              src={iframeSrc}
+              title="Podgląd publicznej strony eksperta"
+              onLoad={applyThemeToIframe}
+              className="w-full h-[1000px] bg-background"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
             />
-          )}
-
-          {hub && effectiveSlug && (
-            <div className="mx-auto" style={{ maxWidth: settings.max_width }}>
-              <div className="grid gap-6 p-4 md:p-6">
-                {order.map((key) => {
-                  if (!isSectionVisible(settings, key)) return null;
-                  if (key === "hero_cover") return null; // hero renderowany w mockupie
-                  return <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} />;
-                })}
+          )
+        ) : (
+          <div className="bg-background text-foreground">
+            {!effectiveSlug ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">{t.noSample}</div>
+            ) : isLoading || !hub ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                {lang === "en" ? "Loading preview..." : "Ładowanie podglądu..."}
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <ExpertMockup
+                hub={hub}
+                settings={settings}
+                lang={lang}
+                heroBg={heroBg}
+                heroText={heroText}
+                maxWidth={settings.max_width}
+              />
+            )}
+
+            {hub && effectiveSlug && (
+              <div className="mx-auto" style={{ maxWidth: settings.max_width }}>
+                <div className="grid gap-6 p-4 md:p-6">
+                  {order.map((key) => {
+                    if (!isSectionVisible(settings, key)) return null;
+                    if (key === "hero_cover") return null;
+                    return (
+                      <SectionRenderer key={key} k={key} hub={hub} settings={settings} lang={lang} />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="text-[11px] text-muted-foreground">
