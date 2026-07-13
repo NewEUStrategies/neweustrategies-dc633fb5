@@ -124,7 +124,13 @@ const PLACEHOLDER = {
     ],
   },
   en: {
-    bio: "Dr. Anna Kowalska is a Senior Fellow at New European Strategies, where she leads research on European security policy, transatlantic relations, and Europe's strategic autonomy. She is the author of more than 40 peer-reviewed publications, a regular commentator in major European media, and an adviser to public institutions and leading think tanks. Prior to joining NES she served at the Ministry of Foreign Affairs and at the European Parliament, where she led the advisory team on Eastern policy. She is a recurring speaker at the Munich Security Conference, GLOBSEC, and Warsaw Security Forum.",
+    bio: [
+      "Senior Fellow at New European Strategies, leading research on European security and transatlantic relations.",
+      "Author of 40+ peer-reviewed publications and a regular commentator across major European media.",
+      "Former adviser at the Ministry of Foreign Affairs and the European Parliament (Eastern policy).",
+      "Adviser to public institutions and top think tanks focused on the CEE region.",
+      "Recurring speaker at Munich Security Conference, GLOBSEC, and Warsaw Security Forum.",
+    ],
     role: "Senior Fellow · New European Strategies",
     email: "contact@example.com",
     mediaEmail: "media@example.com",
