@@ -22,8 +22,11 @@ function cleanCssValue(value: string | undefined): string | undefined {
   const next = value?.trim();
   if (!next) return undefined;
   // Keep authored CSS values usable (font stacks, calc(), var(), etc.) while
-  // preventing accidental rule breaks from panel text inputs.
-  return next.replace(/[{};]/g, "");
+  // preventing accidental rule breaks from panel text inputs. `{};` guard against
+  // declaration/rule breakout; `<>` guard against `</style>`-based HTML breakout
+  // (defence in depth - the `<style>` sink also runs hardenStyleCss). None of
+  // these characters are legitimate in a font/size/weight/line-height value.
+  return next.replace(/[{};<>]/g, "");
 }
 
 function hasKeys(value: WidgetTypography | undefined): value is WidgetTypography {

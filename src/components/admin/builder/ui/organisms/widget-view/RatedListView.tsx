@@ -7,6 +7,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { getStr } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
+import { hardenStyleCss } from "@/lib/sanitize";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one (and vice versa). Empty string === inherit/default.
@@ -360,9 +361,7 @@ export function RatedListView({
   void colsT;
   void colsM;
 
-  return (
-    <div className={schemeCls}>
-      <style>{`
+  const ratedListColorCss = hardenStyleCss(`
         .rl-wrap .rl-num{color:${numColor};}
         .dark .rl-wrap .rl-num{color:${numColorDark};}
         .rl-wrap .rl-cat{color:${categoryColor};}
@@ -382,7 +381,11 @@ export function RatedListView({
         ${postFormatColor ? `.rl-wrap .rl-format{color:${postFormatColor};}` : ""}
         ${postFormatColorDark ? `.dark .rl-wrap .rl-format{color:${postFormatColorDark};}` : ""}
         .rl-wrap .rl-item + .rl-item{${gridBorders === "between" && !isGrid ? `border-top:${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"};padding-top:${itemSpacing}px;` : ""}}
-      `}</style>
+      `);
+
+  return (
+    <div className={schemeCls}>
+      <style dangerouslySetInnerHTML={{ __html: ratedListColorCss }} />
       <ol
         className="rl-wrap"
         style={{

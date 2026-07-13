@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import { announcePlayback, subscribePlayback } from "@/lib/audio/playbackBus";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface AudioTrackMeta {
   postId: string;
@@ -120,16 +121,22 @@ export function resolveAudioFetch(
   postId: string,
   lang: "pl" | "en",
   audioUrl: string | null | undefined,
+  accessToken?: string | null,
 ): { url: string; init: RequestInit; usesElevenLabs: boolean } {
   const trimmed = audioUrl?.trim();
   if (trimmed) {
     return { url: trimmed, init: { method: "GET" }, usesElevenLabs: false };
   }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // Forward the caller's session so the server can enforce the paywall: gated
+  // (members/paid) posts are synthesized only for an entitled, authenticated
+  // reader. Anonymous requests for public posts still work (no token needed).
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   return {
     url: "/api/public/post-tts",
     init: {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ postId, lang }),
     },
     usesElevenLabs: true,
@@ -351,7 +358,13 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         // Wybór źródła: wgrany MP3 (bezpośredni GET) albo TTS (ElevenLabs).
         // Helper `resolveAudioFetch` gwarantuje, że dla języka z wgranym plikiem
         // ElevenLabs nie jest wywoływany - kryterium weryfikowane przez testy.
-        const src = resolveAudioFetch(postId, lang, audioUrl);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const src = resolveAudioFetch(
+          postId,
+          lang,
+          audioUrl,
+          sessionData.session?.access_token ?? null,
+        );
         const res = await fetch(src.url, { ...src.init, signal: controller.signal });
 
         if (!res.ok) {

@@ -666,6 +666,10 @@ async function dispatchMerydian(
     api?: { ok: boolean; status?: number; error?: string };
   } = {};
 
+  // SSRF guard for the user-configured integration URLs. Dynamic import keeps
+  // the node: builtins out of the client bundle (same pattern as *.server).
+  const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
+
   if (mode === "webhook" || mode === "both") {
     const url = String(cfg.merydian_webhook_url ?? "");
     if (!url) out.webhook = { ok: false, error: "missing_webhook_url" };
@@ -677,19 +681,19 @@ async function dispatchMerydian(
       const secret = webhookSecret;
       if (secret) headers["X-Signature"] = await hmacSha256Hex(secret, body);
       try {
-        const r = await fetch(url, { method: "POST", headers, body });
+        await assertPublicHttpUrl(url); // rejects private/internal/metadata targets
+        const r = await fetch(url, { method: "POST", headers, body, redirect: "manual" });
+        // Status only - never echo the upstream body (would be an SSRF exfil channel).
         out.webhook = {
           ok: r.ok,
           status: r.status,
-          error: r.ok
-            ? undefined
-            : await r
-                .text()
-                .then((t) => t.slice(0, 200))
-                .catch(() => ""),
+          error: r.ok ? undefined : `upstream_${r.status}`,
         };
       } catch (e) {
-        out.webhook = { ok: false, error: String(e).slice(0, 200) };
+        out.webhook = {
+          ok: false,
+          error: e instanceof Error && e.name === "BlockedUrlError" ? e.message : "request_failed",
+        };
       }
     }
   }
@@ -699,8 +703,10 @@ async function dispatchMerydian(
     const apiKey = apiSecret;
     if (!base || !apiKey) out.api = { ok: false, error: "missing_api_config" };
     else {
+      const apiUrl = `${base.replace(/\/$/, "")}/leads`;
       try {
-        const r = await fetch(`${base.replace(/\/$/, "")}/leads`, {
+        await assertPublicHttpUrl(apiUrl); // rejects private/internal/metadata targets
+        const r = await fetch(apiUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -708,19 +714,18 @@ async function dispatchMerydian(
             "User-Agent": "NES-CRM/1.0",
           },
           body,
+          redirect: "manual",
         });
         out.api = {
           ok: r.ok,
           status: r.status,
-          error: r.ok
-            ? undefined
-            : await r
-                .text()
-                .then((t) => t.slice(0, 200))
-                .catch(() => ""),
+          error: r.ok ? undefined : `upstream_${r.status}`,
         };
       } catch (e) {
-        out.api = { ok: false, error: String(e).slice(0, 200) };
+        out.api = {
+          ok: false,
+          error: e instanceof Error && e.name === "BlockedUrlError" ? e.message : "request_failed",
+        };
       }
     }
   }

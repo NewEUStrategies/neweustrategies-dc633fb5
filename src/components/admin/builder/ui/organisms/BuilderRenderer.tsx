@@ -28,7 +28,7 @@ import {
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
-import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
+import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
@@ -477,12 +477,12 @@ const RenderSection = memo(function RenderSection({
         return mobileOrderCss ? (
           <style
             dangerouslySetInnerHTML={{
-              __html: `@media (max-width: 767px){${mobileOrderCss}}`,
+              __html: hardenStyleCss(`@media (max-width: 767px){${mobileOrderCss}}`),
             }}
           />
         ) : null;
       })()}
-      {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
+      {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
     </Tag>
   );
 });

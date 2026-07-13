@@ -11,6 +11,7 @@ import {
   scopeCustomCss,
   safeUrl,
   safeImageUrl,
+  hardenStyleCss,
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -327,7 +328,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       ) : (
         children
       )}
-      {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
+      {widgetCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(widgetCss) }} />}
     </div>
   );
 

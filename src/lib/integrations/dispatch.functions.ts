@@ -82,11 +82,15 @@ export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
         try {
+          // SSRF guard: endpoint.url is tenant-configured (import cached after first call).
+          const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
+          await assertPublicHttpUrl(endpoint.url);
           const response = await fetch(endpoint.url, {
             method: "POST",
             headers,
             body,
             signal: controller.signal,
+            redirect: "manual",
           });
           ok = response.ok;
           if (!ok) lastError = `HTTP ${response.status}`;
