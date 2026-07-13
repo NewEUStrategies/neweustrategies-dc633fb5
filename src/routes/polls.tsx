@@ -1,6 +1,9 @@
 // Publiczne ankiety Community. URL: /polls
+// Realtime: subskrypcja postgres_changes na tabeli poll_votes unieważnia cache
+// wyników po każdym insert/update/delete, co daje płynne animacje słupków
+// (transition-[width] + animate-fade-in na etykiecie procentów).
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -14,7 +17,6 @@ import {
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
