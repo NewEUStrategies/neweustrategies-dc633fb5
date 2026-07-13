@@ -1,13 +1,18 @@
 // Publiczne ankiety Community. URL: /polls
-// Realtime: subskrypcja postgres_changes na tabeli poll_votes unieważnia cache
-// wyników po każdym insert/update/delete, co daje płynne animacje słupków
-// (transition-[width] + animate-fade-in na etykiecie procentów).
+// Głosy przez RPC vote_poll (walidacja opcji, okno czasowe); wyniki przez
+// get_poll_results_bulk z serwerowym anti-anchoringiem - rozkład głosów widać
+// dopiero po oddaniu głosu (albo po zamknięciu ankiety), żeby nie zakotwiczał.
+// Realtime: subskrypcja postgres_changes na poll_votes unieważnia cache
+// wyników (debounce), co daje płynne animacje słupków po własnym głosie
+// i synchronizację między kartami; RLS ogranicza zdarzenia do własnych
+// wierszy, więc anti-anchoring pozostaje szczelny.
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { EyeOff, Vote } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   fetchPublicPolls,
   fetchPollResults,
@@ -56,14 +61,14 @@ function PollsPage() {
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
   const idsKey = ids.join(",");
-  const votesQ = useQuery({
-    queryKey: ["public-poll-votes", idsKey, user?.id ?? "anon"],
-    queryFn: () => fetchPollVotes(ids, user?.id ?? null),
+  const resultsQ = useQuery({
+    queryKey: ["public-poll-results", idsKey, user?.id ?? "anon"],
+    queryFn: () => fetchPollResults(ids),
     enabled: ids.length > 0,
   });
 
-  // Realtime: nasłuchuj zmian w poll_votes tylko dla widocznych ankiet i
-  // rzuć invalidate na cache wyników. Debounce, żeby seria głosów w tej samej
+  // Realtime: nasłuchuj zmian w poll_votes dla widocznych ankiet i rzuć
+  // invalidate na cache wyników. Debounce, żeby seria głosów w tej samej
   // sekundzie nie robiła kaskady refetchów.
   useEffect(() => {
     if (ids.length === 0) return;
@@ -72,7 +77,7 @@ function PollsPage() {
       if (timer) return;
       timer = setTimeout(() => {
         timer = null;
-        qc.invalidateQueries({ queryKey: ["public-poll-votes"] });
+        qc.invalidateQueries({ queryKey: ["public-poll-results"] });
       }, 250);
     };
     const filter = `poll_id=in.(${ids.join(",")})`;
@@ -172,25 +177,25 @@ function PollCard({
                 onClick={() => canVote && voteM.mutate(idx)}
                 disabled={!canVote || voteM.isPending}
                 className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-                  mine
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-primary/50"
+                  mine ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
                 } ${!canVote ? "cursor-default" : "cursor-pointer"}`}
                 aria-pressed={mine}
               >
-                <span
-                  aria-hidden="true"
-                  className={`absolute inset-y-0 left-0 transition-[width] duration-700 ease-out ${
-                    mine ? "bg-primary/20" : "bg-primary/10"
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
+                {visible && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-y-0 left-0 transition-[width] duration-700 ease-out ${
+                      mine ? "bg-primary/20" : "bg-primary/10"
+                    }`}
+                    style={{ width: `${pct}%` }}
+                  />
+                )}
                 <span className="relative flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2">
                     {mine && <Vote className="h-4 w-4 text-primary" aria-hidden="true" />}
                     {label}
                   </span>
-                  <AnimatedCount pct={pct} n={n} />
+                  {visible && <AnimatedCount pct={pct} n={n} />}
                 </span>
               </button>
             </li>

@@ -1,13 +1,27 @@
 // Szczegóły wydarzenia + RSVP. URL: /events/$slug
-// RSVP jest trój-stanowe (going / interested / cancelled). Ponowne kliknięcie
-// tego samego statusu = cofnięcie do 'cancelled'. Zmiana statusu robi UPDATE
-// istniejącego wiersza (unique index event_id+user_id), więc jeden użytkownik
-// zawsze ma dokładnie jeden RSVP na wydarzenie.
+// RSVP jest trój-stanowe (going / interested / cancelled); ponowne kliknięcie
+// aktywnego statusu cofa do 'cancelled'. Zapis idzie WYŁĄCZNIE przez RPC
+// rsvp_event (limit miejsc pod FOR UPDATE, bramka warstwy/pro_briefings,
+// jeden wiersz na użytkownika przez ON CONFLICT), a linki transmisji/nagrania
+// przez get_event_access - join_url/recording_url są odcięte od klienta
+// grantem kolumnowym.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Calendar, MapPin, Users, ShieldQuestion, Video, ArrowLeft, Check, Star, XCircle } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  ShieldQuestion,
+  Video,
+  ArrowLeft,
+  Check,
+  Lock,
+  Star,
+  XCircle,
+  BadgeCheck,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   fetchEventAccess,
@@ -99,31 +113,15 @@ function EventDetail() {
   };
 
   const rsvpM = useMutation({
-    mutationFn: async (target: RsvpStatus) => {
-      if (!eventQ.data || !user) throw new Error("no user");
-      // Ponowne kliknięcie tego samego statusu = cancel (poza samym 'cancelled').
+    mutationFn: (target: RsvpStatus) => {
+      // Ponowne kliknięcie aktywnego statusu = cofnięcie (poza 'cancelled');
+      // RPC robi upsert po (event_id, user_id), więc wiersz jest zawsze jeden.
       const nextStatus: RsvpStatus =
         rsvpQ.data?.status === target && target !== "cancelled" ? "cancelled" : target;
-      if (rsvpQ.data) {
-        const { error } = await supabase
-          .from("event_rsvps")
-          .update({ status: nextStatus, updated_at: new Date().toISOString() })
-          .eq("id", rsvpQ.data.id);
-        if (error) throw error;
-      } else {
-        const tenant_id = await getPublicTenantId();
-        const { error } = await supabase.from("event_rsvps").insert({
-          event_id: eventQ.data.id,
-          user_id: user.id,
-          tenant_id,
-          status: nextStatus,
-        });
-        if (error) throw error;
-      }
-      return nextStatus;
+      return rsvpEvent(eventId!, nextStatus).then((res) => res.status as RsvpStatus);
     },
     onSuccess: (nextStatus) => {
-      qc.invalidateQueries({ queryKey: ["event-rsvp", eventQ.data?.id, user?.id] });
+      invalidate();
       const key =
         nextStatus === "going"
           ? "community.events.toastGoing"
@@ -132,7 +130,13 @@ function EventDetail() {
             : "community.events.toastCancelled";
       toast.success(t(key));
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("events: full")) toast.error(t("community.events.rsvpFull"));
+      else if (msg.includes("events: membership required"))
+        toast.error(t("community.events.rsvpTierError"));
+      else toast.error(t("community.events.rsvpError"));
+    },
   });
 
   if (!modules.events_enabled) return <CommunityDisabled />;
@@ -162,7 +166,8 @@ function EventDetail() {
   const going = counts?.going ?? 0;
   const seatsLeft = ev.capacity !== null ? Math.max(0, ev.capacity - going) : null;
   const isFull = seatsLeft !== null && seatsLeft === 0;
-  const isGoing = rsvpQ.data?.status === "going";
+  const currentStatus: RsvpStatus | null = rsvpQ.data?.status ?? null;
+  const isGoing = currentStatus === "going";
   const isProBriefing = ev.kind === "briefing" && ev.visibility === "members";
   const membersOnly = ev.visibility === "members";
 
@@ -296,24 +301,28 @@ function EventDetail() {
         {!isPast && !user && (
           <p className="text-sm text-muted-foreground">{t("community.events.rsvpSignInHint")}</p>
         )}
-        {!isPast && user && (
+        {!isPast && user && !tierBlocked && (
           <RsvpControls
-            current={rsvpQ.data?.status ?? null}
+            current={currentStatus}
             pending={rsvpM.isPending}
+            goingDisabled={!isGoing && isFull}
             onChoose={(s) => rsvpM.mutate(s)}
           />
         )}
       </div>
-      {!isPast && user && rsvpQ.data && rsvpQ.data.status !== "cancelled" && (
+      {!isPast && user && currentStatus && currentStatus !== "cancelled" && (
         <p
-          key={rsvpQ.data.status}
+          key={currentStatus}
           className="mt-3 text-sm text-primary animate-fade-in"
           aria-live="polite"
         >
-          {rsvpQ.data.status === "going"
+          {currentStatus === "going"
             ? t("community.events.rsvpStatusGoing")
             : t("community.events.rsvpStatusInterested")}
         </p>
+      )}
+      {!isPast && user && !tierBlocked && !isGoing && access?.reason === "rsvp_required" && (
+        <p className="mt-2 text-sm text-muted-foreground">{t("community.events.joinAfterRsvp")}</p>
       )}
     </article>
   );
@@ -322,10 +331,13 @@ function EventDetail() {
 function RsvpControls({
   current,
   pending,
+  goingDisabled,
   onChoose,
 }: {
   current: RsvpStatus | null;
   pending: boolean;
+  /** Komplet miejsc: 'going' zablokowane, dopóki ktoś nie zwolni miejsca. */
+  goingDisabled: boolean;
   onChoose: (s: RsvpStatus) => void;
 }) {
   const { t } = useTranslation();
@@ -335,7 +347,7 @@ function RsvpControls({
       <Button
         variant={active === "going" ? "default" : "outline"}
         onClick={() => onChoose("going")}
-        disabled={pending}
+        disabled={pending || (goingDisabled && active !== "going")}
         aria-pressed={active === "going"}
       >
         <Check className="mr-2 h-4 w-4" aria-hidden="true" />

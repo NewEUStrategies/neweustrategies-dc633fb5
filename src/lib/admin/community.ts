@@ -429,8 +429,7 @@ const UI_TO_DB_FILTER: Record<ContributorStatus, ContributorDbStatus[]> = {
 };
 
 /** Row w formacie UI - `status` już zremapowany do 3 kategorii. */
-export interface ContributorSubmissionView
-  extends Omit<ContributorSubmissionRow, "status"> {
+export interface ContributorSubmissionView extends Omit<ContributorSubmissionRow, "status"> {
   status: ContributorStatus;
   db_status: ContributorDbStatus;
 }
@@ -591,28 +590,35 @@ export interface EngagementSnapshot {
 export async function fetchEngagementSnapshot(): Promise<EngagementSnapshot> {
   const since7 = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const now = new Date().toISOString();
-  const [
-    users,
-    newUsers,
-    crmLeads,
-    comments7,
-    pollVotes7,
-    rsvpsUpcoming,
-    qa7,
-    contribPending,
-  ] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since7),
-    supabase.from("crm_leads").select("id", { count: "exact", head: true }),
-    supabase.from("comments").select("id", { count: "exact", head: true }).gte("created_at", since7),
-    supabase.from("poll_votes").select("id", { count: "exact", head: true }).gte("created_at", since7),
-    supabase.from("event_rsvps").select("id", { count: "exact", head: true }).gte("created_at", since7),
-    supabase.from("qa_questions").select("id", { count: "exact", head: true }).gte("created_at", since7),
-    supabase
-      .from("contributor_submissions")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["submitted", "in_review"]),
-  ]);
+  const [users, newUsers, crmLeads, comments7, pollVotes7, rsvpsUpcoming, qa7, contribPending] =
+    await Promise.all([
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabase.from("crm_leads").select("id", { count: "exact", head: true }),
+      supabase
+        .from("comments")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabase
+        .from("poll_votes")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabase
+        .from("event_rsvps")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabase
+        .from("qa_questions")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabase
+        .from("contributor_submissions")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["submitted", "in_review"]),
+    ]);
   void now;
   return {
     total_users: users.count ?? 0,
