@@ -302,10 +302,17 @@ function AdminShellInner({
         },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         {
+          to: "/admin/research-programs",
+          icon: FlaskConical,
+          label: t("admin.nav.researchPrograms", {
+            defaultValue: lang === "pl" ? "Programy - landing" : "Program landings",
+          }),
+        },
+        {
           to: "/admin/programs",
           icon: FlaskConical,
           label: t("admin.nav.programs", {
-            defaultValue: lang === "pl" ? "Programy badawcze" : "Research programs",
+            defaultValue: lang === "pl" ? "Programy - tagowanie" : "Program tags",
           }),
         },
         {
