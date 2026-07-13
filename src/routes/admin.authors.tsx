@@ -1,14 +1,33 @@
+// Panel administracyjny „Autorzy" (== eksperci). Widok w layoucie CSIS,
+// spójny wizualnie z publicznym katalogiem /experts: karty z avatarem,
+// obszarami ekspertyzy, licznikiem publikacji, filtrami po obszarze i
+// programie oraz odznaką „zweryfikowany". Dodatkowo elementy panelowe:
+// wyszukiwarka, role, e-mail, akcje „Zarządzaj" / „Profil".
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { ExternalLink, User as UserIcon, Search } from "lucide-react";
+import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
+import { BadgeCheck, ExternalLink, Search, Users } from "lucide-react";
+import "@/lib/i18n-experts";
 
 export const Route = createFileRoute("/admin/authors")({
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(expertsDirectoryQueryOptions());
+    return null;
+  },
   component: Authors,
 });
 
@@ -20,32 +39,32 @@ interface AuthorRow {
   email: string | null;
   avatar_url: string | null;
   slug: string | null;
-  bio_pl: string | null;
-  bio_en: string | null;
-  twitter_url: string | null;
-  linkedin_url: string | null;
-  website_url: string | null;
   roles: Role[];
   posts_count: number;
 }
 
 const AUTHOR_ROLES = new Set<Role>(["author", "editor", "admin", "super_admin"]);
+const ALL = "__all__";
 
 function Authors() {
   const { t, i18n } = useTranslation();
+  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const tenantId = useRequiredTenant();
   const [q, setQ] = useState("");
+  const [areaSlug, setAreaSlug] = useState<string | null>(null);
+  const [programId, setProgramId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data: directory } = useSuspenseQuery(expertsDirectoryQueryOptions());
+
+  const { data: rows, isLoading } = useQuery({
     queryKey: ["admin-authors", tenantId],
     queryFn: async (): Promise<AuthorRow[]> => {
-      const { data: rows, error } = await supabase.rpc("admin_list_users");
+      const { data, error } = await supabase.rpc("admin_list_users");
       if (error) throw error;
-      const authors = (rows ?? [])
+      const authors = (data ?? [])
         .map((r) => ({ ...r, roles: (r.roles ?? []) as Role[] }))
         .filter((r) => r.roles.some((role) => AUTHOR_ROLES.has(role)));
 
-      // Fetch published-posts count per author in one call.
       const ids = authors.map((a) => a.id);
       const counts = new Map<string, number>();
       if (ids.length > 0) {
@@ -61,50 +80,76 @@ function Authors() {
           counts.set(key, (counts.get(key) ?? 0) + 1);
         }
       }
-      return authors.map((a) => ({ ...a, posts_count: counts.get(a.id) ?? 0 }));
+      return authors.map((a) => ({
+        id: a.id,
+        display_name: a.display_name ?? null,
+        email: a.email ?? null,
+        avatar_url: a.avatar_url ?? null,
+        slug: a.slug ?? null,
+        roles: a.roles,
+        posts_count: counts.get(a.id) ?? 0,
+      }));
     },
   });
 
+  const expertById = useMemo(
+    () => new Map(directory.experts.map((e) => [e.id, e] as const)),
+    [directory.experts],
+  );
+
+  const areaId = useMemo(
+    () => directory.facets.areas.find((a) => a.slug === areaSlug)?.id ?? null,
+    [directory.facets.areas, areaSlug],
+  );
+
   const filtered = useMemo(() => {
-    const list = data ?? [];
+    const list = rows ?? [];
     const term = q.trim().toLowerCase();
-    const base = term
-      ? list.filter(
-          (a) =>
-            (a.display_name ?? "").toLowerCase().includes(term) ||
-            (a.email ?? "").toLowerCase().includes(term) ||
-            (a.slug ?? "").toLowerCase().includes(term),
-        )
-      : list;
-    return [...base].sort(
-      (a, b) =>
-        b.posts_count - a.posts_count ||
-        (a.display_name ?? "").localeCompare(b.display_name ?? "", undefined, {
-          sensitivity: "base",
-        }),
-    );
-  }, [data, q]);
+    return list
+      .filter((a) => {
+        if (term) {
+          const hay = `${a.display_name ?? ""} ${a.email ?? ""} ${a.slug ?? ""}`.toLowerCase();
+          if (!hay.includes(term)) return false;
+        }
+        const ex = expertById.get(a.id);
+        if (areaId && !ex?.areas.some((x) => x.id === areaId)) return false;
+        if (programId && !ex?.programs.some((p) => p.id === programId)) return false;
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          b.posts_count - a.posts_count ||
+          (a.display_name ?? "").localeCompare(b.display_name ?? "", undefined, {
+            sensitivity: "base",
+          }),
+      );
+  }, [rows, q, areaId, programId, expertById]);
 
   const label = (key: string, pl: string, en: string) =>
-    t(key, { defaultValue: i18n.language === "pl" ? pl : en });
+    t(key, { defaultValue: lang === "pl" ? pl : en });
+
+  const hasActiveFilters = areaSlug !== null || programId !== null || q.trim().length > 0;
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-4 mb-6">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold">
+          <h1 className="font-display text-3xl lg:text-4xl">
             {label("admin.authors.title", "Autorzy", "Authors")}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="mt-1 text-sm text-muted-foreground">
             {label(
               "admin.authors.subtitle",
-              "Agregacja profili autorów - podgląd bio, socials i liczby publikacji.",
-              "Aggregated author profiles - bio, socials and publication counts.",
+              "Zespół ekspertów i redakcji - profile, obszary ekspertyzy i publikacje.",
+              "Experts and editorial team - profiles, areas of expertise and publications.",
             )}
           </p>
         </div>
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="relative w-full max-w-xs">
+          <Search
+            className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -112,42 +157,121 @@ function Authors() {
             className="pl-8"
           />
         </div>
-      </div>
+      </header>
+
+      {(directory.facets.areas.length > 0 || directory.facets.programs.length > 0) && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          {directory.facets.areas.length > 0 && (
+            <Select
+              value={areaSlug ?? ALL}
+              onValueChange={(next) => setAreaSlug(next === ALL ? null : next)}
+            >
+              <SelectTrigger
+                aria-label={t("expert.filterArea")}
+                className="h-9 w-auto min-w-[160px] max-w-[240px] rounded-[6px] bg-muted/30 text-xs"
+              >
+                <SelectValue placeholder={t("expert.allAreas")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t("expert.allAreas")}</SelectItem>
+                {directory.facets.areas.map((a) => (
+                  <SelectItem key={a.id} value={a.slug}>
+                    {lang === "en" ? a.name_en : a.name_pl}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {directory.facets.programs.length > 0 && (
+            <Select
+              value={programId ?? ALL}
+              onValueChange={(next) => setProgramId(next === ALL ? null : next)}
+            >
+              <SelectTrigger
+                aria-label={t("expert.filterProgram")}
+                className="h-9 w-auto min-w-[160px] max-w-[240px] rounded-[6px] bg-muted/30 text-xs"
+              >
+                <SelectValue placeholder={t("expert.allPrograms")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t("expert.allPrograms")}</SelectItem>
+                {directory.facets.programs.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {lang === "en" ? p.name_en : p.name_pl}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 text-xs"
+              onClick={() => {
+                setAreaSlug(null);
+                setProgramId(null);
+                setQ("");
+              }}
+            >
+              {t("expert.clearFilters")}
+            </Button>
+          )}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground">
           {label("admin.loading", "Ładowanie...", "Loading...")}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          {label("admin.authors.empty", "Brak autorów.", "No authors yet.")}
+        <div className="flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-border/70 p-12 text-center">
+          <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
+          <p className="text-sm text-muted-foreground">
+            {hasActiveFilters
+              ? t("expert.directoryEmptyFiltered")
+              : label("admin.authors.empty", "Brak autorów.", "No authors yet.")}
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((a) => {
-            const bio = (i18n.language === "en" ? a.bio_en : a.bio_pl) ?? a.bio_pl ?? a.bio_en;
+            const ex = expertById.get(a.id);
+            const target = a.slug ?? a.id;
+            const role = ex ? [ex.job_title, ex.company].filter(Boolean).join(" · ") : null;
             return (
-              <article
+              <li
                 key={a.id}
-                className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3"
+                className="flex flex-col gap-3 rounded-[10px] border border-border/60 bg-card p-4 transition-colors hover:border-border"
               >
                 <div className="flex items-start gap-3">
                   {a.avatar_url ? (
                     <img
                       src={a.avatar_url}
-                      alt={a.display_name ?? ""}
-                      className="w-14 h-14 rounded-full object-cover"
+                      alt=""
+                      className="h-14 w-14 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                      <UserIcon className="w-6 h-6" />
+                    <div className="grid h-14 w-14 place-items-center rounded-full bg-muted text-sm text-muted-foreground">
+                      {(a.display_name ?? "?").slice(0, 1)}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-foreground truncate">
+                    <p className="flex items-center gap-1.5 truncate font-semibold">
                       {a.display_name ?? "-"}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">{a.email}</div>
+                      {ex?.verified_at && (
+                        <BadgeCheck
+                          className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400"
+                          aria-hidden
+                        />
+                      )}
+                    </p>
+                    {role ? (
+                      <p className="truncate text-xs text-muted-foreground">{role}</p>
+                    ) : a.email ? (
+                      <p className="truncate text-xs text-muted-foreground">{a.email}</p>
+                    ) : null}
                     <div className="mt-1 flex flex-wrap gap-1">
                       {a.roles.map((r) => (
                         <Badge key={r} variant="secondary" className="text-[10px]">
@@ -157,41 +281,46 @@ function Authors() {
                     </div>
                   </div>
                 </div>
-                {bio && <p className="text-sm text-muted-foreground line-clamp-3 m-0">{bio}</p>}
-                <div className="mt-auto flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    {a.posts_count}{" "}
-                    {i18n.language === "pl"
-                      ? a.posts_count === 1
-                        ? "wpis"
-                        : a.posts_count < 5 && a.posts_count > 1
-                          ? "wpisy"
-                          : "wpisów"
-                      : a.posts_count === 1
-                        ? "post"
-                        : "posts"}
+
+                {ex && ex.areas.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {ex.areas.slice(0, 3).map((area) => (
+                      <span
+                        key={area.id}
+                        className="rounded-full border border-[var(--brand)]/25 bg-[var(--brand)]/5 px-2 py-0.5 text-[11px] text-foreground/80"
+                      >
+                        {lang === "en" ? area.name_en : area.name_pl}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t("expert.publicationsCount", { count: a.posts_count })}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <Link to="/admin/users" className="text-primary hover:underline">
+                  <div className="flex items-center gap-3 text-xs">
+                    <Link to="/admin/users" className="font-medium text-primary hover:underline">
                       {label("admin.authors.manage", "Zarządzaj", "Manage")}
                     </Link>
                     {a.slug && (
-                      <a
-                        href={`/author/${a.slug}`}
+                      <Link
+                        to="/author/$slug"
+                        params={{ slug: target }}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-primary hover:underline"
+                        className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
                       >
-                        {label("admin.authors.viewPublic", "Profil", "Profile")}
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        {t("expert.viewProfile")}
+                        <ExternalLink className="h-3 w-3" aria-hidden />
+                      </Link>
                     )}
                   </div>
                 </div>
-              </article>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );
