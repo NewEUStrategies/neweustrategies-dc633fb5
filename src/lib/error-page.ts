@@ -53,10 +53,7 @@ export function renderErrorPage(): string {
         document.getElementById('msg').textContent = 'Something went wrong on our end. Try refreshing or head back home.';
         document.getElementById('actions').classList.add('visible');
       })();
-      // Clear the retry counter once the app successfully boots on a later navigation.
-      window.addEventListener('pageshow', function () {
-        try { sessionStorage.removeItem('__ssr_retry_count'); } catch (e) {}
-      });
+      // The counter is cleared by the real app on successful boot (see src/start.ts).
     </script>
   </body>
 </html>`;
