@@ -85,6 +85,12 @@ function AdminDonationsPage() {
             "Citizen-patronage payments from /support. Recorded by the Stripe webhook.",
           )}
         </p>
+        <p className="mt-2 max-w-3xl rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          {L(
+            "Te same sumy zasilają widget „Darowizny / Mecenat" w CMS Builderze (kategoria „Formularze", 6 wariantów) - dane są zsynchronizowane w czasie rzeczywistym (Stripe → webhook → tabela donations → widget).",
+            'The same totals power the "Donations / Patronage" widget in the CMS Builder (Forms category, 6 variants) - data is synchronised in real time (Stripe → webhook → donations table → widget).',
+          )}
+        </p>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2">
