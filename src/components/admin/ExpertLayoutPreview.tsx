@@ -84,7 +84,13 @@ const LABELS: Record<Lang, Record<string, string>> = {
 // tego, czy wybrany ekspert ma wypełnione pola.
 const PLACEHOLDER = {
   pl: {
-    bio: "Dr Anna Kowalska jest starszą analityczką w zespole polityki europejskiej New European Strategies. Specjalizuje się w polityce bezpieczeństwa UE, relacjach transatlantyckich oraz strategicznej autonomii Europy. Autorka ponad 40 publikacji recenzowanych, komentatorka w czołowych mediach europejskich, doradczyni instytucji publicznych oraz think-tanków. Przed dołączeniem do NES pracowała w Ministerstwie Spraw Zagranicznych oraz w Parlamencie Europejskim, gdzie kierowała zespołem doradczym ds. polityki wschodniej. Regularnie występuje na konferencjach Munich Security Conference, GLOBSEC oraz Warsaw Security Forum.",
+    bio: [
+      "Starsza analityczka polityki europejskiej w New European Strategies, specjalistka od bezpieczeństwa UE i relacji transatlantyckich.",
+      "Autorka ponad 40 publikacji recenzowanych i komentatorka w czołowych mediach europejskich.",
+      "Wcześniej w MSZ i Parlamencie Europejskim, gdzie kierowała zespołem doradczym ds. polityki wschodniej.",
+      "Doradczyni instytucji publicznych oraz wiodących think-tanków w regionie CEE.",
+      "Regularna prelegentka Munich Security Conference, GLOBSEC oraz Warsaw Security Forum.",
+    ],
     role: "Starsza analityczka · New European Strategies",
     email: "kontakt@przyklad.pl",
     mediaEmail: "media@przyklad.pl",
