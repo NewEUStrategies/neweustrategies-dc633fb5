@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { EyeOff, Vote } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   fetchPublicPolls,
   fetchPollResults,
@@ -56,9 +57,9 @@ function PollsPage() {
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
   const idsKey = ids.join(",");
-  const votesQ = useQuery({
-    queryKey: ["public-poll-votes", idsKey, user?.id ?? "anon"],
-    queryFn: () => fetchPollVotes(ids, user?.id ?? null),
+  const resultsQ = useQuery({
+    queryKey: ["public-poll-results", idsKey, user?.id ?? "anon"],
+    queryFn: () => fetchPollResults(ids),
     enabled: ids.length > 0,
   });
 
@@ -72,7 +73,7 @@ function PollsPage() {
       if (timer) return;
       timer = setTimeout(() => {
         timer = null;
-        qc.invalidateQueries({ queryKey: ["public-poll-votes"] });
+        qc.invalidateQueries({ queryKey: ["public-poll-results"] });
       }, 250);
     };
     const filter = `poll_id=in.(${ids.join(",")})`;

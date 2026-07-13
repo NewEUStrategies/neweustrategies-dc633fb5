@@ -842,7 +842,6 @@ function ChannelsSettings({
   onPatch: (patch: Partial<NotificationPreferences>) => void;
 }) {
   const { t } = useTranslation();
-  const push = usePushSubscription();
 
   return (
     <div>
@@ -855,52 +854,6 @@ function ChannelsSettings({
         })}
       </p>
       <div className="mt-3 space-y-2">
-        {push.supported && (
-          <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
-            <div className="min-w-0">
-              <Label htmlFor="pref-push" className="text-sm font-normal">
-                {t("notifications.settings.push", {
-                  defaultValue: "Powiadomienia push na tym urządzeniu",
-                })}
-              </Label>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {!push.configured
-                  ? t("notifications.settings.pushUnconfigured", {
-                      defaultValue:
-                        "Kanał push nie jest jeszcze skonfigurowany po stronie serwera (VAPID).",
-                    })
-                  : push.permissionDenied
-                    ? t("notifications.settings.pushDenied", {
-                        defaultValue:
-                          "Przeglądarka blokuje powiadomienia dla tej strony - zmień to w jej ustawieniach.",
-                      })
-                    : t("notifications.settings.pushHint", {
-                        defaultValue: "Systemowe powiadomienia również przy zamkniętej karcie.",
-                      })}
-              </p>
-            </div>
-            <Switch
-              id="pref-push"
-              checked={push.enabled}
-              disabled={push.busy || !push.configured || push.permissionDenied}
-              onCheckedChange={(v) => {
-                if (v) {
-                  void push.subscribe().then((ok) => {
-                    if (ok) {
-                      toast.success(
-                        t("notifications.settings.pushEnabled", {
-                          defaultValue: "Push włączony na tym urządzeniu",
-                        }),
-                      );
-                    }
-                  });
-                } else {
-                  void push.unsubscribe();
-                }
-              }}
-            />
-          </div>
-        )}
         <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
           <div className="min-w-0">
             <Label className="text-sm font-normal">

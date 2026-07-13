@@ -6185,6 +6185,38 @@ export type Database = {
           website_url: string
         }[]
       }
+      admin_member_activity_series: {
+        Args: { p_days?: number }
+        Returns: {
+          active_members: number
+          day: string
+          new_members: number
+        }[]
+      }
+      admin_member_funnel: {
+        Args: { p_days?: number }
+        Returns: {
+          active_members: number
+          chat_senders: number
+          commenters: number
+          discoverable_new: number
+          discoverable_total: number
+          members_new: number
+          members_total: number
+          newsletter_subscribed: number
+          paying_members: number
+          readers: number
+        }[]
+      }
+      admin_member_retention: {
+        Args: { p_weeks?: number }
+        Returns: {
+          active_members: number
+          cohort_size: number
+          cohort_start: string
+          week_offset: number
+        }[]
+      }
       admin_set_content_password: {
         Args: {
           _entity_id: string
@@ -6207,6 +6239,7 @@ export type Database = {
         Args: { p_anonymous?: boolean; p_body: string; p_session_id: string }
         Returns: string
       }
+      assert_admin_tenant: { Args: never; Returns: string }
       bump_tenant_counter: {
         Args: { p_delta: number; p_key: string; p_tenant_id: string }
         Returns: undefined
@@ -6635,6 +6668,13 @@ export type Database = {
         }[]
       }
       get_poll_results: { Args: { p_poll_id: string }; Returns: Json }
+      get_poll_results_bulk: {
+        Args: { p_poll_ids: string[] }
+        Returns: {
+          poll_id: string
+          result: Json
+        }[]
+      }
       get_post_for_edit: {
         Args: { _slug: string }
         Returns: {
@@ -6729,6 +6769,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_tier_feature: { Args: { _feature: string }; Returns: boolean }
       has_tier_rank: { Args: { _min: number }; Returns: boolean }
       install_workflow_template: { Args: { p_key: string }; Returns: string }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
@@ -6757,6 +6798,22 @@ export type Database = {
       linked_item_label: {
         Args: { p_id: string; p_type: string }
         Returns: string
+      }
+      list_qa_questions: {
+        Args: { p_session_id: string }
+        Returns: {
+          answer_body: string
+          answered_at: string
+          author_display: string
+          body: string
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          is_priority: boolean
+          session_id: string
+          status: string
+          votes: number
+        }[]
       }
       log_search_query: {
         Args: { _lang?: string; _q: string; _results?: number }
@@ -6987,6 +7044,11 @@ export type Database = {
         }[]
       }
       unaccent: { Args: { "": string }; Returns: string }
+      user_has_tier_feature: {
+        Args: { _feature: string; p_user: string }
+        Returns: boolean
+      }
+      user_is_editorial: { Args: { p_user: string }; Returns: boolean }
       verify_content_password: {
         Args: {
           _entity_id: string
