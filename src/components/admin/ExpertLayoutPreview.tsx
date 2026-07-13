@@ -61,6 +61,7 @@ const LABELS: Record<Lang, Record<string, string>> = {
     expertise: "Obszary ekspertyzy",
     noSample: "Brak eksperta z ustawionym slug-iem. Dodaj slug w profilu, aby zobaczyć podgląd.",
     empty: "Brak danych do wyświetlenia w tej sekcji.",
+    placeholder: "Przykładowa treść",
   },
   en: {
     bio: "Biography",
@@ -74,8 +75,126 @@ const LABELS: Record<Lang, Record<string, string>> = {
     expertise: "Areas of expertise",
     noSample: "No expert with a slug set. Add a slug to a profile to see the preview.",
     empty: "No data to render in this section.",
+    placeholder: "Sample content",
   },
 };
+
+// Placeholdery - używane, gdy dane eksperta są puste. Dzięki temu każdy preset
+// pokazuje pełen szkielet strony (avatar, okładka, bio, listy) niezależnie od
+// tego, czy wybrany ekspert ma wypełnione pola.
+const PLACEHOLDER = {
+  pl: {
+    bio: "To miejsce wypełni pełna biografia eksperta - dorobek, obszary badawcze, ważne publikacje, doświadczenie zawodowe oraz osiągnięcia. Tekst dostosowuje się do wybranego layoutu.",
+    role: "Ekspert · Instytucja",
+    email: "kontakt@przyklad.pl",
+    mediaEmail: "media@przyklad.pl",
+    phone: "+48 000 000 000",
+    website: "przyklad.pl",
+    areas: ["Bezpieczeństwo", "Polityka UE", "Gospodarka", "Energetyka"],
+    mentions: [
+      { outlet: "Rzeczpospolita", title: "Komentarz eksperta w kontekście polityki UE", date: "2026-06-12" },
+      { outlet: "TVP Info", title: "Rozmowa o bezpieczeństwie regionalnym", date: "2026-05-30" },
+      { outlet: "Gazeta Wyborcza", title: "Analiza sytuacji gospodarczej", date: "2026-05-14" },
+    ],
+    podcasts: [
+      { title: "Rozmowy o Europie - odcinek 12", date: "2026-06-01" },
+      { title: "Bezpieczeństwo XXI wieku", date: "2026-05-18" },
+      { title: "Strategia i geopolityka", date: "2026-04-22" },
+    ],
+    materials: [
+      "Raport roczny 2026",
+      "Analiza polityki zagranicznej",
+      "Studium przypadku - energetyka",
+      "Prezentacja: Nowa strategia UE",
+      "Wywiad ekspercki",
+      "Publikacja naukowa",
+    ],
+    programs: [
+      { name: "Program badawczy: Bezpieczeństwo", role: "Kierownik" },
+      { name: "Inicjatywa Europa 2030", role: "Ekspert" },
+      { name: "Panel gospodarczy", role: "Członek" },
+      { name: "Projekt energetyczny", role: "Konsultant" },
+    ],
+  },
+  en: {
+    bio: "This is where the expert's full biography appears - achievements, research areas, key publications, professional experience, and awards. The text adapts to the selected layout.",
+    role: "Expert · Institution",
+    email: "contact@example.com",
+    mediaEmail: "media@example.com",
+    phone: "+1 000 000 000",
+    website: "example.com",
+    areas: ["Security", "EU policy", "Economy", "Energy"],
+    mentions: [
+      { outlet: "The Times", title: "Expert commentary on EU policy", date: "2026-06-12" },
+      { outlet: "Reuters", title: "Interview on regional security", date: "2026-05-30" },
+      { outlet: "The Guardian", title: "Analysis of economic trends", date: "2026-05-14" },
+    ],
+    podcasts: [
+      { title: "Europe Talks - episode 12", date: "2026-06-01" },
+      { title: "21st Century Security", date: "2026-05-18" },
+      { title: "Strategy and Geopolitics", date: "2026-04-22" },
+    ],
+    materials: [
+      "Annual report 2026",
+      "Foreign policy analysis",
+      "Case study - energy",
+      "Presentation: New EU strategy",
+      "Expert interview",
+      "Scientific publication",
+    ],
+    programs: [
+      { name: "Research program: Security", role: "Lead" },
+      { name: "Europe 2030 initiative", role: "Expert" },
+      { name: "Economic panel", role: "Member" },
+      { name: "Energy project", role: "Consultant" },
+    ],
+  },
+} as const;
+
+function AvatarPlaceholder({
+  name,
+  className = "",
+  rounded = "rounded-full",
+}: {
+  name: string;
+  className?: string;
+  rounded?: string;
+}) {
+  const initials = (name || "?")
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <div
+      className={`${className} ${rounded} flex items-center justify-center font-display text-2xl select-none`}
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 30%, transparent), color-mix(in oklab, var(--pv-accent) 10%, transparent))",
+        color: "var(--pv-accent)",
+        border: "2px solid var(--pv-accent)",
+      }}
+      aria-hidden
+    >
+      {initials || "??"}
+    </div>
+  );
+}
+
+function CoverPlaceholder({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={className}
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 40%, transparent) 0%, color-mix(in oklab, var(--pv-accent) 15%, transparent) 60%, transparent 100%), repeating-linear-gradient(45deg, rgba(0,0,0,0.04) 0 8px, transparent 8px 16px)",
+      }}
+      aria-hidden
+    />
+  );
+}
 
 export function ExpertLayoutPreview({
   settings,
