@@ -603,12 +603,12 @@ function ExpertMockup({
     return (
       <div style={heroStyle}>
         <div className="relative w-full h-56">
-          {cover("absolute inset-0 w-full h-full")}
+          {cover("absolute inset-0 w-full h-full", "1600×600 px")}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
-            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]")}</div>
+            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]", "400×400 px")}</div>
             <div className="flex-1 min-w-0">
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
