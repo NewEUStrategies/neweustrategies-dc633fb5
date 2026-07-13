@@ -61,6 +61,7 @@ function Page() {
     void _t;
     try {
       await save.mutateAsync(rest);
+      setSavedAt(Date.now());
       
       toast.success("Zapisano - layout strony eksperta został zaktualizowany");
     } catch (e) {
