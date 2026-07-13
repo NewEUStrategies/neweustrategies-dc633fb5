@@ -1013,15 +1013,24 @@ function SectionRenderer({
 function SocialRow({
   expert,
   className = "",
+  showPlaceholders = false,
+  lang = "pl",
 }: {
   expert: ExpertHubData["expert"];
   className?: string;
+  showPlaceholders?: boolean;
+  lang?: Lang;
 }) {
+  const ph = PLACEHOLDER[lang];
   const items: { href: string; icon: React.ReactNode; label: string }[] = [];
-  if (expert.website_url) items.push({ href: expert.website_url, icon: <Globe className="h-4 w-4" />, label: "web" });
-  if (expert.linkedin_url) items.push({ href: expert.linkedin_url, icon: <Linkedin className="h-4 w-4" />, label: "linkedin" });
-  if (expert.twitter_url) items.push({ href: expert.twitter_url, icon: <Twitter className="h-4 w-4" />, label: "x" });
-  if (expert.contact_email) items.push({ href: `mailto:${expert.contact_email}`, icon: <Mail className="h-4 w-4" />, label: "mail" });
+  const website = expert.website_url || (showPlaceholders ? `https://${ph.website}` : "");
+  const linkedin = expert.linkedin_url || (showPlaceholders ? "https://linkedin.com/in/anna-kowalska" : "");
+  const twitter = expert.twitter_url || (showPlaceholders ? "https://x.com/anna_kowalska" : "");
+  const mail = expert.contact_email || (showPlaceholders ? ph.email : "");
+  if (website) items.push({ href: website, icon: <Globe className="h-4 w-4" />, label: "web" });
+  if (linkedin) items.push({ href: linkedin, icon: <Linkedin className="h-4 w-4" />, label: "linkedin" });
+  if (twitter) items.push({ href: twitter, icon: <Twitter className="h-4 w-4" />, label: "x" });
+  if (mail) items.push({ href: `mailto:${mail}`, icon: <Mail className="h-4 w-4" />, label: "mail" });
   if (items.length === 0) return null;
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
@@ -1041,3 +1050,43 @@ function SocialRow({
     </div>
   );
 }
+
+function ContactInline({
+  expert,
+  className = "",
+  showPlaceholders = false,
+  lang = "pl",
+  color,
+}: {
+  expert: ExpertHubData["expert"];
+  className?: string;
+  showPlaceholders?: boolean;
+  lang?: Lang;
+  color?: string | null;
+}) {
+  const ph = PLACEHOLDER[lang];
+  const email = expert.contact_email || (showPlaceholders ? ph.email : "");
+  const phone = (expert as { phone?: string | null }).phone || (showPlaceholders ? ph.phone : "");
+  const site = expert.website_url || (showPlaceholders ? ph.website : "");
+  const items: { icon: React.ReactNode; text: string; href?: string }[] = [];
+  if (email) items.push({ icon: <Mail className="h-3.5 w-3.5" />, text: email, href: `mailto:${email}` });
+  if (phone) items.push({ icon: <Phone className="h-3.5 w-3.5" />, text: phone, href: `tel:${phone.replace(/\s+/g, "")}` });
+  if (site) items.push({ icon: <Globe className="h-3.5 w-3.5" />, text: site.replace(/^https?:\/\//, ""), href: site.startsWith("http") ? site : `https://${site}` });
+  if (items.length === 0) return null;
+  const style: React.CSSProperties = { color: color ?? undefined, opacity: color ? 0.9 : undefined };
+  return (
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${className}`} style={style}>
+      {items.map((c, i) => (
+        <a
+          key={i}
+          href={c.href}
+          className="inline-flex items-center gap-1.5 hover:underline"
+        >
+          {c.icon}
+          <span>{c.text}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
