@@ -3,11 +3,12 @@
 // wyników po każdym insert/update/delete, co daje płynne animacje słupków
 // (transition-[width] + animate-fade-in na etykiecie procentów).
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { EyeOff, Vote } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   fetchPublicPolls,
   fetchPollResults,
