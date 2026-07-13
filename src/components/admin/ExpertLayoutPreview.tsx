@@ -735,7 +735,7 @@ function ExpertMockup({
         <div className="h-0.5 w-12 mb-5" style={{ backgroundColor: "var(--pv-accent)" }} />
         <div className={`flex flex-col md:flex-row gap-6 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
           <div className="shrink-0">
-            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]")}
+            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]", "600×600 px")}
           </div>
           <div className="flex-1 min-w-0">
             <p
