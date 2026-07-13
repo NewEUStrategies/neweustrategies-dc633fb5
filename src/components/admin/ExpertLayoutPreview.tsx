@@ -540,6 +540,13 @@ function ExpertMockup({
     );
 
 
+  const social = (className: string) => (
+    <SocialRow expert={e} className={className} showPlaceholders={showPlaceholders} lang={lang} />
+  );
+  const contact = (className: string) => (
+    <ContactInline expert={e} className={className} showPlaceholders={showPlaceholders} lang={lang} color={heroText} />
+  );
+
   if (preset.heroKind === "centered") {
     return (
       <div className="w-full" style={heroStyle}>
@@ -553,7 +560,8 @@ function ExpertMockup({
           <p className="mt-1" style={roleStyle}>
             {roleLine}
           </p>
-          <SocialRow expert={e} className="mt-4 justify-center" />
+          {social("mt-4 justify-center")}
+          {contact("mt-3 justify-center")}
           <BioBlock className="mt-4 mx-auto max-w-2xl" />
         </div>
       </div>
@@ -570,15 +578,17 @@ function ExpertMockup({
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
             <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]")}</div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
               </h1>
               <p className="mt-1" style={roleStyle}>
                 {roleLine}
               </p>
+              {social("mt-2")}
             </div>
           </div>
+          {contact("mt-3")}
           <BioBlock className="mt-4" />
         </div>
       </div>
@@ -598,7 +608,8 @@ function ExpertMockup({
               {name}
             </h1>
             <p className="text-xs" style={{ ...roleStyle, fontSize: 12 }}>{roleLine}</p>
-            <SocialRow expert={e} className="mt-3" />
+            {social("mt-3")}
+            {contact("mt-3 flex-col items-start gap-1")}
           </aside>
           <div style={heroStyle}>
             <BioBlock />
@@ -619,6 +630,8 @@ function ExpertMockup({
           <p className="mt-1" style={roleStyle}>
             {roleLine}
           </p>
+          {social(`mt-4 ${centered ? "justify-center" : ""}`)}
+          {contact(`mt-3 ${centered ? "justify-center" : ""}`)}
           <BioBlock className={`mt-4 ${centered ? "mx-auto max-w-2xl" : "max-w-2xl"}`} />
         </div>
       </div>
@@ -640,7 +653,8 @@ function ExpertMockup({
             <p className="mt-1" style={roleStyle}>
               {roleLine}
             </p>
-            <SocialRow expert={e} className="mt-3" />
+            {social(`mt-3 ${centered ? "justify-center" : ""}`)}
+            {contact(`mt-2 ${centered ? "justify-center" : ""}`)}
             <BioBlock className="mt-3" />
           </div>
         </div>
@@ -673,6 +687,10 @@ function ExpertMockup({
           >
             {bioText}
           </blockquote>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            {social("")}
+            {contact("")}
+          </div>
         </div>
       </div>
     );
@@ -705,7 +723,8 @@ function ExpertMockup({
               {roleLine}
             </p>
             <div className="mt-3 h-px w-full bg-border/60" />
-            <SocialRow expert={e} className={`mt-3 ${centered ? "justify-center" : ""}`} />
+            {social(`mt-3 ${centered ? "justify-center" : ""}`)}
+            {contact(`mt-2 ${centered ? "justify-center" : ""}`)}
             <BioBlock className="mt-4" />
           </div>
         </div>
@@ -713,6 +732,7 @@ function ExpertMockup({
     </div>
   );
 }
+
 
 
 // ---------- SEKCJE --------------------------------------------------------
