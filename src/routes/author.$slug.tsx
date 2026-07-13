@@ -210,7 +210,7 @@ function ExpertHubPage() {
             </div>
           </div>
         </header>
-        <AuthorCvSections userId={author.id} />
+        <AuthorCvSections userId={expert.id} />
         {podcastsQ.data && podcastsQ.data.length > 0 && (
           <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-4">
             <PodcastEpisodeStrip
@@ -220,38 +220,6 @@ function ExpertHubPage() {
             />
           </section>
         )}
-        <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
-          <h2 className="font-display text-2xl mb-5">
-            {lang === "en" ? "Author's posts" : "Wpisy autora"}
-          </h2>
-          <ArchivePostList
-            posts={posts}
-            lang={lang}
-            emptyText={t("archive.empty", {
-              defaultValue:
-                lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
-            })}
-          />
-          {canLoadMore && (
-            <div className="flex justify-center pt-6">
-              <Button
-                variant="outline"
-                disabled={isPending}
-                onClick={() =>
-                  startTransition(() => setPaging({ slug, limit: limit + ARCHIVE_PAGE_SIZE }))
-                }
-              >
-                {isPending
-                  ? t("common.loading", {
-                      defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
-                    })
-                  : t("common.loadMore", {
-                      defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
-                    })}
-              </Button>
-            </div>
-          )}
-        </section>
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
           <ExpertMaterialsExplorer data={data} lang={lang} />
         </section>
