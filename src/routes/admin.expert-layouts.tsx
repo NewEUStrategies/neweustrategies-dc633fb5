@@ -112,7 +112,8 @@ function Page() {
 
   return (
     <AdminShell hideSidebar>
-      <div className="space-y-6">
+      <div className="mx-auto max-w-[1200px] space-y-8 p-4 md:p-6">
+
         <header className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="font-display text-xl">Layouty stron ekspertów</h1>
