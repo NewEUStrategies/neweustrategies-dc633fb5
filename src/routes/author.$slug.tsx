@@ -100,9 +100,9 @@ function ExpertHubPage() {
   const personalized = usePersonalizedSettings();
   // Pełny zestaw odznak (ekspert/redakcja/autor gościnny) - parytet z /people;
   // duplikat "Zweryfikowany" odpada, gdy pill verified_at już świeci.
-  const badgesQ = useUserBadges(data?.author.id);
+  const badgesQ = useUserBadges(data?.expert.id);
   // Agregacja odcinków, w których ekspert prowadzi/gości lub jest autorem.
-  const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.author.id ?? ""));
+  const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.expert.id ?? ""));
   if (!data) return <PublicNotFound />;
   const { expert } = data;
   // Pełny zestaw odznak; duplikat "Zweryfikowany" odpada, gdy pill verified świeci.
