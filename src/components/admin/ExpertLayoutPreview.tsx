@@ -10,20 +10,20 @@
 //   2. iframe wymuszałby pełny reload przy każdym kliknięciu.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+// Ikony przez shim `@/lib/lucide-shim` - zaciągają się z ustawień
+// admina (icon pack: lucide / fontawesome). Ikony spoza shimu (Phone,
+// Briefcase, GraduationCap, ExternalLink) fallbackują do lucide-react.
 import {
   Mail,
-  Phone,
   Globe,
   Linkedin,
   Twitter,
-  ExternalLink,
   Newspaper,
   Mic,
   BookOpen,
-  Briefcase,
-  GraduationCap,
   Layers,
-} from "lucide-react";
+} from "@/lib/lucide-shim";
+import { Phone, ExternalLink, Briefcase, GraduationCap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
 import type { ExpertHubData } from "@/lib/experts/types";
@@ -837,7 +837,7 @@ function SectionRenderer({
             {[Globe, Linkedin, Twitter, Mail].map((Icon, i) => (
               <span
                 key={i}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-dashed"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-dashed"
                 style={{ color: "var(--pv-accent)", borderColor: "var(--pv-accent)" }}
               >
                 <Icon className="h-4 w-4" />
@@ -1060,7 +1060,7 @@ function SocialRow({
           href={s.href}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border hover:bg-muted"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-border hover:bg-muted"
           style={{ color: "var(--pv-accent)" }}
           aria-label={s.label}
         >
