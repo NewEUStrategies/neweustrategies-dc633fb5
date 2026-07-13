@@ -495,6 +495,27 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
+  // Rola/bio dziedziczą kolor tekstu z heroStyle (color: heroText). Używamy
+  // opacity zamiast text-muted-foreground, żeby ustawiony kolor był widoczny.
+  const roleStyle: React.CSSProperties = {
+    fontSize: settings.role_size_lg,
+    color: heroText ?? undefined,
+    opacity: heroText ? 0.85 : undefined,
+  };
+  const bioStyle: React.CSSProperties = {
+    color: heroText ?? undefined,
+    opacity: heroText ? 0.9 : undefined,
+  };
+  const BioBlock = ({ className = "" }: { className?: string }) =>
+    bioText ? (
+      <p
+        className={`text-sm leading-relaxed whitespace-pre-line ${className}`}
+        style={bioStyle}
+      >
+        {bioText}
+      </p>
+    ) : null;
+
   const avatar = (className: string, rounded = "rounded-full") =>
     e.avatar_url ? (
       <img
@@ -513,6 +534,7 @@ function ExpertMockup({
     ) : (
       <CoverPlaceholder className={className} />
     );
+
 
   if (preset.heroKind === "centered") {
     return (
