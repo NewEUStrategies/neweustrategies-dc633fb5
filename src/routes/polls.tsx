@@ -231,3 +231,20 @@ function PollCard({
     </li>
   );
 }
+
+/** Tabularne procenty z krótkim animate-fade-in gdy wartość się zmienia. */
+function AnimatedCount({ pct, n }: { pct: number; n: number }) {
+  const prev = useRef({ pct, n });
+  const changed = prev.current.pct !== pct || prev.current.n !== n;
+  useEffect(() => {
+    prev.current = { pct, n };
+  }, [pct, n]);
+  return (
+    <span
+      key={`${pct}-${n}`}
+      className={`text-xs tabular-nums text-muted-foreground ${changed ? "animate-fade-in" : ""}`}
+    >
+      {pct}% · {n}
+    </span>
+  );
+}
