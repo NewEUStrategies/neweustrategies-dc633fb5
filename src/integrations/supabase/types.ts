@@ -5702,6 +5702,8 @@ export type Database = {
           tenant_id: string
           twitter_url: string | null
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
           website_url: string | null
         }
         Insert: {
@@ -5733,6 +5735,8 @@ export type Database = {
           tenant_id: string
           twitter_url?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
           website_url?: string | null
         }
         Update: {
@@ -5764,6 +5768,8 @@ export type Database = {
           tenant_id?: string
           twitter_url?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
           website_url?: string | null
         }
         Relationships: [
@@ -7346,6 +7352,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_set_profile_verification: {
+        Args: { p_user_id: string; p_verified: boolean }
+        Returns: undefined
+      }
       admin_soft_delete_message: {
         Args: { p_message_id: string }
         Returns: undefined
@@ -7721,6 +7731,8 @@ export type Database = {
           tenant_id: string
           twitter_url: string | null
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
           website_url: string | null
         }[]
         SetofOptions: {
