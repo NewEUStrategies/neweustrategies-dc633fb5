@@ -905,6 +905,7 @@ function SectionRenderer({
       );
     }
     case "cv": {
+      if (!showPlaceholders) return null;
       return wrap(
         <>
           {t.cv}
