@@ -502,7 +502,24 @@ function ExpertMockup({
   const realRoleLine = [role, company].filter(Boolean).join(" · ");
   const roleLine = realRoleLine || (showPlaceholders ? ph.role : "");
   const realBio = (lang === "en" ? e.bio_en : e.bio_pl) ?? "";
-  const bioText = realBio.trim() || (showPlaceholders ? ph.bio : "");
+  // Zamień bio na listę punktorów (max 5): najpierw spróbuj po nowych liniach
+  // / dashach / bulletach, potem fallback po zdaniach. Puste bio -> placeholder.
+  const bioItems: string[] = (() => {
+    const src = realBio.trim();
+    if (src) {
+      const byLine = src
+        .split(/\r?\n+/)
+        .map((l) => l.replace(/^\s*[-•*·]\s*/, "").trim())
+        .filter(Boolean);
+      if (byLine.length > 1) return byLine.slice(0, 5);
+      const bySentence = src
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return bySentence.slice(0, 5);
+    }
+    return showPlaceholders ? ph.bio.slice(0, 5) : [];
+  })();
 
   const hasCover = Boolean(e.cover_url);
 
@@ -513,8 +530,6 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
-  // Rola/bio dziedziczą kolor tekstu z heroStyle (color: heroText). Używamy
-  // opacity zamiast text-muted-foreground, żeby ustawiony kolor był widoczny.
   const roleStyle: React.CSSProperties = {
     fontSize: settings.role_size_lg,
     color: heroText ?? undefined,
@@ -525,13 +540,22 @@ function ExpertMockup({
     opacity: heroText ? 0.9 : undefined,
   };
   const BioBlock = ({ className = "" }: { className?: string }) =>
-    bioText ? (
-      <p
-        className={`text-sm leading-relaxed whitespace-pre-line ${className}`}
+    bioItems.length > 0 ? (
+      <ul
+        className={`text-sm leading-relaxed space-y-1.5 pl-0 list-none ${className}`}
         style={bioStyle}
       >
-        {bioText}
-      </p>
+        {bioItems.map((item, i) => (
+          <li key={i} className="flex gap-2 items-start">
+            <span
+              aria-hidden
+              className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-[6px]"
+              style={{ backgroundColor: "var(--pv-bio-bullet)" }}
+            />
+            <span className="flex-1">{item}</span>
+          </li>
+        ))}
+      </ul>
     ) : null;
 
   const sizeLabel = lang === "en" ? "Recommended" : "Zalecane";
