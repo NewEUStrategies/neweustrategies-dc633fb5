@@ -2785,49 +2785,91 @@ export type Database = {
       }
       member_organizations: {
         Row: {
+          brand_accent: string | null
+          brand_ink: string | null
+          brand_primary: string | null
+          city: string | null
           contact_email: string | null
+          country: string | null
           created_at: string
           created_by: string | null
+          description: string | null
           expires_at: string | null
           id: string
+          logo_favicon: string | null
+          logo_h_dark: string | null
+          logo_h_light: string | null
+          logo_v_dark: string | null
+          logo_v_light: string | null
           name: string
           note: string | null
           seats_limit: number
+          sector: string | null
+          slug: string | null
           starts_at: string
           status: string
           tenant_id: string
           tier_key: string
           updated_at: string
+          website_url: string | null
         }
         Insert: {
+          brand_accent?: string | null
+          brand_ink?: string | null
+          brand_primary?: string | null
+          city?: string | null
           contact_email?: string | null
+          country?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           expires_at?: string | null
           id?: string
+          logo_favicon?: string | null
+          logo_h_dark?: string | null
+          logo_h_light?: string | null
+          logo_v_dark?: string | null
+          logo_v_light?: string | null
           name: string
           note?: string | null
           seats_limit?: number
+          sector?: string | null
+          slug?: string | null
           starts_at?: string
           status?: string
           tenant_id?: string
           tier_key?: string
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
+          brand_accent?: string | null
+          brand_ink?: string | null
+          brand_primary?: string | null
+          city?: string | null
           contact_email?: string | null
+          country?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           expires_at?: string | null
           id?: string
+          logo_favicon?: string | null
+          logo_h_dark?: string | null
+          logo_h_light?: string | null
+          logo_v_dark?: string | null
+          logo_v_light?: string | null
           name?: string
           note?: string | null
           seats_limit?: number
+          sector?: string | null
+          slug?: string | null
           starts_at?: string
           status?: string
           tenant_id?: string
           tier_key?: string
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: [
           {
