@@ -499,7 +499,7 @@ function ExpertMockup({
     e.avatar_url ? (
       <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
     ) : (
-      <AvatarPlaceholder name={name} className={className} rounded-[6px]={rounded-[6px]} />
+      <AvatarPlaceholder name={name} className={className} rounded={rounded} />
     );
 
   const cover = (className: string) =>
