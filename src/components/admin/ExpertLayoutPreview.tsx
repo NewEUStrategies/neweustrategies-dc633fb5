@@ -156,11 +156,11 @@ const PLACEHOLDER = {
 function AvatarPlaceholder({
   name,
   className = "",
-  rounded = "rounded-full",
+  rounded-[6px] = "rounded-full",
 }: {
   name: string;
   className?: string;
-  rounded?: string;
+  rounded-[6px]?: string;
 }) {
   const initials = (name || "?")
     .split(/\s+/)
@@ -171,7 +171,7 @@ function AvatarPlaceholder({
     .toUpperCase();
   return (
     <div
-      className={`${className} ${rounded} flex items-center justify-center font-display text-2xl select-none`}
+      className={`${className} ${rounded-[6px]} flex items-center justify-center font-display text-2xl select-none`}
       style={{
         background:
           "linear-gradient(135deg, color-mix(in oklab, var(--pv-accent) 30%, transparent), color-mix(in oklab, var(--pv-accent) 10%, transparent))",
@@ -336,7 +336,7 @@ export function ExpertLayoutPreview({
             <button
               type="button"
               onClick={() => setIframeNonce((n) => n + 1)}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] border border-border text-[11px] hover:bg-muted"
               title="Odśwież iframe"
             >
               Odśwież
@@ -347,7 +347,7 @@ export function ExpertLayoutPreview({
               href={publicHref}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-muted"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] border border-border text-[11px] hover:bg-muted"
               title={lang === "en" ? "Open in a new tab" : "Otwórz w nowej karcie"}
             >
               <ExternalLink className="h-3 w-3" />
@@ -364,12 +364,12 @@ export function ExpertLayoutPreview({
           value={slug}
           onChange={(e) => setSlug(e.target.value.trim())}
           placeholder={sampleSlug ?? "np. jan-kowalski"}
-          className="mt-1 w-full max-w-xs px-2 py-1.5 rounded border border-input bg-background text-xs font-mono text-foreground"
+          className="mt-1 w-full max-w-xs px-2 py-1.5 rounded-[6px] border border-input bg-background text-xs font-mono text-foreground"
         />
       </label>
 
       <div
-        className={`rounded-lg border border-border overflow-hidden shadow-sm ${theme === "dark" && mode === "draft" ? "dark" : ""}`}
+        className={`rounded-[6px] border border-border overflow-hidden shadow-sm ${theme === "dark" && mode === "draft" ? "dark" : ""}`}
         style={previewStyle}
       >
         {mode === "published" ? (
@@ -441,7 +441,7 @@ function ToggleGroup<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex rounded border border-border overflow-hidden text-[11px]">
+    <div className="inline-flex rounded-[6px] border border-border overflow-hidden text-[11px]">
       {options.map((o, i) => (
         <button
           key={o.v}
@@ -495,11 +495,11 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
-  const avatar = (className: string, rounded = "rounded-full") =>
+  const avatar = (className: string, rounded-[6px] = "rounded-full") =>
     e.avatar_url ? (
-      <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
+      <img src={e.avatar_url} alt={name} className={`${className} ${rounded-[6px]} object-cover`} />
     ) : (
-      <AvatarPlaceholder name={name} className={className} rounded={rounded} />
+      <AvatarPlaceholder name={name} className={className} rounded-[6px]={rounded-[6px]} />
     );
 
   const cover = (className: string) =>
@@ -537,7 +537,7 @@ function ExpertMockup({
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
           <div className={`flex gap-4 items-end ${centered ? "justify-center text-center" : ""}`}>
-            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-md")}</div>
+            <div className="-mt-16">{avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]")}</div>
             <div>
               <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
                 {name}
@@ -557,10 +557,10 @@ function ExpertMockup({
       <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
         <div className={`grid gap-6 ${preset.sidebar === "right" ? "md:grid-cols-[1fr_260px]" : "md:grid-cols-[260px_1fr]"}`}>
           <aside
-            className={`rounded-lg border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
+            className={`rounded-[6px] border border-border bg-card p-4 ${preset.sidebar === "right" ? "md:order-2" : ""}`}
             style={heroStyle}
           >
-            {avatar("h-28 w-28", "rounded")}
+            {avatar("h-28 w-28", "rounded-[6px]")}
             <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
               {name}
             </h1>
@@ -593,10 +593,10 @@ function ExpertMockup({
     return (
       <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
         <div
-          className="rounded-xl border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
+          className="rounded-[6px] border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
           style={heroStyle}
         >
-          {avatar("h-24 w-24", "rounded-lg")}
+          {avatar("h-24 w-24", "rounded-[6px]")}
           <div className={centered ? "text-center mx-auto" : ""}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
@@ -647,7 +647,7 @@ function ExpertMockup({
       <div className="mx-auto px-4 py-8" style={{ maxWidth }}>
         <div className={`flex flex-col md:flex-row gap-5 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
           <div style={{ outline: e.avatar_url ? "2px solid var(--pv-accent)" : undefined }}>
-            {avatar("h-32 w-32 md:h-40 md:w-32", "rounded-sm")}
+            {avatar("h-32 w-32 md:h-40 md:w-32", "rounded-[6px]")}
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
@@ -691,7 +691,7 @@ function SectionRenderer({
     );
     if (preset.id === "card-stack") {
       return (
-        <section className="rounded-lg border border-border bg-card p-4 shadow-sm space-y-3">
+        <section className="rounded-[6px] border border-border bg-card p-4 shadow-sm space-y-3">
           {inner}
         </section>
       );
@@ -704,7 +704,7 @@ function SectionRenderer({
   const ph = PLACEHOLDER[lang];
   const placeholderTag = (
     <span
-      className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+      className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-[6px]"
       style={{ backgroundColor: "color-mix(in oklab, var(--pv-accent) 15%, transparent)", color: "var(--pv-accent)" }}
     >
       {t.placeholder}
@@ -788,7 +788,7 @@ function SectionRenderer({
         </>,
         <Mail className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
-          <div className="rounded border border-border p-3 space-y-1">
+          <div className="rounded-[6px] border border-border p-3 space-y-1">
             <div className="flex items-center gap-2">
               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
               {e.contact_email ?? ph.email}
@@ -798,7 +798,7 @@ function SectionRenderer({
               {e.website_url ? e.website_url.replace(/^https?:\/\//, "") : ph.website}
             </div>
           </div>
-          <div className="rounded border border-border p-3 space-y-1">
+          <div className="rounded-[6px] border border-border p-3 space-y-1">
             <div className="text-xs font-semibold">{t.mediaContact}</div>
             <div className="flex items-center gap-2">
               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
@@ -825,7 +825,7 @@ function SectionRenderer({
           {isPlaceholder && placeholderTag}
         </>,
         <Newspaper className="h-4 w-4" />,
-        <ul className="divide-y divide-border/60 rounded border border-border">
+        <ul className="divide-y divide-border/60 rounded-[6px] border border-border">
           {items.map((m, i) => (
             <li key={i} className="px-3 py-2 text-sm flex justify-between gap-3">
               <div className="min-w-0">
@@ -855,7 +855,7 @@ function SectionRenderer({
         <Mic className="h-4 w-4" />,
         <div className="grid sm:grid-cols-3 gap-3">
           {items.map((p, i) => (
-            <div key={i} className="rounded border border-border p-3 text-sm">
+            <div key={i} className="rounded-[6px] border border-border p-3 text-sm">
               <div className="font-medium truncate">{p.title}</div>
               {p.date && <div className="text-xs text-muted-foreground mt-1">{p.date}</div>}
             </div>
@@ -876,7 +876,7 @@ function SectionRenderer({
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {isPlaceholder
             ? ph.materials.map((title, i) => (
-                <div key={i} className="rounded border border-border overflow-hidden bg-card">
+                <div key={i} className="rounded-[6px] border border-border overflow-hidden bg-card">
                   <CoverPlaceholder className="w-full h-24" />
                   <div className="p-2 text-sm">
                     <div className="text-[10px] uppercase text-muted-foreground">
@@ -887,7 +887,7 @@ function SectionRenderer({
                 </div>
               ))
             : real.map((m) => (
-                <div key={m.id} className="rounded border border-border overflow-hidden bg-card">
+                <div key={m.id} className="rounded-[6px] border border-border overflow-hidden bg-card">
                   {m.cover_url ? (
                     <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />
                   ) : (
@@ -914,7 +914,7 @@ function SectionRenderer({
         <GraduationCap className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded border border-border p-3">
+            <div key={i} className="rounded-[6px] border border-border p-3">
               <div className="flex items-center gap-2">
                 <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--pv-accent)" }} />
                 <span className="font-medium">
@@ -946,7 +946,7 @@ function SectionRenderer({
         <Briefcase className="h-4 w-4" />,
         <ul className="grid sm:grid-cols-2 gap-2">
           {items.map((p, i) => (
-            <li key={i} className="rounded border border-border p-2 text-sm">
+            <li key={i} className="rounded-[6px] border border-border p-2 text-sm">
               <div className="font-medium">{p.name}</div>
               {p.role && <div className="text-xs text-muted-foreground">{p.role}</div>}
             </li>
