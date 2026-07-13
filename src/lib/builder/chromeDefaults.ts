@@ -144,12 +144,29 @@ const defaultHeaderDoc = (): BuilderDocument =>
                 widthPx: 1140,
                 columns: [
                   {
-                    title_pl: "Analizy",
-                    title_en: "Analyses",
+                    title_pl: "Programy badawcze",
+                    title_en: "Research programs",
                     links: [
-                      { label_pl: "Bezpieczeństwo", label_en: "Security", href: "#" },
-                      { label_pl: "Gospodarka", label_en: "Economy", href: "#" },
-                      { label_pl: "Polityka", label_en: "Politics", href: "#" },
+                      {
+                        label_pl: "Geopolityka i dyplomacja",
+                        label_en: "Geopolitics & Diplomacy",
+                        href: "/programs/geopolityka-i-dyplomacja",
+                      },
+                      {
+                        label_pl: "Bezpieczeństwo i obronność",
+                        label_en: "Security & Defence",
+                        href: "/programs/bezpieczenstwo-i-obronnosc",
+                      },
+                      {
+                        label_pl: "Gospodarka i handel",
+                        label_en: "Economy & Trade",
+                        href: "/programs/gospodarka-i-handel",
+                      },
+                      {
+                        label_pl: "Wszystkie programy",
+                        label_en: "All programs",
+                        href: "/programs",
+                      },
                     ],
                     featured: null,
                   },
@@ -190,6 +207,12 @@ const defaultHeaderDoc = (): BuilderDocument =>
                     featured: null,
                   },
                 ],
+              }),
+              widget("nav-link", {
+                label_pl: "Programy",
+                label_en: "Programs",
+                href: "/programs",
+                variant: "text",
               }),
               widget("nav-link", {
                 label_pl: "Wydarzenia",
@@ -396,6 +419,12 @@ const defaultMenuDoc = (): BuilderDocument =>
                 label_pl: "Raporty",
                 label_en: "Reports",
                 href: "#",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Programy",
+                label_en: "Programs",
+                href: "/programs",
                 variant: "text",
               }),
               widget("nav-link", {

@@ -112,6 +112,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { loc: `${origin}/qa`, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/polls`, changefreq: "weekly", priority: "0.5" },
           { loc: `${origin}/tracker`, changefreq: "daily", priority: "0.7" },
+          { loc: `${origin}/programs`, changefreq: "weekly", priority: "0.7" },
           { loc: `${origin}/people`, changefreq: "weekly", priority: "0.5" },
           { loc: `${origin}/experts`, changefreq: "weekly", priority: "0.7" },
           { loc: `${origin}/contribute`, changefreq: "monthly", priority: "0.4" },
@@ -189,6 +190,26 @@ export const Route = createFileRoute("/sitemap.xml")({
               loc: `${origin}/podcast/${ep.slug}`,
               lastmod: (ep.updated_at ?? ep.published_at ?? "").slice(0, 10) || undefined,
               changefreq: "monthly",
+              priority: "0.6",
+            });
+          }
+
+          // Published research programs (specialization landing pages).
+          const { data: programs } = await supabaseAdmin
+            .from("research_programs")
+            .select("slug, updated_at, created_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published");
+          for (const row of programs ?? []) {
+            const pr = row as {
+              slug: string;
+              updated_at: string | null;
+              created_at: string | null;
+            };
+            entries.push({
+              loc: `${origin}/programs/${pr.slug}`,
+              lastmod: (pr.updated_at ?? pr.created_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
               priority: "0.6",
             });
           }

@@ -38,6 +38,7 @@ import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WebStoriesIndexRouteImport } from './routes/web-stories.index'
 import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
+import { Route as ProgramsIndexRouteImport } from './routes/programs.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as PodcastsIndexRouteImport } from './routes/podcasts.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
@@ -48,6 +49,7 @@ import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
+import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
@@ -325,6 +327,11 @@ const TrackerIndexRoute = TrackerIndexRouteImport.update({
   path: '/tracker/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProgramsIndexRoute = ProgramsIndexRouteImport.update({
+  id: '/programs/',
+  path: '/programs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -374,6 +381,11 @@ const QaSlugRoute = QaSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => QaRoute,
+} as any)
+const ProgramsSlugRoute = ProgramsSlugRouteImport.update({
+  id: '/programs/$slug',
+  path: '/programs/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
@@ -1150,6 +1162,7 @@ export interface FileRoutesByFullPath {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/programs/$slug': typeof ProgramsSlugRoute
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
@@ -1160,6 +1173,7 @@ export interface FileRoutesByFullPath {
   '/blog/': typeof BlogIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/programs/': typeof ProgramsIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1316,6 +1330,7 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/programs/$slug': typeof ProgramsSlugRoute
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
@@ -1326,6 +1341,7 @@ export interface FileRoutesByTo {
   '/blog': typeof BlogIndexRoute
   '/podcasts': typeof PodcastsIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/programs': typeof ProgramsIndexRoute
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1488,6 +1504,7 @@ export interface FileRoutesById {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/programs/$slug': typeof ProgramsSlugRoute
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
@@ -1498,6 +1515,7 @@ export interface FileRoutesById {
   '/blog/': typeof BlogIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/programs/': typeof ProgramsIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -1662,6 +1680,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/programs/$slug'
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
@@ -1672,6 +1691,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/podcasts/'
     | '/profile/'
+    | '/programs/'
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
@@ -1828,6 +1848,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/programs/$slug'
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
@@ -1838,6 +1859,7 @@ export interface FileRouteTypes {
     | '/blog'
     | '/podcasts'
     | '/profile'
+    | '/programs'
     | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
@@ -1999,6 +2021,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/programs/$slug'
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
@@ -2009,6 +2032,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/podcasts/'
     | '/profile/'
+    | '/programs/'
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
@@ -2109,6 +2133,7 @@ export interface RootRouteChildren {
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
   PostSlugRoute: typeof PostSlugRoute
+  ProgramsSlugRoute: typeof ProgramsSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   TrackerSlugRoute: typeof TrackerSlugRoute
   TrackerChangesRoute: typeof TrackerChangesRoute
@@ -2338,6 +2363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrackerIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/programs/': {
+      id: '/programs/'
+      path: '/programs'
+      fullPath: '/programs/'
+      preLoaderRoute: typeof ProgramsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile/': {
       id: '/profile/'
       path: '/'
@@ -2407,6 +2439,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/qa/$slug'
       preLoaderRoute: typeof QaSlugRouteImport
       parentRoute: typeof QaRoute
+    }
+    '/programs/$slug': {
+      id: '/programs/$slug'
+      path: '/programs/$slug'
+      fullPath: '/programs/$slug'
+      preLoaderRoute: typeof ProgramsSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/profile/subscription': {
       id: '/profile/subscription'
@@ -3731,6 +3770,7 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PodcastsShowRoute: PodcastsShowRouteWithChildren,
   PostSlugRoute: PostSlugRoute,
+  ProgramsSlugRoute: ProgramsSlugRoute,
   TagSlugRoute: TagSlugRoute,
   TrackerSlugRoute: TrackerSlugRoute,
   TrackerChangesRoute: TrackerChangesRoute,
