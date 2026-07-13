@@ -646,21 +646,33 @@ function ExpertMockup({
     );
   }
 
-  // classic (split)
+  // classic (CSIS) — think-tank editorial: cienki akcent, wyraźna ramka avatara,
+  // spokojna typografia, subtelna linia oddzielająca hero od reszty.
   return (
-    <div style={heroStyle}>
-      <div className="mx-auto px-4 py-8" style={{ maxWidth }}>
-        <div className={`flex flex-col md:flex-row gap-5 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
-          <div style={{ outline: e.avatar_url ? "2px solid var(--pv-accent)" : undefined }}>
-            {avatar("h-32 w-32 md:h-40 md:w-32", "rounded-[6px]")}
+    <div style={heroStyle} className="border-b border-border/60">
+      <div className="mx-auto px-4 py-10" style={{ maxWidth }}>
+        <div className="h-0.5 w-12 mb-5" style={{ backgroundColor: "var(--pv-accent)" }} />
+        <div className={`flex flex-col md:flex-row gap-6 ${centered ? "md:items-center md:justify-center md:text-center" : "items-start"}`}>
+          <div className="shrink-0">
+            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]")}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
+            <p
+              className="text-[11px] uppercase tracking-[0.18em] mb-1"
+              style={{ color: "var(--pv-accent)" }}
+            >
+              {lang === "en" ? "Expert profile" : "Profil eksperta"}
+            </p>
+            <h1
+              className="font-display leading-[1.05]"
+              style={{ fontSize: settings.name_size_lg }}
+            >
               {name}
             </h1>
-            <p className="mt-1 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
+            <p className="mt-2 text-muted-foreground" style={{ fontSize: settings.role_size_lg }}>
               {roleLine}
             </p>
+            <div className="mt-3 h-px w-full bg-border/60" />
             <SocialRow expert={e} className={`mt-3 ${centered ? "justify-center" : ""}`} />
           </div>
         </div>
