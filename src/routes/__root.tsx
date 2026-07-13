@@ -243,6 +243,12 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{sessionStorage.removeItem('__ssr_retry_count')}catch(e){}",
+          }}
+        />
       </head>
       <body>
         {children}
