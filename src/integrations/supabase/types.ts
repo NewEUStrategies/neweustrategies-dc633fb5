@@ -307,6 +307,8 @@ export type Database = {
           avatar_url: string | null
           bio_en: string | null
           bio_pl: string | null
+          brand_accent: string | null
+          brand_accent_dark: string | null
           company: string | null
           contact_email: string | null
           counterpart_lang: string | null
@@ -321,6 +323,8 @@ export type Database = {
           is_public: boolean
           job_title: string | null
           layout_overrides: Json | null
+          layout_preset: string | null
+          layout_section_order: string[] | null
           layout_template_id: string | null
           linkedin_url: string | null
           media_contact_email: string | null
@@ -339,6 +343,8 @@ export type Database = {
           avatar_url?: string | null
           bio_en?: string | null
           bio_pl?: string | null
+          brand_accent?: string | null
+          brand_accent_dark?: string | null
           company?: string | null
           contact_email?: string | null
           counterpart_lang?: string | null
@@ -353,6 +359,8 @@ export type Database = {
           is_public?: boolean
           job_title?: string | null
           layout_overrides?: Json | null
+          layout_preset?: string | null
+          layout_section_order?: string[] | null
           layout_template_id?: string | null
           linkedin_url?: string | null
           media_contact_email?: string | null
@@ -371,6 +379,8 @@ export type Database = {
           avatar_url?: string | null
           bio_en?: string | null
           bio_pl?: string | null
+          brand_accent?: string | null
+          brand_accent_dark?: string | null
           company?: string | null
           contact_email?: string | null
           counterpart_lang?: string | null
@@ -385,6 +395,8 @@ export type Database = {
           is_public?: boolean
           job_title?: string | null
           layout_overrides?: Json | null
+          layout_preset?: string | null
+          layout_section_order?: string[] | null
           layout_template_id?: string | null
           linkedin_url?: string | null
           media_contact_email?: string | null
@@ -2290,6 +2302,107 @@ export type Database = {
             columns: ["area_id"]
             isOneToOne: false
             referencedRelation: "expertise_areas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expert_layout_settings: {
+        Row: {
+          accent_color: string | null
+          accent_color_dark: string | null
+          center_details: boolean
+          center_hero: boolean
+          created_at: string
+          default_preset: string
+          hero_bg_color: string | null
+          hero_bg_color_dark: string | null
+          hero_text_color: string | null
+          hero_text_color_dark: string | null
+          max_width: number
+          name_size_base: number
+          name_size_lg: number
+          role_size_base: number
+          role_size_lg: number
+          section_order: string[]
+          show_contact_card: boolean
+          show_cv: boolean
+          show_details: boolean
+          show_expertise_bar: boolean
+          show_hero_cover: boolean
+          show_materials: boolean
+          show_media_mentions: boolean
+          show_podcast_strip: boolean
+          show_programs: boolean
+          show_social_row: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          accent_color_dark?: string | null
+          center_details?: boolean
+          center_hero?: boolean
+          created_at?: string
+          default_preset?: string
+          hero_bg_color?: string | null
+          hero_bg_color_dark?: string | null
+          hero_text_color?: string | null
+          hero_text_color_dark?: string | null
+          max_width?: number
+          name_size_base?: number
+          name_size_lg?: number
+          role_size_base?: number
+          role_size_lg?: number
+          section_order?: string[]
+          show_contact_card?: boolean
+          show_cv?: boolean
+          show_details?: boolean
+          show_expertise_bar?: boolean
+          show_hero_cover?: boolean
+          show_materials?: boolean
+          show_media_mentions?: boolean
+          show_podcast_strip?: boolean
+          show_programs?: boolean
+          show_social_row?: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          accent_color_dark?: string | null
+          center_details?: boolean
+          center_hero?: boolean
+          created_at?: string
+          default_preset?: string
+          hero_bg_color?: string | null
+          hero_bg_color_dark?: string | null
+          hero_text_color?: string | null
+          hero_text_color_dark?: string | null
+          max_width?: number
+          name_size_base?: number
+          name_size_lg?: number
+          role_size_base?: number
+          role_size_lg?: number
+          section_order?: string[]
+          show_contact_card?: boolean
+          show_cv?: boolean
+          show_details?: boolean
+          show_expertise_bar?: boolean
+          show_hero_cover?: boolean
+          show_materials?: boolean
+          show_media_mentions?: boolean
+          show_podcast_strip?: boolean
+          show_programs?: boolean
+          show_social_row?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expert_layout_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
