@@ -68,22 +68,35 @@ export const listRevisions = createServerFn({ method: "POST" })
       const tenantId = await resolveTenant(supabase, userId);
       const { data: rows, error } = await supabase
         .from("content_revisions")
-        .select(
-          "id, created_at, author_id, note, " +
-            "title_pl:snapshot->>title_pl, title_en:snapshot->>title_en, " +
-            "status:snapshot->>status, editor:snapshot->>editor",
-        )
+        .select("id, created_at, author_id, note, snapshot")
         .eq("tenant_id", tenantId)
         .eq("entity_type", data.entityType)
         .eq("entity_id", data.entityId)
         .order("created_at", { ascending: false })
         .limit(data.limit);
       if (error) throw new Error(error.message);
-      // JSON-path aliases (snapshot->>field) are beyond the supabase-js query
-      // parser, so the runtime shape is asserted here instead of inferred.
-      return (rows ?? []) as unknown as RevisionListItem[];
+      // Project snapshot -> lightweight list items on the server to keep the
+      // wire payload small (list may hold up to 50 rows of large snapshots).
+      return (rows ?? []).map((r) => {
+        const s = (r.snapshot ?? {}) as Record<string, unknown>;
+        const pick = (k: string): string | null => {
+          const v = s[k];
+          return typeof v === "string" ? v : null;
+        };
+        return {
+          id: r.id,
+          created_at: r.created_at,
+          author_id: r.author_id,
+          note: r.note,
+          title_pl: pick("title_pl"),
+          title_en: pick("title_en"),
+          status: pick("status"),
+          editor: pick("editor"),
+        } satisfies RevisionListItem;
+      });
     });
   });
+
 
 /**
  * Restore a revision's content onto the live row. Non-destructive:
