@@ -41,6 +41,7 @@ import {
   RatedListView,
   TabsBlock,
   AdSlotById,
+  DonationsWidgetView,
   RichTextView,
   ChartWidgetView,
   DataMapWidgetView,
@@ -1136,6 +1137,42 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "ad-slot": {
       const slotId = getStr(c, "slotId");
       return wrap(<AdSlotById slotId={slotId} />);
+    }
+    case "donations": {
+      const variant = (getStr(c, "variant") || "hero") as
+        | "hero"
+        | "progress"
+        | "stats-strip"
+        | "compact-card"
+        | "inline-bar"
+        | "thermometer";
+      const title = lang === "pl" ? getStr(c, "title_pl") : getStr(c, "title_en");
+      const subtitle = lang === "pl" ? getStr(c, "subtitle_pl") : getStr(c, "subtitle_en");
+      const cta = lang === "pl" ? getStr(c, "cta_pl") : getStr(c, "cta_en");
+      const truthy = (v: unknown) => v === true || v === "true" || v === 1 || v === "1";
+      const falsy = (v: unknown) => v === false || v === "false" || v === 0 || v === "0";
+      const bool = (key: string, dflt: boolean) => {
+        const v = c[key];
+        if (truthy(v)) return true;
+        if (falsy(v)) return false;
+        return dflt;
+      };
+      return wrap(
+        <DonationsWidgetView
+          variant={variant}
+          title={title || undefined}
+          subtitle={subtitle || undefined}
+          cta={cta || undefined}
+          href={getStr(c, "href") || "/support"}
+          goalCents={getNum(c, "goalCents") || 0}
+          currency={getStr(c, "currency") || undefined}
+          showMonth={bool("showMonth", true)}
+          showCount={bool("showCount", true)}
+          showRecent={bool("showRecent", false)}
+          accent={getStr(c, "accent") || undefined}
+          lang={lang}
+        />,
+      );
     }
     case "rich-text":
       // Embeds the blocks engine: the builder hosts full article-style content.
