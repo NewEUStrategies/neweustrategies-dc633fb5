@@ -697,7 +697,7 @@ function ExpertMockup({
     return (
       <div style={heroStyle}>
         <div className="relative w-full h-64">
-          {cover("absolute inset-0 w-full h-full")}
+          {cover("absolute inset-0 w-full h-full", "1600×720 px")}
           <div className="absolute inset-0 bg-black/50" />
           <div className="absolute inset-0 flex items-end">
             <div className="mx-auto w-full px-4 pb-6" style={{ maxWidth }}>
