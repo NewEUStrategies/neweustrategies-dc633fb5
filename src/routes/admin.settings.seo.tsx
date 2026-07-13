@@ -32,6 +32,9 @@ export const Route = createFileRoute("/admin/settings/seo")({
 function SeoSettingsTab() {
   const { t } = useTranslation();
   const { query, save } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
+  const themeOptions = useSettings<ThemeOptionsShape>("theme_options", THEME_OPTIONS_DEFAULTS);
+  const themeLogo = themeOptions.query.data?.logo ?? {};
+  const publisherLogoSource = themeLogo.organization || themeLogo.main || "";
   const [draft, setDraft] = useDraft<SeoSettings>(query.data);
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
