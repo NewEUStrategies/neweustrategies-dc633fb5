@@ -728,6 +728,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "categories_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -7227,6 +7234,7 @@ export type Database = {
         }
         Returns: unknown
       }
+      nes_pl_light_stem: { Args: { _term: string }; Returns: string }
       nes_posts_search_vector: {
         Args: {
           _blocks: Json
@@ -7342,27 +7350,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      search_people: {
-        Args: {
-          p_company?: string
-          p_limit?: number
-          p_location?: string
-          p_offset?: number
-          p_query?: string
-          p_specialization?: string
-        }
-        Returns: {
-          avatar_url: string
-          current_company: string
-          display_name: string
-          id: string
-          job_title: string
-          location: string
-          slug: string
-          specialization: string
-          total_count: number
-        }[]
-      }
       search_autosuggest: {
         Args: { _limit?: number; _q: string }
         Returns: {
@@ -7395,6 +7382,27 @@ export type Database = {
           label_pl: string
           parent_id: string
           slug: string
+        }[]
+      }
+      search_people: {
+        Args: {
+          p_company?: string
+          p_limit?: number
+          p_location?: string
+          p_offset?: number
+          p_query?: string
+          p_specialization?: string
+        }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          location: string
+          slug: string
+          specialization: string
+          total_count: number
         }[]
       }
       search_posts: {
