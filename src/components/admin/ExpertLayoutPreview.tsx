@@ -10,20 +10,20 @@
 //   2. iframe wymuszałby pełny reload przy każdym kliknięciu.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+// Ikony przez shim `@/lib/lucide-shim` - zaciągają się z ustawień
+// admina (icon pack: lucide / fontawesome). Ikony spoza shimu (Phone,
+// Briefcase, GraduationCap, ExternalLink) fallbackują do lucide-react.
 import {
   Mail,
-  Phone,
   Globe,
   Linkedin,
   Twitter,
-  ExternalLink,
   Newspaper,
   Mic,
   BookOpen,
-  Briefcase,
-  GraduationCap,
   Layers,
-} from "lucide-react";
+} from "@/lib/lucide-shim";
+import { Phone, ExternalLink, Briefcase, GraduationCap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
 import type { ExpertHubData } from "@/lib/experts/types";
