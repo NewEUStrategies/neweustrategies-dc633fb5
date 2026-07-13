@@ -116,6 +116,10 @@ import {
   MoreVertical as LMoreVertical,
   Scissors as LScissors,
   ClipboardPaste as LClipboardPaste,
+  HandHeart as LHandHeart,
+  Heart as LHeart,
+  Target as LTarget,
+  TrendingUp as LTrendingUp,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -292,3 +296,7 @@ export const Info = makeIcon("Info", LInfo);
 export const MoreVertical = makeIcon("MoreVertical", LMoreVertical);
 export const Scissors = makeIcon("Scissors", LScissors);
 export const ClipboardPaste = makeIcon("ClipboardPaste", LClipboardPaste);
+export const HandHeart = makeIcon("HandHeart", LHandHeart);
+export const Heart = makeIcon("Heart", LHeart);
+export const Target = makeIcon("Target", LTarget);
+export const TrendingUp = makeIcon("TrendingUp", LTrendingUp);
