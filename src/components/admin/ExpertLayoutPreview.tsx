@@ -676,7 +676,7 @@ function ExpertMockup({
           className="rounded-[6px] border border-border bg-card p-6 shadow-sm flex gap-5 items-start"
           style={heroStyle}
         >
-          {avatar("h-24 w-24", "rounded-[6px]")}
+          {avatar("h-24 w-24", "rounded-[6px]", "400×400 px")}
           <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
             <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
               {name}
