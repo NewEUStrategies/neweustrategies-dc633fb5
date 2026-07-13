@@ -7815,21 +7815,6 @@ export type Database = {
           result: Json
         }[]
       }
-      get_program_members: {
-        Args: { p_program_ids: string[] }
-        Returns: {
-          avatar_url: string
-          display_name: string
-          is_lead: boolean
-          job_title: string
-          member_role_en: string
-          member_role_pl: string
-          profile_id: string
-          profile_slug: string
-          program_id: string
-          sort_order: number
-        }[]
-      }
       get_post_for_edit: {
         Args: { _slug: string }
         Returns: {

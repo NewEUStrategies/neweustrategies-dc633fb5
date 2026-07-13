@@ -2141,6 +2141,7 @@ export interface RootRouteChildren {
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
   PodcastsIndexRoute: typeof PodcastsIndexRoute
+  ProgramsIndexRoute: typeof ProgramsIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -3778,6 +3779,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
   PodcastsIndexRoute: PodcastsIndexRoute,
+  ProgramsIndexRoute: ProgramsIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
