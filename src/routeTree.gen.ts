@@ -158,6 +158,7 @@ import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
+import { Route as AdminOrganizationsNewRouteImport } from './routes/admin.organizations.new'
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
@@ -931,6 +932,11 @@ const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => AdminPagesRoute,
 } as any)
+const AdminOrganizationsNewRoute = AdminOrganizationsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AdminOrganizationsRoute,
+} as any)
 const AdminNewsletterSubscribersRoute =
   AdminNewsletterSubscribersRouteImport.update({
     id: '/subscribers',
@@ -1127,7 +1133,7 @@ export interface FileRoutesByFullPath {
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
-  '/admin/organizations': typeof AdminOrganizationsRoute
+  '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
@@ -1210,6 +1216,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -1299,7 +1306,7 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/names': typeof AdminNamesRoute
-  '/admin/organizations': typeof AdminOrganizationsRoute
+  '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
@@ -1379,6 +1386,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -1473,7 +1481,7 @@ export interface FileRoutesById {
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
-  '/admin/organizations': typeof AdminOrganizationsRoute
+  '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
@@ -1556,6 +1564,7 @@ export interface FileRoutesById {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -1734,6 +1743,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/organizations/new'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -1903,6 +1913,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/organizations/new'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -2079,6 +2090,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/organizations/new'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -3229,6 +3241,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesSlugRouteImport
       parentRoute: typeof AdminPagesRoute
     }
+    '/admin/organizations/new': {
+      id: '/admin/organizations/new'
+      path: '/new'
+      fullPath: '/admin/organizations/new'
+      preLoaderRoute: typeof AdminOrganizationsNewRouteImport
+      parentRoute: typeof AdminOrganizationsRoute
+    }
     '/admin/newsletter/subscribers': {
       id: '/admin/newsletter/subscribers'
       path: '/subscribers'
@@ -3495,6 +3514,17 @@ const AdminNewsletterRouteWithChildren = AdminNewsletterRoute._addFileChildren(
   AdminNewsletterRouteChildren,
 )
 
+interface AdminOrganizationsRouteChildren {
+  AdminOrganizationsNewRoute: typeof AdminOrganizationsNewRoute
+}
+
+const AdminOrganizationsRouteChildren: AdminOrganizationsRouteChildren = {
+  AdminOrganizationsNewRoute: AdminOrganizationsNewRoute,
+}
+
+const AdminOrganizationsRouteWithChildren =
+  AdminOrganizationsRoute._addFileChildren(AdminOrganizationsRouteChildren)
+
 interface AdminPagesRouteChildren {
   AdminPagesSlugRoute: typeof AdminPagesSlugRoute
   AdminPagesNewRoute: typeof AdminPagesNewRoute
@@ -3605,7 +3635,7 @@ interface AdminRouteChildren {
   AdminMembershipRoute: typeof AdminMembershipRoute
   AdminNamesRoute: typeof AdminNamesRoute
   AdminNewsletterRoute: typeof AdminNewsletterRouteWithChildren
-  AdminOrganizationsRoute: typeof AdminOrganizationsRoute
+  AdminOrganizationsRoute: typeof AdminOrganizationsRouteWithChildren
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
   AdminPerformanceRoute: typeof AdminPerformanceRoute
@@ -3661,7 +3691,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminMembershipRoute: AdminMembershipRoute,
   AdminNamesRoute: AdminNamesRoute,
   AdminNewsletterRoute: AdminNewsletterRouteWithChildren,
-  AdminOrganizationsRoute: AdminOrganizationsRoute,
+  AdminOrganizationsRoute: AdminOrganizationsRouteWithChildren,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
   AdminPerformanceRoute: AdminPerformanceRoute,
