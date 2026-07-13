@@ -660,7 +660,7 @@ function SectionRenderer({
   lang: Lang;
 }) {
   const preset = findExpertPreset(settings.default_preset);
-  const wrap = (title: string, icon: React.ReactNode, children: React.ReactNode) => {
+  const wrap = (title: React.ReactNode, icon: React.ReactNode, children: React.ReactNode) => {
     const inner = (
       <>
         <h2 className="flex items-center gap-2 font-display text-lg">
