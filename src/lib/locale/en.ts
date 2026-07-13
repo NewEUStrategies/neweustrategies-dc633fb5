@@ -82,6 +82,7 @@ export const en = {
       appearance: "Header & Footer",
       themeOptions: "Theme Options",
       postLayouts: "Post layouts",
+      expertLayouts: "Expert page layouts",
       icons: "Icons",
       names: "Name dictionary",
       greetings: "Greetings",
