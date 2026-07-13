@@ -6287,6 +6287,278 @@ export type Database = {
           },
         ]
       }
+      research_program_items: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          id: string
+          item_type: string
+          podcast_id: string | null
+          post_id: string | null
+          program_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          item_type: string
+          podcast_id?: string | null
+          post_id?: string | null
+          program_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          item_type?: string
+          podcast_id?: string | null
+          post_id?: string | null
+          program_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_program_items_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_program_items_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_program_items_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_program_items_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_program_members: {
+        Row: {
+          created_at: string
+          is_lead: boolean
+          member_role_en: string | null
+          member_role_pl: string | null
+          profile_id: string
+          program_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          is_lead?: boolean
+          member_role_en?: string | null
+          member_role_pl?: string | null
+          profile_id: string
+          program_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          is_lead?: boolean
+          member_role_en?: string | null
+          member_role_pl?: string | null
+          profile_id?: string
+          program_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_program_members_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_program_partners: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          program_id: string
+          sort_order: number
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          program_id: string
+          sort_order?: number
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          program_id?: string
+          sort_order?: number
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_program_partners_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_program_projects: {
+        Row: {
+          created_at: string
+          id: string
+          name_en: string
+          name_pl: string
+          program_id: string
+          project_status: string
+          sort_order: number
+          summary_en: string | null
+          summary_pl: string | null
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name_en: string
+          name_pl: string
+          program_id: string
+          project_status?: string
+          sort_order?: number
+          summary_en?: string | null
+          summary_pl?: string | null
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name_en?: string
+          name_pl?: string
+          program_id?: string
+          project_status?: string
+          sort_order?: number
+          summary_en?: string | null
+          summary_pl?: string | null
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_program_projects_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_programs: {
+        Row: {
+          accent_color: string
+          category_id: string | null
+          contact_email: string | null
+          created_at: string
+          hero_image_url: string | null
+          icon: string
+          id: string
+          name_en: string
+          name_pl: string
+          research_questions: Json
+          scope_en: string | null
+          scope_pl: string | null
+          slug: string
+          sort_order: number
+          status: string
+          tagline_en: string | null
+          tagline_pl: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string
+          category_id?: string | null
+          contact_email?: string | null
+          created_at?: string
+          hero_image_url?: string | null
+          icon?: string
+          id?: string
+          name_en: string
+          name_pl: string
+          research_questions?: Json
+          scope_en?: string | null
+          scope_pl?: string | null
+          slug: string
+          sort_order?: number
+          status?: string
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string
+          category_id?: string | null
+          contact_email?: string | null
+          created_at?: string
+          hero_image_url?: string | null
+          icon?: string
+          id?: string
+          name_en?: string
+          name_pl?: string
+          research_questions?: Json
+          scope_en?: string | null
+          scope_pl?: string | null
+          slug?: string
+          sort_order?: number
+          status?: string
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_programs_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_programs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resource_downloads: {
         Row: {
           created_at: string
@@ -7868,6 +8140,21 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_program_members: {
+        Args: { p_program_ids: string[] }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          is_lead: boolean
+          job_title: string
+          member_role_en: string
+          member_role_pl: string
+          profile_id: string
+          profile_slug: string
+          program_id: string
+          sort_order: number
+        }[]
       }
       get_recommended_posts_v2: {
         Args: {
