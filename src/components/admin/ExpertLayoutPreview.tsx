@@ -497,7 +497,12 @@ function ExpertMockup({
 
   const avatar = (className: string, rounded = "rounded-full") =>
     e.avatar_url ? (
-      <img src={e.avatar_url} alt={name} className={`${className} ${rounded} object-cover`} />
+      <img
+        src={e.avatar_url}
+        alt={name}
+        className={`${className} ${rounded} object-cover`}
+        style={{ border: "2px solid var(--pv-accent)", boxShadow: "0 0 0 3px color-mix(in oklab, var(--pv-accent) 12%, transparent)" }}
+      />
     ) : (
       <AvatarPlaceholder name={name} className={className} rounded={rounded} />
     );
