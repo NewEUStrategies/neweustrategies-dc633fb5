@@ -17,6 +17,8 @@ import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { FollowButton } from "@/components/FollowButton";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
+import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
+import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
@@ -210,7 +212,14 @@ function ExpertHubPage() {
             </div>
           </div>
         </header>
-        <AuthorCvSections userId={expert.id} />
+        <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8 lg:py-10">
+          <ExpertHubDetails data={data} lang={lang} />
+        </section>
+        {data.mediaMentions.length > 0 && (
+          <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-8">
+            <ExpertInTheNews mentions={data.mediaMentions} lang={lang} />
+          </section>
+        )}
         {podcastsQ.data && podcastsQ.data.length > 0 && (
           <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-4">
             <PodcastEpisodeStrip
@@ -223,6 +232,9 @@ function ExpertHubPage() {
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
           <ExpertMaterialsExplorer data={data} lang={lang} />
         </section>
+        <div className="max-w-[1200px] mx-auto w-full">
+          <AuthorCvSections userId={expert.id} />
+        </div>
       </div>
     </div>
   );
