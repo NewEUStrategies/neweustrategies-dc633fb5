@@ -378,11 +378,21 @@ function PagesList() {
             {total} {t("admin.pages.count")}
           </p>
         </div>
-        <Link to="/admin/pages/new">
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-1.5" /> {t("admin.pages.new")}
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <WordPressImportDialog
+            trigger={
+              <Button size="sm" variant="outline">
+                <Download className="w-4 h-4 mr-1.5" />
+                {t("admin.pages.importWp", { defaultValue: "Import z WordPress" })}
+              </Button>
+            }
+          />
+          <Link to="/admin/pages/new">
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-1.5" /> {t("admin.pages.new")}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs
