@@ -21,7 +21,6 @@ import { Route as QaRouteImport } from './routes/qa'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
-import { Route as PodcastsRouteImport } from './routes/podcasts'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as MessagesRouteImport } from './routes/messages'
@@ -38,6 +37,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as WebStoriesIndexRouteImport } from './routes/web-stories.index'
 import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
+import { Route as PodcastsIndexRouteImport } from './routes/podcasts.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
@@ -58,6 +58,7 @@ import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
 import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
@@ -123,6 +124,7 @@ import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
+import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
@@ -232,11 +234,6 @@ const PollsRoute = PollsRouteImport.update({
   path: '/polls',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PodcastsRoute = PodcastsRouteImport.update({
-  id: '/podcasts',
-  path: '/podcasts',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PeopleRoute = PeopleRouteImport.update({
   id: '/people',
   path: '/people',
@@ -316,6 +313,11 @@ const ProfileIndexRoute = ProfileIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ProfileRoute,
+} as any)
+const PodcastsIndexRoute = PodcastsIndexRouteImport.update({
+  id: '/podcasts/',
+  path: '/podcasts/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/blog/',
@@ -415,6 +417,11 @@ const ProfileAccountRoute = ProfileAccountRouteImport.update({
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
   path: '/post/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PodcastsShowRoute = PodcastsShowRouteImport.update({
+  id: '/podcasts/$show',
+  path: '/podcasts/$show',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PodcastRssDotxmlRoute = PodcastRssDotxmlRouteImport.update({
@@ -744,6 +751,11 @@ const WebStoriesSlugAmpRoute = WebStoriesSlugAmpRouteImport.update({
   path: '/amp',
   getParentRoute: () => WebStoriesSlugRoute,
 } as any)
+const PodcastsShowRssDotxmlRoute = PodcastsShowRssDotxmlRouteImport.update({
+  id: '/rss.xml',
+  path: '/rss.xml',
+  getParentRoute: () => PodcastsShowRoute,
+} as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   id: '/api/public/vitals',
   path: '/api/public/vitals',
@@ -1011,7 +1023,6 @@ export interface FileRoutesByFullPath {
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
-  '/podcasts': typeof PodcastsRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
@@ -1084,6 +1095,7 @@ export interface FileRoutesByFullPath {
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
+  '/podcasts/$show': typeof PodcastsShowRouteWithChildren
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
@@ -1104,6 +1116,7 @@ export interface FileRoutesByFullPath {
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
@@ -1150,6 +1163,7 @@ export interface FileRoutesByFullPath {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
@@ -1174,7 +1188,6 @@ export interface FileRoutesByTo {
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
-  '/podcasts': typeof PodcastsRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/qa': typeof QaRouteWithChildren
@@ -1242,6 +1255,7 @@ export interface FileRoutesByTo {
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
+  '/podcasts/$show': typeof PodcastsShowRouteWithChildren
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
@@ -1262,6 +1276,7 @@ export interface FileRoutesByTo {
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
+  '/podcasts': typeof PodcastsIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
@@ -1307,6 +1322,7 @@ export interface FileRoutesByTo {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
@@ -1333,7 +1349,6 @@ export interface FileRoutesById {
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
-  '/podcasts': typeof PodcastsRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
@@ -1406,6 +1421,7 @@ export interface FileRoutesById {
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
+  '/podcasts/$show': typeof PodcastsShowRouteWithChildren
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
@@ -1426,6 +1442,7 @@ export interface FileRoutesById {
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
@@ -1472,6 +1489,7 @@ export interface FileRoutesById {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
@@ -1499,7 +1517,6 @@ export interface FileRouteTypes {
     | '/messages'
     | '/news-sitemap.xml'
     | '/people'
-    | '/podcasts'
     | '/polls'
     | '/pricing'
     | '/profile'
@@ -1572,6 +1589,7 @@ export interface FileRouteTypes {
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
+    | '/podcasts/$show'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/author'
@@ -1592,6 +1610,7 @@ export interface FileRouteTypes {
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
+    | '/podcasts/'
     | '/profile/'
     | '/tracker/'
     | '/web-stories/'
@@ -1638,6 +1657,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/podcasts/$show/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
     | '/admin/newsletter/'
@@ -1662,7 +1682,6 @@ export interface FileRouteTypes {
     | '/messages'
     | '/news-sitemap.xml'
     | '/people'
-    | '/podcasts'
     | '/polls'
     | '/pricing'
     | '/qa'
@@ -1730,6 +1749,7 @@ export interface FileRouteTypes {
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
+    | '/podcasts/$show'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/author'
@@ -1750,6 +1770,7 @@ export interface FileRouteTypes {
     | '/web-stories/$slug'
     | '/admin'
     | '/blog'
+    | '/podcasts'
     | '/profile'
     | '/tracker'
     | '/web-stories'
@@ -1795,6 +1816,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/podcasts/$show/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community'
     | '/admin/newsletter'
@@ -1820,7 +1842,6 @@ export interface FileRouteTypes {
     | '/messages'
     | '/news-sitemap.xml'
     | '/people'
-    | '/podcasts'
     | '/polls'
     | '/pricing'
     | '/profile'
@@ -1893,6 +1914,7 @@ export interface FileRouteTypes {
     | '/newsletter/unsubscribe'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
+    | '/podcasts/$show'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/author'
@@ -1913,6 +1935,7 @@ export interface FileRouteTypes {
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
+    | '/podcasts/'
     | '/profile/'
     | '/tracker/'
     | '/web-stories/'
@@ -1959,6 +1982,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/vitals'
+    | '/podcasts/$show/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
     | '/admin/newsletter/'
@@ -1985,7 +2009,6 @@ export interface RootRouteChildren {
   MessagesRoute: typeof MessagesRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
-  PodcastsRoute: typeof PodcastsRoute
   PollsRoute: typeof PollsRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
@@ -2010,6 +2033,7 @@ export interface RootRouteChildren {
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
+  PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   TrackerSlugRoute: typeof TrackerSlugRoute
@@ -2017,6 +2041,7 @@ export interface RootRouteChildren {
   TrackerExplorerRoute: typeof TrackerExplorerRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
+  PodcastsIndexRoute: typeof PodcastsIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -2118,13 +2143,6 @@ declare module '@tanstack/react-router' {
       path: '/polls'
       fullPath: '/polls'
       preLoaderRoute: typeof PollsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/podcasts': {
-      id: '/podcasts'
-      path: '/podcasts'
-      fullPath: '/podcasts'
-      preLoaderRoute: typeof PodcastsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/people': {
@@ -2238,6 +2256,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/'
       preLoaderRoute: typeof ProfileIndexRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/podcasts/': {
+      id: '/podcasts/'
+      path: '/podcasts'
+      fullPath: '/podcasts/'
+      preLoaderRoute: typeof PodcastsIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/blog/': {
       id: '/blog/'
@@ -2377,6 +2402,13 @@ declare module '@tanstack/react-router' {
       path: '/post/$slug'
       fullPath: '/post/$slug'
       preLoaderRoute: typeof PostSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/podcasts/$show': {
+      id: '/podcasts/$show'
+      path: '/podcasts/$show'
+      fullPath: '/podcasts/$show'
+      preLoaderRoute: typeof PodcastsShowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/podcast/rss.xml': {
@@ -2833,6 +2865,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/web-stories/$slug/amp'
       preLoaderRoute: typeof WebStoriesSlugAmpRouteImport
       parentRoute: typeof WebStoriesSlugRoute
+    }
+    '/podcasts/$show/rss.xml': {
+      id: '/podcasts/$show/rss.xml'
+      path: '/rss.xml'
+      fullPath: '/podcasts/$show/rss.xml'
+      preLoaderRoute: typeof PodcastsShowRssDotxmlRouteImport
+      parentRoute: typeof PodcastsShowRoute
     }
     '/api/public/vitals': {
       id: '/api/public/vitals'
@@ -3501,6 +3540,18 @@ const QaRouteChildren: QaRouteChildren = {
 
 const QaRouteWithChildren = QaRoute._addFileChildren(QaRouteChildren)
 
+interface PodcastsShowRouteChildren {
+  PodcastsShowRssDotxmlRoute: typeof PodcastsShowRssDotxmlRoute
+}
+
+const PodcastsShowRouteChildren: PodcastsShowRouteChildren = {
+  PodcastsShowRssDotxmlRoute: PodcastsShowRssDotxmlRoute,
+}
+
+const PodcastsShowRouteWithChildren = PodcastsShowRoute._addFileChildren(
+  PodcastsShowRouteChildren,
+)
+
 interface WebStoriesSlugRouteChildren {
   WebStoriesSlugAmpRoute: typeof WebStoriesSlugAmpRoute
 }
@@ -3527,7 +3578,6 @@ const rootRouteChildren: RootRouteChildren = {
   MessagesRoute: MessagesRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
-  PodcastsRoute: PodcastsRoute,
   PollsRoute: PollsRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
@@ -3553,6 +3603,7 @@ const rootRouteChildren: RootRouteChildren = {
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
   PodcastSlugRoute: PodcastSlugRoute,
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
+  PodcastsShowRoute: PodcastsShowRouteWithChildren,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   TrackerSlugRoute: TrackerSlugRoute,
@@ -3560,6 +3611,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrackerExplorerRoute: TrackerExplorerRoute,
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
+  PodcastsIndexRoute: PodcastsIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
