@@ -1,6 +1,9 @@
 // Publiczne ankiety Community. URL: /polls
+// Realtime: subskrypcja postgres_changes na tabeli poll_votes unieważnia cache
+// wyników po każdym insert/update/delete, co daje płynne animacje słupków
+// (transition-[width] + animate-fade-in na etykiecie procentów).
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -14,7 +17,6 @@ import {
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
@@ -45,6 +47,7 @@ function PollsPage() {
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const modules = useCommunityModules();
   const { user } = useAuth();
+  const qc = useQueryClient();
 
   const pollsQ = useQuery({
     queryKey: ["public-polls"],
@@ -53,11 +56,40 @@ function PollsPage() {
   });
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
+  const idsKey = ids.join(",");
   const votesQ = useQuery({
-    queryKey: ["public-poll-votes", ids.join(","), user?.id ?? "anon"],
+    queryKey: ["public-poll-votes", idsKey, user?.id ?? "anon"],
     queryFn: () => fetchPollVotes(ids, user?.id ?? null),
     enabled: ids.length > 0,
   });
+
+  // Realtime: nasłuchuj zmian w poll_votes tylko dla widocznych ankiet i
+  // rzuć invalidate na cache wyników. Debounce, żeby seria głosów w tej samej
+  // sekundzie nie robiła kaskady refetchów.
+  useEffect(() => {
+    if (ids.length === 0) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        qc.invalidateQueries({ queryKey: ["public-poll-votes"] });
+      }, 250);
+    };
+    const filter = `poll_id=in.(${ids.join(",")})`;
+    const channel = supabase
+      .channel(`poll-votes-${idsKey}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "poll_votes", filter },
+        scheduleRefetch,
+      )
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [idsKey, ids, qc]);
 
   if (!modules.polls_enabled) return <CommunityDisabled />;
 
@@ -154,7 +186,7 @@ function PollCard({
                 type="button"
                 onClick={() => canVote && voteM.mutate(idx)}
                 disabled={!canVote || voteM.isPending}
-                className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition ${
+                className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition-colors ${
                   mine
                     ? "border-primary bg-primary/10"
                     : "border-border hover:border-primary/50"
@@ -163,7 +195,9 @@ function PollCard({
               >
                 <span
                   aria-hidden="true"
-                  className="absolute inset-y-0 left-0 bg-primary/10"
+                  className={`absolute inset-y-0 left-0 transition-[width] duration-700 ease-out ${
+                    mine ? "bg-primary/20" : "bg-primary/10"
+                  }`}
                   style={{ width: `${pct}%` }}
                 />
                 <span className="relative flex items-center justify-between gap-3">
@@ -171,9 +205,7 @@ function PollCard({
                     {mine && <Vote className="h-4 w-4 text-primary" aria-hidden="true" />}
                     {label}
                   </span>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {pct}% · {n}
-                  </span>
+                  <AnimatedCount pct={pct} n={n} />
                 </span>
               </button>
             </li>
@@ -197,5 +229,22 @@ function PollCard({
         )}
       </div>
     </li>
+  );
+}
+
+/** Tabularne procenty z krótkim animate-fade-in gdy wartość się zmienia. */
+function AnimatedCount({ pct, n }: { pct: number; n: number }) {
+  const prev = useRef({ pct, n });
+  const changed = prev.current.pct !== pct || prev.current.n !== n;
+  useEffect(() => {
+    prev.current = { pct, n };
+  }, [pct, n]);
+  return (
+    <span
+      key={`${pct}-${n}`}
+      className={`text-xs tabular-nums text-muted-foreground ${changed ? "animate-fade-in" : ""}`}
+    >
+      {pct}% · {n}
+    </span>
   );
 }
