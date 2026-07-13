@@ -22,7 +22,6 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
 import { Route as PeopleRouteImport } from './routes/people'
-import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as McpRouteImport } from './routes/mcp'
@@ -31,6 +30,7 @@ import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as FeedRouteImport } from './routes/feed'
+import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -86,6 +86,7 @@ import { Route as AdminSeoRouteImport } from './routes/admin.seo'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
 import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
+import { Route as AdminProgramsRouteImport } from './routes/admin.programs'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
@@ -119,7 +120,6 @@ import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
-import { Route as AdminProgramsRouteImport } from './routes/admin.programs'
 import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
@@ -245,11 +245,6 @@ const PeopleRoute = PeopleRouteImport.update({
   path: '/people',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExpertsRoute = ExpertsRouteImport.update({
-  id: '/experts',
-  path: '/experts',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const NewsSitemapDotxmlRoute = NewsSitemapDotxmlRouteImport.update({
   id: '/news-sitemap.xml',
   path: '/news-sitemap.xml',
@@ -288,6 +283,11 @@ const LibraryRoute = LibraryRouteImport.update({
 const FeedRoute = FeedRouteImport.update({
   id: '/feed',
   path: '/feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpertsRoute = ExpertsRouteImport.update({
+  id: '/experts',
+  path: '/experts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsRoute = EventsRouteImport.update({
@@ -565,6 +565,11 @@ const AdminReadingTimeRoute = AdminReadingTimeRouteImport.update({
   path: '/reading-time',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminProgramsRoute = AdminProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
@@ -728,11 +733,6 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
 const AdminAuthorsRoute = AdminAuthorsRouteImport.update({
   id: '/authors',
   path: '/authors',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminProgramsRoute = AdminProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminAudienceRoute = AdminAudienceRouteImport.update({
@@ -1051,6 +1051,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/events': typeof EventsRouteWithChildren
+  '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
@@ -1059,7 +1060,6 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
-  '/experts': typeof ExpertsRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
@@ -1108,10 +1108,10 @@ export interface FileRoutesByFullPath {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
-  '/admin/programs': typeof AdminProgramsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -1222,6 +1222,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/contribute': typeof ContributeRoute
   '/events': typeof EventsRouteWithChildren
+  '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
@@ -1230,7 +1231,6 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
-  '/experts': typeof ExpertsRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
@@ -1276,10 +1276,10 @@ export interface FileRoutesByTo {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
-  '/admin/programs': typeof AdminProgramsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -1389,6 +1389,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/events': typeof EventsRouteWithChildren
+  '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
@@ -1397,7 +1398,6 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
-  '/experts': typeof ExpertsRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
@@ -1446,10 +1446,10 @@ export interface FileRoutesById {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
-  '/admin/programs': typeof AdminProgramsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -1563,6 +1563,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/contribute'
     | '/events'
+    | '/experts'
     | '/feed'
     | '/library'
     | '/live'
@@ -1622,6 +1623,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
@@ -1732,6 +1734,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/contribute'
     | '/events'
+    | '/experts'
     | '/feed'
     | '/library'
     | '/live'
@@ -1788,6 +1791,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
@@ -1896,6 +1900,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/contribute'
     | '/events'
+    | '/experts'
     | '/feed'
     | '/library'
     | '/live'
@@ -1955,6 +1960,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
     | '/admin/related-posts'
@@ -2067,6 +2073,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   ContributeRoute: typeof ContributeRoute
   EventsRoute: typeof EventsRouteWithChildren
+  ExpertsRoute: typeof ExpertsRoute
   FeedRoute: typeof FeedRoute
   LibraryRoute: typeof LibraryRoute
   LiveRoute: typeof LiveRoute
@@ -2075,7 +2082,6 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   MessagesRoute: typeof MessagesRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
-  ExpertsRoute: typeof ExpertsRoute
   PeopleRoute: typeof PeopleRoute
   PollsRoute: typeof PollsRoute
   PricingRoute: typeof PricingRoute
@@ -2220,13 +2226,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PeopleRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/experts': {
-      id: '/experts'
-      path: '/experts'
-      fullPath: '/experts'
-      preLoaderRoute: typeof ExpertsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/news-sitemap.xml': {
       id: '/news-sitemap.xml'
       path: '/news-sitemap.xml'
@@ -2281,6 +2280,13 @@ declare module '@tanstack/react-router' {
       path: '/feed'
       fullPath: '/feed'
       preLoaderRoute: typeof FeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/experts': {
+      id: '/experts'
+      path: '/experts'
+      fullPath: '/experts'
+      preLoaderRoute: typeof ExpertsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events': {
@@ -2668,6 +2674,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminReadingTimeRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/programs': {
+      id: '/admin/programs'
+      path: '/programs'
+      fullPath: '/admin/programs'
+      preLoaderRoute: typeof AdminProgramsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/posts': {
       id: '/admin/posts'
       path: '/posts'
@@ -2897,13 +2910,6 @@ declare module '@tanstack/react-router' {
       path: '/authors'
       fullPath: '/admin/authors'
       preLoaderRoute: typeof AdminAuthorsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/programs': {
-      id: '/admin/programs'
-      path: '/programs'
-      fullPath: '/admin/programs'
-      preLoaderRoute: typeof AdminProgramsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/audience': {
@@ -3495,7 +3501,6 @@ interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
-  AdminProgramsRoute: typeof AdminProgramsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
@@ -3528,6 +3533,7 @@ interface AdminRouteChildren {
   AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminProgramsRoute: typeof AdminProgramsRoute
   AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
@@ -3550,7 +3556,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
-  AdminProgramsRoute: AdminProgramsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,
@@ -3583,6 +3588,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPopupsRoute: AdminPopupsRouteWithChildren,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminProgramsRoute: AdminProgramsRoute,
   AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
@@ -3688,6 +3694,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   ContributeRoute: ContributeRoute,
   EventsRoute: EventsRouteWithChildren,
+  ExpertsRoute: ExpertsRoute,
   FeedRoute: FeedRoute,
   LibraryRoute: LibraryRoute,
   LiveRoute: LiveRoute,
@@ -3696,7 +3703,6 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   MessagesRoute: MessagesRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
-  ExpertsRoute: ExpertsRoute,
   PeopleRoute: PeopleRoute,
   PollsRoute: PollsRoute,
   PricingRoute: PricingRoute,

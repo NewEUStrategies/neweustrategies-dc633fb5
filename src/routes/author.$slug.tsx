@@ -253,9 +253,11 @@ function ExpertHubPage() {
                     })}
               </Button>
             </div>
-            <ExpertMaterialsExplorer data={data} lang={lang} />
-          </section>
-        </div>
+          )}
+        </section>
+        <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
+          <ExpertMaterialsExplorer data={data} lang={lang} />
+        </section>
       </div>
     </div>
   );
