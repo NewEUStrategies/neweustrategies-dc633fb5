@@ -364,29 +364,43 @@ function ColorField({
   value: string | null;
   onChange: (v: string | null) => void;
 }) {
+  const isSet = Boolean(value);
   return (
-    <label className="block text-xs space-y-1">
-      <span className="text-muted-foreground">{label}</span>
+    <label className="block text-xs space-y-1.5 rounded-md border border-border bg-card p-2.5">
+      <span className="block font-medium text-foreground">{label}</span>
       <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value ?? "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-10 rounded border border-input bg-background"
-        />
+        <div
+          className="h-9 w-9 shrink-0 rounded border border-border relative overflow-hidden"
+          style={{
+            backgroundColor: isSet ? (value as string) : "transparent",
+            backgroundImage: isSet
+              ? undefined
+              : "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%)",
+            backgroundSize: isSet ? undefined : "10px 10px",
+          }}
+        >
+          <input
+            type="color"
+            value={value ?? "#3366cc"}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label={label}
+          />
+        </div>
         <input
           type="text"
-          placeholder="auto"
+          placeholder="auto (motyw)"
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value.trim() || null)}
-          className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
+          className="flex-1 min-w-0 px-2 py-1.5 rounded border border-input bg-background text-xs font-mono"
         />
-        {value && (
+        {isSet && (
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-[10px] text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground shrink-0 px-1"
             aria-label="Wyczyść"
+            title="Wyczyść (użyj koloru motywu)"
           >
             ✕
           </button>
@@ -395,6 +409,7 @@ function ColorField({
     </label>
   );
 }
+
 
 // Uproszczony piktogram wariantu - schemat blokowy, żeby administrator od razu
 // widział strukturę hero. Bez ikon zewnętrznych, tylko div-y z tokenami.
