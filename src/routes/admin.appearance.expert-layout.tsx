@@ -9,6 +9,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AppearanceBuilderPane } from "@/components/admin/AppearanceBuilderPane";
 import { ExpertLayoutSettingsDialog } from "@/components/admin/appearance/ExpertLayoutSettingsDialog";
+import { ExpertStarterTemplatesButton } from "@/components/admin/appearance/ExpertStarterTemplatesButton";
 import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/admin/appearance/expert-layout")({
@@ -37,7 +38,10 @@ function ExpertLayoutRoute() {
               : " - changes sync automatically."}
           </p>
         </div>
-        <ExpertLayoutSettingsDialog />
+        <div className="flex flex-wrap items-center gap-2">
+          <ExpertStarterTemplatesButton />
+          <ExpertLayoutSettingsDialog />
+        </div>
       </header>
 
       <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
