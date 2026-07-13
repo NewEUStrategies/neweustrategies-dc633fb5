@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { ExpertLayoutPreview } from "@/components/admin/ExpertLayoutPreview";
 import {
   useExpertLayoutSettings,
   useSaveExpertLayoutSettings,
