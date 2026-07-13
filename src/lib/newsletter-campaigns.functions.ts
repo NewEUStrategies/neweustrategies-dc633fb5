@@ -43,6 +43,21 @@ import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/trackin
 
 type DbClient = SupabaseClient<Database>;
 
+// Zbiór (lower) e-maili kont o randze warstwy >= minRank w tenancie. Używany do
+// przecięcia z listą subskrybentów przy segmencie członkowskim kampanii.
+async function minTierEmailSet(
+  admin: DbClient,
+  tenantId: string,
+  minRank: number,
+): Promise<Set<string>> {
+  const { data, error } = await admin.rpc("newsletter_min_tier_emails", {
+    p_tenant: tenantId,
+    p_min: minRank,
+  });
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => (r.email ?? "").toLowerCase()).filter(Boolean));
+}
+
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 1100; // Resend free plan ~1 msg/s
@@ -64,6 +79,10 @@ const AudienceFilter = z.object({
     .max(2)
     .optional(),
   source: z.string().trim().max(120).optional(),
+  // Personalizacja komunikacji: zawęź do subskrybentów będących kontami
+  // o randze warstwy >= min_tier_rank (np. tylko członkowie). 0/undefined = bez
+  // ograniczenia. Przecięcie po e-mailu (newsletter_min_tier_emails).
+  min_tier_rank: z.number().int().min(0).max(1000).optional(),
 });
 export type AudienceFilter = z.infer<typeof AudienceFilter>;
 
@@ -122,7 +141,9 @@ async function originFromRequest(): Promise<string> {
     // moduł w grafie klienta, a statyczny import react-start/server wywala
     // import-protection buildu.
     const mod = "@tanstack/react-start/server";
-    const { getRequest } = (await import(/* @vite-ignore */ mod)) as typeof import("@tanstack/react-start/server");
+    const { getRequest } = (await import(
+      /* @vite-ignore */ mod
+    )) as typeof import("@tanstack/react-start/server");
     const req = getRequest();
     return new URL(req.url).origin;
   } catch {
@@ -261,11 +282,29 @@ export const countCampaignAudience = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ count: number }> => {
     const tenantId = await getTenantId(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const statuses = data.statuses?.length ? data.statuses : ["subscribed"];
+
+    // Segment po warstwie (min_tier_rank) wymaga przecięcia po e-mailu, więc
+    // zamiast szybkiego head-count pobieramy e-maile i liczymy część wspólną.
+    if (data.min_tier_rank && data.min_tier_rank > 0) {
+      let q = supabaseAdmin
+        .from("newsletter_subscribers")
+        .select("email")
+        .eq("tenant_id", tenantId)
+        .in("status", statuses);
+      if (data.languages?.length) q = q.in("language", data.languages);
+      if (data.source) q = q.eq("source", data.source);
+      const { data: subs, error } = await q;
+      if (error) throw new Error(error.message);
+      const tierSet = await minTierEmailSet(supabaseAdmin, tenantId, data.min_tier_rank);
+      const count = (subs ?? []).filter((s) => tierSet.has((s.email ?? "").toLowerCase())).length;
+      return { count };
+    }
+
     let q = supabaseAdmin
       .from("newsletter_subscribers")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId);
-    const statuses = data.statuses?.length ? data.statuses : ["subscribed"];
     q = q.in("status", statuses);
     if (data.languages?.length) q = q.in("language", data.languages);
     if (data.source) q = q.eq("source", data.source);
@@ -530,7 +569,14 @@ async function runCampaignSend(
     if (filter.source) q = q.eq("source", filter.source);
     const { data: subs, error: subsErr } = await q;
     if (subsErr) throw new Error(subsErr.message);
-    const audience = (subs ?? []) as AudienceSubscriber[];
+    let audience = (subs ?? []) as AudienceSubscriber[];
+
+    // Segment członkowski: zostaw tylko subskrybentów, których e-mail należy do
+    // konta o randze warstwy >= min_tier_rank (personalizacja komunikacji).
+    if (filter.min_tier_rank && filter.min_tier_rank > 0) {
+      const tierSet = await minTierEmailSet(admin, tenantId, filter.min_tier_rank);
+      audience = audience.filter((sub) => tierSet.has((sub.email ?? "").toLowerCase()));
+    }
 
     // Resume-idempotency: skip recipients already logged as "sent" by a
     // previous (crashed) run; retry "failed"/"skipped" ones.

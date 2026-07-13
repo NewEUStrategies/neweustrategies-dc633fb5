@@ -396,6 +396,12 @@ function EditEventDialog({
   const [startsAt, setStartsAt] = useState(format(new Date(event.starts_at), "yyyy-MM-dd'T'HH:mm"));
   const [joinUrl, setJoinUrl] = useState(event.join_url ?? "");
   const [capacity, setCapacity] = useState<string>(event.capacity?.toString() ?? "");
+  const [rsvpOpensAt, setRsvpOpensAt] = useState<string>(
+    event.rsvp_opens_at ? format(new Date(event.rsvp_opens_at), "yyyy-MM-dd'T'HH:mm") : "",
+  );
+  const [earlyRsvpRank, setEarlyRsvpRank] = useState<string>(
+    event.early_rsvp_rank?.toString() ?? "",
+  );
 
   const saveM = useMutation({
     mutationFn: () =>
@@ -407,6 +413,8 @@ function EditEventDialog({
         starts_at: new Date(startsAt).toISOString(),
         join_url: joinUrl || null,
         capacity: capacity ? Number(capacity) : null,
+        rsvp_opens_at: rsvpOpensAt ? new Date(rsvpOpensAt).toISOString() : null,
+        early_rsvp_rank: earlyRsvpRank ? Number(earlyRsvpRank) : null,
       }),
     onSuccess: () => {
       toast.success(isPl ? "Zapisano" : "Saved");
@@ -458,6 +466,36 @@ function EditEventDialog({
             <div className="grid gap-1.5">
               <Label>Join URL</Label>
               <Input value={joinUrl} onChange={(e) => setJoinUrl(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>{isPl ? "Otwarcie rejestracji" : "Registration opens"}</Label>
+              <Input
+                type="datetime-local"
+                value={rsvpOpensAt}
+                onChange={(e) => setRsvpOpensAt(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {isPl
+                  ? "Pusto = rejestracja od publikacji."
+                  : "Empty = registration open from publish."}
+              </p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>{isPl ? "Ranga wcześniejszego dostępu" : "Early-access tier rank"}</Label>
+              <Input
+                type="number"
+                min={0}
+                value={earlyRsvpRank}
+                onChange={(e) => setEarlyRsvpRank(e.target.value)}
+                placeholder={isPl ? "np. 10 (członek)" : "e.g. 10 (member)"}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {isPl
+                  ? "Warstwy o tej randze i wyższej rejestrują się przed otwarciem."
+                  : "Tiers at this rank and above can register before opening."}
+              </p>
             </div>
           </div>
         </div>

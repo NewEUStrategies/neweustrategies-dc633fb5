@@ -24,6 +24,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -91,6 +99,7 @@ function CampaignEditor() {
   const [form, setForm] = useState<FormState | null>(null);
   const [testEmail, setTestEmail] = useState("");
   const [testLang, setTestLang] = useState<"pl" | "en">("pl");
+  const tiersQ = useMembershipTiers();
 
   useEffect(() => {
     if (campaign && !form) {
@@ -461,6 +470,46 @@ function CampaignEditor() {
                   disabled={readonly}
                   placeholder="popup, footer-form…"
                 />
+              </div>
+              <div>
+                <Label className="text-xs uppercase text-muted-foreground">
+                  {isPl ? "Poziom członkostwa" : "Membership level"}
+                </Label>
+                <Select
+                  value={String(form.audience_filter.min_tier_rank ?? 0)}
+                  onValueChange={(v) =>
+                    setForm({
+                      ...form,
+                      audience_filter: {
+                        ...form.audience_filter,
+                        min_tier_rank: Number(v) > 0 ? Number(v) : undefined,
+                      },
+                    })
+                  }
+                  disabled={readonly}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">
+                      {isPl ? "Wszyscy subskrybenci" : "All subscribers"}
+                    </SelectItem>
+                    {[...(tiersQ.data ?? [])]
+                      .filter((tier) => tier.rank > 0)
+                      .sort((a, b) => a.rank - b.rank)
+                      .map((tier) => (
+                        <SelectItem key={tier.key} value={String(tier.rank)}>
+                          {isPl ? "Od" : "From"} {tierName(tier, isPl ? "pl" : "en")}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isPl
+                    ? "Zawęża do subskrybentów będących kontami o co najmniej tym poziomie."
+                    : "Restricts to subscribers who are accounts of at least this level."}
+                </p>
               </div>
               <div className="pt-2 border-t border-border">
                 <div className="text-2xl font-semibold tabular-nums">{audience?.count ?? "—"}</div>

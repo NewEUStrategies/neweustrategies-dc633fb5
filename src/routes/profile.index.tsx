@@ -25,6 +25,7 @@ import {
   // Twitter removed
   Phone,
   Heart,
+  Crown,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
@@ -579,6 +580,9 @@ function ProfileInline() {
               </Card>
               <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
                 <div className="grid gap-1">
+                  <SecondaryLink to="/profile/membership" icon={<Crown className="h-3.5 w-3.5" />}>
+                    {t("profile.nav.membership")}
+                  </SecondaryLink>
                   <SecondaryLink to="/profile/interests" icon={<Heart className="h-3.5 w-3.5" />}>
                     {t("profile.nav.interests")}
                   </SecondaryLink>

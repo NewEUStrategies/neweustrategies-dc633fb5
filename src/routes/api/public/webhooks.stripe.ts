@@ -106,11 +106,12 @@ async function handle(request: Request): Promise<Response> {
         const meta = (session.metadata as Record<string, string> | null) ?? null;
         if (meta?.kind === "donation") {
           if (!sessionId || amountTotal === null || amountTotal <= 0) break;
+          const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           const tenantId =
-            meta.tenant_id &&
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meta.tenant_id)
-              ? meta.tenant_id
-              : undefined;
+            meta.tenant_id && uuidRe.test(meta.tenant_id) ? meta.tenant_id : undefined;
+          // Zalogowany darczyńca (metadata.user_id) -> trigger nada warstwę
+          // "Wspierający". Anonimowa darowizna zostawia user_id NULL.
+          const donorUserId = meta.user_id && uuidRe.test(meta.user_id) ? meta.user_id : undefined;
           const { error: donationErr } = await supabaseAdmin.from("donations").upsert(
             {
               // undefined -> klucz pominięty w JSON -> kolumna bierze DEFAULT.
@@ -118,6 +119,7 @@ async function handle(request: Request): Promise<Response> {
               amount_cents: amountTotal,
               currency: (currency ?? "pln").toUpperCase(),
               donor_email: customerEmail,
+              user_id: donorUserId,
               message: meta.message?.slice(0, 500) || null,
               provider: "stripe",
               provider_session_id: sessionId,
