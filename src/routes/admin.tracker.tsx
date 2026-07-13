@@ -610,7 +610,14 @@ function LinksButton({
       const { error } = await supabase
         .from("eu_policy_links")
         .upsert(
-          { item_id: itemId, related_item_id: targetId, relation },
+          // tenant_id nadpisuje trigger tg_eu_policy_link_pin (BEFORE INSERT/UPDATE)
+          // - typ wygenerowany wymaga stringa, więc podajemy placeholder zerowy.
+          {
+            item_id: itemId,
+            related_item_id: targetId,
+            relation,
+            tenant_id: "00000000-0000-0000-0000-000000000000",
+          },
           { onConflict: "item_id,related_item_id" },
         );
       if (error) throw error;
