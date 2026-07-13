@@ -46,7 +46,7 @@ function AdminOrganizationsPage() {
   const { i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const L = tr(lang);
-  void useQueryClient;
+  
 
 
   const tiersQ = useMembershipTiers();
