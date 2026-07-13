@@ -1880,7 +1880,7 @@ export type Database = {
           item_id: string
           related_item_id: string
           relation?: string
-          tenant_id?: string
+          tenant_id: string
         }
         Update: {
           created_at?: string
@@ -1903,6 +1903,13 @@ export type Database = {
             columns: ["related_item_id"]
             isOneToOne: false
             referencedRelation: "eu_policy_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eu_policy_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -6903,6 +6910,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      get_tracker_stats: { Args: never; Returns: Json }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
@@ -6921,7 +6929,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      get_tracker_stats: { Args: never; Returns: Json }
       has_tier_feature: { Args: { _feature: string }; Returns: boolean }
       has_tier_rank: { Args: { _min: number }; Returns: boolean }
       has_verified_mfa: { Args: never; Returns: boolean }
