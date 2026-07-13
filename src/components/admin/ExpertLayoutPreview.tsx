@@ -156,7 +156,7 @@ const PLACEHOLDER = {
 function AvatarPlaceholder({
   name,
   className = "",
-  rounded-[6px] = "rounded-full",
+  rounded = "rounded-full",
 }: {
   name: string;
   className?: string;
@@ -495,7 +495,7 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
-  const avatar = (className: string, rounded-[6px] = "rounded-full") =>
+  const avatar = (className: string, rounded = "rounded-full") =>
     e.avatar_url ? (
       <img src={e.avatar_url} alt={name} className={`${className} ${rounded-[6px]} object-cover`} />
     ) : (
