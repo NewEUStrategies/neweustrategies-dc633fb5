@@ -167,10 +167,22 @@ function AdminTrackerPage() {
             )}
           </p>
         </div>
-        <Button onClick={startNew}>
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {L("Nowe dossier", "New dossier")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/admin/tracker-guide">
+              <BookOpen className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {L("Jak to działa?", "How it works?")}
+            </Link>
+          </Button>
+          <Button variant="outline" onClick={() => runTickMut.mutate()} disabled={runTickMut.isPending}>
+            <RefreshCw className={`mr-1.5 h-4 w-4 ${runTickMut.isPending ? "animate-spin" : ""}`} aria-hidden="true" />
+            {L("Uruchom tick teraz", "Run tick now")}
+          </Button>
+          <Button onClick={startNew}>
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {L("Nowe dossier", "New dossier")}
+          </Button>
+        </div>
       </header>
 
       {editingId && (
