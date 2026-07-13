@@ -222,6 +222,14 @@ function TrackerIndex() {
         <div className="space-y-1">
           <h1 className="font-display text-3xl">{t("tracker.title")}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">{t("tracker.intro")}</p>
+          <div className="flex flex-wrap gap-3 pt-1 text-sm">
+            <Link to="/tracker/explorer" className="text-primary hover:underline">
+              {t("tracker.explorer.link")}
+            </Link>
+            <Link to="/tracker/changes" className="text-primary hover:underline">
+              {t("tracker.explorer.changesLink")}
+            </Link>
+          </div>
         </div>
       </header>
 

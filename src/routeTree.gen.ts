@@ -41,6 +41,8 @@ import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
+import { Route as TrackerExplorerRouteImport } from './routes/tracker.explorer'
+import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
@@ -326,6 +328,16 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const WebStoriesSlugRoute = WebStoriesSlugRouteImport.update({
   id: '/web-stories/$slug',
   path: '/web-stories/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackerExplorerRoute = TrackerExplorerRouteImport.update({
+  id: '/tracker/explorer',
+  path: '/tracker/explorer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackerChangesRoute = TrackerChangesRouteImport.update({
+  id: '/tracker/changes',
+  path: '/tracker/changes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrackerSlugRoute = TrackerSlugRouteImport.update({
@@ -1073,6 +1085,8 @@ export interface FileRoutesByFullPath {
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
+  '/tracker/changes': typeof TrackerChangesRoute
+  '/tracker/explorer': typeof TrackerExplorerRoute
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -1227,6 +1241,8 @@ export interface FileRoutesByTo {
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
+  '/tracker/changes': typeof TrackerChangesRoute
+  '/tracker/explorer': typeof TrackerExplorerRoute
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
@@ -1388,6 +1404,8 @@ export interface FileRoutesById {
   '/qa/$slug': typeof QaSlugRoute
   '/tag/$slug': typeof TagSlugRoute
   '/tracker/$slug': typeof TrackerSlugRoute
+  '/tracker/changes': typeof TrackerChangesRoute
+  '/tracker/explorer': typeof TrackerExplorerRoute
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -1550,6 +1568,8 @@ export interface FileRouteTypes {
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
+    | '/tracker/changes'
+    | '/tracker/explorer'
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
@@ -1704,6 +1724,8 @@ export interface FileRouteTypes {
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
+    | '/tracker/changes'
+    | '/tracker/explorer'
     | '/web-stories/$slug'
     | '/admin'
     | '/blog'
@@ -1864,6 +1886,8 @@ export interface FileRouteTypes {
     | '/qa/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
+    | '/tracker/changes'
+    | '/tracker/explorer'
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
@@ -1966,6 +1990,8 @@ export interface RootRouteChildren {
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   TrackerSlugRoute: typeof TrackerSlugRoute
+  TrackerChangesRoute: typeof TrackerChangesRoute
+  TrackerExplorerRoute: typeof TrackerExplorerRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
@@ -2209,6 +2235,20 @@ declare module '@tanstack/react-router' {
       path: '/web-stories/$slug'
       fullPath: '/web-stories/$slug'
       preLoaderRoute: typeof WebStoriesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tracker/explorer': {
+      id: '/tracker/explorer'
+      path: '/tracker/explorer'
+      fullPath: '/tracker/explorer'
+      preLoaderRoute: typeof TrackerExplorerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tracker/changes': {
+      id: '/tracker/changes'
+      path: '/tracker/changes'
+      fullPath: '/tracker/changes'
+      preLoaderRoute: typeof TrackerChangesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tracker/$slug': {
@@ -3475,6 +3515,8 @@ const rootRouteChildren: RootRouteChildren = {
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   TrackerSlugRoute: TrackerSlugRoute,
+  TrackerChangesRoute: TrackerChangesRoute,
+  TrackerExplorerRoute: TrackerExplorerRoute,
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
@@ -3496,13 +3538,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
