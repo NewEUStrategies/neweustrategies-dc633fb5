@@ -186,7 +186,7 @@ function PollCard({
                 type="button"
                 onClick={() => canVote && voteM.mutate(idx)}
                 disabled={!canVote || voteM.isPending}
-                className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition ${
+                className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition-colors ${
                   mine
                     ? "border-primary bg-primary/10"
                     : "border-border hover:border-primary/50"
@@ -195,7 +195,9 @@ function PollCard({
               >
                 <span
                   aria-hidden="true"
-                  className="absolute inset-y-0 left-0 bg-primary/10"
+                  className={`absolute inset-y-0 left-0 transition-[width] duration-700 ease-out ${
+                    mine ? "bg-primary/20" : "bg-primary/10"
+                  }`}
                   style={{ width: `${pct}%` }}
                 />
                 <span className="relative flex items-center justify-between gap-3">
@@ -203,9 +205,7 @@ function PollCard({
                     {mine && <Vote className="h-4 w-4 text-primary" aria-hidden="true" />}
                     {label}
                   </span>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {pct}% · {n}
-                  </span>
+                  <AnimatedCount pct={pct} n={n} />
                 </span>
               </button>
             </li>
