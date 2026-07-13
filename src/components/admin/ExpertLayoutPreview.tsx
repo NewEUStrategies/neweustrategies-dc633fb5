@@ -77,9 +77,28 @@ const LABELS: Record<Lang, Record<string, string>> = {
   },
 };
 
-export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettings }) {
+export function ExpertLayoutPreview({
+  settings,
+  savedAt = 0,
+}: {
+  settings: ExpertLayoutSettings;
+  savedAt?: number;
+}) {
   const [lang, setLang] = useState<Lang>("pl");
   const [theme, setTheme] = useState<Theme>("light");
+  // 'draft' = mockup napędzany niezapisanym `local`; 'published' = iframe
+  // z realnie opublikowaną stroną /author/$slug. Po każdym zapisie
+  // automatycznie przełączamy na 'published', żeby administrator widział
+  // dokładnie to, co widzi publiczność.
+  const [mode, setMode] = useState<"draft" | "published">("draft");
+  const [iframeNonce, setIframeNonce] = useState(0);
+
+  useEffect(() => {
+    if (savedAt > 0) {
+      setMode("published");
+      setIframeNonce((n) => n + 1);
+    }
+  }, [savedAt]);
 
   const { data: sampleSlug } = useQuery({
     queryKey: ["admin", "expert-layout-preview", "sample-slug"] as const,
@@ -92,8 +111,37 @@ export function ExpertLayoutPreview({ settings }: { settings: ExpertLayoutSettin
 
   const { data: hub, isLoading } = useQuery({
     ...expertHubQueryOptions(effectiveSlug),
-    enabled: Boolean(effectiveSlug),
+    enabled: Boolean(effectiveSlug) && mode === "draft",
   });
+
+  const publicHref = effectiveSlug
+    ? `${lang === "en" ? "/en" : ""}/author/${encodeURIComponent(effectiveSlug)}`
+    : "";
+  const iframeSrc = publicHref ? `${publicHref}?__preview=${iframeNonce}` : "";
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const applyThemeToIframe = () => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      const doc = win.document;
+      doc.documentElement.classList.toggle("dark", theme === "dark");
+      doc.documentElement.style.colorScheme = theme;
+      try {
+        win.localStorage.setItem("theme", theme);
+      } catch {
+        /* storage może być zablokowane w sandboxie */
+      }
+    } catch {
+      /* cross-origin - iframe jest same-origin, ignorujemy */
+    }
+  };
+
+  useEffect(() => {
+    if (mode === "published") applyThemeToIframe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, mode]);
+
 
   const preset = findExpertPreset(settings.default_preset);
   const order = settings.section_order?.length ? settings.section_order : DEFAULT_EXPERT_SECTION_ORDER;
