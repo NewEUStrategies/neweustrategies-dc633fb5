@@ -1,8 +1,10 @@
 // Molecule: one conversation row (header droplist + /messages left pane).
 // WhatsApp affordances: pin/mute badges, ✓/✓✓ ticks for the own last message
-// and a voice-note preview label.
+// and a voice-note preview label. Group rows show the circle title and prefix
+// the preview with the last sender's name.
 import { useTranslation } from "react-i18next";
 import { BellOff, Check, CheckCheck, Pin } from "lucide-react";
+import { aggregatePeerReadState, conversationDisplay } from "@/lib/chat/display";
 import { computeReceipt } from "@/lib/chat/receipts";
 import { isMuted } from "@/lib/chat/useConversations";
 import { relTime, type ChatLang } from "@/lib/chat/time";
@@ -12,8 +14,10 @@ import { ChatAvatar } from "./ChatAvatar";
 
 export interface ConversationListItemProps {
   view: ConversationView;
-  peerProfile: PeerProfile | undefined;
-  online: boolean;
+  /** Member profile cards (direct: the peer; groups: every member). */
+  profiles: ReadonlyMap<string, PeerProfile> | undefined;
+  /** Online user ids (presence dot; groups show none on the avatar). */
+  onlineUsers: ReadonlySet<string>;
   myUserId: string;
   lang: ChatLang;
   active?: boolean;
@@ -21,9 +25,11 @@ export interface ConversationListItemProps {
 }
 
 export function ConversationListItem(props: ConversationListItemProps) {
-  const { view, peerProfile, online, myUserId, lang, active = false, onOpen } = props;
+  const { view, profiles, onlineUsers, myUserId, lang, active = false, onOpen } = props;
   const { t } = useTranslation();
-  const name = peerProfile?.display_name ?? "...";
+  const display = conversationDisplay(view, profiles, t("chat.group.circle"));
+  const name = display.name;
+  const online = !!display.peerId && onlineUsers.has(display.peerId);
   const unread = view.me.unread_count;
   const c = view.conversation;
   const pinned = !!view.me.pinned_at;
@@ -36,17 +42,23 @@ export function ConversationListItem(props: ConversationListItemProps) {
   else if (c.last_message_kind === "audio") preview = t("chat.voice.message");
   else if (c.last_message_kind === "deleted") preview = t("chat.deletedMessage");
   const mineLast = !!preview && c.last_message_sender === myUserId;
-  if (mineLast) preview = `${t("chat.you")}: ${preview}`;
+  if (mineLast) {
+    preview = `${t("chat.you")}: ${preview}`;
+  } else if (display.isGroup && preview && c.last_message_sender) {
+    const senderName = profiles?.get(c.last_message_sender)?.display_name;
+    if (senderName) preview = `${senderName}: ${preview}`;
+  }
 
-  // List ticks: own last message vs the peer's delivery/read state (absent
-  // peer row - hidden receipts - caps at a single grey tick, same as bubbles).
-  const peer = view.peers[0];
+  // List ticks: own last message vs the other side's delivery/read state.
+  // Groups aggregate across members (read only when ALL read); an absent row
+  // (hidden receipts) caps at a single grey tick, same as bubbles.
+  const readState = aggregatePeerReadState(view);
   const listReceipt =
     mineLast && c.last_message_at && c.last_message_kind !== "deleted"
       ? computeReceipt(
           { created_at: c.last_message_at },
-          peer?.last_read_at ?? null,
-          peer?.last_delivered_at ?? null,
+          readState.lastReadAt,
+          readState.lastDeliveredAt,
         )
       : null;
 
@@ -59,7 +71,7 @@ export function ConversationListItem(props: ConversationListItemProps) {
         active ? "bg-muted" : "hover:bg-muted/60",
       )}
     >
-      <ChatAvatar name={name} avatarUrl={peerProfile?.avatar_url} online={online} size="md" />
+      <ChatAvatar name={name} avatarUrl={display.avatarUrl} online={online} size="md" />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <span

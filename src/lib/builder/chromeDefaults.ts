@@ -164,32 +164,38 @@ const defaultHeaderDoc = (): BuilderDocument =>
                     featured: null,
                   },
                   {
-                    title_pl: "Wyróżnione",
-                    title_en: "Featured",
-                    links: [],
-                    featured: {
-                      image: "",
-                      title_pl: "Najnowszy raport",
-                      title_en: "Latest report",
-                      excerpt_pl: "Przegląd kluczowych trendów geopolitycznych.",
-                      excerpt_en: "Key geopolitical trends overview.",
-                      href: "#",
-                      cta_pl: "Czytaj",
-                      cta_en: "Read",
-                    },
+                    title_pl: "Społeczność",
+                    title_en: "Community",
+                    links: [
+                      { label_pl: "Wydarzenia", label_en: "Events", href: "/events" },
+                      { label_pl: "Sesje Q&A", label_en: "Q&A sessions", href: "/qa" },
+                      { label_pl: "Ankiety", label_en: "Polls", href: "/polls" },
+                      {
+                        label_pl: "Tracker legislacyjny UE",
+                        label_en: "EU policy tracker",
+                        href: "/tracker",
+                      },
+                      { label_pl: "Katalog osób", label_en: "People directory", href: "/people" },
+                      {
+                        label_pl: "Zostań kontrybutorem",
+                        label_en: "Become a contributor",
+                        href: "/contribute",
+                      },
+                    ],
+                    featured: null,
                   },
                 ],
               }),
               widget("nav-link", {
                 label_pl: "Wydarzenia",
                 label_en: "Events",
-                href: "#",
+                href: "/events",
                 variant: "text",
               }),
               widget("nav-link", {
-                label_pl: "O nas",
-                label_en: "About",
-                href: "#",
+                label_pl: "Tracker UE",
+                label_en: "EU tracker",
+                href: "/tracker",
                 variant: "text",
               }),
             ]),
@@ -277,18 +283,65 @@ const defaultFooterDoc = (): BuilderDocument =>
               widget("nav-link", {
                 label_pl: "Wydarzenia",
                 label_en: "Events",
-                href: "#",
+                href: "/events",
                 variant: "text",
               }),
               widget("nav-link", {
-                label_pl: "Projekty",
-                label_en: "Projects",
-                href: "#",
+                label_pl: "Zostań kontrybutorem",
+                label_en: "Become a contributor",
+                href: "/contribute",
                 variant: "text",
               }),
             ]),
           ],
           { layout: { contentWidth: "boxed", width: 1400, htmlTag: "div" } },
+        ),
+        // Społeczność: powierzchnie modułu community muszą być podlinkowane w
+        // publicznej nawigacji (audyt: "trzeba znać URL"). Stopka jest
+        // gwarantowanym, projektowo bezpiecznym miejscem na komplet linków.
+        section(
+          [
+            col(12, [
+              widget("heading", { text_pl: "Społeczność", text_en: "Community", tag: "h4" }),
+              widget("nav-link", {
+                label_pl: "Wydarzenia",
+                label_en: "Events",
+                href: "/events",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Sesje Q&A",
+                label_en: "Q&A sessions",
+                href: "/qa",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Ankiety",
+                label_en: "Polls",
+                href: "/polls",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Tracker legislacyjny UE",
+                label_en: "EU policy tracker",
+                href: "/tracker",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Katalog osób",
+                label_en: "People directory",
+                href: "/people",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Zostań kontrybutorem",
+                label_en: "Become a contributor",
+                href: "/contribute",
+                variant: "text",
+              }),
+            ]),
+          ],
+          { layout: { contentWidth: "boxed", width: 1400, htmlTag: "nav" } },
         ),
         section(
           [
@@ -343,7 +396,19 @@ const defaultMenuDoc = (): BuilderDocument =>
               widget("nav-link", {
                 label_pl: "Wydarzenia",
                 label_en: "Events",
-                href: "#",
+                href: "/events",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Tracker UE",
+                label_en: "EU tracker",
+                href: "/tracker",
+                variant: "text",
+              }),
+              widget("nav-link", {
+                label_pl: "Sesje Q&A",
+                label_en: "Q&A sessions",
+                href: "/qa",
                 variant: "text",
               }),
               widget("nav-link", {

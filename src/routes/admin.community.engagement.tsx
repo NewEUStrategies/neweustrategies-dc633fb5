@@ -48,21 +48,39 @@ function EngagementAdmin() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <Stat icon={Users} label={isPl ? "Wszyscy" : "Total"} value={s?.total_users} />
-          <Stat icon={UserPlus} label={isPl ? "Nowi (7 dni)" : "New (7d)"} value={s?.new_users_7d} />
+          <Stat
+            icon={UserPlus}
+            label={isPl ? "Nowi (7 dni)" : "New (7d)"}
+            value={s?.new_users_7d}
+          />
           <Stat icon={Target} label={isPl ? "Leady CRM" : "CRM leads"} value={s?.crm_leads_total} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{isPl ? "Aktywność (7 dni)" : "Activity (7d)"}</CardTitle>
+          <CardTitle className="text-base">
+            {isPl ? "Aktywność (7 dni)" : "Activity (7d)"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <Stat icon={MessageSquare} label={isPl ? "Komentarze" : "Comments"} value={s?.comments_last_7d} />
+          <Stat
+            icon={MessageSquare}
+            label={isPl ? "Komentarze" : "Comments"}
+            value={s?.comments_last_7d}
+          />
           <Stat icon={Vote} label={isPl ? "Głosy" : "Poll votes"} value={s?.poll_votes_last_7d} />
           <Stat icon={Calendar} label={isPl ? "RSVP" : "RSVPs"} value={s?.event_rsvps_upcoming} />
-          <Stat icon={HelpCircle} label={isPl ? "Pytania Q&A" : "Q&A questions"} value={s?.qa_questions_last_7d} />
-          <Stat icon={FileEdit} label={isPl ? "Zgł. czekające" : "Pending pitches"} value={s?.contributor_pending} />
+          <Stat
+            icon={HelpCircle}
+            label={isPl ? "Pytania Q&A" : "Q&A questions"}
+            value={s?.qa_questions_last_7d}
+          />
+          <Stat
+            icon={FileEdit}
+            label={isPl ? "Zgł. czekające" : "Pending pitches"}
+            value={s?.contributor_pending}
+          />
         </CardContent>
       </Card>
 

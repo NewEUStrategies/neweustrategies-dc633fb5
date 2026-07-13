@@ -13,8 +13,9 @@
  * exactly once.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
-import React, { useEffect } from "react";
+import { render, type RenderResult } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React, { useEffect, type ReactElement } from "react";
 
 const headerMounts = { count: 0 };
 const megaMenuMounts = { count: 0 };
@@ -67,6 +68,25 @@ vi.mock("@tanstack/react-router", () => ({
 // Import AFTER the mocks so SiteChrome picks up the mocked Header/Footer.
 import { SiteChrome } from "@/components/SiteChrome";
 
+// SiteChrome reads site settings (community modules gate) through react-query -
+// the harness must provide a QueryClient like the real app root does. A single
+// stable client across rerenders mirrors production (provider identity must
+// not force chrome remounts).
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, enabled: false } },
+});
+const withProviders = (ui: ReactElement): ReactElement => (
+  <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+);
+const renderWithProviders = (
+  ui: ReactElement,
+): RenderResult & { rerenderUi: (next: ReactElement) => void } => {
+  const result = render(withProviders(ui));
+  return Object.assign(result, {
+    rerenderUi: (next: ReactElement) => result.rerender(withProviders(next)),
+  });
+};
+
 describe("SiteChrome - persistent header/menu across navigation", () => {
   beforeEach(() => {
     headerMounts.count = 0;
@@ -76,7 +96,7 @@ describe("SiteChrome - persistent header/menu across navigation", () => {
   });
 
   it("does not remount Header or MegaMenu when navigating between public pages", () => {
-    const { rerender, getByTestId } = render(
+    const { rerenderUi, getByTestId } = renderWithProviders(
       <SiteChrome>
         <div data-testid="page">home</div>
       </SiteChrome>,
@@ -89,19 +109,19 @@ describe("SiteChrome - persistent header/menu across navigation", () => {
 
     // Simulate SPA navigation: pathname + page content change, chrome stays.
     currentPath = "/blog";
-    rerender(
+    rerenderUi(
       <SiteChrome>
         <div data-testid="page">blog</div>
       </SiteChrome>,
     );
     currentPath = "/post/abc";
-    rerender(
+    rerenderUi(
       <SiteChrome>
         <div data-testid="page">post</div>
       </SiteChrome>,
     );
     currentPath = "/profile";
-    rerender(
+    rerenderUi(
       <SiteChrome>
         <div data-testid="page">profile</div>
       </SiteChrome>,
@@ -115,14 +135,14 @@ describe("SiteChrome - persistent header/menu across navigation", () => {
   });
 
   it("keeps header mounted when transitioning between two public routes back-to-back", () => {
-    const { rerender } = render(
+    const { rerenderUi } = renderWithProviders(
       <SiteChrome>
         <div>a</div>
       </SiteChrome>,
     );
     for (const p of ["/a", "/b", "/c", "/d", "/e"]) {
       currentPath = p;
-      rerender(
+      rerenderUi(
         <SiteChrome>
           <div>{p}</div>
         </SiteChrome>,

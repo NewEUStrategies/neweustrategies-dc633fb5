@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { conversationDisplay } from "@/lib/chat/display";
 import { useConversations, usePeerProfiles } from "@/lib/chat/useConversations";
 import { useSendMessage } from "@/lib/chat/useMessages";
 import type { ChatMessage } from "@/lib/chat/types";
@@ -57,10 +58,9 @@ export function ForwardDialog({
 
   const normalized = filter.trim().toLowerCase();
   const filtered = normalized
-    ? targets.filter((v) => {
-        const name = peersQ.data?.get(v.peers[0]?.user_id ?? "")?.display_name ?? "";
-        return name.toLowerCase().includes(normalized);
-      })
+    ? targets.filter((v) =>
+        conversationDisplay(v, peersQ.data).name.toLowerCase().includes(normalized),
+      )
     : targets;
 
   const send = (targetId: string) => {
@@ -117,8 +117,7 @@ export function ForwardDialog({
           ) : (
             <ul className="flex flex-col gap-0.5">
               {filtered.map((v) => {
-                const peerId = v.peers[0]?.user_id ?? "";
-                const name = peersQ.data?.get(peerId)?.display_name ?? "...";
+                const display = conversationDisplay(v, peersQ.data, t("chat.group.circle"));
                 return (
                   <li key={v.conversation.id}>
                     <button
@@ -127,13 +126,9 @@ export function ForwardDialog({
                       onClick={() => send(v.conversation.id)}
                       className="flex w-full items-center gap-2.5 rounded-[6px] px-2 py-2 text-left transition-colors hover:bg-muted/60 disabled:opacity-50"
                     >
-                      <ChatAvatar
-                        name={name}
-                        avatarUrl={peersQ.data?.get(peerId)?.avatar_url}
-                        size="sm"
-                      />
+                      <ChatAvatar name={display.name} avatarUrl={display.avatarUrl} size="sm" />
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                        {name}
+                        {display.name}
                       </span>
                     </button>
                   </li>

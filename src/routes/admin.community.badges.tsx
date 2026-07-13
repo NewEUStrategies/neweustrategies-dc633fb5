@@ -16,12 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  BADGE_CATALOG,
-  fetchBadges,
-  grantBadge,
-  revokeBadge,
-} from "@/lib/admin/community";
+import { BADGE_CATALOG, fetchBadges, grantBadge, revokeBadge } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/badges")({
   head: () => ({ meta: [{ title: "Badges · Community · Admin" }] }),
@@ -87,7 +82,9 @@ function BadgesAdmin() {
               onChange={(e) => setUserId(e.target.value)}
             />
             <Select value={badgeKey} onValueChange={setBadgeKey}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {BADGE_CATALOG.map((b) => (
                   <SelectItem key={b.key} value={b.key}>
@@ -102,10 +99,7 @@ function BadgesAdmin() {
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
-          <Button
-            onClick={() => grantM.mutate()}
-            disabled={!userId.trim() || grantM.isPending}
-          >
+          <Button onClick={() => grantM.mutate()} disabled={!userId.trim() || grantM.isPending}>
             <Plus className="w-4 h-4 mr-1" />
             {isPl ? "Przyznaj" : "Grant"}
           </Button>

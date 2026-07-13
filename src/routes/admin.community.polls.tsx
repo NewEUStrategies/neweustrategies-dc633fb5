@@ -84,7 +84,9 @@ function PollsAdmin() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={status} onValueChange={(v) => setStatus(v as PollStatus | "all")}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
               <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
@@ -92,14 +94,19 @@ function PollsAdmin() {
               <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
             </SelectContent>
           </Select>
-          <CreatePollButton isPl={isPl} onCreated={() => qc.invalidateQueries({ queryKey: ["admin-polls"] })} />
+          <CreatePollButton
+            isPl={isPl}
+            onCreated={() => qc.invalidateQueries({ queryKey: ["admin-polls"] })}
+          />
         </div>
       </div>
 
       <Card>
         <CardContent className="p-0">
           {q.isLoading ? (
-            <div className="p-4 text-sm text-muted-foreground">{isPl ? "Ładowanie..." : "Loading..."}</div>
+            <div className="p-4 text-sm text-muted-foreground">
+              {isPl ? "Ładowanie..." : "Loading..."}
+            </div>
           ) : (q.data ?? []).length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
               {isPl ? "Brak ankiet" : "No polls"}
@@ -115,7 +122,10 @@ function PollsAdmin() {
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       <Badge variant="outline">{p.status}</Badge>
                       {p.ends_at && (
-                        <span>{isPl ? "koniec: " : "ends: "}{new Date(p.ends_at).toLocaleDateString()}</span>
+                        <span>
+                          {isPl ? "koniec: " : "ends: "}
+                          {new Date(p.ends_at).toLocaleDateString()}
+                        </span>
                       )}
                     </div>
                     {openResultsFor === p.id && (
@@ -123,16 +133,28 @@ function PollsAdmin() {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => setOpenResultsFor(openResultsFor === p.id ? null : p.id)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setOpenResultsFor(openResultsFor === p.id ? null : p.id)}
+                    >
                       <BarChart2 className="w-4 h-4" />
                     </Button>
                     {p.status !== "open" && (
-                      <Button size="sm" variant="ghost" onClick={() => setStatusM.mutate({ id: p.id, s: "open" })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setStatusM.mutate({ id: p.id, s: "open" })}
+                      >
                         <Play className="w-4 h-4" />
                       </Button>
                     )}
                     {p.status === "open" && (
-                      <Button size="sm" variant="ghost" onClick={() => setStatusM.mutate({ id: p.id, s: "closed" })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setStatusM.mutate({ id: p.id, s: "closed" })}
+                      >
                         <Pause className="w-4 h-4" />
                       </Button>
                     )}
@@ -177,7 +199,9 @@ function PollResults({
           <div key={idx} className="text-xs">
             <div className="flex justify-between">
               <span className="truncate">{String(label)}</span>
-              <span className="tabular-nums">{count} · {pct}%</span>
+              <span className="tabular-nums">
+                {count} · {pct}%
+              </span>
             </div>
             <div className="h-1.5 bg-muted rounded overflow-hidden">
               <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
@@ -185,7 +209,9 @@ function PollResults({
           </div>
         );
       })}
-      {total === 0 && <div className="text-xs text-muted-foreground">{isPl ? "Brak głosów" : "No votes"}</div>}
+      {total === 0 && (
+        <div className="text-xs text-muted-foreground">{isPl ? "Brak głosów" : "No votes"}</div>
+      )}
     </div>
   );
 }
@@ -202,9 +228,14 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
   const [status, setStatus] = useState<PollStatus>("draft");
 
   const reset = () => {
-    setQPl(""); setQEn("");
-    setOpts([{ label_pl: "", label_en: "" }, { label_pl: "", label_en: "" }]);
-    setEndsAt(""); setStatus("draft");
+    setQPl("");
+    setQEn("");
+    setOpts([
+      { label_pl: "", label_en: "" },
+      { label_pl: "", label_en: "" },
+    ]);
+    setEndsAt("");
+    setStatus("draft");
   };
 
   const m = useMutation({
@@ -305,7 +336,9 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
               <div className="space-y-1">
                 <Label>{isPl ? "Status" : "Status"}</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as PollStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
                     <SelectItem value="open">{isPl ? "Otwarta" : "Open"}</SelectItem>

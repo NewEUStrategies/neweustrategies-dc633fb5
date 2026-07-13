@@ -1,22 +1,23 @@
 // Publiczne ankiety Community. URL: /polls
+// Głosy przez RPC vote_poll (walidacja opcji, okno czasowe); wyniki przez
+// get_poll_results_bulk z serwerowym anti-anchoringiem - rozkład głosów widać
+// dopiero po oddaniu głosu (albo po zamknięciu ankiety), żeby nie zakotwiczał.
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Vote } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { EyeOff, Vote } from "lucide-react";
 import {
   fetchPublicPolls,
-  fetchPollVotes,
+  fetchPollResults,
+  votePoll,
   type PublicPoll,
-  type PollVoteCounts,
+  type PollResults,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
-import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -53,9 +54,9 @@ function PollsPage() {
   });
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
-  const votesQ = useQuery({
-    queryKey: ["public-poll-votes", ids.join(","), user?.id ?? "anon"],
-    queryFn: () => fetchPollVotes(ids, user?.id ?? null),
+  const resultsQ = useQuery({
+    queryKey: ["public-poll-results", ids.join(","), user?.id ?? "anon"],
+    queryFn: () => fetchPollResults(ids),
     enabled: ids.length > 0,
   });
 
@@ -80,7 +81,7 @@ function PollsPage() {
           <PollCard
             key={poll.id}
             poll={poll}
-            counts={votesQ.data?.get(poll.id)}
+            results={resultsQ.data?.get(poll.id)}
             lang={lang}
             userId={user?.id ?? null}
           />
@@ -92,42 +93,28 @@ function PollsPage() {
 
 function PollCard({
   poll,
-  counts,
+  results,
   lang,
   userId,
 }: {
   poll: PublicPoll;
-  counts: PollVoteCounts | undefined;
+  results: PollResults | undefined;
   lang: "pl" | "en";
   userId: string | null;
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const closed = poll.status === "closed";
-  const total = counts?.total ?? 0;
-  const myChoice = counts?.my_choice ?? null;
-  const question = lang === "en" ? poll.question_en || poll.question_pl : poll.question_pl || poll.question_en;
+  const visible = results?.visible === true;
+  const total = visible ? (results?.total ?? 0) : 0;
+  const myChoice = results?.my_vote ?? null;
+  const question =
+    lang === "en" ? poll.question_en || poll.question_pl : poll.question_pl || poll.question_en;
 
   const voteM = useMutation({
-    mutationFn: async (optionIdx: number) => {
-      if (!userId) throw new Error("no user");
-      if (myChoice === null) {
-        const tenant_id = await getPublicTenantId();
-        const { error } = await supabase
-          .from("poll_votes")
-          .insert({ poll_id: poll.id, user_id: userId, tenant_id, option_idx: optionIdx });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("poll_votes")
-          .update({ option_idx: optionIdx })
-          .eq("poll_id", poll.id)
-          .eq("user_id", userId);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["public-poll-votes"] }),
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    mutationFn: (optionIdx: number) => votePoll(poll.id, optionIdx),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["public-poll-results"] }),
+    onError: () => toast.error(t("community.polls.voteError")),
   });
 
   return (
@@ -144,8 +131,8 @@ function PollCard({
       <ul className="space-y-2">
         {poll.options.map((opt, idx) => {
           const label = lang === "en" ? opt.en || opt.pl : opt.pl || opt.en;
-          const n = counts?.counts[idx] ?? 0;
-          const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+          const n = visible ? (results?.counts[idx] ?? 0) : 0;
+          const pct = visible && total > 0 ? Math.round((n / total) * 100) : 0;
           const mine = myChoice === idx;
           const canVote = !!userId && !closed;
           return (
@@ -155,25 +142,27 @@ function PollCard({
                 onClick={() => canVote && voteM.mutate(idx)}
                 disabled={!canVote || voteM.isPending}
                 className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition ${
-                  mine
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-primary/50"
+                  mine ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
                 } ${!canVote ? "cursor-default" : "cursor-pointer"}`}
                 aria-pressed={mine}
               >
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-0 left-0 bg-primary/10"
-                  style={{ width: `${pct}%` }}
-                />
+                {visible && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 bg-primary/10"
+                    style={{ width: `${pct}%` }}
+                  />
+                )}
                 <span className="relative flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2">
                     {mine && <Vote className="h-4 w-4 text-primary" aria-hidden="true" />}
                     {label}
                   </span>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {pct}% · {n}
-                  </span>
+                  {visible && (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {pct}% · {n}
+                    </span>
+                  )}
                 </span>
               </button>
             </li>
@@ -182,16 +171,19 @@ function PollCard({
       </ul>
 
       <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          {t("community.polls.totalVotes", { count: total })}
-        </span>
+        {visible ? (
+          <span>{t("community.polls.totalVotes", { count: total })}</span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("community.polls.resultsHidden")}
+          </span>
+        )}
         {!userId && !closed && <span>{t("community.polls.signInHint")}</span>}
         {poll.ends_at && !closed && (
           <span>
             {t("community.polls.endsIn", {
-              when: new Date(poll.ends_at).toLocaleDateString(
-                lang === "en" ? "en-GB" : "pl-PL",
-              ),
+              when: new Date(poll.ends_at).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL"),
             })}
           </span>
         )}

@@ -1,11 +1,12 @@
 // Publiczny indeks trackera legislacyjnego UE. URL: /tracker - siatka
 // opublikowanych dossier z filtrami (obszar polityki, etap), paskiem postępu
 // procedury, następnym kamieniem milowym i licznikiem obserwujących.
-import { Fragment, useState } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CalendarClock, Landmark, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -14,7 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { usePublishedItems, useFollowerCounts, type PolicyItem } from "@/lib/tracker/queries";
+import {
+  TRACKER_PAGE_SIZE,
+  usePublishedItems,
+  useFollowerCounts,
+  type PolicyItem,
+} from "@/lib/tracker/queries";
 import {
   POLICY_STAGES,
   POLICY_AREAS,
@@ -26,25 +32,59 @@ import {
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
+import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import "@/lib/i18n-tracker";
 
 export const Route = createFileRoute("/tracker/")({
   head: () => {
     const url = getRequestUrl() || "/tracker";
     const lang = activeLang(url);
-    return buildContentHead({
+    let origin = "";
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      /* relative url in tests - breadcrumbs degrade to paths */
+    }
+    const title =
+      lang === "en"
+        ? "EU legislative tracker — follow key files"
+        : "Tracker legislacyjny UE — śledź kluczowe dossier";
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
-      title:
-        lang === "en"
-          ? "EU legislative tracker — follow key files"
-          : "Tracker legislacyjny UE — śledź kluczowe dossier",
+      title,
       description:
         lang === "en"
           ? "Track key EU legislative files: procedure stage, timeline of events and upcoming milestones."
           : "Śledź kluczowe dossier legislacyjne UE: etap procedury, oś czasu wydarzeń i nadchodzące kamienie milowe.",
     });
+    // CollectionPage + breadcrumb: tracker pozycjonuje się jako źródło prawdy
+    // o procesie legislacyjnym - strona zbiorcza dostaje jawny typ w grafie.
+    const collection = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: title,
+      url,
+      inLanguage: lang,
+    };
+    const breadcrumbs = breadcrumbListJsonLd(
+      [
+        {
+          label: lang === "en" ? "EU policy tracker" : "Tracker legislacyjny UE",
+          href: "/tracker",
+        },
+      ],
+      origin,
+      lang,
+    );
+    return {
+      ...head,
+      scripts: [
+        { type: "application/ld+json", children: safeJsonLd(collection) },
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
+      ],
+    };
   },
   component: TrackerIndex,
   errorComponent: (props) => (
@@ -149,12 +189,29 @@ function TrackerIndex() {
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const [area, setArea] = useState("all");
   const [stage, setStage] = useState("all");
+  const [limit, setLimit] = useState(TRACKER_PAGE_SIZE);
+  const [isPending, startTransition] = useTransition();
 
-  const { data: items, isLoading } = usePublishedItems({
-    area: area === "all" ? undefined : area,
-    stage: stage === "all" ? undefined : stage,
-  });
+  const setAreaAndReset = (next: string) => {
+    setArea(next);
+    setLimit(TRACKER_PAGE_SIZE);
+  };
+  const setStageAndReset = (next: string) => {
+    setStage(next);
+    setLimit(TRACKER_PAGE_SIZE);
+  };
+
+  const { data: items, isLoading } = usePublishedItems(
+    {
+      area: area === "all" ? undefined : area,
+      stage: stage === "all" ? undefined : stage,
+    },
+    limit,
+  );
   const { data: followerCounts } = useFollowerCounts((items ?? []).map((item) => item.id));
+  // Pełne okno = prawdopodobnie jest dalszy ciąg (dokładny count nie jest
+  // wart drugiej podróży; ostatnie kliknięcie zwróci niepełną stronę).
+  const canLoadMore = (items ?? []).length >= limit;
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-5xl space-y-8">
@@ -170,7 +227,7 @@ function TrackerIndex() {
 
       {/* Filtry: obszar polityki + etap procedury */}
       <div className="flex flex-wrap gap-3">
-        <Select value={area} onValueChange={setArea}>
+        <Select value={area} onValueChange={setAreaAndReset}>
           <SelectTrigger className="w-52" aria-label={t("tracker.filters.area")}>
             <SelectValue placeholder={t("tracker.filters.area")} />
           </SelectTrigger>
@@ -183,7 +240,7 @@ function TrackerIndex() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={stage} onValueChange={setStage}>
+        <Select value={stage} onValueChange={setStageAndReset}>
           <SelectTrigger className="w-52" aria-label={t("tracker.filters.stage")}>
             <SelectValue placeholder={t("tracker.filters.stage")} />
           </SelectTrigger>
@@ -203,16 +260,29 @@ function TrackerIndex() {
       ) : (items ?? []).length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.empty")}</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {(items ?? []).map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              followers={followerCounts?.[item.id] ?? 0}
-              lang={lang}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(items ?? []).map((item) => (
+              <ItemCard
+                key={item.id}
+                item={item}
+                followers={followerCounts?.[item.id] ?? 0}
+                lang={lang}
+              />
+            ))}
+          </div>
+          {canLoadMore && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                disabled={isPending}
+                onClick={() => startTransition(() => setLimit((n) => n + TRACKER_PAGE_SIZE))}
+              >
+                {isPending ? t("tracker.loading") : t("tracker.loadMore")}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

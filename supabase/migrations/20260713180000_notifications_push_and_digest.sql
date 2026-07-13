@@ -44,8 +44,23 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
   disabled_at timestamptz
 );
 
-CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx
-  ON public.push_subscriptions (user_id) WHERE disabled_at IS NULL;
+-- UWAGA (naprawa łańcucha migracji): push_subscriptions istnieje już z
+-- 20260713092000 w kształcie kanonicznym (user_agent/failed_at, bez
+-- ua/disabled_at), więc CREATE TABLE IF NOT EXISTS powyżej jest no-opem,
+-- a bezwarunkowy indeks częściowy po disabled_at wywalał świeżą bazę
+-- (supabase test db). Indeks powstaje tylko, gdy kolumna faktycznie jest;
+-- migracja 20260713210000 i tak wycofuje ten równoległy potok.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'push_subscriptions'
+       AND column_name = 'disabled_at'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx
+      ON public.push_subscriptions (user_id) WHERE disabled_at IS NULL;
+  END IF;
+END $$;
 
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 

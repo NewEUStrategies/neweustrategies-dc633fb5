@@ -76,7 +76,8 @@ function ContributePage() {
       setPitch("");
       toast.success(t("community.contribute.success"));
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("community.contribute.error")),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : t("community.contribute.error")),
   });
 
   if (!modules.contributor_program_enabled) return <CommunityDisabled />;
@@ -146,7 +147,9 @@ function ContributePage() {
           </div>
           <Button type="submit" disabled={!canSubmit || submitM.isPending}>
             <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-            {submitM.isPending ? t("community.contribute.submitting") : t("community.contribute.submit")}
+            {submitM.isPending
+              ? t("community.contribute.submitting")
+              : t("community.contribute.submit")}
           </Button>
         </form>
       )}

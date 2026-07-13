@@ -6,10 +6,7 @@ import { toast } from "sonner";
 import { Bell, Trash2, Mail, Smartphone, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  cleanupFailedPushSubscriptions,
-  fetchNotificationStats,
-} from "@/lib/admin/community";
+import { cleanupFailedPushSubscriptions, fetchNotificationStats } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/notifications")({
   head: () => ({ meta: [{ title: "Notifications · Community · Admin" }] }),
@@ -31,7 +28,9 @@ function NotificationsAdmin() {
     mutationFn: cleanupFailedPushSubscriptions,
     onSuccess: (n) => {
       qc.invalidateQueries({ queryKey: ["admin-notification-stats"] });
-      toast.success(isPl ? `Usunięto ${n} nieudanych subskrypcji` : `Removed ${n} failed subscriptions`);
+      toast.success(
+        isPl ? `Usunięto ${n} nieudanych subskrypcji` : `Removed ${n} failed subscriptions`,
+      );
     },
     onError: () => toast.error(isPl ? "Błąd" : "Failed"),
   });
@@ -46,12 +45,33 @@ function NotificationsAdmin() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Stat icon={Smartphone} label={isPl ? "Push aktywne" : "Push active"} value={s?.push_subscriptions_active} />
-        <Stat icon={AlertTriangle} label={isPl ? "Push nieudane" : "Push failed"} value={s?.push_subscriptions_failed} tone="warn" />
-        <Stat icon={Bell} label={isPl ? "Wysł. / 24h" : "Sent / 24h"} value={s?.notifications_last_24h} />
+        <Stat
+          icon={Smartphone}
+          label={isPl ? "Push aktywne" : "Push active"}
+          value={s?.push_subscriptions_active}
+        />
+        <Stat
+          icon={AlertTriangle}
+          label={isPl ? "Push nieudane" : "Push failed"}
+          value={s?.push_subscriptions_failed}
+          tone="warn"
+        />
+        <Stat
+          icon={Bell}
+          label={isPl ? "Wysł. / 24h" : "Sent / 24h"}
+          value={s?.notifications_last_24h}
+        />
         <Stat icon={Bell} label={isPl ? "Nieprzecz." : "Unread"} value={s?.notifications_unread} />
-        <Stat icon={Mail} label={isPl ? "Dig. dzienny" : "Daily digest"} value={s?.digest_daily_users} />
-        <Stat icon={Mail} label={isPl ? "Dig. tygod." : "Weekly digest"} value={s?.digest_weekly_users} />
+        <Stat
+          icon={Mail}
+          label={isPl ? "Dig. dzienny" : "Daily digest"}
+          value={s?.digest_daily_users}
+        />
+        <Stat
+          icon={Mail}
+          label={isPl ? "Dig. tygod." : "Weekly digest"}
+          value={s?.digest_weekly_users}
+        />
       </div>
 
       <Card>
@@ -59,11 +79,7 @@ function NotificationsAdmin() {
           <CardTitle className="text-base">{isPl ? "Akcje serwisowe" : "Maintenance"}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={() => cleanupM.mutate()}
-            disabled={cleanupM.isPending}
-          >
+          <Button variant="outline" onClick={() => cleanupM.mutate()} disabled={cleanupM.isPending}>
             <Trash2 className="w-4 h-4 mr-2" />
             {isPl ? "Wyczyść nieudane subskrypcje push" : "Purge failed push subscriptions"}
           </Button>

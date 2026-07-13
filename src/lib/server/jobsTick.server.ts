@@ -5,20 +5,31 @@
 // RESEND_API_KEY / VAPID_*), więc cron jedynie PUKA po HTTP do aplikacji,
 // a właściwa praca dzieje się tutaj, ograniczona budżetem na wywołanie.
 // Każdy rodzaj pracy jest niezależny: błąd jednego nie blokuje pozostałych.
+//
+// Kanały powiadomień idą przez KANONICZNY dispatcher
+// (src/lib/notifications/dispatch.server.ts - kolejka notification_push_queue,
+// claim_push_jobs / claim_due_digests, przypomnienia o wydarzeniach), ten sam
+// co POST /api/public/community-cron. Dzięki temu push, digesty i reminders
+// działają bez zewnętrznego harmonogramu - wystarczy pg_cron z migracji
+// 20260713170000. Claimy są atomowe (SKIP LOCKED), więc równoległe ticki
+// z obu endpointów niczego nie dublują.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { tickNewsletterCampaigns } from "@/lib/newsletter-campaigns.functions";
 import {
-  processNotificationDigests,
-  processPushOutbox,
-} from "@/lib/server/notificationsTick.server";
+  processDigests,
+  processPushJobs,
+  runEventReminders,
+} from "@/lib/notifications/dispatch.server";
 
 type DbClient = SupabaseClient<Database>;
 
 export interface JobsTickResult {
   newsletter: { fired: number; continued: number; sent: number } | { error: string };
-  push: { delivered: number; failed: number; skipped: boolean } | { error: string };
-  digests: { sent: number; skipped: number } | { error: string };
+  push: { claimed: number; sent: number } | { error: string };
+  digestDaily: { claimed: number; sent: number } | { error: string };
+  digestWeekly: { claimed: number; sent: number } | { error: string };
+  eventReminders: number | { error: string };
 }
 
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
@@ -30,17 +41,29 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   }
   let push: JobsTickResult["push"];
   try {
-    push = await processPushOutbox(admin, {});
+    push = await processPushJobs(100);
   } catch (err) {
     push = { error: err instanceof Error ? err.message : String(err) };
   }
-  let digests: JobsTickResult["digests"];
+  let digestDaily: JobsTickResult["digestDaily"];
   try {
-    digests = await processNotificationDigests(admin, {});
+    digestDaily = await processDigests("daily", 50);
   } catch (err) {
-    digests = { error: err instanceof Error ? err.message : String(err) };
+    digestDaily = { error: err instanceof Error ? err.message : String(err) };
   }
-  return { newsletter, push, digests };
+  let digestWeekly: JobsTickResult["digestWeekly"];
+  try {
+    digestWeekly = await processDigests("weekly", 50);
+  } catch (err) {
+    digestWeekly = { error: err instanceof Error ? err.message : String(err) };
+  }
+  let eventReminders: JobsTickResult["eventReminders"];
+  try {
+    eventReminders = await runEventReminders();
+  } catch (err) {
+    eventReminders = { error: err instanceof Error ? err.message : String(err) };
+  }
+  return { newsletter, push, digestDaily, digestWeekly, eventReminders };
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */

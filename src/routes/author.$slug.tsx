@@ -15,7 +15,9 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/FollowButton";
+import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
+import { useUserBadges } from "@/lib/profile/badges";
 import { authorBySlugQueryOptions, ARCHIVE_PAGE_SIZE } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -78,8 +80,14 @@ function AuthorArchivePage() {
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const personalized = usePersonalizedSettings();
+  // Pełny zestaw odznak (ekspert/redakcja/autor gościnny) - parytet z /people;
+  // duplikat "Zweryfikowany" odpada, gdy pill verified_at już świeci.
+  const badgesQ = useUserBadges(data?.author.id);
   if (!data) return <PublicNotFound />;
   const { author, posts } = data;
+  const extraBadges = (badgesQ.data ?? []).filter(
+    (badge) => !(badge === "verified" && author.verified_at),
+  );
   const name = author.display_name ?? (lang === "en" ? "Author" : "Autor");
   const bio = lang === "en" ? (author.bio_en ?? author.bio_pl) : (author.bio_pl ?? author.bio_en);
   const canLoadMore = posts.length >= limit;
@@ -120,6 +128,7 @@ function AuthorArchivePage() {
                       {lang === "pl" ? "Zweryfikowany" : "Verified"}
                     </span>
                   )}
+                  <ProfileBadges badges={extraBadges} size="md" />
                   {personalized.followInAuthorHeader && (
                     <FollowButton targetType="author" targetId={author.id} lang={lang} />
                   )}

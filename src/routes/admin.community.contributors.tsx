@@ -58,7 +58,9 @@ function ContributorsAdmin() {
           <h2 className="text-lg font-semibold">{isPl ? "Współtwórcy" : "Contributors"}</h2>
         </div>
         <Select value={status} onValueChange={(v) => setStatus(v as ContributorStatus | "all")}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
             <SelectItem value="pending">{isPl ? "Oczekujące" : "Pending"}</SelectItem>
@@ -71,7 +73,9 @@ function ContributorsAdmin() {
       <Card>
         <CardContent className="p-0">
           {q.isLoading ? (
-            <div className="p-4 text-sm text-muted-foreground">{isPl ? "Ładowanie..." : "Loading..."}</div>
+            <div className="p-4 text-sm text-muted-foreground">
+              {isPl ? "Ładowanie..." : "Loading..."}
+            </div>
           ) : (q.data ?? []).length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
               {isPl ? "Brak zgłoszeń" : "No submissions"}
@@ -82,7 +86,9 @@ function ContributorsAdmin() {
                 <li key={s.id} className="p-4 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="font-medium text-sm">{s.title}</div>
-                    <Badge variant={s.status === "pending" ? "default" : "outline"}>{s.status}</Badge>
+                    <Badge variant={s.status === "pending" ? "default" : "outline"}>
+                      {s.status}
+                    </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{s.pitch}</p>
                   <div className="text-xs text-muted-foreground">
@@ -91,7 +97,9 @@ function ContributorsAdmin() {
                   {s.status === "pending" && (
                     <div className="space-y-2 pt-2">
                       <Textarea
-                        placeholder={isPl ? "Notatka redaktora (opcjonalnie)" : "Editor note (optional)"}
+                        placeholder={
+                          isPl ? "Notatka redaktora (opcjonalnie)" : "Editor note (optional)"
+                        }
                         value={notes[s.id] ?? ""}
                         onChange={(e) => setNotes({ ...notes, [s.id]: e.target.value })}
                         className="min-h-[60px]"
@@ -99,7 +107,9 @@ function ContributorsAdmin() {
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          onClick={() => reviewM.mutate({ id: s.id, s: "approved", note: notes[s.id] })}
+                          onClick={() =>
+                            reviewM.mutate({ id: s.id, s: "approved", note: notes[s.id] })
+                          }
                         >
                           <Check className="w-4 h-4 mr-1" />
                           {isPl ? "Akceptuj" : "Approve"}
@@ -107,7 +117,9 @@ function ContributorsAdmin() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => reviewM.mutate({ id: s.id, s: "rejected", note: notes[s.id] })}
+                          onClick={() =>
+                            reviewM.mutate({ id: s.id, s: "rejected", note: notes[s.id] })
+                          }
                         >
                           <X className="w-4 h-4 mr-1" />
                           {isPl ? "Odrzuć" : "Reject"}

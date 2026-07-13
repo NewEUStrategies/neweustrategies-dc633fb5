@@ -107,6 +107,13 @@ export const Route = createFileRoute("/sitemap.xml")({
           { loc: `${origin}/podcasts`, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/web-stories`, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/live`, changefreq: "daily", priority: "0.6" },
+          // Community surfaces - indexable, previously absent from the sitemap.
+          { loc: `${origin}/events`, changefreq: "daily", priority: "0.7" },
+          { loc: `${origin}/qa`, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/polls`, changefreq: "weekly", priority: "0.5" },
+          { loc: `${origin}/tracker`, changefreq: "daily", priority: "0.7" },
+          { loc: `${origin}/people`, changefreq: "weekly", priority: "0.5" },
+          { loc: `${origin}/contribute`, changefreq: "monthly", priority: "0.4" },
           { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
         ];
 
@@ -186,6 +193,47 @@ export const Route = createFileRoute("/sitemap.xml")({
               lastmod: (s.updated_at ?? s.published_at ?? "").slice(0, 10) || undefined,
               changefreq: "monthly",
               priority: "0.5",
+            });
+          }
+
+          // Published EU policy tracker dossiers - the tracker positions
+          // itself as a source of truth; each dossier is an indexable page.
+          const { data: dossiers } = await supabaseAdmin
+            .from("eu_policy_items")
+            .select("slug, updated_at, created_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published");
+          for (const row of dossiers ?? []) {
+            const d = row as {
+              slug: string;
+              updated_at: string | null;
+              created_at: string | null;
+            };
+            entries.push({
+              loc: `${origin}/tracker/${d.slug}`,
+              lastmod: (d.updated_at ?? d.created_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.6",
+            });
+          }
+
+          // Published community events - indexable detail pages with dates.
+          const { data: eventRows } = await supabaseAdmin
+            .from("events")
+            .select("slug, updated_at, created_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published");
+          for (const row of eventRows ?? []) {
+            const ev = row as {
+              slug: string;
+              updated_at: string | null;
+              created_at: string | null;
+            };
+            entries.push({
+              loc: `${origin}/events/${ev.slug}`,
+              lastmod: (ev.updated_at ?? ev.created_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.6",
             });
           }
         } catch (e) {

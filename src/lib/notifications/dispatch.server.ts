@@ -3,10 +3,15 @@
 // przygotowuje pracę (kolejka push, claim digestów), tu odbywa się wyłącznie
 // I/O HTTP: usługi push przeglądarek i gateway Resend (jak newsletter).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sendTransactionalEmail } from "@/lib/server/email.server";
 import { sendWebPush, vapidFromEnv } from "./webpush.server";
-import { buildDigestHtml, digestSubject, pickDigestText, type DigestItem, type DigestLang } from "./digestEmail";
-
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
+import {
+  buildDigestHtml,
+  digestSubject,
+  pickDigestText,
+  type DigestItem,
+  type DigestLang,
+} from "./digestEmail";
 
 function siteUrl(): string {
   return (
@@ -17,51 +22,11 @@ function siteUrl(): string {
   );
 }
 
-async function sendEmail(opts: {
-  to: string;
-  subject: string;
-  html: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-  const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  if (!LOVABLE_API_KEY || !RESEND_API_KEY) {
-    return { ok: false, error: "email_not_configured" };
-  }
-  try {
-    const res = await fetch(`${GATEWAY_URL}/emails`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": RESEND_API_KEY,
-      },
-      body: JSON.stringify({
-        from: "New European Strategies <onboarding@resend.dev>",
-        to: [opts.to],
-        subject: opts.subject,
-        html: opts.html,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.error("[community] digest resend error", res.status, body.slice(0, 300));
-      return { ok: false, error: `status_${res.status}` };
-    }
-    return { ok: true };
-  } catch (err) {
-    console.error("[community] digest send failed", err);
-    return { ok: false, error: String(err) };
-  }
-}
-
 /** Preferowany język per użytkownik: profiles.prefs->>'locale', domyślnie pl. */
 async function localesFor(userIds: string[]): Promise<Map<string, DigestLang>> {
   const map = new Map<string, DigestLang>();
   if (userIds.length === 0) return map;
-  const { data } = await supabaseAdmin
-    .from("profiles")
-    .select("id, prefs")
-    .in("id", userIds);
+  const { data } = await supabaseAdmin.from("profiles").select("id, prefs").in("id", userIds);
   for (const row of data ?? []) {
     const prefs = (row.prefs ?? {}) as Record<string, unknown>;
     map.set(row.id, prefs.locale === "en" ? "en" : "pl");
@@ -122,8 +87,9 @@ export async function processPushJobs(limit = 100): Promise<{ claimed: number; s
       lang,
     );
     const body =
-      (lang === "en" ? (payload.body_en ?? payload.body_pl) : (payload.body_pl ?? payload.body_en)) ??
-      "";
+      (lang === "en"
+        ? (payload.body_en ?? payload.body_pl)
+        : (payload.body_pl ?? payload.body_en)) ?? "";
 
     let delivered = false;
     for (const sub of userSubs) {
@@ -178,11 +144,14 @@ export async function processDigests(
       siteUrl: base,
       frequency,
     });
-    const result = await sendEmail({
+    const result = await sendTransactionalEmail({
       to: row.email,
       subject: digestSubject(items.length, lang, frequency),
       html,
     });
+    if (!result.ok) {
+      console.error("[community] digest send failed", result.error);
+    }
     if (result.ok) sent += 1;
   }
   return { claimed: due.length, sent };

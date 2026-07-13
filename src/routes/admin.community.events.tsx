@@ -122,7 +122,12 @@ function AdminCommunityEvents() {
             placeholder={isPl ? "Szukaj…" : "Search…"}
             className="w-[200px]"
           />
-          <Button variant="outline" size="sm" onClick={() => remindersM.mutate()} disabled={remindersM.isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => remindersM.mutate()}
+            disabled={remindersM.isPending}
+          >
             <Calendar className="w-4 h-4 mr-2" />
             {isPl ? "Przypomnienia" : "Reminders"}
           </Button>
@@ -136,7 +141,9 @@ function AdminCommunityEvents() {
       <Card>
         <CardContent className="p-0">
           {eventsQ.isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</div>
+            <div className="p-6 text-sm text-muted-foreground">
+              {isPl ? "Ładowanie…" : "Loading…"}
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
               {isPl ? "Brak wydarzeń." : "No events."}
@@ -347,7 +354,9 @@ function CreateEventDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="public">{isPl ? "Publiczne" : "Public"}</SelectItem>
-                <SelectItem value="members">{isPl ? "Tylko członkowie" : "Members only"}</SelectItem>
+                <SelectItem value="members">
+                  {isPl ? "Tylko członkowie" : "Members only"}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -358,9 +367,7 @@ function CreateEventDialog({
           </Button>
           <Button
             onClick={() => createM.mutate()}
-            disabled={
-              createM.isPending || !slug || !titlePl || !titleEn || !startsAt
-            }
+            disabled={createM.isPending || !slug || !titlePl || !titleEn || !startsAt}
           >
             <Save className="w-4 h-4 mr-2" />
             {isPl ? "Utwórz" : "Create"}
@@ -386,9 +393,7 @@ function EditEventDialog({
   const [titleEn, setTitleEn] = useState(event.title_en);
   const [descPl, setDescPl] = useState(event.description_pl ?? "");
   const [descEn, setDescEn] = useState(event.description_en ?? "");
-  const [startsAt, setStartsAt] = useState(
-    format(new Date(event.starts_at), "yyyy-MM-dd'T'HH:mm"),
-  );
+  const [startsAt, setStartsAt] = useState(format(new Date(event.starts_at), "yyyy-MM-dd'T'HH:mm"));
   const [joinUrl, setJoinUrl] = useState(event.join_url ?? "");
   const [capacity, setCapacity] = useState<string>(event.capacity?.toString() ?? "");
 
@@ -448,11 +453,7 @@ function EditEventDialog({
             </div>
             <div className="grid gap-1.5">
               <Label>{isPl ? "Pojemność" : "Capacity"}</Label>
-              <Input
-                type="number"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-              />
+              <Input type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
             </div>
             <div className="grid gap-1.5">
               <Label>Join URL</Label>

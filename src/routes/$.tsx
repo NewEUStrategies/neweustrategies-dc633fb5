@@ -504,7 +504,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             settings: readingTimeSettings,
           })
         : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [
       isPost,
       post?.read_minutes,

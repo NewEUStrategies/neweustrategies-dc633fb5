@@ -40,7 +40,10 @@ export function b64urlEncode(buf: Buffer | Uint8Array): string {
 /** HKDF-SHA256 (RFC 5869) - extract + expand w jednym kroku. */
 function hkdf(salt: Buffer, ikm: Buffer, info: Buffer, length: number): Buffer {
   const prk = createHmac("sha256", salt).update(ikm).digest();
-  const t = createHmac("sha256", prk).update(info).update(Buffer.from([1])).digest();
+  const t = createHmac("sha256", prk)
+    .update(info)
+    .update(Buffer.from([1]))
+    .digest();
   return t.subarray(0, length);
 }
 
