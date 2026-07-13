@@ -38,7 +38,7 @@ import {
   Link as LinkIcon,
   Search,
 } from "@/lib/lucide-shim";
-import { Clock, Inbox, MessageCircle, ListChecks, Radio, TrendingUp } from "lucide-react";
+import { Clock, Inbox, MessageCircle, ListChecks, Radio, Crown, Landmark } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -191,6 +191,13 @@ function AdminShellInner({
       label: t("admin.navGroups.monetization"),
       items: [
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
+        {
+          to: "/admin/membership",
+          icon: Crown,
+          label: t("admin.nav.membership", {
+            defaultValue: lang === "pl" ? "Członkostwo" : "Membership",
+          }),
+        },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
       ],
     },
@@ -232,10 +239,24 @@ function AdminShellInner({
           }),
         },
         {
+          to: "/admin/community",
+          icon: Users,
+          label: t("admin.nav.community", {
+            defaultValue: lang === "pl" ? "Społeczność" : "Community",
+          }),
+        },
+        {
           to: "/admin/comments",
           icon: MessageCircle,
           label: t("admin.nav.comments", {
             defaultValue: lang === "pl" ? "Komentarze" : "Comments",
+          }),
+        },
+        {
+          to: "/admin/tracker",
+          icon: Landmark,
+          label: t("admin.nav.tracker", {
+            defaultValue: lang === "pl" ? "Tracker UE" : "EU tracker",
           }),
         },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },

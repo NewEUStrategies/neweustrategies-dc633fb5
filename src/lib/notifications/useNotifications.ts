@@ -44,8 +44,14 @@ export interface NotificationPreferences {
   typing_indicators_enabled: boolean;
   show_online_status: boolean;
   allow_messages_from: AllowMessagesFrom;
-  /** E-mailowe podsumowanie nieprzeczytanych powiadomień (opt-in). */
-  email_digest_frequency: EmailDigestFrequency;
+  /**
+   * Kanały doręczeń (poza in-app):
+   * - push_enabled: web push na tym i innych urządzeniach użytkownika
+   *   (subskrypcje per przeglądarka w push_subscriptions),
+   * - email_digest: zbiorczy e-mail z nieprzeczytanymi powiadomieniami.
+   */
+  push_enabled: boolean;
+  email_digest: EmailDigestFrequency;
 }
 
 export type EmailDigestFrequency = "off" | "daily" | "weekly";
@@ -64,7 +70,8 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   typing_indicators_enabled: true,
   show_online_status: true,
   allow_messages_from: "everyone",
-  email_digest_frequency: "off",
+  push_enabled: false,
+  email_digest: "off",
 };
 
 const prefsKey = (uid: string | undefined) =>
@@ -267,7 +274,7 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, email_digest_frequency" as never,
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest",
         )
         .eq("user_id", user!.id)
         .maybeSingle();

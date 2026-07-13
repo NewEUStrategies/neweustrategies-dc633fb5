@@ -33,6 +33,7 @@ export type Database = {
           price_cents: number
           sort_order: number
           tenant_id: string
+          tier_key: string | null
           trial_days: number
           updated_at: string
         }
@@ -54,6 +55,7 @@ export type Database = {
           price_cents?: number
           sort_order?: number
           tenant_id?: string
+          tier_key?: string | null
           trial_days?: number
           updated_at?: string
         }
@@ -75,6 +77,7 @@ export type Database = {
           price_cents?: number
           sort_order?: number
           tenant_id?: string
+          tier_key?: string | null
           trial_days?: number
           updated_at?: string
         }
@@ -1113,6 +1116,59 @@ export type Database = {
         }
         Relationships: []
       }
+      contributor_submissions: {
+        Row: {
+          created_at: string
+          editor_note: string | null
+          id: string
+          language: string
+          pitch: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          editor_note?: string | null
+          id?: string
+          language?: string
+          pitch: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          editor_note?: string | null
+          id?: string
+          language?: string
+          pitch?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contributor_submissions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           archived_at: string | null
@@ -1124,6 +1180,7 @@ export type Database = {
           last_read_at: string | null
           muted_until: string | null
           pinned_at: string | null
+          role: string
           tenant_id: string
           unread_count: number
           updated_at: string
@@ -1139,6 +1196,7 @@ export type Database = {
           last_read_at?: string | null
           muted_until?: string | null
           pinned_at?: string | null
+          role?: string
           tenant_id: string
           unread_count?: number
           updated_at?: string
@@ -1154,6 +1212,7 @@ export type Database = {
           last_read_at?: string | null
           muted_until?: string | null
           pinned_at?: string | null
+          role?: string
           tenant_id?: string
           unread_count?: number
           updated_at?: string
@@ -1189,6 +1248,7 @@ export type Database = {
           last_message_sender: string | null
           message_ttl_seconds: number | null
           tenant_id: string
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -1203,6 +1263,7 @@ export type Database = {
           last_message_sender?: string | null
           message_ttl_seconds?: number | null
           tenant_id: string
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -1217,6 +1278,7 @@ export type Database = {
           last_message_sender?: string | null
           message_ttl_seconds?: number | null
           tenant_id?: string
+          title?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1634,6 +1696,310 @@ export type Database = {
           },
         ]
       }
+      eu_policy_follows: {
+        Row: {
+          created_at: string
+          item_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          item_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          item_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eu_policy_follows_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "eu_policy_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eu_policy_follows_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eu_policy_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          importance: number
+          next_milestone_at: string | null
+          next_milestone_en: string | null
+          next_milestone_pl: string | null
+          policy_area: string
+          reference: string | null
+          slug: string
+          source_url: string | null
+          stage: string
+          status: string
+          summary_en: string | null
+          summary_pl: string | null
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          importance?: number
+          next_milestone_at?: string | null
+          next_milestone_en?: string | null
+          next_milestone_pl?: string | null
+          policy_area?: string
+          reference?: string | null
+          slug: string
+          source_url?: string | null
+          stage?: string
+          status?: string
+          summary_en?: string | null
+          summary_pl?: string | null
+          tenant_id?: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          importance?: number
+          next_milestone_at?: string | null
+          next_milestone_en?: string | null
+          next_milestone_pl?: string | null
+          policy_area?: string
+          reference?: string | null
+          slug?: string
+          source_url?: string | null
+          stage?: string
+          status?: string
+          summary_en?: string | null
+          summary_pl?: string | null
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eu_policy_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eu_policy_updates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          happened_on: string
+          id: string
+          item_id: string
+          note_en: string
+          note_pl: string
+          source_url: string | null
+          stage_from: string | null
+          stage_to: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          happened_on?: string
+          id?: string
+          item_id: string
+          note_en: string
+          note_pl: string
+          source_url?: string | null
+          stage_from?: string | null
+          stage_to?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          happened_on?: string
+          id?: string
+          item_id?: string
+          note_en?: string
+          note_pl?: string
+          source_url?: string | null
+          stage_from?: string | null
+          stage_to?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eu_policy_updates_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "eu_policy_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eu_policy_updates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_rsvps: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          reminded_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          reminded_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_rsvps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          capacity: number | null
+          chatham_house: boolean
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          ends_at: string | null
+          host_user_id: string | null
+          id: string
+          join_url: string | null
+          kind: string
+          location: string | null
+          min_tier_rank: number
+          recording_url: string | null
+          slug: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          timezone: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          capacity?: number | null
+          chatham_house?: boolean
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          ends_at?: string | null
+          host_user_id?: string | null
+          id?: string
+          join_url?: string | null
+          kind?: string
+          location?: string | null
+          min_tier_rank?: number
+          recording_url?: string | null
+          slug: string
+          starts_at: string
+          status?: string
+          tenant_id?: string
+          timezone?: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          capacity?: number | null
+          chatham_house?: boolean
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          ends_at?: string | null
+          host_user_id?: string | null
+          id?: string
+          join_url?: string | null
+          kind?: string
+          location?: string | null
+          min_tier_rank?: number
+          recording_url?: string | null
+          slug?: string
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          timezone?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_field_policies: {
         Row: {
           active: boolean
@@ -2007,6 +2373,68 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: []
+      }
+      membership_tiers: {
+        Row: {
+          active: boolean
+          benefits: Json
+          created_at: string
+          description_en: string | null
+          description_pl: string | null
+          features: Json
+          id: string
+          is_default: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          rank: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          benefits?: Json
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          features?: Json
+          id?: string
+          is_default?: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          rank?: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          benefits?: Json
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          features?: Json
+          id?: string
+          is_default?: boolean
+          key?: string
+          name_en?: string
+          name_pl?: string
+          rank?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_tiers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       message_reactions: {
         Row: {
@@ -2703,6 +3131,8 @@ export type Database = {
           allow_messages_from: string
           auto_mark_on_open: boolean
           created_at: string
+          digest_last_sent_at: string | null
+          email_digest: string
           enabled_comment: boolean
           enabled_content: boolean
           enabled_follow: boolean
@@ -2711,6 +3141,7 @@ export type Database = {
           enabled_subscription: boolean
           enabled_system: boolean
           group_by_conversation: boolean
+          push_enabled: boolean
           read_receipts_enabled: boolean
           show_online_status: boolean
           tenant_id: string
@@ -2722,6 +3153,8 @@ export type Database = {
           allow_messages_from?: string
           auto_mark_on_open?: boolean
           created_at?: string
+          digest_last_sent_at?: string | null
+          email_digest?: string
           enabled_comment?: boolean
           enabled_content?: boolean
           enabled_follow?: boolean
@@ -2730,6 +3163,7 @@ export type Database = {
           enabled_subscription?: boolean
           enabled_system?: boolean
           group_by_conversation?: boolean
+          push_enabled?: boolean
           read_receipts_enabled?: boolean
           show_online_status?: boolean
           tenant_id: string
@@ -2741,6 +3175,8 @@ export type Database = {
           allow_messages_from?: string
           auto_mark_on_open?: boolean
           created_at?: string
+          digest_last_sent_at?: string | null
+          email_digest?: string
           enabled_comment?: boolean
           enabled_content?: boolean
           enabled_follow?: boolean
@@ -2749,6 +3185,7 @@ export type Database = {
           enabled_subscription?: boolean
           enabled_system?: boolean
           group_by_conversation?: boolean
+          push_enabled?: boolean
           read_receipts_enabled?: boolean
           show_online_status?: boolean
           tenant_id?: string
@@ -2759,6 +3196,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notification_preferences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_push_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: number
+          next_attempt_at: string
+          notification_id: string | null
+          payload: Json
+          sent_at: string | null
+          status: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: never
+          next_attempt_at?: string
+          notification_id?: string | null
+          payload: Json
+          sent_at?: string | null
+          status?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: never
+          next_attempt_at?: string
+          notification_id?: string | null
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_push_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_push_queue_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3302,6 +3793,105 @@ export type Database = {
           },
           {
             foreignKeyName: "podcasts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poll_votes: {
+        Row: {
+          created_at: string
+          option_idx: number
+          poll_id: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          option_idx: number
+          poll_id: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          option_idx?: number
+          poll_id?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poll_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poll_votes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polls: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          options: Json
+          post_id: string | null
+          question_en: string
+          question_pl: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          options: Json
+          post_id?: string | null
+          question_en: string
+          question_pl: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          options?: Json
+          post_id?: string | null
+          question_en?: string
+          question_pl?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polls_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polls_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3892,6 +4482,44 @@ export type Database = {
           },
         ]
       }
+      profile_badges: {
+        Row: {
+          badge: string
+          created_at: string
+          granted_by: string | null
+          id: string
+          note: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          badge: string
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          note?: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          badge?: string
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          note?: string | null
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_badges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_cv_files: {
         Row: {
           created_at: string
@@ -4242,6 +4870,231 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          failed_at: string | null
+          id: string
+          last_seen_at: string
+          p256dh: string
+          tenant_id: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          failed_at?: string | null
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          tenant_id?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          failed_at?: string | null
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          tenant_id?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qa_question_votes: {
+        Row: {
+          created_at: string
+          question_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          question_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          question_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_question_votes_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "qa_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_question_votes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qa_questions: {
+        Row: {
+          answer_body: string | null
+          answered_at: string | null
+          answered_by: string | null
+          author_display: string | null
+          body: string
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          session_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answer_body?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          author_display?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          session_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answer_body?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          author_display?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          session_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_questions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "qa_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_questions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qa_sessions: {
+        Row: {
+          closes_at: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string | null
+          host_user_id: string
+          id: string
+          intro_en: string | null
+          intro_pl: string | null
+          opens_at: string | null
+          post_id: string | null
+          slug: string
+          status: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string | null
+          host_user_id: string
+          id?: string
+          intro_en?: string | null
+          intro_pl?: string | null
+          opens_at?: string | null
+          post_id?: string | null
+          slug: string
+          status?: string
+          tenant_id?: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+        }
+        Update: {
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string | null
+          host_user_id?: string
+          id?: string
+          intro_en?: string | null
+          intro_pl?: string | null
+          opens_at?: string | null
+          post_id?: string | null
+          slug?: string
+          status?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_sessions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_sessions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5267,6 +6120,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_group_members: {
+        Args: { p_conversation_id: string; p_member_ids: string[] }
+        Returns: number
+      }
       admin_clear_content_password: {
         Args: {
           _entity_id: string
@@ -5274,6 +6131,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_community_stats: { Args: never; Returns: Json }
       admin_get_user: {
         Args: { _user_id: string }
         Returns: {
@@ -5337,9 +6195,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_soft_delete_message: {
+        Args: { p_message_id: string }
+        Returns: undefined
+      }
       admin_update_user_avatar: {
         Args: { _avatar_url: string; _user_id: string }
         Returns: undefined
+      }
+      ask_qa_question: {
+        Args: { p_anonymous?: boolean; p_body: string; p_session_id: string }
+        Returns: string
       }
       bump_tenant_counter: {
         Args: { p_delta: number; p_key: string; p_tenant_id: string }
@@ -5363,6 +6229,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"][]
       }
       chat_allow_messages_from: { Args: { _user: string }; Returns: string }
+      chat_check_upload_quota: { Args: never; Returns: undefined }
       chat_clear_history: {
         Args: { p_conversation_id: string }
         Returns: undefined
@@ -5391,6 +6258,15 @@ export type Database = {
         Args: { p_command: string; p_key: string }
         Returns: Json
       }
+      claim_due_digests: {
+        Args: { p_frequency: string; p_limit?: number }
+        Returns: {
+          display_name: string
+          email: string
+          items: Json
+          user_id: string
+        }[]
+      }
       claim_integration_deliveries: {
         Args: { p_limit?: number }
         Returns: {
@@ -5414,6 +6290,27 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_push_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: number
+          next_attempt_at: string
+          notification_id: string | null
+          payload: Json
+          sent_at: string | null
+          status: string
+          tenant_id: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notification_push_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       complete_command: {
         Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
         Returns: undefined
@@ -5424,6 +6321,10 @@ export type Database = {
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
         }
         Returns: boolean
+      }
+      create_group_conversation: {
+        Args: { p_member_ids: string[]; p_title: string }
+        Returns: string
       }
       crm_get_merydian_secrets: {
         Args: { _tenant?: string }
@@ -5482,7 +6383,18 @@ export type Database = {
         }
         Returns: string
       }
+      current_membership_tier: {
+        Args: never
+        Returns: {
+          features: Json
+          key: string
+          name_en: string
+          name_pl: string
+          rank: number
+        }[]
+      }
       current_tenant_id: { Args: never; Returns: string }
+      current_tier_rank: { Args: never; Returns: number }
       emit_domain_event: {
         Args: {
           p_aggregate_id: string
@@ -5509,6 +6421,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      filter_group_candidates: {
+        Args: { p_candidates: string[]; p_inviter: string }
+        Returns: string[]
       }
       finish_integration_delivery: {
         Args: { p_error?: string; p_id: string; p_succeeded: boolean }
@@ -5545,6 +6461,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_engagement_overview: { Args: never; Returns: Json }
       get_entity_content: {
         Args: {
           _entity_id: string
@@ -5555,6 +6472,24 @@ export type Database = {
           builder_data: Json
           content_en: string
           content_pl: string
+        }[]
+      }
+      get_event_access: {
+        Args: { p_event_id: string }
+        Returns: {
+          can_join: boolean
+          can_watch: boolean
+          join_url: string
+          reason: string
+          recording_url: string
+        }[]
+      }
+      get_event_rsvp_counts: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          event_id: string
+          going: number
+          interested: number
         }[]
       }
       get_followed_feed: {
@@ -5585,6 +6520,10 @@ export type Database = {
           reference_id: string
           relation: string
         }[]
+      }
+      get_my_qa_question_ids: {
+        Args: { p_session_id: string }
+        Returns: string[]
       }
       get_or_create_direct_conversation: {
         Args: { p_peer_id: string }
@@ -5688,6 +6627,14 @@ export type Database = {
           hint_pl: string
         }[]
       }
+      get_policy_follower_counts: {
+        Args: { p_item_ids: string[] }
+        Returns: {
+          followers: number
+          item_id: string
+        }[]
+      }
+      get_poll_results: { Args: { p_poll_id: string }; Returns: Json }
       get_post_for_edit: {
         Args: { _slug: string }
         Returns: {
@@ -5782,6 +6729,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_tier_rank: { Args: { _min: number }; Returns: boolean }
       install_workflow_template: { Args: { p_key: string }; Returns: string }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
@@ -5802,6 +6750,10 @@ export type Database = {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
       }
+      leave_group_conversation: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
+      }
       linked_item_label: {
         Args: { p_id: string; p_type: string }
         Returns: string
@@ -5818,6 +6770,10 @@ export type Database = {
       mark_notification_unread: { Args: { p_id: string }; Returns: undefined }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: number }
       mark_notifications_unread: { Args: { p_ids: string[] }; Returns: number }
+      mark_push_subscription_failed: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
       member_conversation_ids: { Args: never; Returns: string[] }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
@@ -5898,6 +6854,7 @@ export type Database = {
       prune_command_idempotency: { Args: never; Returns: number }
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
       prune_integration_deliveries: { Args: never; Returns: number }
+      prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
       recompute_my_pending_counters: { Args: never; Returns: undefined }
@@ -5918,6 +6875,14 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      rename_group_conversation: {
+        Args: { p_conversation_id: string; p_title: string }
+        Returns: undefined
+      }
+      report_push_job: {
+        Args: { p_dead?: boolean; p_id: number; p_ok: boolean }
+        Returns: undefined
+      }
       request_correlation_id: { Args: never; Returns: string }
       request_public_host: { Args: never; Returns: string }
       resolve_path: {
@@ -5927,6 +6892,11 @@ export type Database = {
           post_id: string
         }[]
       }
+      rsvp_event: {
+        Args: { p_event_id: string; p_status: string }
+        Returns: Json
+      }
+      run_event_reminders: { Args: never; Returns: number }
       run_workflow_step: {
         Args: {
           p_event: Database["public"]["Tables"]["domain_events"]["Row"]
@@ -6001,6 +6971,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
@@ -6029,6 +7000,10 @@ export type Database = {
           content_pl: string
           ok: boolean
         }[]
+      }
+      vote_poll: {
+        Args: { p_option_idx: number; p_poll_id: string }
+        Returns: Json
       }
       web_vitals_daily_p75: {
         Args: { p_since: string; p_tenant: string }

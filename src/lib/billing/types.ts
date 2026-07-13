@@ -23,6 +23,8 @@ export interface AccessPlan {
   badge_en: string | null;
   highlighted: boolean;
   trial_days: number;
+  /** Warstwa członkostwa nadawana przez plan (membership_tiers.key). */
+  tier_key: string | null;
 }
 
 export interface BillingProfile {

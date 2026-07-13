@@ -17,6 +17,7 @@ function participant(overrides: Partial<ParticipantRow>): ParticipantRow {
     archived_at: overrides.archived_at ?? null,
     muted_until: overrides.muted_until ?? null,
     cleared_before: overrides.cleared_before ?? null,
+    role: overrides.role ?? "member",
     created_at: overrides.created_at ?? "2026-01-01T10:00:00.000Z",
     updated_at: overrides.updated_at ?? "2026-01-01T10:00:00.000Z",
   };
@@ -37,6 +38,7 @@ function view(me: Partial<ParticipantRow>, id = "conv-1"): ConversationView {
       last_message_preview: null,
       last_message_sender: null,
       message_ttl_seconds: null,
+      title: null,
     },
     me: participant(me),
     peers: [],

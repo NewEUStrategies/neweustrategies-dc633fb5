@@ -36,6 +36,14 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { impersonateUser } from "@/lib/admin/impersonation";
+import {
+  BADGE_ORDER,
+  badgeLabel,
+  grantBadge,
+  revokeBadge,
+  useUserBadges,
+} from "@/lib/profile/badges";
+import { ProfileBadges } from "@/components/profile/ProfileBadges";
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
@@ -322,41 +330,8 @@ function UserDetail() {
             {data.gender && <Field label={L("Płeć", "Gender")} value={String(data.gender)} />}
           </Card>
 
-          <Card title={L("Weryfikacja zawodowa", "Professional verification")}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm">
-                <BadgeCheck
-                  className={
-                    verificationQ.data?.verified_at
-                      ? "w-4 h-4 text-sky-600 dark:text-sky-400"
-                      : "w-4 h-4 text-muted-foreground/50"
-                  }
-                />
-                <span>
-                  {verificationQ.data?.verified_at
-                    ? L("Profil zweryfikowany", "Profile verified")
-                    : L("Profil niezweryfikowany", "Profile not verified")}
-                </span>
-              </div>
-              <Switch
-                checked={!!verificationQ.data?.verified_at}
-                disabled={verifyBusy || verificationQ.isLoading}
-                onCheckedChange={(next) => void setVerified(next)}
-                aria-label={L("Weryfikacja zawodowa", "Professional verification")}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground m-0">
-              {L(
-                "Odznaka widoczna w katalogu osób i na publicznym profilu autora.",
-                "Badge shown in the people directory and on the public author profile.",
-              )}
-            </p>
-            {verificationQ.data?.verified_at && (
-              <Field
-                label={L("Zweryfikowano", "Verified at")}
-                value={new Date(verificationQ.data.verified_at).toLocaleString(locale)}
-              />
-            )}
+          <Card title={L("Odznaki", "Badges")}>
+            <BadgesEditor userId={data.id} tenantId={tenantId ?? null} />
           </Card>
 
           <Card title={L("Akcje", "Actions")}>
@@ -579,6 +554,54 @@ function AvatarEditor({
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+// Nadawanie/odbieranie odznak profilowych (verified/expert/contributor/staff).
+// Nadanie triggeruje w DB powiadomienie do użytkownika.
+function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string | null }) {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const qc = useQueryClient();
+  const badgesQ = useUserBadges(userId);
+  const current = badgesQ.data ?? [];
+
+  const toggle = async (badge: (typeof BADGE_ORDER)[number], has: boolean) => {
+    try {
+      if (has) {
+        await revokeBadge(userId, badge);
+      } else {
+        if (!tenantId) throw new Error("tenant");
+        await grantBadge(userId, badge, tenantId);
+      }
+      await qc.invalidateQueries({ queryKey: ["profile-badges"] });
+    } catch {
+      toast.error(lang === "pl" ? "Nie udało się zmienić odznaki" : "Could not update the badge");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <ProfileBadges badges={current} size="md" />
+      <div className="flex flex-wrap gap-2">
+        {BADGE_ORDER.map((badge) => {
+          const has = current.includes(badge);
+          return (
+            <Button
+              key={badge}
+              type="button"
+              size="sm"
+              variant={has ? "default" : "outline"}
+              disabled={badgesQ.isLoading}
+              onClick={() => void toggle(badge, has)}
+            >
+              {has ? "− " : "+ "}
+              {badgeLabel(badge, lang)}
+            </Button>
+          );
+        })}
+      </div>
     </div>
   );
 }
