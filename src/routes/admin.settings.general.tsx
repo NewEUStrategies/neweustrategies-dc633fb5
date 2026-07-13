@@ -55,6 +55,8 @@ export const Route = createFileRoute("/admin/settings/general")({
 function GeneralSettings() {
   const { t } = useTranslation();
   const { query, save } = useSettings<General>("general", DEFAULTS);
+  const themeOptions = useSettings<ThemeOptionsShape>("theme_options", THEME_OPTIONS_DEFAULTS);
+  const themeLogo = themeOptions.query.data?.logo ?? {};
   const [draft, setDraft] = useDraft(query.data);
 
   useEffect(() => {
