@@ -669,11 +669,13 @@ function SectionRenderer({
   hub,
   settings,
   lang,
+  showPlaceholders,
 }: {
   k: ExpertSectionKey;
   hub: ExpertHubData;
   settings: ExpertLayoutSettings;
   lang: Lang;
+  showPlaceholders: boolean;
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const wrap = (title: React.ReactNode, icon: React.ReactNode, children: React.ReactNode) => {
