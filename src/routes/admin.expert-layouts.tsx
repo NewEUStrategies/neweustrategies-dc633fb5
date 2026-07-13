@@ -414,7 +414,7 @@ function ColorField({
 // Uproszczony piktogram wariantu - schemat blokowy, żeby administrator od razu
 // widział strukturę hero. Bez ikon zewnętrznych, tylko div-y z tokenami.
 function PresetThumb({ id }: { id: ExpertLayoutPresetId }) {
-  const base = "h-16 w-full rounded border border-border/60 bg-muted/40 p-1.5 flex gap-1";
+  const base = "relative h-20 w-full rounded border border-border bg-muted/50 p-2 flex gap-1.5 overflow-hidden";
   switch (id) {
     case "classic":
       return (
