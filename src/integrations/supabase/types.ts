@@ -2310,6 +2310,8 @@ export type Database = {
         Row: {
           accent_color: string | null
           accent_color_dark: string | null
+          bio_bullet_color: string | null
+          bio_bullet_color_dark: string | null
           center_details: boolean
           center_hero: boolean
           created_at: string
@@ -2340,6 +2342,8 @@ export type Database = {
         Insert: {
           accent_color?: string | null
           accent_color_dark?: string | null
+          bio_bullet_color?: string | null
+          bio_bullet_color_dark?: string | null
           center_details?: boolean
           center_hero?: boolean
           created_at?: string
@@ -2370,6 +2374,8 @@ export type Database = {
         Update: {
           accent_color?: string | null
           accent_color_dark?: string | null
+          bio_bullet_color?: string | null
+          bio_bullet_color_dark?: string | null
           center_details?: boolean
           center_hero?: boolean
           created_at?: string

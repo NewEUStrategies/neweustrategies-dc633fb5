@@ -323,6 +323,16 @@ function Page() {
               value={local.accent_color_dark}
               onChange={(v) => upd({ accent_color_dark: v })}
             />
+            <ColorField
+              label="Punktor BIO (light)"
+              value={local.bio_bullet_color}
+              onChange={(v) => upd({ bio_bullet_color: v })}
+            />
+            <ColorField
+              label="Punktor BIO (dark)"
+              value={local.bio_bullet_color_dark}
+              onChange={(v) => upd({ bio_bullet_color_dark: v })}
+            />
           </div>
         </section>
 

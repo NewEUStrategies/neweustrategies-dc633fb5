@@ -84,7 +84,13 @@ const LABELS: Record<Lang, Record<string, string>> = {
 // tego, czy wybrany ekspert ma wypełnione pola.
 const PLACEHOLDER = {
   pl: {
-    bio: "Dr Anna Kowalska jest starszą analityczką w zespole polityki europejskiej New European Strategies. Specjalizuje się w polityce bezpieczeństwa UE, relacjach transatlantyckich oraz strategicznej autonomii Europy. Autorka ponad 40 publikacji recenzowanych, komentatorka w czołowych mediach europejskich, doradczyni instytucji publicznych oraz think-tanków. Przed dołączeniem do NES pracowała w Ministerstwie Spraw Zagranicznych oraz w Parlamencie Europejskim, gdzie kierowała zespołem doradczym ds. polityki wschodniej. Regularnie występuje na konferencjach Munich Security Conference, GLOBSEC oraz Warsaw Security Forum.",
+    bio: [
+      "Starsza analityczka polityki europejskiej w New European Strategies, specjalistka od bezpieczeństwa UE i relacji transatlantyckich.",
+      "Autorka ponad 40 publikacji recenzowanych i komentatorka w czołowych mediach europejskich.",
+      "Wcześniej w MSZ i Parlamencie Europejskim, gdzie kierowała zespołem doradczym ds. polityki wschodniej.",
+      "Doradczyni instytucji publicznych oraz wiodących think-tanków w regionie CEE.",
+      "Regularna prelegentka Munich Security Conference, GLOBSEC oraz Warsaw Security Forum.",
+    ],
     role: "Starsza analityczka · New European Strategies",
     email: "kontakt@przyklad.pl",
     mediaEmail: "media@przyklad.pl",
@@ -118,7 +124,13 @@ const PLACEHOLDER = {
     ],
   },
   en: {
-    bio: "Dr. Anna Kowalska is a Senior Fellow at New European Strategies, where she leads research on European security policy, transatlantic relations, and Europe's strategic autonomy. She is the author of more than 40 peer-reviewed publications, a regular commentator in major European media, and an adviser to public institutions and leading think tanks. Prior to joining NES she served at the Ministry of Foreign Affairs and at the European Parliament, where she led the advisory team on Eastern policy. She is a recurring speaker at the Munich Security Conference, GLOBSEC, and Warsaw Security Forum.",
+    bio: [
+      "Senior Fellow at New European Strategies, leading research on European security and transatlantic relations.",
+      "Author of 40+ peer-reviewed publications and a regular commentator across major European media.",
+      "Former adviser at the Ministry of Foreign Affairs and the European Parliament (Eastern policy).",
+      "Adviser to public institutions and top think tanks focused on the CEE region.",
+      "Recurring speaker at Munich Security Conference, GLOBSEC, and Warsaw Security Forum.",
+    ],
     role: "Senior Fellow · New European Strategies",
     email: "contact@example.com",
     mediaEmail: "media@example.com",
@@ -274,6 +286,7 @@ export function ExpertLayoutPreview({
   const heroBg = theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color;
   const heroText = theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color;
   const accent = theme === "dark" ? settings.accent_color_dark : settings.accent_color;
+  const bioBullet = theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color;
 
   const t = LABELS[lang];
 
@@ -281,8 +294,9 @@ export function ExpertLayoutPreview({
     () =>
       ({
         "--pv-accent": accent ?? "hsl(var(--brand))",
+        "--pv-bio-bullet": bioBullet ?? accent ?? "hsl(var(--brand))",
       }) as React.CSSProperties,
-    [accent],
+    [accent, bioBullet],
   );
 
   return (
@@ -488,7 +502,24 @@ function ExpertMockup({
   const realRoleLine = [role, company].filter(Boolean).join(" · ");
   const roleLine = realRoleLine || (showPlaceholders ? ph.role : "");
   const realBio = (lang === "en" ? e.bio_en : e.bio_pl) ?? "";
-  const bioText = realBio.trim() || (showPlaceholders ? ph.bio : "");
+  // Zamień bio na listę punktorów (max 5): najpierw spróbuj po nowych liniach
+  // / dashach / bulletach, potem fallback po zdaniach. Puste bio -> placeholder.
+  const bioItems: string[] = (() => {
+    const src = realBio.trim();
+    if (src) {
+      const byLine = src
+        .split(/\r?\n+/)
+        .map((l) => l.replace(/^\s*[-•*·]\s*/, "").trim())
+        .filter(Boolean);
+      if (byLine.length > 1) return byLine.slice(0, 5);
+      const bySentence = src
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return bySentence.slice(0, 5);
+    }
+    return showPlaceholders ? ph.bio.slice(0, 5) : [];
+  })();
 
   const hasCover = Boolean(e.cover_url);
 
@@ -499,8 +530,6 @@ function ExpertMockup({
 
   const centered = settings.center_hero || preset.centeredContent;
 
-  // Rola/bio dziedziczą kolor tekstu z heroStyle (color: heroText). Używamy
-  // opacity zamiast text-muted-foreground, żeby ustawiony kolor był widoczny.
   const roleStyle: React.CSSProperties = {
     fontSize: settings.role_size_lg,
     color: heroText ?? undefined,
@@ -511,13 +540,22 @@ function ExpertMockup({
     opacity: heroText ? 0.9 : undefined,
   };
   const BioBlock = ({ className = "" }: { className?: string }) =>
-    bioText ? (
-      <p
-        className={`text-sm leading-relaxed whitespace-pre-line ${className}`}
+    bioItems.length > 0 ? (
+      <ul
+        className={`text-sm leading-relaxed space-y-1.5 pl-0 list-none ${className}`}
         style={bioStyle}
       >
-        {bioText}
-      </p>
+        {bioItems.map((item, i) => (
+          <li key={i} className="flex gap-2 items-start">
+            <span
+              aria-hidden
+              className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-[6px]"
+              style={{ backgroundColor: "var(--pv-bio-bullet)" }}
+            />
+            <span className="flex-1">{item}</span>
+          </li>
+        ))}
+      </ul>
     ) : null;
 
   const sizeLabel = lang === "en" ? "Recommended" : "Zalecane";
@@ -712,12 +750,23 @@ function ExpertMockup({
           </div>
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
-          <blockquote
-            className="border-l-4 pl-4 italic text-lg"
-            style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif", color: heroText ?? undefined }}
-          >
-            {bioText}
-          </blockquote>
+          {bioItems.length > 0 && (
+            <ul
+              className="border-l-4 pl-4 italic text-lg space-y-2 list-none"
+              style={{ borderColor: "var(--pv-accent)", fontFamily: "'Playfair Display', Georgia, serif", color: heroText ?? undefined }}
+            >
+              {bioItems.map((item, i) => (
+                <li key={i} className="flex gap-2 items-start">
+                  <span
+                    aria-hidden
+                    className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-[6px]"
+                    style={{ backgroundColor: "var(--pv-bio-bullet)" }}
+                  />
+                  <span className="flex-1">{item}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-4">
             {social("")}
             {contact("")}
