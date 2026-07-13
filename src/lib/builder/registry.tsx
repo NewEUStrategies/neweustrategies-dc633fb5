@@ -47,13 +47,19 @@ import {
   LineChart,
   Globe2,
   HandHeart,
+  Gauge,
+  Share2,
+  Columns2,
+  Shapes,
+  FlaskConical,
+  Layers,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
 export interface WidgetDef {
   type: WidgetType;
   label: string;
-  category: "basic" | "media" | "dynamic" | "form" | "navigation" | "blocks";
+  category: "basic" | "media" | "dynamic" | "form" | "navigation" | "blocks" | "features";
   icon: LucideIcon;
   defaults: () => WidgetNode["content"];
   /** Hide from the "Add widget" palette; the type stays valid for already-saved nodes. */
@@ -188,6 +194,226 @@ export const WIDGETS: WidgetDef[] = [
       animate: "on",
       source_pl: "",
       source_en: "",
+    }),
+  },
+  // ---- NES Digital Features (silnik: src/components/features) ----
+  {
+    type: "feature-timeline",
+    label: "Oś czasu",
+    category: "features",
+    icon: Clock,
+    defaults: () => ({
+      title_pl: "Kalendarium EDIP / EDIS",
+      title_en: "EDIP / EDIS timeline",
+      description_pl: "Kluczowe kroki europejskiego programu przemysłu obronnego.",
+      description_en: "Key milestones of the European defence industry programme.",
+      // Format: "Data; Tytuł|Title; Opis|Description; slot(1-8, opc.)"
+      data: [
+        "2024-03; Prezentacja EDIS|EDIS unveiled; Pierwsza strategia przemysłu obronnego UE|The EU's first defence industrial strategy; 1",
+        "2024-07; Wniosek EDIP|EDIP proposal; Program wart 1,5 mld EUR do 2027|A EUR 1.5bn programme through 2027; 3",
+        "2025-Q4; Negocjacje trilogu|Trilogue negotiations; Uzgodnienia PE i Rady|Parliament–Council reconciliation; 5",
+        "2026-Q2; Wejście w życie|Entry into force; Pierwsze zaproszenia do składania wniosków|First calls for proposals; 4",
+      ].join("\n"),
+      animate: "on",
+      source_pl: "Źródło: Komisja Europejska, DG DEFIS",
+      source_en: "Source: European Commission, DG DEFIS",
+    }),
+  },
+  {
+    type: "feature-sankey",
+    label: "Sankey (przepływy)",
+    category: "features",
+    icon: Share2,
+    defaults: () => ({
+      title_pl: "Przepływy dostaw LNG do UE",
+      title_en: "LNG supply flows to the EU",
+      description_pl: "Kierunki importu skroplonego gazu ziemnego (mld m³).",
+      description_en: "Liquefied natural gas import routes (bcm).",
+      unit: " mld m³",
+      height: 340,
+      // Format: "Źródło|Source; Cel|Target; wartość"
+      data: [
+        "USA|USA; Terminale UE|EU terminals; 56",
+        "Katar|Qatar; Terminale UE|EU terminals; 18",
+        "Rosja|Russia; Terminale UE|EU terminals; 15",
+        "Terminale UE|EU terminals; Europa Śr.-Wsch.|CEE; 34",
+        "Terminale UE|EU terminals; Europa Zach.|Western Europe; 55",
+      ].join("\n"),
+      animate: "on",
+      source_pl: "Źródło: dane ilustracyjne",
+      source_en: "Source: illustrative data",
+    }),
+  },
+  {
+    type: "feature-compare",
+    label: "Porównywarka państw",
+    category: "features",
+    icon: Columns2,
+    defaults: () => ({
+      title_pl: "Porównanie państw członkowskich",
+      title_en: "Member state comparison",
+      description_pl: "Wybrane wskaźniki bezpieczeństwa i gospodarki.",
+      description_en: "Selected security and economic indicators.",
+      // Nagłówek: "; Kol1; Kol2; ...", wiersze: "Wskaźnik [jedn.]|Indicator [unit]; v1; v2; ..."
+      data: [
+        "; Polska|Poland; Niemcy|Germany; Francja|France",
+        "Wydatki obronne [% PKB]|Defence spending [% GDP]; 4,1; 2,1; 2,0",
+        "Zależność od gazu [%]|Gas dependency [%]; 62; 49; 24",
+        "Wsparcie dla Ukrainy [mld EUR]|Aid to Ukraine [EUR bn]; 4,9; 17,7; 3,8",
+      ].join("\n"),
+      highlight: 0,
+      showBars: "on",
+      source_pl: "Źródło: dane ilustracyjne",
+      source_en: "Source: illustrative data",
+    }),
+  },
+  {
+    type: "feature-risk-matrix",
+    label: "Macierz ryzyka",
+    category: "features",
+    icon: Shapes,
+    defaults: () => ({
+      title_pl: "Macierz ryzyka bezpieczeństwa",
+      title_en: "Security risk matrix",
+      description_pl: "Prawdopodobieństwo względem wpływu (skala 1–5).",
+      description_en: "Likelihood versus impact (1–5 scale).",
+      axisXLabel_pl: "Wpływ →",
+      axisXLabel_en: "Impact →",
+      axisYLabel_pl: "Prawdopodobieństwo →",
+      axisYLabel_en: "Likelihood →",
+      // Format: "Nazwa|Name; prawdopodobieństwo 1-5; wpływ 1-5; opis|desc (opc.)"
+      data: [
+        "Przerwanie dostaw energii|Energy supply disruption; 3; 5; Zima 2026|Winter 2026",
+        "Atak hybrydowy|Hybrid attack; 4; 3; Infrastruktura krytyczna|Critical infrastructure",
+        "Obchodzenie sankcji|Sanctions circumvention; 4; 2; Państwa trzecie|Third countries",
+        "Zakłócenie łańcucha dostaw|Supply chain shock; 2; 4; Komponenty obronne|Defence components",
+      ].join("\n"),
+      animate: "on",
+      source_pl: "Źródło: ocena własna",
+      source_en: "Source: own assessment",
+    }),
+  },
+  {
+    type: "feature-indicator",
+    label: "Karta wskaźnika",
+    category: "features",
+    icon: Gauge,
+    defaults: () => ({
+      label_pl: "Indeks bezpieczeństwa energetycznego",
+      label_en: "Energy security index",
+      value: "72,4",
+      unit: "/100",
+      delta: "+5,1",
+      deltaLabel_pl: "r/r",
+      deltaLabel_en: "YoY",
+      deltaArrow: "up",
+      deltaTone: "positive",
+      // Sparkline: liczby rozdzielone ";" lub nowymi liniami.
+      spark: "58; 61; 60; 64; 67; 69; 72,4",
+      source_pl: "Źródło: NES",
+      source_en: "Source: NES",
+      href: "",
+    }),
+  },
+  {
+    type: "feature-network",
+    label: "Sieć powiązań",
+    category: "features",
+    icon: Layers,
+    defaults: () => ({
+      title_pl: "Sieć powiązań instytucjonalnych",
+      title_en: "Institutional relations network",
+      description_pl: "Powiązania między aktorami w danym dossier.",
+      description_en: "Links between actors in a given dossier.",
+      // Krawędzie: "A|A_en; B|B_en; siła 1-5 (opc.); etykieta|label (opc.)"
+      edges: [
+        "Komisja|Commission; Rada|Council; 4; współdecydowanie|co-decision",
+        "Komisja|Commission; Parlament|Parliament; 3; opinia|opinion",
+        "Rada|Council; Państwa czł.|Member states; 5; głosowanie|voting",
+        "Parlament|Parliament; Komisje|Committees; 3; sprawozdanie|report",
+        "Państwa czł.|Member states; Grupy robocze|Working groups; 2; ",
+      ].join("\n"),
+      // Grupy: "Węzeł|Node; grupa|group"
+      groups: [
+        "Komisja|Commission; Instytucje UE|EU institutions",
+        "Rada|Council; Instytucje UE|EU institutions",
+        "Parlament|Parliament; Instytucje UE|EU institutions",
+        "Państwa czł.|Member states; Krajowe|National",
+      ].join("\n"),
+      height: 420,
+      animate: "on",
+      source_pl: "Źródło: opracowanie NES",
+      source_en: "Source: NES analysis",
+    }),
+  },
+  {
+    type: "feature-corridor-map",
+    label: "Mapa korytarzy",
+    category: "features",
+    icon: MapPin,
+    defaults: () => ({
+      title_pl: "Europejskie korytarze transportowe",
+      title_en: "European transport corridors",
+      description_pl: "Wybrane korytarze TEN-T i węzły logistyczne.",
+      description_en: "Selected TEN-T corridors and logistics hubs.",
+      region: "europe",
+      // Korytarz: "Nazwa|Name; slot 1-8; lat,lon > lat,lon > ..."
+      corridors: [
+        "Bałtyk–Adriatyk|Baltic–Adriatic; 1; 54.35,18.65 > 52.23,21.01 > 50.06,19.94 > 48.21,16.37 > 45.44,12.32",
+        "Morze Północne–Bałtyk|North Sea–Baltic; 3; 51.51,-0.13 > 52.52,13.40 > 52.23,21.01 > 54.69,25.28",
+        "Ren–Dunaj|Rhine–Danube; 5; 48.86,2.35 > 48.14,11.58 > 48.21,16.37 > 44.43,26.10",
+      ].join("\n"),
+      // Marker: "lat,lon; Etykieta|Label"
+      markers: [
+        "54.35,18.65; Gdańsk",
+        "45.44,12.32; Wenecja|Venice",
+        "51.96,4.13; Rotterdam",
+        "44.43,26.10; Bukareszt|Bucharest",
+      ].join("\n"),
+      // Kody ISO-2 do podświetlenia (rozdzielone ";" lub ",").
+      highlightCountries: "PL; DE; AT; IT; NL; RO",
+      animate: "on",
+      source_pl: "Źródło: TEN-T (ilustracyjne)",
+      source_en: "Source: TEN-T (illustrative)",
+    }),
+  },
+  {
+    type: "feature-sources",
+    label: "Biblioteka źródeł",
+    category: "features",
+    icon: BookOpen,
+    defaults: () => ({
+      title_pl: "Biblioteka źródeł",
+      title_en: "Source library",
+      description_pl: "Dokumenty i dane wykorzystane w analizie.",
+      description_en: "Documents and data used in the analysis.",
+      // Format: "Typ|Type; Rok; Tytuł|Title; Wydawca|Publisher; URL"
+      entries: [
+        "Raport|Report; 2024; Europejska strategia przemysłu obronnego|European Defence Industrial Strategy; Komisja Europejska|European Commission; https://defence-industry-space.ec.europa.eu",
+        "Dane|Data; 2025; Statystyki energetyczne|Energy statistics; Eurostat; https://ec.europa.eu/eurostat",
+        "Traktat|Treaty; 2007; Traktat z Lizbony|Treaty of Lisbon; UE|EU; https://eur-lex.europa.eu",
+      ].join("\n"),
+      sort: "year-desc",
+      showSearch: "on",
+      source_pl: "",
+      source_en: "",
+    }),
+  },
+  {
+    type: "feature-methodology",
+    label: "Nota metodologiczna",
+    category: "features",
+    icon: FlaskConical,
+    defaults: () => ({
+      title_pl: "Nota metodologiczna",
+      title_en: "Methodology note",
+      version: "1.0",
+      updated: "2026-07",
+      defaultOpen: "0",
+      html_pl:
+        "<p>Dane pochodzą ze źródeł oficjalnych (Eurostat, Komisja Europejska). Wartości za rok bieżący są szacunkami. Indeks normalizowany do skali 0–100.</p>",
+      html_en:
+        "<p>Data are drawn from official sources (Eurostat, European Commission). Current-year figures are estimates. The index is normalised to a 0–100 scale.</p>",
     }),
   },
   {

@@ -5,7 +5,8 @@
 // Slug może być też UUID użytkownika (kompatybilność wsteczna).
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
+import { useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Globe, Linkedin } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
@@ -21,7 +22,9 @@ import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
-import { expertHubQueryOptions } from "@/lib/experts/queries";
+import { authorBySlugQueryOptions, ARCHIVE_PAGE_SIZE } from "@/lib/queries/archives";
+import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
+import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -98,8 +101,11 @@ function ExpertHubPage() {
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const personalized = usePersonalizedSettings();
-  const badgesQ = useUserBadges(data?.expert.id);
-
+  // Pełny zestaw odznak (ekspert/redakcja/autor gościnny) - parytet z /people;
+  // duplikat "Zweryfikowany" odpada, gdy pill verified_at już świeci.
+  const badgesQ = useUserBadges(data?.author.id);
+  // Agregacja odcinków, w których ekspert prowadzi/gości lub jest autorem.
+  const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.author.id ?? ""));
   if (!data) return <PublicNotFound />;
   const { expert } = data;
   // Pełny zestaw odznak; duplikat "Zweryfikowany" odpada, gdy pill verified świeci.
@@ -207,18 +213,45 @@ function ExpertHubPage() {
             </div>
           </div>
         </header>
-
-        <div className="mx-auto max-w-[1200px] space-y-12 px-4 pb-16 lg:px-8">
-          <ExpertHubDetails data={data} lang={lang} />
-
-          <AuthorCvSections userId={expert.id} />
-
-          <ExpertInTheNews mentions={data.mediaMentions} lang={lang} />
-
-          <section className="grid gap-5">
-            <div>
-              <h2 className="font-display text-2xl">{t("expert.materialsHeading")}</h2>
-              <p className="text-sm text-muted-foreground">{t("expert.materialsSubtitle")}</p>
+        <AuthorCvSections userId={author.id} />
+        {podcastsQ.data && podcastsQ.data.length > 0 && (
+          <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-4">
+            <PodcastEpisodeStrip
+              episodes={podcastsQ.data}
+              lang={lang}
+              title={lang === "en" ? "Podcasts" : "Podcasty"}
+            />
+          </section>
+        )}
+        <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
+          <h2 className="font-display text-2xl mb-5">
+            {lang === "en" ? "Author's posts" : "Wpisy autora"}
+          </h2>
+          <ArchivePostList
+            posts={posts}
+            lang={lang}
+            emptyText={t("archive.empty", {
+              defaultValue:
+                lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
+            })}
+          />
+          {canLoadMore && (
+            <div className="flex justify-center pt-6">
+              <Button
+                variant="outline"
+                disabled={isPending}
+                onClick={() =>
+                  startTransition(() => setPaging({ slug, limit: limit + ARCHIVE_PAGE_SIZE }))
+                }
+              >
+                {isPending
+                  ? t("common.loading", {
+                      defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
+                    })
+                  : t("common.loadMore", {
+                      defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
+                    })}
+              </Button>
             </div>
             <ExpertMaterialsExplorer data={data} lang={lang} />
           </section>

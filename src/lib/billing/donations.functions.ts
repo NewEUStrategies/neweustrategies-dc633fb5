@@ -16,6 +16,33 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { donationInputSchema } from "@/lib/billing/donations.schema";
 
+/**
+ * Best-effort user id z tokenu Bearer żądania. Darowizna nie WYMAGA logowania,
+ * więc brak/nieważny token = null (bez rzucania). Gdy token jest ważny, zwraca
+ * `sub`, żeby darowizna nadała warstwę wspierającego zalogowanemu darczyńcy.
+ */
+async function resolveOptionalUserId(): Promise<string | null> {
+  try {
+    const req = getRequest();
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) return null;
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) return null;
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return null;
+    const { createClient } = await import("@supabase/supabase-js");
+    const client = createClient(url, key, {
+      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await client.auth.getClaims(token);
+    if (error || !data?.claims?.sub) return null;
+    return String(data.claims.sub);
+  } catch {
+    return null;
+  }
+}
+
 export const createDonationCheckout = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => donationInputSchema.parse(input))
   .handler(async ({ data }) => {
@@ -48,6 +75,11 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
     const hostTenantId = await resolveTenantIdForHost(await currentTenantHost());
     if (!hostTenantId) throw new Error("tenant_unresolved");
 
+    // Opcjonalne powiązanie z zalogowanym darczyńcą: darowizna działa też
+    // anonimowo, ale gdy jest ważny token, zapisujemy user_id - trigger
+    // donations_grant_supporter nada wtedy warstwę "Wspierający" (12 mies.).
+    const donorUserId = await resolveOptionalUserId();
+
     const label =
       data.lang === "en"
         ? "Donation — New European Strategies"
@@ -69,6 +101,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       // Rozpoznanie darowizny w webhooku + atrybucja najemcy i nota darczyńcy.
       params.set("metadata[kind]", "donation");
       params.set("metadata[tenant_id]", hostTenantId);
+      if (donorUserId) params.set("metadata[user_id]", donorUserId);
       if (message) params.set("metadata[message]", message.slice(0, 480));
       params.set("submit_type", "donate");
 
@@ -96,6 +129,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       amount_cents: data.amount_cents,
       currency: "PLN",
       message,
+      user_id: donorUserId,
       provider: "mock",
       provider_session_id: `mock_${crypto.randomUUID()}`,
     });

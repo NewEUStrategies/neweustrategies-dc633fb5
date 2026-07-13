@@ -144,9 +144,13 @@ export interface PublishedPodcastRow {
   episode_number: number | null;
   cover_image_url: string | null;
   published_at: string | null;
+  show_id: string | null;
 }
 
-/** Published podcast episodes for the podcast RSS feed (tenant-scoped). */
+const PODCAST_RSS_COLS =
+  "slug, title_pl, title_en, excerpt_pl, excerpt_en, audio_url, duration_seconds, season, episode_number, cover_image_url, published_at, show_id";
+
+/** Published podcast episodes for the network RSS feed (tenant-scoped). */
 export async function fetchPublishedPodcasts(
   tenantId: string,
   limit = 50,
@@ -156,15 +160,84 @@ export async function fetchPublishedPodcasts(
       const supabaseAdmin = await getSupabaseAdmin();
       const { data } = await supabaseAdmin
         .from("podcasts")
-        .select(
-          "slug, title_pl, title_en, excerpt_pl, excerpt_en, audio_url, duration_seconds, season, episode_number, cover_image_url, published_at",
-        )
+        .select(PODCAST_RSS_COLS)
         .eq("tenant_id", tenantId)
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 200)));
       return (data ?? []) as PublishedPodcastRow[];
+    }),
+  );
+}
+
+export interface PublishedShowRow {
+  id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  description_pl: string;
+  description_en: string;
+  cover_image_url: string | null;
+}
+
+/** A single published program by slug (per-program RSS feed). */
+export async function fetchPublishedShowBySlug(
+  tenantId: string,
+  slug: string,
+): Promise<PublishedShowRow | null> {
+  return edgeTtlCache(`seo:podcast-show:${tenantId}:${slug}`, CACHE_TTL_MS, () =>
+    resilient("podcast-show", null, async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("podcast_shows")
+        .select("id, slug, title_pl, title_en, description_pl, description_en, cover_image_url")
+        .eq("tenant_id", tenantId)
+        .eq("slug", slug)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .maybeSingle();
+      return (data ?? null) as PublishedShowRow | null;
+    }),
+  );
+}
+
+/** Published episodes of one program, newest first (per-program RSS feed). */
+export async function fetchPublishedPodcastsByShow(
+  tenantId: string,
+  showId: string,
+  limit = 200,
+): Promise<PublishedPodcastRow[]> {
+  return edgeTtlCache(`seo:podcasts-by-show:${tenantId}:${showId}:${limit}`, CACHE_TTL_MS, () =>
+    resilient("podcasts-by-show", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("podcasts")
+        .select(PODCAST_RSS_COLS)
+        .eq("tenant_id", tenantId)
+        .eq("show_id", showId)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .limit(Math.max(1, Math.min(limit, 500)));
+      return (data ?? []) as PublishedPodcastRow[];
+    }),
+  );
+}
+
+/** Published programs of a tenant (sitemap enumerates their pages). */
+export async function fetchPublishedShows(tenantId: string): Promise<PublishedShowRow[]> {
+  return edgeTtlCache(`seo:podcast-shows:${tenantId}`, CACHE_TTL_MS, () =>
+    resilient("podcast-shows", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("podcast_shows")
+        .select("id, slug, title_pl, title_en, description_pl, description_en, cover_image_url")
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: true });
+      return (data ?? []) as PublishedShowRow[];
     }),
   );
 }

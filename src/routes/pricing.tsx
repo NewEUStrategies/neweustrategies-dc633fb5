@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Minus, ShieldCheck, RefreshCcw, Zap } from "lucide-react";
+import { Check, Minus, ShieldCheck, RefreshCcw, Zap, HandHeart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
 import { planFeatures, planName, type AccessPlan } from "@/lib/billing/types";
 import {
@@ -159,6 +160,7 @@ function PricingPage() {
                       {grantingPlans.map((p) => planName(p, lang)).join(", ")}
                     </p>
                   )}
+                  {!isCurrent && <TierCta tierKey={tier.key} plans={grantingPlans} lang={lang} />}
                 </div>
               );
             })}
@@ -270,4 +272,38 @@ function PricingPage() {
       </section>
     </div>
   );
+}
+
+// CTA karty warstwy - data-driven i wielotenantowo bezpieczny:
+//  - "supporter" -> darowizna (/support),
+//  - warstwa z przypisanym planem -> checkout najtańszego planu,
+//  - pozostałe (np. korporacyjny/partner sprzedawane offline) -> bez przycisku
+//    (warstwa nadal prezentuje benefity; admin dodaje plan, by włączyć zakup).
+function TierCta({ tierKey, plans, lang }: { tierKey: string; plans: AccessPlan[]; lang: string }) {
+  const { t } = useTranslation();
+  if (tierKey === "supporter") {
+    return (
+      <Button asChild size="sm" variant="outline" className="mt-3 w-full">
+        <Link to="/support" search={{ status: undefined }}>
+          <HandHeart className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("pricing.tiers.supporterCta", {
+            defaultValue: lang === "en" ? "Support the institute" : "Wesprzyj instytut",
+          })}
+        </Link>
+      </Button>
+    );
+  }
+  if (plans.length > 0) {
+    const cheapest = [...plans].sort((a, b) => a.price_cents - b.price_cents)[0];
+    return (
+      <Button asChild size="sm" className="mt-3 w-full">
+        <Link to="/checkout/$planId" params={{ planId: cheapest.id }}>
+          {t("pricing.tiers.joinCta", {
+            defaultValue: lang === "en" ? "Join" : "Dołącz",
+          })}
+        </Link>
+      </Button>
+    );
+  }
+  return null;
 }

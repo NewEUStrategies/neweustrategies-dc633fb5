@@ -13,6 +13,7 @@ type NavKey =
   | "bookmarks"
   | "notifications"
   | "follows"
+  | "membership"
   | "billing"
   | "subscription"
   | "orders"
@@ -39,6 +40,7 @@ const CONTENT: NavItem[] = [
 ];
 
 const FINANCE: NavItem[] = [
+  { to: "/profile/membership", key: "membership" },
   { to: "/profile/billing", key: "billing" },
   { to: "/profile/subscription", key: "subscription" },
   { to: "/profile/orders", key: "orders" },

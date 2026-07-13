@@ -45,6 +45,15 @@ import {
   RichTextView,
   ChartWidgetView,
   DataMapWidgetView,
+  TimelineWidgetView,
+  SankeyWidgetView,
+  CompareWidgetView,
+  RiskMatrixWidgetView,
+  IndicatorWidgetView,
+  NetworkWidgetView,
+  CorridorMapWidgetView,
+  SourcesWidgetView,
+  MethodologyWidgetView,
 } from "./ui/organisms/widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -680,6 +689,24 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<ChartWidgetView node={node} lang={lang} />);
     case "data-map":
       return wrap(<DataMapWidgetView node={node} lang={lang} />);
+    case "feature-timeline":
+      return wrap(<TimelineWidgetView node={node} lang={lang} />);
+    case "feature-sankey":
+      return wrap(<SankeyWidgetView node={node} lang={lang} />);
+    case "feature-compare":
+      return wrap(<CompareWidgetView node={node} lang={lang} />);
+    case "feature-risk-matrix":
+      return wrap(<RiskMatrixWidgetView node={node} lang={lang} />);
+    case "feature-indicator":
+      return wrap(<IndicatorWidgetView node={node} lang={lang} />);
+    case "feature-network":
+      return wrap(<NetworkWidgetView node={node} lang={lang} />);
+    case "feature-corridor-map":
+      return wrap(<CorridorMapWidgetView node={node} lang={lang} />);
+    case "feature-sources":
+      return wrap(<SourcesWidgetView node={node} lang={lang} />);
+    case "feature-methodology":
+      return wrap(<MethodologyWidgetView node={node} lang={lang} />);
     case "podcast-latest":
       return wrap(<PodcastLatestView c={c} lang={lang} />);
     case "web-stories-carousel":

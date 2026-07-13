@@ -24,12 +24,16 @@ export interface PublicEvent {
   host_user_id: string | null;
   visibility: string;
   min_tier_rank: number;
+  /** Kiedy rejestracja otwiera się dla wszystkich (NULL = od publikacji). */
+  rsvp_opens_at: string | null;
+  /** Ranga warstwy z pierwszeństwem rejestracji przed rsvp_opens_at. */
+  early_rsvp_rank: number | null;
 }
 
 // join_url/recording_url są odcięte grantem kolumnowym (SELECT bez tych
 // kolumn dla anon/authenticated) - jedyną ścieżką jest RPC get_event_access.
 const EVENT_COLUMNS =
-  "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank";
+  "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank, rsvp_opens_at, early_rsvp_rank";
 
 export async function fetchPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
@@ -262,4 +266,37 @@ export async function askQaQuestion(args: {
   });
   if (error) throw error;
   return data as string;
+}
+
+export interface PublicResource {
+  id: string;
+  title_pl: string;
+  title_en: string;
+  description_pl: string | null;
+  description_en: string | null;
+  category: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  min_tier_rank: number;
+  download_count: number;
+  created_at: string;
+}
+
+// Metadane biblioteki są publiczne (teaser z kłódką); sam plik siedzi
+// w prywatnym buckecie i wymaga RPC authorize_resource_download (bramka rangi).
+// file_path celowo NIE jest wybierany - klient nie potrzebuje ścieżki.
+const RESOURCE_COLUMNS =
+  "id, title_pl, title_en, description_pl, description_en, category, file_name, file_size, mime_type, min_tier_rank, download_count, created_at";
+
+export async function fetchLibraryResources(): Promise<PublicResource[]> {
+  const { data, error } = await supabase
+    .from("member_resources")
+    .select(RESOURCE_COLUMNS)
+    .eq("published", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(300);
+  if (error) throw error;
+  return (data ?? []) as PublicResource[];
 }

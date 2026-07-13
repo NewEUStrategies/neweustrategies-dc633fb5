@@ -7,16 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  BadgeCheck,
-  Crown,
-  Save,
-  Plus,
-  Trash2,
-  ArrowUp,
-  ArrowDown,
-  X,
-} from "lucide-react";
+import { BadgeCheck, Crown, Save, Plus, Trash2, ArrowUp, ArrowDown, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,11 +32,15 @@ import {
 } from "@/components/ui/dialog";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { planName } from "@/lib/billing/types";
+import { parseTierBenefits, type MembershipTierRow, type TierBenefit } from "@/lib/billing/tiers";
 import {
-  parseTierBenefits,
-  type MembershipTierRow,
-  type TierBenefit,
-} from "@/lib/billing/tiers";
+  fetchMembershipGrants,
+  grantMembership,
+  revokeGrant,
+  type AdminGrantRow,
+} from "@/lib/admin/membership-admin";
+import { Link } from "@tanstack/react-router";
+import { Landmark } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/admin/membership")({
@@ -117,9 +112,7 @@ function AdminMembershipPage() {
         features = JSON.parse(draft.features || "{}") as Json;
       } catch {
         throw new Error(
-          lang === "pl"
-            ? "Pole features nie jest poprawnym JSON-em"
-            : "Features is not valid JSON",
+          lang === "pl" ? "Pole features nie jest poprawnym JSON-em" : "Features is not valid JSON",
         );
       }
       const { error } = await supabase
@@ -160,12 +153,7 @@ function AdminMembershipPage() {
   });
 
   const createTier = useMutation({
-    mutationFn: async (input: {
-      key: string;
-      rank: number;
-      name_pl: string;
-      name_en: string;
-    }) => {
+    mutationFn: async (input: { key: string; rank: number; name_pl: string; name_en: string }) => {
       // tenant_id wymuszony przez politykę RLS - pobierz z istniejącej warstwy
       const existing = tiersQ.data?.[0];
       if (!existing) throw new Error(lang === "pl" ? "Brak tenantu" : "No tenant");
@@ -416,7 +404,201 @@ function AdminMembershipPage() {
           ))}
         </div>
       </section>
+
+      <GrantsSection lang={lang} tierOptions={tierOptions} />
+
+      <section>
+        <h2 className="text-lg font-semibold">
+          {lang === "pl" ? "Członkostwo organizacji" : "Organisation membership"}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {lang === "pl"
+            ? "Członkostwo korporacyjne i partnerskie (wiele kont / miejsc) prowadzisz w osobnym panelu."
+            : "Corporate and partner membership (multiple accounts / seats) is managed in a separate panel."}
+        </p>
+        <Button asChild variant="outline" size="sm" className="mt-3">
+          <Link to="/admin/organizations">
+            <Landmark className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {lang === "pl" ? "Otwórz organizacje" : "Open organisations"}
+          </Link>
+        </Button>
+      </section>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Nadania warstwy poza planem (membership_grants): komplementarne / fakturowe.
+// ---------------------------------------------------------------------------
+function GrantsSection({
+  lang,
+  tierOptions,
+}: {
+  lang: "pl" | "en";
+  tierOptions: MembershipTierRow[];
+}) {
+  const qc = useQueryClient();
+  const grantsQ = useQuery({
+    queryKey: ["admin", "membership-grants"],
+    queryFn: fetchMembershipGrants,
+  });
+
+  const [email, setEmail] = useState("");
+  const [tierKey, setTierKey] = useState("");
+  const [months, setMonths] = useState("12");
+  const [note, setNote] = useState("");
+
+  const grantM = useMutation({
+    mutationFn: () =>
+      grantMembership({
+        email: email.trim(),
+        tierKey,
+        months: months.trim() === "" ? null : Number(months),
+        note: note.trim() || null,
+      }),
+    onSuccess: () => {
+      toast.success(lang === "pl" ? "Nadano warstwę" : "Membership granted");
+      setEmail("");
+      setNote("");
+      void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
+    },
+    onError: (e: Error) => {
+      const msg = e.message || "";
+      if (msg.includes("user not found"))
+        toast.error(
+          lang === "pl" ? "Nie znaleziono konta o tym e-mailu" : "No account with that email",
+        );
+      else if (msg.includes("tier not found"))
+        toast.error(lang === "pl" ? "Nieznana warstwa" : "Unknown tier");
+      else toast.error(msg);
+    },
+  });
+
+  const revokeM = useMutation({
+    mutationFn: (id: string) => revokeGrant(id),
+    onSuccess: () => {
+      toast.success(lang === "pl" ? "Cofnięto nadanie" : "Grant revoked");
+      void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const canGrant = /.+@.+\..+/.test(email.trim()) && tierKey !== "";
+  const fmtDate = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB") : "—";
+  const sourceLabel = (s: string) =>
+    s === "donation"
+      ? lang === "pl"
+        ? "darowizna"
+        : "donation"
+      : s === "import"
+        ? "import"
+        : lang === "pl"
+          ? "ręczne"
+          : "manual";
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold">
+        {lang === "pl" ? "Nadania warstwy (poza planem)" : "Membership grants (off-plan)"}
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {lang === "pl"
+          ? "Nadaj warstwę bezpośrednio po e-mailu konta (sprzedaż fakturowa, członkostwo eksperckie/partnerskie, komplementarne). Pozostaw „miesiące” puste dla nadania bezterminowego."
+          : "Grant a tier directly by account email (invoice sales, expert/partner membership, complimentary). Leave “months” empty for an open-ended grant."}
+      </p>
+
+      <div className="mt-3 grid gap-2 rounded-md border border-border/60 p-3 sm:grid-cols-[1fr_10rem_7rem_auto] sm:items-end">
+        <div>
+          <Label className="text-xs">Email</Label>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="osoba@instytucja.eu"
+          />
+        </div>
+        <div>
+          <Label className="text-xs">{lang === "pl" ? "Warstwa" : "Tier"}</Label>
+          <Select value={tierKey} onValueChange={setTierKey}>
+            <SelectTrigger>
+              <SelectValue placeholder={lang === "pl" ? "wybierz" : "select"} />
+            </SelectTrigger>
+            <SelectContent>
+              {tierOptions.map((tier) => (
+                <SelectItem key={tier.key} value={tier.key}>
+                  {tier.key} ({lang === "pl" ? tier.name_pl : tier.name_en})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">{lang === "pl" ? "Miesiące" : "Months"}</Label>
+          <Input
+            type="number"
+            min={1}
+            max={120}
+            value={months}
+            onChange={(e) => setMonths(e.target.value)}
+            placeholder="∞"
+          />
+        </div>
+        <Button disabled={!canGrant || grantM.isPending} onClick={() => grantM.mutate()}>
+          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+          {lang === "pl" ? "Nadaj" : "Grant"}
+        </Button>
+        <div className="sm:col-span-4">
+          <Label className="text-xs">
+            {lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
+          </Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {(grantsQ.data ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {lang === "pl" ? "Brak aktywnych nadań." : "No active grants."}
+          </p>
+        ) : (
+          (grantsQ.data ?? []).map((g: AdminGrantRow) => (
+            <div
+              key={g.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">
+                  {g.display_name ? `${g.display_name} · ` : ""}
+                  {g.email}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {g.tier_key} · {sourceLabel(g.source)} ·{" "}
+                  {g.expires_at
+                    ? `${lang === "pl" ? "do" : "until"} ${fmtDate(g.expires_at)}`
+                    : lang === "pl"
+                      ? "bezterminowo"
+                      : "no expiry"}
+                  {g.revoked_at ? ` · ${lang === "pl" ? "cofnięte" : "revoked"}` : ""}
+                </div>
+              </div>
+              {!g.revoked_at && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
+                  disabled={revokeM.isPending}
+                  onClick={() => revokeM.mutate(g.id)}
+                >
+                  <Trash2 className="mr-1 h-4 w-4" aria-hidden="true" />
+                  {lang === "pl" ? "Cofnij" : "Revoke"}
+                </Button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -466,10 +648,7 @@ function BenefitsEditor({
       ) : (
         <ol className="space-y-2">
           {value.map((b, i) => (
-            <li
-              key={i}
-              className="rounded-md border border-border/60 bg-muted/30 p-2"
-            >
+            <li key={i} className="rounded-md border border-border/60 bg-muted/30 p-2">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[11px] font-medium text-muted-foreground">#{i + 1}</span>
                 <div className="flex items-center gap-0.5">
@@ -584,9 +763,7 @@ function NewTierDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">
-              {lang === "pl" ? "Klucz (slug)" : "Key (slug)"}
-            </Label>
+            <Label className="text-xs">{lang === "pl" ? "Klucz (slug)" : "Key (slug)"}</Label>
             <Input
               value={key}
               onChange={(e) => setKey(e.target.value.toLowerCase())}

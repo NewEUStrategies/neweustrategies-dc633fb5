@@ -154,6 +154,23 @@ export const Route = createFileRoute("/sitemap.xml")({
             });
           }
 
+          // Published podcast programs (series) - each program has its own page.
+          const { data: shows } = await supabaseAdmin
+            .from("podcast_shows")
+            .select("slug, updated_at")
+            .eq("tenant_id", tenantId)
+            .eq("status", "published")
+            .is("deleted_at", null);
+          for (const row of shows ?? []) {
+            const sh = row as { slug: string; updated_at: string | null };
+            entries.push({
+              loc: `${origin}/podcasts/${sh.slug}`,
+              lastmod: (sh.updated_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.6",
+            });
+          }
+
           // Published podcast episodes - previously absent from the sitemap, so
           // crawlers had no way to discover them.
           const { data: podcasts } = await supabaseAdmin
