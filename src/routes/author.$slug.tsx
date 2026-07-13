@@ -119,34 +119,48 @@ function ExpertHubPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <div className="w-full flex-1">
-        <header className="relative">
-          {expert.cover_url && (
-            <div className="h-40 w-full overflow-hidden bg-muted sm:h-56">
-              <img src={expert.cover_url} alt="" className="h-full w-full object-cover" />
+      {/* CSIS-style hero: ciemny pas z prostokątnym portretem nachodzącym na dół */}
+      <header className="relative">
+        <div
+          className="relative bg-[var(--brand)] text-white"
+          style={
+            expert.cover_url
+              ? {
+                  backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75)), url(${expert.cover_url})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : undefined
+          }
+        >
+          <div className="mx-auto max-w-[1200px] px-4 pb-24 pt-6 lg:px-8 lg:pb-28 lg:pt-8">
+            <div className="[&_*]:!text-white/80 [&_a:hover]:!text-white">
+              <Breadcrumbs items={[{ label: name }]} />
             </div>
-          )}
-          <div className="mx-auto max-w-[1200px] px-4 py-8 lg:px-8">
-            <Breadcrumbs items={[{ label: name }]} />
-            <div className="flex flex-col items-start gap-5 sm:flex-row">
-              {expert.avatar_url && (
-                <img
-                  src={expert.avatar_url}
-                  alt={name}
-                  className="-mt-16 h-24 w-24 rounded-full border-4 border-background object-cover shadow"
-                />
-              )}
-              <div className="flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="font-display text-3xl lg:text-4xl">{name}</h1>
+            <div className="mt-6 grid gap-6 sm:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr] lg:gap-10">
+              <div className="row-span-2">
+                {expert.avatar_url ? (
+                  <img
+                    src={expert.avatar_url}
+                    alt={name}
+                    className="aspect-[3/4] w-full max-w-[260px] rounded-[2px] object-cover shadow-2xl ring-1 ring-white/10"
+                  />
+                ) : (
+                  <div className="grid aspect-[3/4] w-full max-w-[260px] place-items-center rounded-[2px] bg-white/10 text-4xl font-display text-white/70 shadow-2xl ring-1 ring-white/10">
+                    {name.slice(0, 1)}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-2">
                   {expert.is_expert && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)]/10 px-2 py-0.5 text-xs font-medium text-[var(--brand)]">
+                    <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
                       {t("expert.expertBadge")}
                     </span>
                   )}
                   {expert.verified_at && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300"
+                      className="inline-flex items-center gap-1 rounded-full bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-50"
                       title={
                         lang === "pl"
                           ? "Profil zweryfikowany zawodowo"
@@ -158,37 +172,24 @@ function ExpertHubPage() {
                     </span>
                   )}
                   <ProfileBadges badges={extraBadges} size="md" />
-                  {personalized.followInAuthorHeader && (
-                    <FollowButton targetType="author" targetId={expert.id} lang={lang} />
-                  )}
                 </div>
-                {roleLine && <p className="text-base text-muted-foreground">{roleLine}</p>}
-                {functions.length > 0 && (
-                  <p className="text-sm text-foreground/80">
-                    <span className="text-muted-foreground">{t("expert.functions")}: </span>
-                    {functions.join(" · ")}
-                  </p>
+                <h1 className="font-display text-4xl leading-[1.05] lg:text-5xl">{name}</h1>
+                {roleLine && (
+                  <p className="text-lg font-medium text-white/85">{roleLine}</p>
                 )}
-                <div className="flex flex-wrap gap-3 pt-1 text-sm">
+                {functions.length > 0 && (
+                  <p className="text-sm text-white/70">{functions.join(" · ")}</p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-3">
                   {expert.website_url && (
                     <a
                       href={expert.website_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 hover:text-brand"
+                      aria-label="Website"
+                      className="grid h-9 w-9 place-items-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white"
                     >
                       <BrandIcon name="website" fallback={Globe} className="h-4 w-4" alt="WWW" />
-                      WWW
-                    </a>
-                  )}
-                  {expert.twitter_url && (
-                    <a
-                      href={expert.twitter_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 hover:text-brand"
-                    >
-                      <BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />X
                     </a>
                   )}
                   {expert.linkedin_url && (
@@ -196,32 +197,67 @@ function ExpertHubPage() {
                       href={expert.linkedin_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 hover:text-brand"
+                      aria-label="LinkedIn"
+                      className="grid h-9 w-9 place-items-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white"
                     >
-                      <BrandIcon
-                        name="linkedin"
-                        fallback={Linkedin}
-                        className="h-4 w-4"
-                        alt="LinkedIn"
-                      />
-                      LinkedIn
+                      <BrandIcon name="linkedin" fallback={Linkedin} className="h-4 w-4" alt="LinkedIn" />
                     </a>
+                  )}
+                  {expert.twitter_url && (
+                    <a
+                      href={expert.twitter_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="X"
+                      className="grid h-9 w-9 place-items-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white"
+                    >
+                      <BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />
+                    </a>
+                  )}
+                  {personalized.followInAuthorHeader && (
+                    <div className="ml-1">
+                      <FollowButton targetType="author" targetId={expert.id} lang={lang} />
+                    </div>
                   )}
                 </div>
               </div>
             </div>
           </div>
-        </header>
-        <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8 lg:py-10">
+        </div>
+
+        {/* Pasek obszarów ekspertyzy pod hero (CSIS-style) */}
+        {data.areas.length > 0 && (
+          <div className="border-b border-border/60 bg-card">
+            <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 lg:px-8">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t("expert.expertiseHeading")}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {data.areas.map((a) => (
+                  <span
+                    key={a.id}
+                    className="text-sm font-medium text-foreground/80 after:mx-2 after:text-muted-foreground/40 after:content-['/'] last:after:hidden"
+                  >
+                    {lang === "en" ? a.name_en : a.name_pl}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div className="w-full flex-1">
+        <section className="mx-auto max-w-[1200px] px-4 py-10 lg:px-8 lg:py-12">
           <ExpertHubDetails data={data} lang={lang} />
         </section>
         {data.mediaMentions.length > 0 && (
-          <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-8">
+          <section className="mx-auto max-w-[1200px] px-4 pb-10 lg:px-8">
             <ExpertInTheNews mentions={data.mediaMentions} lang={lang} />
           </section>
         )}
         {podcastsQ.data && podcastsQ.data.length > 0 && (
-          <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-4">
+          <section className="mx-auto max-w-[1200px] px-4 pb-6 lg:px-8">
             <PodcastEpisodeStrip
               episodes={podcastsQ.data}
               lang={lang}
@@ -229,10 +265,10 @@ function ExpertHubPage() {
             />
           </section>
         )}
-        <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-12">
+        <section className="mx-auto max-w-[1200px] px-4 pb-14 lg:px-8">
           <ExpertMaterialsExplorer data={data} lang={lang} />
         </section>
-        <div className="max-w-[1200px] mx-auto w-full">
+        <div className="mx-auto w-full max-w-[1200px]">
           <AuthorCvSections userId={expert.id} />
         </div>
       </div>
