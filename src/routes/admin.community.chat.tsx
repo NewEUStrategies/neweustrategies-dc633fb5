@@ -95,9 +95,7 @@ function AdminCommunityChat() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <h2 className="text-xl font-semibold">
-            {isPl ? "Moderacja czatu" : "Chat moderation"}
-          </h2>
+          <h2 className="text-xl font-semibold">{isPl ? "Moderacja czatu" : "Chat moderation"}</h2>
           <p className="text-sm text-muted-foreground">
             {isPl
               ? "Widok wszystkich konwersacji w bazie z możliwością usuwania i ukrywania wiadomości."
@@ -126,7 +124,9 @@ function AdminCommunityChat() {
       <Card>
         <CardContent className="p-0">
           {conversationsQ.isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</div>
+            <div className="p-6 text-sm text-muted-foreground">
+              {isPl ? "Ładowanie…" : "Loading…"}
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
               {isPl ? "Brak konwersacji." : "No conversations."}
@@ -195,13 +195,13 @@ function AdminCommunityChat() {
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {selected?.title ?? (isPl ? "Konwersacja" : "Conversation")}
-            </DialogTitle>
+            <DialogTitle>{selected?.title ?? (isPl ? "Konwersacja" : "Conversation")}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto space-y-2">
             {messagesQ.isLoading ? (
-              <div className="text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</div>
+              <div className="text-sm text-muted-foreground">
+                {isPl ? "Ładowanie…" : "Loading…"}
+              </div>
             ) : (messagesQ.data ?? []).length === 0 ? (
               <div className="text-sm text-muted-foreground">
                 {isPl ? "Brak wiadomości." : "No messages."}
@@ -212,7 +212,9 @@ function AdminCommunityChat() {
                   key={m.id}
                   className={
                     "p-2 rounded-md border text-sm space-y-1 " +
-                    (m.deleted_at ? "bg-muted/30 border-dashed opacity-70" : "bg-background border-border")
+                    (m.deleted_at
+                      ? "bg-muted/30 border-dashed opacity-70"
+                      : "bg-background border-border")
                   }
                 >
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -222,7 +224,11 @@ function AdminCommunityChat() {
                     <span>
                       {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale })}
                     </span>
-                    {m.forwarded && <Badge variant="secondary" className="text-[10px]">↪</Badge>}
+                    {m.forwarded && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        ↪
+                      </Badge>
+                    )}
                     <span className="ml-auto font-mono">{m.sender_id.slice(0, 8)}</span>
                     {!m.deleted_at && (
                       <Button
@@ -242,7 +248,7 @@ function AdminCommunityChat() {
                         {isPl ? "[wiadomość ukryta]" : "[hidden]"}
                       </span>
                     ) : (
-                      m.body ?? (m.attachment_name ? `📎 ${m.attachment_name}` : "-")
+                      (m.body ?? (m.attachment_name ? `📎 ${m.attachment_name}` : "-"))
                     )}
                   </div>
                 </div>
@@ -255,10 +261,7 @@ function AdminCommunityChat() {
               {isPl ? "Zamknij" : "Close"}
             </Button>
             {selected && (
-              <Button
-                variant="destructive"
-                onClick={() => setConfirmDeleteId(selected.id)}
-              >
+              <Button variant="destructive" onClick={() => setConfirmDeleteId(selected.id)}>
                 <Trash2 className="w-4 h-4 mr-2" />
                 {isPl ? "Usuń konwersację" : "Delete conversation"}
               </Button>
@@ -271,9 +274,7 @@ function AdminCommunityChat() {
       <Dialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {isPl ? "Usunąć konwersację?" : "Delete conversation?"}
-            </DialogTitle>
+            <DialogTitle>{isPl ? "Usunąć konwersację?" : "Delete conversation?"}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {isPl

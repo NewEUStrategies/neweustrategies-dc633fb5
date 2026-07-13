@@ -27,6 +27,7 @@ const COPY = {
     posts: "Najnowsze artykuły",
     home: "Strona główna",
     blog: "Blog",
+    community: "Społeczność",
   },
   en: {
     title: "Site map",
@@ -36,8 +37,21 @@ const COPY = {
     posts: "Latest articles",
     home: "Home",
     blog: "Blog",
+    community: "Community",
   },
 } as const;
+
+// Publiczne powierzchnie modułu społeczności - statyczne trasy z własnym SEO.
+const COMMUNITY_LINKS = [
+  { href: "/events", pl: "Wydarzenia", en: "Events" },
+  { href: "/qa", pl: "Sesje Q&A", en: "Q&A sessions" },
+  { href: "/polls", pl: "Ankiety", en: "Polls" },
+  { href: "/tracker", pl: "Tracker legislacyjny UE", en: "EU policy tracker" },
+  { href: "/people", pl: "Katalog osób", en: "People directory" },
+  { href: "/contribute", pl: "Zostań kontrybutorem", en: "Become a contributor" },
+  { href: "/podcasts", pl: "Podcasty", en: "Podcasts" },
+  { href: "/live", pl: "Relacje na żywo", en: "Live blogs" },
+] as const;
 
 export const Route = createFileRoute("/sitemap")({
   loader: async ({ context }) => {
@@ -127,6 +141,21 @@ function SiteMapPage() {
               </li>
             </ul>
             <PageTreeList nodes={tree} lang={lang} />
+          </section>
+
+          <section aria-labelledby="sitemap-community">
+            <h2 id="sitemap-community" className="font-display text-xl font-semibold mb-3">
+              {copy.community}
+            </h2>
+            <ul className="space-y-1.5">
+              {COMMUNITY_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link to={link.href} className="text-sm hover:text-brand hover:underline">
+                    {lang === "en" ? link.en : link.pl}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section aria-labelledby="sitemap-categories">

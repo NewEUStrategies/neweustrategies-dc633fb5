@@ -22,6 +22,7 @@ import {
   Pin,
   PinOff,
   Timer,
+  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -47,6 +48,7 @@ import {
   useSetConversationPinned,
   useSetMessageTtl,
 } from "@/lib/chat/useConversations";
+import { aggregatePeerReadState, conversationDisplay, isGroupView } from "@/lib/chat/display";
 import { isExpired, MESSAGE_TTL_OPTIONS } from "@/lib/chat/receipts";
 import { useStarredIds, useToggleStar } from "@/lib/chat/stars";
 import {
@@ -73,6 +75,7 @@ import { ChatAvatar } from "./ChatAvatar";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMediaPanel } from "./ChatMediaPanel";
 import { ForwardDialog } from "./ForwardDialog";
+import { GroupInfoDialog } from "./GroupInfoDialog";
 import { MessageList } from "./MessageList";
 
 const TYPING_VISIBLE_MS = 4000;
@@ -117,13 +120,23 @@ export function ChatWindow(props: ChatWindowProps) {
   const view = conversationsQ.data?.find((v) => v.conversation.id === conversationId);
   const peerIds = useMemo(() => (view ? view.peers.map((p) => p.user_id) : []), [view]);
   const peersQ = usePeerProfiles(peerIds);
-  const peerId = peerIds[0] ?? null;
-  const peerProfile = peerId ? peersQ.data?.get(peerId) : undefined;
-  const peerName = peerProfile?.display_name ?? "...";
-  const peerAvatar = peerProfile?.avatar_url ?? null;
+  const isGroup = !!view && isGroupView(view);
+  const display = view
+    ? conversationDisplay(view, peersQ.data, t("chat.group.circle"))
+    : { isGroup: false, name: "...", avatarUrl: null, peerId: null };
+  const peerId = display.peerId;
+  const peerName = display.name;
+  const peerAvatar = display.avatarUrl;
   const peerOnline = !!peerId && online.has(peerId);
-  const peerLastReadAt = view?.peers[0]?.last_read_at ?? null;
-  const peerLastDeliveredAt = view?.peers[0]?.last_delivered_at ?? null;
+  const onlinePeers = useMemo(
+    () => peerIds.reduce((sum, id) => sum + (online.has(id) ? 1 : 0), 0),
+    [peerIds, online],
+  );
+  // Group receipts use all-members semantics (read/delivered only when every
+  // member did) - for direct threads this is exactly the single peer row.
+  const { lastReadAt: peerLastReadAt, lastDeliveredAt: peerLastDeliveredAt } = view
+    ? aggregatePeerReadState(view)
+    : { lastReadAt: null, lastDeliveredAt: null };
   const pinned = !!view?.me.pinned_at;
   const archived = !!view?.me.archived_at;
   const muted = view ? isConversationMuted(view) : false;
@@ -157,21 +170,25 @@ export function ChatWindow(props: ChatWindowProps) {
   const prefsQ = useNotificationPreferences();
   const typingEnabled = prefsQ.data?.typing_indicators_enabled ?? true;
 
-  const [peerTyping, setPeerTyping] = useState(false);
+  // Who is typing (user id) - in groups the indicator must name the author,
+  // not "the peer". A newer typer takes over the slot; the explicit stop only
+  // clears the slot when it comes from the user currently occupying it.
+  const [typingUserId, setTypingUserId] = useState<string | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { sendTyping } = useConversationChannel(conversationId, true, (event) => {
     if (event.typing === false) {
       // Explicit stop (the peer just sent a message) - clear immediately
       // instead of letting the 4s timeout linger under the fresh bubble.
+      setTypingUserId((current) => (current && current !== event.userId ? current : null));
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
-      setPeerTyping(false);
       return;
     }
-    setPeerTyping(true);
+    setTypingUserId(event.userId);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => setPeerTyping(false), TYPING_VISIBLE_MS);
+    typingTimeoutRef.current = setTimeout(() => setTypingUserId(null), TYPING_VISIBLE_MS);
   });
+  const peerTyping = !!typingUserId;
   useEffect(
     () => () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -292,6 +309,7 @@ export function ChatWindow(props: ChatWindowProps) {
   const [forwardTarget, setForwardTarget] = useState<ChatMessage | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
 
   useEffect(() => {
     setReplyTo(null);
@@ -299,6 +317,7 @@ export function ChatWindow(props: ChatWindowProps) {
     setDeleteTarget(null);
     setForwardTarget(null);
     setBlockDialogOpen(false);
+    setGroupInfoOpen(false);
   }, [conversationId]);
 
   // Stable handlers: MessageBubble is memoized, so these references must not
@@ -437,7 +456,23 @@ export function ChatWindow(props: ChatWindowProps) {
 
   if (!user) return null;
 
-  const peerTypingSafe = peerTyping && !!peerId;
+  const peerTypingSafe = peerTyping && (isGroup || !!peerId);
+  const typingProfile = typingUserId ? peersQ.data?.get(typingUserId) : undefined;
+  const typingName = isGroup ? (typingProfile?.display_name ?? "...") : peerName;
+  const typingAvatarUrl = isGroup ? (typingProfile?.avatar_url ?? null) : peerAvatar;
+  const headerSubtitle = isGroup
+    ? `${t("chat.group.members", { count: peerIds.length + 1 })}${
+        onlinePeers > 0 ? ` · ${t("chat.group.online", { count: onlinePeers })}` : ""
+      }`
+    : peerOnline
+      ? t("chat.online")
+      : t("chat.offline");
+
+  const resolveAuthorName = (senderId: string): string => {
+    if (senderId === user.id) return t("chat.you");
+    if (!isGroup) return peerName;
+    return peersQ.data?.get(senderId)?.display_name ?? "...";
+  };
 
   const mediaToggle = (
     <button
@@ -498,6 +533,20 @@ export function ChatWindow(props: ChatWindowProps) {
         className="w-60 rounded-[6px] border-border/60 bg-popover p-1.5 shadow-xl"
       >
         <div role="menu" aria-label={t("chat.menu.title")} className="flex flex-col">
+          {isGroup && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                setGroupInfoOpen(true);
+              }}
+              className={menuItemClass}
+            >
+              <UsersRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              {t("chat.group.info")}
+            </button>
+          )}
           <button type="button" role="menuitem" onClick={handlePinToggle} className={menuItemClass}>
             {pinned ? (
               <PinOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
@@ -617,6 +666,10 @@ export function ChatWindow(props: ChatWindowProps) {
         reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
         peerName={peerName}
         peerAvatarUrl={peerAvatar}
+        isGroup={isGroup}
+        senderProfiles={isGroup ? peersQ.data : undefined}
+        typingName={typingName}
+        typingAvatarUrl={typingAvatarUrl}
         peerLastReadAt={peerLastReadAt}
         peerLastDeliveredAt={peerLastDeliveredAt}
         peerTyping={peerTypingSafe}
@@ -653,9 +706,7 @@ export function ChatWindow(props: ChatWindowProps) {
           conversationId={conversationId}
           lang={lang}
           replyTo={replyTo}
-          replyToAuthor={
-            replyTo ? (replyTo.sender_id === user.id ? t("chat.you") : peerName) : null
-          }
+          replyToAuthor={replyTo ? resolveAuthorName(replyTo.sender_id) : null}
           editing={editTarget}
           onClearReply={handleClearReply}
           onSend={handleSend}
@@ -741,6 +792,14 @@ export function ChatWindow(props: ChatWindowProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {isGroup && view && (
+        <GroupInfoDialog
+          view={view}
+          open={groupInfoOpen}
+          onClose={() => setGroupInfoOpen(false)}
+          onLeft={onBack ?? onClose}
+        />
+      )}
     </>
   );
 
@@ -761,27 +820,58 @@ export function ChatWindow(props: ChatWindowProps) {
               <ArrowLeft className="h-4 w-4" aria-hidden />
             </button>
           )}
-          <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
-              <span className="truncate">{peerName}</span>
-              {muted && (
-                <BellOff
-                  className="h-3 w-3 shrink-0 text-muted-foreground"
-                  aria-label={t("chat.menu.mutedBadge")}
-                />
-              )}
-              {pinned && (
-                <Pin
-                  className="h-3 w-3 shrink-0 text-muted-foreground"
-                  aria-label={t("chat.menu.pinnedBadge")}
-                />
-              )}
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              {peerOnline ? t("chat.online") : t("chat.offline")}
-            </div>
-          </div>
+          {isGroup ? (
+            <button
+              type="button"
+              onClick={() => setGroupInfoOpen(true)}
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[6px] text-left transition-colors hover:bg-muted/40"
+              aria-haspopup="dialog"
+              aria-label={t("chat.group.info")}
+              title={t("chat.group.info")}
+            >
+              <ChatAvatar name={peerName} avatarUrl={peerAvatar} size="sm" />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                  <span className="truncate">{peerName}</span>
+                  {muted && (
+                    <BellOff
+                      className="h-3 w-3 shrink-0 text-muted-foreground"
+                      aria-label={t("chat.menu.mutedBadge")}
+                    />
+                  )}
+                  {pinned && (
+                    <Pin
+                      className="h-3 w-3 shrink-0 text-muted-foreground"
+                      aria-label={t("chat.menu.pinnedBadge")}
+                    />
+                  )}
+                </span>
+                <span className="block text-[11px] text-muted-foreground">{headerSubtitle}</span>
+              </span>
+            </button>
+          ) : (
+            <>
+              <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                  <span className="truncate">{peerName}</span>
+                  {muted && (
+                    <BellOff
+                      className="h-3 w-3 shrink-0 text-muted-foreground"
+                      aria-label={t("chat.menu.mutedBadge")}
+                    />
+                  )}
+                  {pinned && (
+                    <Pin
+                      className="h-3 w-3 shrink-0 text-muted-foreground"
+                      aria-label={t("chat.menu.pinnedBadge")}
+                    />
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground">{headerSubtitle}</div>
+              </div>
+            </>
+          )}
           {blockToggle}
           {mediaToggle}
           {conversationMenu}
@@ -813,7 +903,12 @@ export function ChatWindow(props: ChatWindowProps) {
       }}
     >
       <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
-        <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
+        <ChatAvatar
+          name={peerName}
+          avatarUrl={peerAvatar}
+          online={!isGroup && peerOnline}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1 truncate text-[13px] font-semibold leading-tight">
             <span className="truncate">{peerName}</span>
@@ -824,9 +919,7 @@ export function ChatWindow(props: ChatWindowProps) {
               />
             )}
           </div>
-          <div className="text-[10px] leading-tight text-muted-foreground">
-            {peerOnline ? t("chat.online") : t("chat.offline")}
-          </div>
+          <div className="text-[10px] leading-tight text-muted-foreground">{headerSubtitle}</div>
         </div>
         {blockToggle}
         {mediaToggle}

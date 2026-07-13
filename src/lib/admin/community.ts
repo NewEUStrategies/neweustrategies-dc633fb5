@@ -338,7 +338,11 @@ export type PollRow = Database["public"]["Tables"]["polls"]["Row"];
 export type PollStatus = "draft" | "open" | "closed";
 
 export async function fetchAdminPolls(status?: PollStatus | "all"): Promise<PollRow[]> {
-  const query = supabase.from("polls").select("*").order("created_at", { ascending: false }).limit(200);
+  const query = supabase
+    .from("polls")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
   if (status && status !== "all") query.eq("status", status);
   const { data, error } = await query;
   if (error) throw error;
@@ -369,7 +373,8 @@ export async function createPoll(input: CreatePollInput): Promise<PollRow> {
     .insert({
       question_pl: input.question_pl,
       question_en: input.question_en,
-      options: input.options as unknown as Database["public"]["Tables"]["polls"]["Insert"]["options"],
+      options:
+        input.options as unknown as Database["public"]["Tables"]["polls"]["Insert"]["options"],
       ends_at: input.ends_at,
       status: input.status,
     })
@@ -380,7 +385,10 @@ export async function createPoll(input: CreatePollInput): Promise<PollRow> {
 }
 
 export async function fetchPollResults(pollId: string): Promise<Record<string, number>> {
-  const { data, error } = await supabase.from("poll_votes").select("option_idx").eq("poll_id", pollId);
+  const { data, error } = await supabase
+    .from("poll_votes")
+    .select("option_idx")
+    .eq("poll_id", pollId);
   if (error) throw error;
   const map: Record<string, number> = {};
   for (const row of data ?? []) {
@@ -489,11 +497,7 @@ export async function fetchBadges(): Promise<BadgeRow[]> {
   return data ?? [];
 }
 
-export async function grantBadge(
-  userId: string,
-  badge: string,
-  note?: string,
-): Promise<void> {
+export async function grantBadge(userId: string, badge: string, note?: string): Promise<void> {
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
     .select("tenant_id")
@@ -529,12 +533,27 @@ export interface NotificationStats {
 export async function fetchNotificationStats(): Promise<NotificationStats> {
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const [subs, subsFailed, last24, unread, digDaily, digWeekly] = await Promise.all([
-    supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).is("failed_at", null),
-    supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).not("failed_at", "is", null),
-    supabase.from("notifications").select("id", { count: "exact", head: true }).gte("created_at", since),
+    supabase
+      .from("push_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .is("failed_at", null),
+    supabase
+      .from("push_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .not("failed_at", "is", null),
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", since),
     supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
-    supabase.from("notification_preferences").select("user_id", { count: "exact", head: true }).eq("email_digest", "daily"),
-    supabase.from("notification_preferences").select("user_id", { count: "exact", head: true }).eq("email_digest", "weekly"),
+    supabase
+      .from("notification_preferences")
+      .select("user_id", { count: "exact", head: true })
+      .eq("email_digest", "daily"),
+    supabase
+      .from("notification_preferences")
+      .select("user_id", { count: "exact", head: true })
+      .eq("email_digest", "weekly"),
   ]);
   return {
     push_subscriptions_active: subs.count ?? 0,

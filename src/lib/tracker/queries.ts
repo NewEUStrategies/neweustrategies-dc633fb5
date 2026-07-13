@@ -42,6 +42,9 @@ export interface PolicyItemFilters {
   stage?: string;
 }
 
+/** Rozmiar okna listy; "pokaż więcej" rośnie o tę wartość (wzorzec bloga). */
+export const TRACKER_PAGE_SIZE = 24;
+
 const ITEM_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,summary_pl,summary_en,policy_area,stage,importance," +
   "reference,source_url,next_milestone_pl,next_milestone_en,next_milestone_at,status," +
@@ -51,14 +54,17 @@ const UPDATE_FIELDS =
   "id,item_id,note_pl,note_en,stage_from,stage_to,source_url,happened_on,created_at";
 
 /** Opublikowane dossier: najważniejsze i ostatnio aktualizowane na górze. */
-export async function fetchPublishedItems(filters: PolicyItemFilters = {}): Promise<PolicyItem[]> {
+export async function fetchPublishedItems(
+  filters: PolicyItemFilters = {},
+  limit: number = TRACKER_PAGE_SIZE,
+): Promise<PolicyItem[]> {
   let query = supabase
     .from("eu_policy_items")
     .select(ITEM_FIELDS)
     .eq("status", "published")
     .order("importance", { ascending: false })
     .order("updated_at", { ascending: false })
-    .limit(100);
+    .limit(limit);
   if (filters.area) query = query.eq("policy_area", filters.area);
   if (filters.stage) query = query.eq("stage", filters.stage);
   const { data, error } = await query;
@@ -145,21 +151,32 @@ export async function unfollowItem(input: { itemId: string; userId: string }): P
 // Hooki react-query - wspólna przestrzeń kluczy ["tracker", ...]
 // ---------------------------------------------------------------------------
 
-export function usePublishedItems(filters: PolicyItemFilters = {}) {
+export function usePublishedItems(
+  filters: PolicyItemFilters = {},
+  limit: number = TRACKER_PAGE_SIZE,
+) {
   return useQuery({
-    queryKey: ["tracker", "items", filters.area ?? "all", filters.stage ?? "all"] as const,
-    queryFn: () => fetchPublishedItems(filters),
+    queryKey: ["tracker", "items", filters.area ?? "all", filters.stage ?? "all", limit] as const,
+    queryFn: () => fetchPublishedItems(filters, limit),
     staleTime: 60_000,
+    // Rosnące okno "pokaż więcej" nie może mrugać do spinnera - trzymaj
+    // poprzednią stronę, aż dojedzie szersza.
+    placeholderData: (previous: PolicyItem[] | undefined) => previous,
   });
 }
 
-export function useItemBySlug(slug: string) {
-  return useQuery({
+/** Wspólne opcje zapytania o dossier - hook i loader SSR (head/JSON-LD)
+ *  używają tego samego klucza, więc render nie robi drugiej podróży. */
+export function itemBySlugQueryOptions(slug: string) {
+  return {
     queryKey: ["tracker", "item", slug] as const,
     queryFn: () => fetchItemBySlug(slug),
     staleTime: 60_000,
-    enabled: !!slug,
-  });
+  };
+}
+
+export function useItemBySlug(slug: string) {
+  return useQuery({ ...itemBySlugQueryOptions(slug), enabled: !!slug });
 }
 
 export function useItemUpdates(itemId: string | undefined) {

@@ -10,6 +10,7 @@ import { X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { onOpenChatWindow } from "@/lib/chat/chatDockBus";
+import { conversationDisplay } from "@/lib/chat/display";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   useChatListRealtime,
@@ -106,8 +107,7 @@ export function ChatDock() {
           {minimizedViews.map((view) => {
             if (!view) return null;
             const id = view.conversation.id;
-            const peerId = view.peers[0]?.user_id ?? "";
-            const profile = peersQ.data?.get(peerId);
+            const display = conversationDisplay(view, peersQ.data, t("chat.group.circle"));
             const unread = view.me.unread_count;
             return (
               <div key={id} className="group/chip relative">
@@ -115,13 +115,13 @@ export function ChatDock() {
                   type="button"
                   onClick={() => restore(id)}
                   className="block rounded-[6px] shadow-lg ring-1 ring-border/60 transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={`${t("chat.open")}: ${profile?.display_name ?? ""}`}
-                  title={profile?.display_name ?? t("chat.open")}
+                  aria-label={`${t("chat.open")}: ${display.name}`}
+                  title={display.name}
                 >
                   <ChatAvatar
-                    name={profile?.display_name ?? "?"}
-                    avatarUrl={profile?.avatar_url}
-                    online={online.has(peerId)}
+                    name={display.name}
+                    avatarUrl={display.avatarUrl}
+                    online={!!display.peerId && online.has(display.peerId)}
                     size="lg"
                   />
                   {unread > 0 && (

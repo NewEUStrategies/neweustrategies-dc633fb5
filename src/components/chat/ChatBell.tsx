@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
+import { conversationDisplay } from "@/lib/chat/display";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   useChatListRealtime,
@@ -59,10 +60,9 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
   const peers = peersQ.data;
   const normalizedFilter = filter.trim().toLowerCase();
   const filtered = normalizedFilter
-    ? views.filter((v) => {
-        const name = peers?.get(v.peers[0]?.user_id ?? "")?.display_name ?? "";
-        return name.toLowerCase().includes(normalizedFilter);
-      })
+    ? views.filter((v) =>
+        conversationDisplay(v, peers).name.toLowerCase().includes(normalizedFilter),
+      )
     : views;
 
   const openConversation = (conversationId: string) => {
@@ -205,21 +205,18 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                 </div>
               ) : (
                 <ul className="flex flex-col gap-0.5">
-                  {filtered.map((view) => {
-                    const peerId = view.peers[0]?.user_id ?? "";
-                    return (
-                      <li key={view.conversation.id}>
-                        <ConversationListItem
-                          view={view}
-                          peerProfile={peers?.get(peerId)}
-                          online={online.has(peerId)}
-                          myUserId={user.id}
-                          lang={lang}
-                          onOpen={() => openConversation(view.conversation.id)}
-                        />
-                      </li>
-                    );
-                  })}
+                  {filtered.map((view) => (
+                    <li key={view.conversation.id}>
+                      <ConversationListItem
+                        view={view}
+                        profiles={peers}
+                        onlineUsers={online}
+                        myUserId={user.id}
+                        lang={lang}
+                        onOpen={() => openConversation(view.conversation.id)}
+                      />
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>

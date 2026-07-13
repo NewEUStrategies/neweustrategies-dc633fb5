@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, Timer } from "lucide-react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { crossesDay, dayLabel, sameGroup, type ChatLang } from "@/lib/chat/time";
-import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
+import type { ChatMessage, PeerProfile, ReactionRow } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageBubble } from "./MessageBubble";
@@ -25,6 +25,13 @@ export interface MessageListProps {
   reactions: ReadonlyMap<string, ReactionRow[]>;
   peerName: string;
   peerAvatarUrl: string | null;
+  /** Group thread ("krąg"): label inbound bubbles with the sender's name. */
+  isGroup?: boolean;
+  /** Member profiles for sender attribution in group threads. */
+  senderProfiles?: ReadonlyMap<string, PeerProfile>;
+  /** Who the typing indicator names (groups: the actual typist). */
+  typingName?: string;
+  typingAvatarUrl?: string | null;
   peerLastReadAt: string | null;
   peerLastDeliveredAt?: string | null;
   peerTyping: boolean;
@@ -84,6 +91,10 @@ export function MessageList(props: MessageListProps) {
     reactions,
     peerName,
     peerAvatarUrl,
+    isGroup = false,
+    senderProfiles,
+    typingName,
+    typingAvatarUrl,
     peerLastReadAt,
     peerLastDeliveredAt,
     peerTyping,
@@ -330,7 +341,7 @@ export function MessageList(props: MessageListProps) {
             <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
               <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="lg" />
               <p className="max-w-[220px] text-xs text-muted-foreground">
-                {t("chat.conversationEmpty")}
+                {isGroup ? t("chat.group.emptyConversation") : t("chat.conversationEmpty")}
               </p>
             </div>
           )}
@@ -368,6 +379,11 @@ export function MessageList(props: MessageListProps) {
                       </span>
                     </div>
                   )}
+                  {isGroup && message.sender_id !== myUserId && groupStart && (
+                    <p className="mb-0.5 px-2 text-[10.5px] font-semibold text-muted-foreground">
+                      {senderProfiles?.get(message.sender_id)?.display_name ?? "..."}
+                    </p>
+                  )}
                   <MessageBubble
                     message={message}
                     mine={message.sender_id === myUserId}
@@ -381,7 +397,9 @@ export function MessageList(props: MessageListProps) {
                       replied
                         ? replied.sender_id === myUserId
                           ? t("chat.you")
-                          : peerName
+                          : isGroup
+                            ? (senderProfiles?.get(replied.sender_id)?.display_name ?? "...")
+                            : peerName
                         : undefined
                     }
                     editable={canEdit(message)}
@@ -415,7 +433,10 @@ export function MessageList(props: MessageListProps) {
 
           {peerTyping && (
             <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
-              <TypingIndicator name={peerName} avatarUrl={peerAvatarUrl} />
+              <TypingIndicator
+                name={typingName ?? peerName}
+                avatarUrl={typingAvatarUrl !== undefined ? typingAvatarUrl : peerAvatarUrl}
+              />
             </div>
           )}
         </div>

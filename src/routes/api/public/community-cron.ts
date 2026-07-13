@@ -56,9 +56,8 @@ export const Route = createFileRoute("/api/public/community-cron")({
           });
         }
 
-        const { processPushJobs, processDigests, runEventReminders } = await import(
-          "@/lib/notifications/dispatch.server"
-        );
+        const { processPushJobs, processDigests, runEventReminders } =
+          await import("@/lib/notifications/dispatch.server");
 
         const result: Record<string, unknown> = {};
         try {

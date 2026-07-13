@@ -287,6 +287,11 @@ function AdminMembershipPage() {
                     onChange={(e) => set({ features: e.target.value })}
                     className="font-mono text-xs"
                   />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {lang === "pl"
+                      ? "Flagi egzekwowane w bazie: qa_priority (pytania warstwy na górze /qa), pro_briefings (wstęp na wydarzenia kind=briefing dla członków)."
+                      : "Flags enforced in the database: qa_priority (tier's questions ranked first on /qa), pro_briefings (grants entry to members-only kind=briefing events)."}
+                  </p>
                 </div>
                 <Button
                   size="sm"

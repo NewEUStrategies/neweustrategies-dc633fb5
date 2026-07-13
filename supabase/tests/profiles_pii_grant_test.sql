@@ -39,8 +39,12 @@ SELECT ok(
 -- ── (2) anon row visibility: editorial-only ─────────────────────────────────
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
-INSERT INTO public.tenants (id, slug, name) VALUES
-  ('c3333333-3333-3333-3333-333333333333', 'tenant-c', 'Tenant C');
+-- Polityka anon jest host-aware (tenant_id = public_tenant_id()), wiec test
+-- nadaje tenantowi domene i symuluje naglowek hosta jak w
+-- host_tenant_resolution_test - inaczej anon "widzi" tenant domyslny,
+-- a profil autora z tenant-c pozostaje niewidoczny.
+INSERT INTO public.tenants (id, slug, name, domain) VALUES
+  ('c3333333-3333-3333-3333-333333333333', 'tenant-c', 'Tenant C', 'tenant-c.example');
 
 INSERT INTO auth.users (id, email) VALUES
   ('c0000000-0000-0000-0000-0000000000c1', 'reader@c.test'),
@@ -57,6 +61,7 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
 
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"tenant-c.example"}', true);
 
 SELECT is(
   (SELECT count(*)::int FROM public.profiles WHERE id = 'c0000000-0000-0000-0000-0000000000c1'),

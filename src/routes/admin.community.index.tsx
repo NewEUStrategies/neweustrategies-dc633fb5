@@ -85,9 +85,7 @@ function CommunityOverview() {
   const remindersM = useMutation({
     mutationFn: runEventReminders,
     onSuccess: (count) =>
-      toast.success(
-        isPl ? `Wysłano ${count} przypomnień` : `Dispatched ${count} reminders`,
-      ),
+      toast.success(isPl ? `Wysłano ${count} przypomnień` : `Dispatched ${count} reminders`),
     onError: () => toast.error(isPl ? "Błąd przypomnień" : "Reminders failed"),
   });
 
@@ -252,11 +250,7 @@ function CommunityOverview() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={() => purgeM.mutate()}
-            disabled={purgeM.isPending}
-          >
+          <Button variant="outline" onClick={() => purgeM.mutate()} disabled={purgeM.isPending}>
             <RefreshCcw className="w-4 h-4 mr-2" />
             {isPl ? "Wyczyść wygasłe wiadomości" : "Purge expired messages"}
           </Button>

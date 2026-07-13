@@ -127,7 +127,9 @@ function AdminCommunityQa() {
       <Card>
         <CardContent className="p-0">
           {sessionsQ.isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</div>
+            <div className="p-6 text-sm text-muted-foreground">
+              {isPl ? "Ładowanie…" : "Loading…"}
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
               {isPl ? "Brak sesji." : "No sessions."}
@@ -143,9 +145,7 @@ function AdminCommunityQa() {
                   >
                     <div className="flex items-center gap-2 text-sm">
                       <HelpCircle className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="font-medium truncate">
-                        {isPl ? s.title_pl : s.title_en}
-                      </span>
+                      <span className="font-medium truncate">{isPl ? s.title_pl : s.title_en}</span>
                       <Badge className={SESSION_TONE[s.status as QaSessionStatus]}>
                         {s.status}
                       </Badge>
@@ -161,9 +161,7 @@ function AdminCommunityQa() {
                         variant="ghost"
                         size="icon"
                         title={isPl ? "Zaplanuj" : "Schedule"}
-                        onClick={() =>
-                          sessionStatusM.mutate({ id: s.id, status: "scheduled" })
-                        }
+                        onClick={() => sessionStatusM.mutate({ id: s.id, status: "scheduled" })}
                       >
                         <Play className="w-4 h-4" />
                       </Button>
@@ -289,9 +287,7 @@ function QuestionsDialog({
         </div>
         <div className="space-y-2">
           {questionsQ.isLoading ? (
-            <div className="text-sm text-muted-foreground">
-              {isPl ? "Ładowanie…" : "Loading…"}
-            </div>
+            <div className="text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</div>
           ) : rows.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-4">
               {isPl ? "Brak pytań." : "No questions."}
@@ -333,14 +329,18 @@ function QuestionCard({
         <div className="flex-1 space-y-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Badge className={QUESTION_TONE[q.status as QaQuestionStatus]}>{q.status}</Badge>
-            <span>{q.is_anonymous ? (isPl ? "anonimowo" : "anonymous") : q.author_display ?? q.user_id.slice(0, 8)}</span>
+            <span>
+              {q.is_anonymous
+                ? isPl
+                  ? "anonimowo"
+                  : "anonymous"
+                : (q.author_display ?? q.user_id.slice(0, 8))}
+            </span>
           </div>
           <p className="text-sm whitespace-pre-wrap">{q.body}</p>
           {q.answer_body && (
             <div className="mt-2 p-2 rounded-md bg-muted/40 text-xs">
-              <div className="font-medium mb-1">
-                {isPl ? "Odpowiedź" : "Answer"}
-              </div>
+              <div className="font-medium mb-1">{isPl ? "Odpowiedź" : "Answer"}</div>
               <div className="whitespace-pre-wrap">{q.answer_body}</div>
             </div>
           )}
@@ -413,9 +413,14 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
   const [status, setStatus] = useState<QaSessionStatus>("draft");
 
   const reset = () => {
-    setSlug(""); setTitlePl(""); setTitleEn("");
-    setIntroPl(""); setIntroEn("");
-    setOpensAt(""); setClosesAt(""); setStatus("draft");
+    setSlug("");
+    setTitlePl("");
+    setTitleEn("");
+    setIntroPl("");
+    setIntroEn("");
+    setOpensAt("");
+    setClosesAt("");
+    setStatus("draft");
   };
 
   const m = useMutation({
@@ -458,9 +463,7 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
               <Label>Slug</Label>
               <Input
                 value={slug}
-                onChange={(e) =>
-                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
-                }
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
                 placeholder="np-ai-act-2026"
               />
             </div>
@@ -512,7 +515,9 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
               <div className="space-y-1">
                 <Label>Status</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as QaSessionStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">{isPl ? "Roboczy" : "Draft"}</SelectItem>
                     <SelectItem value="scheduled">{isPl ? "Zaplanowany" : "Scheduled"}</SelectItem>

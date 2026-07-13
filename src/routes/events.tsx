@@ -4,7 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Calendar, MapPin, Users, Video } from "lucide-react";
+import { BadgeCheck, Calendar, Lock, MapPin, Users, Video } from "lucide-react";
 import { fetchPublicEvents, type PublicEvent } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { activeLang } from "@/lib/seo/head";
@@ -22,7 +22,8 @@ export const Route = createFileRoute("/events")({
       url,
       lang,
       type: "website",
-      title: lang === "en" ? "Events - New European Strategies" : "Wydarzenia - New European Strategies",
+      title:
+        lang === "en" ? "Events - New European Strategies" : "Wydarzenia - New European Strategies",
       description:
         lang === "en"
           ? "Panels, webinars, live briefings and members-only meet-ups on European affairs."
@@ -64,16 +65,17 @@ function EventsPage() {
         <p className="mt-3 text-muted-foreground">{t("community.events.subtitle")}</p>
       </header>
 
-      {query.isLoading && (
-        <p className="text-muted-foreground">{t("community.common.loading")}</p>
-      )}
-      {query.isError && (
-        <p className="text-destructive">{t("community.common.loadError")}</p>
-      )}
+      {query.isLoading && <p className="text-muted-foreground">{t("community.common.loading")}</p>}
+      {query.isError && <p className="text-destructive">{t("community.common.loadError")}</p>}
 
       {!query.isLoading && !query.isError && (
         <>
-          <Section title={t("community.events.upcoming")} events={upcoming} lang={lang} emptyKey="community.events.empty" />
+          <Section
+            title={t("community.events.upcoming")}
+            events={upcoming}
+            lang={lang}
+            emptyKey="community.events.empty"
+          />
           <Section
             title={t("community.events.past")}
             events={past}
@@ -133,6 +135,21 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
         </div>
       )}
       <div className="p-5">
+        {event.visibility === "members" && (
+          <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+            {event.kind === "briefing" ? (
+              <>
+                <BadgeCheck className="h-3 w-3" aria-hidden="true" />
+                {t("community.events.proBriefing")}
+              </>
+            ) : (
+              <>
+                <Lock className="h-3 w-3" aria-hidden="true" />
+                {t("community.events.membersOnly")}
+              </>
+            )}
+          </span>
+        )}
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" aria-hidden="true" />

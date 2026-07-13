@@ -80,7 +80,8 @@ function QaCard({
   statusLabel: string;
 }) {
   const { t } = useTranslation();
-  const title = lang === "en" ? session.title_en || session.title_pl : session.title_pl || session.title_en;
+  const title =
+    lang === "en" ? session.title_en || session.title_pl : session.title_pl || session.title_en;
   const intro = lang === "en" ? session.intro_en : session.intro_pl;
   const fmt = (v: string | null) =>
     v
@@ -105,7 +106,11 @@ function QaCard({
         )}
       </div>
       <h2 className="text-lg font-semibold leading-snug">
-        <Link to="/qa/$slug" params={{ slug: session.slug }} className="after:absolute after:inset-0">
+        <Link
+          to="/qa/$slug"
+          params={{ slug: session.slug }}
+          className="after:absolute after:inset-0"
+        >
           {title}
         </Link>
       </h2>

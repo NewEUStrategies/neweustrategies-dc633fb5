@@ -14,7 +14,10 @@ import {
 
 function hkdf(salt: Buffer, ikm: Buffer, info: Buffer, length: number): Buffer {
   const prk = createHmac("sha256", salt).update(ikm).digest();
-  const t = createHmac("sha256", prk).update(info).update(Buffer.from([1])).digest();
+  const t = createHmac("sha256", prk)
+    .update(info)
+    .update(Buffer.from([1]))
+    .digest();
   return t.subarray(0, length);
 }
 
@@ -74,7 +77,11 @@ describe("webpush aes128gcm", () => {
       /p256dh/,
     );
     expect(() =>
-      encryptPushPayload(Buffer.from("x"), Buffer.concat([Buffer.from([4]), Buffer.alloc(64)]), Buffer.alloc(8)),
+      encryptPushPayload(
+        Buffer.from("x"),
+        Buffer.concat([Buffer.from([4]), Buffer.alloc(64)]),
+        Buffer.alloc(8),
+      ),
     ).toThrow(/auth/);
   });
 });
@@ -99,10 +106,14 @@ describe("VAPID JWT", () => {
   it("obcy klucz nie weryfikuje podpisu", () => {
     const a = generateVapidKeys();
     const b = generateVapidKeys();
-    const jwt = buildVapidJwt("https://updates.push.services.mozilla.com", {
-      ...a,
-      subject: "mailto:test@example.com",
-    }, 1_700_000_000);
+    const jwt = buildVapidJwt(
+      "https://updates.push.services.mozilla.com",
+      {
+        ...a,
+        subject: "mailto:test@example.com",
+      },
+      1_700_000_000,
+    );
     expect(verifyVapidJwtSignature(jwt, b.publicKey)).toBe(false);
   });
 

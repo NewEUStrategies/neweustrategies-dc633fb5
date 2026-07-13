@@ -36,7 +36,6 @@ import {
   type NotificationPreferences,
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
-import { usePushSubscription } from "@/lib/notifications/usePushSubscription";
 import {
   TOGGLEABLE_NOTIFICATION_KINDS,
   isNotificationKindEnabled,
@@ -791,8 +790,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {t("notifications.settings.digestHint", {
-                          defaultValue:
-                            "Jedno zbiorcze podsumowanie zamiast pojedynczych e-maili.",
+                          defaultValue: "Jedno zbiorcze podsumowanie zamiast pojedynczych e-maili.",
                         })}
                       </p>
                     </div>

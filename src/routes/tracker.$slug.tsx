@@ -1,5 +1,7 @@
 // Detal dossier legislacyjnego: pasek postępu procedury, obserwowanie
 // z alertami oraz oś czasu aktualizacji. Publiczny odczyt (RLS: published).
+// Loader prefetchuje dossier pod head() - meta i JSON-LD (schema.org
+// Legislation) renderują się w SSR, a komponent czyta ten sam cache.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -9,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  itemBySlugQueryOptions,
   useItemBySlug,
   useItemUpdates,
   useMyFollows,
@@ -18,9 +21,85 @@ import { POLICY_STAGES, areaLabel, isTerminal, stageIndex, stageLabel } from "@/
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
+import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import "@/lib/i18n-tracker";
 
 export const Route = createFileRoute("/tracker/$slug")({
+  loader: async ({ params, context }) => {
+    // Crawler surfaces degrade, never 500 - brak wiersza obsługuje komponent.
+    const item = await context.queryClient
+      .ensureQueryData(itemBySlugQueryOptions(params.slug))
+      .catch(() => null);
+    return { item };
+  },
+  head: ({ loaderData, params }) => {
+    const url = getRequestUrl() || `/tracker/${params.slug}`;
+    const lang = activeLang(url);
+    const item = loaderData?.item ?? null;
+    if (!item) {
+      return buildContentHead({
+        url,
+        lang,
+        type: "website",
+        title: lang === "en" ? "EU policy tracker" : "Tracker legislacyjny UE",
+        description:
+          lang === "en" ? "EU legislative file tracker." : "Tracker dossier legislacyjnych UE.",
+        robots: "noindex, follow",
+      });
+    }
+    let origin = "";
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      /* relative url in tests */
+    }
+    const title = lang === "en" ? item.title_en || item.title_pl : item.title_pl || item.title_en;
+    const summary =
+      (lang === "en" ? item.summary_en || item.summary_pl : item.summary_pl || item.summary_en) ??
+      "";
+    const head = buildContentHead({
+      url,
+      lang,
+      type: "article",
+      title: `${title} - ${lang === "en" ? "EU policy tracker" : "Tracker legislacyjny UE"}`,
+      description: summary || title,
+    });
+    // schema.org Legislation - naturalny typ dla dossier legislacyjnego;
+    // legislationIdentifier niesie referencję procedury (np. 2022/0155(COD)).
+    const legislation = {
+      "@context": "https://schema.org",
+      "@type": "Legislation",
+      name: title,
+      ...(summary ? { description: summary } : {}),
+      url,
+      inLanguage: lang,
+      ...(item.reference ? { legislationIdentifier: item.reference } : {}),
+      legislationJurisdiction: {
+        "@type": "AdministrativeArea",
+        name: "European Union",
+      },
+      dateModified: item.updated_at,
+      ...(item.source_url ? { sameAs: item.source_url } : {}),
+    };
+    const breadcrumbs = breadcrumbListJsonLd(
+      [
+        {
+          label: lang === "en" ? "EU policy tracker" : "Tracker legislacyjny UE",
+          href: "/tracker",
+        },
+        { label: title, href: `/tracker/${item.slug}` },
+      ],
+      origin,
+      lang,
+    );
+    return {
+      ...head,
+      scripts: [
+        { type: "application/ld+json", children: safeJsonLd(legislation) },
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
+      ],
+    };
+  },
   component: TrackerDetail,
   errorComponent: (props) => (
     <RouteErrorFallback {...props} title="Nie udało się załadować dossier" />

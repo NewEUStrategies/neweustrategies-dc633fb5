@@ -41,8 +41,11 @@ VALUES ('aa333333-3333-3333-3333-333333333333', 'wpis-ma',
         'aa000000-0000-0000-0000-0000000000aa', 'published',
         'aa111111-1111-1111-1111-111111111111',
         'aa222222-2222-2222-2222-222222222222', 'Wpis MA');
-INSERT INTO public.user_read_history (user_id, post_id, read_at)
+-- tenant_id jawnie: DEFAULT current_tenant_id() nie dziala dla ownera testu
+-- (auth.uid() = NULL), a kolumna jest NOT NULL.
+INSERT INTO public.user_read_history (user_id, tenant_id, post_id, read_at)
 VALUES ('aa000000-0000-0000-0000-0000000000bb',
+        'aa111111-1111-1111-1111-111111111111',
         'aa333333-3333-3333-3333-333333333333', now() - interval '2 days');
 
 -- -- 1. Nie-admin: odmowa -------------------------------------------------------

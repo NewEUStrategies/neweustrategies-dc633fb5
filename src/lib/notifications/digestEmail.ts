@@ -30,7 +30,11 @@ export function pickDigestText(
   return (primary ?? "").trim() || (fallback ?? "").trim();
 }
 
-export function digestSubject(count: number, lang: DigestLang, frequency: "daily" | "weekly"): string {
+export function digestSubject(
+  count: number,
+  lang: DigestLang,
+  frequency: "daily" | "weekly",
+): string {
   if (lang === "en") {
     const period = frequency === "daily" ? "today" : "this week";
     return count === 1
@@ -67,15 +71,14 @@ export function buildDigestHtml(opts: {
         ? "Twoje dzienne podsumowanie nieprzeczytanych powiadomień:"
         : "Twoje tygodniowe podsumowanie nieprzeczytanych powiadomień:";
   const manage =
-    lang === "en"
-      ? "Manage notification settings"
-      : "Zarządzaj ustawieniami powiadomień";
+    lang === "en" ? "Manage notification settings" : "Zarządzaj ustawieniami powiadomień";
 
   const rows = items
     .map((item) => {
       const title = pickDigestText(item, lang);
       if (!title) return "";
-      const bodyRaw = lang === "en" ? (item.body_en ?? item.body_pl) : (item.body_pl ?? item.body_en);
+      const bodyRaw =
+        lang === "en" ? (item.body_en ?? item.body_pl) : (item.body_pl ?? item.body_en);
       const body = (bodyRaw ?? "").trim();
       const href = item.href ? new URL(item.href, siteUrl).toString() : null;
       const titleHtml = href

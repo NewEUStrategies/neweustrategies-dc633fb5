@@ -13,14 +13,17 @@ import {
   Search,
   ShieldCheck,
   SquarePen,
+  UsersRound,
   X,
 } from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
+import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
 import { useAuth } from "@/hooks/useAuth";
+import { conversationDisplay } from "@/lib/chat/display";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   splitArchived,
@@ -105,6 +108,7 @@ function MessagesInner() {
 
   const [selected, setSelected] = useState<string | null>(c ?? null);
   const [mode, setMode] = useState<"list" | "new">("list");
+  const [groupCreateOpen, setGroupCreateOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
@@ -133,10 +137,9 @@ function MessagesInner() {
   const normalizedFilter = filter.trim().toLowerCase();
   const sourceViews = showArchived ? archivedViews : activeViews;
   const filtered = normalizedFilter
-    ? sourceViews.filter((v) => {
-        const name = peersQ.data?.get(v.peers[0]?.user_id ?? "")?.display_name ?? "";
-        return name.toLowerCase().includes(normalizedFilter);
-      })
+    ? sourceViews.filter((v) =>
+        conversationDisplay(v, peersQ.data).name.toLowerCase().includes(normalizedFilter),
+      )
     : sourceViews;
 
   if (!user) return null;
@@ -222,22 +225,34 @@ function MessagesInner() {
             >
               <div className="flex items-center justify-between px-3 py-2.5">
                 <h1 className="text-base font-bold">{t("chat.messages")}</h1>
-                <button
-                  type="button"
-                  onClick={() => setMode(mode === "new" ? "list" : "new")}
-                  className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                    mode === "new" && "bg-muted text-foreground",
-                  )}
-                  aria-label={t("chat.newMessage")}
-                  title={t("chat.newMessage")}
-                >
-                  {mode === "new" ? (
-                    <X className="h-4 w-4" aria-hidden />
-                  ) : (
-                    <SquarePen className="h-4 w-4" aria-hidden />
-                  )}
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setGroupCreateOpen(true)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-haspopup="dialog"
+                    aria-label={t("chat.group.new")}
+                    title={t("chat.group.new")}
+                  >
+                    <UsersRound className="h-4 w-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode(mode === "new" ? "list" : "new")}
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                      mode === "new" && "bg-muted text-foreground",
+                    )}
+                    aria-label={t("chat.newMessage")}
+                    title={t("chat.newMessage")}
+                  >
+                    {mode === "new" ? (
+                      <X className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <SquarePen className="h-4 w-4" aria-hidden />
+                    )}
+                  </button>
+                </div>
               </div>
 
               {mode === "new" ? (
@@ -301,22 +316,19 @@ function MessagesInner() {
                       </div>
                     ) : (
                       <ul className="flex flex-col gap-0.5">
-                        {filtered.map((view) => {
-                          const peerId = view.peers[0]?.user_id ?? "";
-                          return (
-                            <li key={view.conversation.id}>
-                              <ConversationListItem
-                                view={view}
-                                peerProfile={peersQ.data?.get(peerId)}
-                                online={online.has(peerId)}
-                                myUserId={user.id}
-                                lang={lang}
-                                active={view.conversation.id === selected}
-                                onOpen={() => openConversation(view.conversation.id)}
-                              />
-                            </li>
-                          );
-                        })}
+                        {filtered.map((view) => (
+                          <li key={view.conversation.id}>
+                            <ConversationListItem
+                              view={view}
+                              profiles={peersQ.data}
+                              onlineUsers={online}
+                              myUserId={user.id}
+                              lang={lang}
+                              active={view.conversation.id === selected}
+                              onOpen={() => openConversation(view.conversation.id)}
+                            />
+                          </li>
+                        ))}
                       </ul>
                     )}
                   </div>
@@ -351,6 +363,11 @@ function MessagesInner() {
           </>
         )}
       </div>
+      <GroupCreateDialog
+        open={groupCreateOpen}
+        onClose={() => setGroupCreateOpen(false)}
+        onCreated={openConversation}
+      />
     </div>
   );
 }
