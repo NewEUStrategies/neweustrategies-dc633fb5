@@ -1077,6 +1077,23 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
+  "team-member": [
+    { key: "photo", type: "image", label: "Zdjęcie", hint: "Wgraj lub wybierz z biblioteki mediów." },
+    { key: "name", type: "text", label: "Imię i nazwisko" },
+    { key: "position", type: "i18nText", label: "Pozycja / stanowisko" },
+    { key: "programLabel", type: "i18nText", label: "Etykieta programu (nad kartą)", placeholder: "np. RADA FUNDACJI" },
+    { key: "bio", type: "i18nHtml", label: "Bio", rows: 6 },
+    { key: "email", type: "text", label: "Email", placeholder: "osoba@domena.pl" },
+    { key: "phone", type: "text", label: "Telefon", placeholder: "+48 …" },
+    { key: "x", type: "url", label: "X (Twitter)", placeholder: "https://x.com/…" },
+    { key: "facebook", type: "url", label: "Facebook", placeholder: "https://facebook.com/…" },
+    { key: "linkedin", type: "url", label: "LinkedIn", placeholder: "https://linkedin.com/in/…" },
+    { key: "instagram", type: "url", label: "Instagram", placeholder: "https://instagram.com/…" },
+    { key: "youtube", type: "url", label: "YouTube", placeholder: "https://youtube.com/…" },
+    { key: "website", type: "url", label: "Strona www", placeholder: "https://…" },
+    { key: "accentColor", type: "color", label: "Kolor akcentu (pozycja)", hint: "Puste = kolor brand." },
+    { key: "overlayAlpha", type: "number", label: "Przyciemnienie dołu karty (0–1)", min: 0, max: 1, step: 0.05 },
+  ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
     {

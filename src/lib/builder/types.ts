@@ -398,6 +398,7 @@ export type WidgetType =
   | "accordion"
   | "tabs"
   | "testimonial"
+  | "team-member"
   | "pricing"
   // Rich content: embeds the full blocks engine (article-style content) inside
   // a builder layout, so the builder is the single page-composition engine.
