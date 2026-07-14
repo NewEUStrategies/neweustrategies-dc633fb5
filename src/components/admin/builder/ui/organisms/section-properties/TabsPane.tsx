@@ -63,8 +63,10 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
       s.tabs = next;
     });
 
+  const MAX_TABS = 10;
   const addTab = () => {
     setCfg((c) => {
+      if (c.items.length >= MAX_TABS) return;
       const idx = c.items.length + 1;
       c.items.push({
         id: makeTabId(),
@@ -264,8 +266,10 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
               variant="outline"
               className="w-full h-8 text-xs"
               onClick={addTab}
+              disabled={items.length >= MAX_TABS}
+              title={items.length >= MAX_TABS ? `Maks. ${MAX_TABS} zakładek` : undefined}
             >
-              <Plus className="w-3.5 h-3.5 mr-1" /> Dodaj zakładkę
+              <Plus className="w-3.5 h-3.5 mr-1" /> Dodaj zakładkę ({items.length}/{MAX_TABS})
             </Button>
           </div>
 
