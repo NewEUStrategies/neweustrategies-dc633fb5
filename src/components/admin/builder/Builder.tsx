@@ -168,6 +168,17 @@ export function Builder({
   );
   const [pendingBulkDelete, setPendingBulkDelete] = useState<string[] | null>(null);
 
+  // Purge multi entries that no longer resolve to a widget in the doc (undo,
+  // bulk delete, external mutation). Keeps highlights and the bar in sync.
+  useEffect(() => {
+    if (multiSelection.size === 0) return;
+    const stillPresent = new Set<string>();
+    for (const id of multiSelection) {
+      if (findWidget(doc, id)) stillPresent.add(id);
+    }
+    if (stillPresent.size !== multiSelection.size) setMultiSelection(stillPresent);
+  }, [doc, multiSelection]);
+
   const askRemoveSection = useCallback(
     (id: string) => setPendingDelete({ kind: "section", id }),
     [],
