@@ -1093,6 +1093,14 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "website", type: "url", label: "Strona www", placeholder: "https://…" },
     { key: "accentColor", type: "color", label: "Kolor akcentu (pozycja)", hint: "Puste = kolor brand." },
     { key: "overlayAlpha", type: "number", label: "Przyciemnienie dołu karty (0–1)", min: 0, max: 1, step: 0.05 },
+    {
+      key: "cardMaxWidth",
+      type: "number",
+      label: "Maks. szerokość karty (px)",
+      min: 120,
+      max: 1000,
+      hint: "Puste = pełna szerokość kolumny. Ustaw, aby ujednolicić rozmiar karty w układach o różnej liczbie kolumn (np. 300 px = ten sam rozmiar w 3 i 4 kolumnach).",
+    },
   ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
