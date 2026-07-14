@@ -435,12 +435,38 @@ const RenderSection = memo(function RenderSection({
       ? tabsCfg!.defaultTabId
       : firstTabId;
   const [activeTabId, setActiveTabId] = useState<string>(initialTabId);
+  // Tab-switch animation: krótkie fade-out starej treści, podmiana, fade-in
+  // nowej. `activeTabId` steruje paskiem zakładek (natychmiast), a
+  // `displayTabId` zawartością panelu (po zakończeniu fade-out).
+  const [displayTabId, setDisplayTabId] = useState<string>(initialTabId);
+  const [tabPhase, setTabPhase] = useState<"in" | "out">("in");
+  const TAB_FADE_MS = 180;
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const handleTabSelect = (id: string) => {
+    if (id === activeTabId) return;
+    setActiveTabId(id);
+    if (prefersReducedMotion) {
+      setDisplayTabId(id);
+      setTabPhase("in");
+      return;
+    }
+    setTabPhase("out");
+    window.setTimeout(() => {
+      setDisplayTabId(id);
+      setTabPhase("in");
+    }, TAB_FADE_MS);
+  };
   // If tab list changes (add/remove/rename), keep active id valid.
   useEffect(() => {
     if (!tabsEnabled) return;
     const ids = tabsCfg!.items.map((t) => t.id);
     if (!ids.includes(activeTabId)) {
       setActiveTabId(ids[0] ?? "");
+      setDisplayTabId(ids[0] ?? "");
+      setTabPhase("in");
     }
   }, [tabsEnabled, tabsCfg, activeTabId]);
 
@@ -449,7 +475,7 @@ const RenderSection = memo(function RenderSection({
     (c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const visibleCols = tabsEnabled
-    ? allChildren.filter((c) => !c.tabId || c.tabId === activeTabId)
+    ? allChildren.filter((c) => !c.tabId || c.tabId === displayTabId)
     : allChildren;
   const showEmptyPicker = !!emptyPicker && visibleCols.length === 0;
   const colsSum =
@@ -496,7 +522,7 @@ const RenderSection = memo(function RenderSection({
               tabs={tabsCfg!}
               lang={lang}
               activeId={activeTabId}
-              onSelect={setActiveTabId}
+              onSelect={handleTabSelect}
             />
           </div>
         )}
@@ -513,15 +539,16 @@ const RenderSection = memo(function RenderSection({
               tabs={tabsCfg!}
               lang={lang}
               activeId={activeTabId}
-              onSelect={setActiveTabId}
+              onSelect={handleTabSelect}
             />
           )}
           <div
             data-columns-row
-            data-section-tab-panel={tabsEnabled ? activeTabId : undefined}
+            data-section-tab-panel={tabsEnabled ? displayTabId : undefined}
+            data-tab-phase={tabsEnabled ? tabPhase : undefined}
             role={tabsEnabled ? "tabpanel" : undefined}
-            id={tabsEnabled ? `sec-${section.id}-panel-${activeTabId}` : undefined}
-            aria-labelledby={tabsEnabled ? `sec-${section.id}-tab-${activeTabId}` : undefined}
+            id={tabsEnabled ? `sec-${section.id}-panel-${displayTabId}` : undefined}
+            aria-labelledby={tabsEnabled ? `sec-${section.id}-tab-${displayTabId}` : undefined}
             className="min-w-0 max-w-full overflow-hidden"
             style={{
               ...columnsRowStyle(section, colsSum),
@@ -530,6 +557,14 @@ const RenderSection = memo(function RenderSection({
                   ? "minmax(0, 1fr)"
                   : columnsRowStyle(section, colsSum).gridTemplateColumns,
               flex: tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical" ? 1 : undefined,
+              ...(tabsEnabled && !prefersReducedMotion
+                ? {
+                    transition: `opacity ${TAB_FADE_MS}ms ease, transform ${TAB_FADE_MS}ms ease`,
+                    opacity: tabPhase === "out" ? 0 : 1,
+                    transform: tabPhase === "out" ? "translateY(4px)" : "translateY(0)",
+                    willChange: "opacity, transform",
+                  }
+                : null),
             }}
           >
             {showEmptyPicker ? (
