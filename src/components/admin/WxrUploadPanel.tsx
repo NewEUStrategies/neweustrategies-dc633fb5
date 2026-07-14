@@ -274,8 +274,8 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
         </div>
         <p className="text-xs text-muted-foreground">
           {lang === "pl"
-            ? "W wp-admin: Tools → Export → wybierz „Pages", pobierz XML i wgraj tutaj. Media są ściągane automatycznie z URL-i w treści (jeżeli publicznie dostępne)."
-            : "In wp-admin: Tools → Export → select \"Pages\", download the XML and upload here. Media is fetched automatically from URLs in the content (if publicly reachable)."}
+            ? 'W wp-admin: Tools → Export → wybierz „Pages”, pobierz XML i wgraj tutaj. Media są ściągane automatycznie z URL-i w treści (jeżeli publicznie dostępne).'
+            : 'In wp-admin: Tools → Export → select "Pages", download the XML and upload here. Media is fetched automatically from URLs in the content (if publicly reachable).'}
         </p>
       </div>
 
