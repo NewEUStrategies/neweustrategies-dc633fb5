@@ -6,6 +6,7 @@ import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRen
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
+import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
 
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
@@ -14,7 +15,6 @@ export interface GlobalDragPayload {
 }
 
 export const GLOBAL_WIDGET_MIME = "application/x-global-widget";
-export const SECTION_STRUCTURE_MIME = "application/x-section-structure";
 export const CONTAINER_MIME = "application/x-container";
 
 /** Parse + validate the palette's section-structure drag payload. */
