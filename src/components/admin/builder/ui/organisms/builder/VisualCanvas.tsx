@@ -3,10 +3,12 @@ import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
 import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
+import { InlineEditProvider } from "../../../inlineEditContext";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
+
 
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
