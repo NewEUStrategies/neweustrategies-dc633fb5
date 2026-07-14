@@ -1,6 +1,9 @@
 // Visual structure picker - shows Elementor-like column-layout thumbnails.
-// Each variant renders a small preview of the column proportions, click to insert.
+// Each variant renders a small preview of the column proportions, click to
+// insert or drag onto the canvas between existing sections to place it at a
+// specific position.
 import { Plus } from "@/lib/lucide-shim";
+import { SECTION_STRUCTURE_MIME } from "./builder/VisualCanvas";
 
 type Structure = { spans: number[]; label: string };
 
@@ -43,26 +46,35 @@ export function StructurePicker({ onPick, compact = false, cols = 4 }: Props) {
           <button
             key={i}
             type="button"
+            draggable
+            onDragStart={(e) => {
+              // Custom MIME picked up by VisualCanvas' native DnD handlers;
+              // no side-effects on the doc happen until drop resolves.
+              e.dataTransfer.effectAllowed = "copy";
+              e.dataTransfer.setData(SECTION_STRUCTURE_MIME, JSON.stringify(s.spans));
+              e.dataTransfer.setData("text/plain", s.label);
+            }}
             onClick={() => onPick(s.spans)}
-            title={`Wstaw sekcję: ${s.label}`}
-            className={`relative ${h} bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-stretch justify-stretch p-1.5 transition group`}
+            title={`Wstaw sekcję: ${s.label} (kliknij lub przeciągnij na płótno)`}
+            className={`relative ${h} bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-stretch justify-stretch p-1.5 transition group cursor-grab active:cursor-grabbing`}
           >
             <div className={`flex-1 flex ${gap} items-stretch`}>
               {s.spans.map((sp, j) => (
                 <div
                   key={j}
                   style={{ flexBasis: `${(sp / total) * 100}%` }}
-                  className="bg-muted-foreground/25 group-hover:bg-brand/60 rounded-[2px] transition"
+                  className="bg-muted-foreground/25 group-hover:bg-brand/60 rounded-[2px] transition pointer-events-none"
                 />
               ))}
             </div>
-            <div className="mt-1 text-[9px] leading-tight text-muted-foreground group-hover:text-brand truncate">
+            <div className="mt-1 text-[9px] leading-tight text-muted-foreground group-hover:text-brand truncate pointer-events-none">
               {s.label}
             </div>
-            <Plus className="absolute top-0.5 right-0.5 w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-brand" />
+            <Plus className="absolute top-0.5 right-0.5 w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-brand pointer-events-none" />
           </button>
         );
       })}
     </div>
   );
 }
+

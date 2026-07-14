@@ -14,6 +14,20 @@ export interface GlobalDragPayload {
 }
 
 export const GLOBAL_WIDGET_MIME = "application/x-global-widget";
+export const SECTION_STRUCTURE_MIME = "application/x-section-structure";
+
+/** Parse + validate the palette's section-structure drag payload. */
+function readSectionStructure(raw: string): number[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const spans = parsed.filter((n): n is number => typeof n === "number" && n > 0 && n <= 12);
+    return spans.length ? spans : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Parse + validate the palette's global-widget drag payload. */
 function readGlobalDragPayload(raw: string): GlobalDragPayload | null {
@@ -338,11 +352,22 @@ export function VisualCanvas({
             "is-drop-into",
           ),
         );
+      root
+        .querySelectorAll<HTMLElement>("[data-section-inserter][data-drop-active]")
+        .forEach((el) => el.removeAttribute("data-drop-active"));
     };
 
     const isLibraryDrag = (e: DragEvent) => {
       const types = Array.from(e.dataTransfer?.types || []);
-      return types.includes("application/x-widget-type") || types.includes(GLOBAL_WIDGET_MIME);
+      return (
+        types.includes("application/x-widget-type") ||
+        types.includes(GLOBAL_WIDGET_MIME) ||
+        types.includes(SECTION_STRUCTURE_MIME)
+      );
+    };
+    const isStructureDrag = (e: DragEvent) => {
+      const types = Array.from(e.dataTransfer?.types || []);
+      return types.includes(SECTION_STRUCTURE_MIME);
     };
 
     const setDragging = (on: boolean) => {
@@ -475,6 +500,7 @@ export function VisualCanvas({
 
     const onDragOver = (e: DragEvent) => {
       const lib = isLibraryDrag(e);
+      const structDrag = isStructureDrag(e);
       if (!dragRef.current && !lib) return;
       if (lib) setDragging(true);
       updateAutoScroll(e.clientY);
@@ -484,6 +510,27 @@ export function VisualCanvas({
       const widget = t.closest?.("[data-widget-id]") as HTMLElement | null;
       const col = t.closest?.("[data-col-id]") as HTMLElement | null;
       const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+
+      // Structure drags always create a NEW section - the only meaningful
+      // drop targets are the between-section gaps and the top/bottom of an
+      // existing section. Skip widget/column markers entirely.
+      if (structDrag) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        if (sec) {
+          const r = sec.getBoundingClientRect();
+          const before = e.clientY < r.top + r.height / 2;
+          sec.classList.add(before ? "is-drop-before" : "is-drop-after");
+        } else {
+          // No section under pointer - highlight the first/last drop zone so
+          // the editor sees where the section will land.
+          const zones = root.querySelectorAll<HTMLElement>("[data-section-inserter]");
+          const zone = zones[zones.length - 1] ?? zones[0];
+          if (zone) zone.setAttribute("data-drop-active", "1");
+        }
+        return;
+      }
+
       const hasSectionTarget = !!(widget || col || sec);
       if (lib && !hasSectionTarget) {
         if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
@@ -528,6 +575,30 @@ export function VisualCanvas({
       const drag = dragRef.current;
       dragRef.current = null;
       const t = e.target as HTMLElement;
+
+      // Structure drop: insert a new section at the resolved index. Position
+      // is derived from the target section's midpoint (before / after); when
+      // no section is under the pointer we default to appending.
+      const structureSpans = readSectionStructure(
+        e.dataTransfer?.getData(SECTION_STRUCTURE_MIME) ?? "",
+      );
+      if (structureSpans) {
+        e.preventDefault();
+        e.stopPropagation();
+        const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        let index = safeDoc.sections.length;
+        if (sec?.dataset.secId) {
+          const idx = safeDoc.sections.findIndex((s) => s.id === sec.dataset.secId);
+          if (idx >= 0) {
+            const r = sec.getBoundingClientRect();
+            const before = e.clientY < r.top + r.height / 2;
+            index = before ? idx : idx + 1;
+          }
+        }
+        onInsertSection(index, structureSpans);
+        return;
+      }
+
 
       const globalPayload = readGlobalDragPayload(
         e.dataTransfer?.getData(GLOBAL_WIDGET_MIME) ?? "",
@@ -613,6 +684,7 @@ export function VisualCanvas({
     onDropNewWidgetToColumn,
     onDropNewWidgetNear,
     onDropNewWidgetToSection,
+    onInsertSection,
   ]);
 
   const ringCss = `
@@ -768,6 +840,12 @@ export function VisualCanvas({
     }
     [data-visual-canvas][data-canvas-dragging="1"] [data-section-inserter] > button svg{
       opacity:1 !important;width:14px;height:14px;
+    }
+    [data-visual-canvas] [data-section-inserter][data-drop-active] > button{
+      height:52px !important;
+      border:2px solid var(--brand) !important;
+      background:color-mix(in oklab, var(--brand) 18%, transparent) !important;
+      color:var(--brand) !important;
     }
     @keyframes cms-dz-pulse{
       0%,100%{box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 14%, transparent)}
