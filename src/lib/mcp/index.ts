@@ -9,20 +9,24 @@ import listRecentPosts from "./tools/list-recent-posts";
 // invoke tools once the site is published. Tools stay read-only and public
 // per-request authorization can still be layered on `ctx.getClaims()`.
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-const SUPABASE_ISSUER = SUPABASE_URL ? `${SUPABASE_URL.replace(/\/+$/, "")}/auth/v1` : "";
-
 // FAIL CLOSED: if we cannot derive the Supabase issuer we must NOT serve the
 // endpoint with `auth: undefined` - the SDK then runs in its "unconfigured"
-// (unauthenticated) mode, exposing the tools to anyone. A missing SUPABASE_URL
-// at server runtime is a fatal misconfiguration (the Supabase client throws on
-// first use for the same reason), so we refuse to construct the MCP server
-// rather than expose it open. This module is imported only by the /mcp route
-// handlers, which are evaluated at server runtime (where the var is present),
-// not during `vite build`; unrelated routes are unaffected.
-if (!SUPABASE_ISSUER) {
-  throw new Error(
-    "[mcp] Refusing to start: SUPABASE_URL is not set, so the OAuth issuer cannot be derived. " +
-      "The MCP endpoint must be authenticated; set SUPABASE_URL (server env) to enable it.",
+// (unauthenticated) mode, exposing the tools to anyone. Historically we threw
+// at module init, but this module is transitively loaded by the SSR route tree
+// on EVERY request. When the server env is momentarily missing (cold worker,
+// build-time prerender, misconfigured deploy), the throw brought the WHOLE
+// site down with h3's "HTTPError" 500 - a presentation-layer defect gating
+// unrelated pages. Fail closed at REQUEST time instead: fall back to a
+// syntactically valid but unreachable issuer so every bearer token fails the
+// JWKS lookup with 401. The /mcp route stays locked; the rest of the site
+// keeps rendering.
+const SUPABASE_ISSUER = SUPABASE_URL
+  ? `${SUPABASE_URL.replace(/\/+$/, "")}/auth/v1`
+  : "https://mcp-unconfigured.invalid/auth/v1";
+if (!SUPABASE_URL) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[mcp] SUPABASE_URL is not set - /mcp endpoint will reject every request (fail-closed).",
   );
 }
 
