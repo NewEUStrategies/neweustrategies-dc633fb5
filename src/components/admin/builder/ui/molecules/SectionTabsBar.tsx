@@ -129,6 +129,10 @@ export function SectionTabsBar({
             aria-selected={active}
             aria-controls={`sec-${sectionId}-panel-${it.id}`}
             tabIndex={active ? 0 : -1}
+            data-builder-chrome
+            data-section-tab-btn
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onSelect(it.id);
