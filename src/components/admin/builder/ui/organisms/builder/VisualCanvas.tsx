@@ -58,6 +58,7 @@ export function VisualCanvas({
   setSelection,
   onInsertSection,
   onInsertSectionToTab,
+  onInsertSectionToContainer,
   onInsertContainer,
   onRemoveSection,
   onMoveWidget,
