@@ -25,11 +25,13 @@ import { recordCapturedError, consumeLastCapturedError } from "./lib/error-captu
 // leaking across tests.
 const SERVER_ENTRY = "@tanstack/react-start/server-entry";
 
-async function loadWrapper(handler: (req: Request) => Promise<Response> | Response) {
+type EntryFetch = (req: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
+
+async function loadWrapper(handler: EntryFetch) {
   vi.resetModules();
   vi.doMock(SERVER_ENTRY, () => ({ default: { fetch: handler } }));
   // Fresh import so the module-level `serverEntryPromise` cache is empty.
-  const mod = (await import("./server")) as { default: { fetch: typeof handler } };
+  const mod = (await import("./server")) as { default: { fetch: EntryFetch } };
   return mod.default;
 }
 
