@@ -888,7 +888,7 @@ function AuthorProfilePage() {
                     })}
                   </Label>
                   <Button type="button" size="sm" variant="outline" onClick={addCustom}>
-                    <Plus className="mr-1 h-4 w-4" />
+                    <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
                     {t("common.add", { defaultValue: "Dodaj" })}
                   </Button>
                 </div>
