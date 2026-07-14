@@ -16,6 +16,7 @@
 // DndContext in the builder; the previous @dnd-kit onDragEnd/sensors here were
 // never mounted and have been removed.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
   X,
@@ -123,13 +124,19 @@ export function Builder({
   // values and the canvas looks like undo "did nothing".
   const { undo: historyUndo, redo: historyRedo } = history;
   const undo = useCallback(() => {
+    if (!history.canUndo) return;
+    const label = history.lastLabel;
     clearAllLiveWidgetTypography();
     historyUndo();
-  }, [historyUndo]);
+    toast(label ? `Cofnięto: ${label}` : "Cofnięto");
+  }, [history.canUndo, history.lastLabel, historyUndo]);
   const redo = useCallback(() => {
+    if (!history.canRedo) return;
+    const label = history.nextLabel;
     clearAllLiveWidgetTypography();
     historyRedo();
-  }, [historyRedo]);
+    toast(label ? `Ponowiono: ${label}` : "Ponowiono");
+  }, [history.canRedo, history.nextLabel, historyRedo]);
   const [device, setDevice] = useState<Device>("desktop");
   // Default canvas preview mode follows the live site theme so the editor
   // shows the same colors/tokens visitors see - keeps admin and prod parity.
