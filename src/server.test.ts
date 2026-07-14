@@ -160,6 +160,37 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
     expect(arg).toBeInstanceOf(Error);
     expect((arg as Error).message).toContain("h3 swallowed SSR error");
   });
+
+  it("clears a poisoned entry after an opaque response so the next request can recover", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.resetModules();
+    let importAttempt = 0;
+    vi.doMock(SERVER_ENTRY, () => {
+      importAttempt += 1;
+      return {
+        default: {
+          fetch: () =>
+            importAttempt === 1
+              ? new Response(H3_SWALLOWED, {
+                  status: 500,
+                  headers: { "content-type": "application/json" },
+                })
+              : new Response("healed", { status: 200 }),
+        },
+      };
+    });
+    const mod = (await import("./server")) as {
+      default: { fetch: (r: Request, e: unknown, c: unknown) => Promise<Response> };
+    };
+
+    const first = await mod.default.fetch(new Request("http://localhost/"), {}, {});
+    expect(first.status).toBe(500);
+
+    const second = await mod.default.fetch(new Request("http://localhost/"), {}, {});
+    expect(importAttempt).toBe(2);
+    expect(second.status).toBe(200);
+    expect(await second.text()).toBe("healed");
+  });
 });
 
 describe("SSR wrapper - module init failure recovery", () => {
