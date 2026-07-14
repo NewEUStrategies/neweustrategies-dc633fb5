@@ -161,7 +161,16 @@ export function TeamMemberWidget({
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
+        <DialogContent
+          className="max-w-3xl gap-0 overflow-hidden p-0"
+          onEscapeKeyDown={() => setOpen(false)}
+          onPointerDownOutside={() => setOpen(false)}
+          onInteractOutside={() => setOpen(false)}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
+        >
           <DialogTitle className="sr-only">{name || "Team member"}</DialogTitle>
           <DialogDescription className="sr-only">
             {position || (lang === "pl" ? "Karta osoby" : "Team member card")}
