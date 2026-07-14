@@ -826,7 +826,7 @@ function AuthorProfilePage() {
               <Button type="submit" disabled={busy}>
                 {exists
                   ? t("profile.account.save")
-                  : t("profile.author.create", { defaultValue: "Utwórz profil autora" })}
+                  : t("profile.author.create", { defaultValue: "Utwórz profil eksperta" })}
               </Button>
               <Link
                 to="/profile/account"
