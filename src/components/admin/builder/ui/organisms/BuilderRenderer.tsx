@@ -666,6 +666,8 @@ const RenderColumn = memo(function RenderColumn({
 }) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
+  const inlineEdit = useInlineWidgetEdit();
+
   const visibleChildren = (Array.isArray(column.children) ? column.children : []).filter(
     (w): w is NonNullable<typeof w> =>
       !!w &&
