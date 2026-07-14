@@ -201,6 +201,7 @@ export function Builder({
     moveSection,
     duplicateSection,
     insertSectionAt,
+    addSectionToTab,
     addInnerSection,
     addColumn,
     removeColumn,
@@ -693,6 +694,7 @@ export function Builder({
                     selection={selection}
                     setSelection={setSelection}
                     onInsertSection={insertSectionAt}
+                    onInsertSectionToTab={addSectionToTab}
                     onInsertContainer={insertContainerAt}
                     onRemoveSection={askRemoveSection}
                     onMoveWidget={moveWidgetTo}

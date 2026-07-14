@@ -80,6 +80,16 @@ describe("section mutations", () => {
     expect(d.sections[2].id).toBe("s2");
   });
 
+  it("addSectionToTab creates a structure assigned only to the selected tab", () => {
+    const container = ops.newContainerSection(true);
+    const tabId = container.tabs!.items[1].id;
+    const d = doc(container);
+    ops.addSectionToTab(d, container.id, tabId, [8, 4]);
+    const added = d.sections[0].children.at(-1) as InnerSectionNode;
+    expect(added.tabId).toBe(tabId);
+    expect(added.columns.map((column) => column.span.desktop)).toEqual([8, 4]);
+  });
+
   it("removeSection drops the matching section", () => {
     const d = doc(sec("s1", []), sec("s2", []));
     ops.removeSection(d, "s1");
@@ -219,6 +229,16 @@ describe("widget mutations", () => {
     // newColumn() builds a responsive span object, not a bare number.
     expect(second.span).toEqual({ desktop: 12 });
     expect(ids(second)).toEqual(["new"]);
+  });
+
+  it("appendWidgetToSection assigns a direct drop to the active container tab", () => {
+    const container = ops.newContainerSection(true);
+    const tabId = container.tabs!.items[1].id;
+    const d = doc(container);
+    ops.appendWidgetToSection(d, container.id, w("new"), tabId);
+    const added = d.sections[0].children.at(-1) as ColumnNode;
+    expect(added.tabId).toBe(tabId);
+    expect(ids(added)).toEqual(["new"]);
   });
 });
 

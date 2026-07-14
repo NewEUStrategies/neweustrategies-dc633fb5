@@ -205,6 +205,19 @@ export function insertSectionAt(
   d.sections.splice(index, 0, newSection(colsOrSpans));
 }
 
+/** Add a column structure inside one tab of a tabbed container. */
+export function addSectionToTab(
+  d: BuilderDocument,
+  sectionId: string,
+  tabId: string,
+  colsOrSpans: number | number[],
+): void {
+  const section = d.sections.find((candidate) => candidate?.id === sectionId);
+  if (!section?.tabs?.items.some((tab) => tab.id === tabId)) return;
+  if (!section.children) section.children = [];
+  section.children.push({ ...newInnerSection(colsOrSpans), tabId });
+}
+
 export function insertSectionNode(d: BuilderDocument, section: SectionNode): void {
   d.sections.push(section);
 }
@@ -389,12 +402,14 @@ export function appendWidgetToSection(
   d: BuilderDocument,
   sectionId: string,
   widget: WidgetNode,
+  tabId?: string,
 ): void {
   const s = d.sections.find((x) => x?.id === sectionId);
   if (!s) return;
   if (!s.children) s.children = [];
   const newCol = newColumn(12);
   newCol.children = [widget];
+  if (tabId && s.tabs?.items.some((tab) => tab.id === tabId)) newCol.tabId = tabId;
   s.children.push(newCol);
 }
 

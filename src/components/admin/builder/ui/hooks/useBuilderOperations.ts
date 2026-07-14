@@ -96,6 +96,11 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const duplicateSection = (id: string) => update((d) => ops.duplicateSection(d, id));
   const insertSectionAt = (index: number, colsOrSpans: number | number[]) =>
     update((d) => ops.insertSectionAt(d, index, colsOrSpans));
+  const addSectionToTab = (
+    sectionId: string,
+    tabId: string,
+    colsOrSpans: number | number[],
+  ) => update((d) => ops.addSectionToTab(d, sectionId, tabId, colsOrSpans));
   const addInnerSection = (sectionId: string) => update((d) => ops.addInnerSection(d, sectionId));
   const addColumn = (sectionId: string) => update((d) => ops.addColumn(d, sectionId));
   const removeColumn = (colId: string) => update((d) => ops.removeColumn(d, colId));
@@ -154,9 +159,10 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     sectionId: string,
     type: WidgetType,
     global?: GlobalDragPayload,
+    tabId?: string,
   ) => {
     const w = makeNode(type, global);
-    update((d) => ops.appendWidgetToSection(d, sectionId, w));
+    update((d) => ops.appendWidgetToSection(d, sectionId, w, tabId));
     setSelection({ kind: "widget", id: w.id });
   };
 
@@ -235,6 +241,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     moveSection,
     duplicateSection,
     insertSectionAt,
+    addSectionToTab,
     addInnerSection,
     addColumn,
     removeColumn,
