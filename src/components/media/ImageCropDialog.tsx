@@ -219,8 +219,8 @@ export function ImageCropDialog({
               cropShape={kind === "avatar" ? "round" : "rect"}
               showGrid
               minZoom={1}
-              maxZoom={5}
-              zoomSpeed={0.5}
+              maxZoom={6}
+              zoomSpeed={0.15}
               restrictPosition
               onCropChange={setCrop}
               onZoomChange={setZoom}
