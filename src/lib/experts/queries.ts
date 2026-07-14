@@ -207,7 +207,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
           .order("sort_order", { ascending: true }),
         supabase
           .from("media_mentions")
-          .select("id, outlet, title, url, kind, language, published_on")
+          .select("id, outlet, title, url, kind, language, published_on, cover_url")
           .eq("user_id", expertId)
           .eq("is_public", true)
           .order("published_on", { ascending: false }),

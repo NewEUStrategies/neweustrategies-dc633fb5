@@ -2851,6 +2851,7 @@ export type Database = {
       }
       media_mentions: {
         Row: {
+          cover_url: string | null
           created_at: string
           id: string
           is_public: boolean
@@ -2865,6 +2866,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cover_url?: string | null
           created_at?: string
           id?: string
           is_public?: boolean
@@ -2879,6 +2881,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cover_url?: string | null
           created_at?: string
           id?: string
           is_public?: boolean

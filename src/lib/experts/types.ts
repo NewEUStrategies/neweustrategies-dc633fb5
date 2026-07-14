@@ -66,6 +66,8 @@ export interface MediaMention {
   kind: MediaMentionKind;
   language: string | null;
   published_on: string;
+  /** Opcjonalna okładka (URL do obrazu) - używana w kartach na profilu eksperta. */
+  cover_url: string | null;
 }
 
 /** Rdzeń huba: tożsamość eksperta + kontakty (bezpośredni i dla mediów). */

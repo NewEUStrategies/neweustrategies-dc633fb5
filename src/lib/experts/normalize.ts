@@ -146,6 +146,7 @@ export function mapMediaMentionRows(rows: Row[]): MediaMention[] {
     kind: (strOrNull(row.kind) as MediaMention["kind"]) ?? "quote",
     language: strOrNull(row.language),
     published_on: str(row.published_on),
+    cover_url: strOrNull(row.cover_url),
   }));
 }
 

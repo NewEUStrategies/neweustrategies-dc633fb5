@@ -1,0 +1,1 @@
+ALTER TABLE public.media_mentions ADD COLUMN IF NOT EXISTS cover_url text;

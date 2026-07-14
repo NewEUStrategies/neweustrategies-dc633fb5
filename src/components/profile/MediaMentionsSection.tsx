@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Save, Mic, Newspaper, Radio, MessageSquareQuote, FileText } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Save, Mic, Newspaper, Radio, MessageSquareQuote, FileText, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,9 +32,13 @@ interface Row {
   language: string | null;
   published_on: string; // YYYY-MM-DD
   is_public: boolean;
+  cover_url: string | null;
   _dirty: boolean;
   _saving: boolean;
 }
+
+/** Rodzaje wpisów, dla których pokazujemy pole na okładkę (obraz). */
+const KINDS_WITH_COVER: readonly Kind[] = ["quote", "interview", "appearance"] as const;
 
 const KIND_META: Record<Kind, { icon: typeof Mic; labelPl: string; labelEn: string }> = {
   quote: { icon: MessageSquareQuote, labelPl: "Cytat / komentarz", labelEn: "Quote / comment" },
@@ -56,6 +60,7 @@ function emptyRow(): Row {
     language: null,
     published_on: today(),
     is_public: true,
+    cover_url: null,
     _dirty: true,
     _saving: false,
   };
@@ -71,7 +76,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("media_mentions")
-      .select("id, outlet, title, url, kind, language, published_on, is_public")
+      .select("id, outlet, title, url, kind, language, published_on, is_public, cover_url")
       .eq("user_id", userId)
       .order("published_on", { ascending: false });
     if (error) {
@@ -89,6 +94,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         language: (r.language as string | null) ?? null,
         published_on: (r.published_on as string) ?? today(),
         is_public: (r.is_public as boolean) ?? true,
+        cover_url: ((r as { cover_url?: string | null }).cover_url ?? null) as string | null,
         _dirty: false,
         _saving: false,
       })),
@@ -147,6 +153,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
       language: row.language?.trim() ? row.language.trim() : null,
       published_on: row.published_on,
       is_public: row.is_public,
+      cover_url: row.cover_url?.trim() ? row.cover_url.trim() : null,
     };
     if (row.id) {
       const { error } = await supabase
@@ -316,6 +323,36 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       onChange={(e) => patch(idx, { url: e.target.value || null })}
                     />
                   </div>
+                  {KINDS_WITH_COVER.includes(row.kind) && (
+                    <div className="grid gap-2 sm:col-span-2">
+                      <Label className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" aria-hidden />
+                        {t("profile.author.media.cover", {
+                          defaultValue: "Okładka - URL obrazu (opcjonalnie)",
+                        })}
+                      </Label>
+                      <div className="grid gap-2 sm:grid-cols-[96px_1fr] sm:items-start">
+                        {row.cover_url?.trim() ? (
+                          <img
+                            src={row.cover_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-16 w-24 rounded-md border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-24 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20 text-muted-foreground">
+                            <ImageIcon className="h-4 w-4" aria-hidden />
+                          </div>
+                        )}
+                        <Input
+                          type="url"
+                          placeholder="https://.../cover.jpg"
+                          value={row.cover_url ?? ""}
+                          onChange={(e) => patch(idx, { cover_url: e.target.value || null })}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
                   <label className="inline-flex items-center gap-2 text-xs">
