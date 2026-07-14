@@ -1038,7 +1038,7 @@ function BulletEditor({
               aria-label="remove"
               className="h-7 w-7 shrink-0"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <BrandIcon name="trash" fallback={Trash2} className="h-3.5 w-3.5" alt="" />
             </Button>
           </li>
         ))}
