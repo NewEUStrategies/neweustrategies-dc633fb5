@@ -74,7 +74,9 @@ export function VisualCanvas({
   lastLabel,
   multiSelection,
   onMultiSelectionChange,
+  onWidgetContentChange,
 }: {
+
   doc: BuilderDocument;
   lang: "pl" | "en";
   device: Device;
