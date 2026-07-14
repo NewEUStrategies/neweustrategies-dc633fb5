@@ -2,7 +2,7 @@
 // stanowisko) z modalem po kliknięciu (bio, kontakt, social media). Ikony
 // social pobierane są z biblioteki (icon_library) z fallbackiem do Lucide.
 import { useState, type CSSProperties } from "react";
-import type { WidgetNode } from "@/lib/builder/types";
+import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl, sanitizeHtml } from "@/lib/sanitize";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
