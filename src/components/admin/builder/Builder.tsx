@@ -722,6 +722,23 @@ export function Builder({
           }}
         />
         <BuilderContextMenu target={ctx} actions={ctxActions} onClose={() => setCtx(null)} />
+        <BulkActionBar
+          count={multiSelection.size}
+          onDuplicate={bulkDuplicate}
+          onDelete={bulkDelete}
+          onCopy={bulkCopy}
+          onClear={clearMulti}
+        />
+        <ConfirmDeleteDialog
+          pending={pendingBulkDelete ? { kind: "widget", id: pendingBulkDelete[0] ?? "" } : null}
+          onCancel={() => setPendingBulkDelete(null)}
+          onConfirm={() => {
+            const ids = pendingBulkDelete ?? [];
+            ids.forEach((id) => removeWidget(id));
+            clearMulti();
+            setPendingBulkDelete(null);
+          }}
+        />
       </div>
       <CoachmarkTour controller={tour} />
     </>
