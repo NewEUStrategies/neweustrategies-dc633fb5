@@ -120,7 +120,7 @@ export function SpacingControl({ style, onChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <PropField label="Padding - wewnętrzne odstępy">
+      <PropField label="Padding - wewnętrzne odstępy (px)">
         <SideInputs
           value={style?.padding}
           placeholder="0"
@@ -131,7 +131,7 @@ export function SpacingControl({ style, onChange }: Props) {
           }
         />
       </PropField>
-      <PropField label="Margin - zewnętrzne odstępy">
+      <PropField label="Margin - zewnętrzne odstępy (px)">
         <SideInputs
           value={style?.margin}
           placeholder="0"
