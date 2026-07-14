@@ -114,7 +114,10 @@ export function VisualCanvas({
   multiSelection?: ReadonlySet<string>;
   /** Mutate the multi-selection. `mode` = replace = clear+add, add = union, toggle = XOR. */
   onMultiSelectionChange?: (ids: ReadonlySet<string>, mode: "replace" | "add" | "toggle") => void;
+  /** Inline click-to-edit commit for widget content fields (text, HTML, labels…). */
+  onWidgetContentChange?: (widgetId: string, key: string, value: string | number) => void;
 }) {
+
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ kind: "widget" | "section"; id: string } | null>(null);
