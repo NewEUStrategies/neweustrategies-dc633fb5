@@ -42,6 +42,7 @@ import type { OrgFunction } from "@/lib/experts/types";
 import { useExpertLayoutSettings } from "@/hooks/useExpertLayoutSettings";
 import { EXPERT_LAYOUT_PRESETS } from "@/lib/expertLayouts";
 import "@/lib/i18n-experts";
+import { MediaMentionsSection } from "@/components/profile/MediaMentionsSection";
 
 export const Route = createFileRoute("/profile/author")({
   component: AuthorProfilePage,
