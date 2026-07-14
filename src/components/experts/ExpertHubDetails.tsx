@@ -2,8 +2,7 @@
 // ekspertyzy, biografia oraz karty kontaktu bezpośredniego i dla mediów.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Mail, Phone, Globe, Briefcase, Layers, BookOpen } from "lucide-react";
-import { sanitizeHtml } from "@/lib/sanitize";
+import { Mail, Phone, Globe, Briefcase, Layers } from "lucide-react";
 import type { ExpertHubData } from "@/lib/experts/types";
 
 function ContactCard({
