@@ -367,7 +367,7 @@ export function ExpertLayoutHero({
           <div className="mx-auto inline-block">
             {avatar("h-24 w-24 mx-auto border-2", "rounded-full", "400×400 px")}
           </div>
-          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
+          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: "var(--pv-name-size)" }}>
             {name}
           </h1>
           <p className="mt-1" style={roleStyle}>
@@ -394,7 +394,7 @@ export function ExpertLayoutHero({
               {avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]", "400×400 px")}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
+              <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
                 {name}
               </h1>
               <p className="mt-1" style={roleStyle}>
@@ -425,7 +425,7 @@ export function ExpertLayoutHero({
             style={heroStyle}
           >
             {avatar("h-28 w-28", "rounded-[6px]", "480×480 px")}
-            <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
+            <h1 className="mt-3 font-display" style={{ fontSize: "var(--pv-name-size-base)" }}>
               {name}
             </h1>
             <p className="text-xs" style={{ ...roleStyle, fontSize: 12 }}>
@@ -447,7 +447,7 @@ export function ExpertLayoutHero({
       <div className="mx-auto px-4 py-10" style={{ ...heroStyle, maxWidth }}>
         <div className={centered ? "text-center" : ""}>
           <div className="h-0.5 w-10 mb-4" style={{ backgroundColor: "var(--pv-accent)" }} />
-          <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
+          <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
             {name}
           </h1>
           <p className="mt-1" style={roleStyle}>
@@ -470,7 +470,7 @@ export function ExpertLayoutHero({
         >
           {avatar("h-24 w-24", "rounded-[6px]", "400×400 px")}
           <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
-            <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
+            <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
               {name}
             </h1>
             <p className="mt-1" style={roleStyle}>
@@ -496,7 +496,7 @@ export function ExpertLayoutHero({
               <h1
                 className="font-serif text-white"
                 style={{
-                  fontSize: settings.name_size_lg,
+                  fontSize: "var(--pv-name-size)",
                   fontFamily: "'Playfair Display', Georgia, serif",
                 }}
               >
@@ -555,7 +555,7 @@ export function ExpertLayoutHero({
             >
               {LABELS[lang].profileTagline}
             </p>
-            <h1 className="font-display leading-[1.05]" style={{ fontSize: settings.name_size_lg }}>
+            <h1 className="font-display leading-[1.05]" style={{ fontSize: "var(--pv-name-size)" }}>
               {name}
             </h1>
             <p className="mt-2" style={roleStyle}>
