@@ -356,7 +356,15 @@ export function VisualCanvas({
 
     const isLibraryDrag = (e: DragEvent) => {
       const types = Array.from(e.dataTransfer?.types || []);
-      return types.includes("application/x-widget-type") || types.includes(GLOBAL_WIDGET_MIME);
+      return (
+        types.includes("application/x-widget-type") ||
+        types.includes(GLOBAL_WIDGET_MIME) ||
+        types.includes(SECTION_STRUCTURE_MIME)
+      );
+    };
+    const isStructureDrag = (e: DragEvent) => {
+      const types = Array.from(e.dataTransfer?.types || []);
+      return types.includes(SECTION_STRUCTURE_MIME);
     };
 
     const setDragging = (on: boolean) => {
