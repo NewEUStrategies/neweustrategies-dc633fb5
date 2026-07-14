@@ -49,7 +49,8 @@ export function TeamMemberWidget({
   lang: Lang;
   editable?: boolean;
 }) {
-  const c = (node.content ?? {}) as Record<string, unknown>;
+  const c = (node.content ?? {}) as WidgetContent;
+  const cRaw = c as unknown as Record<string, unknown>;
   const [open, setOpen] = useState(false);
 
   const photo = safeImageUrl(getStr(c, "photo") || getStr(c, "image"));
