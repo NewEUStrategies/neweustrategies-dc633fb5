@@ -47,7 +47,7 @@ export const PARAM_DIM: Partial<Record<keyof SearchUrl, FacetDim>> = Object.from
   Object.entries(DIM_PARAM).map(([dim, param]) => [param, dim as FacetDim]),
 ) as Partial<Record<keyof SearchUrl, FacetDim>>;
 
-/** Kolejność wyświetlania grup faset w panelu (jak CSIS/RUSI: typ, region, temat…). */
+/** Kolejność wyświetlania grup faset w panelu (jak think-tank/RUSI: typ, region, temat…). */
 export const FACET_ORDER: readonly FacetDim[] = [
   "pub_type",
   "category",

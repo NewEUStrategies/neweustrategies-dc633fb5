@@ -1,5 +1,5 @@
 // Typy modułu NES Digital Features - interaktywne "digital features" w stylu
-// CSIS (oś czasu, sankey, porównywarka państw, macierz ryzyka, karta
+// think-tank (oś czasu, sankey, porównywarka państw, macierz ryzyka, karta
 // wskaźnika, sieć powiązań, mapa korytarzy, biblioteka źródeł, nota
 // metodologiczna). Konfiguracja pochodzi z widgetów buildera (Json) i jest
 // defensywnie parsowana w parse.ts - komponenty widzą wyłącznie te typy.

@@ -396,7 +396,7 @@ pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 
 ## 6. Podcast: sieć programów (nie płaska lista plików)
 
-Podcast jest modelowany jako **katalog odrębnych programów** (wzorzec RUSI/CSIS),
+Podcast jest modelowany jako **katalog odrębnych programów** (wzorzec RUSI/think-tank),
 a nie pojedynczy strumień odcinków. Model danych:
 
 ```

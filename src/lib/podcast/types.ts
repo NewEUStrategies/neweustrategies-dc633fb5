@@ -1,6 +1,6 @@
 // Podcast types + duration helpers (shared client/server).
 //
-// Model danych "sieci programów" (wzorzec RUSI/CSIS):
+// Model danych "sieci programów" (wzorzec RUSI/think-tank):
 //   program (PodcastShow) -> sezony -> odcinki (Podcast)
 //   odcinek: prowadzący/goście (PodcastPerson), rozdziały (PodcastChapter),
 //   cytaty (PodcastQuote), źródła/materiały (PodcastResource), transkrypcja.

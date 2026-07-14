@@ -1,4 +1,4 @@
--- Fasetowe wyszukiwanie i filtrowanie archiwum (wzorzec CSIS/RUSI/Brookings).
+-- Fasetowe wyszukiwanie i filtrowanie archiwum (wzorzec think-tank/RUSI/Brookings).
 --
 -- Zakres:
 --   1. Kontrolowane wymiary taksonomii: categories.kind

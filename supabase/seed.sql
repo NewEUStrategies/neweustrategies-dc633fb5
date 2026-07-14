@@ -170,7 +170,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- ---------- 3. Hub eksperta (profil CSIS-style dla Dev Admina) ---------------
+-- ---------- 3. Hub eksperta (profil think-tank-style dla Dev Admina) ---------------
 -- Dev Admin dostaje pełny profil eksperta: odznakę, funkcje, programy,
 -- obszary ekspertyzy, wzmianki medialne oraz relacje materiałów z programami
 -- i regionami - żeby /author/dev-admin i /experts od razu miały żywe dane.

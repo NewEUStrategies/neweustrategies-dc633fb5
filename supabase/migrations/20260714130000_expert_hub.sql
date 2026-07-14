@@ -1,5 +1,5 @@
 -- ============================================================================
--- HUB EKSPERTA (wzorzec profili CSIS): ekspert jako pełnoprawny obiekt
+-- HUB EKSPERTA (wzorzec profili think-tank): ekspert jako pełnoprawny obiekt
 -- systemowy, nie tekstowe pole "autor". Profil /author/$slug staje się
 -- hubem treściowym agregującym WSZYSTKIE relacje eksperta:
 --

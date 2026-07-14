@@ -1,5 +1,5 @@
 // Public podcast network. URL: /podcasts — the discovery page. Podcast is a
-// NETWORK OF PROGRAMS (RUSI/CSIS pattern), not a flat file list: it leads with
+// NETWORK OF PROGRAMS (RUSI/think-tank pattern), not a flat file list: it leads with
 // the catalogue of programs (series), each linking to its own program page,
 // followed by the newest episodes across the whole network. Links to the
 // built-in network RSS feed.

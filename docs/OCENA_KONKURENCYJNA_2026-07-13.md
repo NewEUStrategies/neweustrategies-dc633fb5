@@ -1,7 +1,7 @@
 # Ocena platformy i pozycjonowanie konkurencyjne
 
 **Przedmiot:** platforma New European Strategies (NES) — moduły, funkcjonalności, rodzaje publikacji, wydarzenia.
-**Benchmark:** Politico, Politico PRO, Reuters, Bloomberg (Terminal / BGOV / Bloomberg Law), RUSI, CSIS,
+**Benchmark:** Politico, Politico PRO, Reuters, Bloomberg (Terminal / BGOV / Bloomberg Law), RUSI, think-tank,
 Nowa Konfederacja, Klub Jagielloński, Instytut Nowej Europy — oraz dla kontekstu: Chatham House, Bruegel,
 ECFR, Carnegie Europe, Atlantic Council, Brookings, CEPA, PISM, OSW, Instytut Sobieskiego, Fundacja Batorego, WEI.
 **Data:** 2026-07-13 · **Autor oceny:** audyt wewnętrzny.
@@ -31,10 +31,10 @@ Trzy tezy:
    NES ma to wszystko naraz w jednym, spójnym systemie. **To jest realna przewaga i najłatwiejsze do obronienia
    pole gry.**
 
-2. **Wobec think-tanków zachodnich (RUSI, CSIS, Chatham House, ECFR, Bruegel, Atlantic Council) NES wygrywa
+2. **Wobec think-tanków zachodnich (RUSI, think-tank, Chatham House, ECFR, Bruegel, Atlantic Council) NES wygrywa
    „instalacją" (paywall, członkostwo, newsletter double opt-in, CRM, personalizacja, społeczność, SEO/GEO), ale
    przegrywa „treścią danych"** — bo pole, na którym ta liga faktycznie konkuruje, to **ciągle aktualizowane
-   narzędzia interaktywne i zbiory danych** (CSIS ChinaPower/Missile Threat, ECFR EU Coalition Explorer, Bruegel
+   narzędzia interaktywne i zbiory danych** (think-tank ChinaPower/Missile Threat, ECFR EU Coalition Explorer, Bruegel
    datasets, Atlantic Council sanctions dashboards). Tu NES ma dopiero zalążek (EU Policy Tracker + wykresy).
 
 3. **Wobec Politico PRO i Bloomberg BGOV NES nie jest — i nie powinien próbować być — „terminalem policy
@@ -56,8 +56,8 @@ zweryfikowanych defektów krytycznych).
 | Typ publikacji | Stan | Odpowiednik u konkurencji |
 | --- | --- | --- |
 | **Artykuły / analizy** (edytor bloków Gutenberg 99 typów + builder Elementor 60 widgetów, workflow redakcyjny draft→review→published, rewizje, publikacja planowana, przypisy, key-takeaways, TOC, reading-time) | Produkcyjny (9/10) | rdzeń każdego z konkurentów |
-| **Strony** (visual builder, rewizje) | Produkcyjny | landing/programy CSIS, Politico |
-| **Podcasty** (CRUD, RSS z `<enclosure>`, globalny odtwarzacz, Media Session) | Beta (6/10) | RUSI (sieć podcastów), CSIS, Brookings, Nowa Konfederacja, OSW |
+| **Strony** (visual builder, rewizje) | Produkcyjny | landing/programy think-tank, Politico |
+| **Podcasty** (CRUD, RSS z `<enclosure>`, globalny odtwarzacz, Media Session) | Beta (6/10) | RUSI (sieć podcastów), think-tank, Brookings, Nowa Konfederacja, OSW |
 | **Web Stories** (AMP pod `/web-stories/$slug/amp`, kwalifikacja do karuzeli Google) | Produkcyjny (7/10) | rzadkie w tej lidze — potencjalny wyróżnik |
 | **Live blog / relacja na żywo** (`/live`, realtime, SSR-prefetch) | Produkcyjny (7/10) | Politico/Reuters (live coverage) |
 | **EU Policy Tracker** (dossier legislacyjne: 6 etapów procedury UE proposal→parliament→council→trilogue→adopted→in_force, 10 obszarów polityki, kamienie milowe, oś czasu zmian, obserwujący + powiadomienia) | Beta (7/10) | **Politico PRO Legislative Compass, Bloomberg BGOV** (kategoria) — ale znacznie płytszy |
@@ -117,14 +117,14 @@ głosowania, spending) i narzędziami (trackery, alerty, wyszukiwarka AF, wizual
 - **Reuters** — globalny wire (≈190+ biur), **Reuters Connect** (licencjonowanie treści dla mediów), metered paywall (2024, szac. od ~$1/tydz.).
 - **Bloomberg** — Terminal (szac. ~$32 tys./fotel/rok); **BGOV** — śledzenie legislacji federalnej + 50 stanów, **wyszukiwarka legislacyjna AI z „diff" wersji**, CRS, transkrypty, katalogi; **Bloomberg Law Dockets** z AI.
 
-### Liga B — think-tanki zachodnie (RUSI, CSIS + Chatham House, Bruegel, ECFR, Carnegie, Atlantic Council, Brookings, CEPA)
+### Liga B — think-tanki zachodnie (RUSI, think-tank + Chatham House, Bruegel, ECFR, Carnegie, Atlantic Council, Brookings, CEPA)
 Dwa podmodele. **Brytyjsko-europejski członkowski** (RUSI, Chatham House, Bruegel): **członkostwo indywidualne +
-korporacyjne**, bramkowany portal członkowski, journal, archiwum nagrań. **Amerykański grantowy** (CSIS,
+korporacyjne**, bramkowany portal członkowski, journal, archiwum nagrań. **Amerykański grantowy** (think-tank,
 Atlantic Council, Brookings, CEPA): **darmowy, otwarty dostęp**, finansowanie z grantów/filantropii, ciężkie
 inwestycje w **narzędzia interaktywne i studia multimedialne**.
 
 - **RUSI** — *RUSI Journal* (od 1857, przez Taylor & Francis), Whitehall Papers/Reports, Occasional Papers, sieć podcastów, badania **OSINT/geoprzestrzenne**; portal członkowski `my.rusi.org` z archiwum nagrań; członkostwo od ~£85/rok (indywidualne), korporacyjne od ~£1 350+VAT.
-- **CSIS** — otwarty dostęp; **iDeas Lab** (własne studio cyfrowe/multimedialne); flagowe interaktywne mikroserwisy-trackery: **ChinaPower**, **Missile Threat / Missile Defense Project**, **AMTI Island Tracker** (zdjęcia satelitarne). Finansowanie: granty korporacyjne/rządowe/fundacyjne, filantropia.
+- **think-tank** — otwarty dostęp; **iDeas Lab** (własne studio cyfrowe/multimedialne); flagowe interaktywne mikroserwisy-trackery: **ChinaPower**, **Missile Threat / Missile Defense Project**, **AMTI Island Tracker** (zdjęcia satelitarne). Finansowanie: granty korporacyjne/rządowe/fundacyjne, filantropia.
 - **Chatham House** — *International Affairs*; 250+ wydarzeń/rok (wiele wg reguły Chatham House); członkostwo indywidualne + korporacyjne (duże korporacyjne ~£20 tys.).
 - **Bruegel** — working papers + **duża biblioteka otwartych, pobieralnych zbiorów danych i trackerów** (np. European Clean Tech Tracker); członkowie-państwa + korporacyjni (stała opłata ~€50 tys.).
 - **ECFR** — raporty + **EU Coalition Explorer** i European Foreign Policy Scorecard (interaktywne); finansowanie fundacyjne, treść darmowa.
@@ -154,7 +154,7 @@ Skala: ✅ przewaga NES · ➖ parytet / porównywalne · ❌ NES w tyle.
 | Szerokość formatów w JEDNYM systemie | ➖ (mają szerzej, ale rozproszone / kupione) | ✅ (NES ma więcej formatów natywnie) | ✅✅ (nieporównywalnie szerzej) |
 | Live blog / relacje | ➖ | ✅ | ✅ |
 | Web Stories (AMP) | ✅ (rzadkie) | ✅ | ✅ |
-| Podcasty | ➖ | ❌ (RUSI/CSIS mają sieci) | ➖ |
+| Podcasty | ➖ | ❌ (RUSI/think-tank mają sieci) | ➖ |
 | Tracker legislacyjny jako format | ❌ (PRO/BGOV głębsze) | ➖ (ECFR/Bruegel: inne dane) | ✅✅ (żaden polski nie ma) |
 
 **Podsumowanie:** NES ma **najszerszy natywny zestaw formatów w polskiej lidze i konkurencyjny w zachodniej**.
@@ -203,7 +203,7 @@ nakładzie** (wg audytu to „przepięcie na RPC", nie przebudowa).
 | Warstwy członkostwa z bramkami funkcji | ✅ | RUSI, Chatham House |
 | Licencja korporacyjna per-fotel | ❌ | Politico PRO, Bloomberg |
 | Darowizny / mecenat / Patronite | ➖ (możliwe do dodania) | Nowa Konfederacja, INE, Sobieski |
-| Granty / budżet państwa | n/d (model komercyjny) | KJ, PISM, OSW, Batory, CSIS |
+| Granty / budżet państwa | n/d (model komercyjny) | KJ, PISM, OSW, Batory, think-tank |
 
 **NES ma najbardziej elastyczny zestaw mechanizmów spośród polskiej ligi** i porównywalny z zachodnimi
 członkowskimi. Brakuje **sprzedaży korporacyjnej per-fotel** (klucz do modelu Politico PRO/Bloomberg) i
@@ -235,10 +235,10 @@ silniku.
 1. **Głębia danych i narzędzia „policy intelligence" (Politico PRO, Bloomberg BGOV).** Ich fosa — strukturalne,
    stale zasilane dane + newsroom + AI-search + alerty + sprzedaż per-fotel — jest **poza zasięgiem** platformy
    tej wielkości i **nie jest właściwym celem**. EU Policy Tracker to „tracker w sensie think-tankowym", nie terminal.
-2. **Narzędzia interaktywne / studia danych (CSIS iDeas Lab, ECFR Explorer, Bruegel datasets, Atlantic Council
+2. **Narzędzia interaktywne / studia danych (think-tank iDeas Lab, ECFR Explorer, Bruegel datasets, Atlantic Council
    dashboards).** To jest **realna luka na polu, na którym liga B konkuruje** — i jednocześnie **najlepszy kierunek
    inwestycji**, bo NES ma już infrastrukturę wykresów i tracker jako punkt startu.
-3. **Skala i autorytet redakcyjny.** Platforma to naczynie; fosa Politico/Reuters/RUSI/CSIS to **dziennikarstwo,
+3. **Skala i autorytet redakcyjny.** Platforma to naczynie; fosa Politico/Reuters/RUSI/think-tank to **dziennikarstwo,
    badania, marka i sieć ekspertów**. Najlepsze oprogramowanie **nie zastąpi** wolumenu i wiarygodności treści.
    To najważniejsze zastrzeżenie całej oceny.
 4. **Gotowość produkcyjna.** Trzy formaty (wydarzenia, ankiety, Q&A) zepsute end-to-end + zweryfikowane defekty
@@ -260,7 +260,7 @@ silniku.
 4. **Pogłębić EU Policy Tracker w stronę produktu danych:** alerty i dzienne/tygodniowe digesty per-dossier
    (mechanika newslettera już jest), więcej pól strukturalnych (instytucja prowadząca, sprawozdawca, powiązane
    akty), widok osi czasu i „co się zmieniło". To krok w kierunku Politico PRO Legislative Compass — w skali NES.
-5. **Jeden interaktywny „explorer" na wzór ECFR/CSIS** (np. mapa koalicji/stanowisk państw UE albo dashboard
+5. **Jeden interaktywny „explorer" na wzór ECFR/think-tank** (np. mapa koalicji/stanowisk państw UE albo dashboard
    wybranej polityki) — zbudowany na istniejącej infrastrukturze wykresów. To jest to, co **odróżnia** czołowe
    think-tanki od portali z PDF-ami.
 6. **Kanał darowizn/mecenatu** (model Nowej Konfederacji) obok subskrypcji — tani dodatek na silniku Stripe,
@@ -274,7 +274,7 @@ silniku.
 
 ## 7. Tabela zbiorcza — NES vs. benchmark
 
-| Wymiar | NES | Politico/PRO | Reuters/Bloomberg | RUSI/CSIS/Chatham | ECFR/Bruegel/AtlanticC. | Polska liga C |
+| Wymiar | NES | Politico/PRO | Reuters/Bloomberg | RUSI/think-tank/Chatham | ECFR/Bruegel/AtlanticC. | Polska liga C |
 | --- | --- | --- | --- | --- | --- | --- |
 | Silnik wydawniczy / paywall | **9** | 8 | 9 | 5 | 5 | 3 |
 | Szerokość formatów publikacji | **8** | 8 | 7 | 6 | 6 | 4 |
@@ -316,7 +316,7 @@ Bramki rundy wdrożeniowej: testy **1615 przechodzą** (+34 nowe), lint **0 bł�
   modułów i defekty odzwierciedlają HEAD gałęzi z 13.07.2026.
 - **Profile konkurentów** — publiczne strony produktowe i rzetelne opracowania (lipiec 2026). Ceny konkurentów są
   **szacunkowe** (Politico PRO, Bloomberg, większość think-tanków nie publikują cenników); część stron (RUSI,
-  CSIS, INE, Nowa Konfederacja) blokuje automatyczne pobieranie, więc szczegóły pochodzą z treści indeksowanej i
+  think-tank, INE, Nowa Konfederacja) blokuje automatyczne pobieranie, więc szczegóły pochodzą z treści indeksowanej i
   źródeł wtórnych. Liczby użyte w profilach należy przed publikacją zewnętrzną zweryfikować u źródła.
 - **Zakres porównania** — produkt cyfrowy i model wydawniczy, **nie** skala redakcji, wolumen ani autorytet marki
   (omówione jako osobny, nadrzędny czynnik konkurencyjny w §5).

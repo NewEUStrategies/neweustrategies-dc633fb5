@@ -1,4 +1,4 @@
--- Podcast jako sieć programów (RUSI/CSIS wzorzec).
+-- Podcast jako sieć programów (RUSI/think-tank wzorzec).
 
 CREATE TABLE IF NOT EXISTS public.podcast_shows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

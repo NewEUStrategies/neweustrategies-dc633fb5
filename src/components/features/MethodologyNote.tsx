@@ -1,5 +1,5 @@
 // Nota metodologiczna - rozwijalny blok (<details>) z zsanityzowanym HTML
-// opisującym metodę, wersję i datę aktualizacji. Wzorzec CSIS: każdy "digital
+// opisującym metodę, wersję i datę aktualizacji. Wzorzec think-tank: każdy "digital
 // feature" niesie jawną metodologię obok danych. Treść sanityzowana przez
 // sanitizeHtml (ten sam potok co reszta treści użytkownika).
 import { useMemo } from "react";

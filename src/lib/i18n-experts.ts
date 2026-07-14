@@ -1,6 +1,6 @@
 import i18n from "./i18n";
 
-// Pakiet i18n huba eksperta (profil CSIS-style, katalog, edytor persony).
+// Pakiet i18n huba eksperta (profil think-tank-style, katalog, edytor persony).
 // Rejestrowany jako nakładka na bazowe i18n - importowany przez strony
 // /author/$slug, /experts oraz /profile/author.
 
