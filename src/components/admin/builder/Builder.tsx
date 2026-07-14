@@ -30,6 +30,7 @@ import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import { useTheme } from "@/components/ThemeProvider";
 import { findWidget, findSection, findColumn, findInner } from "@/lib/builder/operations";
+import * as ops from "@/lib/builder/operations";
 import { useHistory } from "@/lib/builder/useHistory";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
@@ -245,14 +246,17 @@ export function Builder({
   }, [selection, copySelection, askRemoveSection, askRemoveColumn, askRemoveWidget]);
 
   // ---------- bulk actions on the multi-selection ----------
+  // All bulk operations run in a SINGLE `update` so they land as one history
+  // entry (single Ctrl+Z undo) and side-step useHistory.setDoc's stale-closure
+  // issue when called N times synchronously in a loop.
   const bulkDuplicate = useCallback(() => {
     const ids = Array.from(multiSelection);
     if (ids.length === 0) return;
-    // duplicateWidget mutates via history in one op each; batching would need
-    // a dedicated op — sequential is fine at N ~ tens.
-    ids.forEach((id) => duplicateWidget(id));
+    update((d) => {
+      ids.forEach((id) => ops.duplicateWidget(d, id));
+    });
     clearMulti();
-  }, [multiSelection, duplicateWidget, clearMulti]);
+  }, [multiSelection, update, clearMulti]);
 
   const bulkDelete = useCallback(() => {
     const ids = Array.from(multiSelection);
@@ -745,7 +749,11 @@ export function Builder({
           onCancel={() => setPendingBulkDelete(null)}
           onConfirm={() => {
             const ids = pendingBulkDelete ?? [];
-            ids.forEach((id) => removeWidget(id));
+            if (ids.length > 0) {
+              update((d) => {
+                ids.forEach((id) => ops.removeWidget(d, id));
+              });
+            }
             clearMulti();
             setPendingBulkDelete(null);
           }}
