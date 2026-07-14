@@ -1321,6 +1321,8 @@ function EditPost() {
                     {layoutCard}
                     {catsCard}
                     {tagsCard}
+                    {programsCard}
+                    {regionsCard}
                     <AccessSettingsPane entityType="post" entityId={id} />
                     <RevisionsCard
                       entityType="post"
