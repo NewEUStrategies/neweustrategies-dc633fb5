@@ -622,32 +622,37 @@ const RenderInner = memo(function RenderInner({
         ...sectionWrapperStyle(inner),
         ...backgroundLayerStyle(inner.background),
         ...borderStyle(inner.border),
-        padding: `${INNER_SECTION_SAFE_AREA_PX}px`,
+        paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`,
+        paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px`,
       }}
     >
-      <div
-        data-columns-row
-        className="min-w-0 max-w-full overflow-hidden"
-        style={{
-          ...columnsRowStyle(inner, colsSum),
-          gridTemplateColumns:
-            device === "mobile"
-              ? "minmax(0, 1fr)"
-              : columnsRowStyle(inner, colsSum).gridTemplateColumns,
-        }}
-      >
-        {columns.map((c) => (
-          <div
-            key={c.id}
-            data-column-slot
-            className="min-w-0 max-w-full overflow-hidden"
-            style={{
-              gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
-            }}
-          >
-            <RenderColumn column={c} lang={lang} device={device} />
-          </div>
-        ))}
+      {/* Boxed/full toggle applies here too - inner sections cap their columns
+          row exactly like top-level sections, so widget widths follow layout. */}
+      <div style={sectionContainerStyle(inner)}>
+        <div
+          data-columns-row
+          className="min-w-0 max-w-full overflow-hidden"
+          style={{
+            ...columnsRowStyle(inner, colsSum),
+            gridTemplateColumns:
+              device === "mobile"
+                ? "minmax(0, 1fr)"
+                : columnsRowStyle(inner, colsSum).gridTemplateColumns,
+          }}
+        >
+          {columns.map((c) => (
+            <div
+              key={c.id}
+              data-column-slot
+              className="min-w-0 max-w-full overflow-hidden"
+              style={{
+                gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
+              }}
+            >
+              <RenderColumn column={c} lang={lang} device={device} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
