@@ -58,6 +58,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const tenantId = useRequiredTenant();
 
   const urlError = validateUrl(value);
