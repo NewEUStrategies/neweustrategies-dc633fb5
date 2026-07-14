@@ -34,8 +34,24 @@ function parseSides(input: string | undefined): Sides {
   return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
 }
 
+// Dodaj domyślną jednostkę `px`, gdy użytkownik wpisze samą liczbę (np. "10").
+// CSS ignoruje bezjednostkowe długości (poza 0), więc bez tego padding/margin
+// nie działa. Akceptujemy też ujemne oraz ułamkowe wartości.
+function withUnit(raw: string): string {
+  const v = raw.trim();
+  if (!v) return "";
+  if (v === "0") return "0";
+  // Już ma jednostkę / funkcję / zmienną CSS - nie ruszamy.
+  if (/[a-z%)]$/i.test(v) || v.startsWith("var(") || v.startsWith("calc(")) return v;
+  if (/^-?\d*\.?\d+$/.test(v)) return `${v}px`;
+  return v;
+}
+
 function sidesToString(s: Sides): string | undefined {
-  const { top, right, bottom, left } = s;
+  const top = withUnit(s.top);
+  const right = withUnit(s.right);
+  const bottom = withUnit(s.bottom);
+  const left = withUnit(s.left);
   if (!top && !right && !bottom && !left) return undefined;
   const t = top || "0";
   const r = right || "0";
