@@ -601,6 +601,24 @@ export const updatePost = createServerFn({ method: "POST" })
           if (error) throw new Error(error.message);
         }
       }
+      if (data.programs) {
+        await supabase.from("post_programs").delete().eq("post_id", data.id);
+        if (data.programs.length) {
+          const { error } = await supabase
+            .from("post_programs")
+            .insert(data.programs.map((program_id) => ({ post_id: data.id, program_id })));
+          if (error) throw new Error(error.message);
+        }
+      }
+      if (data.regions) {
+        await supabase.from("post_regions").delete().eq("post_id", data.id);
+        if (data.regions.length) {
+          const { error } = await supabase
+            .from("post_regions")
+            .insert(data.regions.map((region_id) => ({ post_id: data.id, region_id })));
+          if (error) throw new Error(error.message);
+        }
+      }
 
       const action: AuditAction = !statusChanges
         ? "post.update"
