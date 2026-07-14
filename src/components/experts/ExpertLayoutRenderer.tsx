@@ -699,7 +699,7 @@ export function ExpertSectionRenderer({
       if (!hasAny && !showPlaceholders) return null;
       return wrap(
         <>
-          Social
+          {t.social}
           {!hasAny && placeholderTag}
         </>,
         <Layers className="h-4 w-4" />,
