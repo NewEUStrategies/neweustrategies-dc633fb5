@@ -1016,11 +1016,11 @@ function BulletEditor({
         {bullets.map((b, idx) => (
           <li
             key={idx}
-            className="flex items-start gap-2 rounded-md border border-border bg-card px-2 py-1.5"
+            className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5"
           >
             <span
               aria-hidden
-              className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-[2px] bg-[var(--brand)]"
+              className="inline-block h-1.5 w-1.5 shrink-0 rounded-[2px] bg-[var(--brand)]"
             />
             <Input
               id={`${idPrefix}-${idx}`}
