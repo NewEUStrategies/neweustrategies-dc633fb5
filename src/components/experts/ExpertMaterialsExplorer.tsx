@@ -98,6 +98,7 @@ export function ExpertMaterialsExplorer({
     filters.programId !== null ||
     filters.regionId !== null ||
     filters.categoryId !== null ||
+    filters.tagId !== null ||
     filters.year !== null;
 
   const kindOptions = KIND_ORDER.filter((k) => counts[k] > 0).map((k) => ({
