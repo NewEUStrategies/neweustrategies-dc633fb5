@@ -308,9 +308,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       aria-label={displayName || "Account"}
       title={triggerLabel}
     >
-      <Avatar className="h-6 w-6">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-        <AvatarFallback className="text-[10px]">
+      <Avatar className="h-6 w-6 rounded-[5px]">
+        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" className="rounded-[5px]" /> : null}
+        <AvatarFallback className="text-[10px] rounded-[5px]">
           {(firstName || displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
       </Avatar>
