@@ -856,13 +856,16 @@ export const WIDGETS: WidgetDef[] = [
     category: "blocks",
     icon: User,
     defaults: () => ({
-      name: "Imię Nazwisko",
-      position_pl: "Stanowisko",
-      position_en: "Position",
+      // Brak placeholderów: dopóki pole nie zostanie wypełnione, widget nie
+      // renderuje danego elementu ani ikony (patrz warunki {name && ...},
+      // {position && ...}, {socials.length > 0 && ...} w TeamMemberWidget).
+      name: "",
+      position_pl: "",
+      position_en: "",
       programLabel_pl: "",
       programLabel_en: "",
-      bio_pl: "<p>Krótkie bio…</p>",
-      bio_en: "<p>Short bio…</p>",
+      bio_pl: "",
+      bio_en: "",
       email: "",
       phone: "",
       photo: "",
