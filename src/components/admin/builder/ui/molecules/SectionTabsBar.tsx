@@ -138,6 +138,18 @@ export function SectionTabsBar({
               e.stopPropagation();
               onSelect(it.id);
             }}
+            // While dragging a widget / section / structure over the tab
+            // header, switch to that tab so the user can drop content into it
+            // without first clicking to activate the tab.
+            onDragEnter={(e) => {
+              if (!active && e.dataTransfer && e.dataTransfer.types.length > 0) {
+                onSelect(it.id);
+              }
+            }}
+            onDragOver={(e) => {
+              // Allow the drop chain to continue - the panel underneath handles insertion.
+              e.preventDefault();
+            }}
             onKeyDown={onKey}
             style={{ ...base, ...variantStyle }}
           >
