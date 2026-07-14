@@ -40,6 +40,7 @@ import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
+import { TeamMemberWidget } from "./TeamMemberWidget";
 export { ResizableBox } from "./resizeWrappers";
 
 const compactRowStyle: CSSProperties = {
