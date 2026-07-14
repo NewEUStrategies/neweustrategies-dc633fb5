@@ -850,18 +850,33 @@ function AuthorProfilePage() {
                     ["instagram_url", "Instagram"],
                     ["spotify_url", "Spotify"],
                   ] as const
-                ).map(([key, label]) => (
-                  <div key={key} className="grid gap-2">
-                    <FieldLabel htmlFor={key}>{label}</FieldLabel>
-                    <Input
-                      id={key}
-                      type="url"
-                      placeholder="https://..."
-                      value={data[key] ?? ""}
-                      onChange={(e) => setData({ ...data, [key]: e.target.value })}
-                    />
-                  </div>
-                ))}
+                ).map(([key, label]) => {
+                  const meta = SOCIAL_ICONS[key];
+                  return (
+                    <div key={key} className="grid gap-2">
+                      <FieldLabel htmlFor={key}>
+                        <span className="inline-flex items-center gap-2">
+                          {meta && (
+                            <BrandIcon
+                              name={meta.slug}
+                              fallback={meta.Fallback}
+                              className="h-4 w-4 shrink-0 text-muted-foreground"
+                              alt=""
+                            />
+                          )}
+                          {label}
+                        </span>
+                      </FieldLabel>
+                      <Input
+                        id={key}
+                        type="url"
+                        placeholder="https://..."
+                        value={data[key] ?? ""}
+                        onChange={(e) => setData({ ...data, [key]: e.target.value })}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Custom socials */}
