@@ -594,7 +594,7 @@ function AuthorProfilePage() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                       >
-                        <ExternalLink className="h-3 w-3" aria-hidden />
+                        <BrandIcon name="external-link" fallback={ExternalLink} className="h-3 w-3" alt="" />
                         {k === "twitter" ? "X (Twitter)" : k.charAt(0).toUpperCase() + k.slice(1)}
                       </a>
                     ))}
