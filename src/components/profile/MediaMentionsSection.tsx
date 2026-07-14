@@ -60,6 +60,7 @@ function emptyRow(): Row {
     language: null,
     published_on: today(),
     is_public: true,
+    cover_url: null,
     _dirty: true,
     _saving: false,
   };
