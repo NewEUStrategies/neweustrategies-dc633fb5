@@ -193,6 +193,7 @@ export function Builder({
     focusedColumn,
     addSection,
     addContainer,
+    insertContainerAt,
     loadHomepage,
     insertTemplateSection,
     saveSectionAsTemplate,
