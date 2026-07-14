@@ -30,6 +30,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import { withOgVersion, ogVersionFromIso } from "@/lib/seo/ogImage";
 import { expertLayoutSettingsQueryOptions } from "@/hooks/useExpertLayoutSettings";
 import {
   ExpertLayoutHero,
