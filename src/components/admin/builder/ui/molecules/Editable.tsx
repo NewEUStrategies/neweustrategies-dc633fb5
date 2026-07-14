@@ -141,26 +141,34 @@ export function Editable({
 
   const stop = (e: ReactMouseEvent | MouseEvent) => e.stopPropagation();
 
+  const showToolbar = html && multiline;
+  const editableEl = (
+    <As
+      ref={ref as never}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck
+      data-placeholder={placeholder}
+      onBlur={() => {
+        setFocused(false);
+        commit();
+      }}
+      onFocus={() => setFocused(true)}
+      onKeyDown={onKeyDown}
+      onClick={stop}
+      onMouseDown={stop}
+      className={`${className ?? ""} outline-none focus:ring-2 focus:ring-brand/40 focus:rounded empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50`}
+      style={style}
+    />
+  );
+
+  if (!showToolbar) return editableEl;
+
   return (
-    <span className="relative inline-block max-w-full w-full">
-      <As
-        ref={ref as never}
-        contentEditable
-        suppressContentEditableWarning
-        spellCheck
-        data-placeholder={placeholder}
-        onBlur={() => {
-          setFocused(false);
-          commit();
-        }}
-        onFocus={() => setFocused(true)}
-        onKeyDown={onKeyDown}
-        onClick={stop}
-        onMouseDown={stop}
-        className={`${className ?? ""} outline-none focus:ring-2 focus:ring-brand/40 focus:rounded empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50`}
-        style={style}
-      />
-      {html && multiline && focused && (
+    <span className="relative block w-full max-w-full">
+      {editableEl}
+      {focused && (
+
         <span
           role="toolbar"
           aria-label="Formatowanie tekstu"
