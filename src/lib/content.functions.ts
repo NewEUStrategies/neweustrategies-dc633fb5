@@ -463,6 +463,8 @@ export const updatePost = createServerFn({ method: "POST" })
         fields: PostCore.partial(),
         categories: z.array(UUID).max(50).optional(),
         tags: z.array(UUID).max(50).optional(),
+        programs: z.array(UUID).max(50).optional(),
+        regions: z.array(UUID).max(50).optional(),
       })
       .parse(i),
   )
@@ -569,7 +571,7 @@ export const updatePost = createServerFn({ method: "POST" })
       // above, yet the category/tag writes below run under tenant-only RLS -
       // which would let a user rewrite another author's post taxonomy. Force a
       // guarded touch so RLS re-checks edit permission on the post itself.
-      if (!Object.keys(updates).length && (data.categories || data.tags)) {
+      if (!Object.keys(updates).length && (data.categories || data.tags || data.programs || data.regions)) {
         const { data: touched, error: touchErr } = await supabase
           .from("posts")
           .update({ updated_at: new Date().toISOString() })
@@ -596,6 +598,24 @@ export const updatePost = createServerFn({ method: "POST" })
           const { error } = await supabase
             .from("post_tags")
             .insert(data.tags.map((tag_id) => ({ post_id: data.id, tag_id })));
+          if (error) throw new Error(error.message);
+        }
+      }
+      if (data.programs) {
+        await supabase.from("post_programs").delete().eq("post_id", data.id);
+        if (data.programs.length) {
+          const { error } = await supabase
+            .from("post_programs")
+            .insert(data.programs.map((program_id) => ({ post_id: data.id, program_id })));
+          if (error) throw new Error(error.message);
+        }
+      }
+      if (data.regions) {
+        await supabase.from("post_regions").delete().eq("post_id", data.id);
+        if (data.regions.length) {
+          const { error } = await supabase
+            .from("post_regions")
+            .insert(data.regions.map((region_id) => ({ post_id: data.id, region_id })));
           if (error) throw new Error(error.message);
         }
       }

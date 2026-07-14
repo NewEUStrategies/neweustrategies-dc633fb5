@@ -63,7 +63,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { PostSettingsMetabox, TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
-import { CategoriesCard, TagsCard } from "@/components/admin/post-editor/TaxonomyCards";
+import { CategoriesCard, TagsCard, BilingualPickerCard } from "@/components/admin/post-editor/TaxonomyCards";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { WorkflowStatusSection } from "@/components/admin/post-editor/WorkflowStatusSection";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
@@ -192,6 +192,31 @@ function EditPost() {
       (await supabase.from("tags").select("id, name").eq("tenant_id", tenantId).order("name"))
         .data ?? [],
   });
+  const { data: allPrograms } = useQuery({
+    queryKey: ["programs", tenantId],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("programs")
+          .select("id, name_pl, name_en")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("name_pl", { ascending: true })
+      ).data ?? [],
+  });
+  const { data: allRegions } = useQuery({
+    queryKey: ["regions", tenantId],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("regions")
+          .select("id, name_pl, name_en")
+          .eq("tenant_id", tenantId)
+          .order("sort_order", { ascending: true })
+          .order("name_pl", { ascending: true })
+      ).data ?? [],
+  });
 
   const { data: postCats } = useQuery({
     queryKey: ["post-cats", id],
@@ -205,6 +230,18 @@ function EditPost() {
     queryFn: async () =>
       (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
   });
+  const { data: postPrograms } = useQuery({
+    queryKey: ["post-programs", id],
+    enabled: !!id,
+    queryFn: async () =>
+      (await supabase.from("post_programs").select("program_id").eq("post_id", id)).data ?? [],
+  });
+  const { data: postRegions } = useQuery({
+    queryKey: ["post-regions", id],
+    enabled: !!id,
+    queryFn: async () =>
+      (await supabase.from("post_regions").select("region_id").eq("post_id", id)).data ?? [],
+  });
 
   const history = useUndoRedo<PostForm | null>(null);
   const form = history.state;
@@ -213,6 +250,8 @@ function EditPost() {
   const setSlug = history.set;
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedPrograms, setSelectedPrograms] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
   // Two-step flow: "details" shows metadata + titles + descriptions in both
@@ -316,6 +355,12 @@ function EditPost() {
   useEffect(() => {
     if (postTags) setSelectedTags(postTags.map((c) => c.tag_id));
   }, [postTags]);
+  useEffect(() => {
+    if (postPrograms) setSelectedPrograms(postPrograms.map((p) => p.program_id));
+  }, [postPrograms]);
+  useEffect(() => {
+    if (postRegions) setSelectedRegions(postRegions.map((r) => r.region_id));
+  }, [postRegions]);
 
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Shift+Ctrl/Cmd+Z (or Ctrl+Y) = redo
   useEffect(() => {
@@ -378,6 +423,8 @@ function EditPost() {
           },
           categories: selectedCats,
           tags: selectedTags,
+          programs: selectedPrograms,
+          regions: selectedRegions,
         },
       });
       // Serwer mógł znormalizować slug (uniqueSlug dopisuje sufiks przy
@@ -415,6 +462,8 @@ function EditPost() {
       update$,
       selectedCats,
       selectedTags,
+      selectedPrograms,
+      selectedRegions,
       qc,
       navigate,
       routeSlug,
@@ -458,8 +507,8 @@ function EditPost() {
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
   const autoValue = useMemo(
-    () => ({ form, cats: selectedCats, tags: selectedTags }),
-    [form, selectedCats, selectedTags],
+    () => ({ form, cats: selectedCats, tags: selectedTags, programs: selectedPrograms, regions: selectedRegions }),
+    [form, selectedCats, selectedTags, selectedPrograms, selectedRegions],
   );
   const autosave = useAutosave({
     value: autoValue,
@@ -540,6 +589,8 @@ function EditPost() {
     if (saved.form) history.reset(saved.form);
     setSelectedCats(saved.cats);
     setSelectedTags(saved.tags);
+    setSelectedPrograms(saved.programs);
+    setSelectedRegions(saved.regions);
   };
 
   const del = async () => {
@@ -782,6 +833,28 @@ function EditPost() {
       onAddTag={() => void addTag()}
     />
   );
+
+  const programsCard = (
+    <BilingualPickerCard
+      label={t("admin.nav.programs", { defaultValue: "Projekty" })}
+      options={allPrograms ?? undefined}
+      selectedIds={selectedPrograms}
+      onSelectedChange={setSelectedPrograms}
+      emptyHint={t("admin.posts.noPrograms", { defaultValue: "Brak projektów - dodaj je w /admin/programs" })}
+    />
+  );
+
+  const regionsCard = (
+    <BilingualPickerCard
+      label={t("admin.nav.regions", { defaultValue: "Regiony" })}
+      options={allRegions ?? undefined}
+      selectedIds={selectedRegions}
+      onSelectedChange={setSelectedRegions}
+      emptyHint={t("admin.posts.noRegions", { defaultValue: "Brak regionów - dodaj je w /admin/regions" })}
+    />
+  );
+
+
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -1133,6 +1206,8 @@ function EditPost() {
                       <div className="grid md:grid-cols-2 gap-4">
                         {catsCard}
                         {tagsCard}
+                        {programsCard}
+                        {regionsCard}
                       </div>
                     )}
 
@@ -1246,6 +1321,8 @@ function EditPost() {
                     {layoutCard}
                     {catsCard}
                     {tagsCard}
+                    {programsCard}
+                    {regionsCard}
                     <AccessSettingsPane entityType="post" entityId={id} />
                     <RevisionsCard
                       entityType="post"
