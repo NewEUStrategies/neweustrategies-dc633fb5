@@ -90,6 +90,23 @@ interface ExpertiseAreaOption {
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
 const MAX_AVATAR = 2 * 1024 * 1024;
+const MAX_BIO_BULLETS = 5;
+const MAX_BULLET_LEN = 200;
+
+/** Rozkłada bio na maks. 5 punktorów - splituje po newline lub znaku listy. */
+function bioToBullets(bio: string | null): string[] {
+  if (!bio) return [];
+  const parts = bio
+    .split(/\r?\n+/)
+    .map((l) => l.replace(/^\s*[-•*·]\s*/, "").trim())
+    .filter(Boolean);
+  return parts.slice(0, MAX_BIO_BULLETS);
+}
+
+/** Serializuje punktory z powrotem do TEXT (jedna linia = jeden bullet). */
+function bulletsToBio(bullets: string[]): string {
+  return bullets.map((b) => b.trim()).filter(Boolean).join("\n");
+}
 
 function isAuthorRole(roles: string[]): boolean {
   return roles.some((r) => r === "author" || r === "admin" || r === "super_admin");
