@@ -3728,9 +3728,18 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content .cms-body,
 [data-cms-content] p,
 [data-builder-renderer] p,
+[data-builder-renderer] .prose,
 [data-builder-renderer] .prose p,
 [data-builder-renderer] li,
 [data-builder-renderer] .prose li {
+  font-size: var(--fs-body, 1rem);
+  line-height: var(--lh-body, 1.65);
+}
+/* Text widget renders bare text + <br> inside .prose (no <p>). Ensure the
+ * widget wrapper itself carries the theme body size so raw text inherits it,
+ * matching global H1..H6 / body tokens instead of Tailwind's prose-sm default. */
+[data-builder-renderer] [data-debug-type="text"],
+[data-builder-renderer] [data-debug-type="text"] .prose {
   font-size: var(--fs-body, 1rem);
   line-height: var(--lh-body, 1.65);
 }
