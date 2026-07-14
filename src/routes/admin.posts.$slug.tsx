@@ -192,6 +192,31 @@ function EditPost() {
       (await supabase.from("tags").select("id, name").eq("tenant_id", tenantId).order("name"))
         .data ?? [],
   });
+  const { data: allPrograms } = useQuery({
+    queryKey: ["programs", tenantId],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("programs")
+          .select("id, name_pl, name_en")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("name_pl", { ascending: true })
+      ).data ?? [],
+  });
+  const { data: allRegions } = useQuery({
+    queryKey: ["regions", tenantId],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("regions")
+          .select("id, name_pl, name_en")
+          .eq("tenant_id", tenantId)
+          .order("sort_order", { ascending: true })
+          .order("name_pl", { ascending: true })
+      ).data ?? [],
+  });
 
   const { data: postCats } = useQuery({
     queryKey: ["post-cats", id],
@@ -204,6 +229,18 @@ function EditPost() {
     enabled: !!id,
     queryFn: async () =>
       (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
+  });
+  const { data: postPrograms } = useQuery({
+    queryKey: ["post-programs", id],
+    enabled: !!id,
+    queryFn: async () =>
+      (await supabase.from("post_programs").select("program_id").eq("post_id", id)).data ?? [],
+  });
+  const { data: postRegions } = useQuery({
+    queryKey: ["post-regions", id],
+    enabled: !!id,
+    queryFn: async () =>
+      (await supabase.from("post_regions").select("region_id").eq("post_id", id)).data ?? [],
   });
 
   const history = useUndoRedo<PostForm | null>(null);
