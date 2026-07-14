@@ -4,14 +4,24 @@
 let lastCapturedError: { error: unknown; at: number } | undefined;
 const TTL_MS = 5_000;
 
-function record(error: unknown) {
+/**
+ * Keep the original error long enough for the outer server entry to log its
+ * stack if the HTTP runtime converts it into an opaque JSON 500 response.
+ *
+ * Global error events only cover truly unhandled failures. Request middleware
+ * must call this explicitly before rethrowing a legitimate HTTPError, because
+ * errors caught by the HTTP dispatcher never reach those global events.
+ */
+export function recordCapturedError(error: unknown) {
   lastCapturedError = { error, at: Date.now() };
 }
 
 if (typeof globalThis.addEventListener === "function") {
-  globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
+  globalThis.addEventListener("error", (event) =>
+    recordCapturedError((event as ErrorEvent).error ?? event),
+  );
   globalThis.addEventListener("unhandledrejection", (event) =>
-    record((event as PromiseRejectionEvent).reason),
+    recordCapturedError((event as PromiseRejectionEvent).reason),
   );
 }
 
