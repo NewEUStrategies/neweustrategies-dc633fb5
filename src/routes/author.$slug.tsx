@@ -52,45 +52,121 @@ export const Route = createFileRoute("/author/$slug")({
     const expert = loaderData?.expert;
     const url = getRequestUrl() || `/author/${params.slug}`;
     const lang = activeLang(url);
-    const name = expert?.display_name ?? (lang === "en" ? "Expert" : "Ekspert");
-    const bioRaw = expert
-      ? lang === "en"
-        ? expert.bio_en || expert.bio_pl
-        : expert.bio_pl || expert.bio_en
-      : null;
-    const fallbackDesc =
-      lang === "en" ? `Materials by ${name}.` : `Materiały eksperta ${name}.`;
-    const description =
-      (bioRaw ?? "").replace(/<[^>]+>/g, " ").trim().slice(0, 160) || fallbackDesc;
+    const isEn = lang === "en";
+    const name = expert?.display_name ?? (isEn ? "Expert" : "Ekspert");
+    const nameParts = (expert?.display_name ?? "").trim().split(/\s+/).filter(Boolean);
+    const firstName = nameParts[0] ?? "";
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-    const sameAs = [expert?.website_url, expert?.twitter_url, expert?.linkedin_url].filter(
-      Boolean,
-    ) as string[];
-    const areas = (loaderData?.areas ?? []).map((a) => (lang === "en" ? a.name_en : a.name_pl));
-    const jsonLd: Record<string, unknown> = {
+    // Bio: full_bio (rozbudowany) > bio (krótki punktor). Sanityzujemy HTML,
+    // znormalizowane whitespace i przycinamy do 160 znaków dla meta description.
+    const bioRaw = expert
+      ? (isEn
+          ? expert.full_bio_en || expert.bio_en || expert.full_bio_pl || expert.bio_pl
+          : expert.full_bio_pl || expert.bio_pl || expert.full_bio_en || expert.bio_en) ?? ""
+      : "";
+    const bioClean = bioRaw
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Fallback description bazujący na obszarach ekspertyzy - dla ekspertów bez
+    // uzupełnionego bio dostajemy sensowne meta zamiast pustego stringa.
+    const areasLoc = (loaderData?.areas ?? []).map((a) => (isEn ? a.name_en : a.name_pl));
+    const areasSentence = areasLoc.slice(0, 4).join(", ");
+    const seoAreasTpl = isEn
+      ? "{{name}} — expert in {{areas}}. Publications, commentary and appearances."
+      : "Ekspert {{name}} — {{areas}}. Publikacje, komentarze i wystąpienia.";
+    const seoFallbackTpl = isEn
+      ? "{{name}} — expert profile at New European Strategies."
+      : "Profil eksperta {{name}} w New European Strategies.";
+    const fallbackDesc = areasSentence
+      ? seoAreasTpl.replace("{{name}}", name).replace("{{areas}}", areasSentence)
+      : seoFallbackTpl.replace("{{name}}", name);
+    const description = (bioClean.slice(0, 160) || fallbackDesc).trim();
+
+    const title = expert?.job_title
+      ? `${name} - ${expert.job_title}${expert.company ? ` · ${expert.company}` : ""}`
+      : name;
+
+    // Wszystkie kanały social + WWW jako sameAs (schema.org Person).
+    const sameAs = [
+      expert?.website_url,
+      expert?.linkedin_url,
+      expert?.twitter_url,
+      (expert as { facebook_url?: string | null } | undefined)?.facebook_url,
+      (expert as { instagram_url?: string | null } | undefined)?.instagram_url,
+      (expert as { spotify_url?: string | null } | undefined)?.spotify_url,
+    ].filter((s): s is string => Boolean(s && s.trim()));
+
+    const personLd: Record<string, unknown> = {
       "@context": "https://schema.org",
       "@type": "Person",
       name,
+      ...(firstName ? { givenName: firstName } : {}),
+      ...(lastName ? { familyName: lastName } : {}),
       ...(expert?.job_title ? { jobTitle: expert.job_title } : {}),
       ...(expert?.company
         ? { worksFor: { "@type": "Organization", name: expert.company } }
         : {}),
-      ...(expert?.avatar_url ? { image: expert.avatar_url } : {}),
+      ...(expert?.avatar_url
+        ? { image: { "@type": "ImageObject", url: expert.avatar_url } }
+        : {}),
       ...(sameAs.length ? { sameAs } : {}),
-      ...(areas.length ? { knowsAbout: areas } : {}),
-      ...(description ? { description } : {}),
+      ...(areasLoc.length ? { knowsAbout: areasLoc } : {}),
+      description,
+      url,
     };
 
+    // Breadcrumb - Home › Experts › <Name> (poprawia rich results w SERP).
+    const origin = url.startsWith("http") ? new URL(url).origin : "";
+    const breadcrumbLd = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: isEn ? "Home" : "Strona główna", item: origin || "/" },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: isEn ? "Experts" : "Eksperci",
+          item: origin ? `${origin}/experts` : "/experts",
+        },
+        { "@type": "ListItem", position: 3, name },
+      ],
+    };
+
+    const base = buildContentHead({
+      url,
+      lang,
+      // Profile - dedykowany OG type dla stron osób (Facebook, LinkedIn).
+      type: "website",
+      title,
+      description,
+      image: expert?.avatar_url ?? null,
+      imageAlt: expert?.display_name
+        ? isEn
+          ? `Portrait of ${name}`
+          : `Portret: ${name}`
+        : null,
+    });
+
+    // OG type "profile" oraz profile:first_name / profile:last_name są w
+    // Open Graph spec, ale poza `buildContentHead` - nadpisujemy je ręcznie.
+    const meta = base.meta.map((m) =>
+      m.property === "og:type" ? { property: "og:type", content: "profile" } : m,
+    );
+    if (firstName) meta.push({ property: "profile:first_name", content: firstName });
+    if (lastName) meta.push({ property: "profile:last_name", content: lastName });
+    if (expert?.slug)
+      meta.push({ property: "profile:username", content: expert.slug });
+
     return {
-      ...buildContentHead({
-        url,
-        lang,
-        type: "website",
-        title: expert?.job_title ? `${name} - ${expert.job_title}` : name,
-        description,
-        image: expert?.avatar_url ?? null,
-      }),
-      scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
+      meta,
+      links: base.links,
+      scripts: [
+        { type: "application/ld+json", children: safeJsonLd(personLd) },
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbLd) },
+      ],
     };
   },
   component: ExpertHubPage,
@@ -216,7 +292,9 @@ function ExpertHubPage() {
             <PodcastEpisodeStrip
               episodes={podcastsQ.data}
               lang={lang}
-              title={lang === "en" ? "Podcasts" : "Podcasty"}
+              title={t("expert.podcastsHeading", {
+                defaultValue: lang === "en" ? "Podcasts" : "Podcasty",
+              })}
             />
           </section>
         )}

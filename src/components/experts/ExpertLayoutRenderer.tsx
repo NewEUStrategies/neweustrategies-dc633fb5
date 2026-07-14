@@ -37,8 +37,14 @@ export const LABELS: Record<Lang, Record<string, string>> = {
     cv: "Doświadczenie",
     programs: "Programy i projekty",
     expertise: "Obszary ekspertyzy",
+    social: "Media społecznościowe",
+    profileTagline: "Profil eksperta",
     empty: "Brak danych do wyświetlenia w tej sekcji.",
     placeholder: "Przykładowa treść",
+    roleFallback: "Ekspert",
+    noBioFallback: "Biogram będzie dostępny wkrótce.",
+    noSocialFallback: "Ekspert nie udostępnił jeszcze kanałów kontaktowych.",
+    cvPending: "Sekcja CV zostanie uzupełniona wkrótce.",
   },
   en: {
     bio: "Biography",
@@ -50,8 +56,14 @@ export const LABELS: Record<Lang, Record<string, string>> = {
     cv: "Experience",
     programs: "Programs and projects",
     expertise: "Areas of expertise",
+    social: "Social channels",
+    profileTagline: "Expert profile",
     empty: "No data to render in this section.",
     placeholder: "Sample content",
+    roleFallback: "Expert",
+    noBioFallback: "A full biography is coming soon.",
+    noSocialFallback: "The expert has not shared any social channels yet.",
+    cvPending: "The CV section will be added soon.",
   },
 };
 
@@ -211,7 +223,9 @@ export function ExpertLayoutHero({
   const role = e.job_title ?? "";
   const company = e.company ?? "";
   const realRoleLine = [role, company].filter(Boolean).join(" · ");
-  const roleLine = realRoleLine || (showPlaceholders ? ph.role : "");
+  // Fallback: gdy brak stanowiska i firmy, na publicznej stronie pokaż "Ekspert"
+  // zamiast pustej linii - w preview używamy przykładowej roli.
+  const roleLine = realRoleLine || (showPlaceholders ? ph.role : LABELS[lang].roleFallback);
   const realBio = (lang === "en" ? e.bio_en : e.bio_pl) ?? "";
   const bioItems: string[] = (() => {
     const src = realBio.trim();
@@ -537,7 +551,7 @@ export function ExpertLayoutHero({
               className="text-[11px] uppercase tracking-[0.18em] mb-1"
               style={{ color: "var(--pv-accent)" }}
             >
-              {lang === "en" ? "Expert profile" : "Profil eksperta"}
+              {LABELS[lang].profileTagline}
             </p>
             <h1 className="font-display leading-[1.05]" style={{ fontSize: settings.name_size_lg }}>
               {name}
@@ -685,7 +699,7 @@ export function ExpertSectionRenderer({
       if (!hasAny && !showPlaceholders) return null;
       return wrap(
         <>
-          Social
+          {t.social}
           {!hasAny && placeholderTag}
         </>,
         <Layers className="h-4 w-4" />,
