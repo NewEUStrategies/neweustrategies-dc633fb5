@@ -73,6 +73,8 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update((d) => ops.addSection(d, colsOrSpans));
   const addContainer = (withTabs: boolean) =>
     update((d) => ops.insertSectionNode(d, ops.newContainerSection(withTabs)));
+  const insertContainerAt = (index: number, withTabs: boolean) =>
+    update((d) => ops.insertContainerAt(d, index, withTabs));
   const loadHomepage = useCallback(() => {
     history.setDoc(buildHomepageDocument());
   }, [history]);
