@@ -577,7 +577,7 @@ function AuthorProfilePage() {
                   disabled={refreshingOg}
                   onClick={() => void onRefreshOg()}
                 >
-                  <RefreshCcw className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`} />
+                  <BrandIcon name="refresh" fallback={RefreshCcw} className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`} alt="" />
                   {refreshingOg
                     ? t("common.working", { defaultValue: "Odświeżam…" })
                     : t("profile.author.ogRefreshBtn", {
