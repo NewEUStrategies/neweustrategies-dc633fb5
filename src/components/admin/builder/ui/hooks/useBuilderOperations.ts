@@ -227,6 +227,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     focusedColumn,
     addSection,
     addContainer,
+    insertContainerAt,
     loadHomepage,
     insertTemplateSection,
     saveSectionAsTemplate,
