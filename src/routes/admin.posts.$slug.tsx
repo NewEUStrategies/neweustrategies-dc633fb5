@@ -589,6 +589,8 @@ function EditPost() {
     if (saved.form) history.reset(saved.form);
     setSelectedCats(saved.cats);
     setSelectedTags(saved.tags);
+    setSelectedPrograms(saved.programs);
+    setSelectedRegions(saved.regions);
   };
 
   const del = async () => {
