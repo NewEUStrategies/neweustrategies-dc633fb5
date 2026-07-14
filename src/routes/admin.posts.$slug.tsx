@@ -507,8 +507,8 @@ function EditPost() {
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
   const autoValue = useMemo(
-    () => ({ form, cats: selectedCats, tags: selectedTags }),
-    [form, selectedCats, selectedTags],
+    () => ({ form, cats: selectedCats, tags: selectedTags, programs: selectedPrograms, regions: selectedRegions }),
+    [form, selectedCats, selectedTags, selectedPrograms, selectedRegions],
   );
   const autosave = useAutosave({
     value: autoValue,
