@@ -1004,15 +1004,60 @@ export function ContactInline({
   );
 }
 
-/** Zwraca `style` do wpięcia w root wrappera - definiuje CSS vars używane przez renderer. */
+/**
+ * Zwraca `style` do wpięcia w root wrappera. Wystawia WSZYSTKIE tokeny z
+ * `expert_layout_settings` jako CSS variables, tak żeby renderer nie musiał
+ * czytać tych pól bezpośrednio: `--pv-accent`, `--pv-bio-bullet`, kolory hero
+ * (`--pv-hero-bg`, `--pv-hero-text`) oraz responsywne rozmiary tekstu
+ * (`--pv-name-size`, `--pv-role-size`) budowane z base/lg przez `clamp()`.
+ *
+ * `theme` dobiera warianty *_dark. Dla trybu automatycznego (public site)
+ * użyj też `<ExpertLayoutStyleScope />` który emituje styl `.dark [scope]`.
+ */
 export function expertLayoutCssVars(
   settings: ExpertLayoutSettings,
   theme: "light" | "dark" = "light",
 ): CSSProperties {
   const accent = theme === "dark" ? settings.accent_color_dark : settings.accent_color;
   const bioBullet = theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color;
+  const heroBg = theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color;
+  const heroText = theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color;
+
+  const nameBase = Math.max(12, settings.name_size_base || 28);
+  const nameLg = Math.max(nameBase, settings.name_size_lg || 44);
+  const roleBase = Math.max(10, settings.role_size_base || 14);
+  const roleLg = Math.max(roleBase, settings.role_size_lg || 18);
+
   return {
     "--pv-accent": accent ?? "hsl(var(--brand))",
     "--pv-bio-bullet": bioBullet ?? accent ?? "hsl(var(--brand))",
+    "--pv-hero-bg": heroBg ?? "transparent",
+    "--pv-hero-text": heroText ?? "inherit",
+    "--pv-name-size-base": `${nameBase}px`,
+    "--pv-name-size-lg": `${nameLg}px`,
+    "--pv-name-size": `clamp(${nameBase}px, calc(${nameBase}px + (${nameLg} - ${nameBase}) * ((100vw - 375px) / (1200 - 375))), ${nameLg}px)`,
+    "--pv-role-size": `clamp(${roleBase}px, calc(${roleBase}px + (${roleLg} - ${roleBase}) * ((100vw - 375px) / (1200 - 375))), ${roleLg}px)`,
+    "--pv-max-width": `${settings.max_width}px`,
   } as CSSProperties;
 }
+
+/**
+ * Wpina scoped `<style>` z dark-mode override tokenów `--pv-*`. Wywoływać
+ * raz na wrapper z unikalnym `scopeId`. Dzięki temu jeden wrapper obsługuje
+ * i tryb light, i dark bez przełączania props z zewnątrz.
+ */
+export function ExpertLayoutStyleScope({
+  scopeId,
+  settings,
+}: {
+  scopeId: string;
+  settings: ExpertLayoutSettings;
+}) {
+  const dark = expertLayoutCssVars(settings, "dark") as Record<string, string>;
+  const decls = Object.entries(dark)
+    .map(([k, v]) => `${k}: ${v};`)
+    .join(" ");
+  const css = `.dark [data-pv-scope="${scopeId}"]{${decls}}`;
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}
+
