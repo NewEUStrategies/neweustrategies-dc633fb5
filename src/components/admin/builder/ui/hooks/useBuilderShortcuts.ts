@@ -18,6 +18,12 @@ interface Params {
   moveSection: (id: string, dir: -1 | 1) => void;
   onSave?: () => void;
   onToggleNavigator?: () => void;
+  // Bulk selection (multi-widget). When `multiSelection.size > 0` the bulk
+  // shortcuts take precedence over their single-selection counterparts.
+  multiSelection?: ReadonlySet<string>;
+  onBulkDelete?: () => void;
+  onBulkDuplicate?: () => void;
+  onClearMulti?: () => void;
 }
 
 export function useBuilderShortcuts(p: Params) {
@@ -38,7 +44,12 @@ export function useBuilderShortcuts(p: Params) {
     moveSection,
     onSave,
     onToggleNavigator,
+    multiSelection,
+    onBulkDelete,
+    onBulkDuplicate,
+    onClearMulti,
   } = p;
+  const multiSize = multiSelection?.size ?? 0;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -68,6 +79,26 @@ export function useBuilderShortcuts(p: Params) {
 
       // Remaining shortcuts must not hijack normal text editing inside inputs.
       if (isEditable) return;
+
+      // Bulk-selection shortcuts. When multi has entries these fire first and
+      // completely bypass single-selection paths so Delete never removes only
+      // the "focused" widget when the visible bar shows N > 1.
+      if (multiSize > 0) {
+        if ((e.key === "Delete" || e.key === "Backspace") && onBulkDelete) {
+          e.preventDefault();
+          onBulkDelete();
+          return;
+        }
+        if (mod && k === "d" && onBulkDuplicate) {
+          e.preventDefault();
+          onBulkDuplicate();
+          return;
+        }
+        if (e.key === "Escape" && onClearMulti) {
+          onClearMulti();
+          return;
+        }
+      }
 
       if (mod && k === "c") {
         copySelection();
@@ -133,5 +164,9 @@ export function useBuilderShortcuts(p: Params) {
     moveSection,
     onSave,
     onToggleNavigator,
+    multiSize,
+    onBulkDelete,
+    onBulkDuplicate,
+    onClearMulti,
   ]);
 }
