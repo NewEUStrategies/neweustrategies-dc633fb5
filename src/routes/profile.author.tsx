@@ -711,7 +711,7 @@ function AuthorProfilePage() {
                       onClick={() => removeOrgFn(idx)}
                       aria-label="remove"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <BrandIcon name="trash" fallback={Trash2} className="h-4 w-4" alt="" />
                     </Button>
                   </div>
                 ))}
