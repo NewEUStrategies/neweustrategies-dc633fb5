@@ -35,6 +35,62 @@ import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { errorCopy } from "@/lib/errorCopy";
 
+// Keep route boundary declarations above createFileRoute. The production route
+// splitter evaluates route options separately and a later declaration can be in
+// the temporal dead zone while the generated route module is initialized.
+function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  const copy = errorCopy();
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {copy.tryAgain}
+          </button>
+          <a
+            href="/"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            {copy.goHome}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeNotFoundComponent() {
+  const copy = errorCopy();
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {copy.notFoundTitle}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.notFoundBody}</p>
+        <a
+          href="/"
+          className="mt-6 inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          {copy.goHome}
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
     // The homepage `/` is the single most important - and most requested -
@@ -193,45 +249,8 @@ export const Route = createFileRoute("/")({
   },
   component: Index,
   errorComponent: HomeErrorComponent,
+  notFoundComponent: HomeNotFoundComponent,
 });
-
-// Route-level error boundary (mirrors $.tsx's PublicErrorComponent). Without an
-// errorComponent, React would fall back to the framework's bare default; here a
-// render/streaming fault on the homepage degrades to the branded, localized
-// "spróbuj ponownie" card instead of a blank or the emergency HTML shell. The
-// raw error is logged for diagnostics, never shown to visitors.
-function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  const router = useRouter();
-  const copy = errorCopy();
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            {copy.tryAgain}
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            {copy.goHome}
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Index() {
   const { i18n } = useTranslation();
