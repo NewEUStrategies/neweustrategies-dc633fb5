@@ -284,7 +284,7 @@ function AuthorProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-muted-foreground" />
+            <BrandIcon name="shield-alert" fallback={ShieldAlert} className="h-5 w-5 text-muted-foreground" alt="" />
             {t("profile.author.title", { defaultValue: "Profil eksperta" })}
           </CardTitle>
         </CardHeader>
