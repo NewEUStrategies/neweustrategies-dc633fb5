@@ -392,9 +392,29 @@ const RenderSection = memo(function RenderSection({
   device: Device;
 }) {
   const accessCtx = useAccessContext();
-  const visibleCols = (Array.isArray(section.children) ? section.children : []).filter(
+  const tabsCfg = section.tabs;
+  const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
+  const firstTabId = tabsEnabled ? tabsCfg!.items[0].id : "";
+  const initialTabId =
+    tabsEnabled && tabsCfg!.defaultTabId && tabsCfg!.items.some((t) => t.id === tabsCfg!.defaultTabId)
+      ? tabsCfg!.defaultTabId
+      : firstTabId;
+  const [activeTabId, setActiveTabId] = useState<string>(initialTabId);
+  // If tab list changes (add/remove/rename), keep active id valid.
+  useEffect(() => {
+    if (!tabsEnabled) return;
+    const ids = tabsCfg!.items.map((t) => t.id);
+    if (!ids.includes(activeTabId)) {
+      setActiveTabId(ids[0] ?? "");
+    }
+  }, [tabsEnabled, tabsCfg, activeTabId]);
+
+  const allChildren = (Array.isArray(section.children) ? section.children : []).filter(
     (c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
+  const visibleCols = tabsEnabled
+    ? allChildren.filter((c) => !c.tabId || c.tabId === activeTabId)
+    : allChildren;
   const colsSum =
     visibleCols.reduce(
       (a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12),
