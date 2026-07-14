@@ -198,7 +198,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t("profile.author.media.hint", {
               defaultValue:
-                "Dodawaj linki do wywiadów, wystąpień, op-edów i podcastów, w których się pojawiasz. Publiczne wpisy pokażą się na Twoim profilu eksperta w sekcji „W mediach".",
+                "Dodawaj linki do wywiadów, wystąpień, op-edów i podcastów, w których się pojawiasz. Publiczne wpisy pokażą się na Twoim profilu eksperta w sekcji „W mediach”.",
             })}
           </p>
         </div>
@@ -216,7 +216,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         <p className="rounded-md border border-dashed border-border/70 px-4 py-6 text-center text-xs text-muted-foreground">
           {t("profile.author.media.empty", {
             defaultValue:
-              "Nie masz jeszcze dodanych wystąpień medialnych. Kliknij „Dodaj" i wklej link do wywiadu, op-eda lub podcastu.",
+              "Nie masz jeszcze dodanych wystąpień medialnych. Kliknij „Dodaj” i wklej link do wywiadu, op-eda lub podcastu.",
           })}
         </p>
       ) : (
