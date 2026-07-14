@@ -131,8 +131,9 @@ export function Editable({
         runCommand("removeFormat");
       }
     }
-    if (html && multiline && e.key === "Enter" && e.shiftKey) {
-      // Force a soft <br> instead of a new paragraph block.
+    if (multiline && e.key === "Enter") {
+      // Force a soft <br> instead of a new paragraph/div block on every Enter
+      // (Shift+Enter also works, but plain Enter should not spawn a new column).
       e.preventDefault();
       document.execCommand("insertLineBreak");
       queueMicrotask(commit);
