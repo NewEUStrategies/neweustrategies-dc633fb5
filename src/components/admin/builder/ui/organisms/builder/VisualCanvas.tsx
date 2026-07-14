@@ -684,6 +684,7 @@ export function VisualCanvas({
     onDropNewWidgetToColumn,
     onDropNewWidgetNear,
     onDropNewWidgetToSection,
+    onInsertSection,
   ]);
 
   const ringCss = `
