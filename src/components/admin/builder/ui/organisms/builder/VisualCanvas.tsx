@@ -814,6 +814,46 @@ export function VisualCanvas({
     [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
     [data-visual-canvas] [data-sec-id]:hover{outline-color:color-mix(in oklab, var(--brand) 35%, transparent)}
     [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid var(--brand)}
+    /* Drag handles: floating grab chip visible on hover / when selected so
+       editors have an obvious grab target rather than the whole element. */
+    [data-visual-canvas] [data-widget-id]::before{
+      content:"⋮⋮";
+      position:absolute;top:-10px;left:-10px;z-index:45;
+      display:flex;align-items:center;justify-content:center;
+      width:20px;height:20px;border-radius:6px;
+      background:var(--brand);color:var(--brand-foreground, #fff);
+      font-size:11px;font-weight:900;line-height:1;letter-spacing:-.06em;
+      box-shadow:0 4px 10px rgba(0,0,0,.18);
+      opacity:0;transform:scale(.85) translate(4px,4px);
+      transition:opacity .12s ease, transform .12s ease;
+      cursor:grab;pointer-events:none;
+    }
+    [data-visual-canvas] [data-widget-id]:hover::before,
+    [data-visual-canvas] [data-widget-id].is-selected::before{
+      opacity:1;transform:scale(1) translate(0,0);
+    }
+    [data-visual-canvas] [data-widget-id]:active::before{cursor:grabbing}
+    [data-visual-canvas] [data-sec-id]{position:relative}
+    [data-visual-canvas] [data-sec-id]::before{
+      content:"⋮⋮ Sekcja";
+      position:absolute;top:-12px;left:8px;z-index:44;
+      padding:2px 8px;border-radius:999px;
+      background:color-mix(in oklab, var(--brand) 92%, black 8%);
+      color:var(--brand-foreground, #fff);
+      font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+      box-shadow:0 6px 14px rgba(0,0,0,.18);
+      opacity:0;transform:translateY(2px);
+      transition:opacity .12s ease, transform .12s ease;
+      cursor:grab;pointer-events:none;
+    }
+    [data-visual-canvas] [data-sec-id]:hover::before,
+    [data-visual-canvas] [data-sec-id].is-selected::before{
+      opacity:1;transform:translateY(0);
+    }
+    [data-visual-canvas][data-canvas-dragging="1"] [data-widget-id]::before,
+    [data-visual-canvas][data-canvas-dragging="1"] [data-sec-id]::before{
+      opacity:0 !important;
+    }
     [data-visual-canvas] [data-col-id]{
       position:relative;
       min-height:48px;
