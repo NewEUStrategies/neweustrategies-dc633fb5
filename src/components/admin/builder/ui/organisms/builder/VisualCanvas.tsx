@@ -352,6 +352,9 @@ export function VisualCanvas({
             "is-drop-into",
           ),
         );
+      root
+        .querySelectorAll<HTMLElement>("[data-section-inserter][data-drop-active]")
+        .forEach((el) => el.removeAttribute("data-drop-active"));
     };
 
     const isLibraryDrag = (e: DragEvent) => {
