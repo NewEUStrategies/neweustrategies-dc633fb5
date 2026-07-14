@@ -15,6 +15,7 @@ export interface GlobalDragPayload {
 
 export const GLOBAL_WIDGET_MIME = "application/x-global-widget";
 export const SECTION_STRUCTURE_MIME = "application/x-section-structure";
+export const CONTAINER_MIME = "application/x-container";
 
 /** Parse + validate the palette's section-structure drag payload. */
 function readSectionStructure(raw: string): number[] | null {
