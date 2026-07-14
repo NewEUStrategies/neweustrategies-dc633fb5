@@ -92,18 +92,37 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
   return css;
 }
 
-/** Style for the inner container - full width with 8px side padding. */
-export function sectionContainerStyle(_node: SectionNode | InnerSectionNode): CSSProperties {
-  return {
+/**
+ * Style for the inner container.
+ *
+ * - `boxed` (default): treść jest ograniczona do `layout.width` (domyślnie 1140px)
+ *   i wycentrowana - na szerokich ekranach automatycznie powstają duże marginesy
+ *   po lewej i prawej, dokładnie tak jak w Elementorze/Foxiz. Dodatkowo dokładamy
+ *   `SECTION_SAFE_AREA_PX` po bokach, żeby na wąskich ekranach (< maxWidth) treść
+ *   nie dotykała krawędzi sekcji.
+ * - `full`: treść zajmuje całą szerokość sekcji, tylko bezpieczny padding boczny.
+ */
+export function sectionContainerStyle(node: SectionNode | InnerSectionNode): CSSProperties {
+  const L = node.layout;
+  const mode = L?.contentWidth ?? "boxed";
+  const css: CSSProperties = {
     position: "relative",
     zIndex: 1,
     width: "100%",
-    maxWidth: "100%",
     boxSizing: "border-box",
     overflow: "hidden",
     paddingLeft: `${SECTION_SAFE_AREA_PX}px`,
     paddingRight: `${SECTION_SAFE_AREA_PX}px`,
   };
+  if (mode === "boxed") {
+    const maxW = typeof L?.width === "number" && L.width > 0 ? L.width : 1140;
+    css.maxWidth = `${maxW}px`;
+    css.marginLeft = "auto";
+    css.marginRight = "auto";
+  } else {
+    css.maxWidth = "100%";
+  }
+  return css;
 }
 
 /** Style for the columns grid container (gap + vertical alignment). */
