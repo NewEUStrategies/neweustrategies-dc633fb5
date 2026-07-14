@@ -312,11 +312,16 @@ function AuthorProfilePage() {
     // Bio zapisujemy do kanonicznego źródła (profiles.bio_pl/bio_en - trigger
     // profiles_mirror_bio utrzymuje legacy profiles.bio). Persona autorska
     // (avatar, kontakt, socials, hub eksperta) zostaje w author_profiles.
+    const bioPlOut = bulletsToBio(bulletsPl);
+    const bioEnOut = bulletsToBio(bulletsEn);
     const [{ error }, { error: bioError }] = await Promise.all([
-      supabase.from("author_profiles").upsert(payload, { onConflict: "user_id" }),
+      supabase.from("author_profiles").upsert(
+        { ...payload, bio_pl: bioPlOut, bio_en: bioEnOut },
+        { onConflict: "user_id" },
+      ),
       supabase
         .from("profiles")
-        .update({ bio_pl: data.bio_pl, bio_en: data.bio_en })
+        .update({ bio_pl: bioPlOut, bio_en: bioEnOut })
         .eq("id", user.id),
     ]);
 
