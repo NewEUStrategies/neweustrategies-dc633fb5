@@ -41,11 +41,15 @@ import "@/lib/i18n-experts";
 
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
-    const [data] = await Promise.all([
-      context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug)),
-      context.queryClient.ensureQueryData(expertLayoutSettingsQueryOptions()),
-    ]);
+    // Najpierw hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
+    // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
+    const data = await context.queryClient.ensureQueryData(
+      expertHubQueryOptions(params.slug),
+    );
     if (!data) throw notFound();
+    await context.queryClient.ensureQueryData(
+      expertLayoutSettingsQueryOptions(data.expert.tenant_id),
+    );
     return data;
   },
   head: ({ loaderData, params }) => {
