@@ -120,9 +120,6 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
   it("correlates a globally-captured error with the swallowed response", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const original = new Error("real DB failure with full stack");
-    // Simulate what the globalThis error listeners do inside the SSR handler:
-    // they stash the real error before h3 swallows it.
-    recordCapturedError(original);
 
     const wrapper = await loadWrapper(
       () =>
@@ -131,13 +128,20 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
           headers: { "content-type": "application/json" },
         }),
     );
+
+    // Record via the SAME module graph the wrapper reads from (vi.resetModules
+    // gave us a fresh copy of ./lib/error-capture inside the wrapper's graph).
+    // This is what the SSR handler's globalThis error listeners do in prod.
+    const cap = (await import("./lib/error-capture")) as typeof import("./lib/error-capture");
+    cap.recordCapturedError(original);
+
     await wrapper.fetch(new Request("http://localhost/"), {}, {});
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const logged = (console.error as unknown as { mock: { calls: any[][] } }).mock.calls[0][0];
     expect(logged).toBe(original);
     // Consumed exactly once - a subsequent request must not correlate to it.
-    expect(consumeLastCapturedError()).toBeUndefined();
+    expect(cap.consumeLastCapturedError()).toBeUndefined();
   });
 
   it("still returns HTML fallback when no captured error is available", async () => {
