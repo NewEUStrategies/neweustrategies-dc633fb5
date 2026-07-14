@@ -9,6 +9,11 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
+/** Test seam for the preview-recovery invariant; no server entry details escape. */
+export function isServerEntryCached(): boolean {
+  return serverEntryPromise !== undefined;
+}
+
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
@@ -28,6 +33,14 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   const body = await response.clone().text();
   if (!isOpaqueH3Error(body)) return response;
 
+  // The preview server can replace its SSR module graph while an older
+  // streamed render is still resolving React.lazy widget imports. Vite then
+  // closes that module runner and h3 turns the rejection into this opaque 500.
+  // Keeping the resolved entry in our module-level cache made every following
+  // request reuse the dead graph, so the preview stayed poisoned after the
+  // rebuild had finished. Drop it here just like we do for a rejected import;
+  // the next request resolves the current, healthy server entry.
+  serverEntryPromise = undefined;
   console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
   return new Response(renderErrorPage(), {
     status: 500,
