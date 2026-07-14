@@ -52,7 +52,7 @@ export function FollowButton({
       aria-pressed={following}
       disabled={toggle.isPending}
       className={[
-        "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition",
+        "inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition",
         following
           ? "bg-brand/10 text-brand border border-brand/40"
           : "bg-brand text-brand-foreground hover:opacity-90",
