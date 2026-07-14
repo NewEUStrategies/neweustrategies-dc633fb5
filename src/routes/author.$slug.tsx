@@ -113,16 +113,32 @@ export const Route = createFileRoute("/author/$slug")({
       ...(lastName ? { familyName: lastName } : {}),
       ...(expert?.job_title ? { jobTitle: expert.job_title } : {}),
       ...(expert?.company
-        ? { worksFor: { "@type": "Organization", name: expert.company } }
-        : {}),
-      ...(expert?.avatar_url
-        ? { image: { "@type": "ImageObject", url: expert.avatar_url } }
+    // Cache-buster og:image - epoch z `profiles.updated_at`. Po zmianie
+    // profilu wersja rośnie i social scrapery (FB/LinkedIn/X/Slack) pobiorą
+    // świeży plik zamiast trzymać stary preview.
+    const ogVersion = ogVersionFromIso(expert?.updated_at);
+    const versionedAvatar = withOgVersion(expert?.avatar_url ?? null, ogVersion);
+
+    const personLd: Record<string, unknown> = {
+      ...(versionedAvatar
+        ? { image: { "@type": "ImageObject", url: versionedAvatar } }
         : {}),
       ...(sameAs.length ? { sameAs } : {}),
       ...(areasLoc.length ? { knowsAbout: areasLoc } : {}),
       description,
       url,
     };
+    Object.assign(personLd, {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name,
+      ...(firstName ? { givenName: firstName } : {}),
+      ...(lastName ? { familyName: lastName } : {}),
+      ...(expert?.job_title ? { jobTitle: expert.job_title } : {}),
+      ...(expert?.company
+        ? { worksFor: { "@type": "Organization", name: expert.company } }
+        : {}),
+    });
 
     // Breadcrumb - Home › Experts › <Name> (poprawia rich results w SERP).
     const origin = url.startsWith("http") ? new URL(url).origin : "";
