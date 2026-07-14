@@ -236,13 +236,27 @@ export function ImageCropDialog({
               <ZoomOut className="h-3.5 w-3.5" aria-hidden />
               {t.zoom}
               <ZoomIn className="h-3.5 w-3.5" aria-hidden />
+              <span className="ml-auto tabular-nums text-muted-foreground">
+                {zoom.toFixed(2)}×
+              </span>
             </span>
             <Slider
               value={[zoom]}
               min={1}
-              max={5}
+              max={6}
               step={0.01}
-              onValueChange={(v) => setZoom(v[0] ?? 1)}
+              onValueChange={(v) => setZoom(Math.round((v[0] ?? 1) * 100) / 100)}
+              onKeyDown={(e) => {
+                // Precyzyjny krok: Shift = 0.01, domyślny 0.05
+                const fine = e.shiftKey ? 0.01 : 0.05;
+                if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setZoom((z) => Math.min(6, Math.round((z + fine) * 100) / 100));
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setZoom((z) => Math.max(1, Math.round((z - fine) * 100) / 100));
+                }
+              }}
               aria-label={t.zoom}
             />
           </label>
@@ -251,16 +265,27 @@ export function ImageCropDialog({
               <RotateCcw className="h-3.5 w-3.5" aria-hidden />
               {t.rotate}
               <RotateCw className="h-3.5 w-3.5" aria-hidden />
-              <span className="ml-auto text-muted-foreground">
-                {Math.round(rotation)}°
+              <span className="ml-auto tabular-nums text-muted-foreground">
+                {rotation.toFixed(1)}°
               </span>
             </span>
             <Slider
               value={[rotation]}
               min={-180}
               max={180}
-              step={1}
-              onValueChange={(v) => setRotation(v[0] ?? 0)}
+              step={0.5}
+              onValueChange={(v) => setRotation(Math.round((v[0] ?? 0) * 10) / 10)}
+              onKeyDown={(e) => {
+                // Shift = 0.1°, domyślny 1°, snap co 15° z Alt
+                const fine = e.altKey ? 15 : e.shiftKey ? 0.1 : 1;
+                if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setRotation((r) => Math.min(180, Math.round((r + fine) * 10) / 10));
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setRotation((r) => Math.max(-180, Math.round((r - fine) * 10) / 10));
+                }
+              }}
               aria-label={t.rotate}
             />
           </label>
