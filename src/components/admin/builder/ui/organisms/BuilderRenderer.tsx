@@ -48,6 +48,8 @@ import {
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 import { SectionTabsBar } from "@/components/admin/builder/ui/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
+import { useInlineWidgetEdit } from "@/components/admin/builder/inlineEditContext";
+
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
@@ -664,6 +666,8 @@ const RenderColumn = memo(function RenderColumn({
 }) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
+  const inlineEdit = useInlineWidgetEdit();
+
   const visibleChildren = (Array.isArray(column.children) ? column.children : []).filter(
     (w): w is NonNullable<typeof w> =>
       !!w &&
@@ -814,7 +818,16 @@ const RenderColumn = memo(function RenderColumn({
                         : "contents"
                     }
                   >
-                    <WidgetView node={w} lang={lang} device={device} />
+                    <WidgetView
+                      node={w}
+                      lang={lang}
+                      device={device}
+                      editable={!!inlineEdit}
+                      onContentChange={
+                        inlineEdit ? (k, v) => inlineEdit(w.id, k, v) : undefined
+                      }
+                    />
+
                   </div>
                 </div>
               </RenderErrorBoundary>

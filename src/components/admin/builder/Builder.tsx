@@ -717,7 +717,13 @@ export function Builder({
                     lastLabel={copy.last}
                     multiSelection={multiSelection}
                     onMultiSelectionChange={applyMultiChange}
+                    onWidgetContentChange={(wid, key, value) =>
+                      updateWidget(wid, (w) => {
+                        w.content = { ...w.content, [key]: value };
+                      })
+                    }
                   />
+
                 </div>
 
                 {!hideChrome && scope === "page" && (

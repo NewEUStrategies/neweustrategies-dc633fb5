@@ -3,10 +3,12 @@ import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
 import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
+import { InlineEditProvider } from "../../../inlineEditContext";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
+
 
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
@@ -72,7 +74,9 @@ export function VisualCanvas({
   lastLabel,
   multiSelection,
   onMultiSelectionChange,
+  onWidgetContentChange,
 }: {
+
   doc: BuilderDocument;
   lang: "pl" | "en";
   device: Device;
@@ -110,7 +114,10 @@ export function VisualCanvas({
   multiSelection?: ReadonlySet<string>;
   /** Mutate the multi-selection. `mode` = replace = clear+add, add = union, toggle = XOR. */
   onMultiSelectionChange?: (ids: ReadonlySet<string>, mode: "replace" | "add" | "toggle") => void;
+  /** Inline click-to-edit commit for widget content fields (text, HTML, labels…). */
+  onWidgetContentChange?: (widgetId: string, key: string, value: string | number) => void;
 }) {
+
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ kind: "widget" | "section"; id: string } | null>(null);
@@ -1041,31 +1048,43 @@ export function VisualCanvas({
             else onInsertSectionToContainer?.(sectionId, spans);
           }}
         >
-          <SectionDropZone
-            onInsert={(cols) => onInsertSection(0, cols)}
-            index={0}
-            prominent
-            label={firstLabel}
-          />
-          {safeDoc.sections.map((s, idx) => (
-            <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-              <BuilderRenderer
-                doc={{ ...safeDoc, sections: [s] }}
-                lang={lang}
-                device={device}
-                editorPreview
-              />
-              {idx === safeDoc.sections.length - 1 && (
+          {(() => {
+            const body = (
+              <>
                 <SectionDropZone
-                  onInsert={(cols) => onInsertSection(idx + 1, cols)}
-                  index={idx + 1}
+                  onInsert={(cols) => onInsertSection(0, cols)}
+                  index={0}
                   prominent
-                  label={lastLabel}
+                  label={firstLabel}
                 />
-              )}
-            </div>
-          ))}
+                {safeDoc.sections.map((s, idx) => (
+                  <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
+                    <BuilderRenderer
+                      doc={{ ...safeDoc, sections: [s] }}
+                      lang={lang}
+                      device={device}
+                      editorPreview
+                    />
+                    {idx === safeDoc.sections.length - 1 && (
+                      <SectionDropZone
+                        onInsert={(cols) => onInsertSection(idx + 1, cols)}
+                        index={idx + 1}
+                        prominent
+                        label={lastLabel}
+                      />
+                    )}
+                  </div>
+                ))}
+              </>
+            );
+            return onWidgetContentChange ? (
+              <InlineEditProvider onContentChange={onWidgetContentChange}>{body}</InlineEditProvider>
+            ) : (
+              body
+            );
+          })()}
         </BuilderEmptyPickerProvider>
+
       </div>
       {marqueeRect && (
         <div
