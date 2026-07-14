@@ -15,6 +15,18 @@ const pl = {
     expertiseHeading: "Obszary ekspertyzy",
     fullBioHeading: "Biografia",
     bioHeading: "O ekspercie",
+    podcastsHeading: "Podcasty",
+    socialHeading: "Media społecznościowe",
+    profileTagline: "Profil eksperta",
+    // Fallbacki dla brakujących danych (public /author/$slug)
+    roleFallback: "Ekspert",
+    noBioFallback: "Biogram będzie dostępny wkrótce.",
+    noSocialFallback: "Ekspert nie udostępnił jeszcze kanałów kontaktowych.",
+    cvPending: "Sekcja CV zostanie uzupełniona wkrótce.",
+    contentPending: "Treść przygotowywana",
+    // SEO fallbacks
+    seoDescriptionAreas: "Ekspert {{name}} — {{areas}}. Publikacje, komentarze i wystąpienia.",
+    seoDescriptionFallback: "Profil eksperta {{name}} w New European Strategies.",
     // Kontakt
     contactHeading: "Kontakt bezpośredni",
     mediaContactHeading: "Kontakt dla mediów",
