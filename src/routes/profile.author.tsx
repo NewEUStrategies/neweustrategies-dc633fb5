@@ -13,9 +13,11 @@ import { Label } from "@/components/ui/label";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, ShieldAlert, Info } from "lucide-react";
+import { Trash2, Plus, Upload, ShieldAlert, Info, RefreshCcw, ExternalLink } from "lucide-react";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
+import { useServerFn } from "@tanstack/react-start";
+import { refreshAuthorOgImage } from "@/lib/experts/refreshOg.functions";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import type { OrgFunction } from "@/lib/experts/types";
 import { useExpertLayoutSettings } from "@/hooks/useExpertLayoutSettings";
@@ -166,6 +168,44 @@ function AuthorProfilePage() {
         i18n.language === "en" ? "label_en" : "label_pl"
       ] ?? layoutSettings.default_preset
     : null;
+
+  // Regeneracja og:image - bumpuje `profiles.updated_at`, przez co
+  // wersja `?v=` doklejana w head() rośnie i social scrapery pobierają
+  // świeży plik po ping'u w Post Debuggerze.
+  const refreshOg = useServerFn(refreshAuthorOgImage);
+  const [refreshingOg, setRefreshingOg] = useState(false);
+  const [ogDebuggers, setOgDebuggers] = useState<{
+    facebook: string;
+    linkedin: string;
+    twitter: string;
+  } | null>(null);
+  const onRefreshOg = async () => {
+    setRefreshingOg(true);
+    try {
+      const res = await refreshOg({});
+      if (!res.ok || !res.debuggers) {
+        toast.error(
+          t("profile.author.ogRefreshError", {
+            defaultValue:
+              "Nie udało się odświeżyć podglądu społecznościowego. Uzupełnij slug profilu i spróbuj ponownie.",
+          }),
+        );
+        return;
+      }
+      setOgDebuggers(res.debuggers);
+      toast.success(
+        t("profile.author.ogRefreshOk", {
+          defaultValue:
+            "Podgląd społecznościowy zaktualizowany. Otwórz Post Debugger, aby wymusić rescrape.",
+        }),
+      );
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setRefreshingOg(false);
+    }
+  };
+
 
   useEffect(() => {
     if (!user) return;
@@ -501,6 +541,46 @@ function AuthorProfilePage() {
                   }}
                   onConfirm={(blob) => void upload(blob)}
                 />
+              </div>
+              {/* Odświeżenie podglądu społecznościowego (og:image cache-bust) */}
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <div className="text-xs text-muted-foreground">
+                  {t("profile.author.ogRefreshHint", {
+                    defaultValue:
+                      "Po zmianie zdjęcia lub bio odśwież podgląd społecznościowy - wymusi to nowy og:image w linkach.",
+                  })}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto"
+                  disabled={refreshingOg}
+                  onClick={() => void onRefreshOg()}
+                >
+                  <RefreshCcw className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`} />
+                  {refreshingOg
+                    ? t("common.working", { defaultValue: "Odświeżam…" })
+                    : t("profile.author.ogRefreshBtn", {
+                        defaultValue: "Odśwież podgląd społecznościowy",
+                      })}
+                </Button>
+                {ogDebuggers && (
+                  <div className="w-full flex flex-wrap gap-2 pt-1">
+                    {(["facebook", "linkedin", "twitter"] as const).map((k) => (
+                      <a
+                        key={k}
+                        href={ogDebuggers[k]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" aria-hidden />
+                        {k === "twitter" ? "X (Twitter)" : k.charAt(0).toUpperCase() + k.slice(1)}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
 

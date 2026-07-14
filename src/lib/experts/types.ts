@@ -78,6 +78,8 @@ export interface ExpertProfile {
   full_bio_en: string | null;
   org_functions: OrgFunction[];
   verified_at: string | null;
+  /** ISO timestamp - używany jako cache-buster og:image (`?v=...`). */
+  updated_at: string | null;
   is_expert: boolean;
   // Kontakt bezpośredni
   contact_email: string | null;

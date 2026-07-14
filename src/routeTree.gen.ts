@@ -184,6 +184,7 @@ import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admi
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
+import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 
 const SupportRoute = SupportRouteImport.update({
@@ -1074,6 +1075,12 @@ const ApiPublicNewsletterConfirmRoute =
     path: '/api/public/newsletter/confirm',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksRefreshOgImageRoute =
+  ApiPublicHooksRefreshOgImageRouteImport.update({
+    id: '/api/public/hooks/refresh-og-image',
+    path: '/api/public/hooks/refresh-og-image',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminNewsletterCampaignsIdRoute =
   AdminNewsletterCampaignsIdRouteImport.update({
     id: '/$id',
@@ -1254,6 +1261,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
+  '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1425,6 +1433,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
+  '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1604,6 +1613,7 @@ export interface FileRoutesById {
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
+  '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1784,6 +1794,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/users/'
     | '/admin/newsletter/campaigns/$id'
+    | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -1955,6 +1966,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/admin/newsletter/campaigns/$id'
+    | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -2133,6 +2145,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/users/'
     | '/admin/newsletter/campaigns/$id'
+    | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
@@ -2202,6 +2215,7 @@ export interface RootRouteChildren {
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
+  ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
@@ -3434,6 +3448,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/refresh-og-image': {
+      id: '/api/public/hooks/refresh-og-image'
+      path: '/api/public/hooks/refresh-og-image'
+      fullPath: '/api/public/hooks/refresh-og-image'
+      preLoaderRoute: typeof ApiPublicHooksRefreshOgImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/newsletter/campaigns/$id': {
       id: '/admin/newsletter/campaigns/$id'
       path: '/$id'
@@ -3885,6 +3906,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
+  ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,

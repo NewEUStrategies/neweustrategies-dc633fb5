@@ -87,6 +87,7 @@ export function buildExpertProfile(
     full_bio_en: strOrNull(apRow?.full_bio_en),
     org_functions: parseOrgFunctions(apRow?.org_functions),
     verified_at: strOrNull(prof.verified_at),
+    updated_at: strOrNull(prof.updated_at),
     is_expert: badges.includes("expert"),
     contact_email: strOrNull(apRow?.contact_email),
     website_url: strOrNull(apRow?.website_url) ?? strOrNull(prof.website_url),

@@ -30,6 +30,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import { withOgVersion, ogVersionFromIso } from "@/lib/seo/ogImage";
 import { expertLayoutSettingsQueryOptions } from "@/hooks/useExpertLayoutSettings";
 import {
   ExpertLayoutHero,
@@ -104,6 +105,12 @@ export const Route = createFileRoute("/author/$slug")({
       (expert as { spotify_url?: string | null } | undefined)?.spotify_url,
     ].filter((s): s is string => Boolean(s && s.trim()));
 
+    // Cache-buster og:image - epoch z `profiles.updated_at`. Po zmianie
+    // profilu wersja rośnie i social scrapery (FB/LinkedIn/X/Slack) pobiorą
+    // świeży plik zamiast trzymać stary preview.
+    const ogVersion = ogVersionFromIso(expert?.updated_at);
+    const versionedAvatar = withOgVersion(expert?.avatar_url ?? null, ogVersion);
+
     const personLd: Record<string, unknown> = {
       "@context": "https://schema.org",
       "@type": "Person",
@@ -114,8 +121,8 @@ export const Route = createFileRoute("/author/$slug")({
       ...(expert?.company
         ? { worksFor: { "@type": "Organization", name: expert.company } }
         : {}),
-      ...(expert?.avatar_url
-        ? { image: { "@type": "ImageObject", url: expert.avatar_url } }
+      ...(versionedAvatar
+        ? { image: { "@type": "ImageObject", url: versionedAvatar } }
         : {}),
       ...(sameAs.length ? { sameAs } : {}),
       ...(areasLoc.length ? { knowsAbout: areasLoc } : {}),
@@ -147,7 +154,11 @@ export const Route = createFileRoute("/author/$slug")({
       type: "website",
       title,
       description,
-      image: expert?.avatar_url ?? null,
+      image: versionedAvatar,
+      // Jawny `index, follow` (+ hinty max-image/max-snippet dla AI overviews).
+      // `buildContentHead` bez tego pomija tag - dodajemy go świadomie na hubie
+      // eksperta, bo strona ma zawsze być indeksowana.
+      robots: "index, follow, max-image-preview:large, max-snippet:-1",
       imageAlt: expert?.display_name
         ? isEn
           ? `Portrait of ${name}`

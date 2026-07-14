@@ -148,7 +148,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
       // Rozwiązanie profilu: slug, a dla UUID fallback po id (błędy rzucane,
       // nie zamieniane na fałszywe 404 - tylko brak wiersza daje null).
       const PROFILE_COLS =
-        "id, tenant_id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at";
+        "id, tenant_id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at, updated_at";
       const bySlug = await supabase
         .from("profiles")
         .select(PROFILE_COLS)
