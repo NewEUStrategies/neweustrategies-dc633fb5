@@ -714,6 +714,7 @@ export function VisualCanvas({
     onDropNewWidgetNear,
     onDropNewWidgetToSection,
     onInsertSection,
+    onInsertContainer,
   ]);
 
   const ringCss = `
