@@ -30,6 +30,7 @@ import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import { useTheme } from "@/components/ThemeProvider";
 import { findWidget, findSection, findColumn, findInner } from "@/lib/builder/operations";
+import * as ops from "@/lib/builder/operations";
 import { useHistory } from "@/lib/builder/useHistory";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
