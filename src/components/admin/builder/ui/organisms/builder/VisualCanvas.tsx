@@ -1048,31 +1048,43 @@ export function VisualCanvas({
             else onInsertSectionToContainer?.(sectionId, spans);
           }}
         >
-          <SectionDropZone
-            onInsert={(cols) => onInsertSection(0, cols)}
-            index={0}
-            prominent
-            label={firstLabel}
-          />
-          {safeDoc.sections.map((s, idx) => (
-            <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-              <BuilderRenderer
-                doc={{ ...safeDoc, sections: [s] }}
-                lang={lang}
-                device={device}
-                editorPreview
-              />
-              {idx === safeDoc.sections.length - 1 && (
+          {(() => {
+            const body = (
+              <>
                 <SectionDropZone
-                  onInsert={(cols) => onInsertSection(idx + 1, cols)}
-                  index={idx + 1}
+                  onInsert={(cols) => onInsertSection(0, cols)}
+                  index={0}
                   prominent
-                  label={lastLabel}
+                  label={firstLabel}
                 />
-              )}
-            </div>
-          ))}
+                {safeDoc.sections.map((s, idx) => (
+                  <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
+                    <BuilderRenderer
+                      doc={{ ...safeDoc, sections: [s] }}
+                      lang={lang}
+                      device={device}
+                      editorPreview
+                    />
+                    {idx === safeDoc.sections.length - 1 && (
+                      <SectionDropZone
+                        onInsert={(cols) => onInsertSection(idx + 1, cols)}
+                        index={idx + 1}
+                        prominent
+                        label={lastLabel}
+                      />
+                    )}
+                  </div>
+                ))}
+              </>
+            );
+            return onWidgetContentChange ? (
+              <InlineEditProvider onContentChange={onWidgetContentChange}>{body}</InlineEditProvider>
+            ) : (
+              body
+            );
+          })()}
         </BuilderEmptyPickerProvider>
+
       </div>
       {marqueeRect && (
         <div
