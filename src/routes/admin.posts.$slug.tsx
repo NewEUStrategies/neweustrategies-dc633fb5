@@ -423,6 +423,8 @@ function EditPost() {
           },
           categories: selectedCats,
           tags: selectedTags,
+          programs: selectedPrograms,
+          regions: selectedRegions,
         },
       });
       // Serwer mógł znormalizować slug (uniqueSlug dopisuje sufiks przy
