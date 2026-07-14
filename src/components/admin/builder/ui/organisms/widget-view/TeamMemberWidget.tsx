@@ -84,6 +84,7 @@ export function TeamMemberWidget({
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={openModal}
         aria-label={name || "Team member"}
