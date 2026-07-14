@@ -551,7 +551,7 @@ export function ExpertLayoutHero({
               className="text-[11px] uppercase tracking-[0.18em] mb-1"
               style={{ color: "var(--pv-accent)" }}
             >
-              {lang === "en" ? "Expert profile" : "Profil eksperta"}
+              {LABELS[lang].profileTagline}
             </p>
             <h1 className="font-display leading-[1.05]" style={{ fontSize: settings.name_size_lg }}>
               {name}
