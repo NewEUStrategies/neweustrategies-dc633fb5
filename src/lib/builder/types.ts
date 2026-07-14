@@ -519,6 +519,8 @@ export interface SectionTabsConfig {
   align?: "start" | "center" | "end";
   /** Fallback active tab id when nothing else is chosen. */
   defaultTabId?: string;
+  /** How the horizontal tab bar behaves when it overflows on narrow viewports. */
+  mobileMode?: "scroll" | "wrap";
 }
 
 export interface SectionNode {
