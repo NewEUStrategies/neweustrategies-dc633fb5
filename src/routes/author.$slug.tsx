@@ -189,7 +189,9 @@ export const Route = createFileRoute("/author/$slug")({
 function ExpertHubPage() {
   const { slug } = Route.useParams();
   const { data } = useSuspenseQuery(expertHubQueryOptions(slug));
-  const { data: settings } = useSuspenseQuery(expertLayoutSettingsQueryOptions());
+  const { data: settings } = useSuspenseQuery(
+    expertLayoutSettingsQueryOptions(data?.expert.tenant_id ?? null),
+  );
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const personalized = usePersonalizedSettings();
@@ -202,7 +204,10 @@ function ExpertHubPage() {
   );
   const name = expert.display_name ?? (lang === "en" ? "Expert" : "Ekspert");
 
-  const cssVars = expertLayoutCssVars(settings);
+  const cssVars = expertLayoutCssVars(settings, "light");
+  // Scope-id stabilny per tenant - dark-mode override wchodzi automatycznie
+  // przez `<ExpertLayoutStyleScope />` (scoped `<style>` z regułą `.dark`).
+  const scopeId = `expert-${expert.tenant_id ?? "default"}`;
   // Sekcja "hero_cover" jest widoczna, gdy admin ją włączył - inaczej hero
   // renderujemy zawsze (to jest wizytówka strony), ale poszczególne sekcje
   // pod hero respektują widoczność zapisaną w settings.
@@ -214,7 +219,12 @@ function ExpertHubPage() {
   const showCv = isSectionVisible(settings, "cv");
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground" style={cssVars}>
+    <div
+      className="flex min-h-screen flex-col bg-background text-foreground"
+      style={cssVars}
+      data-pv-scope={scopeId}
+    >
+      <ExpertLayoutStyleScope scopeId={scopeId} settings={settings} />
       <header className="relative">
         <div className="mx-auto max-w-[1200px] px-4 pt-6 lg:px-8 lg:pt-8">
           <Breadcrumbs items={[{ label: name }]} />
