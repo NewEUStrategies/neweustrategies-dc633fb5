@@ -62,10 +62,6 @@ export function ExpertHubDetails({
   const { t } = useTranslation();
   const { expert, programs, areas } = data;
 
-  const fullBio = lang === "en" ? expert.full_bio_en : expert.full_bio_pl;
-  const fullBioFallback = lang === "en" ? expert.full_bio_pl : expert.full_bio_en;
-  const bioHtml = fullBio || fullBioFallback;
-  const shortBio = lang === "en" ? expert.bio_en || expert.bio_pl : expert.bio_pl || expert.bio_en;
 
   const departments = programs.filter((p) => p.kind === "department");
   const realPrograms = programs.filter((p) => p.kind !== "department");
