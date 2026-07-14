@@ -72,11 +72,24 @@ export function ExpertMaterialsExplorer({
 }) {
   const { t } = useTranslation();
   const [filters, setFilters] = useState<MaterialFilters>(EMPTY_MATERIAL_FILTERS);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 9;
 
   const { materials, facets } = data;
   const counts = useMemo(() => kindCounts(materials), [materials]);
   const years = useMemo(() => availableYears(materials), [materials]);
   const filtered = useMemo(() => applyMaterialFilters(materials, filters), [materials, filters]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
 
   const hasActiveFilters =
     filters.kind !== null ||
@@ -91,11 +104,25 @@ export function ExpertMaterialsExplorer({
     count: counts[k],
   }));
 
+  const heading = (
+    <h2 className="mb-4 flex items-center gap-2 font-display text-lg">
+      <span style={{ color: "var(--pv-accent)" }}>
+        <BookOpen className="h-4 w-4" aria-hidden />
+      </span>
+      {t("expert.publicationsHeading", {
+        defaultValue: lang === "en" ? "Expert publications" : "Publikacje eksperta",
+      })}
+    </h2>
+  );
+
   if (materials.length === 0) {
     return (
-      <p className="rounded-[8px] border border-dashed border-border/70 px-6 py-10 text-center text-sm text-muted-foreground">
-        {t("expert.noMaterials")}
-      </p>
+      <div>
+        {heading}
+        <p className="rounded-[8px] border border-dashed border-border/70 px-6 py-10 text-center text-sm text-muted-foreground">
+          {t("expert.noMaterials")}
+        </p>
+      </div>
     );
   }
 
