@@ -1,7 +1,7 @@
 // Widget "Team member" - kafelek osoby (portret + etykieta programu + imię +
 // stanowisko) z modalem po kliknięciu (bio, kontakt, social media). Ikony
 // social pobierane są z biblioteki (icon_library) z fallbackiem do Lucide.
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl, sanitizeHtml } from "@/lib/sanitize";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -52,6 +52,7 @@ export function TeamMemberWidget({
   const c = (node.content ?? {}) as WidgetContent;
   const cRaw = c as unknown as Record<string, unknown>;
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const photo = safeImageUrl(getStr(c, "photo") || getStr(c, "image"));
   const name = getStr(c, "name");
@@ -83,6 +84,7 @@ export function TeamMemberWidget({
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={openModal}
         aria-label={name || "Team member"}
@@ -159,7 +161,16 @@ export function TeamMemberWidget({
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
+        <DialogContent
+          className="max-w-3xl gap-0 overflow-hidden p-0"
+          onEscapeKeyDown={() => setOpen(false)}
+          onPointerDownOutside={() => setOpen(false)}
+          onInteractOutside={() => setOpen(false)}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
+        >
           <DialogTitle className="sr-only">{name || "Team member"}</DialogTitle>
           <DialogDescription className="sr-only">
             {position || (lang === "pl" ? "Karta osoby" : "Team member card")}
