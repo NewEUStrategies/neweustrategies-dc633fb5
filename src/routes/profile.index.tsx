@@ -850,7 +850,7 @@ function CenteredHero({
                   aria-label="X"
                   className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
                 >
-                  <XIcon className="h-3.5 w-3.5" />
+                  <BrandIcon name="x" fallback={XIcon} className="h-3.5 w-3.5" alt="X" />
                 </a>
               )}
             </div>
