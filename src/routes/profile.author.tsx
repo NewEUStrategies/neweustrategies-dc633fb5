@@ -433,10 +433,15 @@ function AuthorProfilePage() {
             </div>
 
             {/* Avatar */}
-            <section className="grid gap-3">
-              <h3 className="text-sm font-semibold text-foreground/80">
-                {t("profile.author.avatarSection", { defaultValue: "Zdjęcie autora" })}
-              </h3>
+          <section className="grid gap-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-foreground/80">
+                  {t("profile.author.avatarSection", { defaultValue: "Zdjęcie eksperta" })}
+                </h3>
+                <span className="text-[11px] text-muted-foreground">
+                  Rekomendowane: <b>600 × 600 px</b> (kwadrat, JPG/PNG/WebP, do 2 MB)
+                </span>
+              </div>
               <div className="flex items-center gap-4">
                 {data.avatar_url ? (
                   <img
