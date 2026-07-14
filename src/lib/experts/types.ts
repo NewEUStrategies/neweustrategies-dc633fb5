@@ -44,6 +44,13 @@ export interface CategoryMeta {
   name_en: string;
 }
 
+export interface TagMeta {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+
 export type MediaMentionKind =
   | "quote"
   | "interview"
@@ -107,6 +114,7 @@ export interface ExpertMaterial {
   programIds: string[];
   regionIds: string[];
   categoryIds: string[];
+  tagIds: string[];
   /** Wpis, w którym ekspert jest współautorem (nie autorem głównym). */
   isCoauthor: boolean;
 }
@@ -123,6 +131,7 @@ export interface ExpertHubData {
     programs: ExpertProgram[];
     regions: RegionMeta[];
     categories: CategoryMeta[];
+    tags: TagMeta[];
   };
 }
 
@@ -132,6 +141,7 @@ export interface MaterialFilters {
   programId: string | null;
   regionId: string | null;
   categoryId: string | null;
+  tagId: string | null;
   /** Rok (YYYY) lub null. */
   year: number | null;
 }
@@ -141,5 +151,6 @@ export const EMPTY_MATERIAL_FILTERS: MaterialFilters = {
   programId: null,
   regionId: null,
   categoryId: null,
+  tagId: null,
   year: null,
 };

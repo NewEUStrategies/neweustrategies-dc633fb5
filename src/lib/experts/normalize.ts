@@ -11,6 +11,7 @@ import type {
   MediaMention,
   OrgFunction,
   RegionMeta,
+  TagMeta,
 } from "./types";
 
 type Row = Record<string, unknown>;
@@ -45,6 +46,7 @@ export interface TaxonomyLists {
   programs: ExpertProgram[];
   regions: RegionMeta[];
   categories: CategoryMeta[];
+  tags: TagMeta[];
 }
 
 /** Redukuje taksonomie do wartości faktycznie obecnych w materiałach - fasety
@@ -56,10 +58,12 @@ export function reduceFacets(
   const presentPrograms = new Set(materials.flatMap((m) => m.programIds));
   const presentRegions = new Set(materials.flatMap((m) => m.regionIds));
   const presentCategories = new Set(materials.flatMap((m) => m.categoryIds));
+  const presentTags = new Set(materials.flatMap((m) => m.tagIds));
   return {
     programs: taxonomy.programs.filter((p) => presentPrograms.has(p.id)),
     regions: taxonomy.regions.filter((r) => presentRegions.has(r.id)),
     categories: taxonomy.categories.filter((c) => presentCategories.has(c.id)),
+    tags: taxonomy.tags.filter((t) => presentTags.has(t.id)),
   };
 }
 
@@ -149,6 +153,7 @@ export interface PostPivots {
   programs: Map<string, string[]>;
   regions: Map<string, string[]>;
   categories: Map<string, string[]>;
+  tags: Map<string, string[]>;
 }
 
 /** Wiersz posta → materiał (typ z post_format, href do /post/slug, pivoty). */
@@ -167,6 +172,7 @@ export function postRowToMaterial(row: Row, coauthor: boolean, pivots: PostPivot
     programIds: pivots.programs.get(id) ?? [],
     regionIds: pivots.regions.get(id) ?? [],
     categoryIds: pivots.categories.get(id) ?? [],
+    tagIds: pivots.tags.get(id) ?? [],
     isCoauthor: coauthor,
   };
 }
@@ -185,6 +191,7 @@ export function podcastRowToMaterial(row: Row): ExpertMaterial {
     programIds: row.program_id ? [str(row.program_id)] : [],
     regionIds: row.region_id ? [str(row.region_id)] : [],
     categoryIds: [],
+    tagIds: [],
     isCoauthor: false,
   };
 }
@@ -203,6 +210,7 @@ export function eventRowToMaterial(row: Row): ExpertMaterial {
     programIds: row.program_id ? [str(row.program_id)] : [],
     regionIds: row.region_id ? [str(row.region_id)] : [],
     categoryIds: [],
+    tagIds: [],
     isCoauthor: false,
   };
 }
