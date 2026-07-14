@@ -34,14 +34,16 @@ function FacetSelect({
   options,
   allLabel,
   ariaLabel,
+  alwaysShow = false,
 }: {
   value: string | null;
   onChange: (next: string | null) => void;
   options: { value: string; label: string; count?: number }[];
   allLabel: string;
   ariaLabel: string;
+  alwaysShow?: boolean;
 }) {
-  if (options.length === 0) return null;
+  if (options.length === 0 && !alwaysShow) return null;
   return (
     <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? null : next)}>
       <SelectTrigger
