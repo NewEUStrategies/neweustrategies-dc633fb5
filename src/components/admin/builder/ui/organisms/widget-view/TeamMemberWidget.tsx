@@ -1,7 +1,7 @@
 // Widget "Team member" - kafelek osoby (portret + etykieta programu + imię +
 // stanowisko) z modalem po kliknięciu (bio, kontakt, social media). Ikony
 // social pobierane są z biblioteki (icon_library) z fallbackiem do Lucide.
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl, sanitizeHtml } from "@/lib/sanitize";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
