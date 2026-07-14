@@ -595,17 +595,6 @@ export function MediaManager() {
   }, [contextMenu]);
 
   // ---------- Marquee (rectangle drag selection) ----------
-  const onCanvasPointerDown = (e: ReactPointerEvent) => {
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest("[data-media-item]")) return;
-    if ((e.target as HTMLElement).closest("[data-nomarquee]")) return;
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    marqueeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setMarquee({ x: marqueeStartRef.current.x, y: marqueeStartRef.current.y, w: 0, h: 0 });
-    if (!(e.metaKey || e.ctrlKey || e.shiftKey)) clearSelection();
-  };
-  // ---------- Marquee (rectangle drag selection) ----------
   const MARQUEE_DRAG_THRESHOLD = 5;
 
   const stopMarqueeAutoScroll = () => {
