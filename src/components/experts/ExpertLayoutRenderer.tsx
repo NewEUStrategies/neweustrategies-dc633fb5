@@ -275,10 +275,10 @@ export function ExpertLayoutHero({
         style={bioStyle}
       >
         {bioItems.map((item, i) => (
-          <li key={i} className="flex gap-2 items-start">
+          <li key={i} className="flex gap-2 items-center">
             <span
               aria-hidden
-              className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-[6px]"
+              className="h-1.5 w-1.5 shrink-0 rounded-[6px]"
               style={{ backgroundColor: "var(--pv-bio-bullet)" }}
             />
             <span className="flex-1">{item}</span>
