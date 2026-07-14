@@ -906,6 +906,9 @@ export function renderSimpleWidget(
         </figure>
       );
     }
+    case "team-member": {
+      return <TeamMemberWidget node={node} lang={lang} />;
+    }
     case "pricing": {
       const plans = Array.isArray(c.plans) ? (c.plans as Array<Record<string, unknown>>) : [];
       return (
