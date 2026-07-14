@@ -43,6 +43,7 @@ import {
   COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
+import { SectionTabsBar } from "@/components/admin/builder/ui/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
