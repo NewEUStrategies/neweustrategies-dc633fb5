@@ -483,6 +483,8 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
               {lang === "pl" ? `Importuj (${selected.size})` : `Import (${selected.size})`}
             </Button>
           </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
