@@ -482,6 +482,8 @@ export interface ColumnNode {
   contentAlign?: "start" | "center" | "end";
   /** Vertical alignment of widgets in the column. Default: "start". */
   verticalAlign?: "start" | "center" | "end" | "stretch";
+  /** When parent section has tabs enabled - which tab this column belongs to. Empty = visible in every tab. */
+  tabId?: string;
   children: Array<WidgetNode>;
 }
 
@@ -494,10 +496,30 @@ export interface InnerSectionNode {
   typography?: TypographySettings;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
+  /** When parent section has tabs enabled - which tab this inner-section belongs to. */
+  tabId?: string;
   columns: ColumnNode[];
 }
 
 export type SectionChild = ColumnNode | InnerSectionNode;
+
+/** Single tab entry inside a Section acting as tab container. i18n labels stored per locale. */
+export interface SectionTabItem {
+  id: string;
+  label_pl: string;
+  label_en?: string;
+  icon?: string;
+}
+
+export interface SectionTabsConfig {
+  enabled: boolean;
+  items: SectionTabItem[];
+  orientation?: "horizontal" | "vertical";
+  variant?: "underline" | "pills" | "bordered" | "ghost";
+  align?: "start" | "center" | "end";
+  /** Fallback active tab id when nothing else is chosen. */
+  defaultTabId?: string;
+}
 
 export interface SectionNode {
   id: string;
@@ -514,6 +536,8 @@ export interface SectionNode {
   typography?: TypographySettings;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
+  /** Section-level tabs: when enabled, children are grouped and switchable. */
+  tabs?: SectionTabsConfig;
   children: SectionChild[];
 }
 
