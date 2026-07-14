@@ -54,6 +54,7 @@ import { InlineSizeToolbar } from "./ui/organisms/InlineSizeToolbar";
 import { clearAllLiveWidgetTypography } from "@/lib/builder/liveTypography";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
+import { BulkActionBar } from "./ui/molecules/BulkActionBar";
 import { readClipboard } from "@/lib/builder/clipboard";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
@@ -141,6 +142,42 @@ export function Builder({
     id: string;
   } | null>(null);
   const [ctx, setCtx] = useState<CtxTarget | null>(null);
+  // Multi-selection of widgets (Shift-click / Ctrl-click / marquee). Coexists
+  // with `selection`: whenever the multi-set is non-empty, single-selection is
+  // cleared so the sidebar switches to the bulk-action bar instead of showing
+  // properties for a random widget.
+  const [multiSelection, setMultiSelection] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  const clearMulti = useCallback(() => setMultiSelection(new Set<string>()), []);
+  const applyMultiChange = useCallback(
+    (ids: ReadonlySet<string>, mode: "replace" | "add" | "toggle") => {
+      setMultiSelection((prev) => {
+        if (mode === "replace") return new Set(ids);
+        if (mode === "add") {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        }
+        const next = new Set(prev);
+        ids.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)));
+        return next;
+      });
+    },
+    [],
+  );
+  const [pendingBulkDelete, setPendingBulkDelete] = useState<string[] | null>(null);
+
+  // Purge multi entries that no longer resolve to a widget in the doc (undo,
+  // bulk delete, external mutation). Keeps highlights and the bar in sync.
+  useEffect(() => {
+    if (multiSelection.size === 0) return;
+    const stillPresent = new Set<string>();
+    for (const id of multiSelection) {
+      if (findWidget(doc, id)) stillPresent.add(id);
+    }
+    if (stillPresent.size !== multiSelection.size) setMultiSelection(stillPresent);
+  }, [doc, multiSelection]);
 
   const askRemoveSection = useCallback(
     (id: string) => setPendingDelete({ kind: "section", id }),
@@ -207,6 +244,29 @@ export function Builder({
     else if (selection.kind === "widget") askRemoveWidget(selection.id);
   }, [selection, copySelection, askRemoveSection, askRemoveColumn, askRemoveWidget]);
 
+  // ---------- bulk actions on the multi-selection ----------
+  const bulkDuplicate = useCallback(() => {
+    const ids = Array.from(multiSelection);
+    if (ids.length === 0) return;
+    // duplicateWidget mutates via history in one op each; batching would need
+    // a dedicated op — sequential is fine at N ~ tens.
+    ids.forEach((id) => duplicateWidget(id));
+    clearMulti();
+  }, [multiSelection, duplicateWidget, clearMulti]);
+
+  const bulkDelete = useCallback(() => {
+    const ids = Array.from(multiSelection);
+    if (ids.length === 0) return;
+    setPendingBulkDelete(ids);
+  }, [multiSelection]);
+
+  const bulkCopy = useCallback(() => {
+    // Multi-copy isn't backed by the shared clipboard envelope (single node
+    // only) - fall back to duplicating in place, which is what "copy across
+    // pages" would end up doing after paste anyway.
+    bulkDuplicate();
+  }, [bulkDuplicate]);
+
   useBuilderShortcuts({
     selection,
     setSelection,
@@ -223,6 +283,10 @@ export function Builder({
     askRemoveWidget,
     moveSection,
     onToggleNavigator: () => setShowNavigator((v) => !v),
+    multiSelection,
+    onBulkDelete: bulkDelete,
+    onBulkDuplicate: bulkDuplicate,
+    onClearMulti: clearMulti,
   });
 
   // ---------- left panel content ----------
@@ -632,6 +696,8 @@ export function Builder({
                     onDropNewWidgetToSection={appendWidgetToSection}
                     firstLabel={copy.first}
                     lastLabel={copy.last}
+                    multiSelection={multiSelection}
+                    onMultiSelectionChange={applyMultiChange}
                   />
                 </div>
 
@@ -667,6 +733,23 @@ export function Builder({
           }}
         />
         <BuilderContextMenu target={ctx} actions={ctxActions} onClose={() => setCtx(null)} />
+        <BulkActionBar
+          count={multiSelection.size}
+          onDuplicate={bulkDuplicate}
+          onDelete={bulkDelete}
+          onCopy={bulkCopy}
+          onClear={clearMulti}
+        />
+        <ConfirmDeleteDialog
+          pending={pendingBulkDelete ? { kind: "widget", id: pendingBulkDelete[0] ?? "" } : null}
+          onCancel={() => setPendingBulkDelete(null)}
+          onConfirm={() => {
+            const ids = pendingBulkDelete ?? [];
+            ids.forEach((id) => removeWidget(id));
+            clearMulti();
+            setPendingBulkDelete(null);
+          }}
+        />
       </div>
       <CoachmarkTour controller={tour} />
     </>

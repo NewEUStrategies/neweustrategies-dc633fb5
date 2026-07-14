@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
@@ -33,6 +33,8 @@ function readGlobalDragPayload(raw: string): GlobalDragPayload | null {
 const AUTO_SCROLL_EDGE_PX = 90;
 const AUTO_SCROLL_MAX_SPEED = 22;
 
+const EMPTY_SET: ReadonlySet<string> = new Set<string>();
+
 export function VisualCanvas({
   doc,
   lang,
@@ -50,6 +52,8 @@ export function VisualCanvas({
   onDropNewWidgetToSection,
   firstLabel,
   lastLabel,
+  multiSelection,
+  onMultiSelectionChange,
 }: {
   doc: BuilderDocument;
   lang: "pl" | "en";
@@ -76,6 +80,10 @@ export function VisualCanvas({
   ) => void;
   firstLabel: string;
   lastLabel: string;
+  /** IDs of widgets currently in the multi-selection. */
+  multiSelection?: ReadonlySet<string>;
+  /** Mutate the multi-selection. `mode` = replace = clear+add, add = union, toggle = XOR. */
+  onMultiSelectionChange?: (ids: ReadonlySet<string>, mode: "replace" | "add" | "toggle") => void;
 }) {
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -83,6 +91,24 @@ export function VisualCanvas({
   const autoScrollSpeedRef = useRef(0);
   const autoScrollRafRef = useRef<number | null>(null);
   const dragGhostRef = useRef<HTMLElement | null>(null);
+  // Marquee (rectangle drag on canvas background). Coords are in viewport
+  // (client) space so we can overlay a fixed-position rectangle without
+  // caring about the canvas scroll offset.
+  const marqueeRef = useRef<{
+    startX: number;
+    startY: number;
+    mode: "replace" | "add" | "toggle";
+    pointerId: number;
+    moved: boolean;
+  } | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+
+  const multi = multiSelection ?? EMPTY_SET;
 
   // Selection runs in React's capture phase so it fires BEFORE the native
   // capture listener below stops the event. That listener kills navigation
@@ -90,23 +116,147 @@ export function VisualCanvas({
   // clicking a widget in the builder edits it instead of jumping to the
   // target page.
   const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Suppress the synthetic click emitted right after a real marquee drag
+    // (pointerup dispatches click on the same element). Without this the
+    // click handler would immediately clear the fresh selection.
+    if (justMarqueedRef.current) {
+      justMarqueedRef.current = false;
+      e.stopPropagation();
+      return;
+    }
     const el = e.target as HTMLElement;
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
     if (w?.dataset.widgetId) {
-      setSelection({ kind: "widget", id: w.dataset.widgetId });
+      const id = w.dataset.widgetId;
+      if (e.shiftKey && onMultiSelectionChange) {
+        onMultiSelectionChange(new Set([id]), "add");
+        setSelection({ kind: null, id: null });
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && onMultiSelectionChange) {
+        onMultiSelectionChange(new Set([id]), "toggle");
+        setSelection({ kind: null, id: null });
+        return;
+      }
+      // Regular click clears any active multi-selection so users don't have
+      // to hit Escape before editing a single widget.
+      if (multi.size > 0 && onMultiSelectionChange) {
+        onMultiSelectionChange(EMPTY_SET, "replace");
+      }
+      setSelection({ kind: "widget", id });
       return;
     }
     const c = el.closest("[data-col-id]") as HTMLElement | null;
     if (c?.dataset.colId) {
+      if (multi.size > 0 && onMultiSelectionChange) {
+        onMultiSelectionChange(EMPTY_SET, "replace");
+      }
       setSelection({ kind: "column", id: c.dataset.colId });
       return;
     }
     const s = el.closest("[data-sec-id]") as HTMLElement | null;
     if (s?.dataset.secId) {
+      if (multi.size > 0 && onMultiSelectionChange) {
+        onMultiSelectionChange(EMPTY_SET, "replace");
+      }
       setSelection({ kind: "section", id: s.dataset.secId });
       return;
     }
     setSelection({ kind: null, id: null });
+  };
+
+  const justMarqueedRef = useRef(false);
+
+  // ---- Marquee handlers: activate when pointerdown lands on the canvas
+  // background (no widget/column/section ancestor). Draggable widgets keep
+  // their native HTML5 drag-and-drop untouched because we never call
+  // preventDefault on their pointerdown.
+  const onCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (!onMultiSelectionChange) return;
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    // Ignore drags that started on interactive builder chrome (drop zones,
+    // toolbar) or on any selectable node.
+    if (
+      t.closest("[data-widget-id]") ||
+      t.closest("[data-col-id]") ||
+      t.closest("[data-sec-id]") ||
+      t.closest("[data-section-inserter]") ||
+      t.closest("[data-builder-chrome]") ||
+      t.closest("[data-edit-target]")
+    )
+      return;
+    const mode: "replace" | "add" | "toggle" = e.shiftKey
+      ? "add"
+      : e.metaKey || e.ctrlKey
+        ? "toggle"
+        : "replace";
+    marqueeRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      mode,
+      pointerId: e.pointerId,
+      moved: false,
+    };
+    try {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    } catch {
+      /* setPointerCapture may fail on some browsers; safe to ignore. */
+    }
+  };
+
+  const onCanvasPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const m = marqueeRef.current;
+    if (!m || e.pointerId !== m.pointerId) return;
+    const dx = e.clientX - m.startX;
+    const dy = e.clientY - m.startY;
+    if (!m.moved && Math.hypot(dx, dy) < 5) return; // slack before drawing
+    m.moved = true;
+    const x = Math.min(e.clientX, m.startX);
+    const y = Math.min(e.clientY, m.startY);
+    setMarqueeRect({ x, y, w: Math.abs(dx), h: Math.abs(dy) });
+  };
+
+  const onCanvasPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const m = marqueeRef.current;
+    if (!m || e.pointerId !== m.pointerId) return;
+    marqueeRef.current = null;
+    try {
+      (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (!m.moved) {
+      setMarqueeRect(null);
+      return;
+    }
+    justMarqueedRef.current = true;
+    // Collect widget IDs whose bounding box intersects the marquee rectangle.
+    const rect = {
+      left: Math.min(e.clientX, m.startX),
+      top: Math.min(e.clientY, m.startY),
+      right: Math.max(e.clientX, m.startX),
+      bottom: Math.max(e.clientY, m.startY),
+    };
+    const hits = new Set<string>();
+    const root = rootRef.current;
+    if (root) {
+      const widgets = root.querySelectorAll<HTMLElement>("[data-widget-id]");
+      widgets.forEach((w) => {
+        const id = w.dataset.widgetId;
+        if (!id) return;
+        const r = w.getBoundingClientRect();
+        const intersects =
+          r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top;
+        if (intersects) hits.add(id);
+      });
+    }
+    onMultiSelectionChange?.(hits, m.mode);
+    // When switching from single-select to multi-select drop the single so
+    // the sidebar switches to the bulk-action bar.
+    if (hits.size > 0) setSelection({ kind: null, id: null });
+    setMarqueeRect(null);
   };
 
   // Kill navigation inside the builder canvas: preventDefault stops native
@@ -152,10 +302,12 @@ export function VisualCanvas({
     const cols: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-col-id]"));
 
     widgets.forEach((w: HTMLElement) => {
+      const id = w.dataset.widgetId;
       w.classList.toggle(
         "is-selected",
-        w.dataset.widgetId === selection.id && selection.kind === "widget",
+        id === selection.id && selection.kind === "widget",
       );
+      w.classList.toggle("is-multi-selected", !!id && multi.has(id));
       w.setAttribute("draggable", "true");
     });
     cols.forEach((c: HTMLElement) => {
@@ -453,6 +605,7 @@ export function VisualCanvas({
   }, [
     safeDoc,
     selection,
+    multi,
     onMoveWidget,
     onMoveWidgetToColumn,
     onMoveWidgetToSection,
@@ -466,6 +619,15 @@ export function VisualCanvas({
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
     [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
     [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid var(--brand)}
+    [data-visual-canvas] [data-widget-id].is-multi-selected{
+      outline:2px solid var(--brand);
+      background:color-mix(in oklab, var(--brand) 8%, transparent);
+    }
+    [data-visual-canvas] [data-widget-id].is-multi-selected::before{
+      content:"";position:absolute;inset:0;pointer-events:none;
+      background:color-mix(in oklab, var(--brand) 4%, transparent);
+      border-radius:4px;z-index:1;
+    }
     [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"]{
       position:relative;
       overflow:visible !important;
@@ -680,8 +842,12 @@ export function VisualCanvas({
       data-visual-canvas
       data-device={device}
       onClickCapture={onClickCapture}
+      onPointerDown={onCanvasPointerDown}
+      onPointerMove={onCanvasPointerMove}
+      onPointerUp={onCanvasPointerUp}
+      onPointerCancel={onCanvasPointerUp}
       ref={rootRef}
-      style={{ width: "100%", overflowX: "clip" }}
+      style={{ width: "100%", overflowX: "clip", userSelect: marqueeRect ? "none" : undefined }}
     >
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
@@ -710,6 +876,24 @@ export function VisualCanvas({
           </div>
         ))}
       </div>
+      {marqueeRect && (
+        <div
+          aria-hidden
+          data-builder-chrome
+          style={{
+            position: "fixed",
+            left: marqueeRect.x,
+            top: marqueeRect.y,
+            width: marqueeRect.w,
+            height: marqueeRect.h,
+            border: "1px solid var(--brand)",
+            background: "color-mix(in oklab, var(--brand) 12%, transparent)",
+            pointerEvents: "none",
+            zIndex: 60,
+            borderRadius: 2,
+          }}
+        />
+      )}
     </div>
   );
 }
