@@ -64,6 +64,8 @@ export interface MediaMention {
 /** Rdzeń huba: tożsamość eksperta + kontakty (bezpośredni i dla mediów). */
 export interface ExpertProfile {
   id: string;
+  /** tenant_id z `profiles` - pozwala dobrać właściwe `expert_layout_settings`. */
+  tenant_id: string | null;
   slug: string | null;
   display_name: string | null;
   avatar_url: string | null;

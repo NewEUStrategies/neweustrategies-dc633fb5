@@ -247,24 +247,26 @@ export function ExpertLayoutHero({
   const hasCover = Boolean(e.cover_url);
   const maxWidth = settings.max_width;
 
-  const heroBg = settings.hero_bg_color;
-  const heroText = settings.hero_text_color;
-
+  // Kolory hero konsumujemy przez CSS vars (`--pv-hero-*`) - dzięki temu
+  // dark-mode override z `ExpertLayoutStyleScope` wchodzi automatycznie
+  // (bez re-renderu z propsem theme). `transparent`/`inherit` to fallbacki
+  // ustawiane w `expertLayoutCssVars` gdy admin nie nadpisał koloru.
   const heroStyle: CSSProperties = {
-    backgroundColor: heroBg ?? undefined,
-    color: heroText ?? undefined,
+    backgroundColor: "var(--pv-hero-bg)",
+    color: "var(--pv-hero-text)",
   };
   const centered = settings.center_hero || preset.centeredContent;
 
   const roleStyle: CSSProperties = {
-    fontSize: settings.role_size_lg,
-    color: heroText ?? undefined,
-    opacity: heroText ? 0.85 : undefined,
+    fontSize: "var(--pv-role-size)",
+    color: "var(--pv-hero-text)",
+    opacity: 0.85,
   };
   const bioStyle: CSSProperties = {
-    color: heroText ?? undefined,
-    opacity: heroText ? 0.9 : undefined,
+    color: "var(--pv-hero-text)",
+    opacity: 0.9,
   };
+
 
   const BioBlock = ({ className = "" }: { className?: string }) =>
     bioItems.length > 0 ? (
@@ -354,7 +356,7 @@ export function ExpertLayoutHero({
       className={className}
       showPlaceholders={showPlaceholders}
       lang={lang}
-      color={heroText}
+      color={"var(--pv-hero-text)"}
     />
   );
 
@@ -365,7 +367,7 @@ export function ExpertLayoutHero({
           <div className="mx-auto inline-block">
             {avatar("h-24 w-24 mx-auto border-2", "rounded-full", "400×400 px")}
           </div>
-          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: settings.name_size_lg }}>
+          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: "var(--pv-name-size)" }}>
             {name}
           </h1>
           <p className="mt-1" style={roleStyle}>
@@ -392,7 +394,7 @@ export function ExpertLayoutHero({
               {avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]", "400×400 px")}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
+              <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
                 {name}
               </h1>
               <p className="mt-1" style={roleStyle}>
@@ -423,7 +425,7 @@ export function ExpertLayoutHero({
             style={heroStyle}
           >
             {avatar("h-28 w-28", "rounded-[6px]", "480×480 px")}
-            <h1 className="mt-3 font-display" style={{ fontSize: settings.name_size_base }}>
+            <h1 className="mt-3 font-display" style={{ fontSize: "var(--pv-name-size-base)" }}>
               {name}
             </h1>
             <p className="text-xs" style={{ ...roleStyle, fontSize: 12 }}>
@@ -445,7 +447,7 @@ export function ExpertLayoutHero({
       <div className="mx-auto px-4 py-10" style={{ ...heroStyle, maxWidth }}>
         <div className={centered ? "text-center" : ""}>
           <div className="h-0.5 w-10 mb-4" style={{ backgroundColor: "var(--pv-accent)" }} />
-          <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
+          <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
             {name}
           </h1>
           <p className="mt-1" style={roleStyle}>
@@ -468,7 +470,7 @@ export function ExpertLayoutHero({
         >
           {avatar("h-24 w-24", "rounded-[6px]", "400×400 px")}
           <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
-            <h1 className="font-display" style={{ fontSize: settings.name_size_lg }}>
+            <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
               {name}
             </h1>
             <p className="mt-1" style={roleStyle}>
@@ -494,7 +496,7 @@ export function ExpertLayoutHero({
               <h1
                 className="font-serif text-white"
                 style={{
-                  fontSize: settings.name_size_lg,
+                  fontSize: "var(--pv-name-size)",
                   fontFamily: "'Playfair Display', Georgia, serif",
                 }}
               >
@@ -511,7 +513,7 @@ export function ExpertLayoutHero({
               style={{
                 borderColor: "var(--pv-accent)",
                 fontFamily: "'Playfair Display', Georgia, serif",
-                color: heroText ?? undefined,
+                color: "var(--pv-hero-text)",
               }}
             >
               {bioItems.map((item, i) => (
@@ -553,7 +555,7 @@ export function ExpertLayoutHero({
             >
               {LABELS[lang].profileTagline}
             </p>
-            <h1 className="font-display leading-[1.05]" style={{ fontSize: settings.name_size_lg }}>
+            <h1 className="font-display leading-[1.05]" style={{ fontSize: "var(--pv-name-size)" }}>
               {name}
             </h1>
             <p className="mt-2" style={roleStyle}>
@@ -1004,15 +1006,60 @@ export function ContactInline({
   );
 }
 
-/** Zwraca `style` do wpięcia w root wrappera - definiuje CSS vars używane przez renderer. */
+/**
+ * Zwraca `style` do wpięcia w root wrappera. Wystawia WSZYSTKIE tokeny z
+ * `expert_layout_settings` jako CSS variables, tak żeby renderer nie musiał
+ * czytać tych pól bezpośrednio: `--pv-accent`, `--pv-bio-bullet`, kolory hero
+ * (`--pv-hero-bg`, `--pv-hero-text`) oraz responsywne rozmiary tekstu
+ * (`--pv-name-size`, `--pv-role-size`) budowane z base/lg przez `clamp()`.
+ *
+ * `theme` dobiera warianty *_dark. Dla trybu automatycznego (public site)
+ * użyj też `<ExpertLayoutStyleScope />` który emituje styl `.dark [scope]`.
+ */
 export function expertLayoutCssVars(
   settings: ExpertLayoutSettings,
   theme: "light" | "dark" = "light",
 ): CSSProperties {
   const accent = theme === "dark" ? settings.accent_color_dark : settings.accent_color;
   const bioBullet = theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color;
+  const heroBg = theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color;
+  const heroText = theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color;
+
+  const nameBase = Math.max(12, settings.name_size_base || 28);
+  const nameLg = Math.max(nameBase, settings.name_size_lg || 44);
+  const roleBase = Math.max(10, settings.role_size_base || 14);
+  const roleLg = Math.max(roleBase, settings.role_size_lg || 18);
+
   return {
     "--pv-accent": accent ?? "hsl(var(--brand))",
     "--pv-bio-bullet": bioBullet ?? accent ?? "hsl(var(--brand))",
+    "--pv-hero-bg": heroBg ?? "transparent",
+    "--pv-hero-text": heroText ?? "inherit",
+    "--pv-name-size-base": `${nameBase}px`,
+    "--pv-name-size-lg": `${nameLg}px`,
+    "--pv-name-size": `clamp(${nameBase}px, calc(${nameBase}px + (${nameLg} - ${nameBase}) * ((100vw - 375px) / (1200 - 375))), ${nameLg}px)`,
+    "--pv-role-size": `clamp(${roleBase}px, calc(${roleBase}px + (${roleLg} - ${roleBase}) * ((100vw - 375px) / (1200 - 375))), ${roleLg}px)`,
+    "--pv-max-width": `${settings.max_width}px`,
   } as CSSProperties;
 }
+
+/**
+ * Wpina scoped `<style>` z dark-mode override tokenów `--pv-*`. Wywoływać
+ * raz na wrapper z unikalnym `scopeId`. Dzięki temu jeden wrapper obsługuje
+ * i tryb light, i dark bez przełączania props z zewnątrz.
+ */
+export function ExpertLayoutStyleScope({
+  scopeId,
+  settings,
+}: {
+  scopeId: string;
+  settings: ExpertLayoutSettings;
+}) {
+  const dark = expertLayoutCssVars(settings, "dark") as Record<string, string>;
+  const decls = Object.entries(dark)
+    .map(([k, v]) => `${k}: ${v};`)
+    .join(" ");
+  const css = `.dark [data-pv-scope="${scopeId}"]{${decls}}`;
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}
+

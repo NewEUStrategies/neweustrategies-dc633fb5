@@ -74,6 +74,7 @@ export function buildExpertProfile(
 ): ExpertProfile {
   return {
     id: str(prof.id),
+    tenant_id: strOrNull(prof.tenant_id),
     slug: strOrNull(prof.slug),
     display_name: strOrNull(prof.display_name),
     avatar_url: strOrNull(prof.avatar_url),
