@@ -4,8 +4,9 @@
 import { useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, X, AlertCircle } from "lucide-react";
+import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 
 interface Props {
   label: string;
@@ -57,6 +58,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const tenantId = useRequiredTenant();
 
   const urlError = validateUrl(value);
@@ -141,15 +143,38 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
           e.target.value = "";
         }}
       />
-      <button
-        type="button"
-        disabled={uploading}
-        onClick={() => fileRef.current?.click()}
-        className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
-      >
-        <Upload className="w-3.5 h-3.5" />
-        {uploading ? "Wgrywam…" : "Wgraj obrazek"}
-      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          {uploading ? "Wgrywam…" : "Wgraj plik"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setPickerOpen(true);
+          }}
+          className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs"
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+          Biblioteka mediów
+        </button>
+      </div>
+      <MediaPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPick={(url) => {
+          setError(null);
+          onChange(url);
+          setPickerOpen(false);
+        }}
+        title="Wybierz obrazek z biblioteki mediów"
+      />
       {hint && !urlError && !error && (
         <div className="text-[10px] text-muted-foreground">{hint}</div>
       )}

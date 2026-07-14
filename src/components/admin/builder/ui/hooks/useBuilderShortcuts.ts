@@ -46,7 +46,8 @@ export function useBuilderShortcuts(p: Params) {
       const isEditable =
         tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
       const mod = e.ctrlKey || e.metaKey;
-      const k = e.key.toLowerCase();
+      const k = (e.key ?? "").toLowerCase();
+      if (!k) return;
 
       // Undo/redo/save always work, even inside property inputs.
       if (mod && k === "z" && !e.shiftKey) {
