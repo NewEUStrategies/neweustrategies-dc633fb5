@@ -13,11 +13,13 @@ import { Label } from "@/components/ui/label";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, ShieldAlert } from "lucide-react";
+import { Trash2, Plus, Upload, ShieldAlert, Info } from "lucide-react";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import type { OrgFunction } from "@/lib/experts/types";
+import { useExpertLayoutSettings } from "@/hooks/useExpertLayoutSettings";
+import { EXPERT_LAYOUT_PRESETS } from "@/lib/expertLayouts";
 import "@/lib/i18n-experts";
 
 export const Route = createFileRoute("/profile/author")({
