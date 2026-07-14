@@ -154,7 +154,11 @@ export const Route = createFileRoute("/author/$slug")({
       type: "website",
       title,
       description,
-      image: expert?.avatar_url ?? null,
+      image: versionedAvatar,
+      // Jawny `index, follow` (+ hinty max-image/max-snippet dla AI overviews).
+      // `buildContentHead` bez tego pomija tag - dodajemy go świadomie na hubie
+      // eksperta, bo strona ma zawsze być indeksowana.
+      robots: "index, follow, max-image-preview:large, max-snippet:-1",
       imageAlt: expert?.display_name
         ? isEn
           ? `Portrait of ${name}`
