@@ -131,6 +131,7 @@ export function SectionTabsBar({
             tabIndex={active ? 0 : -1}
             data-builder-chrome
             data-section-tab-btn
+            data-section-tab-id={it.id}
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {

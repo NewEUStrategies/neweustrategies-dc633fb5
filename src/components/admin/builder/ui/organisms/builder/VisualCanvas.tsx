@@ -57,6 +57,7 @@ export function VisualCanvas({
   selection,
   setSelection,
   onInsertSection,
+  onInsertSectionToTab,
   onInsertContainer,
   onRemoveSection,
   onMoveWidget,
@@ -77,6 +78,11 @@ export function VisualCanvas({
   selection: Selection;
   setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
+  onInsertSectionToTab?: (
+    sectionId: string,
+    tabId: string,
+    colsOrSpans: number | number[],
+  ) => void;
   onInsertContainer?: (index: number, withTabs: boolean) => void;
   onRemoveSection?: (id: string) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
@@ -94,6 +100,7 @@ export function VisualCanvas({
     sectionId: string,
     type: WidgetType,
     global?: GlobalDragPayload,
+    tabId?: string,
   ) => void;
   firstLabel: string;
   lastLabel: string;
@@ -521,7 +528,10 @@ export function VisualCanvas({
       if (structDrag) {
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-        if (sec) {
+        const panel = t.closest?.("[data-section-tab-panel]") as HTMLElement | null;
+        if (panel) {
+          panel.classList.add("is-drop-into");
+        } else if (sec) {
           const r = sec.getBoundingClientRect();
           const before = e.clientY < r.top + r.height / 2;
           sec.classList.add(before ? "is-drop-before" : "is-drop-after");
@@ -615,6 +625,12 @@ export function VisualCanvas({
         e.preventDefault();
         e.stopPropagation();
         const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        const panel = t.closest?.("[data-section-tab-panel]") as HTMLElement | null;
+        const tabId = panel?.dataset.sectionTabPanel;
+        if (sec?.dataset.secId && tabId) {
+          onInsertSectionToTab?.(sec.dataset.secId, tabId, structureSpans);
+          return;
+        }
         let index = safeDoc.sections.length;
         if (sec?.dataset.secId) {
           const idx = safeDoc.sections.findIndex((s) => s.id === sec.dataset.secId);
@@ -650,8 +666,15 @@ export function VisualCanvas({
           return;
         }
         const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
-        if (sec && sec.dataset.secId)
-          onDropNewWidgetToSection(sec.dataset.secId, newType, globalPayload ?? undefined);
+        if (sec && sec.dataset.secId) {
+          const panel = t.closest?.("[data-section-tab-panel]") as HTMLElement | null;
+          onDropNewWidgetToSection(
+            sec.dataset.secId,
+            newType,
+            globalPayload ?? undefined,
+            panel?.dataset.sectionTabPanel,
+          );
+        }
         return;
       }
 
@@ -714,6 +737,7 @@ export function VisualCanvas({
     onDropNewWidgetNear,
     onDropNewWidgetToSection,
     onInsertSection,
+    onInsertSectionToTab,
     onInsertContainer,
   ]);
 
@@ -884,7 +908,9 @@ export function VisualCanvas({
     [data-visual-canvas] a{pointer-events:none}
     [data-visual-canvas] button{pointer-events:none}
     [data-visual-canvas] [data-section-inserter] button,
-    [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
+    [data-visual-canvas] [data-section-inserter] a,
+    [data-visual-canvas] [data-builder-chrome],
+    [data-visual-canvas] [data-builder-chrome] *{pointer-events:auto}
     /* Inline-size editing: elements stamped with data-edit-target must stay
        clickable (the InlineSizeToolbar opens from them) and advertise it. */
     [data-visual-canvas] [data-edit-target],
