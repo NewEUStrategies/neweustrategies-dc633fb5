@@ -23,7 +23,7 @@ import {
   type TemplateRevision,
 } from "@/lib/builder/templates";
 import { useGlobalWidgets, type GlobalWidget } from "@/lib/builder/globalWidgets";
-import { GLOBAL_WIDGET_MIME } from "./builder/VisualCanvas";
+import { GLOBAL_WIDGET_MIME, CONTAINER_MIME } from "./builder/VisualCanvas";
 import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 import { StructurePicker } from "./StructurePicker";
 
