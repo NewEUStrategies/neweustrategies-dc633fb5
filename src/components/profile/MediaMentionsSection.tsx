@@ -153,6 +153,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
       language: row.language?.trim() ? row.language.trim() : null,
       published_on: row.published_on,
       is_public: row.is_public,
+      cover_url: row.cover_url?.trim() ? row.cover_url.trim() : null,
     };
     if (row.id) {
       const { error } = await supabase
