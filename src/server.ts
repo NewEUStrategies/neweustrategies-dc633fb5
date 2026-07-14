@@ -9,6 +9,11 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
+/** Test seam for the preview-recovery invariant; no server entry details escape. */
+export function isServerEntryCached(): boolean {
+  return serverEntryPromise !== undefined;
+}
+
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
