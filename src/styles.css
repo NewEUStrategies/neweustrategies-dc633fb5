@@ -3661,6 +3661,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content h1,
 .cms-post-content .cms-h1,
 [data-builder-renderer] h1,
+[data-builder-renderer] .prose h1,
 [data-cms-content] h1 {
   font-size: var(--fs-h1, 2.5rem);
   line-height: var(--lh-h1, 1.15);
@@ -3671,6 +3672,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content h2,
 .cms-post-content .cms-h2,
 [data-builder-renderer] h2,
+[data-builder-renderer] .prose h2,
 [data-cms-content] h2 {
   font-size: var(--fs-h2, 2rem);
   line-height: var(--lh-h2, 1.2);
@@ -3681,6 +3683,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content h3,
 .cms-post-content .cms-h3,
 [data-builder-renderer] h3,
+[data-builder-renderer] .prose h3,
 [data-cms-content] h3 {
   font-size: var(--fs-h3, 1.625rem);
   line-height: var(--lh-h3, 1.25);
@@ -3691,6 +3694,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content h4,
 .cms-post-content .cms-h4,
 [data-builder-renderer] h4,
+[data-builder-renderer] .prose h4,
 [data-cms-content] h4 {
   font-size: var(--fs-h4, 1.375rem);
   line-height: var(--lh-h4, 1.3);
@@ -3701,6 +3705,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content h5,
 .cms-post-content .cms-h5,
 [data-builder-renderer] h5,
+[data-builder-renderer] .prose h5,
 [data-cms-content] h5 {
   font-size: var(--fs-h5, 1.125rem);
   line-height: var(--lh-h5, 1.4);
@@ -3711,6 +3716,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 .cms-post-content h6,
 .cms-post-content .cms-h6,
 [data-builder-renderer] h6,
+[data-builder-renderer] .prose h6,
 [data-cms-content] h6 {
   font-size: var(--fs-h6, 1rem);
   line-height: var(--lh-h6, 1.45);
@@ -3720,32 +3726,53 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 }
 .cms-post-content p,
 .cms-post-content .cms-body,
-[data-cms-content] p {
+[data-cms-content] p,
+[data-builder-renderer] p,
+[data-builder-renderer] .prose p,
+[data-builder-renderer] li,
+[data-builder-renderer] .prose li {
   font-size: var(--fs-body, 1rem);
   line-height: var(--lh-body, 1.65);
 }
 .cms-post-content .cms-lead,
 .cms-post-content .lead,
-[data-cms-content] .lead {
+[data-cms-content] .lead,
+[data-builder-renderer] .lead {
   font-size: var(--fs-lead, 1.125rem);
   line-height: var(--lh-lead, 1.6);
 }
 .cms-post-content blockquote,
-[data-cms-content] blockquote {
+[data-cms-content] blockquote,
+[data-builder-renderer] blockquote,
+[data-builder-renderer] .prose blockquote {
   font-size: var(--fs-blockquote, 1.125rem);
   line-height: var(--lh-blockquote, 1.55);
 }
 .cms-post-content small,
 .cms-post-content .cms-small,
-[data-cms-content] small {
+[data-cms-content] small,
+[data-builder-renderer] small {
   font-size: var(--fs-small, 0.8125rem);
   line-height: var(--lh-small, 1.5);
 }
 .cms-post-content code,
 .cms-post-content .cms-code,
-[data-cms-content] code {
+[data-cms-content] code,
+[data-builder-renderer] code,
+[data-builder-renderer] .prose code {
   font-size: var(--fs-code, 0.875rem);
 }
+/* -------------------------------------------------------------
+ * Widget-level typography overrides win over the global tokens.
+ * The builder writes per-widget font-size on the widget wrapper as an
+ * inline CSS variable / style; those inline styles have higher specificity
+ * than these attribute-scoped selectors, so a widget that opts into a
+ * custom size overrides the global H1..H6 / body / small tokens without
+ * needing !important. Nothing here changes the widget-override contract -
+ * these rules simply guarantee that widgets which DO NOT override still
+ * render at the theme's real H1..H6 / body sizes instead of Tailwind's
+ * `prose prose-lg` defaults or a bare browser stylesheet.
+ * ------------------------------------------------------------- */
 
 /* -------------------------------------------------------------
  * Global input UX: hide placeholder on focus, restore on blur.
