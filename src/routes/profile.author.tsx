@@ -226,14 +226,14 @@ function AuthorProfilePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-muted-foreground" />
-            {t("profile.author.title", { defaultValue: "Profil autora" })}
+            {t("profile.author.title", { defaultValue: "Profil eksperta" })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
             {t("profile.author.noRole", {
               defaultValue:
-                "Profil autora jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
+                "Profil eksperta jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
             })}
           </p>
         </CardContent>
