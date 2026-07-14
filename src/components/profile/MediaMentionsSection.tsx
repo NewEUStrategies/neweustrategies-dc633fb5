@@ -32,9 +32,13 @@ interface Row {
   language: string | null;
   published_on: string; // YYYY-MM-DD
   is_public: boolean;
+  cover_url: string | null;
   _dirty: boolean;
   _saving: boolean;
 }
+
+/** Rodzaje wpisów, dla których pokazujemy pole na okładkę (obraz). */
+const KINDS_WITH_COVER: readonly Kind[] = ["quote", "interview", "appearance"] as const;
 
 const KIND_META: Record<Kind, { icon: typeof Mic; labelPl: string; labelEn: string }> = {
   quote: { icon: MessageSquareQuote, labelPl: "Cytat / komentarz", labelEn: "Quote / comment" },
