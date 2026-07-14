@@ -13,11 +13,13 @@ import { Label } from "@/components/ui/label";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, ShieldAlert } from "lucide-react";
+import { Trash2, Plus, Upload, ShieldAlert, Info } from "lucide-react";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import type { OrgFunction } from "@/lib/experts/types";
+import { useExpertLayoutSettings } from "@/hooks/useExpertLayoutSettings";
+import { EXPERT_LAYOUT_PRESETS } from "@/lib/expertLayouts";
 import "@/lib/i18n-experts";
 
 export const Route = createFileRoute("/profile/author")({
@@ -88,6 +90,23 @@ interface ExpertiseAreaOption {
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
 const MAX_AVATAR = 2 * 1024 * 1024;
+const MAX_BIO_BULLETS = 5;
+const MAX_BULLET_LEN = 200;
+
+/** Rozkłada bio na maks. 5 punktorów - splituje po newline lub znaku listy. */
+function bioToBullets(bio: string | null): string[] {
+  if (!bio) return [];
+  const parts = bio
+    .split(/\r?\n+/)
+    .map((l) => l.replace(/^\s*[-•*·]\s*/, "").trim())
+    .filter(Boolean);
+  return parts.slice(0, MAX_BIO_BULLETS);
+}
+
+/** Serializuje punktory z powrotem do TEXT (jedna linia = jeden bullet). */
+function bulletsToBio(bullets: string[]): string {
+  return bullets.map((b) => b.trim()).filter(Boolean).join("\n");
+}
 
 function isAuthorRole(roles: string[]): boolean {
   return roles.some((r) => r === "author" || r === "admin" || r === "super_admin");
@@ -137,6 +156,16 @@ function AuthorProfilePage() {
   // Obszary ekspertyzy: pełna taksonomia + zestaw wybrany przez eksperta.
   const [areaOptions, setAreaOptions] = useState<ExpertiseAreaOption[]>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<Set<string>>(new Set());
+  // Bio jako punktory (max 5) - dziedziczy prezentację z admin/expert-layouts.
+  const [bulletsPl, setBulletsPl] = useState<string[]>([]);
+  const [bulletsEn, setBulletsEn] = useState<string[]>([]);
+  // Ustawienia layoutu eksperta (per tenant) - do informacyjnego banera.
+  const { data: layoutSettings } = useExpertLayoutSettings();
+  const presetLabel = layoutSettings
+    ? EXPERT_LAYOUT_PRESETS.find((p) => p.id === layoutSettings.default_preset)?.[
+        i18n.language === "en" ? "label_en" : "label_pl"
+      ] ?? layoutSettings.default_preset
+    : null;
 
   useEffect(() => {
     if (!user) return;
@@ -182,6 +211,8 @@ function AuthorProfilePage() {
       setSelectedAreaIds(
         new Set((myAreas ?? []).map((a) => (a as { area_id: string }).area_id)),
       );
+      setBulletsPl(bioToBullets(canonicalBio.bio_pl));
+      setBulletsEn(bioToBullets(canonicalBio.bio_en));
     })();
   }, [user]);
 
@@ -195,14 +226,14 @@ function AuthorProfilePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-muted-foreground" />
-            {t("profile.author.title", { defaultValue: "Profil autora" })}
+            {t("profile.author.title", { defaultValue: "Profil eksperta" })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
             {t("profile.author.noRole", {
               defaultValue:
-                "Profil autora jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
+                "Profil eksperta jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
             })}
           </p>
         </CardContent>
@@ -281,11 +312,16 @@ function AuthorProfilePage() {
     // Bio zapisujemy do kanonicznego źródła (profiles.bio_pl/bio_en - trigger
     // profiles_mirror_bio utrzymuje legacy profiles.bio). Persona autorska
     // (avatar, kontakt, socials, hub eksperta) zostaje w author_profiles.
+    const bioPlOut = bulletsToBio(bulletsPl);
+    const bioEnOut = bulletsToBio(bulletsEn);
     const [{ error }, { error: bioError }] = await Promise.all([
-      supabase.from("author_profiles").upsert(payload, { onConflict: "user_id" }),
+      supabase.from("author_profiles").upsert(
+        { ...payload, bio_pl: bioPlOut, bio_en: bioEnOut },
+        { onConflict: "user_id" },
+      ),
       supabase
         .from("profiles")
-        .update({ bio_pl: data.bio_pl, bio_en: data.bio_en })
+        .update({ bio_pl: bioPlOut, bio_en: bioEnOut })
         .eq("id", user.id),
     ]);
 
@@ -356,13 +392,24 @@ function AuthorProfilePage() {
       <IdentityEditorsHint current="author" />
       <Card>
         <CardHeader>
-          <CardTitle>{t("profile.author.title", { defaultValue: "Profil autora" })}</CardTitle>
+          <CardTitle>{t("profile.author.title", { defaultValue: "Profil eksperta" })}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {t("profile.author.intro", {
               defaultValue:
-                "Publiczny profil wyświetlany w widget BIO autora w CMS. Niezależny od profilu prywatnego - dane kontaktowe mogą się różnić.",
+                "Publiczny profil eksperta - widoczny na /author/<slug> oraz w widget BIO we wpisach. Niezależny od profilu prywatnego (dane kontaktowe mogą się różnić).",
             })}
           </p>
+          {layoutSettings && (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                Layout, kolory hero, akcent i punktory BIO są dziedziczone z{" "}
+                <b>ustawień tenanta</b> (admin › Layouty ekspertów
+                {presetLabel ? <> - preset „{presetLabel}"</> : null}). Admin może nadpisać
+                pojedyncze pola z poziomu panelu.
+              </span>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form className="grid gap-6" onSubmit={save}>
@@ -386,10 +433,15 @@ function AuthorProfilePage() {
             </div>
 
             {/* Avatar */}
-            <section className="grid gap-3">
-              <h3 className="text-sm font-semibold text-foreground/80">
-                {t("profile.author.avatarSection", { defaultValue: "Zdjęcie autora" })}
-              </h3>
+          <section className="grid gap-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-foreground/80">
+                  {t("profile.author.avatarSection", { defaultValue: "Zdjęcie eksperta" })}
+                </h3>
+                <span className="text-[11px] text-muted-foreground">
+                  Rekomendowane: <b>600 × 600 px</b> (kwadrat, JPG/PNG/WebP, do 2 MB)
+                </span>
+              </div>
               <div className="flex items-center gap-4">
                 {data.avatar_url ? (
                   <img
@@ -478,35 +530,23 @@ function AuthorProfilePage() {
                 </div>
               </div>
               <p className="m-0 text-xs text-muted-foreground">
-                {t("profile.author.bioShared", {
+                {t("profile.author.bioBulletsHint", {
                   defaultValue:
-                    "Bio jest wspólne z Twoim profilem (konto / wizytówka) - edycja tutaj aktualizuje je wszędzie.",
+                    "Bio w formie punktorów - maksymalnie 5. Kolor punktora dziedziczony z ustawień tenanta (admin › Layouty ekspertów). Edycja synchronizuje profil prywatny.",
                 })}
               </p>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="bio_pl">
-                  {t("profile.author.bioPl", { defaultValue: "Bio (PL)" })}
-                </FieldLabel>
-                <Textarea
-                  id="bio_pl"
-                  value={data.bio_pl ?? ""}
-                  onChange={(e) => setData({ ...data, bio_pl: e.target.value })}
-                  maxLength={1000}
-                  rows={4}
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="bio_en">
-                  {t("profile.author.bioEn", { defaultValue: "Bio (EN)" })}
-                </FieldLabel>
-                <Textarea
-                  id="bio_en"
-                  value={data.bio_en ?? ""}
-                  onChange={(e) => setData({ ...data, bio_en: e.target.value })}
-                  maxLength={1000}
-                  rows={4}
-                />
-              </div>
+              <BulletEditor
+                idPrefix="bio_pl"
+                label={t("profile.author.bioPl", { defaultValue: "Bio - punktory (PL)" })}
+                bullets={bulletsPl}
+                onChange={setBulletsPl}
+              />
+              <BulletEditor
+                idPrefix="bio_en"
+                label={t("profile.author.bioEn", { defaultValue: "Bio - punktory (EN)" })}
+                bullets={bulletsEn}
+                onChange={setBulletsEn}
+              />
             </section>
 
             {/* Hub eksperta: pełna biografia + funkcje + obszary */}
@@ -786,7 +826,7 @@ function AuthorProfilePage() {
               <Button type="submit" disabled={busy}>
                 {exists
                   ? t("profile.account.save")
-                  : t("profile.author.create", { defaultValue: "Utwórz profil autora" })}
+                  : t("profile.author.create", { defaultValue: "Utwórz profil eksperta" })}
               </Button>
               <Link
                 to="/profile/account"
@@ -801,5 +841,86 @@ function AuthorProfilePage() {
         </CardContent>
       </Card>
     </TooltipProvider>
+  );
+}
+
+/**
+ * Edytor punktorów BIO - maksymalnie 5 pozycji. Kolor markerów jest
+ * dziedziczony na stronie publicznej (/author/$slug) z `expert_layout_settings`
+ * (admin/expert-layouts) via CSS variable `--pv-bio-bullet`.
+ */
+function BulletEditor({
+  idPrefix,
+  label,
+  bullets,
+  onChange,
+}: {
+  idPrefix: string;
+  label: string;
+  bullets: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const update = (idx: number, value: string) => {
+    const next = [...bullets];
+    next[idx] = value;
+    onChange(next);
+  };
+  const remove = (idx: number) => onChange(bullets.filter((_, i) => i !== idx));
+  const add = () => {
+    if (bullets.length >= MAX_BIO_BULLETS) return;
+    onChange([...bullets, ""]);
+  };
+  const canAdd = bullets.length < MAX_BIO_BULLETS;
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between">
+        <FieldLabel htmlFor={`${idPrefix}-0`}>{label}</FieldLabel>
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {bullets.length}/{MAX_BIO_BULLETS}
+        </span>
+      </div>
+      <ul className="grid gap-2">
+        {bullets.map((b, idx) => (
+          <li
+            key={idx}
+            className="flex items-start gap-2 rounded-md border border-border bg-card px-2 py-1.5"
+          >
+            <span
+              aria-hidden
+              className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-[2px] bg-[var(--brand)]"
+            />
+            <Input
+              id={`${idPrefix}-${idx}`}
+              value={b}
+              onChange={(e) => update(idx, e.target.value)}
+              maxLength={MAX_BULLET_LEN}
+              placeholder="Krótki punkt (max 200 znaków)"
+              className="h-8 border-0 bg-transparent px-1 focus-visible:ring-0"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(idx)}
+              aria-label="remove"
+              className="h-7 w-7 shrink-0"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={add}
+        disabled={!canAdd}
+        className="w-fit"
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Dodaj punktor
+      </Button>
+    </div>
   );
 }
