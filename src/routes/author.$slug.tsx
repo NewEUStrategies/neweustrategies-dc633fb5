@@ -3,13 +3,15 @@
 // kontakt bezpośredni i dla mediów, „W mediach" oraz filtrowalny zbiór
 // materiałów: publikacje, raporty, wideo, podcasty, wydarzenia).
 // Slug może być też UUID użytkownika (kompatybilność wsteczna).
+//
+// Layout hero i kolejność sekcji dziedziczone są z `expert_layout_settings`
+// (per tenant) i renderowane tym samym komponentem, którego używa podgląd
+// w /admin/expert-layouts - dzięki temu preview == produkcja.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, Globe, Linkedin } from "lucide-react";
-import { XIcon } from "@/components/atoms/XIcon";
-import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { BadgeCheck } from "lucide-react";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -28,11 +30,21 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import { expertLayoutSettingsQueryOptions } from "@/hooks/useExpertLayoutSettings";
+import {
+  ExpertLayoutHero,
+  ExpertSectionsList,
+  expertLayoutCssVars,
+} from "@/components/experts/ExpertLayoutRenderer";
+import { isSectionVisible } from "@/lib/expertLayouts";
 import "@/lib/i18n-experts";
 
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
-    const data = await context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug));
+    const [data] = await Promise.all([
+      context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug)),
+      context.queryClient.ensureQueryData(expertLayoutSettingsQueryOptions()),
+    ]);
     if (!data) throw notFound();
     return data;
   },
@@ -97,136 +109,72 @@ export const Route = createFileRoute("/author/$slug")({
 function ExpertHubPage() {
   const { slug } = Route.useParams();
   const { data } = useSuspenseQuery(expertHubQueryOptions(slug));
+  const { data: settings } = useSuspenseQuery(expertLayoutSettingsQueryOptions());
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const personalized = usePersonalizedSettings();
-  // Pełny zestaw odznak (ekspert/redakcja/autor gościnny) - parytet z /people;
-  // duplikat "Zweryfikowany" odpada, gdy pill verified_at już świeci.
   const badgesQ = useUserBadges(data?.expert.id);
-  // Agregacja odcinków, w których ekspert prowadzi/gości lub jest autorem.
   const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.expert.id ?? ""));
   if (!data) return <PublicNotFound />;
   const { expert } = data;
-  // Pełny zestaw odznak; duplikat "Zweryfikowany" odpada, gdy pill verified świeci.
   const extraBadges = (badgesQ.data ?? []).filter(
     (badge) => !(badge === "verified" && expert.verified_at),
   );
   const name = expert.display_name ?? (lang === "en" ? "Expert" : "Ekspert");
-  const roleLine = [expert.job_title, expert.company].filter(Boolean).join(" · ");
-  const functions = expert.org_functions
-    .map((f) => (lang === "en" ? f.en || f.pl : f.pl || f.en))
-    .filter(Boolean);
+
+  const cssVars = expertLayoutCssVars(settings);
+  // Sekcja "hero_cover" jest widoczna, gdy admin ją włączył - inaczej hero
+  // renderujemy zawsze (to jest wizytówka strony), ale poszczególne sekcje
+  // pod hero respektują widoczność zapisaną w settings.
+  const showExpertiseBar = isSectionVisible(settings, "expertise_bar");
+  const showDetails = isSectionVisible(settings, "details");
+  const showMediaMentions = isSectionVisible(settings, "media_mentions");
+  const showPodcastStrip = isSectionVisible(settings, "podcast_strip");
+  const showMaterials = isSectionVisible(settings, "materials");
+  const showCv = isSectionVisible(settings, "cv");
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* CSIS-style hero: ciemny pas z prostokątnym portretem nachodzącym na dół */}
+    <div className="flex min-h-screen flex-col bg-background text-foreground" style={cssVars}>
       <header className="relative">
-        <div
-          className="relative bg-[var(--brand)] text-white"
-          style={
-            expert.cover_url
-              ? {
-                  backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75)), url(${expert.cover_url})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
+        <div className="mx-auto max-w-[1200px] px-4 pt-6 lg:px-8 lg:pt-8">
+          <Breadcrumbs items={[{ label: name }]} />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {expert.is_expert && (
+              <span
+                className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
+                style={{
+                  backgroundColor: "color-mix(in oklab, var(--pv-accent) 18%, transparent)",
+                  color: "var(--pv-accent)",
+                }}
+              >
+                {t("expert.expertBadge")}
+              </span>
+            )}
+            {expert.verified_at && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-900 dark:text-sky-50"
+                title={
+                  lang === "pl"
+                    ? "Profil zweryfikowany zawodowo"
+                    : "Professionally verified profile"
                 }
-              : undefined
-          }
-        >
-          <div className="mx-auto max-w-[1200px] px-4 pb-24 pt-6 lg:px-8 lg:pb-28 lg:pt-8">
-            <div className="[&_*]:!text-white/80 [&_a:hover]:!text-white">
-              <Breadcrumbs items={[{ label: name }]} />
-            </div>
-            <div className="mt-6 grid gap-6 sm:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr] lg:gap-10">
-              <div className="row-span-2">
-                {expert.avatar_url ? (
-                  <img
-                    src={expert.avatar_url}
-                    alt={name}
-                    className="aspect-[3/4] w-full max-w-[260px] rounded-[2px] object-cover shadow-2xl ring-1 ring-white/10"
-                  />
-                ) : (
-                  <div className="grid aspect-[3/4] w-full max-w-[260px] place-items-center rounded-[2px] bg-white/10 text-4xl font-display text-white/70 shadow-2xl ring-1 ring-white/10">
-                    {name.slice(0, 1)}
-                  </div>
-                )}
+              >
+                <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
+                {t("expert.verifiedBadge")}
+              </span>
+            )}
+            <ProfileBadges badges={extraBadges} size="md" />
+            {personalized.followInAuthorHeader && (
+              <div className="ml-auto">
+                <FollowButton targetType="author" targetId={expert.id} lang={lang} />
               </div>
-              <div className="flex flex-col gap-3 pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  {expert.is_expert && (
-                    <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
-                      {t("expert.expertBadge")}
-                    </span>
-                  )}
-                  {expert.verified_at && (
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-50"
-                      title={
-                        lang === "pl"
-                          ? "Profil zweryfikowany zawodowo"
-                          : "Professionally verified profile"
-                      }
-                    >
-                      <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
-                      {t("expert.verifiedBadge")}
-                    </span>
-                  )}
-                  <ProfileBadges badges={extraBadges} size="md" />
-                </div>
-                <h1 className="font-display text-4xl leading-[1.05] lg:text-5xl">{name}</h1>
-                {roleLine && (
-                  <p className="text-lg font-medium text-white/85">{roleLine}</p>
-                )}
-                {functions.length > 0 && (
-                  <p className="text-sm text-white/70">{functions.join(" · ")}</p>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  {expert.website_url && (
-                    <a
-                      href={expert.website_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Website"
-                      className="grid h-9 w-9 place-items-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white"
-                    >
-                      <BrandIcon name="website" fallback={Globe} className="h-4 w-4" alt="WWW" />
-                    </a>
-                  )}
-                  {expert.linkedin_url && (
-                    <a
-                      href={expert.linkedin_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="LinkedIn"
-                      className="grid h-9 w-9 place-items-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white"
-                    >
-                      <BrandIcon name="linkedin" fallback={Linkedin} className="h-4 w-4" alt="LinkedIn" />
-                    </a>
-                  )}
-                  {expert.twitter_url && (
-                    <a
-                      href={expert.twitter_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="X"
-                      className="grid h-9 w-9 place-items-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white"
-                    >
-                      <BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />
-                    </a>
-                  )}
-                  {personalized.followInAuthorHeader && (
-                    <div className="ml-1">
-                      <FollowButton targetType="author" targetId={expert.id} lang={lang} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Pasek obszarów ekspertyzy pod hero (CSIS-style) */}
-        {data.areas.length > 0 && (
+        <ExpertLayoutHero hub={data} settings={settings} lang={lang} showPlaceholders={false} />
+
+        {showExpertiseBar && data.areas.length > 0 && (
           <div className="border-b border-border/60 bg-card">
             <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 lg:px-8">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -248,15 +196,22 @@ function ExpertHubPage() {
       </header>
 
       <div className="w-full flex-1">
-        <section className="mx-auto max-w-[1200px] px-4 py-10 lg:px-8 lg:py-12">
-          <ExpertHubDetails data={data} lang={lang} />
-        </section>
-        {data.mediaMentions.length > 0 && (
+        {/* Automatyczny renderer sekcji z admin/expert-layouts (details,
+            social_row, contact_card, programs). Kolejność i widoczność
+            dokładnie takie same jak w podglądzie admina. */}
+        <ExpertSectionsList hub={data} settings={settings} lang={lang} showPlaceholders={false} />
+
+        {showDetails && (
+          <section className="mx-auto max-w-[1200px] px-4 py-10 lg:px-8 lg:py-12">
+            <ExpertHubDetails data={data} lang={lang} />
+          </section>
+        )}
+        {showMediaMentions && data.mediaMentions.length > 0 && (
           <section className="mx-auto max-w-[1200px] px-4 pb-10 lg:px-8">
             <ExpertInTheNews mentions={data.mediaMentions} lang={lang} />
           </section>
         )}
-        {podcastsQ.data && podcastsQ.data.length > 0 && (
+        {showPodcastStrip && podcastsQ.data && podcastsQ.data.length > 0 && (
           <section className="mx-auto max-w-[1200px] px-4 pb-6 lg:px-8">
             <PodcastEpisodeStrip
               episodes={podcastsQ.data}
@@ -265,12 +220,16 @@ function ExpertHubPage() {
             />
           </section>
         )}
-        <section className="mx-auto max-w-[1200px] px-4 pb-14 lg:px-8">
-          <ExpertMaterialsExplorer data={data} lang={lang} />
-        </section>
-        <div className="mx-auto w-full max-w-[1200px]">
-          <AuthorCvSections userId={expert.id} />
-        </div>
+        {showMaterials && (
+          <section className="mx-auto max-w-[1200px] px-4 pb-14 lg:px-8">
+            <ExpertMaterialsExplorer data={data} lang={lang} />
+          </section>
+        )}
+        {showCv && (
+          <div className="mx-auto w-full max-w-[1200px]">
+            <AuthorCvSections userId={expert.id} />
+          </div>
+        )}
       </div>
     </div>
   );
