@@ -834,6 +834,28 @@ function EditPost() {
     />
   );
 
+  const programsCard = (
+    <BilingualPickerCard
+      label={t("admin.nav.programs", { defaultValue: "Projekty" })}
+      options={allPrograms ?? undefined}
+      selectedIds={selectedPrograms}
+      onSelectedChange={setSelectedPrograms}
+      emptyHint={t("admin.posts.noPrograms", { defaultValue: "Brak projektów - dodaj je w /admin/programs" })}
+    />
+  );
+
+  const regionsCard = (
+    <BilingualPickerCard
+      label={t("admin.nav.regions", { defaultValue: "Regiony" })}
+      options={allRegions ?? undefined}
+      selectedIds={selectedRegions}
+      onSelectedChange={setSelectedRegions}
+      emptyHint={t("admin.posts.noRegions", { defaultValue: "Brak regionów - dodaj je w /admin/regions" })}
+    />
+  );
+
+
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="space-y-6">
