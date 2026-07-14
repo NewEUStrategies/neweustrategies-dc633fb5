@@ -571,7 +571,7 @@ export const updatePost = createServerFn({ method: "POST" })
       // above, yet the category/tag writes below run under tenant-only RLS -
       // which would let a user rewrite another author's post taxonomy. Force a
       // guarded touch so RLS re-checks edit permission on the post itself.
-      if (!Object.keys(updates).length && (data.categories || data.tags)) {
+      if (!Object.keys(updates).length && (data.categories || data.tags || data.programs || data.regions)) {
         const { data: touched, error: touchErr } = await supabase
           .from("posts")
           .update({ updated_at: new Date().toISOString() })
