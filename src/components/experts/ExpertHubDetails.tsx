@@ -98,12 +98,6 @@ export function ExpertHubDetails({
         email={expert.contact_email}
         website={expert.website_url}
       />
-      <ContactCard
-        heading={t("expert.mediaContactHeading")}
-        hint={t("expert.mediaContactHint")}
-        email={expert.media_contact_email}
-        phone={expert.media_contact_phone}
-      />
     </aside>
   );
 

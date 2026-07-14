@@ -348,7 +348,7 @@ export function ExpertLayoutHero({
   };
 
   const social = (className: string) => (
-    <SocialRow expert={e} className={className} showPlaceholders={showPlaceholders} lang={lang} />
+    <SocialRow expert={e} className={className} showPlaceholders={showPlaceholders} lang={lang} showMediaContact />
   );
   const contact = (className: string) => (
     <ContactInline
@@ -697,7 +697,7 @@ export function ExpertSectionRenderer({
       );
     }
     case "social_row": {
-      const hasAny = e.website_url || e.linkedin_url || e.twitter_url || e.contact_email;
+      const hasAny = e.website_url || e.linkedin_url || e.twitter_url || e.contact_email || e.media_contact_email || e.media_contact_phone;
       if (!hasAny && !showPlaceholders) return null;
       return wrap(
         <>
@@ -705,13 +705,12 @@ export function ExpertSectionRenderer({
           {!hasAny && placeholderTag}
         </>,
         <Layers className="h-4 w-4" />,
-        <SocialRow expert={e} showPlaceholders={showPlaceholders} lang={lang} />,
+        <SocialRow expert={e} showPlaceholders={showPlaceholders} lang={lang} showMediaContact />,
       );
     }
     case "contact_card": {
       const hasContact = e.contact_email || e.website_url;
-      const hasMedia = e.media_contact_email || e.media_contact_phone;
-      const isPlaceholder = !hasContact && !hasMedia;
+      const isPlaceholder = !hasContact;
       if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
         <>
@@ -720,30 +719,17 @@ export function ExpertSectionRenderer({
         </>,
         <Mail className="h-4 w-4" />,
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
-          <div className="rounded-[6px] border border-border p-3 space-y-1">
-            <div className="flex items-center gap-2">
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              {e.contact_email ?? (showPlaceholders ? ph.email : "")}
-            </div>
-            <div className="flex items-center gap-2">
-              <BrandIcon name="website" fallback={LucideGlobe} className="h-3.5 w-3.5 text-muted-foreground" alt="WWW" />
-              {e.website_url
-                ? e.website_url.replace(/^https?:\/\//, "")
-                : showPlaceholders
-                  ? ph.website
-                  : ""}
-            </div>
+          <div className="flex items-center gap-2">
+            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+            {e.contact_email ?? (showPlaceholders ? ph.email : "")}
           </div>
-          <div className="rounded-[6px] border border-border p-3 space-y-1">
-            <div className="text-xs font-semibold">{t.mediaContact}</div>
-            <div className="flex items-center gap-2">
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              {e.media_contact_email ?? (showPlaceholders ? ph.mediaEmail : "")}
-            </div>
-            <div className="flex items-center gap-2">
-              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-              {e.media_contact_phone ?? (showPlaceholders ? ph.phone : "")}
-            </div>
+          <div className="flex items-center gap-2">
+            <BrandIcon name="website" fallback={LucideGlobe} className="h-3.5 w-3.5 text-muted-foreground" alt="WWW" />
+            {e.website_url
+              ? e.website_url.replace(/^https?:\/\//, "")
+              : showPlaceholders
+                ? ph.website
+                : ""}
           </div>
         </div>,
       );
@@ -905,17 +891,21 @@ export function SocialRow({
   className = "",
   showPlaceholders = false,
   lang = "pl",
+  showMediaContact = false,
 }: {
   expert: ExpertHubData["expert"];
   className?: string;
   showPlaceholders?: boolean;
   lang?: Lang;
+  showMediaContact?: boolean;
 }) {
   const ph = PLACEHOLDER[lang];
   const website = expert.website_url || (showPlaceholders ? `https://${ph.website}` : "");
   const linkedin = expert.linkedin_url || (showPlaceholders ? "https://linkedin.com/in/anna-kowalska" : "");
   const x = expert.twitter_url || (showPlaceholders ? "https://x.com/anna_kowalska" : "");
   const mail = expert.contact_email || (showPlaceholders ? ph.email : "");
+  const mediaMail = expert.media_contact_email || (showPlaceholders ? ph.mediaEmail : "");
+  const mediaPhone = expert.media_contact_phone || (showPlaceholders ? ph.phone : "");
   const items: { href: string; node: ReactNode; label: string }[] = [];
   if (website)
     items.push({
@@ -941,7 +931,8 @@ export function SocialRow({
       label: "email",
       node: <BrandIcon name="email" fallback={Mail} className="h-4 w-4" alt="E-mail" />,
     });
-  if (items.length === 0) return null;
+  const showContacts = showMediaContact && (mediaMail || mediaPhone);
+  if (items.length === 0 && !showContacts) return null;
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
       {items.map((s) => (
@@ -957,6 +948,23 @@ export function SocialRow({
           {s.node}
         </a>
       ))}
+      {showContacts && items.length > 0 && <span className="hidden sm:inline-block h-4 w-px bg-border mx-1" />}
+      {showContacts && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {mediaMail && (
+            <a href={`mailto:${mediaMail}`} className="inline-flex items-center gap-1.5 hover:underline">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{mediaMail}</span>
+            </a>
+          )}
+          {mediaPhone && (
+            <a href={`tel:${mediaPhone.replace(/\s+/g, "")}`} className="inline-flex items-center gap-1.5 hover:underline">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{mediaPhone}</span>
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
