@@ -90,12 +90,20 @@ export function TeamMemberWidget({
         style={cardStyle}
         data-team-member-id={node.id}
       >
-        {/* Gradient overlay - zapewnia czytelność podpisów niezależnie od zdjęcia */}
+        {/* Base gradient - subtle, guarantees legibility of the top program label */}
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute inset-0 transition-opacity duration-300 group-hover:opacity-0 group-focus-visible:opacity-0"
           style={{
-            background: `linear-gradient(180deg, rgba(0,0,0,${overlayAlpha * 0.55}) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,${overlayAlpha}) 100%)`,
+            background: `linear-gradient(180deg, rgba(0,0,0,${overlayAlpha * 0.45}) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 100%)`,
+          }}
+        />
+        {/* Hover overlay - reveals identity on interaction */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+          style={{
+            background: `linear-gradient(180deg, rgba(0,0,0,${Math.min(1, overlayAlpha + 0.25)}) 0%, rgba(0,0,0,${Math.min(1, overlayAlpha + 0.15)}) 100%)`,
           }}
         />
         {!photo && (
@@ -111,7 +119,8 @@ export function TeamMemberWidget({
             {programLabel}
           </span>
         )}
-        <span className="absolute inset-x-0 bottom-0 p-4 text-center">
+        {/* Hover-only identity block: name, position, social icons */}
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 text-center opacity-0 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0">
           {name && (
             <span className="block font-display text-lg font-bold uppercase leading-tight tracking-wide">
               {name}
@@ -119,10 +128,31 @@ export function TeamMemberWidget({
           )}
           {position && (
             <span
-              className="mt-1 block text-xs font-semibold uppercase tracking-widest"
+              className="block text-xs font-semibold uppercase tracking-widest"
               style={{ color: accent }}
             >
               {position}
+            </span>
+          )}
+          {socials.length > 0 && (
+            <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+              {socials.map(({ key }) => {
+                const Fallback = SOCIAL_FALLBACK[key];
+                return (
+                  <span
+                    key={key}
+                    aria-hidden
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/15 backdrop-blur-sm text-white"
+                  >
+                    <BrandIcon
+                      name={key}
+                      fallback={Fallback}
+                      className="h-3.5 w-3.5"
+                      alt={SOCIAL_LABEL[key]}
+                    />
+                  </span>
+                );
+              })}
             </span>
           )}
         </span>
