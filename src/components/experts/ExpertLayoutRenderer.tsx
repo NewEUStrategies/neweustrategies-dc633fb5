@@ -786,45 +786,7 @@ export function ExpertSectionRenderer({
       );
     }
     case "materials": {
-      const real = hub.materials.slice(0, 6);
-      const isPlaceholder = real.length === 0;
-      if (isPlaceholder && !showPlaceholders) return null;
-      return wrap(
-        <>
-          {t.materials}
-          {isPlaceholder && placeholderTag}
-        </>,
-        <BookOpen className="h-4 w-4" />,
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {isPlaceholder
-            ? ph.materials.map((title, i) => (
-                <div key={i} className="rounded-[6px] border border-border overflow-hidden bg-card">
-                  <CoverPlaceholder className="w-full h-24" />
-                  <div className="p-2 text-sm">
-                    <div className="text-[10px] uppercase text-muted-foreground">
-                      {i % 3 === 0 ? "report" : i % 3 === 1 ? "article" : "video"}
-                    </div>
-                    <div className="font-medium line-clamp-2">{title}</div>
-                  </div>
-                </div>
-              ))
-            : real.map((m) => (
-                <div key={m.id} className="rounded-[6px] border border-border overflow-hidden bg-card">
-                  {m.cover_url ? (
-                    <img src={m.cover_url} alt="" className="w-full h-24 object-cover" />
-                  ) : (
-                    <CoverPlaceholder className="w-full h-24" />
-                  )}
-                  <div className="p-2 text-sm">
-                    <div className="text-[10px] uppercase text-muted-foreground">{m.kind}</div>
-                    <div className="font-medium line-clamp-2">
-                      {lang === "en" ? m.title_en : m.title_pl}
-                    </div>
-                  </div>
-                </div>
-              ))}
-        </div>,
-      );
+      return null;
     }
     case "cv": {
       if (!showPlaceholders) return null;
