@@ -356,7 +356,7 @@ export function ExpertLayoutHero({
       className={className}
       showPlaceholders={showPlaceholders}
       lang={lang}
-      color={heroText}
+      color={"var(--pv-hero-text)"}
     />
   );
 
