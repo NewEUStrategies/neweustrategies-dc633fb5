@@ -169,6 +169,44 @@ function AuthorProfilePage() {
       ] ?? layoutSettings.default_preset
     : null;
 
+  // Regeneracja og:image - bumpuje `profiles.updated_at`, przez co
+  // wersja `?v=` doklejana w head() rośnie i social scrapery pobierają
+  // świeży plik po ping'u w Post Debuggerze.
+  const refreshOg = useServerFn(refreshAuthorOgImage);
+  const [refreshingOg, setRefreshingOg] = useState(false);
+  const [ogDebuggers, setOgDebuggers] = useState<{
+    facebook: string;
+    linkedin: string;
+    twitter: string;
+  } | null>(null);
+  const onRefreshOg = async () => {
+    setRefreshingOg(true);
+    try {
+      const res = await refreshOg({});
+      if (!res.ok || !res.debuggers) {
+        toast.error(
+          t("profile.author.ogRefreshError", {
+            defaultValue:
+              "Nie udało się odświeżyć podglądu społecznościowego. Uzupełnij slug profilu i spróbuj ponownie.",
+          }),
+        );
+        return;
+      }
+      setOgDebuggers(res.debuggers);
+      toast.success(
+        t("profile.author.ogRefreshOk", {
+          defaultValue:
+            "Podgląd społecznościowy zaktualizowany. Otwórz Post Debugger, aby wymusić rescrape.",
+        }),
+      );
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setRefreshingOg(false);
+    }
+  };
+
+
   useEffect(() => {
     if (!user) return;
     void (async () => {
