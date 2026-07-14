@@ -392,13 +392,24 @@ function AuthorProfilePage() {
       <IdentityEditorsHint current="author" />
       <Card>
         <CardHeader>
-          <CardTitle>{t("profile.author.title", { defaultValue: "Profil autora" })}</CardTitle>
+          <CardTitle>{t("profile.author.title", { defaultValue: "Profil eksperta" })}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {t("profile.author.intro", {
               defaultValue:
-                "Publiczny profil wyświetlany w widget BIO autora w CMS. Niezależny od profilu prywatnego - dane kontaktowe mogą się różnić.",
+                "Publiczny profil eksperta - widoczny na /author/<slug> oraz w widget BIO we wpisach. Niezależny od profilu prywatnego (dane kontaktowe mogą się różnić).",
             })}
           </p>
+          {layoutSettings && (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                Layout, kolory hero, akcent i punktory BIO są dziedziczone z{" "}
+                <b>ustawień tenanta</b> (admin › Layouty ekspertów
+                {presetLabel ? <> - preset „{presetLabel}"</> : null}). Admin może nadpisać
+                pojedyncze pola z poziomu panelu.
+              </span>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form className="grid gap-6" onSubmit={save}>
