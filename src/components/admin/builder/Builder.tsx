@@ -16,6 +16,7 @@
 // DndContext in the builder; the previous @dnd-kit onDragEnd/sensors here were
 // never mounted and have been removed.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
   X,
