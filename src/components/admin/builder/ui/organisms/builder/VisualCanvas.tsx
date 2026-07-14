@@ -838,8 +838,11 @@ export function VisualCanvas({
       box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 14%, transparent);
       animation:cms-dz-pulse 1.2s ease-in-out infinite;
     }
-    [data-visual-canvas][data-canvas-dragging="1"] [data-section-inserter] > button svg{
-      opacity:1 !important;width:14px;height:14px;
+    [data-visual-canvas] [data-section-inserter][data-drop-active] > button{
+      height:52px !important;
+      border:2px solid var(--brand) !important;
+      background:color-mix(in oklab, var(--brand) 18%, transparent) !important;
+      color:var(--brand) !important;
     }
     @keyframes cms-dz-pulse{
       0%,100%{box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 14%, transparent)}
