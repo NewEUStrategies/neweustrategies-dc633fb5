@@ -284,7 +284,7 @@ function AuthorProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-muted-foreground" />
+            <BrandIcon name="shield-alert" fallback={ShieldAlert} className="h-5 w-5 text-muted-foreground" alt="" />
             {t("profile.author.title", { defaultValue: "Profil eksperta" })}
           </CardTitle>
         </CardHeader>
@@ -460,7 +460,7 @@ function AuthorProfilePage() {
           </p>
           {layoutSettings && (
             <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <BrandIcon name="info" fallback={Info} className="mt-0.5 h-3.5 w-3.5 shrink-0" alt="" />
               <span>
                 Layout, kolory hero, akcent i punktory BIO są dziedziczone z{" "}
                 <b>ustawień tenanta</b> (admin › Layouty ekspertów
@@ -521,7 +521,7 @@ function AuthorProfilePage() {
                     disabled={uploading}
                     onClick={() => avatarInput.current?.click()}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
+                    <BrandIcon name="upload" fallback={Upload} className="mr-2 h-4 w-4" alt="" />
                     {uploading ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
                   </Button>
                   {data.avatar_url && (
@@ -577,7 +577,7 @@ function AuthorProfilePage() {
                   disabled={refreshingOg}
                   onClick={() => void onRefreshOg()}
                 >
-                  <RefreshCcw className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`} />
+                  <BrandIcon name="refresh" fallback={RefreshCcw} className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`} alt="" />
                   {refreshingOg
                     ? t("common.working", { defaultValue: "Odświeżam…" })
                     : t("profile.author.ogRefreshBtn", {
@@ -594,7 +594,7 @@ function AuthorProfilePage() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                       >
-                        <ExternalLink className="h-3 w-3" aria-hidden />
+                        <BrandIcon name="external-link" fallback={ExternalLink} className="h-3 w-3" alt="" />
                         {k === "twitter" ? "X (Twitter)" : k.charAt(0).toUpperCase() + k.slice(1)}
                       </a>
                     ))}
@@ -680,7 +680,7 @@ function AuthorProfilePage() {
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">{t("expert.orgFunctions")}</Label>
                   <Button type="button" size="sm" variant="outline" onClick={addOrgFn}>
-                    <Plus className="mr-1 h-4 w-4" />
+                    <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
                     {t("common.add", { defaultValue: "Dodaj" })}
                   </Button>
                 </div>
@@ -711,7 +711,7 @@ function AuthorProfilePage() {
                       onClick={() => removeOrgFn(idx)}
                       aria-label="remove"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <BrandIcon name="trash" fallback={Trash2} className="h-4 w-4" alt="" />
                     </Button>
                   </div>
                 ))}
@@ -888,7 +888,7 @@ function AuthorProfilePage() {
                     })}
                   </Label>
                   <Button type="button" size="sm" variant="outline" onClick={addCustom}>
-                    <Plus className="mr-1 h-4 w-4" />
+                    <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
                     {t("common.add", { defaultValue: "Dodaj" })}
                   </Button>
                 </div>
@@ -948,7 +948,7 @@ function AuthorProfilePage() {
                       onClick={() => removeCustom(idx)}
                       aria-label="remove"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <BrandIcon name="trash" fallback={Trash2} className="h-4 w-4" alt="" />
                     </Button>
                   </div>
                 ))}
@@ -1038,7 +1038,7 @@ function BulletEditor({
               aria-label="remove"
               className="h-7 w-7 shrink-0"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <BrandIcon name="trash" fallback={Trash2} className="h-3.5 w-3.5" alt="" />
             </Button>
           </li>
         ))}
@@ -1051,7 +1051,7 @@ function BulletEditor({
         disabled={!canAdd}
         className="w-fit"
       >
-        <Plus className="mr-1 h-4 w-4" />
+        <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
         Dodaj punktor
       </Button>
     </div>

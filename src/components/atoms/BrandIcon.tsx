@@ -57,6 +57,7 @@ export interface BrandIconProps extends SVGAttributes<SVGSVGElement> {
  * w przeciwnym razie - Lucide fallback. Wybór wariantu light/dark zgodny z motywem.
  */
 const ALIASES: Record<string, string[]> = {
+  // Brands
   x: ["x", "twitter", "x-twitter"],
   twitter: ["twitter", "x", "x-twitter"],
   website: ["website", "globe", "web", "link"],
@@ -69,7 +70,18 @@ const ALIASES: Record<string, string[]> = {
   spotify: ["spotify"],
   email: ["email", "mail", "envelope", "at"],
   mail: ["mail", "email", "envelope"],
+  phone: ["phone", "tel", "call"],
+  location: ["location", "map-pin", "pin", "place"],
+  // Common action icons (allow admin override via /admin/icons)
+  plus: ["plus", "add"],
+  trash: ["trash", "trash-2", "delete", "bin"],
+  upload: ["upload", "cloud-upload"],
+  info: ["info", "information"],
+  refresh: ["refresh", "refresh-ccw", "reload"],
+  "external-link": ["external-link", "external", "open-in-new"],
+  "shield-alert": ["shield-alert", "shield-warning", "alert-shield"],
 };
+
 
 export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
   const { theme } = useTheme();
