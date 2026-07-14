@@ -17,9 +17,11 @@ export function recordCapturedError(error: unknown, request?: Request) {
   const entry = { error, at: Date.now() };
   if (request) {
     requestErrors.set(request, entry);
+  } else {
+    // Only use global fallback for truly out-of-band errors (global listeners)
+    // to avoid polluting it with request-specific errors that have their own slot.
+    lastCapturedError = entry;
   }
-  // Still keep the global fallback for out-of-band errors (global listeners)
-  lastCapturedError = entry;
 }
 
 if (typeof globalThis.addEventListener === "function") {
