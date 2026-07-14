@@ -156,6 +156,16 @@ function AuthorProfilePage() {
   // Obszary ekspertyzy: pełna taksonomia + zestaw wybrany przez eksperta.
   const [areaOptions, setAreaOptions] = useState<ExpertiseAreaOption[]>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<Set<string>>(new Set());
+  // Bio jako punktory (max 5) - dziedziczy prezentację z admin/expert-layouts.
+  const [bulletsPl, setBulletsPl] = useState<string[]>([]);
+  const [bulletsEn, setBulletsEn] = useState<string[]>([]);
+  // Ustawienia layoutu eksperta (per tenant) - do informacyjnego banera.
+  const { data: layoutSettings } = useExpertLayoutSettings();
+  const presetLabel = layoutSettings
+    ? EXPERT_LAYOUT_PRESETS.find((p) => p.id === layoutSettings.default_preset)?.[
+        i18n.language === "en" ? "label_en" : "label_pl"
+      ] ?? layoutSettings.default_preset
+    : null;
 
   useEffect(() => {
     if (!user) return;
