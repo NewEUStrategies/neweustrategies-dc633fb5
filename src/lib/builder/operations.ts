@@ -148,6 +148,44 @@ export const newInnerSection = (): InnerSectionNode => ({
   columns: [newColumn(6), newColumn(6)],
 });
 
+/**
+ * Kontener = sekcja, której dziećmi są bezpośrednio InnerSection (traktowane jako
+ * "podsekcje"), bez wymuszania układu kolumn na poziomie zewnętrznym. Może
+ * dodatkowo pracować w trybie zakładek, w którym każde dziecko należy do jednego
+ * taba.
+ */
+export const newContainerSection = (withTabs: boolean): SectionNode => {
+  if (!withTabs) {
+    const inner = newInnerSection();
+    return {
+      id: newId(),
+      kind: "section",
+      children: [inner],
+    };
+  }
+  const tab1Id = newId();
+  const tab2Id = newId();
+  const inner1 = { ...newInnerSection(), tabId: tab1Id };
+  const inner2 = { ...newInnerSection(), tabId: tab2Id };
+  return {
+    id: newId(),
+    kind: "section",
+    tabs: {
+      enabled: true,
+      orientation: "horizontal",
+      variant: "underline",
+      align: "start",
+      mobileMode: "scroll",
+      defaultTabId: tab1Id,
+      items: [
+        { id: tab1Id, label_pl: "Zakładka 1", label_en: "Tab 1" },
+        { id: tab2Id, label_pl: "Zakładka 2", label_en: "Tab 2" },
+      ],
+    },
+    children: [inner1, inner2],
+  };
+};
+
 // ---------- structural mutations (mutate a draft doc in place) ----------
 
 export function addSection(d: BuilderDocument, colsOrSpans: number | number[]): void {

@@ -71,6 +71,8 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   // ---------- structural ops ----------
   const addSection = (colsOrSpans: number | number[]) =>
     update((d) => ops.addSection(d, colsOrSpans));
+  const addContainer = (withTabs: boolean) =>
+    update((d) => ops.insertSectionNode(d, ops.newContainerSection(withTabs)));
   const loadHomepage = useCallback(() => {
     history.setDoc(buildHomepageDocument());
   }, [history]);
@@ -222,6 +224,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update,
     focusedColumn,
     addSection,
+    addContainer,
     loadHomepage,
     insertTemplateSection,
     saveSectionAsTemplate,
