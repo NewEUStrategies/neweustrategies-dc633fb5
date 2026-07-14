@@ -14,6 +14,20 @@ export interface GlobalDragPayload {
 }
 
 export const GLOBAL_WIDGET_MIME = "application/x-global-widget";
+export const SECTION_STRUCTURE_MIME = "application/x-section-structure";
+
+/** Parse + validate the palette's section-structure drag payload. */
+function readSectionStructure(raw: string): number[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const spans = parsed.filter((n): n is number => typeof n === "number" && n > 0 && n <= 12);
+    return spans.length ? spans : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Parse + validate the palette's global-widget drag payload. */
 function readGlobalDragPayload(raw: string): GlobalDragPayload | null {
