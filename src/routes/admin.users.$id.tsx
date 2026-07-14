@@ -45,6 +45,9 @@ import {
   useUserBadges,
 } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
+import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
+
+
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
@@ -348,9 +351,19 @@ function UserDetail() {
           </Card>
         </aside>
       </div>
+
+      {/* Edytor pełnego profilu eksperta - 1:1 te same pola co /profile/author.
+          RLS pozwala adminowi na zapis do author_profiles + profiles w tenancie. */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4 m-0">
+          {L("Profil eksperta (edycja)", "Expert profile (edit)")}
+        </h2>
+        <AuthorProfileEditor userId={data.id} tenantId={tenantId ?? null} mode="admin" />
+      </div>
     </div>
   );
 }
+
 
 function BackLink({ label }: { label: string }) {
   return (
