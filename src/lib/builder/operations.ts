@@ -142,31 +142,33 @@ export const newSection = (colsOrSpans: number | number[] = 1): SectionNode => {
   };
 };
 
-export const newInnerSection = (): InnerSectionNode => ({
-  id: newId(),
-  kind: "inner-section",
-  columns: [newColumn(6), newColumn(6)],
-});
+export const newInnerSection = (colsOrSpans: number | number[] = [6, 6]): InnerSectionNode => {
+  const spans = Array.isArray(colsOrSpans)
+    ? colsOrSpans
+    : Array.from({ length: colsOrSpans }, () => 12 / colsOrSpans);
+  return {
+    id: newId(),
+    kind: "inner-section",
+    columns: spans.map((sp) => newColumn(sp)),
+  };
+};
 
 /**
- * Kontener = sekcja, której dziećmi są bezpośrednio InnerSection (traktowane jako
- * "podsekcje"), bez wymuszania układu kolumn na poziomie zewnętrznym. Może
- * dodatkowo pracować w trybie zakładek, w którym każde dziecko należy do jednego
- * taba.
+ * Kontener = sekcja pełniąca rolę wrappera. W trybie bez zakładek startuje jako
+ * pojedyncza podsekcja z jedną kolumną 12/12 - użytkownik wybiera dalej strukturę
+ * (dodaje kolumny) i wrzuca widgety. W trybie zakładek każda zakładka jest
+ * osobną podsekcją 1x12/12 - też pustą, gotową do wyboru struktury.
  */
 export const newContainerSection = (withTabs: boolean): SectionNode => {
   if (!withTabs) {
-    const inner = newInnerSection();
     return {
       id: newId(),
       kind: "section",
-      children: [inner],
+      children: [newInnerSection([12])],
     };
   }
   const tab1Id = newId();
   const tab2Id = newId();
-  const inner1 = { ...newInnerSection(), tabId: tab1Id };
-  const inner2 = { ...newInnerSection(), tabId: tab2Id };
   return {
     id: newId(),
     kind: "section",
@@ -182,7 +184,10 @@ export const newContainerSection = (withTabs: boolean): SectionNode => {
         { id: tab2Id, label_pl: "Zakładka 2", label_en: "Tab 2" },
       ],
     },
-    children: [inner1, inner2],
+    children: [
+      { ...newInnerSection([12]), tabId: tab1Id },
+      { ...newInnerSection([12]), tabId: tab2Id },
+    ],
   };
 };
 
