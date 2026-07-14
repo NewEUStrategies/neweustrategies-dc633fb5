@@ -1,16 +1,16 @@
 # NES Digital Features
 
 Formalny moduł interaktywnych „digital features" w stylistyce think-tanków
-(CSIS: _Digital Features_ / _Charts_ / _Microsites_). Nie jest to „ozdobiony
+(think-tank: _Digital Features_ / _Charts_ / _Microsites_). Nie jest to „ozdobiony
 artykuł" - to komponowalne widgety danych osadzane w istniejącym **builderze**
 (Elementor-style), które łączą narrację, dane, mapę, wykresy, filtry,
 metodologię i źródła w jeden eksplorowalny produkt.
 
-## Model CSIS a NES
+## Model think-tank a NES
 
-CSIS wydziela trzy kategorie; tak mapują się na architekturę NES:
+think-tank wydziela trzy kategorie; tak mapują się na architekturę NES:
 
-| Kategoria CSIS      | Co to jest                                                     | Realizacja w NES                                                                 |
+| Kategoria think-tank      | Co to jest                                                     | Realizacja w NES                                                                 |
 | ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | **Charts**          | Pojedyncze wykresy / mapy danych                               | Widgety `chart` + `data-map` (silnik `src/components/charts`) - **już istniały** |
 | **Digital Features**| Interaktywne raporty: narracja + dane + mapa + filtry + metoda | **Ten moduł** - widgety `feature-*` komponowane w builderze na jednej stronie    |

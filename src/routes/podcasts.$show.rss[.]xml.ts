@@ -1,5 +1,5 @@
 // Per-program podcast RSS 2.0 + iTunes feed at /podcasts/$show/rss.xml.
-// Separate feed for each program (RUSI/CSIS "distinct series" model), alongside
+// Separate feed for each program (RUSI/think-tank "distinct series" model), alongside
 // the network-wide feed at /podcast/rss.xml. Served with the service role (RLS
 // bypassed), so reads are scoped to the tenant owning the request host and
 // FAIL-CLOSED like the site feeds.

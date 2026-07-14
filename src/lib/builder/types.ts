@@ -361,7 +361,7 @@ export type WidgetType =
   | "chart"
   | "data-map"
   // NES Digital Features (engine: src/components/features) - interaktywne
-  // "digital features" w stylu CSIS: oś czasu, sankey, porównywarka państw,
+  // "digital features" w stylu think-tank: oś czasu, sankey, porównywarka państw,
   // macierz ryzyka, karta wskaźnika, sieć powiązań, mapa korytarzy, biblioteka
   // źródeł, nota metodologiczna.
   | "feature-timeline"

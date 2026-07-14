@@ -1,6 +1,6 @@
 // Program (series) page: /podcasts/$show. A podcast PROGRAM groups its
 // episodes into seasons, surfaces the recurring hosts, and carries its own
-// subscribe links + a per-program RSS feed — the RUSI/CSIS "catalogue of
+// subscribe links + a per-program RSS feed — the RUSI/think-tank "catalogue of
 // distinct series" model rather than one undifferentiated feed.
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";

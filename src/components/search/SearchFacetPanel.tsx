@@ -1,4 +1,4 @@
-// Panel fasetowy /search: grupy wymiarów z licznikami (wzorzec CSIS/RUSI).
+// Panel fasetowy /search: grupy wymiarów z licznikami (wzorzec think-tank/RUSI).
 // Pojedynczy wybór na wymiar; region renderowany hierarchicznie (region →
 // państwo). Stan wyszukiwarki żyje w URL - panel emituje tylko łatki (patche).
 import { useTranslation } from "react-i18next";

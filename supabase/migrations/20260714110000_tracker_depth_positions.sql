@@ -2,7 +2,7 @@
 -- Tracker UE - pogłębienie danych strukturalnych + stanowiska państw (P1).
 --
 -- Rekomendacja z docs/OCENA_KONKURENCYJNA_2026-07-13.md: pole gry czołowych
--- think-tanków (ECFR EU Coalition Explorer, CSIS, Bruegel) to interaktywne,
+-- think-tanków (ECFR EU Coalition Explorer, think-tank, Bruegel) to interaktywne,
 -- stale aktualizowane dane - nie PDF-y. Dwa kroki w tym kierunku:
 --
 --   1. eu_policy_items: pola strukturalne dossier w duchu Politico PRO

@@ -1,4 +1,4 @@
-// Admin: strony programów badawczych w stylu CSIS/RUSI (research_programs
+// Admin: strony programów badawczych w stylu think-tank/RUSI (research_programs
 // + members/projects/partners/items). Odrębne od /admin/programs, które
 // zarządza uproszczoną tabelą `programs` używaną do tagowania treści i
 // przypisań ekspertów. Tutaj: pełny landing (teza, zakres, pytania badawcze,

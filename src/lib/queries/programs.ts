@@ -1,6 +1,6 @@
 // Public read-only research-program queries (anon-safe via RLS).
 //
-// A research program is a top-level container (CSIS/RUSI pattern), not a content
+// A research program is a top-level container (think-tank/RUSI pattern), not a content
 // category: it owns a thesis, scope, team, projects, curated content (flagship
 // reports, podcasts, events), partners and contact details. "Latest
 // publications" are NOT curated - they flow automatically from the linked

@@ -1,4 +1,4 @@
-// Panel administracyjny „Autorzy" (== eksperci). Widok w layoucie CSIS,
+// Panel administracyjny „Autorzy" (== eksperci). Widok w layoucie think-tank,
 // spójny wizualnie z publicznym katalogiem /experts: karty z avatarem,
 // obszarami ekspertyzy, licznikiem publikacji, filtrami po obszarze i
 // programie oraz odznaką „zweryfikowany". Dodatkowo elementy panelowe:

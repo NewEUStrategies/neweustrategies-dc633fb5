@@ -29,8 +29,8 @@ export interface ExpertLayoutPreset {
 export const EXPERT_LAYOUT_PRESETS: ExpertLayoutPreset[] = [
   {
     id: "classic",
-    label_pl: "Klasyczny (CSIS)",
-    label_en: "Classic (CSIS)",
+    label_pl: "Klasyczny",
+    label_en: "Classic",
     description_pl: "Ciemny hero z prostokątnym portretem, sekcje wertykalnie.",
     description_en: "Dark hero with rectangular portrait, sections stacked.",
     heroKind: "split",

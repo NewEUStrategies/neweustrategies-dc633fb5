@@ -1,4 +1,4 @@
--- Podcast jako sieć programów (wzorzec RUSI/CSIS), nie płaska lista plików.
+-- Podcast jako sieć programów (wzorzec RUSI/think-tank), nie płaska lista plików.
 --
 --   program podcastowy (podcast_shows)
 --   ├── sezony ── odcinki        (podcasts.show_id + season/episode_number)

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Programy badawcze / specjalizacje (wzorzec CSIS/RUSI).
+-- Programy badawcze / specjalizacje (wzorzec think-tank/RUSI).
 --
 -- Program badawczy jest nadrzednym kontenerem - nie kategoria tresci.
 -- Ma wlasna teze, zakres, zespol, projekty, kuratorowane tresci (raporty

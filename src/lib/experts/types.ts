@@ -1,4 +1,4 @@
-// Typy huba eksperta (profil CSIS-style). Ekspert jest obiektem systemowym
+// Typy huba eksperta (profil think-tank-style). Ekspert jest obiektem systemowym
 // spinającym własne materiały, programy, obszary i obecność medialną - te
 // typy opisują znormalizowany kształt konsumowany przez UI.
 
