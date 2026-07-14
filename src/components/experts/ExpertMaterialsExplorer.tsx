@@ -141,32 +141,35 @@ export function ExpertMaterialsExplorer({
           ariaLabel={t("expert.filterFormat")}
         />
         <FacetSelect
-          value={filters.categoryId}
-          onChange={(next) => setFilters((f) => ({ ...f, categoryId: next }))}
-          options={facets.categories.map((c) => ({
-            value: c.id,
-            label: lang === "en" ? c.name_en : c.name_pl,
+          value={filters.tagId}
+          onChange={(next) => setFilters((f) => ({ ...f, tagId: next }))}
+          options={facets.tags.map((t) => ({
+            value: t.id,
+            label: t.name,
           }))}
           allLabel={t("expert.allTopics", {
-            defaultValue: lang === "en" ? "All topics" : "Wszystkie tematyki",
+            defaultValue: lang === "en" ? "All topics" : "Wszystkie tematy",
           })}
           ariaLabel={t("expert.filterTopic", {
             defaultValue: lang === "en" ? "Filter by topic" : "Filtruj po tematyce",
           })}
           alwaysShow
         />
-        {facets.regions.length > 0 && (
-          <FacetSelect
-            value={filters.regionId}
-            onChange={(next) => setFilters((f) => ({ ...f, regionId: next }))}
-            options={facets.regions.map((r) => ({
-              value: r.id,
-              label: lang === "en" ? r.name_en : r.name_pl,
-            }))}
-            allLabel={t("expert.allRegions")}
-            ariaLabel={t("expert.filterRegion")}
-          />
-        )}
+        <FacetSelect
+          value={filters.regionId}
+          onChange={(next) => setFilters((f) => ({ ...f, regionId: next }))}
+          options={facets.regions.map((r) => ({
+            value: r.id,
+            label: lang === "en" ? r.name_en : r.name_pl,
+          }))}
+          allLabel={t("expert.allRegions", {
+            defaultValue: lang === "en" ? "All regions" : "Wszystkie regiony",
+          })}
+          ariaLabel={t("expert.filterRegion", {
+            defaultValue: lang === "en" ? "Filter by region" : "Filtruj po regionie",
+          })}
+          alwaysShow
+        />
         {facets.programs.length > 0 && (
           <FacetSelect
             value={filters.programId}
