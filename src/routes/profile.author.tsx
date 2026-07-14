@@ -542,6 +542,46 @@ function AuthorProfilePage() {
                   onConfirm={(blob) => void upload(blob)}
                 />
               </div>
+              {/* Odświeżenie podglądu społecznościowego (og:image cache-bust) */}
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <div className="text-xs text-muted-foreground">
+                  {t("profile.author.ogRefreshHint", {
+                    defaultValue:
+                      "Po zmianie zdjęcia lub bio odśwież podgląd społecznościowy - wymusi to nowy og:image w linkach.",
+                  })}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto"
+                  disabled={refreshingOg}
+                  onClick={() => void onRefreshOg()}
+                >
+                  <RefreshCcw className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`} />
+                  {refreshingOg
+                    ? t("common.working", { defaultValue: "Odświeżam…" })
+                    : t("profile.author.ogRefreshBtn", {
+                        defaultValue: "Odśwież podgląd społecznościowy",
+                      })}
+                </Button>
+                {ogDebuggers && (
+                  <div className="w-full flex flex-wrap gap-2 pt-1">
+                    {(["facebook", "linkedin", "twitter"] as const).map((k) => (
+                      <a
+                        key={k}
+                        href={ogDebuggers[k]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" aria-hidden />
+                        {k === "twitter" ? "X (Twitter)" : k.charAt(0).toUpperCase() + k.slice(1)}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
             </section>
 
             {/* Podstawowe */}
