@@ -462,6 +462,8 @@ function EditPost() {
       update$,
       selectedCats,
       selectedTags,
+      selectedPrograms,
+      selectedRegions,
       qc,
       navigate,
       routeSlug,
