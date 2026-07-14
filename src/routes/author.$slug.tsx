@@ -229,6 +229,11 @@ function ExpertHubPage() {
   const showPodcastStrip = isSectionVisible(settings, "podcast_strip");
   const showMaterials = isSectionVisible(settings, "materials");
   const showCv = isSectionVisible(settings, "cv");
+  const hasDetailsContent =
+    data.areas.length > 0 ||
+    data.programs.length > 0 ||
+    Boolean(expert.contact_email?.trim()) ||
+    Boolean(expert.website_url?.trim());
 
   return (
     <div
@@ -303,7 +308,7 @@ function ExpertHubPage() {
             dokładnie takie same jak w podglądzie admina. */}
         <ExpertSectionsList hub={data} settings={settings} lang={lang} showPlaceholders={false} />
 
-        {showDetails && (
+        {showDetails && hasDetailsContent && (
           <section className="mx-auto max-w-[1200px] px-4 py-10 lg:px-8 lg:py-12">
             <ExpertHubDetails data={data} lang={lang} />
           </section>
