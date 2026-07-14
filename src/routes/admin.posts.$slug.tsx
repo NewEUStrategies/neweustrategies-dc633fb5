@@ -63,7 +63,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { PostSettingsMetabox, TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
-import { CategoriesCard, TagsCard } from "@/components/admin/post-editor/TaxonomyCards";
+import { CategoriesCard, TagsCard, BilingualPickerCard } from "@/components/admin/post-editor/TaxonomyCards";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { WorkflowStatusSection } from "@/components/admin/post-editor/WorkflowStatusSection";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
