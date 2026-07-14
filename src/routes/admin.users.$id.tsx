@@ -45,6 +45,9 @@ import {
   useUserBadges,
 } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
+import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
+
+
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
