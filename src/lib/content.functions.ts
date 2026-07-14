@@ -463,6 +463,8 @@ export const updatePost = createServerFn({ method: "POST" })
         fields: PostCore.partial(),
         categories: z.array(UUID).max(50).optional(),
         tags: z.array(UUID).max(50).optional(),
+        programs: z.array(UUID).max(50).optional(),
+        regions: z.array(UUID).max(50).optional(),
       })
       .parse(i),
   )
