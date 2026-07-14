@@ -1206,6 +1206,8 @@ function EditPost() {
                       <div className="grid md:grid-cols-2 gap-4">
                         {catsCard}
                         {tagsCard}
+                        {programsCard}
+                        {regionsCard}
                       </div>
                     )}
 
