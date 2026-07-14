@@ -13,7 +13,26 @@ import { Label } from "@/components/ui/label";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, ShieldAlert, Info, RefreshCcw, ExternalLink } from "lucide-react";
+import { Trash2, Plus, Upload, ShieldAlert, Info, RefreshCcw, ExternalLink, Linkedin as LucideLinkedin, Facebook as LucideFacebook, Instagram as LucideInstagram, Link2 as LucideLink } from "lucide-react";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { XIcon } from "@/components/atoms/XIcon";
+import type { ComponentType, SVGAttributes } from "react";
+
+// Spotify nie ma w lucide-react - prosty SVG fallback zgodny z brandingiem.
+const SpotifyFallback: ComponentType<{ className?: string } & SVGAttributes<SVGSVGElement>> = ({ className, ...rest }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" {...rest}>
+    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm4.6 14.42a.62.62 0 0 1-.86.21c-2.36-1.44-5.32-1.77-8.82-.97a.63.63 0 1 1-.28-1.22c3.82-.87 7.1-.5 9.75 1.12a.62.62 0 0 1 .21.86zm1.23-2.74a.78.78 0 0 1-1.07.26c-2.7-1.66-6.82-2.14-10.02-1.17a.78.78 0 0 1-.46-1.5c3.66-1.1 8.2-.57 11.29 1.34a.78.78 0 0 1 .26 1.07zm.11-2.85c-3.24-1.92-8.58-2.1-11.67-1.16a.94.94 0 1 1-.55-1.8c3.55-1.08 9.44-.87 13.17 1.34a.94.94 0 1 1-.95 1.62z" />
+  </svg>
+);
+
+// Mapa: pole -> (slug w admin/ikony, fallback lucide). Slugi zgodne z ALIASES w BrandIcon.
+const SOCIAL_ICONS: Record<string, { slug: string; Fallback: ComponentType<{ className?: string } & SVGAttributes<SVGSVGElement>> }> = {
+  x_url: { slug: "x", Fallback: XIcon },
+  linkedin_url: { slug: "linkedin", Fallback: LucideLinkedin },
+  facebook_url: { slug: "facebook", Fallback: LucideFacebook },
+  instagram_url: { slug: "instagram", Fallback: LucideInstagram },
+  spotify_url: { slug: "spotify", Fallback: SpotifyFallback },
+};
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { useServerFn } from "@tanstack/react-start";
@@ -831,18 +850,33 @@ function AuthorProfilePage() {
                     ["instagram_url", "Instagram"],
                     ["spotify_url", "Spotify"],
                   ] as const
-                ).map(([key, label]) => (
-                  <div key={key} className="grid gap-2">
-                    <FieldLabel htmlFor={key}>{label}</FieldLabel>
-                    <Input
-                      id={key}
-                      type="url"
-                      placeholder="https://..."
-                      value={data[key] ?? ""}
-                      onChange={(e) => setData({ ...data, [key]: e.target.value })}
-                    />
-                  </div>
-                ))}
+                ).map(([key, label]) => {
+                  const meta = SOCIAL_ICONS[key];
+                  return (
+                    <div key={key} className="grid gap-2">
+                      <FieldLabel htmlFor={key}>
+                        <span className="inline-flex items-center gap-2">
+                          {meta && (
+                            <BrandIcon
+                              name={meta.slug}
+                              fallback={meta.Fallback}
+                              className="h-4 w-4 shrink-0 text-muted-foreground"
+                              alt=""
+                            />
+                          )}
+                          {label}
+                        </span>
+                      </FieldLabel>
+                      <Input
+                        id={key}
+                        type="url"
+                        placeholder="https://..."
+                        value={data[key] ?? ""}
+                        onChange={(e) => setData({ ...data, [key]: e.target.value })}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Custom socials */}
@@ -868,8 +902,27 @@ function AuthorProfilePage() {
                 {data.custom_socials.map((s, idx) => (
                   <div
                     key={idx}
-                    className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_2fr_1fr_auto]"
+                    className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[auto_1fr_2fr_1fr_auto] sm:items-center"
                   >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted/30 text-muted-foreground">
+                      {s.iconUrl ? (
+                        <img
+                          src={s.iconUrl}
+                          alt=""
+                          className="h-5 w-5 object-contain"
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                        />
+                      ) : (
+                        <BrandIcon
+                          name={s.label || "link"}
+                          fallback={LucideLink}
+                          className="h-4 w-4"
+                          alt=""
+                        />
+                      )}
+                    </div>
                     <Input
                       placeholder={t("profile.author.socialLabel", { defaultValue: "Etykieta" })}
                       value={s.label}
