@@ -218,7 +218,18 @@ export function MediaManager() {
   const bumpHistory = () => forceHistory((n) => n + 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const marqueeStartRef = useRef<{
+    x: number;
+    y: number;
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    mode: "replace" | "add" | "toggle";
+    baseline: Set<string>;
+    active: boolean;
+  } | null>(null);
+  const marqueeAutoScrollRef = useRef<number | null>(null);
+  const marqueeLastClientRef = useRef<{ x: number; y: number } | null>(null);
 
   // ---------- Queries ----------
   const foldersQ = useQuery({
