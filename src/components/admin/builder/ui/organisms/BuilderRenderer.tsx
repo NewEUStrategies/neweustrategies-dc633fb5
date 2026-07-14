@@ -452,37 +452,70 @@ const RenderSection = memo(function RenderSection({
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
+        {tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "horizontal" && (
+          <div style={{ marginBottom: 16 }}>
+            <SectionTabsBar
+              sectionId={section.id}
+              tabs={tabsCfg!}
+              lang={lang}
+              activeId={activeTabId}
+              onSelect={setActiveTabId}
+            />
+          </div>
+        )}
         <div
-          data-columns-row
-          className="min-w-0 max-w-full overflow-hidden"
-          style={{
-            ...columnsRowStyle(section, colsSum),
-            gridTemplateColumns:
-              device === "mobile"
-                ? "minmax(0, 1fr)"
-                : columnsRowStyle(section, colsSum).gridTemplateColumns,
-          }}
+          style={
+            tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical"
+              ? { display: "flex", gap: 20, alignItems: "flex-start" }
+              : undefined
+          }
         >
-          {visibleCols.map((c) => {
-            const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
-            const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
-            const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
-            return (
-              <div
-                key={c.id}
-                data-column-slot
-                data-col-id={c.id}
-                className="min-w-0 max-w-full overflow-hidden"
-                style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
-              >
-                {c.kind === "inner-section" ? (
-                  <RenderInner inner={c} lang={lang} device={device} />
-                ) : (
-                  <RenderColumn column={c} lang={lang} device={device} />
-                )}
-              </div>
-            );
-          })}
+          {tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical" && (
+            <SectionTabsBar
+              sectionId={section.id}
+              tabs={tabsCfg!}
+              lang={lang}
+              activeId={activeTabId}
+              onSelect={setActiveTabId}
+            />
+          )}
+          <div
+            data-columns-row
+            data-section-tab-panel={tabsEnabled ? activeTabId : undefined}
+            role={tabsEnabled ? "tabpanel" : undefined}
+            id={tabsEnabled ? `sec-${section.id}-panel-${activeTabId}` : undefined}
+            aria-labelledby={tabsEnabled ? `sec-${section.id}-tab-${activeTabId}` : undefined}
+            className="min-w-0 max-w-full overflow-hidden"
+            style={{
+              ...columnsRowStyle(section, colsSum),
+              gridTemplateColumns:
+                device === "mobile"
+                  ? "minmax(0, 1fr)"
+                  : columnsRowStyle(section, colsSum).gridTemplateColumns,
+              flex: tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical" ? 1 : undefined,
+            }}
+          >
+            {visibleCols.map((c) => {
+              const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
+              const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
+              const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
+              return (
+                <div
+                  key={c.id}
+                  data-column-slot
+                  data-col-id={c.id}
+                  className="min-w-0 max-w-full overflow-hidden"
+                  style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
+                >
+                  {c.kind === "inner-section" ? (
+                    <RenderInner inner={c} lang={lang} device={device} />
+                  ) : (
+                    <RenderColumn column={c} lang={lang} device={device} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
       {(() => {
