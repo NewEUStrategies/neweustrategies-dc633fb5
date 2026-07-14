@@ -138,9 +138,15 @@ export function WidgetLibrary({
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "copy";
+                  e.dataTransfer.setData(CONTAINER_MIME, JSON.stringify({ withTabs: false }));
+                  e.dataTransfer.setData("text/plain", "Kontener");
+                }}
                 onClick={() => onPickContainer?.(false)}
-                title="Wstaw pusty kontener - grupuje sekcje. W środku dodasz kolejne sekcje, a w sekcjach widgety."
-                className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-pointer select-none"
+                title="Kliknij lub przeciągnij na płótno: pusty kontener grupujący sekcje."
+                className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
               >
                 <LayoutDashboard className="w-4 h-4 text-brand" />
                 <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
@@ -149,9 +155,15 @@ export function WidgetLibrary({
               </button>
               <button
                 type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "copy";
+                  e.dataTransfer.setData(CONTAINER_MIME, JSON.stringify({ withTabs: true }));
+                  e.dataTransfer.setData("text/plain", "Kontener z zakładkami");
+                }}
                 onClick={() => onPickContainer?.(true)}
-                title="Wstaw kontener z zakładkami - w każdej zakładce dodasz sekcje, a w sekcjach widgety."
-                className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-pointer select-none"
+                title="Kliknij lub przeciągnij na płótno: kontener z zakładkami."
+                className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
               >
                 <Rows className="w-4 h-4 text-brand" />
                 <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
