@@ -154,17 +154,19 @@ export const newInnerSection = (colsOrSpans: number | number[] = [6, 6]): InnerS
 };
 
 /**
- * Kontener = sekcja pełniąca rolę wrappera. W trybie bez zakładek startuje jako
- * pojedyncza podsekcja z jedną kolumną 12/12 - użytkownik wybiera dalej strukturę
- * (dodaje kolumny) i wrzuca widgety. W trybie zakładek każda zakładka jest
- * osobną podsekcją 1x12/12 - też pustą, gotową do wyboru struktury.
+ * Kontener = sekcja pełniąca rolę wrappera. Startuje PUSTY - bez żadnych
+ * sekcji wewnętrznych ani kolumn. Użytkownik dopiero po utworzeniu wybiera
+ * strukturę (liczbę kolumn) za pomocą picker'a rysowanego w kanwasie w miejscu
+ * pustego panelu (lub aktywnej zakładki w wariancie tabowanym). W wariancie
+ * z zakładkami tworzone są tylko puste karty zakładek - żadnych domyślnych
+ * kolumn per zakładka.
  */
 export const newContainerSection = (withTabs: boolean): SectionNode => {
   if (!withTabs) {
     return {
       id: newId(),
       kind: "section",
-      children: [newInnerSection([12])],
+      children: [],
     };
   }
   const tab1Id = newId();
@@ -184,10 +186,7 @@ export const newContainerSection = (withTabs: boolean): SectionNode => {
         { id: tab2Id, label_pl: "Zakładka 2", label_en: "Tab 2" },
       ],
     },
-    children: [
-      { ...newInnerSection([12]), tabId: tab1Id },
-      { ...newInnerSection([12]), tabId: tab2Id },
-    ],
+    children: [],
   };
 };
 
@@ -216,6 +215,18 @@ export function addSectionToTab(
   if (!section?.tabs?.items.some((tab) => tab.id === tabId)) return;
   if (!section.children) section.children = [];
   section.children.push({ ...newInnerSection(colsOrSpans), tabId });
+}
+
+/** Add a column structure directly inside a container-section (no tabs). */
+export function addSectionToContainer(
+  d: BuilderDocument,
+  sectionId: string,
+  colsOrSpans: number | number[],
+): void {
+  const section = d.sections.find((candidate) => candidate?.id === sectionId);
+  if (!section) return;
+  if (!section.children) section.children = [];
+  section.children.push(newInnerSection(colsOrSpans));
 }
 
 export function insertSectionNode(d: BuilderDocument, section: SectionNode): void {
