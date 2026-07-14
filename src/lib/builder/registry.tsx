@@ -875,6 +875,7 @@ export const WIDGETS: WidgetDef[] = [
       accentColor: "",
       overlayAlpha: 0.55,
     }),
+  },
   {
     type: "rich-text",
     label: "Treść (bloki)",
