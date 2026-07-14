@@ -4,8 +4,9 @@
 import { useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, X, AlertCircle } from "lucide-react";
+import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 
 interface Props {
   label: string;
