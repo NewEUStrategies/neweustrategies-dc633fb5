@@ -7,16 +7,8 @@ import { safeImageUrl, safeUrl, sanitizeHtml } from "@/lib/sanitize";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { XIcon } from "@/components/atoms/XIcon";
-import {
-  Facebook,
-  Linkedin,
-  Instagram,
-  Youtube,
-  Globe,
-  Mail,
-  Phone,
-  User as UserIcon,
-} from "@/lib/lucide-shim";
+import { Facebook, Linkedin, Globe, User as UserIcon } from "@/lib/lucide-shim";
+import { Instagram, Youtube } from "lucide-react";
 import { getStr, type Lang } from "./frame";
 
 type SocialKey = "x" | "facebook" | "linkedin" | "instagram" | "youtube" | "website";
