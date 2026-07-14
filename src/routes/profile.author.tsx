@@ -13,7 +13,26 @@ import { Label } from "@/components/ui/label";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, ShieldAlert, Info, RefreshCcw, ExternalLink } from "lucide-react";
+import { Trash2, Plus, Upload, ShieldAlert, Info, RefreshCcw, ExternalLink, Linkedin as LucideLinkedin, Facebook as LucideFacebook, Instagram as LucideInstagram, Link2 as LucideLink } from "lucide-react";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { XIcon } from "@/components/atoms/XIcon";
+import type { ComponentType, SVGAttributes } from "react";
+
+// Spotify nie ma w lucide-react - prosty SVG fallback zgodny z brandingiem.
+const SpotifyFallback: ComponentType<{ className?: string } & SVGAttributes<SVGSVGElement>> = ({ className, ...rest }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" {...rest}>
+    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm4.6 14.42a.62.62 0 0 1-.86.21c-2.36-1.44-5.32-1.77-8.82-.97a.63.63 0 1 1-.28-1.22c3.82-.87 7.1-.5 9.75 1.12a.62.62 0 0 1 .21.86zm1.23-2.74a.78.78 0 0 1-1.07.26c-2.7-1.66-6.82-2.14-10.02-1.17a.78.78 0 0 1-.46-1.5c3.66-1.1 8.2-.57 11.29 1.34a.78.78 0 0 1 .26 1.07zm.11-2.85c-3.24-1.92-8.58-2.1-11.67-1.16a.94.94 0 1 1-.55-1.8c3.55-1.08 9.44-.87 13.17 1.34a.94.94 0 1 1-.95 1.62z" />
+  </svg>
+);
+
+// Mapa: pole -> (slug w admin/ikony, fallback lucide). Slugi zgodne z ALIASES w BrandIcon.
+const SOCIAL_ICONS: Record<string, { slug: string; Fallback: ComponentType<{ className?: string } & SVGAttributes<SVGSVGElement>> }> = {
+  x_url: { slug: "x", Fallback: XIcon },
+  linkedin_url: { slug: "linkedin", Fallback: LucideLinkedin },
+  facebook_url: { slug: "facebook", Fallback: LucideFacebook },
+  instagram_url: { slug: "instagram", Fallback: LucideInstagram },
+  spotify_url: { slug: "spotify", Fallback: SpotifyFallback },
+};
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { useServerFn } from "@tanstack/react-start";
