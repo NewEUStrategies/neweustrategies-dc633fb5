@@ -229,6 +229,11 @@ function ExpertHubPage() {
   const showPodcastStrip = isSectionVisible(settings, "podcast_strip");
   const showMaterials = isSectionVisible(settings, "materials");
   const showCv = isSectionVisible(settings, "cv");
+  const hasDetailsContent =
+    data.areas.length > 0 ||
+    data.programs.length > 0 ||
+    Boolean(expert.contact_email?.trim()) ||
+    Boolean(expert.website_url?.trim());
 
   return (
     <div
