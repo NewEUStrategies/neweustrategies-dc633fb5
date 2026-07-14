@@ -902,8 +902,27 @@ function AuthorProfilePage() {
                 {data.custom_socials.map((s, idx) => (
                   <div
                     key={idx}
-                    className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_2fr_1fr_auto]"
+                    className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[auto_1fr_2fr_1fr_auto] sm:items-center"
                   >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted/30 text-muted-foreground">
+                      {s.iconUrl ? (
+                        <img
+                          src={s.iconUrl}
+                          alt=""
+                          className="h-5 w-5 object-contain"
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                        />
+                      ) : (
+                        <BrandIcon
+                          name={s.label || "link"}
+                          fallback={LucideLink}
+                          className="h-4 w-4"
+                          alt=""
+                        />
+                      )}
+                    </div>
                     <Input
                       placeholder={t("profile.author.socialLabel", { defaultValue: "Etykieta" })}
                       value={s.label}
