@@ -355,6 +355,12 @@ function EditPost() {
   useEffect(() => {
     if (postTags) setSelectedTags(postTags.map((c) => c.tag_id));
   }, [postTags]);
+  useEffect(() => {
+    if (postPrograms) setSelectedPrograms(postPrograms.map((p) => p.program_id));
+  }, [postPrograms]);
+  useEffect(() => {
+    if (postRegions) setSelectedRegions(postRegions.map((r) => r.region_id));
+  }, [postRegions]);
 
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Shift+Ctrl/Cmd+Z (or Ctrl+Y) = redo
   useEffect(() => {
