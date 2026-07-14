@@ -513,7 +513,7 @@ export function ExpertLayoutHero({
               style={{
                 borderColor: "var(--pv-accent)",
                 fontFamily: "'Playfair Display', Georgia, serif",
-                color: heroText ?? undefined,
+                color: "var(--pv-hero-text)",
               }}
             >
               {bioItems.map((item, i) => (
