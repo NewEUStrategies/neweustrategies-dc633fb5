@@ -834,7 +834,7 @@ export function VisualCanvas({
     }
     [data-visual-canvas] [data-widget-id]:active::before{cursor:grabbing}
     [data-visual-canvas] [data-sec-id]{position:relative}
-    [data-visual-canvas] [data-sec-id]::before{
+    [data-visual-canvas] [data-sec-id]:not([data-ab-variant])::before{
       content:"⋮⋮ Sekcja";
       position:absolute;top:-12px;left:8px;z-index:44;
       padding:2px 8px;border-radius:999px;
@@ -846,8 +846,8 @@ export function VisualCanvas({
       transition:opacity .12s ease, transform .12s ease;
       cursor:grab;pointer-events:none;
     }
-    [data-visual-canvas] [data-sec-id]:hover::before,
-    [data-visual-canvas] [data-sec-id].is-selected::before{
+    [data-visual-canvas] [data-sec-id]:not([data-ab-variant]):hover::before,
+    [data-visual-canvas] [data-sec-id]:not([data-ab-variant]).is-selected::before{
       opacity:1;transform:translateY(0);
     }
     [data-visual-canvas][data-canvas-dragging="1"] [data-widget-id]::before,
