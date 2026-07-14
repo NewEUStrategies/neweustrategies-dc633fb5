@@ -323,6 +323,36 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       onChange={(e) => patch(idx, { url: e.target.value || null })}
                     />
                   </div>
+                  {KINDS_WITH_COVER.includes(row.kind) && (
+                    <div className="grid gap-2 sm:col-span-2">
+                      <Label className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" aria-hidden />
+                        {t("profile.author.media.cover", {
+                          defaultValue: "Okładka - URL obrazu (opcjonalnie)",
+                        })}
+                      </Label>
+                      <div className="grid gap-2 sm:grid-cols-[96px_1fr] sm:items-start">
+                        {row.cover_url?.trim() ? (
+                          <img
+                            src={row.cover_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-16 w-24 rounded-md border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-24 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20 text-muted-foreground">
+                            <ImageIcon className="h-4 w-4" aria-hidden />
+                          </div>
+                        )}
+                        <Input
+                          type="url"
+                          placeholder="https://.../cover.jpg"
+                          value={row.cover_url ?? ""}
+                          onChange={(e) => patch(idx, { cover_url: e.target.value || null })}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
                   <label className="inline-flex items-center gap-2 text-xs">
