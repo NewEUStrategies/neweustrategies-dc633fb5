@@ -247,24 +247,26 @@ export function ExpertLayoutHero({
   const hasCover = Boolean(e.cover_url);
   const maxWidth = settings.max_width;
 
-  const heroBg = settings.hero_bg_color;
-  const heroText = settings.hero_text_color;
-
+  // Kolory hero konsumujemy przez CSS vars (`--pv-hero-*`) - dzięki temu
+  // dark-mode override z `ExpertLayoutStyleScope` wchodzi automatycznie
+  // (bez re-renderu z propsem theme). `transparent`/`inherit` to fallbacki
+  // ustawiane w `expertLayoutCssVars` gdy admin nie nadpisał koloru.
   const heroStyle: CSSProperties = {
-    backgroundColor: heroBg ?? undefined,
-    color: heroText ?? undefined,
+    backgroundColor: "var(--pv-hero-bg)",
+    color: "var(--pv-hero-text)",
   };
   const centered = settings.center_hero || preset.centeredContent;
 
   const roleStyle: CSSProperties = {
-    fontSize: settings.role_size_lg,
-    color: heroText ?? undefined,
-    opacity: heroText ? 0.85 : undefined,
+    fontSize: "var(--pv-role-size)",
+    color: "var(--pv-hero-text)",
+    opacity: 0.85,
   };
   const bioStyle: CSSProperties = {
-    color: heroText ?? undefined,
-    opacity: heroText ? 0.9 : undefined,
+    color: "var(--pv-hero-text)",
+    opacity: 0.9,
   };
+
 
   const BioBlock = ({ className = "" }: { className?: string }) =>
     bioItems.length > 0 ? (
