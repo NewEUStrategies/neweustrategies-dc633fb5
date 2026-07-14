@@ -958,7 +958,9 @@ export function VisualCanvas({
     [data-visual-canvas] [data-section-inserter] button,
     [data-visual-canvas] [data-section-inserter] a,
     [data-visual-canvas] [data-builder-chrome],
-    [data-visual-canvas] [data-builder-chrome] *{pointer-events:auto}
+    [data-visual-canvas] [data-builder-chrome] *,
+    [data-visual-canvas] [data-empty-container-picker],
+    [data-visual-canvas] [data-empty-container-picker] *{pointer-events:auto}
     /* Inline-size editing: elements stamped with data-edit-target must stay
        clickable (the InlineSizeToolbar opens from them) and advertise it. */
     [data-visual-canvas] [data-edit-target],
