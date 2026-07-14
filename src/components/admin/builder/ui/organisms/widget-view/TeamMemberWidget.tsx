@@ -70,10 +70,17 @@ export function TeamMemberWidget({
     .map((key) => ({ key, url: safeUrl(getStr(c, key)) }))
     .filter((s) => Boolean(s.url));
 
+  const cardMaxWidthRaw = Number(cRaw.cardMaxWidth);
+  const cardMaxWidth =
+    Number.isFinite(cardMaxWidthRaw) && cardMaxWidthRaw > 0 ? cardMaxWidthRaw : undefined;
+
   const cardStyle: CSSProperties = {
     backgroundImage: photo ? `url("${photo}")` : undefined,
     backgroundSize: "cover",
     backgroundPosition: "center",
+    ...(cardMaxWidth
+      ? { maxWidth: `${cardMaxWidth}px`, marginInline: "auto" }
+      : {}),
   };
 
   const openModal = () => {
