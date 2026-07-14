@@ -497,6 +497,7 @@ export function VisualCanvas({
 
     const onDragOver = (e: DragEvent) => {
       const lib = isLibraryDrag(e);
+      const structDrag = isStructureDrag(e);
       if (!dragRef.current && !lib) return;
       if (lib) setDragging(true);
       updateAutoScroll(e.clientY);
@@ -506,6 +507,27 @@ export function VisualCanvas({
       const widget = t.closest?.("[data-widget-id]") as HTMLElement | null;
       const col = t.closest?.("[data-col-id]") as HTMLElement | null;
       const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+
+      // Structure drags always create a NEW section - the only meaningful
+      // drop targets are the between-section gaps and the top/bottom of an
+      // existing section. Skip widget/column markers entirely.
+      if (structDrag) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        if (sec) {
+          const r = sec.getBoundingClientRect();
+          const before = e.clientY < r.top + r.height / 2;
+          sec.classList.add(before ? "is-drop-before" : "is-drop-after");
+        } else {
+          // No section under pointer - highlight the first/last drop zone so
+          // the editor sees where the section will land.
+          const zones = root.querySelectorAll<HTMLElement>("[data-section-inserter]");
+          const zone = zones[zones.length - 1] ?? zones[0];
+          if (zone) zone.setAttribute("data-drop-active", "1");
+        }
+        return;
+      }
+
       const hasSectionTarget = !!(widget || col || sec);
       if (lib && !hasSectionTarget) {
         if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
