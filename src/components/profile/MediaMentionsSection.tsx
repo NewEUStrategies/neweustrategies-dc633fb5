@@ -76,7 +76,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("media_mentions")
-      .select("id, outlet, title, url, kind, language, published_on, is_public")
+      .select("id, outlet, title, url, kind, language, published_on, is_public, cover_url")
       .eq("user_id", userId)
       .order("published_on", { ascending: false });
     if (error) {
@@ -94,6 +94,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         language: (r.language as string | null) ?? null,
         published_on: (r.published_on as string) ?? today(),
         is_public: (r.is_public as boolean) ?? true,
+        cover_url: ((r as { cover_url?: string | null }).cover_url ?? null) as string | null,
         _dirty: false,
         _saving: false,
       })),
