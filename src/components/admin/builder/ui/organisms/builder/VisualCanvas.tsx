@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
-import { BuilderRenderer } from "../../../BuilderRenderer";
+import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
