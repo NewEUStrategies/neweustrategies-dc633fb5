@@ -749,7 +749,11 @@ export function Builder({
           onCancel={() => setPendingBulkDelete(null)}
           onConfirm={() => {
             const ids = pendingBulkDelete ?? [];
-            ids.forEach((id) => removeWidget(id));
+            if (ids.length > 0) {
+              update((d) => {
+                ids.forEach((id) => ops.removeWidget(d, id));
+              });
+            }
             clearMulti();
             setPendingBulkDelete(null);
           }}
