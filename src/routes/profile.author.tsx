@@ -530,35 +530,23 @@ function AuthorProfilePage() {
                 </div>
               </div>
               <p className="m-0 text-xs text-muted-foreground">
-                {t("profile.author.bioShared", {
+                {t("profile.author.bioBulletsHint", {
                   defaultValue:
-                    "Bio jest wspólne z Twoim profilem (konto / wizytówka) - edycja tutaj aktualizuje je wszędzie.",
+                    "Bio w formie punktorów - maksymalnie 5. Kolor punktora dziedziczony z ustawień tenanta (admin › Layouty ekspertów). Edycja synchronizuje profil prywatny.",
                 })}
               </p>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="bio_pl">
-                  {t("profile.author.bioPl", { defaultValue: "Bio (PL)" })}
-                </FieldLabel>
-                <Textarea
-                  id="bio_pl"
-                  value={data.bio_pl ?? ""}
-                  onChange={(e) => setData({ ...data, bio_pl: e.target.value })}
-                  maxLength={1000}
-                  rows={4}
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="bio_en">
-                  {t("profile.author.bioEn", { defaultValue: "Bio (EN)" })}
-                </FieldLabel>
-                <Textarea
-                  id="bio_en"
-                  value={data.bio_en ?? ""}
-                  onChange={(e) => setData({ ...data, bio_en: e.target.value })}
-                  maxLength={1000}
-                  rows={4}
-                />
-              </div>
+              <BulletEditor
+                idPrefix="bio_pl"
+                label={t("profile.author.bioPl", { defaultValue: "Bio - punktory (PL)" })}
+                bullets={bulletsPl}
+                onChange={setBulletsPl}
+              />
+              <BulletEditor
+                idPrefix="bio_en"
+                label={t("profile.author.bioEn", { defaultValue: "Bio - punktory (EN)" })}
+                bullets={bulletsEn}
+                onChange={setBulletsEn}
+              />
             </section>
 
             {/* Hub eksperta: pełna biografia + funkcje + obszary */}
