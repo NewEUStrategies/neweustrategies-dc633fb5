@@ -190,19 +190,30 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
-    await syncI18nToRequest();
-    // Warm design tokens / global colors / post-layout in parallel with
-    // site_settings so <DesignTokensStyle />, <ContentAreaStyle /> and
-    // friends render their `<style>` server-side. Without this the first
-    // paint uses raw styles.css defaults (dark navy fallback) and only
-    // switches to the tenant palette after client-side hydration - a jarring
-    // flash of unstyled theme.
-    const [settings] = await Promise.all([
+    await syncI18nToRequest().catch(() => undefined);
+    // Warm site_settings + design tokens / global colors / post-layout so
+    // <DesignTokensStyle />, <ContentAreaStyle /> and friends render their
+    // `<style>` server-side. Without this the first paint uses raw styles.css
+    // defaults (dark navy fallback) and only switches to the tenant palette
+    // after client-side hydration - a jarring flash of unstyled theme.
+    //
+    // CRITICAL: this loader runs on EVERY route, so it MUST NOT be a single
+    // point of total failure. These are all presentation-layer caches with
+    // built-in defaults (resolveSetting / EMPTY_TOKENS / EMPTY_GLOBAL_COLORS /
+    // defaultPostLayoutSettings). Warming them is best-effort: a failed fetch
+    // (transient network blip, cold edge worker, momentarily unreachable
+    // backend, one corrupt row) must degrade to defaults, never throw and 500
+    // the whole site. `allSettled` never rejects; per-route content loaders
+    // still fail loud (and render the localized error boundary) as before.
+    await Promise.allSettled([
       context.queryClient.ensureQueryData(siteSettingsQueryOptions),
       context.queryClient.ensureQueryData(designTokensQueryOptions),
       context.queryClient.ensureQueryData(globalColorsQueryOptions),
       context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
     ]);
+    const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
+      siteSettingsQueryOptions.queryKey,
+    );
     // Warm the header "Na czasie" ticker for every route that shows the site
     // chrome, so the bar is part of the SSR HTML instead of appearing seconds
     // after hydration and pushing the whole page down (the worst CLS on the
@@ -215,11 +226,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       path !== "/login" &&
       !path.startsWith("/login/");
     if (showsChrome) {
-      const header = resolveSetting<HeaderSettings>(settings, "header", {});
-      const trending = resolveActiveTickerConfig(header.trending);
-      const headerVisible = !!header.builder_data?.sections?.length;
-      if (headerVisible && trending.enabled !== false) {
-        await context.queryClient.ensureQueryData(headerTickerQueryOptions(trending));
+      try {
+        const header = resolveSetting<HeaderSettings>(settings, "header", {});
+        const trending = resolveActiveTickerConfig(header.trending);
+        const headerVisible = !!header.builder_data?.sections?.length;
+        if (headerVisible && trending.enabled !== false) {
+          await context.queryClient.ensureQueryData(headerTickerQueryOptions(trending));
+        }
+      } catch {
+        /* ticker is non-critical decoration - never let it block the site */
       }
     }
     // Nothing reads the root loader's data - return null so the settings map is
