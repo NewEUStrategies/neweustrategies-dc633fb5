@@ -1,9 +1,9 @@
 // Eksplorator materiałów eksperta: filtry po formacie, temacie, regionie,
 // programie i roku (AND), plus siatka kart. Filtrowanie jest po stronie
 // klienta na komplecie materiałów (patrz lib/experts/queries).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   Select,
   SelectContent,
