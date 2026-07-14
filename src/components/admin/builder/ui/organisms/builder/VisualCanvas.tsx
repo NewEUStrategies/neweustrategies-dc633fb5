@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
-import { BuilderRenderer } from "../../../BuilderRenderer";
+import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
@@ -58,6 +58,7 @@ export function VisualCanvas({
   setSelection,
   onInsertSection,
   onInsertSectionToTab,
+  onInsertSectionToContainer,
   onInsertContainer,
   onRemoveSection,
   onMoveWidget,
@@ -83,6 +84,7 @@ export function VisualCanvas({
     tabId: string,
     colsOrSpans: number | number[],
   ) => void;
+  onInsertSectionToContainer?: (sectionId: string, colsOrSpans: number | number[]) => void;
   onInsertContainer?: (index: number, withTabs: boolean) => void;
   onRemoveSection?: (id: string) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
@@ -1025,30 +1027,37 @@ export function VisualCanvas({
     >
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
-        <SectionDropZone
-          onInsert={(cols) => onInsertSection(0, cols)}
-          index={0}
-          prominent
-          label={firstLabel}
-        />
-        {safeDoc.sections.map((s, idx) => (
-          <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-            <BuilderRenderer
-              doc={{ ...safeDoc, sections: [s] }}
-              lang={lang}
-              device={device}
-              editorPreview
-            />
-            {idx === safeDoc.sections.length - 1 && (
-              <SectionDropZone
-                onInsert={(cols) => onInsertSection(idx + 1, cols)}
-                index={idx + 1}
-                prominent
-                label={lastLabel}
+        <BuilderEmptyPickerProvider
+          onPick={(sectionId, tabId, spans) => {
+            if (tabId) onInsertSectionToTab?.(sectionId, tabId, spans);
+            else onInsertSectionToContainer?.(sectionId, spans);
+          }}
+        >
+          <SectionDropZone
+            onInsert={(cols) => onInsertSection(0, cols)}
+            index={0}
+            prominent
+            label={firstLabel}
+          />
+          {safeDoc.sections.map((s, idx) => (
+            <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
+              <BuilderRenderer
+                doc={{ ...safeDoc, sections: [s] }}
+                lang={lang}
+                device={device}
+                editorPreview
               />
-            )}
-          </div>
-        ))}
+              {idx === safeDoc.sections.length - 1 && (
+                <SectionDropZone
+                  onInsert={(cols) => onInsertSection(idx + 1, cols)}
+                  index={idx + 1}
+                  prominent
+                  label={lastLabel}
+                />
+              )}
+            </div>
+          ))}
+        </BuilderEmptyPickerProvider>
       </div>
       {marqueeRect && (
         <div

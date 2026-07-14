@@ -118,6 +118,10 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update((d) => ops.addSectionToTab(d, sectionId, tabId, colsOrSpans), {
       label: "Dodano sekcję do zakładki",
     });
+  const addSectionToContainer = (sectionId: string, colsOrSpans: number | number[]) =>
+    update((d) => ops.addSectionToContainer(d, sectionId, colsOrSpans), {
+      label: "Dodano sekcję do kontenera",
+    });
   const addInnerSection = (sectionId: string) =>
     update((d) => ops.addInnerSection(d, sectionId), { label: "Dodano wewnętrzną sekcję" });
   const addColumn = (sectionId: string) =>
@@ -285,6 +289,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     duplicateSection,
     insertSectionAt,
     addSectionToTab,
+    addSectionToContainer,
     addInnerSection,
     addColumn,
     removeColumn,
