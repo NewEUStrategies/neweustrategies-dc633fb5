@@ -522,7 +522,7 @@ const RenderSection = memo(function RenderSection({
               tabs={tabsCfg!}
               lang={lang}
               activeId={activeTabId}
-              onSelect={setActiveTabId}
+              onSelect={handleTabSelect}
             />
           </div>
         )}
@@ -539,15 +539,16 @@ const RenderSection = memo(function RenderSection({
               tabs={tabsCfg!}
               lang={lang}
               activeId={activeTabId}
-              onSelect={setActiveTabId}
+              onSelect={handleTabSelect}
             />
           )}
           <div
             data-columns-row
-            data-section-tab-panel={tabsEnabled ? activeTabId : undefined}
+            data-section-tab-panel={tabsEnabled ? displayTabId : undefined}
+            data-tab-phase={tabsEnabled ? tabPhase : undefined}
             role={tabsEnabled ? "tabpanel" : undefined}
-            id={tabsEnabled ? `sec-${section.id}-panel-${activeTabId}` : undefined}
-            aria-labelledby={tabsEnabled ? `sec-${section.id}-tab-${activeTabId}` : undefined}
+            id={tabsEnabled ? `sec-${section.id}-panel-${displayTabId}` : undefined}
+            aria-labelledby={tabsEnabled ? `sec-${section.id}-tab-${displayTabId}` : undefined}
             className="min-w-0 max-w-full overflow-hidden"
             style={{
               ...columnsRowStyle(section, colsSum),
@@ -556,6 +557,14 @@ const RenderSection = memo(function RenderSection({
                   ? "minmax(0, 1fr)"
                   : columnsRowStyle(section, colsSum).gridTemplateColumns,
               flex: tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical" ? 1 : undefined,
+              ...(tabsEnabled && !prefersReducedMotion
+                ? {
+                    transition: `opacity ${TAB_FADE_MS}ms ease, transform ${TAB_FADE_MS}ms ease`,
+                    opacity: tabPhase === "out" ? 0 : 1,
+                    transform: tabPhase === "out" ? "translateY(4px)" : "translateY(0)",
+                    willChange: "opacity, transform",
+                  }
+                : null),
             }}
           >
             {showEmptyPicker ? (
