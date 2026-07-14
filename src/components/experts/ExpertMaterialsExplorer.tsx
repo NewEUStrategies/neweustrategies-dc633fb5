@@ -1,9 +1,9 @@
 // Eksplorator materiałów eksperta: filtry po formacie, temacie, regionie,
 // programie i roku (AND), plus siatka kart. Filtrowanie jest po stronie
 // klienta na komplecie materiałów (patrz lib/experts/queries).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -34,14 +34,16 @@ function FacetSelect({
   options,
   allLabel,
   ariaLabel,
+  alwaysShow = false,
 }: {
   value: string | null;
   onChange: (next: string | null) => void;
   options: { value: string; label: string; count?: number }[];
   allLabel: string;
   ariaLabel: string;
+  alwaysShow?: boolean;
 }) {
-  if (options.length === 0) return null;
+  if (options.length === 0 && !alwaysShow) return null;
   return (
     <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? null : next)}>
       <SelectTrigger
@@ -72,11 +74,24 @@ export function ExpertMaterialsExplorer({
 }) {
   const { t } = useTranslation();
   const [filters, setFilters] = useState<MaterialFilters>(EMPTY_MATERIAL_FILTERS);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 9;
 
   const { materials, facets } = data;
   const counts = useMemo(() => kindCounts(materials), [materials]);
   const years = useMemo(() => availableYears(materials), [materials]);
   const filtered = useMemo(() => applyMaterialFilters(materials, filters), [materials, filters]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
 
   const hasActiveFilters =
     filters.kind !== null ||
@@ -91,16 +106,31 @@ export function ExpertMaterialsExplorer({
     count: counts[k],
   }));
 
+  const heading = (
+    <h2 className="mb-4 flex items-center gap-2 font-display text-lg">
+      <span style={{ color: "var(--pv-accent)" }}>
+        <BookOpen className="h-4 w-4" aria-hidden />
+      </span>
+      {t("expert.publicationsHeading", {
+        defaultValue: lang === "en" ? "Expert publications" : "Publikacje eksperta",
+      })}
+    </h2>
+  );
+
   if (materials.length === 0) {
     return (
-      <p className="rounded-[8px] border border-dashed border-border/70 px-6 py-10 text-center text-sm text-muted-foreground">
-        {t("expert.noMaterials")}
-      </p>
+      <div>
+        {heading}
+        <p className="rounded-[8px] border border-dashed border-border/70 px-6 py-10 text-center text-sm text-muted-foreground">
+          {t("expert.noMaterials")}
+        </p>
+      </div>
     );
   }
 
   return (
     <div>
+      {heading}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FacetSelect
           value={filters.kind}
@@ -109,18 +139,21 @@ export function ExpertMaterialsExplorer({
           allLabel={t("expert.allFormats")}
           ariaLabel={t("expert.filterFormat")}
         />
-        {facets.categories.length > 0 && (
-          <FacetSelect
-            value={filters.categoryId}
-            onChange={(next) => setFilters((f) => ({ ...f, categoryId: next }))}
-            options={facets.categories.map((c) => ({
-              value: c.id,
-              label: lang === "en" ? c.name_en : c.name_pl,
-            }))}
-            allLabel={t("expert.allTopics")}
-            ariaLabel={t("expert.filterTopic")}
-          />
-        )}
+        <FacetSelect
+          value={filters.categoryId}
+          onChange={(next) => setFilters((f) => ({ ...f, categoryId: next }))}
+          options={facets.categories.map((c) => ({
+            value: c.id,
+            label: lang === "en" ? c.name_en : c.name_pl,
+          }))}
+          allLabel={t("expert.allTopics", {
+            defaultValue: lang === "en" ? "All topics" : "Wszystkie tematyki",
+          })}
+          ariaLabel={t("expert.filterTopic", {
+            defaultValue: lang === "en" ? "Filter by topic" : "Filtruj po tematyce",
+          })}
+          alwaysShow
+        />
         {facets.regions.length > 0 && (
           <FacetSelect
             value={filters.regionId}
@@ -177,11 +210,55 @@ export function ExpertMaterialsExplorer({
           {t("expert.emptyMaterials")}
         </p>
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((m) => (
-            <ExpertMaterialCard key={`${m.kind}-${m.id}`} material={m} lang={lang} t={t} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {paged.map((m) => (
+              <ExpertMaterialCard key={`${m.kind}-${m.id}`} material={m} lang={lang} t={t} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <nav
+              className="mt-6 flex items-center justify-center gap-1"
+              aria-label={lang === "en" ? "Pagination" : "Paginacja"}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                aria-label={lang === "en" ? "Previous page" : "Poprzednia strona"}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <Button
+                  key={p}
+                  type="button"
+                  variant={p === currentPage ? "default" : "ghost"}
+                  size="sm"
+                  className="h-9 min-w-9 px-3 text-xs"
+                  onClick={() => setPage(p)}
+                  aria-current={p === currentPage ? "page" : undefined}
+                >
+                  {p}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                aria-label={lang === "en" ? "Next page" : "Następna strona"}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
