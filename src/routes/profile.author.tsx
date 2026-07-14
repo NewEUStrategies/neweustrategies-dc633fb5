@@ -843,3 +843,84 @@ function AuthorProfilePage() {
     </TooltipProvider>
   );
 }
+
+/**
+ * Edytor punktorów BIO - maksymalnie 5 pozycji. Kolor markerów jest
+ * dziedziczony na stronie publicznej (/author/$slug) z `expert_layout_settings`
+ * (admin/expert-layouts) via CSS variable `--pv-bio-bullet`.
+ */
+function BulletEditor({
+  idPrefix,
+  label,
+  bullets,
+  onChange,
+}: {
+  idPrefix: string;
+  label: string;
+  bullets: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const update = (idx: number, value: string) => {
+    const next = [...bullets];
+    next[idx] = value;
+    onChange(next);
+  };
+  const remove = (idx: number) => onChange(bullets.filter((_, i) => i !== idx));
+  const add = () => {
+    if (bullets.length >= MAX_BIO_BULLETS) return;
+    onChange([...bullets, ""]);
+  };
+  const canAdd = bullets.length < MAX_BIO_BULLETS;
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between">
+        <FieldLabel htmlFor={`${idPrefix}-0`}>{label}</FieldLabel>
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {bullets.length}/{MAX_BIO_BULLETS}
+        </span>
+      </div>
+      <ul className="grid gap-2">
+        {bullets.map((b, idx) => (
+          <li
+            key={idx}
+            className="flex items-start gap-2 rounded-md border border-border bg-card px-2 py-1.5"
+          >
+            <span
+              aria-hidden
+              className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-[2px] bg-[var(--brand)]"
+            />
+            <Input
+              id={`${idPrefix}-${idx}`}
+              value={b}
+              onChange={(e) => update(idx, e.target.value)}
+              maxLength={MAX_BULLET_LEN}
+              placeholder="Krótki punkt (max 200 znaków)"
+              className="h-8 border-0 bg-transparent px-1 focus-visible:ring-0"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => remove(idx)}
+              aria-label="remove"
+              className="h-7 w-7 shrink-0"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={add}
+        disabled={!canAdd}
+        className="w-fit"
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Dodaj punktor
+      </Button>
+    </div>
+  );
+}
