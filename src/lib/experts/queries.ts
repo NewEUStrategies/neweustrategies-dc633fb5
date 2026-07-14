@@ -98,7 +98,7 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
   }
   const postIds = [...postById.keys()];
 
-  const [{ data: pcRows }, { data: ppRows }, { data: prRows }] = await Promise.all([
+  const [{ data: pcRows }, { data: ppRows }, { data: prRows }, { data: ptRows }] = await Promise.all([
     postIds.length
       ? supabase.from("post_categories").select("post_id, category_id").in("post_id", postIds)
       : Promise.resolve({ data: [] as unknown[] }),
@@ -108,12 +108,16 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
     postIds.length
       ? supabase.from("post_regions").select("post_id, region_id").in("post_id", postIds)
       : Promise.resolve({ data: [] as unknown[] }),
+    postIds.length
+      ? supabase.from("post_tags").select("post_id, tag_id").in("post_id", postIds)
+      : Promise.resolve({ data: [] as unknown[] }),
   ]);
 
   const pivots: PostPivots = {
     categories: groupPivot((pcRows ?? []) as Record<string, unknown>[], "category_id"),
     programs: groupPivot((ppRows ?? []) as Record<string, unknown>[], "program_id"),
     regions: groupPivot((prRows ?? []) as Record<string, unknown>[], "region_id"),
+    tags: groupPivot((ptRows ?? []) as Record<string, unknown>[], "tag_id"),
   };
 
   const materials: ExpertMaterial[] = [];
@@ -179,6 +183,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
         { data: allPrograms },
         { data: allRegions },
         { data: allCategories },
+        { data: allTags },
       ] = await Promise.all([
         supabase
           .from("author_profiles")
@@ -212,6 +217,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
           .select("id, slug, name_pl, name_en, kind, description_pl, description_en"),
         supabase.from("regions").select("id, slug, name_pl, name_en"),
         supabase.from("categories").select("id, slug, name_pl, name_en"),
+        supabase.from("tags").select("id, slug, name"),
       ]);
 
       const apRow = (ap as Record<string, unknown> | null) ?? null;
@@ -250,11 +256,18 @@ export const expertHubQueryOptions = (slugOrId: string) =>
         name_pl: c.name_pl as string,
         name_en: c.name_en as string,
       }));
+      const tagRows = (allTags ?? []) as Record<string, unknown>[];
+      const allTagsMapped = tagRows.map((t) => ({
+        id: t.id as string,
+        slug: t.slug as string,
+        name: t.name as string,
+      }));
 
       const facets = reduceFacets(materials, {
         programs: allProgramsMapped,
         regions: allRegionsMapped,
         categories: allCategoriesMapped,
+        tags: allTagsMapped,
       });
 
       return { expert, programs, areas, mediaMentions, materials, facets };

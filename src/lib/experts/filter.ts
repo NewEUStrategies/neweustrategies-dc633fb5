@@ -19,6 +19,7 @@ export function applyMaterialFilters(
     if (filters.programId && !m.programIds.includes(filters.programId)) return false;
     if (filters.regionId && !m.regionIds.includes(filters.regionId)) return false;
     if (filters.categoryId && !m.categoryIds.includes(filters.categoryId)) return false;
+    if (filters.tagId && !m.tagIds.includes(filters.tagId)) return false;
     if (filters.year !== null && materialYear(m) !== filters.year) return false;
     return true;
   });

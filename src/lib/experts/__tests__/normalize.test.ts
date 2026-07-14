@@ -20,6 +20,7 @@ const NO_PIVOTS: PostPivots = {
   categories: new Map(),
   programs: new Map(),
   regions: new Map(),
+  tags: new Map(),
 };
 
 function mat(partial: Partial<ExpertMaterial>): ExpertMaterial {
@@ -36,6 +37,7 @@ function mat(partial: Partial<ExpertMaterial>): ExpertMaterial {
     programIds: partial.programIds ?? [],
     regionIds: partial.regionIds ?? [],
     categoryIds: partial.categoryIds ?? [],
+    tagIds: partial.tagIds ?? [],
     isCoauthor: false,
   };
 }
@@ -126,6 +128,7 @@ describe("reduceFacets", () => {
     categories: [
       { id: "c1", slug: "sec", name_pl: "Bezp.", name_en: "Security" },
     ],
+    tags: [],
   };
 
   it("keeps only taxonomy entries present in the materials", () => {
@@ -255,6 +258,7 @@ describe("row → material converters", () => {
       categories: new Map([["post1", ["c1"]]]),
       programs: new Map([["post1", ["p1", "p2"]]]),
       regions: new Map(),
+      tags: new Map(),
     };
     const m = postRowToMaterial(
       {

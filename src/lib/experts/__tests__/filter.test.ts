@@ -21,6 +21,7 @@ function mat(partial: Partial<ExpertMaterial>): ExpertMaterial {
     programIds: partial.programIds ?? [],
     regionIds: partial.regionIds ?? [],
     categoryIds: partial.categoryIds ?? [],
+    tagIds: partial.tagIds ?? [],
     isCoauthor: partial.isCoauthor ?? false,
   };
 }
