@@ -103,35 +103,7 @@ export function ExpertHubDetails({
 
   return (
     <div className="grid gap-8">
-      {/* Bio: tytuł na pełną szerokość, a tekst biografii i kolumna boczna
-          zaczynają się na tej samej wysokości (boczna jest na wysokości tekstu,
-          nie tytułu). */}
-      {bioHtml ? (
-        <section className="grid gap-3">
-          <h2 className="flex items-center gap-2 font-display text-2xl">
-            <BookOpen className="h-5 w-5 text-[var(--brand)]" aria-hidden />
-            {t("expert.fullBioHeading")}
-          </h2>
-          <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-            <div
-              className="max-w-none text-[15px] leading-relaxed text-foreground/90 [&_a]:text-brand [&_a]:underline [&_h2]:mb-1 [&_h2]:mt-4 [&_h2]:font-display [&_h2]:text-lg [&_h3]:mb-1 [&_h3]:mt-3 [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-3 [&_p:last-child]:mb-0"
-              // Bio jest autorstwa redakcji/eksperta i sanityzowane przed renderem.
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(bioHtml) }}
-            />
-            {sidebar}
-          </div>
-        </section>
-      ) : shortBio ? (
-        <section className="grid gap-3">
-          <h2 className="font-display text-2xl">{t("expert.bioHeading")}</h2>
-          <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-            <p className="text-foreground/90">{shortBio}</p>
-            {sidebar}
-          </div>
-        </section>
-      ) : (
-        sidebar
-      )}
+      {sidebar}
 
       {(realPrograms.length > 0 || departments.length > 0) && (
         <div className="grid gap-8">
