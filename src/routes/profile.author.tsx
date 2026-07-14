@@ -956,6 +956,10 @@ function AuthorProfilePage() {
               </div>
             </section>
 
+            {exists && <MediaMentionsSection userId={user.id} />}
+
+
+
             <div className="flex items-center gap-3">
               <Button type="submit" disabled={busy}>
                 {exists
