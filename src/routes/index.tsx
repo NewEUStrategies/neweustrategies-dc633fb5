@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -10,6 +11,7 @@ import {
   blogListQueryOptions,
   homePageQueryOptions,
   homepageModeQueryOptions,
+  type PageData,
 } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -30,23 +32,61 @@ import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
+import { errorCopy } from "@/lib/errorCopy";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
-    // ISR-like edge caching: the homepage SSR is the anonymous shell, so it is
-    // safe to share-cache and serve stale-while-revalidate from the CDN. The
-    // language lives in the URL path (PL at "/", EN at "/en"), so each variant
-    // is its own cache entry - no cookie-driven personalization, no poisoning.
-    setCacheControlHeader(contentCacheControl());
-    const [homePage, homeMode] = await Promise.all([
-      context.queryClient.ensureQueryData(homePageQueryOptions()),
-      context.queryClient.ensureQueryData(homepageModeQueryOptions()),
+    // The homepage `/` is the single most important - and most requested -
+    // route, so it MUST NOT be a single point of total failure (the same
+    // reasoning the root loader spells out for its allSettled warm-up). A
+    // transient backend blip on the critical fetch here (`homePageQueryOptions`
+    // / `blogListQueryOptions` / `siteSettingsQueryOptions` all `throw` on a
+    // PostgREST error) used to bubble out of SSR; h3 masks such throws as
+    // {"unhandled":true,"message":"HTTPError"} and the emergency page (see
+    // src/server.ts) is served instead of the site. Worse, the edge cache
+    // header was set at the TOP of this loader, BEFORE the fetch - so a degraded
+    // render could be emitted with a long s-maxage / stale-while-revalidate
+    // policy and re-served to everyone until revalidation. Fetch defensively
+    // instead: settle what we can, seed safe fallbacks for anything that fails,
+    // and gate the shared-cache header on a clean render.
+    const queryClient = context.queryClient;
+    let homePage: PageData | null = null;
+    let homeMode = "";
+    let degraded = false;
+
+    // allSettled (never rejects) so one failing fetch cannot discard the other's
+    // result. On a failure, seed the component's suspense query with a
+    // success-state fallback so SSR renders a valid (empty) shell instead of
+    // re-throwing during the render pass. `updatedAt: 0` marks the seeded data
+    // immediately stale, so the browser refetches on mount and the homepage
+    // self-heals once the backend recovers - no user action, no cached failure.
+    const [homePageRes, homeModeRes] = await Promise.allSettled([
+      queryClient.ensureQueryData(homePageQueryOptions()),
+      queryClient.ensureQueryData(homepageModeQueryOptions()),
     ]);
+    if (homePageRes.status === "fulfilled") {
+      homePage = homePageRes.value;
+    } else {
+      degraded = true;
+      queryClient.setQueryData(homePageQueryOptions().queryKey, null, { updatedAt: 0 });
+    }
+    if (homeModeRes.status === "fulfilled") {
+      homeMode = homeModeRes.value;
+    } else {
+      degraded = true;
+      queryClient.setQueryData(homepageModeQueryOptions().queryKey, "", { updatedAt: 0 });
+    }
+
     // "Najnowsze wpisy" jako strona główna: dotąd opcja z ustawień czytania nie
     // była honorowana - trasa zawsze renderowała stronę statyczną.
     if (homeMode === "latest_posts") {
-      await context.queryClient.ensureQueryData(blogListQueryOptions());
+      try {
+        await queryClient.ensureQueryData(blogListQueryOptions());
+      } catch {
+        degraded = true;
+        queryClient.setQueryData(blogListQueryOptions().queryKey, { posts: [] }, { updatedAt: 0 });
+      }
     }
     // Settle every data-bound widget query BEFORE the router dehydrates - the
     // same model as $.tsx. Settled queries ship as plain data in the initial
@@ -57,20 +97,46 @@ export const Route = createFileRoute("/")({
     // a mismatch React 19 answers by rebuilding the whole page client-side
     // (visible blank + full refetch; the old router-with-query bridge made
     // this the norm here). The prefetch runs in parallel with a hard budget
-    // (see prefetchCachedRouteQueries) - and the homepage is edge-cached, so
-    // the cost is paid once per revalidation, not per visitor. Anything past
-    // the budget still streams via the ServerSectionGate as before.
+    // (see prefetchCachedRouteQueries) and is internally allSettled, so it can
+    // never throw - and the homepage is edge-cached, so the cost is paid once
+    // per revalidation, not per visitor. Anything past the budget still streams
+    // via the ServerSectionGate as before.
     if (homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
-        await prefetchCachedRouteQueries(context.queryClient, doc, lang);
+        await prefetchCachedRouteQueries(queryClient, doc, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
-    // bulk site_settings query is already warmed by the root loader.
-    const settingsMap = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
-    return { seoSettings: parseSeoSettings(settingsMap["seo"]), homePage };
+    // bulk site_settings query is already warmed by the root loader. Purely
+    // decorative structured data - never let it fail the whole homepage.
+    let seoSettings = parseSeoSettings(null);
+    try {
+      const settingsMap = await queryClient.ensureQueryData(siteSettingsQueryOptions);
+      seoSettings = parseSeoSettings(settingsMap["seo"]);
+    } catch {
+      // Fall back to defaults - JSON-LD without sameAs/logo is still valid. Also
+      // seed the shared query with an empty map so the site chrome (<Header/>
+      // reads this exact query via useSuspenseQuery) degrades to its defaults
+      // instead of re-throwing during render and taking the whole page down.
+      degraded = true;
+      queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}), {
+        updatedAt: 0,
+      });
+    }
+
+    // ISR-like edge caching, set LAST so a degraded render is never shared-
+    // cached: the homepage SSR is the anonymous shell, so a clean render is safe
+    // to share-cache and serve stale-while-revalidate from the CDN. The language
+    // lives in the URL path (PL at "/", EN at "/en"), so each variant is its own
+    // cache entry - no cookie-driven personalization, no poisoning. A degraded
+    // render opts out entirely (private, no-store) so the blip is never served
+    // to the next visitor.
+    setCacheControlHeader(
+      degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
+    );
+    return { seoSettings, homePage };
   },
 
   head: ({ loaderData }) => {
@@ -126,7 +192,46 @@ export const Route = createFileRoute("/")({
     };
   },
   component: Index,
+  errorComponent: HomeErrorComponent,
 });
+
+// Route-level error boundary (mirrors $.tsx's PublicErrorComponent). Without an
+// errorComponent, React would fall back to the framework's bare default; here a
+// render/streaming fault on the homepage degrades to the branded, localized
+// "spróbuj ponownie" card instead of a blank or the emergency HTML shell. The
+// raw error is logged for diagnostics, never shown to visitors.
+function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  const copy = errorCopy();
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {copy.tryAgain}
+          </button>
+          <a
+            href="/"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            {copy.goHome}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Index() {
   const { i18n } = useTranslation();
