@@ -34,6 +34,8 @@ import {
   listExistingPages,
 } from "@/lib/wp-import.functions";
 import { WordPressPreviewDialog } from "./WordPressPreviewDialog";
+import { WxrUploadPanel } from "./WxrUploadPanel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface WpPage {
   ID: number;
@@ -247,7 +249,25 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
             </DialogDescription>
           </DialogHeader>
 
+          <Tabs defaultValue="connector">
+            <TabsList className="mb-2">
+              <TabsTrigger value="connector">
+                {lang === "pl" ? "Konektor WordPress.com" : "WordPress.com connector"}
+              </TabsTrigger>
+              <TabsTrigger value="wxr">
+                {lang === "pl" ? "Wgraj plik WXR (XML)" : "Upload WXR (XML)"}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="wxr">
+              <WxrUploadPanel
+                existingPages={existingPages}
+                onImported={() => qc.invalidateQueries({ queryKey: ["admin-pages"] })}
+                onClose={() => setOpen(false)}
+              />
+            </TabsContent>
+            <TabsContent value="connector">
           <div className="grid gap-3">
+
             <div className="grid gap-1.5">
               <Label>{lang === "pl" ? "Domena WordPress.com" : "WordPress.com domain"}</Label>
               <div className="flex gap-2">
@@ -463,6 +483,8 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
               {lang === "pl" ? `Importuj (${selected.size})` : `Import (${selected.size})`}
             </Button>
           </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
