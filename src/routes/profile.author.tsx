@@ -211,6 +211,8 @@ function AuthorProfilePage() {
       setSelectedAreaIds(
         new Set((myAreas ?? []).map((a) => (a as { area_id: string }).area_id)),
       );
+      setBulletsPl(bioToBullets(canonicalBio.bio_pl));
+      setBulletsEn(bioToBullets(canonicalBio.bio_en));
     })();
   }, [user]);
 
