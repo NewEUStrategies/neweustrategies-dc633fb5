@@ -580,6 +580,31 @@ export function VisualCanvas({
       dragRef.current = null;
       const t = e.target as HTMLElement;
 
+      // Container drop: insert a new container-section at resolved index.
+      const containerRaw = e.dataTransfer?.getData(CONTAINER_MIME) ?? "";
+      if (containerRaw) {
+        e.preventDefault();
+        e.stopPropagation();
+        let withTabs = false;
+        try {
+          withTabs = !!JSON.parse(containerRaw)?.withTabs;
+        } catch {
+          /* ignore */
+        }
+        const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        let index = safeDoc.sections.length;
+        if (sec?.dataset.secId) {
+          const idx = safeDoc.sections.findIndex((s) => s.id === sec.dataset.secId);
+          if (idx >= 0) {
+            const r = sec.getBoundingClientRect();
+            const before = e.clientY < r.top + r.height / 2;
+            index = before ? idx : idx + 1;
+          }
+        }
+        onInsertContainer?.(index, withTabs);
+        return;
+      }
+
       // Structure drop: insert a new section at the resolved index. Position
       // is derived from the target section's midpoint (before / after); when
       // no section is under the pointer we default to appending.
