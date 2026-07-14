@@ -266,8 +266,10 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
               variant="outline"
               className="w-full h-8 text-xs"
               onClick={addTab}
+              disabled={items.length >= MAX_TABS}
+              title={items.length >= MAX_TABS ? `Maks. ${MAX_TABS} zakładek` : undefined}
             >
-              <Plus className="w-3.5 h-3.5 mr-1" /> Dodaj zakładkę
+              <Plus className="w-3.5 h-3.5 mr-1" /> Dodaj zakładkę ({items.length}/{MAX_TABS})
             </Button>
           </div>
 
