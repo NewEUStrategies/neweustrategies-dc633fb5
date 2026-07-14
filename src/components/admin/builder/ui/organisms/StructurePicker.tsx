@@ -3,7 +3,7 @@
 // insert or drag onto the canvas between existing sections to place it at a
 // specific position.
 import { Plus } from "@/lib/lucide-shim";
-import { SECTION_STRUCTURE_MIME } from "./builder/VisualCanvas";
+import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
 
 type Structure = { spans: number[]; label: string };
 
