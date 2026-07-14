@@ -521,7 +521,7 @@ function AuthorProfilePage() {
                     disabled={uploading}
                     onClick={() => avatarInput.current?.click()}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
+                    <BrandIcon name="upload" fallback={Upload} className="mr-2 h-4 w-4" alt="" />
                     {uploading ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
                   </Button>
                   {data.avatar_url && (
