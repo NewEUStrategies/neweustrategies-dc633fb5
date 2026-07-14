@@ -77,6 +77,7 @@ export function VisualCanvas({
   selection: Selection;
   setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
+  onInsertContainer?: (index: number, withTabs: boolean) => void;
   onRemoveSection?: (id: string) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onMoveWidgetToColumn: (srcId: string, targetColId: string) => void;
