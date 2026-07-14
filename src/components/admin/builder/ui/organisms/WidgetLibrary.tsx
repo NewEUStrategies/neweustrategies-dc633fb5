@@ -11,6 +11,8 @@ import {
   ChevronDown,
   ChevronRight,
   Globe,
+  LayoutDashboard,
+  Rows,
 } from "@/lib/lucide-shim";
 import { WIDGETS, WIDGET_MAP } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
@@ -30,9 +32,15 @@ interface Props {
   onPickStructure: (spans: number[]) => void;
   onPickTemplate: (tpl: SectionTemplate) => void;
   onPickGlobal?: (g: GlobalWidget) => void;
+  onPickContainer?: (withTabs: boolean) => void;
 }
 
-export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }: Props) {
+export function WidgetLibrary({
+  onPickStructure,
+  onPickTemplate,
+  onPickGlobal,
+  onPickContainer,
+}: Props) {
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -113,6 +121,47 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }:
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <section>
+          <button
+            type="button"
+            onClick={() => toggle("__container")}
+            className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1.5 hover:text-foreground"
+          >
+            {collapsed.__container ? (
+              <ChevronRight className="w-3 h-3" />
+            ) : (
+              <ChevronDown className="w-3 h-3" />
+            )}
+            <LayoutDashboard className="w-3.5 h-3.5" /> Nowy kontener
+          </button>
+          {!collapsed.__container && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => onPickContainer?.(false)}
+                title="Wstaw pusty kontener - grupuje sekcje. W środku dodasz kolejne sekcje, a w sekcjach widgety."
+                className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-pointer select-none"
+              >
+                <LayoutDashboard className="w-4 h-4 text-brand" />
+                <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
+                  Kontener
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onPickContainer?.(true)}
+                title="Wstaw kontener z zakładkami - w każdej zakładce dodasz sekcje, a w sekcjach widgety."
+                className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-pointer select-none"
+              >
+                <Rows className="w-4 h-4 text-brand" />
+                <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
+                  Kontener z zakładkami
+                </span>
+              </button>
+            </div>
+          )}
+        </section>
+
         <section>
           <button
             type="button"

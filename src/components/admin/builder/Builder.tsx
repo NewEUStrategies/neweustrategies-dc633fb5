@@ -192,6 +192,7 @@ export function Builder({
     update,
     focusedColumn,
     addSection,
+    addContainer,
     loadHomepage,
     insertTemplateSection,
     saveSectionAsTemplate,
@@ -568,6 +569,7 @@ export function Builder({
                       onPickStructure={addSection}
                       onPickTemplate={insertTemplateSection}
                       onPickGlobal={addGlobalWidgetToFocused}
+                      onPickContainer={addContainer}
                     />
                   </div>
                 </>
