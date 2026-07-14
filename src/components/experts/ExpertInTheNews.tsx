@@ -23,8 +23,17 @@ export function ExpertInTheNews({
       </h2>
       <ul className="divide-y divide-border/60 rounded-[10px] border border-border/60 bg-card">
         {mentions.map((m) => {
+          const cover = m.cover_url?.trim() ? m.cover_url : null;
           const inner = (
             <>
+              {cover ? (
+                <img
+                  src={cover}
+                  alt=""
+                  loading="lazy"
+                  className="h-16 w-24 shrink-0 rounded-md border border-border/60 object-cover"
+                />
+              ) : null}
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
                   <span className="text-[var(--brand)]">{m.outlet}</span>
