@@ -56,7 +56,12 @@ export const designTokensQueryOptions = queryOptions({
       .from("site_design_tokens")
       .select("colors, fonts, scale")
       .maybeSingle();
-    if (error) throw error;
+    // Brand tokens are purely presentational (they only feed CSS variables) and
+    // this query is warmed by the root loader on EVERY route. A fetch failure
+    // must therefore degrade to the built-in defaults, never throw - otherwise a
+    // single transient error here takes the whole site down. The client re-query
+    // (react-query) picks up the real tokens on the next successful fetch.
+    if (error) return EMPTY_TOKENS;
     if (!data) return EMPTY_TOKENS;
     return {
       colors: Array.isArray(data.colors)

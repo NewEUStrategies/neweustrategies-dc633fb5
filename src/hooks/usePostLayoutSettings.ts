@@ -8,7 +8,10 @@ export const postLayoutSettingsQueryOptions = () =>
     queryKey: ["post-layout-settings"] as const,
     queryFn: async (): Promise<PostLayoutSettings> => {
       const { data, error } = await supabase.from("post_layout_settings").select("*").maybeSingle();
-      if (error && error.code !== "PGRST116") throw error;
+      // Presentation settings warmed by the root loader on every route: on any
+      // fetch error fall back to the defaults instead of throwing, so a single
+      // failed query here cannot take the whole site down.
+      if (error && error.code !== "PGRST116") return defaultPostLayoutSettings();
       return (data as PostLayoutSettings | null) ?? defaultPostLayoutSettings();
     },
     staleTime: 5 * 60_000,

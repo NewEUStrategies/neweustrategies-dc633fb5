@@ -19,7 +19,10 @@ export const globalColorsQueryOptions = queryOptions({
       .from("site_design_tokens")
       .select("global_colors")
       .maybeSingle();
-    if (error) throw error;
+    // Presentational only (feeds CSS variables) and warmed by the root loader on
+    // every route: degrade to defaults on error instead of throwing, so a
+    // transient failure here cannot 500 the whole site.
+    if (error) return EMPTY_GLOBAL_COLORS;
     const raw = (data?.global_colors ?? {}) as Record<string, { light?: string; dark?: string }>;
     return raw ?? EMPTY_GLOBAL_COLORS;
   },
