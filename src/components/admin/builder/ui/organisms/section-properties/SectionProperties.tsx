@@ -1,9 +1,10 @@
-// Organism: Section properties orchestrator (Layout / Style / Advanced tabs).
+// Organism: Section properties orchestrator (Layout / Style / Tabs / Advanced tabs).
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { SectionNode, Device } from "@/lib/builder/types";
 import { LayoutPane } from "./LayoutPane";
 import { StylePane } from "./StylePane";
 import { AdvancedPane } from "./AdvancedPane";
+import { TabsPane } from "./TabsPane";
 
 interface Props {
   section: SectionNode;
@@ -14,12 +15,15 @@ interface Props {
 export function SectionProperties({ section, device, onChange }: Props) {
   return (
     <Tabs defaultValue="layout">
-      <TabsList className="grid grid-cols-3 w-full h-8">
+      <TabsList className="grid grid-cols-4 w-full h-8">
         <TabsTrigger value="layout" className="text-xs">
           Układ
         </TabsTrigger>
         <TabsTrigger value="style" className="text-xs">
           Styl
+        </TabsTrigger>
+        <TabsTrigger value="tabs" className="text-xs">
+          Zakładki
         </TabsTrigger>
         <TabsTrigger value="advanced" className="text-xs">
           Zaawans.
@@ -33,6 +37,10 @@ export function SectionProperties({ section, device, onChange }: Props) {
       <TabsContent value="style" className="space-y-4 mt-3">
         <div className="text-[10px] text-muted-foreground uppercase">Edytujesz: {device}</div>
         <StylePane section={section} device={device} onChange={onChange} />
+      </TabsContent>
+
+      <TabsContent value="tabs" className="space-y-3 mt-3">
+        <TabsPane section={section} onChange={onChange} />
       </TabsContent>
 
       <TabsContent value="advanced" className="space-y-3 mt-3">
