@@ -530,26 +530,48 @@ const RenderSection = memo(function RenderSection({
               flex: tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical" ? 1 : undefined,
             }}
           >
-            {visibleCols.map((c) => {
-              const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
-              const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
-              const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
-              return (
-                <div
-                  key={c.id}
-                  data-column-slot
-                  data-col-id={c.id}
-                  className="min-w-0 max-w-full overflow-hidden"
-                  style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
-                >
-                  {c.kind === "inner-section" ? (
-                    <RenderInner inner={c} lang={lang} device={device} />
-                  ) : (
-                    <RenderColumn column={c} lang={lang} device={device} />
-                  )}
+            {showEmptyPicker ? (
+              <div
+                data-empty-container-picker
+                className="rounded border border-dashed border-brand/40 bg-brand/5 p-4"
+                style={{ gridColumn: "1 / -1" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2 text-center">
+                  {tabsEnabled
+                    ? "Wybierz strukturę dla tej zakładki"
+                    : "Wybierz strukturę kontenera"}
                 </div>
-              );
-            })}
+                <StructurePicker
+                  cols={7}
+                  compact
+                  onPick={(spans) =>
+                    emptyPicker!(section.id, tabsEnabled ? activeTabId : null, spans)
+                  }
+                />
+              </div>
+            ) : (
+              visibleCols.map((c) => {
+                const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
+                const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
+                const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
+                return (
+                  <div
+                    key={c.id}
+                    data-column-slot
+                    data-col-id={c.id}
+                    className="min-w-0 max-w-full overflow-hidden"
+                    style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
+                  >
+                    {c.kind === "inner-section" ? (
+                      <RenderInner inner={c} lang={lang} device={device} />
+                    ) : (
+                      <RenderColumn column={c} lang={lang} device={device} />
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
