@@ -208,11 +208,13 @@ export function ExpertLayoutHero({
   settings,
   lang,
   showPlaceholders = false,
+  action,
 }: {
   hub: ExpertHubData;
   settings: ExpertLayoutSettings;
   lang: Lang;
   showPlaceholders?: boolean;
+  action?: ReactNode;
 }) {
   const preset = findExpertPreset(settings.default_preset);
   const e = hub.expert;
@@ -267,6 +269,18 @@ export function ExpertLayoutHero({
     opacity: 0.9,
   };
 
+  const ActionBar = ({
+    className = "",
+    center = false,
+  }: {
+    className?: string;
+    center?: boolean;
+  }) =>
+    action ? (
+      <div className={`flex ${center ? "justify-center" : "justify-end"} ${className}`}>
+        {action}
+      </div>
+    ) : null;
 
   const BioBlock = ({ className = "" }: { className?: string }) =>
     bioItems.length > 0 ? (
@@ -373,6 +387,7 @@ export function ExpertLayoutHero({
           <p className="mt-1" style={roleStyle}>
             {roleLine}
           </p>
+          <ActionBar center className="my-3" />
           {social("mt-4 justify-center")}
           {contact("mt-3 justify-center")}
           <BioBlock className="mt-4 mx-auto max-w-2xl" />
@@ -394,6 +409,7 @@ export function ExpertLayoutHero({
               {avatar("h-24 w-24 border-4 border-background shadow", "rounded-[6px]", "400×400 px")}
             </div>
             <div className="flex-1 min-w-0">
+              <ActionBar className="mb-2" />
               <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
                 {name}
               </h1>
@@ -431,6 +447,7 @@ export function ExpertLayoutHero({
             <p className="text-xs" style={{ ...roleStyle, fontSize: 12 }}>
               {roleLine}
             </p>
+            <ActionBar className="my-2" />
             {social("mt-3")}
             {contact("mt-3 flex-col items-start gap-1")}
           </aside>
@@ -453,6 +470,7 @@ export function ExpertLayoutHero({
           <p className="mt-1" style={roleStyle}>
             {roleLine}
           </p>
+          <ActionBar center={centered} className="my-3" />
           {social(`mt-4 ${centered ? "justify-center" : ""}`)}
           {contact(`mt-3 ${centered ? "justify-center" : ""}`)}
           <BioBlock className={`mt-4 ${centered ? "mx-auto max-w-2xl" : "max-w-2xl"}`} />
@@ -470,6 +488,7 @@ export function ExpertLayoutHero({
         >
           {avatar("h-24 w-24", "rounded-[6px]", "400×400 px")}
           <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
+            <ActionBar className="mb-2" />
             <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
               {name}
             </h1>
@@ -507,6 +526,7 @@ export function ExpertLayoutHero({
           </div>
         </div>
         <div className="mx-auto px-4 py-6" style={{ maxWidth }}>
+          <ActionBar className="mb-4" />
           {bioItems.length > 0 && (
             <ul
               className="border-l-4 pl-4 italic text-lg space-y-2 list-none"
@@ -555,9 +575,12 @@ export function ExpertLayoutHero({
             >
               {LABELS[lang].profileTagline}
             </p>
-            <h1 className="font-display leading-[1.05]" style={{ fontSize: "var(--pv-name-size)" }}>
-              {name}
-            </h1>
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+              <h1 className="font-display leading-[1.05]" style={{ fontSize: "var(--pv-name-size)" }}>
+                {name}
+              </h1>
+              <ActionBar />
+            </div>
             <p className="mt-2" style={roleStyle}>
               {roleLine}
             </p>

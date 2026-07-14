@@ -271,15 +271,20 @@ function ExpertHubPage() {
               </span>
             )}
             <ProfileBadges badges={extraBadges} size="md" />
-            {personalized.followInAuthorHeader && (
-              <div className="ml-auto">
-                <FollowButton targetType="author" targetId={expert.id} lang={lang} />
-              </div>
-            )}
           </div>
         </div>
 
-        <ExpertLayoutHero hub={data} settings={settings} lang={lang} showPlaceholders={false} />
+        <ExpertLayoutHero
+          hub={data}
+          settings={settings}
+          lang={lang}
+          showPlaceholders={false}
+          action={
+            personalized.followInAuthorHeader ? (
+              <FollowButton targetType="author" targetId={expert.id} lang={lang} />
+            ) : null
+          }
+        />
 
         {showExpertiseBar && data.areas.length > 0 && (
           <div className="border-b border-border/60 bg-card">
