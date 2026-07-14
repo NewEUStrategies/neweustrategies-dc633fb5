@@ -442,12 +442,14 @@ const RenderSection = memo(function RenderSection({
     }
   }, [tabsEnabled, tabsCfg, activeTabId]);
 
+  const emptyPicker = useContext(EmptyContainerPickerContext);
   const allChildren = (Array.isArray(section.children) ? section.children : []).filter(
     (c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const visibleCols = tabsEnabled
     ? allChildren.filter((c) => !c.tabId || c.tabId === activeTabId)
     : allChildren;
+  const showEmptyPicker = !!emptyPicker && visibleCols.length === 0;
   const colsSum =
     visibleCols.reduce(
       (a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12),
