@@ -128,6 +128,7 @@ export function ExpertMaterialsExplorer({
 
   return (
     <div>
+      {heading}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FacetSelect
           value={filters.kind}
@@ -136,18 +137,21 @@ export function ExpertMaterialsExplorer({
           allLabel={t("expert.allFormats")}
           ariaLabel={t("expert.filterFormat")}
         />
-        {facets.categories.length > 0 && (
-          <FacetSelect
-            value={filters.categoryId}
-            onChange={(next) => setFilters((f) => ({ ...f, categoryId: next }))}
-            options={facets.categories.map((c) => ({
-              value: c.id,
-              label: lang === "en" ? c.name_en : c.name_pl,
-            }))}
-            allLabel={t("expert.allTopics")}
-            ariaLabel={t("expert.filterTopic")}
-          />
-        )}
+        <FacetSelect
+          value={filters.categoryId}
+          onChange={(next) => setFilters((f) => ({ ...f, categoryId: next }))}
+          options={facets.categories.map((c) => ({
+            value: c.id,
+            label: lang === "en" ? c.name_en : c.name_pl,
+          }))}
+          allLabel={t("expert.allTopics", {
+            defaultValue: lang === "en" ? "All topics" : "Wszystkie tematyki",
+          })}
+          ariaLabel={t("expert.filterTopic", {
+            defaultValue: lang === "en" ? "Filter by topic" : "Filtruj po tematyce",
+          })}
+          alwaysShow
+        />
         {facets.regions.length > 0 && (
           <FacetSelect
             value={filters.regionId}
@@ -204,11 +208,55 @@ export function ExpertMaterialsExplorer({
           {t("expert.emptyMaterials")}
         </p>
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((m) => (
-            <ExpertMaterialCard key={`${m.kind}-${m.id}`} material={m} lang={lang} t={t} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {paged.map((m) => (
+              <ExpertMaterialCard key={`${m.kind}-${m.id}`} material={m} lang={lang} t={t} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <nav
+              className="mt-6 flex items-center justify-center gap-1"
+              aria-label={lang === "en" ? "Pagination" : "Paginacja"}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                aria-label={lang === "en" ? "Previous page" : "Poprzednia strona"}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <Button
+                  key={p}
+                  type="button"
+                  variant={p === currentPage ? "default" : "ghost"}
+                  size="sm"
+                  className="h-9 min-w-9 px-3 text-xs"
+                  onClick={() => setPage(p)}
+                  aria-current={p === currentPage ? "page" : undefined}
+                >
+                  {p}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                aria-label={lang === "en" ? "Next page" : "Następna strona"}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
