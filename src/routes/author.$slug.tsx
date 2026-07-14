@@ -105,14 +105,6 @@ export const Route = createFileRoute("/author/$slug")({
       (expert as { spotify_url?: string | null } | undefined)?.spotify_url,
     ].filter((s): s is string => Boolean(s && s.trim()));
 
-    const personLd: Record<string, unknown> = {
-      "@context": "https://schema.org",
-      "@type": "Person",
-      name,
-      ...(firstName ? { givenName: firstName } : {}),
-      ...(lastName ? { familyName: lastName } : {}),
-      ...(expert?.job_title ? { jobTitle: expert.job_title } : {}),
-      ...(expert?.company
     // Cache-buster og:image - epoch z `profiles.updated_at`. Po zmianie
     // profilu wersja rośnie i social scrapery (FB/LinkedIn/X/Slack) pobiorą
     // świeży plik zamiast trzymać stary preview.
@@ -120,15 +112,6 @@ export const Route = createFileRoute("/author/$slug")({
     const versionedAvatar = withOgVersion(expert?.avatar_url ?? null, ogVersion);
 
     const personLd: Record<string, unknown> = {
-      ...(versionedAvatar
-        ? { image: { "@type": "ImageObject", url: versionedAvatar } }
-        : {}),
-      ...(sameAs.length ? { sameAs } : {}),
-      ...(areasLoc.length ? { knowsAbout: areasLoc } : {}),
-      description,
-      url,
-    };
-    Object.assign(personLd, {
       "@context": "https://schema.org",
       "@type": "Person",
       name,
@@ -138,7 +121,14 @@ export const Route = createFileRoute("/author/$slug")({
       ...(expert?.company
         ? { worksFor: { "@type": "Organization", name: expert.company } }
         : {}),
-    });
+      ...(versionedAvatar
+        ? { image: { "@type": "ImageObject", url: versionedAvatar } }
+        : {}),
+      ...(sameAs.length ? { sameAs } : {}),
+      ...(areasLoc.length ? { knowsAbout: areasLoc } : {}),
+      description,
+      url,
+    };
 
     // Breadcrumb - Home › Experts › <Name> (poprawia rich results w SERP).
     const origin = url.startsWith("http") ? new URL(url).origin : "";
