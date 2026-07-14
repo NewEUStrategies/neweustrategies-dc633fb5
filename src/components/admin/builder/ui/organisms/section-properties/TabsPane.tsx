@@ -184,6 +184,30 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
             </Select>
           </Row>
 
+          {(cfg.orientation ?? "horizontal") === "horizontal" && (
+            <Row
+              label="Mobile"
+              hint="Zachowanie paska zakładek gdy etykiety nie mieszczą się w szerokości ekranu."
+            >
+              <Select
+                value={cfg.mobileMode ?? "scroll"}
+                onValueChange={(v) =>
+                  setCfg((c) => {
+                    c.mobileMode = v as "scroll" | "wrap";
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scroll">Przewijanie poziome</SelectItem>
+                  <SelectItem value="wrap">Zawijanie do wielu linii</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+          )}
+
           <div className="space-y-2 pt-2 border-t border-border">
             <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Lista zakładek

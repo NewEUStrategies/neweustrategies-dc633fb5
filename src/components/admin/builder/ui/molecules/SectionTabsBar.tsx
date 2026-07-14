@@ -32,16 +32,22 @@ export function SectionTabsBar({
   const items = tabs.items ?? [];
   if (items.length === 0) return null;
 
+  const wrapMode = tabs.mobileMode ?? "scroll"; // "scroll" | "wrap"
   const listStyle: CSSProperties =
     orientation === "vertical"
       ? { display: "flex", flexDirection: "column", gap: 4, minWidth: 160 }
       : {
           display: "flex",
-          flexWrap: "wrap",
+          flexWrap: wrapMode === "wrap" ? "wrap" : "nowrap",
           gap: variant === "pills" || variant === "ghost" ? 6 : 0,
           justifyContent:
             align === "center" ? "center" : align === "end" ? "flex-end" : "flex-start",
           borderBottom: variant === "underline" ? "1px solid var(--border, hsl(var(--border)))" : undefined,
+          overflowX: wrapMode === "scroll" ? "auto" : undefined,
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "thin",
+          maxWidth: "100%",
         };
 
   const idxOf = (id: string) => items.findIndex((t) => t.id === id);
