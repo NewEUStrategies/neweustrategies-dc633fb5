@@ -816,7 +816,16 @@ const RenderColumn = memo(function RenderColumn({
                         : "contents"
                     }
                   >
-                    <WidgetView node={w} lang={lang} device={device} />
+                    <WidgetView
+                      node={w}
+                      lang={lang}
+                      device={device}
+                      editable={!!inlineEdit}
+                      onContentChange={
+                        inlineEdit ? (k, v) => inlineEdit(w.id, k, v) : undefined
+                      }
+                    />
+
                   </div>
                 </div>
               </RenderErrorBoundary>
