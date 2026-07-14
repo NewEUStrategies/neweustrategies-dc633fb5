@@ -294,9 +294,15 @@ export function VisualCanvas({
     const root = rootRef.current;
     if (!root) return;
     const kill = (e: MouseEvent) => {
-      // Allow clicks on builder chrome (section inserters, drop zones, toolbars).
+      // Allow clicks on builder chrome (section inserters, drop zones, toolbars,
+      // and the inline empty-container structure picker).
       const t = e.target as HTMLElement | null;
-      if (t?.closest("[data-section-inserter]") || t?.closest("[data-builder-chrome]")) return;
+      if (
+        t?.closest("[data-section-inserter]") ||
+        t?.closest("[data-builder-chrome]") ||
+        t?.closest("[data-empty-container-picker]")
+      )
+        return;
       e.preventDefault();
       e.stopPropagation();
     };
