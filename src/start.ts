@@ -1,6 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { recordCapturedError } from "./lib/error-capture";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import {
   addLangPrefix,
@@ -16,16 +17,32 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
-    if (error != null && typeof error === "object" && "statusCode" in error) {
+    // Only h3's real HTTPError is control flow that the HTTP dispatcher should
+    // serialize. The old `"statusCode" in error` check was dangerously broad:
+    // database/fetch/library errors frequently expose statusCode too, so they
+    // bypassed this boundary and h3 replaced their message + stack with the
+    // opaque { unhandled: true, message: "HTTPError" } response.
+    if (isHttpError(error)) {
+      if (error.status >= 500) recordCapturedError(error);
       throw error;
     }
+    recordCapturedError(error);
     console.error(error);
     return new Response(renderErrorPage(), {
       status: 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      },
     });
   }
 });
+
+function isHttpError(error: unknown): error is Error & { status: number } {
+  if (error == null || typeof error !== "object") return false;
+  const candidate = error as { name?: unknown; status?: unknown };
+  return candidate.name === "HTTPError" && typeof candidate.status === "number";
+}
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
