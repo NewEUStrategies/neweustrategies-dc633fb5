@@ -34,6 +34,8 @@ import {
   listExistingPages,
 } from "@/lib/wp-import.functions";
 import { WordPressPreviewDialog } from "./WordPressPreviewDialog";
+import { WxrUploadPanel } from "./WxrUploadPanel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface WpPage {
   ID: number;
