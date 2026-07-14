@@ -55,6 +55,7 @@ import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug"
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
   isSectionVisibleForAssignments,
   recordExperimentEvent,
@@ -441,12 +442,11 @@ const RenderSection = memo(function RenderSection({
   const [displayTabId, setDisplayTabId] = useState<string>(initialTabId);
   const [tabPhase, setTabPhase] = useState<"in" | "out">("in");
   const TAB_FADE_MS = 180;
-  const prefersReducedMotion =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const tabTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleTabSelect = (id: string) => {
     if (id === activeTabId) return;
+    if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
     setActiveTabId(id);
     if (prefersReducedMotion) {
       setDisplayTabId(id);
@@ -454,11 +454,18 @@ const RenderSection = memo(function RenderSection({
       return;
     }
     setTabPhase("out");
-    window.setTimeout(() => {
+    tabTransitionTimerRef.current = setTimeout(() => {
       setDisplayTabId(id);
       setTabPhase("in");
+      tabTransitionTimerRef.current = null;
     }, TAB_FADE_MS);
   };
+  useEffect(
+    () => () => {
+      if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
+    },
+    [],
+  );
   // If tab list changes (add/remove/rename), keep active id valid.
   useEffect(() => {
     if (!tabsEnabled) return;
