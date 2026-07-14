@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Save, Mic, Newspaper, Radio, MessageSquareQuote, FileText } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Save, Mic, Newspaper, Radio, MessageSquareQuote, FileText, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
