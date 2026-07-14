@@ -108,6 +108,35 @@ interface Props {
   editorPreview?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Empty-container picker: when a container has no inner sections (either at
+// root level, or on the active tab in a tabbed container), the builder canvas
+// exposes an inline StructurePicker via this context so the user picks the
+// column layout AFTER creating the container - the container itself starts
+// empty. Callback is null in the public renderer (context not provided).
+// ---------------------------------------------------------------------------
+export type EmptyContainerPicker = (
+  sectionId: string,
+  tabId: string | null,
+  spans: number[],
+) => void;
+
+const EmptyContainerPickerContext = createContext<EmptyContainerPicker | null>(null);
+
+export function BuilderEmptyPickerProvider({
+  onPick,
+  children,
+}: {
+  onPick: EmptyContainerPicker;
+  children: ReactNode;
+}) {
+  return (
+    <EmptyContainerPickerContext.Provider value={onPick}>
+      {children}
+    </EmptyContainerPickerContext.Provider>
+  );
+}
+
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
