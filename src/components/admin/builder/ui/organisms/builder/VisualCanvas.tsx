@@ -15,6 +15,7 @@ export interface GlobalDragPayload {
 
 export const GLOBAL_WIDGET_MIME = "application/x-global-widget";
 export const SECTION_STRUCTURE_MIME = "application/x-section-structure";
+export const CONTAINER_MIME = "application/x-container";
 
 /** Parse + validate the palette's section-structure drag payload. */
 function readSectionStructure(raw: string): number[] | null {
@@ -56,6 +57,7 @@ export function VisualCanvas({
   selection,
   setSelection,
   onInsertSection,
+  onInsertContainer,
   onRemoveSection,
   onMoveWidget,
   onMoveWidgetToColumn,
@@ -75,6 +77,7 @@ export function VisualCanvas({
   selection: Selection;
   setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
+  onInsertContainer?: (index: number, withTabs: boolean) => void;
   onRemoveSection?: (id: string) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onMoveWidgetToColumn: (srcId: string, targetColId: string) => void;
@@ -362,12 +365,13 @@ export function VisualCanvas({
       return (
         types.includes("application/x-widget-type") ||
         types.includes(GLOBAL_WIDGET_MIME) ||
-        types.includes(SECTION_STRUCTURE_MIME)
+        types.includes(SECTION_STRUCTURE_MIME) ||
+        types.includes(CONTAINER_MIME)
       );
     };
     const isStructureDrag = (e: DragEvent) => {
       const types = Array.from(e.dataTransfer?.types || []);
-      return types.includes(SECTION_STRUCTURE_MIME);
+      return types.includes(SECTION_STRUCTURE_MIME) || types.includes(CONTAINER_MIME);
     };
 
     const setDragging = (on: boolean) => {
@@ -576,6 +580,31 @@ export function VisualCanvas({
       dragRef.current = null;
       const t = e.target as HTMLElement;
 
+      // Container drop: insert a new container-section at resolved index.
+      const containerRaw = e.dataTransfer?.getData(CONTAINER_MIME) ?? "";
+      if (containerRaw) {
+        e.preventDefault();
+        e.stopPropagation();
+        let withTabs = false;
+        try {
+          withTabs = !!JSON.parse(containerRaw)?.withTabs;
+        } catch {
+          /* ignore */
+        }
+        const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        let index = safeDoc.sections.length;
+        if (sec?.dataset.secId) {
+          const idx = safeDoc.sections.findIndex((s) => s.id === sec.dataset.secId);
+          if (idx >= 0) {
+            const r = sec.getBoundingClientRect();
+            const before = e.clientY < r.top + r.height / 2;
+            index = before ? idx : idx + 1;
+          }
+        }
+        onInsertContainer?.(index, withTabs);
+        return;
+      }
+
       // Structure drop: insert a new section at the resolved index. Position
       // is derived from the target section's midpoint (before / after); when
       // no section is under the pointer we default to appending.
@@ -685,6 +714,7 @@ export function VisualCanvas({
     onDropNewWidgetNear,
     onDropNewWidgetToSection,
     onInsertSection,
+    onInsertContainer,
   ]);
 
   const ringCss = `

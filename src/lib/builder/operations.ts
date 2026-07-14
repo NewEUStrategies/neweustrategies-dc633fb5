@@ -209,6 +209,10 @@ export function insertSectionNode(d: BuilderDocument, section: SectionNode): voi
   d.sections.push(section);
 }
 
+export function insertContainerAt(d: BuilderDocument, index: number, withTabs: boolean): void {
+  d.sections.splice(index, 0, newContainerSection(withTabs));
+}
+
 export function removeSection(d: BuilderDocument, id: string): void {
   d.sections = d.sections.filter((s) => s?.id !== id);
 }
