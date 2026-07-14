@@ -63,8 +63,10 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
       s.tabs = next;
     });
 
+  const MAX_TABS = 10;
   const addTab = () => {
     setCfg((c) => {
+      if (c.items.length >= MAX_TABS) return;
       const idx = c.items.length + 1;
       c.items.push({
         id: makeTabId(),
