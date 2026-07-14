@@ -2,7 +2,6 @@
 // when h3 has already swallowed the throw into a generic 500 Response.
 
 let lastCapturedError: { error: unknown; at: number } | undefined;
-const requestErrors = new WeakMap<Request, { error: unknown; at: number }>();
 const TTL_MS = 5_000;
 
 /**
@@ -13,15 +12,8 @@ const TTL_MS = 5_000;
  * must call this explicitly before rethrowing a legitimate HTTPError, because
  * errors caught by the HTTP dispatcher never reach those global events.
  */
-export function recordCapturedError(error: unknown, request?: Request) {
-  const entry = { error, at: Date.now() };
-  if (request) {
-    requestErrors.set(request, entry);
-  } else {
-    // Only use global fallback for truly out-of-band errors (global listeners)
-    // to avoid polluting it with request-specific errors that have their own slot.
-    lastCapturedError = entry;
-  }
+export function recordCapturedError(error: unknown) {
+  lastCapturedError = { error, at: Date.now() };
 }
 
 if (typeof globalThis.addEventListener === "function") {
@@ -33,19 +25,7 @@ if (typeof globalThis.addEventListener === "function") {
   );
 }
 
-export function consumeLastCapturedError(request?: Request): unknown {
-  // 1. Try request-specific storage first (concurrency safe)
-  if (request) {
-    const cap = requestErrors.get(request);
-    if (cap) {
-      requestErrors.delete(request);
-      if (Date.now() - cap.at <= TTL_MS) {
-        return cap.error;
-      }
-    }
-  }
-
-  // 2. Fall back to global storage (prone to races, but covers out-of-band errors)
+export function consumeLastCapturedError(): unknown {
   if (!lastCapturedError) return undefined;
   if (Date.now() - lastCapturedError.at > TTL_MS) {
     lastCapturedError = undefined;

@@ -35,12 +35,12 @@ export type MiddlewareErrorOutcome =
   | { rethrow: unknown }
   | { response: Response };
 
-export function handleMiddlewareError(error: unknown, request?: Request): MiddlewareErrorOutcome {
+export function handleMiddlewareError(error: unknown): MiddlewareErrorOutcome {
   if (isHttpError(error)) {
-    if (error.status >= 500) recordCapturedError(error, request);
+    if (error.status >= 500) recordCapturedError(error);
     return { rethrow: error };
   }
-  recordCapturedError(error, request);
+  recordCapturedError(error);
   console.error(error);
   return {
     response: new Response(renderErrorPage(), {
@@ -53,11 +53,11 @@ export function handleMiddlewareError(error: unknown, request?: Request): Middle
   };
 }
 
-const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
+const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
-    const outcome = handleMiddlewareError(error, request);
+    const outcome = handleMiddlewareError(error);
     if ("rethrow" in outcome) throw outcome.rethrow;
     return outcome.response;
   }
