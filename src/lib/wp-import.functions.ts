@@ -487,3 +487,264 @@ export const wpImportPages = createServerFn({ method: "POST" })
     void toJson;
     return { results };
   });
+
+/* ================= import from WXR (uploaded XML) ================== */
+//
+// Klient parsuje plik WXR i przesyła gotowe pary PL/EN. Serwer robi to samo,
+// co wpImportPages: konwersja HTML->Builder, mirror mediów (obrazki, PDF, itp.),
+// upsert do pages z auto-snapshotem do content_revisions przy nadpisaniu.
+
+const wxrItemInput = z.object({
+  // Klucz stabilny (zwykle wpId z eksportu), do korelacji rezultatów w UI.
+  clientId: z.number().int().positive(),
+  slug: z.string().min(1).max(160),
+  slugOverride: z.string().max(120).optional(),
+  targetPageId: z.string().uuid().optional(),
+
+  title_pl: z.string().max(500).default(""),
+  content_pl_html: z.string().max(5_000_000).default(""),
+  excerpt_pl: z.string().max(5_000).default(""),
+  cover_image_url: z.string().url().max(2000).optional().nullable(),
+
+  title_en: z.string().max(500).optional(),
+  content_en_html: z.string().max(5_000_000).optional(),
+  excerpt_en: z.string().max(5_000).optional(),
+});
+
+const wxrImportInput = z.object({
+  items: z.array(wxrItemInput).min(1).max(200),
+  targetStatus: z.enum(["draft", "published"]).default("draft"),
+  mirrorMedia: z.boolean().default(true),
+  includeExternalMedia: z.boolean().default(false),
+});
+
+async function buildFromHtmlPair(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  userId: string,
+  pl: { title: string; contentHtml: string; excerpt: string; cover: string | null },
+  en: { title: string; contentHtml: string; excerpt: string } | null,
+  mirror: boolean,
+  includeExternal: boolean,
+): Promise<{
+  builderDoc: BuilderDocument;
+  title_pl: string;
+  title_en: string;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
+  cover_image_url: string | null;
+  mediaMirrored: number;
+  warnings: string[];
+  source: ConversionResult["source"];
+}> {
+  const conv = convertHtmlToBuilder(pl.contentHtml ?? "");
+  const warnings = [...conv.warnings];
+
+  let builderDoc = conv.doc;
+  let cover = pl.cover ?? null;
+  let mediaMirrored = 0;
+
+  if (mirror) {
+    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } = await import(
+      "@/lib/server/wp-media.server"
+    );
+    const combinedHtml = `${conv.cleanedHtml}\n${en?.contentHtml ?? ""}`;
+    const extraUrls: string[] = [];
+    if (cover) extraUrls.push(cover);
+    const { map, warnings: mw, mirroredCount, reusedCount } = await mirrorWpMedia({
+      html: combinedHtml,
+      extraUrls,
+      tenantId,
+      userId,
+      supabase,
+      includeExternal,
+    });
+    mediaMirrored = mirroredCount + reusedCount;
+    warnings.push(...mw);
+    builderDoc = rewriteBuilderDoc(builderDoc, map);
+    if (cover) cover = rewriteHtml(cover, map);
+    // en HTML mirror'ujemy dopiero w konwersji poniżej - te same URL-e w mapie zostaną przepisane.
+    if (en) {
+      const convEn = convertHtmlToBuilder(rewriteHtml(en.contentHtml, map));
+      // Nie łączymy z pl doc - pole content_en w bazie i tak trzymamy jako HTML,
+      // ale builder EN nie istnieje w schemacie pages; zachowujemy zgodność z wpImportPages
+      // (tam też EN idzie tylko jako title/excerpt). En content HTML zapisujemy do content_en.
+      warnings.push(...convEn.warnings);
+      void convEn;
+    }
+  }
+
+  const stripTags = (s: string): string => s.replace(/<[^>]+>/g, "").trim();
+
+  return {
+    builderDoc,
+    title_pl: stripTags(pl.title || ""),
+    title_en: en ? stripTags(en.title || "") : "",
+    excerpt_pl: (stripTags(pl.excerpt || "") || null) as string | null,
+    excerpt_en: en ? ((stripTags(en.excerpt || "") || null) as string | null) : null,
+    cover_image_url: cover,
+    mediaMirrored,
+    warnings,
+    source: conv.source,
+  };
+}
+
+interface WxrImportResultRow {
+  clientId: number;
+  status: "imported" | "overwritten" | "skipped" | "error";
+  slug?: string;
+  pageId?: string;
+  message?: string;
+  mediaMirrored?: number;
+  source?: ConversionResult["source"];
+}
+
+export const wpImportFromWxr = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d: unknown) => wxrImportInput.parse(d))
+  .handler(async ({ data, context }): Promise<{ results: WxrImportResultRow[] }> => {
+    const { supabase, userId } = context;
+    const tenantId = await resolveTenant(supabase, userId);
+    const results: WxrImportResultRow[] = [];
+
+    for (const item of data.items) {
+      try {
+        const rawSlug = normalizeSlug(item.slugOverride || item.slug);
+        if (rawSlug === "main") {
+          results.push({
+            clientId: item.clientId,
+            status: "skipped",
+            slug: "main",
+            message: "Strona /main jest zawsze pomijana (traktowana jako home).",
+          });
+          continue;
+        }
+
+        const built = await buildFromHtmlPair(
+          supabase,
+          tenantId,
+          userId,
+          {
+            title: item.title_pl,
+            contentHtml: item.content_pl_html,
+            excerpt: item.excerpt_pl,
+            cover: item.cover_image_url ?? null,
+          },
+          item.content_en_html
+            ? {
+                title: item.title_en ?? "",
+                contentHtml: item.content_en_html,
+                excerpt: item.excerpt_en ?? "",
+              }
+            : null,
+          data.mirrorMedia,
+          data.includeExternalMedia,
+        );
+
+        if (item.targetPageId) {
+          const { data: current, error: readErr } = await supabase
+            .from("pages")
+            .select("*")
+            .eq("id", item.targetPageId)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+          if (readErr || !current) {
+            results.push({
+              clientId: item.clientId,
+              status: "error",
+              message: readErr?.message ?? "Nie znaleziono docelowej strony w tym tenancie.",
+            });
+            continue;
+          }
+          if (current.slug === "main") {
+            results.push({
+              clientId: item.clientId,
+              status: "skipped",
+              slug: "main",
+              message: "Nie można nadpisać strony /main.",
+            });
+            continue;
+          }
+          await supabase.from("content_revisions").insert({
+            tenant_id: tenantId,
+            entity_type: "page",
+            entity_id: current.id,
+            author_id: userId,
+            snapshot: current as unknown as Json,
+            note: "wxr_import_pre_overwrite",
+          });
+          const finalSlug =
+            item.slugOverride && item.slugOverride !== current.slug
+              ? await uniquePageSlug(supabase, tenantId, item.slugOverride, current.id)
+              : current.slug;
+          const { error: upErr } = await supabase
+            .from("pages")
+            .update({
+              slug: finalSlug,
+              title_pl: built.title_pl || current.title_pl || finalSlug,
+              title_en: built.title_en || current.title_en,
+              editor: "builder",
+              status: data.targetStatus,
+              builder_data: built.builderDoc as unknown as Json,
+              cover_image_url: built.cover_image_url ?? current.cover_image_url,
+              excerpt_pl: built.excerpt_pl ?? current.excerpt_pl,
+              excerpt_en: built.excerpt_en ?? current.excerpt_en,
+            })
+            .eq("id", current.id)
+            .eq("tenant_id", tenantId);
+          if (upErr) {
+            results.push({ clientId: item.clientId, status: "error", message: upErr.message });
+            continue;
+          }
+          results.push({
+            clientId: item.clientId,
+            status: "overwritten",
+            slug: finalSlug,
+            pageId: current.id,
+            mediaMirrored: built.mediaMirrored,
+            source: built.source,
+            message: built.warnings.slice(0, 2).join(" · ") || undefined,
+          });
+          continue;
+        }
+
+        const slug = await uniquePageSlug(supabase, tenantId, rawSlug);
+        const { data: inserted, error } = await supabase
+          .from("pages")
+          .insert({
+            tenant_id: tenantId,
+            slug,
+            title_pl: built.title_pl || slug,
+            title_en: built.title_en || "",
+            editor: "builder",
+            status: data.targetStatus,
+            builder_data: built.builderDoc as unknown as Json,
+            cover_image_url: built.cover_image_url,
+            excerpt_pl: built.excerpt_pl,
+            excerpt_en: built.excerpt_en,
+          })
+          .select("id")
+          .single();
+        if (error) {
+          results.push({ clientId: item.clientId, status: "error", message: error.message });
+          continue;
+        }
+        results.push({
+          clientId: item.clientId,
+          status: "imported",
+          slug,
+          pageId: inserted?.id,
+          mediaMirrored: built.mediaMirrored,
+          source: built.source,
+          message: built.warnings.slice(0, 2).join(" · ") || undefined,
+        });
+      } catch (e) {
+        results.push({
+          clientId: item.clientId,
+          status: "error",
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+    return { results };
+  });
