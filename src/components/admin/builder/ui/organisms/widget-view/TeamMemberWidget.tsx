@@ -55,12 +55,12 @@ export function TeamMemberWidget({
 
   const photo = safeImageUrl(getStr(c, "photo") || getStr(c, "image"));
   const name = getStr(c, "name");
-  const position = localized(c, "position", lang);
-  const programLabel = localized(c, "programLabel", lang);
-  const bio = sanitizeHtml(localized(c, "bio", lang));
+  const position = localized(cRaw, "position", lang);
+  const programLabel = localized(cRaw, "programLabel", lang);
+  const bio = sanitizeHtml(localized(cRaw, "bio", lang));
   const email = getStr(c, "email");
   const phone = getStr(c, "phone");
-  const overlayAlpha = Math.min(1, Math.max(0, Number(c.overlayAlpha) || 0.55));
+  const overlayAlpha = Math.min(1, Math.max(0, Number(cRaw.overlayAlpha) || 0.55));
   const accent = getStr(c, "accentColor") || "var(--brand)";
 
   const socials: Array<{ key: SocialKey; url: string }> = (
