@@ -34,6 +34,7 @@ import { expertLayoutSettingsQueryOptions } from "@/hooks/useExpertLayoutSetting
 import {
   ExpertLayoutHero,
   ExpertSectionsList,
+  ExpertLayoutStyleScope,
   expertLayoutCssVars,
 } from "@/components/experts/ExpertLayoutRenderer";
 import { isSectionVisible } from "@/lib/expertLayouts";
