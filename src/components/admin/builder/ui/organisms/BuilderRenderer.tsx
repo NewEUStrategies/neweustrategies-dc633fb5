@@ -59,6 +59,7 @@ import {
   useExperimentAssignments,
   type AbVariant,
 } from "@/lib/builder/experiments";
+import { StructurePicker } from "@/components/admin/builder/ui/organisms/StructurePicker";
 
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
