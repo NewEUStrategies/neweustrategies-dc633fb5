@@ -218,7 +218,18 @@ export function MediaManager() {
   const bumpHistory = () => forceHistory((n) => n + 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const marqueeStartRef = useRef<{
+    x: number;
+    y: number;
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    mode: "replace" | "add" | "toggle";
+    baseline: Set<string>;
+    active: boolean;
+  } | null>(null);
+  const marqueeAutoScrollRef = useRef<number | null>(null);
+  const marqueeLastClientRef = useRef<{ x: number; y: number } | null>(null);
 
   // ---------- Queries ----------
   const foldersQ = useQuery({
@@ -584,43 +595,145 @@ export function MediaManager() {
   }, [contextMenu]);
 
   // ---------- Marquee (rectangle drag selection) ----------
+  const MARQUEE_DRAG_THRESHOLD = 5;
+
+  const stopMarqueeAutoScroll = () => {
+    if (marqueeAutoScrollRef.current !== null) {
+      cancelAnimationFrame(marqueeAutoScrollRef.current);
+      marqueeAutoScrollRef.current = null;
+    }
+  };
+
+  const computeMarquee = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    const start = marqueeStartRef.current;
+    if (!canvas || !start) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = clientX - rect.left + canvas.scrollLeft;
+    const cy = clientY - rect.top + canvas.scrollTop;
+    const x = Math.min(cx, start.x);
+    const y = Math.min(cy, start.y);
+    const w = Math.abs(cx - start.x);
+    const h = Math.abs(cy - start.y);
+    setMarquee({ x, y, w, h });
+
+    const items = canvas.querySelectorAll<HTMLElement>("[data-media-item]");
+    const hits = new Set<string>();
+    for (const el of Array.from(items)) {
+      const r = el.getBoundingClientRect();
+      const ix = r.left - rect.left + canvas.scrollLeft;
+      const iy = r.top - rect.top + canvas.scrollTop;
+      if (ix < x + w && ix + r.width > x && iy < y + h && iy + r.height > y) {
+        const id = el.getAttribute("data-media-item");
+        if (id) hits.add(id);
+      }
+    }
+    // Merge with baseline according to modifier at pointer down.
+    const merged = new Set<string>();
+    if (start.mode === "add") {
+      for (const id of start.baseline) merged.add(id);
+      for (const id of hits) merged.add(id);
+    } else if (start.mode === "toggle") {
+      for (const id of start.baseline) if (!hits.has(id)) merged.add(id);
+      for (const id of hits) if (!start.baseline.has(id)) merged.add(id);
+    } else {
+      for (const id of hits) merged.add(id);
+    }
+    setSelectedIds(merged);
+  };
+
+  const runMarqueeAutoScroll = () => {
+    const canvas = canvasRef.current;
+    const start = marqueeStartRef.current;
+    const last = marqueeLastClientRef.current;
+    if (!canvas || !start || !start.active || !last) {
+      marqueeAutoScrollRef.current = null;
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const EDGE = 32;
+    const MAX = 22;
+    let dx = 0;
+    let dy = 0;
+    if (last.y < rect.top + EDGE) dy = -Math.ceil(((rect.top + EDGE - last.y) / EDGE) * MAX);
+    else if (last.y > rect.bottom - EDGE)
+      dy = Math.ceil(((last.y - (rect.bottom - EDGE)) / EDGE) * MAX);
+    if (last.x < rect.left + EDGE) dx = -Math.ceil(((rect.left + EDGE - last.x) / EDGE) * MAX);
+    else if (last.x > rect.right - EDGE)
+      dx = Math.ceil(((last.x - (rect.right - EDGE)) / EDGE) * MAX);
+    if (dx || dy) {
+      canvas.scrollLeft += dx;
+      canvas.scrollTop += dy;
+      computeMarquee(last.x, last.y);
+    }
+    marqueeAutoScrollRef.current = requestAnimationFrame(runMarqueeAutoScroll);
+  };
+
   const onCanvasPointerDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest("[data-media-item]")) return;
+    if ((e.target as HTMLElement).closest("[data-folder-item]")) return;
     if ((e.target as HTMLElement).closest("[data-nomarquee]")) return;
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    marqueeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setMarquee({ x: marqueeStartRef.current.x, y: marqueeStartRef.current.y, w: 0, h: 0 });
-    if (!(e.metaKey || e.ctrlKey || e.shiftKey)) clearSelection();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const mode: "replace" | "add" | "toggle" = e.shiftKey
+      ? "add"
+      : e.metaKey || e.ctrlKey
+        ? "toggle"
+        : "replace";
+    marqueeStartRef.current = {
+      x: e.clientX - rect.left + canvas.scrollLeft,
+      y: e.clientY - rect.top + canvas.scrollTop,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      pointerId: e.pointerId,
+      mode,
+      baseline: new Set(selectedIds),
+      active: false,
+    };
+    marqueeLastClientRef.current = { x: e.clientX, y: e.clientY };
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
   };
+
   const onCanvasPointerMove = (e: ReactPointerEvent) => {
-    if (!marqueeStartRef.current || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cy = e.clientY - rect.top;
-    const x = Math.min(cx, marqueeStartRef.current.x);
-    const y = Math.min(cy, marqueeStartRef.current.y);
-    const w = Math.abs(cx - marqueeStartRef.current.x);
-    const h = Math.abs(cy - marqueeStartRef.current.y);
-    setMarquee({ x, y, w, h });
-    // Intersect with items.
-    const items = canvasRef.current.querySelectorAll<HTMLElement>("[data-media-item]");
-    const next = new Set<string>();
-    for (const el of Array.from(items)) {
-      const r = el.getBoundingClientRect();
-      const ix = r.left - rect.left;
-      const iy = r.top - rect.top;
-      if (ix < x + w && ix + r.width > x && iy < y + h && iy + r.height > y) {
-        const id = el.getAttribute("data-media-item");
-        if (id) next.add(id);
+    const start = marqueeStartRef.current;
+    if (!start) return;
+    marqueeLastClientRef.current = { x: e.clientX, y: e.clientY };
+    if (!start.active) {
+      const dx = e.clientX - start.clientX;
+      const dy = e.clientY - start.clientY;
+      if (Math.abs(dx) < MARQUEE_DRAG_THRESHOLD && Math.abs(dy) < MARQUEE_DRAG_THRESHOLD) return;
+      start.active = true;
+      if (start.mode === "replace") clearSelection();
+      if (marqueeAutoScrollRef.current === null) {
+        marqueeAutoScrollRef.current = requestAnimationFrame(runMarqueeAutoScroll);
       }
     }
-    setSelectedIds(next);
+    computeMarquee(e.clientX, e.clientY);
   };
-  const onCanvasPointerUp = () => {
+
+  const onCanvasPointerUp = (e: ReactPointerEvent) => {
+    const start = marqueeStartRef.current;
+    const canvas = canvasRef.current;
+    if (start && canvas) {
+      // Plain click on empty canvas (no drag) -> clear selection.
+      if (!start.active && start.mode === "replace") clearSelection();
+      try {
+        canvas.releasePointerCapture(start.pointerId);
+      } catch {
+        /* noop */
+      }
+    }
     marqueeStartRef.current = null;
+    marqueeLastClientRef.current = null;
+    stopMarqueeAutoScroll();
     setMarquee(null);
+    void e;
   };
 
   // ---------- Drag & drop ----------
