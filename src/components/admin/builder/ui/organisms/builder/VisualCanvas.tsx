@@ -149,6 +149,16 @@ export function VisualCanvas({
       return;
     }
     const el = e.target as HTMLElement;
+    const tabButton = el.closest("[data-section-tab-btn]") as HTMLElement | null;
+    if (tabButton?.dataset.sectionTabId) {
+      const panelId = tabButton.getAttribute("aria-controls");
+      window.setTimeout(() => {
+        const panel = panelId ? document.getElementById(panelId) : null;
+        const column = panel?.querySelector<HTMLElement>("[data-col-id]");
+        if (column?.dataset.colId) setSelection({ kind: "column", id: column.dataset.colId });
+      }, 0);
+      return;
+    }
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
     if (w?.dataset.widgetId) {
       const id = w.dataset.widgetId;

@@ -308,6 +308,24 @@ export function Builder({
   const selectedInner =
     selection.kind === "inner-section" && selection.id ? findInner(doc, selection.id) : null;
   const hasSelection = !!(selectedWidget || selectedSection || selectedColumn || selectedInner);
+  const selectedTabTarget = useMemo(() => {
+    if (!selectedColumn) return null;
+    for (const section of doc.sections) {
+      for (const child of section.children ?? []) {
+        if (
+          child.kind === "inner-section" &&
+          child.tabId &&
+          child.columns.some((column) => column.id === selectedColumn.id)
+        ) {
+          return { sectionId: section.id, tabId: child.tabId };
+        }
+        if (child.kind === "column" && child.id === selectedColumn.id && child.tabId) {
+          return { sectionId: section.id, tabId: child.tabId };
+        }
+      }
+    }
+    return null;
+  }, [doc, selectedColumn]);
 
   // ---------- right-click context menu ----------
   const onCanvasContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -568,7 +586,15 @@ export function Builder({
                   <div className="flex-1 overflow-y-auto min-h-0">
                     <WidgetLibrary
                       onPickWidget={addWidgetToFocused}
-                      onPickStructure={addSection}
+                      onPickStructure={(spans) =>
+                        selectedTabTarget
+                          ? addSectionToTab(
+                              selectedTabTarget.sectionId,
+                              selectedTabTarget.tabId,
+                              spans,
+                            )
+                          : addSection(spans)
+                      }
                       onPickTemplate={insertTemplateSection}
                       onPickGlobal={addGlobalWidgetToFocused}
                       onPickContainer={addContainer}
