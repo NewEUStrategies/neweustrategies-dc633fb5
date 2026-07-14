@@ -209,6 +209,7 @@ export function Builder({
     duplicateSection,
     insertSectionAt,
     addSectionToTab,
+    addSectionToContainer,
     addInnerSection,
     addColumn,
     removeColumn,
