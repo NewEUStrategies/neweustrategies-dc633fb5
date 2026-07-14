@@ -680,7 +680,7 @@ function AuthorProfilePage() {
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">{t("expert.orgFunctions")}</Label>
                   <Button type="button" size="sm" variant="outline" onClick={addOrgFn}>
-                    <Plus className="mr-1 h-4 w-4" />
+                    <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
                     {t("common.add", { defaultValue: "Dodaj" })}
                   </Button>
                 </div>
