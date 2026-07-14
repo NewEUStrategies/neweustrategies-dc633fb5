@@ -1051,7 +1051,7 @@ function BulletEditor({
         disabled={!canAdd}
         className="w-fit"
       >
-        <Plus className="mr-1 h-4 w-4" />
+        <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
         Dodaj punktor
       </Button>
     </div>
