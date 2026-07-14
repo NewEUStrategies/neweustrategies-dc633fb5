@@ -245,14 +245,17 @@ export function Builder({
   }, [selection, copySelection, askRemoveSection, askRemoveColumn, askRemoveWidget]);
 
   // ---------- bulk actions on the multi-selection ----------
+  // All bulk operations run in a SINGLE `update` so they land as one history
+  // entry (single Ctrl+Z undo) and side-step useHistory.setDoc's stale-closure
+  // issue when called N times synchronously in a loop.
   const bulkDuplicate = useCallback(() => {
     const ids = Array.from(multiSelection);
     if (ids.length === 0) return;
-    // duplicateWidget mutates via history in one op each; batching would need
-    // a dedicated op — sequential is fine at N ~ tens.
-    ids.forEach((id) => duplicateWidget(id));
+    update((d) => {
+      ids.forEach((id) => ops.duplicateWidget(d, id));
+    });
     clearMulti();
-  }, [multiSelection, duplicateWidget, clearMulti]);
+  }, [multiSelection, update, clearMulti]);
 
   const bulkDelete = useCallback(() => {
     const ids = Array.from(multiSelection);
