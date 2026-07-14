@@ -693,6 +693,7 @@ export function Builder({
                     selection={selection}
                     setSelection={setSelection}
                     onInsertSection={insertSectionAt}
+                    onInsertContainer={insertContainerAt}
                     onRemoveSection={askRemoveSection}
                     onMoveWidget={moveWidgetTo}
                     onMoveWidgetToColumn={moveWidgetToColumn}
