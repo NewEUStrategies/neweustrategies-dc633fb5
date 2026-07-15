@@ -33,6 +33,7 @@ import { impersonateUser } from "@/lib/admin/impersonation";
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
 import { resendInvitationsForEmails } from "@/lib/admin/invitations.functions";
+import { adminUsersQueryOptions, type AdminUserRow } from "@/lib/admin/users-query";
 
 export const Route = createFileRoute("/admin/users/")({
   component: Users,
@@ -137,15 +138,8 @@ function Users() {
   const [bulkRole, setBulkRole] = useState<Role | "">("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const resendBulkFn = useServerFn(resendInvitationsForEmails);
-
-  const { data } = useQuery({
-    queryKey: ["all-users", tenantId],
-    queryFn: async (): Promise<UserRow[]> => {
-      const { data: rows, error } = await supabase.rpc("admin_list_users");
-      if (error) throw error;
-      return (rows ?? []).map((r) => ({ ...r, roles: (r.roles ?? []) as Role[] }));
-    },
-  });
+  const { data } = useQuery(adminUsersQueryOptions(tenantId));
+  const users: AdminUserRow[] = data ?? [];
 
   // Subskrypcje: użyte do filtrowania i grupowania po poziomie dostępu.
   // RLS na user_subscriptions dopuszcza admina tenanta.
@@ -206,7 +200,7 @@ function Users() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (data ?? []).filter((u) => {
+    return users.filter((u: AdminUserRow) => {
       if (q) {
         const hay = `${u.display_name ?? ""} ${u.email ?? ""} ${u.slug ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -236,7 +230,7 @@ function Users() {
       }
       return true;
     });
-  }, [data, search, roleFilter, subFilter, statusFilter, subMap]);
+  }, [users, search, roleFilter, subFilter, statusFilter, subMap]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -354,7 +348,7 @@ function Users() {
       return;
     }
     toast.success(t("admin.saved"));
-    qc.invalidateQueries({ queryKey: ["all-users"] });
+    qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
   };
 
   // Zbiorczo: bieżąca kolejność wierszy (po filtrowaniu i sortowaniu, płaska
@@ -451,12 +445,12 @@ function Users() {
     if (fail > 0) toast.error(`${fail} ${i18n.language === "pl" ? "błędów" : "failed"}`);
     setBulkRole("");
     clearSelection();
-    qc.invalidateQueries({ queryKey: ["all-users"] });
+    qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
   };
 
   const bulkResendInvites = async () => {
     if (selected.size === 0) return;
-    const emails = (data ?? [])
+    const emails = users
       .filter((u) => selected.has(u.id) && !!u.email)
       .map((u) => u.email as string);
     if (emails.length === 0) {
@@ -499,7 +493,7 @@ function Users() {
     roleFilter !== "all" ||
     subFilter !== "all" ||
     statusFilter !== "all";
-  const totalCount = data?.length ?? 0;
+  const totalCount = users.length;
   const resultsCount = sorted.length;
 
   return (
@@ -527,13 +521,13 @@ function Users() {
       <InviteUserDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
-        onDone={() => qc.invalidateQueries({ queryKey: ["all-users"] })}
+        onDone={() => qc.invalidateQueries({ queryKey: ["admin", "all-users"] })}
       />
       <TeamImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
         pageSlug="o-nas"
-        onDone={() => qc.invalidateQueries({ queryKey: ["all-users"] })}
+        onDone={() => qc.invalidateQueries({ queryKey: ["admin", "all-users"] })}
       />
 
       {/* Toolbar: search + filters + grouping */}

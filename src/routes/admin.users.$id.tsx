@@ -120,7 +120,7 @@ function UserDetail() {
     }
     toast.success(t("admin.saved", { defaultValue: L("Zapisano", "Saved") }));
     qc.invalidateQueries({ queryKey: ["admin-user", id] });
-    qc.invalidateQueries({ queryKey: ["all-users"] });
+    qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
   };
 
   if (isLoading) {
