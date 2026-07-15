@@ -21,8 +21,37 @@
 // or navigation widgets - heading, text, button, nav-link, mega-menu,
 // post-list / carousel, categories, tags, cta, dark-featured-card. Splitting
 // those would risk a visible pop-in on first paint.
-import { lazy, Suspense, type ComponentProps } from "react";
+import { Suspense, type ComponentProps } from "react";
 import { useBuilderMode } from "@/lib/builder/modeContext";
+import { NewsletterForm as NewsletterFormImpl } from "@/components/NewsletterForm";
+import { JoinUsForm as JoinUsFormImpl } from "@/components/interests/JoinUsForm";
+import { InterestsCustomizer as InterestsCustomizerImpl } from "@/components/interests/InterestsCustomizer";
+import { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
+import { PodcastLatestView as PodcastLatestViewImpl } from "./PodcastLatestView";
+import { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./WebStoriesCarouselView";
+import { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
+import { RatedListView as RatedListViewImpl } from "./RatedListView";
+import { TabsBlock as TabsBlockImpl } from "./TabsBlock";
+import { AdSlotById as AdSlotByIdImpl } from "@/components/ads/AdSlotById";
+import { DonationsWidgetView as DonationsWidgetViewImpl } from "@/components/donations/DonationsWidgetView";
+import { RichTextView as RichTextViewImpl } from "./RichTextView";
+import { SliderRender as SliderRenderImpl } from "@/lib/builder/sliderVariants";
+import { AnimatedHeadingRender as AnimatedHeadingRenderImpl } from "@/lib/builder/animatedHeadingVariants";
+import {
+  ChartWidgetView as ChartWidgetViewImpl,
+  DataMapWidgetView as DataMapWidgetViewImpl,
+} from "./DataVizWidgets";
+import {
+  TimelineWidgetView as TimelineWidgetViewImpl,
+  SankeyWidgetView as SankeyWidgetViewImpl,
+  CompareWidgetView as CompareWidgetViewImpl,
+  RiskMatrixWidgetView as RiskMatrixWidgetViewImpl,
+  IndicatorWidgetView as IndicatorWidgetViewImpl,
+  NetworkWidgetView as NetworkWidgetViewImpl,
+  CorridorMapWidgetView as CorridorMapWidgetViewImpl,
+  SourcesWidgetView as SourcesWidgetViewImpl,
+  MethodologyWidgetView as MethodologyWidgetViewImpl,
+} from "./FeatureWidgets";
 
 /** Builder-only shimmer; `null` on public pages (SSR fills the boundary). */
 function LazyFallback() {
@@ -40,9 +69,6 @@ function LazyFallback() {
 
 const FALLBACK = <LazyFallback />;
 
-const NewsletterFormImpl = lazy(() =>
-  import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
-);
 export function NewsletterForm(props: ComponentProps<typeof NewsletterFormImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -51,9 +77,6 @@ export function NewsletterForm(props: ComponentProps<typeof NewsletterFormImpl>)
   );
 }
 
-const JoinUsFormImpl = lazy(() =>
-  import("@/components/interests/JoinUsForm").then((m) => ({ default: m.JoinUsForm })),
-);
 export function JoinUsForm(props: ComponentProps<typeof JoinUsFormImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -62,11 +85,6 @@ export function JoinUsForm(props: ComponentProps<typeof JoinUsFormImpl>) {
   );
 }
 
-const InterestsCustomizerImpl = lazy(() =>
-  import("@/components/interests/InterestsCustomizer").then((m) => ({
-    default: m.InterestsCustomizer,
-  })),
-);
 export function InterestsCustomizer(props: ComponentProps<typeof InterestsCustomizerImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -75,11 +93,6 @@ export function InterestsCustomizer(props: ComponentProps<typeof InterestsCustom
   );
 }
 
-const TtsPlayerHostImpl = lazy(() =>
-  import("@/components/admin/builder/ui/molecules/TtsPlayerHost").then((m) => ({
-    default: m.TtsPlayerHost,
-  })),
-);
 export function TtsPlayerHost(props: ComponentProps<typeof TtsPlayerHostImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -88,11 +101,6 @@ export function TtsPlayerHost(props: ComponentProps<typeof TtsPlayerHostImpl>) {
   );
 }
 
-const PodcastLatestViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/PodcastLatestView").then((m) => ({
-    default: m.PodcastLatestView,
-  })),
-);
 export function PodcastLatestView(props: ComponentProps<typeof PodcastLatestViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -101,11 +109,6 @@ export function PodcastLatestView(props: ComponentProps<typeof PodcastLatestView
   );
 }
 
-const WebStoriesCarouselViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/WebStoriesCarouselView").then(
-    (m) => ({ default: m.WebStoriesCarouselView }),
-  ),
-);
 export function WebStoriesCarouselView(props: ComponentProps<typeof WebStoriesCarouselViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -114,11 +117,6 @@ export function WebStoriesCarouselView(props: ComponentProps<typeof WebStoriesCa
   );
 }
 
-const NewsTickerViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/NewsTickerView").then((m) => ({
-    default: m.NewsTickerView,
-  })),
-);
 export function NewsTickerView(props: ComponentProps<typeof NewsTickerViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -127,11 +125,6 @@ export function NewsTickerView(props: ComponentProps<typeof NewsTickerViewImpl>)
   );
 }
 
-const RatedListViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/RatedListView").then((m) => ({
-    default: m.RatedListView,
-  })),
-);
 export function RatedListView(props: ComponentProps<typeof RatedListViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -140,11 +133,6 @@ export function RatedListView(props: ComponentProps<typeof RatedListViewImpl>) {
   );
 }
 
-const TabsBlockImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/TabsBlock").then((m) => ({
-    default: m.TabsBlock,
-  })),
-);
 export function TabsBlock(props: ComponentProps<typeof TabsBlockImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -153,9 +141,6 @@ export function TabsBlock(props: ComponentProps<typeof TabsBlockImpl>) {
   );
 }
 
-const AdSlotByIdImpl = lazy(() =>
-  import("@/components/ads/AdSlotById").then((m) => ({ default: m.AdSlotById })),
-);
 export function AdSlotById(props: ComponentProps<typeof AdSlotByIdImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -166,11 +151,6 @@ export function AdSlotById(props: ComponentProps<typeof AdSlotByIdImpl>) {
 
 // Donations widget (public aggregate stats + CTA). Split off so pages that
 // don't render it never pay for the query client wrapper / server-fn hook path.
-const DonationsWidgetViewImpl = lazy(() =>
-  import("@/components/donations/DonationsWidgetView").then((m) => ({
-    default: m.DonationsWidgetView,
-  })),
-);
 export function DonationsWidgetView(props: ComponentProps<typeof DonationsWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -182,11 +162,6 @@ export function DonationsWidgetView(props: ComponentProps<typeof DonationsWidget
 // The rich-text widget pulls in the whole blocks renderer (DOMPurify + every
 // block view), so it is split out of the shared Header/Footer bundle and only
 // downloaded on pages that actually embed rich content.
-const RichTextViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/RichTextView").then((m) => ({
-    default: m.RichTextView,
-  })),
-);
 export function RichTextView(props: ComponentProps<typeof RichTextViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -198,9 +173,6 @@ export function RichTextView(props: ComponentProps<typeof RichTextViewImpl>) {
 // The slider renderer is the single heaviest widget module (5 styled
 // variants, drag/autoplay machinery, ~53 KB source). Pages without a slider
 // never download it; SSR streaming keeps the hero HTML identical.
-const SliderRenderImpl = lazy(() =>
-  import("@/lib/builder/sliderVariants").then((m) => ({ default: m.SliderRender })),
-);
 export function SliderRender(props: ComponentProps<typeof SliderRenderImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -211,11 +183,6 @@ export function SliderRender(props: ComponentProps<typeof SliderRenderImpl>) {
 
 // Animated headings carry a large per-variant animation catalog; they animate
 // in anyway, so the deferred chunk is imperceptible.
-const AnimatedHeadingRenderImpl = lazy(() =>
-  import("@/lib/builder/animatedHeadingVariants").then((m) => ({
-    default: m.AnimatedHeadingRender,
-  })),
-);
 export function AnimatedHeadingRender(props: ComponentProps<typeof AnimatedHeadingRenderImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -226,11 +193,6 @@ export function AnimatedHeadingRender(props: ComponentProps<typeof AnimatedHeadi
 
 // Data-viz widgets pull in the whole SVG chart engine (scales, tooltips,
 // choropleth) - split out so pages without charts never download it.
-const ChartWidgetViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets").then((m) => ({
-    default: m.ChartWidgetView,
-  })),
-);
 export function ChartWidgetView(props: ComponentProps<typeof ChartWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -239,11 +201,6 @@ export function ChartWidgetView(props: ComponentProps<typeof ChartWidgetViewImpl
   );
 }
 
-const DataMapWidgetViewImpl = lazy(() =>
-  import("@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets").then((m) => ({
-    default: m.DataMapWidgetView,
-  })),
-);
 export function DataMapWidgetView(props: ComponentProps<typeof DataMapWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -255,12 +212,6 @@ export function DataMapWidgetView(props: ComponentProps<typeof DataMapWidgetView
 // NES Digital Features - wszystkie renderery żyją w jednym module (FeatureWidgets),
 // więc dzielą jeden chunk "features" dociągany tylko na stronach, które osadzają
 // któryś z tych widgetów. SSR streaming renderuje je serwerowo (HTML bez zmian).
-const FeatureModule = () =>
-  import("@/components/admin/builder/ui/organisms/widget-view/FeatureWidgets");
-
-const TimelineWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.TimelineWidgetView })),
-);
 export function TimelineWidgetView(props: ComponentProps<typeof TimelineWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -269,9 +220,6 @@ export function TimelineWidgetView(props: ComponentProps<typeof TimelineWidgetVi
   );
 }
 
-const SankeyWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.SankeyWidgetView })),
-);
 export function SankeyWidgetView(props: ComponentProps<typeof SankeyWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -280,9 +228,6 @@ export function SankeyWidgetView(props: ComponentProps<typeof SankeyWidgetViewIm
   );
 }
 
-const CompareWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.CompareWidgetView })),
-);
 export function CompareWidgetView(props: ComponentProps<typeof CompareWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -291,9 +236,6 @@ export function CompareWidgetView(props: ComponentProps<typeof CompareWidgetView
   );
 }
 
-const RiskMatrixWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.RiskMatrixWidgetView })),
-);
 export function RiskMatrixWidgetView(props: ComponentProps<typeof RiskMatrixWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -302,9 +244,6 @@ export function RiskMatrixWidgetView(props: ComponentProps<typeof RiskMatrixWidg
   );
 }
 
-const IndicatorWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.IndicatorWidgetView })),
-);
 export function IndicatorWidgetView(props: ComponentProps<typeof IndicatorWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -313,9 +252,6 @@ export function IndicatorWidgetView(props: ComponentProps<typeof IndicatorWidget
   );
 }
 
-const NetworkWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.NetworkWidgetView })),
-);
 export function NetworkWidgetView(props: ComponentProps<typeof NetworkWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -324,9 +260,6 @@ export function NetworkWidgetView(props: ComponentProps<typeof NetworkWidgetView
   );
 }
 
-const CorridorMapWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.CorridorMapWidgetView })),
-);
 export function CorridorMapWidgetView(props: ComponentProps<typeof CorridorMapWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -335,9 +268,6 @@ export function CorridorMapWidgetView(props: ComponentProps<typeof CorridorMapWi
   );
 }
 
-const SourcesWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.SourcesWidgetView })),
-);
 export function SourcesWidgetView(props: ComponentProps<typeof SourcesWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
@@ -346,9 +276,6 @@ export function SourcesWidgetView(props: ComponentProps<typeof SourcesWidgetView
   );
 }
 
-const MethodologyWidgetViewImpl = lazy(() =>
-  FeatureModule().then((m) => ({ default: m.MethodologyWidgetView })),
-);
 export function MethodologyWidgetView(props: ComponentProps<typeof MethodologyWidgetViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
