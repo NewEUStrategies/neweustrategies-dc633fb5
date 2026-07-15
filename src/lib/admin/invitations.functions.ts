@@ -420,6 +420,52 @@ export const sendInvitationsBulk = createServerFn({ method: "POST" })
     return { results };
   });
 
+// Ponowna wysyłka zaproszeń dopasowanych po adresie e-mail. Wykorzystywana
+// przez akcje zbiorcze w /admin/users, gdzie zaznaczamy użytkowników (a nie
+// same zaproszenia). Dla każdego adresu bierzemy NAJŚWIEŻSZE zaproszenie
+// (po created_at DESC). Adresy bez zaproszenia trafiają do `missing`, żeby
+// UI pokazał, dla kogo nie było co ponowić.
+export const resendInvitationsForEmails = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        emails: z
+          .array(z.string().email().transform((v) => v.trim().toLowerCase()))
+          .min(1)
+          .max(100),
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ results: SendResult[]; missing: string[] }> => {
+      await assertAdmin(context.supabase, context.userId);
+      const uniq = Array.from(new Set(data.emails));
+      const { data: rows, error } = await context.supabase
+        .from("user_invitations")
+        .select("id, email, created_at")
+        .in("email", uniq)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+
+      const byEmail = new Map<string, string>();
+      for (const r of rows ?? []) {
+        if (!byEmail.has(r.email)) byEmail.set(r.email, r.id);
+      }
+      const missing = uniq.filter((e) => !byEmail.has(e));
+      const results: SendResult[] = [];
+      for (const [, id] of byEmail) {
+        const r = await performSend(context.supabase, context.userId, id);
+        results.push(r);
+        await new Promise((res) => setTimeout(res, 250));
+      }
+      return { results, missing };
+    },
+  );
+
 export const revokeInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))

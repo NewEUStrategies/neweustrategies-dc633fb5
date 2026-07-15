@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, Fragment } from "react";
+import { useMemo, useState, Fragment, useCallback } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -25,10 +27,12 @@ import {
   Users as UsersIcon,
   Search,
   X,
+  Send,
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
+import { resendInvitationsForEmails } from "@/lib/admin/invitations.functions";
 
 export const Route = createFileRoute("/admin/users/")({
   component: Users,
@@ -128,6 +132,11 @@ function Users() {
   const [subFilter, setSubFilter] = useState<string>("all"); // "all" | "none" | plan name
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("role");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null);
+  const [bulkRole, setBulkRole] = useState<Role | "">("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const resendBulkFn = useServerFn(resendInvitationsForEmails);
 
   const { data } = useQuery({
     queryKey: ["all-users", tenantId],
@@ -348,6 +357,135 @@ function Users() {
     qc.invalidateQueries({ queryKey: ["all-users"] });
   };
 
+  // Zbiorczo: bieżąca kolejność wierszy (po filtrowaniu i sortowaniu, płaska
+  // dla wszystkich grup) - używana do wyliczania zakresu shift-click.
+  const orderedRows = useMemo(() => {
+    if (groupBy === "none") return sorted;
+    return groups.flatMap((g) => g.rows);
+  }, [groupBy, groups, sorted]);
+
+  // Bieżący użytkownik nie może zmienić własnej roli - traktujemy go jako
+  // niezaznaczalnego, żeby akcje zbiorcze nie wywalały RPC z błędem.
+  const isSelectable = useCallback(
+    (id: string) => id !== user?.id,
+    [user?.id],
+  );
+
+  const toggleRow = useCallback(
+    (id: string, shift: boolean) => {
+      if (!isSelectable(id)) return;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (shift && lastClickedId && lastClickedId !== id) {
+          const ids = orderedRows.map((u) => u.id);
+          const a = ids.indexOf(lastClickedId);
+          const b = ids.indexOf(id);
+          if (a !== -1 && b !== -1) {
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            const shouldSelect = !prev.has(id);
+            for (let i = lo; i <= hi; i++) {
+              const rid = ids[i];
+              if (!isSelectable(rid)) continue;
+              if (shouldSelect) next.add(rid);
+              else next.delete(rid);
+            }
+            setLastClickedId(id);
+            return next;
+          }
+        }
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setLastClickedId(id);
+        return next;
+      });
+    },
+    [isSelectable, lastClickedId, orderedRows],
+  );
+
+  const selectableVisibleIds = useMemo(
+    () => orderedRows.filter((u) => isSelectable(u.id)).map((u) => u.id),
+    [orderedRows, isSelectable],
+  );
+  const allVisibleSelected =
+    selectableVisibleIds.length > 0 &&
+    selectableVisibleIds.every((id) => selected.has(id));
+  const someVisibleSelected =
+    !allVisibleSelected && selectableVisibleIds.some((id) => selected.has(id));
+  const toggleAllVisible = () => {
+    setSelected((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const id of selectableVisibleIds) next.delete(id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const id of selectableVisibleIds) next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => {
+    setSelected(new Set());
+    setLastClickedId(null);
+  };
+
+  const applyBulkRole = async () => {
+    if (!bulkRole || selected.size === 0) return;
+    if (bulkRole === "super_admin" && !isSuperAdmin) return;
+    setBulkBusy(true);
+    let ok = 0;
+    let fail = 0;
+    for (const id of selected) {
+      const { error } = await supabase.rpc("change_user_role", {
+        _target_user_id: id,
+        _new_role: bulkRole,
+      });
+      if (error) {
+        fail += 1;
+        console.warn("[admin/users] bulk role failed", id, error.message);
+      } else {
+        ok += 1;
+      }
+    }
+    setBulkBusy(false);
+    if (ok > 0) toast.success(`${ok} ${i18n.language === "pl" ? "zmienione" : "updated"}`);
+    if (fail > 0) toast.error(`${fail} ${i18n.language === "pl" ? "błędów" : "failed"}`);
+    setBulkRole("");
+    clearSelection();
+    qc.invalidateQueries({ queryKey: ["all-users"] });
+  };
+
+  const bulkResendInvites = async () => {
+    if (selected.size === 0) return;
+    const emails = (data ?? [])
+      .filter((u) => selected.has(u.id) && !!u.email)
+      .map((u) => u.email as string);
+    if (emails.length === 0) {
+      toast.error(i18n.language === "pl" ? "Brak adresów e-mail" : "No emails");
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await resendBulkFn({ data: { emails } });
+      const okCount = res.results.filter((r) => r.ok).length;
+      const failCount = res.results.length - okCount;
+      if (okCount > 0)
+        toast.success(`${okCount} ${i18n.language === "pl" ? "wysłane" : "sent"}`);
+      if (failCount > 0)
+        toast.error(`${failCount} ${i18n.language === "pl" ? "błędów" : "failed"}`);
+      if (res.missing.length > 0)
+        toast.info(
+          `${res.missing.length} ${
+            i18n.language === "pl" ? "bez zaproszenia" : "without invitation"
+          }`,
+        );
+      qc.invalidateQueries({ queryKey: ["user-invitations"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
 
   const clearFilters = () => {
@@ -503,10 +641,78 @@ function Users() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs">
+          <span className="font-medium tabular-nums">
+            {selected.size}{" "}
+            {i18n.language === "pl" ? "zaznaczonych" : "selected"}
+          </span>
+          <span className="mx-1 h-4 w-px bg-border" />
+
+          <Select value={bulkRole} onValueChange={(v) => setBulkRole(v as Role)}>
+            <SelectTrigger className="h-8 w-[160px] text-xs">
+              <SelectValue
+                placeholder={i18n.language === "pl" ? "Zmień rolę…" : "Change role…"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {isSuperAdmin && (
+                <SelectItem value="super_admin">{roleLabel(t, "super_admin")}</SelectItem>
+              )}
+              {ASSIGNABLE_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {roleLabel(t, r)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            disabled={!bulkRole || bulkBusy}
+            onClick={applyBulkRole}
+          >
+            <UserCog className="w-3.5 h-3.5 mr-1" />
+            {i18n.language === "pl" ? "Zastosuj rolę" : "Apply role"}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={bulkBusy}
+            onClick={bulkResendInvites}
+          >
+            <Send className="w-3.5 h-3.5 mr-1" />
+            {i18n.language === "pl" ? "Wyślij ponownie zaproszenia" : "Resend invitations"}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs ml-auto"
+            onClick={clearSelection}
+            disabled={bulkBusy}
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            {i18n.language === "pl" ? "Wyczyść zaznaczenie" : "Clear selection"}
+          </Button>
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
             <tr>
+              <th className="p-3 w-10">
+                <Checkbox
+                  checked={
+                    allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false
+                  }
+                  onCheckedChange={toggleAllVisible}
+                  aria-label={i18n.language === "pl" ? "Zaznacz wszystkie" : "Select all"}
+                />
+              </th>
               <th
                 className="text-left p-3 cursor-pointer select-none"
                 onClick={() => toggleSort("display_name")}
@@ -546,7 +752,7 @@ function Users() {
               <Fragment key={g.key}>
                 {groupBy !== "none" && (
                   <tr className="bg-muted/40 border-t border-border">
-                    <td colSpan={6} className="px-3 py-2 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+                    <td colSpan={7} className="px-3 py-2 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
                       {g.label}
                       <span className="ml-2 text-[10px] font-normal opacity-70 tabular-nums">
                         {g.rows.length}
@@ -559,19 +765,48 @@ function Users() {
                   return (
                     <tr
                       key={u.id}
-                      className="border-t border-border hover:bg-muted/20 cursor-pointer"
+                      className={
+                        "border-t border-border hover:bg-muted/20 cursor-pointer " +
+                        (selected.has(u.id) ? "bg-primary/5" : "")
+                      }
                       onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
                     >
+                      <td
+                        className="p-3 w-10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {isSelectable(u.id) ? (
+                          <span
+                            role="button"
+                            tabIndex={-1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRow(u.id, e.shiftKey);
+                            }}
+                            className="inline-flex"
+                          >
+                            <Checkbox
+                              checked={selected.has(u.id)}
+                              // eslint-disable-next-line @typescript-eslint/no-empty-function
+                              onCheckedChange={() => {}}
+                              tabIndex={-1}
+                              aria-label={u.display_name ?? u.email ?? u.id}
+                            />
+                          </span>
+                        ) : (
+                          <span className="inline-block w-4 h-4" />
+                        )}
+                      </td>
                       <td className="p-3 font-medium">
                         <div className="flex items-center gap-2">
                           {u.avatar_url ? (
                             <img
                               src={u.avatar_url}
                               alt=""
-                              className="w-7 h-7 rounded-full object-cover"
+                              className="w-7 h-7 rounded-[4px] object-cover"
                             />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-muted" />
+                            <div className="w-7 h-7 rounded-[4px] bg-muted" />
                           )}
                           {u.display_name ?? "-"}
                         </div>
@@ -670,7 +905,7 @@ function Users() {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-sm text-muted-foreground">
+                <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
                   {i18n.language === "pl" ? "Brak wyników" : "No results"}
                 </td>
               </tr>
