@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -137,6 +145,7 @@ function Users() {
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [bulkRole, setBulkRole] = useState<Role | "">("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
   const resendBulkFn = useServerFn(resendInvitationsForEmails);
   const { data } = useQuery(adminUsersQueryOptions(tenantId));
   const users: AdminUserRow[] = data ?? [];
@@ -422,9 +431,16 @@ function Users() {
     setLastClickedId(null);
   };
 
+  const openBulkRoleConfirm = () => {
+    if (!bulkRole || selected.size === 0) return;
+    if (bulkRole === "super_admin" && !isSuperAdmin) return;
+    setRoleConfirmOpen(true);
+  };
+
   const applyBulkRole = async () => {
     if (!bulkRole || selected.size === 0) return;
     if (bulkRole === "super_admin" && !isSuperAdmin) return;
+    setRoleConfirmOpen(false);
     setBulkBusy(true);
     let ok = 0;
     let fail = 0;
@@ -664,7 +680,7 @@ function Users() {
             size="sm"
             className="h-8 text-xs"
             disabled={!bulkRole || bulkBusy}
-            onClick={applyBulkRole}
+            onClick={openBulkRoleConfirm}
           >
             <UserCog className="w-3.5 h-3.5 mr-1" />
             {i18n.language === "pl" ? "Zastosuj rolę" : "Apply role"}
@@ -693,6 +709,34 @@ function Users() {
           </Button>
         </div>
       )}
+
+      <Dialog open={roleConfirmOpen} onOpenChange={setRoleConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {i18n.language === "pl" ? "Potwierdź zmianę roli" : "Confirm role change"}
+            </DialogTitle>
+            <DialogDescription>
+              {i18n.language === "pl"
+                ? `Wybranych użytkowników: ${selected.size}. Rola, którą otrzymają: ${bulkRole ? roleLabel(t, bulkRole) : "-"}.`
+                : `Selected users: ${selected.size}. Role they will receive: ${bulkRole ? roleLabel(t, bulkRole) : "-"}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRoleConfirmOpen(false)}
+              disabled={bulkBusy}
+            >
+              {i18n.language === "pl" ? "Anuluj" : "Cancel"}
+            </Button>
+            <Button size="sm" onClick={applyBulkRole} disabled={bulkBusy}>
+              {i18n.language === "pl" ? "Tak, zmień rolę" : "Yes, change role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
@@ -797,10 +841,10 @@ function Users() {
                             <img
                               src={u.avatar_url}
                               alt=""
-                              className="w-7 h-7 rounded-[4px] object-cover"
+                              className="w-7 h-7 rounded-[5px] object-cover"
                             />
                           ) : (
-                            <div className="w-7 h-7 rounded-[4px] bg-muted" />
+                            <div className="w-7 h-7 rounded-[5px] bg-muted" />
                           )}
                           {u.display_name ?? "-"}
                         </div>
