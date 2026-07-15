@@ -113,22 +113,39 @@ export function LucideIconPicker({
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<string>("all");
 
-  const groups: Grouped[] = useMemo(() => {
+  // Icons matching current search (or all if empty)
+  const searched = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (q) {
-      const matches = ALL_ICON_NAMES.filter((n) => n.includes(q));
-      return groupIcons(matches);
-    }
-    if (activeCat === "all") return GROUPED_ALL;
-    return GROUPED_ALL.filter((g) => g.id === activeCat);
-  }, [query, activeCat]);
+    if (!q) return ALL_ICON_NAMES;
+    return ALL_ICON_NAMES.filter((n) => n.includes(q));
+  }, [query]);
 
-  const totalShown = useMemo(
-    () => groups.reduce((sum, g) => sum + g.items.length, 0),
-    [groups],
-  );
+  // Grouped view of the searched set → gives per-category counts
+  const groupedSearched: Grouped[] = useMemo(() => groupIcons(searched), [searched]);
+
+  // What we actually render in the main pane
+  const displayed = useMemo(() => {
+    if (activeCat === "all") return searched;
+    const g = groupedSearched.find((x) => x.id === activeCat);
+    return g ? g.items : [];
+  }, [activeCat, searched, groupedSearched]);
+
+  const countBy = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const g of groupedSearched) m.set(g.id, g.items.length);
+    return m;
+  }, [groupedSearched]);
 
   const current = value?.trim() || "";
+
+  const sidebarCats: { id: string; label: string; icon: string }[] = useMemo(
+    () => [
+      { id: "all", label: "Wszystkie", icon: "layout-grid" },
+      ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })),
+      { id: "other", label: "Inne", icon: "more-horizontal" },
+    ],
+    [],
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -149,135 +166,135 @@ export function LucideIconPicker({
           <span className="truncate">{current || placeholder}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-96 p-2">
-        <div className="flex items-center gap-1 mb-2">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Szukaj (np. rocket, users)"
-              className="h-8 text-xs pl-7"
-            />
-          </div>
-          {current ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 px-2"
-              onClick={() => {
-                onChange(undefined);
-                setOpen(false);
-              }}
-              aria-label="Wyczyść ikonę"
-              title="Wyczyść ikonę"
-            >
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          ) : null}
-        </div>
-
-        {!query.trim() ? (
-          <div className="flex flex-wrap gap-1 mb-2">
-            <CatChip
-              active={activeCat === "all"}
-              onClick={() => setActiveCat("all")}
-              label="Wszystkie"
-              count={ALL_ICON_NAMES.length}
-            />
-            {GROUPED_ALL.map((g) => (
-              <CatChip
-                key={g.id}
-                active={activeCat === g.id}
-                onClick={() => setActiveCat(g.id)}
-                label={g.label}
-                count={g.items.length}
-              />
-            ))}
-          </div>
-        ) : null}
-
-        <ScrollArea className="h-64">
-          {totalShown === 0 ? (
-            <div className="text-xs text-muted-foreground text-center py-6">
-              Brak wyników
+      <PopoverContent align="start" className="w-[520px] p-0 overflow-hidden">
+        <div className="flex h-[360px]">
+          {/* Sidebar - categories */}
+          <div className="w-40 shrink-0 border-r border-border bg-muted/30 flex flex-col">
+            <div className="px-3 py-2 border-b border-border">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                Kategorie
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3 pr-2">
-              {groups.map((g) => (
-                <div key={g.id}>
-                  <div className="sticky top-0 z-10 bg-popover/95 backdrop-blur-sm text-[10px] uppercase tracking-wide font-semibold text-muted-foreground px-1 py-1 mb-1">
-                    {g.label}{" "}
-                    <span className="text-muted-foreground/60 font-normal normal-case">
-                      ({g.items.length})
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-10 gap-1">
-                    {g.items.map((name) => {
-                      const active = name === current;
-                      return (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => {
-                            onChange(name);
-                            setOpen(false);
-                          }}
-                          className={
-                            "flex items-center justify-center h-8 w-8 rounded-md border transition-colors " +
-                            (active
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-transparent hover:bg-accent text-foreground")
-                          }
-                          title={name}
-                          aria-label={name}
-                          style={{ contentVisibility: "auto", containIntrinsicSize: "32px 32px" }}
-                        >
-                          <DynamicIcon name={name} width={16} height={16} />
-                        </button>
-                      );
-                    })}
-                  </div>
+            <ScrollArea className="flex-1">
+              <div className="p-1.5 space-y-0.5">
+                {sidebarCats.map((c) => {
+                  const total =
+                    c.id === "all" ? searched.length : countBy.get(c.id) ?? 0;
+                  const isActive = activeCat === c.id;
+                  const disabled = total === 0 && c.id !== "all";
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setActiveCat(c.id)}
+                      disabled={disabled}
+                      className={
+                        "w-full flex items-center gap-2 h-7 px-2 rounded-md text-[11px] font-medium transition-colors text-left " +
+                        (isActive
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : disabled
+                            ? "text-muted-foreground/40 cursor-not-allowed"
+                            : "text-foreground/80 hover:bg-accent hover:text-foreground")
+                      }
+                    >
+                      <DynamicIcon
+                        name={c.icon}
+                        width={13}
+                        height={13}
+                        className="shrink-0"
+                      />
+                      <span className="truncate flex-1">{c.label}</span>
+                      <span
+                        className={
+                          "text-[10px] tabular-nums " +
+                          (isActive
+                            ? "text-primary-foreground/80"
+                            : "text-muted-foreground/70")
+                        }
+                      >
+                        {total}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Main pane - search + icon grid */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="flex items-center gap-1 p-2 border-b border-border">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Szukaj (np. rocket, users)"
+                  className="h-8 text-xs pl-7"
+                />
+              </div>
+              {current ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-2"
+                  onClick={() => {
+                    onChange(undefined);
+                    setOpen(false);
+                  }}
+                  aria-label="Wyczyść ikonę"
+                  title="Wyczyść ikonę"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              ) : null}
+            </div>
+            <ScrollArea className="flex-1">
+              {displayed.length === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-10">
+                  Brak wyników
                 </div>
-              ))}
+              ) : (
+                <div className="grid grid-cols-10 gap-1 p-2">
+                  {displayed.map((name) => {
+                    const active = name === current;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          onChange(name);
+                          setOpen(false);
+                        }}
+                        className={
+                          "flex items-center justify-center h-8 w-8 rounded-md border transition-colors " +
+                          (active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-transparent hover:bg-accent text-foreground")
+                        }
+                        title={name}
+                        aria-label={name}
+                        style={{
+                          contentVisibility: "auto",
+                          containIntrinsicSize: "32px 32px",
+                        }}
+                      >
+                        <DynamicIcon name={name} width={16} height={16} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+            <div className="px-3 py-1.5 border-t border-border text-[10px] text-muted-foreground truncate bg-muted/20">
+              {displayed.length} / {ALL_ICON_NAMES.length} ikon
+              {current ? ` · wybrano: ${current}` : ""}
             </div>
-          )}
-        </ScrollArea>
-        <div className="mt-2 text-[10px] text-muted-foreground truncate">
-          {totalShown} / {ALL_ICON_NAMES.length} ikon
-          {current ? ` - wybrano: ${current}` : ""}
+          </div>
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function CatChip({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-medium border transition-colors " +
-        (active
-          ? "bg-primary text-primary-foreground border-primary"
-          : "bg-background text-muted-foreground border-border hover:bg-accent hover:text-foreground")
-      }
-    >
-      {label}
-      <span className={active ? "opacity-80" : "opacity-60"}>{count}</span>
-    </button>
   );
 }
