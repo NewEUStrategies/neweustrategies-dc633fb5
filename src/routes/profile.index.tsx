@@ -52,6 +52,7 @@ import {
   CvSection,
 } from "@/components/profile/sections/ProfileExtraSections";
 import { cn } from "@/lib/utils";
+import { htmlToPlainText } from "@/lib/sanitize";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
