@@ -16,6 +16,7 @@ import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/builder/types";
 import { Row } from "../../atoms";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
+import { ColorPicker } from "../../molecules/ColorPicker";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 
@@ -175,29 +176,17 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
           </Row>
 
           <Row label="Kolor akcentu" hint="Kolor aktywnej zakładki (podkreślenia, tła pigułki). Zostaw puste, aby użyć koloru marki.">
-            <div className="flex items-center gap-2 w-full">
-              <input
-                type="color"
-                value={/^#[0-9a-fA-F]{6}$/.test(cfg.accentColor ?? "") ? (cfg.accentColor as string) : "#f59e42"}
-                onChange={(e) =>
-                  setCfg((c) => {
-                    c.accentColor = e.target.value;
-                  })
-                }
-                className="h-8 w-10 rounded border border-border bg-background cursor-pointer"
-                aria-label="Kolor akcentu"
-              />
-              <Input
-                className="h-8 text-xs flex-1"
-                placeholder="np. #f59e42 lub var(--brand)"
-                value={cfg.accentColor ?? ""}
-                onChange={(e) =>
-                  setCfg((c) => {
-                    c.accentColor = e.target.value;
-                  })
-                }
-              />
-            </div>
+            <ColorPicker
+              value={cfg.accentColor}
+              onChange={(v) =>
+                setCfg((c) => {
+                  c.accentColor = v;
+                })
+              }
+              ariaLabel="Kolor akcentu"
+              showInput
+              placeholder="np. #f59e42 lub var(--brand)"
+            />
           </Row>
 
           <Row label="Pozycja ikony">
@@ -333,25 +322,11 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
                     className="flex-1"
                     placeholder="Wybierz ikonę"
                   />
-                  <input
-                    type="color"
-                    value={/^#[0-9a-fA-F]{6}$/.test(t.color ?? "") ? (t.color as string) : "#f59e42"}
-                    onChange={(e) => patchTab(t.id, { color: e.target.value })}
-                    className="h-7 w-9 rounded border border-border bg-background cursor-pointer"
-                    aria-label="Kolor zakładki"
-                    title="Kolor akcentu tej zakładki (nadpisuje globalny)"
+                  <ColorPicker
+                    value={t.color}
+                    onChange={(v) => patchTab(t.id, { color: v })}
+                    ariaLabel="Kolor zakładki"
                   />
-                  {t.color ? (
-                    <button
-                      type="button"
-                      onClick={() => patchTab(t.id, { color: undefined })}
-                      className="p-1 text-muted-foreground hover:text-foreground"
-                      aria-label="Wyczyść kolor"
-                      title="Wyczyść kolor"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ))}
