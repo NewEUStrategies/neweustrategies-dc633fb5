@@ -362,16 +362,15 @@ function EditPage() {
       </div>
       <div>
         <Label>{t("admin.posts.editor")}</Label>
-        <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
-            <SelectItem value="richtext">Rich text (legacy)</SelectItem>
-            <SelectItem value="markdown">Markdown (legacy)</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40 text-sm">
+          <span className="font-medium">Visual Builder</span>
+          <span className="text-xs text-muted-foreground">
+            {t("admin.pages.editor.builderLocked", {
+              defaultValue:
+                "Strony używają wspólnej struktury dla PL i EN - przełącznik języka zmienia tylko teksty.",
+            })}
+          </span>
+        </div>
       </div>
       <div>
         <Label>Slug</Label>
