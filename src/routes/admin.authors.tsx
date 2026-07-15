@@ -32,7 +32,7 @@ export const Route = createFileRoute("/admin/authors")({
   component: Authors,
 });
 
-type Role = "super_admin" | "admin" | "editor" | "author" | "user";
+type Role = AdminRole;
 
 interface AuthorRow {
   id: string;
@@ -57,15 +57,17 @@ function Authors() {
 
   const { data: directory } = useSuspenseQuery(expertsDirectoryQueryOptions());
 
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ["admin-authors", tenantId],
-    queryFn: async (): Promise<AuthorRow[]> => {
-      const { data, error } = await supabase.rpc("admin_list_users");
-      if (error) throw error;
-      const authors = (data ?? [])
-        .map((r) => ({ ...r, roles: (r.roles ?? []) as Role[] }))
-        .filter((r) => r.roles.some((role) => AUTHOR_ROLES.has(role)));
+  // Wspólny cache z /admin/users - obie strony aktualizują się razem po
+  // imporcie zespołu, zaproszeniach czy zmianie ról.
+  const { data: allUsers } = useQuery(adminUsersQueryOptions(tenantId));
 
+  const { data: rows, isLoading } = useQuery({
+    queryKey: ["admin-authors-posts", tenantId, (allUsers ?? []).length],
+    enabled: !!allUsers,
+    queryFn: async (): Promise<AuthorRow[]> => {
+      const authors = (allUsers ?? []).filter((r) =>
+        r.roles.some((role) => AUTHOR_ROLES.has(role)),
+      );
       const ids = authors.map((a) => a.id);
       const counts = new Map<string, number>();
       if (ids.length > 0) {
@@ -83,10 +85,10 @@ function Authors() {
       }
       return authors.map((a) => ({
         id: a.id,
-        display_name: a.display_name ?? null,
-        email: a.email ?? null,
-        avatar_url: a.avatar_url ?? null,
-        slug: a.slug ?? null,
+        display_name: a.display_name,
+        email: a.email,
+        avatar_url: a.avatar_url,
+        slug: a.slug,
         roles: a.roles,
         posts_count: counts.get(a.id) ?? 0,
       }));
