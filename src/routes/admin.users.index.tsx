@@ -217,9 +217,17 @@ function Users() {
           return false;
         }
       }
+      if (statusFilter !== "all") {
+        const s = subMap.get(u.id);
+        if (statusFilter === "none") {
+          if (s) return false;
+        } else if ((s?.status as SubStatus | undefined) !== statusFilter) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [data, search, roleFilter, subFilter, subMap]);
+  }, [data, search, roleFilter, subFilter, statusFilter, subMap]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
