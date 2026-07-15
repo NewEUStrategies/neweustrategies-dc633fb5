@@ -51,6 +51,7 @@ import {
   Cable,
   BookOpen,
   Briefcase,
+  ShieldCheck,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -412,6 +413,13 @@ function AdminShellInner({
                 icon: Users,
                 label: t("admin.nav.authors", {
                   defaultValue: lang === "pl" ? "Autorzy" : "Authors",
+                }),
+              },
+              {
+                to: "/admin/permissions",
+                icon: ShieldCheck,
+                label: t("admin.nav.permissions", {
+                  defaultValue: lang === "pl" ? "Uprawnienia (role)" : "Permissions (roles)",
                 }),
               },
               {
