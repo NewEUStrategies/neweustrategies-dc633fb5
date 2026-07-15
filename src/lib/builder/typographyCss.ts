@@ -3,11 +3,36 @@ import { pickMode } from "./themed";
 
 type Specificity = 1 | 2 | 3;
 
+// Deterministic CSS.escape polyfill used on BOTH server and client. We can't
+// call the runtime `CSS.escape` here because it exists in the browser but not
+// during SSR - a leading digit like the `6` in a UUID would produce different
+// escaped output on each side, and the resulting `<style>` string would fail
+// hydration (and, on the preview worker, crash SSR entirely).
+// Mirrors the WHATWG CSS.escape spec for the characters we actually see here
+// (UUIDs + kebab keys): escape leading digit as `\HH `, escape non-word chars.
 function cssEscape(value: string): string {
-  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
-    return CSS.escape(value);
+  let out = "";
+  for (let i = 0; i < value.length; i++) {
+    const ch = value.charCodeAt(i);
+    // Leading digit: escape as `\HH ` (hex + trailing space).
+    if (i === 0 && ch >= 0x30 && ch <= 0x39) {
+      out += "\\" + ch.toString(16) + " ";
+      continue;
+    }
+    // Word chars stay verbatim.
+    if (
+      (ch >= 0x30 && ch <= 0x39) || // 0-9
+      (ch >= 0x41 && ch <= 0x5a) || // A-Z
+      (ch >= 0x61 && ch <= 0x7a) || // a-z
+      ch === 0x5f || // _
+      ch === 0x2d // -
+    ) {
+      out += value[i];
+      continue;
+    }
+    out += "\\" + value[i];
   }
-  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  return out;
 }
 
 function pickResponsiveValue<T>(
