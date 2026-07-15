@@ -693,7 +693,7 @@ function Users() {
               <Fragment key={g.key}>
                 {groupBy !== "none" && (
                   <tr className="bg-muted/40 border-t border-border">
-                    <td colSpan={6} className="px-3 py-2 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+                    <td colSpan={7} className="px-3 py-2 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
                       {g.label}
                       <span className="ml-2 text-[10px] font-normal opacity-70 tabular-nums">
                         {g.rows.length}
@@ -817,7 +817,7 @@ function Users() {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-sm text-muted-foreground">
+                <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
                   {i18n.language === "pl" ? "Brak wyników" : "No results"}
                 </td>
               </tr>
