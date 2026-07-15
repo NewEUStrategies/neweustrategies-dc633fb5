@@ -339,6 +339,10 @@ function UserDetail() {
             <BadgesEditor userId={data.id} tenantId={tenantId ?? null} />
           </Card>
 
+          <Card title={L("Zgody prywatności", "Privacy consent")}>
+            <UserConsentPanel userId={data.id} isPL={isPL} />
+          </Card>
+
           <Card title={L("Akcje", "Actions")}>
             <div className="flex flex-col gap-2">
               <Link to="/admin/users" className="text-sm text-primary hover:underline">
@@ -641,6 +645,100 @@ function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string |
             </Button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Panel podglądu zgód użytkownika. Dane pobieramy przez RPC
+// admin_get_user_consent (security definer) - RLS na profiles nie musi być
+// otwarte dla adminów. Wynik: jsonb { categories, updated_at, version }.
+type UserConsentResult = {
+  categories?: Partial<Record<"necessary" | "functional" | "analytics" | "marketing", boolean>>;
+  updated_at?: string | null;
+  version?: string | null;
+} | null;
+
+function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
+  const L = (pl: string, en: string) => (isPL ? pl : en);
+  const locale = isPL ? "pl-PL" : "en-US";
+  const CATS: { key: "necessary" | "functional" | "analytics" | "marketing"; pl: string; en: string }[] = [
+    { key: "necessary", pl: "Niezbędne", en: "Necessary" },
+    { key: "functional", pl: "Funkcjonalne", en: "Functional" },
+    { key: "analytics", pl: "Analityczne", en: "Analytics" },
+    { key: "marketing", pl: "Marketingowe", en: "Marketing" },
+  ];
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin-user-consent", userId],
+    queryFn: async (): Promise<UserConsentResult> => {
+      const { data, error } = await supabase.rpc("admin_get_user_consent" as never, {
+        _user_id: userId,
+      } as never);
+      if (error) throw error;
+      return (data ?? null) as UserConsentResult;
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        {L("Ładowanie...", "Loading...")}
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="text-sm text-destructive">
+        {error instanceof Error ? error.message : "Error"}
+      </div>
+    );
+  }
+  const cats = data?.categories ?? {};
+  const hasAny = data && (data.updated_at || Object.keys(cats).length > 0);
+  if (!hasAny) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        {L("Użytkownik nie zapisał jeszcze zgód.", "User has not saved consent yet.")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <ul className="space-y-1.5">
+        {CATS.map((c) => {
+          const on = !!cats[c.key];
+          return (
+            <li
+              key={c.key}
+              className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+              <span>{isPL ? c.pl : c.en}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  on
+                    ? "bg-emerald-500/15 text-emerald-700"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {on ? L("Zgoda", "Granted") : L("Brak", "Denied")}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {data?.updated_at && (
+          <span>
+            {L("Aktualizacja:", "Updated:")} {new Date(data.updated_at).toLocaleString(locale)}
+          </span>
+        )}
+        {data?.version && (
+          <span>
+            {L("Wersja:", "Version:")} {data.version}
+          </span>
+        )}
       </div>
     </div>
   );

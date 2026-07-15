@@ -17,7 +17,8 @@ type NavKey =
   | "billing"
   | "subscription"
   | "orders"
-  | "security";
+  | "security"
+  | "privacy";
 
 type NavItem = { to: string; key: NavKey; search?: Record<string, string> };
 
@@ -45,6 +46,7 @@ const FINANCE: NavItem[] = [
   { to: "/profile/subscription", key: "subscription" },
   { to: "/profile/orders", key: "orders" },
   { to: "/profile/security", key: "security" },
+  { to: "/profile/privacy", key: "privacy" },
 ];
 
 export function ProfileNav() {
