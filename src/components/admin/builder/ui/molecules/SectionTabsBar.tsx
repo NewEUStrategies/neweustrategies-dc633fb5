@@ -273,19 +273,59 @@ export function SectionTabsBar({
               />
             ) : null}
             <span>{labelOf(it, lang)}</span>
-            {variant === "underline-dot" && active ? (
+            {isUnderline ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: barHeight,
+                  background: barBg,
+                  borderRadius: variant === "underline-thick" ? "2px 2px 0 0" : 0,
+                  transform: active ? "scaleX(1)" : "scaleX(0)",
+                  transformOrigin: active ? "left center" : "right center",
+                  opacity: active ? 1 : 0,
+                  transition: "transform .28s cubic-bezier(.4,0,.2,1), opacity .18s ease",
+                  pointerEvents: "none",
+                }}
+              />
+            ) : null}
+            {variant === "underline-dot" ? (
               <span
                 aria-hidden="true"
                 style={{
                   position: "absolute",
                   left: "50%",
                   bottom: 2,
-                  transform: "translateX(-50%)",
                   width: 6,
                   height: 6,
                   borderRadius: 999,
                   background: activeColor,
                   boxShadow: `0 0 0 3px color-mix(in oklab, ${activeColor} 20%, transparent)`,
+                  transform: active ? "translateX(-50%) scale(1)" : "translateX(-50%) scale(0)",
+                  opacity: active ? 1 : 0,
+                  transition: "transform .32s cubic-bezier(.34,1.56,.64,1), opacity .2s ease",
+                  pointerEvents: "none",
+                }}
+              />
+            ) : null}
+            {variant === "boxed-top" ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: 3,
+                  background: activeColor,
+                  borderRadius: "8px 8px 0 0",
+                  transform: active ? "scaleX(1)" : "scaleX(0)",
+                  opacity: active ? 1 : 0,
+                  transition: "transform .28s cubic-bezier(.4,0,.2,1), opacity .18s ease",
+                  pointerEvents: "none",
                 }}
               />
             ) : null}
