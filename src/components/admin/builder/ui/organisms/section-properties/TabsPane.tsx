@@ -223,6 +223,21 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
             />
           </Row>
 
+          <Row label="Rozmiar czcionki" hint="Rozmiar tekstu etykiet zakładek w pikselach.">
+            <Input
+              type="number"
+              min={8}
+              max={48}
+              className="h-8 text-xs"
+              value={cfg.fontSize ?? 14}
+              onChange={(e) =>
+                setCfg((c) => {
+                  c.fontSize = Number(e.target.value) || 14;
+                })
+              }
+            />
+          </Row>
+
           <Row label="Wyrównanie">
             <Select
               value={cfg.align ?? "start"}
