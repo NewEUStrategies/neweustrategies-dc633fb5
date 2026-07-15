@@ -452,8 +452,27 @@ function Users() {
           </SelectContent>
         </Select>
 
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+          <SelectTrigger className="h-8 w-[170px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">
+              {i18n.language === "pl" ? "Wszystkie statusy" : "All statuses"}
+            </SelectItem>
+            {SUB_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusLabel(i18n.language, s)}
+              </SelectItem>
+            ))}
+            <SelectItem value="none">
+              {i18n.language === "pl" ? "Bez subskrypcji" : "No subscription"}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
         <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-          <SelectTrigger className="h-8 w-[180px] text-xs">
+          <SelectTrigger className="h-8 w-[200px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -463,8 +482,11 @@ function Users() {
             <SelectItem value="role">
               {i18n.language === "pl" ? "Grupuj wg roli" : "Group by role"}
             </SelectItem>
-            <SelectItem value="subscription">
-              {i18n.language === "pl" ? "Grupuj wg subskrypcji" : "Group by subscription"}
+            <SelectItem value="sub_plan">
+              {i18n.language === "pl" ? "Grupuj wg planu" : "Group by plan"}
+            </SelectItem>
+            <SelectItem value="sub_status">
+              {i18n.language === "pl" ? "Grupuj wg statusu subskrypcji" : "Group by subscription status"}
             </SelectItem>
           </SelectContent>
         </Select>
