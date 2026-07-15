@@ -364,8 +364,8 @@ function ProfileInline() {
                     rows={3}
                   />
                 ) : (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                    {data.bio || "-"}
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+                    {htmlToPlainText(data.bio) || "-"}
                   </p>
                 )}
               </Card>
