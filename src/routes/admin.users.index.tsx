@@ -230,7 +230,7 @@ function Users() {
       }
       return true;
     });
-  }, [data, search, roleFilter, subFilter, statusFilter, subMap]);
+  }, [users, search, roleFilter, subFilter, statusFilter, subMap]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
