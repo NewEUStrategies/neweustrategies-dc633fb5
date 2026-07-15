@@ -841,10 +841,10 @@ function Users() {
                             <img
                               src={u.avatar_url}
                               alt=""
-                              className="w-7 h-7 rounded-[4px] object-cover"
+                              className="w-7 h-7 rounded-[5px] object-cover"
                             />
                           ) : (
-                            <div className="w-7 h-7 rounded-[4px] bg-muted" />
+                            <div className="w-7 h-7 rounded-[5px] bg-muted" />
                           )}
                           {u.display_name ?? "-"}
                         </div>
