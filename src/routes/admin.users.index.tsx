@@ -605,9 +605,14 @@ function Users() {
                       </td>
                       <td className="p-3">
                         {sub ? (
-                          <Badge variant="outline" className="font-normal">
-                            {sub.plan_name}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="font-normal">
+                              {sub.plan_name}
+                            </Badge>
+                            <Badge variant={statusVariant(sub.status as SubStatus)} className="text-[10px]">
+                              {statusLabel(i18n.language, sub.status as SubStatus)}
+                            </Badge>
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
