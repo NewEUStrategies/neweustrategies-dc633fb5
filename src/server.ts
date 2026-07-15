@@ -9,6 +9,12 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
+const TRANSIENT_MODULE_RUNNER_ERRORS = [
+  "transport was disconnected",
+  "module runner has been closed",
+  "cannot call \"fetchModule\"",
+] as const;
+
 /** Test seam for the preview-recovery invariant; no server entry details escape. */
 export function isServerEntryCached(): boolean {
   return serverEntryPromise !== undefined;
@@ -62,11 +68,42 @@ function isOpaqueH3Error(body: string): boolean {
   }
 }
 
+function isTransientModuleRunnerError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current != null && !seen.has(current)) {
+    seen.add(current);
+    const message = current instanceof Error ? current.message : String(current);
+    if (TRANSIENT_MODULE_RUNNER_ERRORS.some((fragment) => message.includes(fragment))) return true;
+    current = typeof current === "object" ? (current as { cause?: unknown }).cause : undefined;
+  }
+  return false;
+}
+
+async function fetchWithFreshEntry(
+  request: Request,
+  env: unknown,
+  ctx: unknown,
+): Promise<Response> {
+  try {
+    const handler = await getServerEntry();
+    return await handler.fetch(request, env, ctx);
+  } catch (error) {
+    if (!isTransientModuleRunnerError(error)) throw error;
+    // The dev server can replace its module graph while a request is resolving
+    // the route entry. Retry once after the current restart turn and resolve a
+    // fresh outer entry instead of returning the opaque h3 500 immediately.
+    serverEntryPromise = undefined;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const handler = await getServerEntry();
+    return await handler.fetch(request, env, ctx);
+  }
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await fetchWithFreshEntry(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       // A rejected lazy import must not poison every subsequent request in the
