@@ -382,6 +382,7 @@ const en: typeof pl = {
       subscription: "Subscription",
       orders: "Payment history",
       security: "Security",
+      privacy: "Privacy",
     },
     navGroups: {
       identity: "Identity",
