@@ -153,6 +153,7 @@ import { Route as AdminSettingsReadingRouteImport } from './routes/admin.setting
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
 import { Route as AdminSettingsPermalinksRouteImport } from './routes/admin.settings.permalinks'
 import { Route as AdminSettingsMediaRouteImport } from './routes/admin.settings.media'
+import { Route as AdminSettingsMarketingRouteImport } from './routes/admin.settings.marketing'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
@@ -912,6 +913,11 @@ const AdminSettingsMediaRoute = AdminSettingsMediaRouteImport.update({
   path: '/media',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsMarketingRoute = AdminSettingsMarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -1258,6 +1264,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
@@ -1433,6 +1440,7 @@ export interface FileRoutesByTo {
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
@@ -1616,6 +1624,7 @@ export interface FileRoutesById {
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
@@ -1800,6 +1809,7 @@ export interface FileRouteTypes {
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/marketing'
     | '/admin/settings/media'
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
@@ -1975,6 +1985,7 @@ export interface FileRouteTypes {
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/marketing'
     | '/admin/settings/media'
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
@@ -2157,6 +2168,7 @@ export interface FileRouteTypes {
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/marketing'
     | '/admin/settings/media'
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
@@ -3267,6 +3279,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsMediaRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/marketing': {
+      id: '/admin/settings/marketing'
+      path: '/marketing'
+      fullPath: '/admin/settings/marketing'
+      preLoaderRoute: typeof AdminSettingsMarketingRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/general': {
       id: '/admin/settings/general'
       path: '/general'
@@ -3666,6 +3685,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsDesignRoute: typeof AdminSettingsDesignRoute
   AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsMarketingRoute: typeof AdminSettingsMarketingRoute
   AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
   AdminSettingsPermalinksRoute: typeof AdminSettingsPermalinksRoute
   AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
@@ -3679,6 +3699,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsDesignRoute: AdminSettingsDesignRoute,
   AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsMarketingRoute: AdminSettingsMarketingRoute,
   AdminSettingsMediaRoute: AdminSettingsMediaRoute,
   AdminSettingsPermalinksRoute: AdminSettingsPermalinksRoute,
   AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
