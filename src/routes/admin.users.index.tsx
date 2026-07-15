@@ -186,11 +186,8 @@ function Users() {
     return m;
   }, [subs]);
 
-  const subMap = useMemo(() => {
-    const m = new Map<string, SubscriptionInfo>();
-    for (const s of subs ?? []) m.set(s.user_id, s);
-    return m;
-  }, [subs]);
+
+
 
   const planOptions = useMemo(() => {
     const set = new Set<string>();
