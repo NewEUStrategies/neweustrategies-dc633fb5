@@ -543,6 +543,8 @@ export interface SectionTabsConfig {
   iconPosition?: "left" | "top";
   /** Icon size in px. */
   iconSize?: number;
+  /** Tab label font size in px. */
+  fontSize?: number;
   /** Show a small progress rail beneath horizontal tabs indicating active index. */
   showProgressRail?: boolean;
 }
