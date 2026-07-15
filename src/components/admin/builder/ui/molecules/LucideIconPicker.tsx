@@ -38,110 +38,31 @@ const ALL_ICON_NAMES: string[] = (() => {
 interface Category {
   id: string;
   label: string;
+  icon: string;
   patterns: RegExp[];
 }
 
 const CATEGORIES: Category[] = [
-  {
-    id: "arrows",
-    label: "Strzałki",
-    patterns: [/^arrow/, /^chevron/, /^move/, /^corner/, /^redo/, /^undo/, /^rotate/, /-arrow/],
-  },
-  {
-    id: "layout",
-    label: "Layout",
-    patterns: [/^layout/, /^grid/, /^columns/, /^rows/, /^panel/, /^sidebar/, /^align/, /^table/, /^kanban/, /^dashboard/],
-  },
-  {
-    id: "text",
-    label: "Tekst",
-    patterns: [/^type/, /^heading/, /^text/, /^bold/, /^italic/, /^underline/, /^strikethrough/, /^list/, /^quote/, /^pilcrow/, /^case/, /^font/, /^letter/, /^paragraph/, /^wrap-text/, /^indent/, /^subscript/, /^superscript/, /^whole-word/],
-  },
-  {
-    id: "media",
-    label: "Media",
-    patterns: [/^camera/, /^image/, /^video/, /^film/, /^tv/, /^music/, /^audio/, /^headphones/, /^mic/, /^volume/, /^speaker/, /^play/, /^pause/, /^stop-circle/, /^skip/, /^rewind/, /^fast-forward/, /^radio/, /^cast/, /^disc/, /^podcast/, /^gallery/, /^clapperboard/, /^guitar/, /^piano/, /^drum/, /^theater/],
-  },
-  {
-    id: "files",
-    label: "Pliki",
-    patterns: [/^file/, /^folder/, /^archive/, /^clipboard/, /^paperclip/, /^book/, /^library/, /^notebook/, /^scroll/, /^sticky-note/, /^bookmark/, /^newspaper/, /^receipt/],
-  },
-  {
-    id: "communication",
-    label: "Komunikacja",
-    patterns: [/^mail/, /^message/, /^send/, /^inbox/, /^bell/, /^at-sign/, /^phone/, /^voicemail/, /^rss/, /^megaphone/, /^speech/, /^reply/, /^forward/, /^signal/],
-  },
-  {
-    id: "users",
-    label: "Ludzie",
-    patterns: [/^user/, /^users/, /^person/, /^contact/, /^baby/, /^accessibility/, /^footprints/, /^hand/, /^ear/, /^smile/, /^laugh/, /^frown/, /^angry/, /^annoyed/, /^meh/, /^venetian-mask/, /^drama/, /^persistent-avatar/, /^cat/, /^dog/, /^bird/, /^fish/, /^rabbit/, /^turtle/, /^squirrel/, /^snail/, /^bug/, /^worm/, /^rat/, /^origami/],
-  },
-  {
-    id: "shopping",
-    label: "Zakupy",
-    patterns: [/^shopping/, /^cart/, /^store/, /^shop/, /^gift/, /^tag/, /^ticket/, /^package/, /^shirt/, /^wallet/, /^credit-card/, /^coins/, /^banknote/, /^piggy/, /^dollar/, /^euro/, /^pound/, /^yen/, /^bitcoin/, /^currency/, /^receipt/, /^percent/, /^badge/, /^scan/],
-  },
-  {
-    id: "devices",
-    label: "Urządzenia",
-    patterns: [/^laptop/, /^computer/, /^monitor/, /^smartphone/, /^tablet/, /^watch/, /^printer/, /^scanner/, /^mouse/, /^keyboard/, /^gamepad/, /^joystick/, /^webcam/, /^usb/, /^hard-drive/, /^cpu/, /^memory-stick/, /^floppy/, /^server/, /^router/, /^plug/, /^power/, /^battery/, /^cable/, /^ethernet/, /^bluetooth/, /^wifi/, /^rss/, /^cast/, /^screen/, /^smart/, /^remote/],
-  },
-  {
-    id: "nature",
-    label: "Natura",
-    patterns: [/^tree/, /^leaf/, /^flower/, /^cherry/, /^flame/, /^cloud/, /^sun/, /^moon/, /^star/, /^snow/, /^rain/, /^droplet/, /^droplets/, /^wind/, /^waves/, /^mountain/, /^globe/, /^earth/, /^planet/, /^milestone/, /^sprout/, /^leafy/, /^cactus/, /^palm/, /^grape/, /^apple/, /^banana/, /^carrot/, /^orange/, /^lemon/, /^egg/, /^wheat/, /^clover/, /^shell/, /^feather/, /^bone/, /^paw-print/, /^umbrella/, /^rainbow/, /^tornado/, /^haze/, /^fog/],
-  },
-  {
-    id: "tools",
-    label: "Narzędzia",
-    patterns: [/^wrench/, /^hammer/, /^screwdriver/, /^drill/, /^saw/, /^ruler/, /^pencil/, /^pen/, /^brush/, /^paintbrush/, /^paint/, /^palette/, /^eraser/, /^pipette/, /^scissors/, /^knife/, /^axe/, /^magnet/, /^wand/, /^cog/, /^settings/, /^sliders/, /^toggle/, /^bolt/, /^plug/, /^stethoscope/, /^syringe/, /^microscope/, /^telescope/, /^binoculars/, /^compass/, /^flashlight/, /^lamp/],
-  },
-  {
-    id: "shapes",
-    label: "Kształty",
-    patterns: [/^square/, /^circle/, /^triangle/, /^hexagon/, /^octagon/, /^pentagon/, /^diamond/, /^shapes/, /^spline/, /^ligature/, /^box/, /^cylinder/, /^cone/, /^torus/, /^sphere/, /^ampersand/, /^asterisk/, /^slash/],
-  },
-  {
-    id: "map",
-    label: "Mapy",
-    patterns: [/^map/, /^pin/, /^locate/, /^navigation/, /^compass/, /^route/, /^milestone/, /^flag/, /^building/, /^house/, /^home/, /^landmark/, /^castle/, /^church/, /^hotel/, /^school/, /^warehouse/, /^factory/, /^office/, /^tent/, /^waypoints/],
-  },
-  {
-    id: "transport",
-    label: "Transport",
-    patterns: [/^car/, /^bus/, /^truck/, /^bike/, /^bicycle/, /^scooter/, /^plane/, /^ship/, /^sailboat/, /^rocket/, /^fuel/, /^parking/, /^train/, /^tram/, /^caravan/, /^ambulance/, /^taxi/, /^helicopter/, /^anchor/, /^gauge/, /^footprints/, /^traffic/],
-  },
-  {
-    id: "food",
-    label: "Jedzenie",
-    patterns: [/^coffee/, /^cup/, /^wine/, /^beer/, /^martini/, /^milk/, /^candy/, /^cake/, /^cookie/, /^pizza/, /^sandwich/, /^salad/, /^soup/, /^egg/, /^ice-cream/, /^dessert/, /^popcorn/, /^utensils/, /^chef/, /^ham/, /^beef/, /^drumstick/, /^croissant/, /^donut/, /^pretzel/, /^lollipop/, /^bean/],
-  },
-  {
-    id: "sport",
-    label: "Sport",
-    patterns: [/^dumbbell/, /^trophy/, /^medal/, /^award/, /^target/, /^flag/, /^gamepad/, /^tent/, /^backpack/, /^bike/, /^ski/, /^snowflake/, /^volleyball/, /^football/, /^basketball/, /^tennis/, /^golf/, /^goal/, /^whistle/, /^stopwatch/, /^timer/],
-  },
-  {
-    id: "security",
-    label: "Bezpieczeństwo",
-    patterns: [/^lock/, /^unlock/, /^key/, /^shield/, /^scan/, /^fingerprint/, /^eye/, /^eye-off/, /^radar/, /^bug/, /^alert/, /^ban/],
-  },
-  {
-    id: "charts",
-    label: "Wykresy",
-    patterns: [/^chart/, /^bar-chart/, /^line-chart/, /^pie-chart/, /^area-chart/, /^scatter/, /^radar/, /^trending/, /^activity/, /^gauge/, /^sigma/, /^calculator/, /^binary/, /^percent/],
-  },
-  {
-    id: "time",
-    label: "Czas",
-    patterns: [/^clock/, /^watch/, /^timer/, /^stopwatch/, /^calendar/, /^hourglass/, /^alarm/, /^history/],
-  },
-  {
-    id: "weather",
-    label: "Pogoda",
-    patterns: [/^sun/, /^moon/, /^cloud/, /^rain/, /^snow/, /^thermometer/, /^umbrella/, /^wind/, /^tornado/, /^haze/, /^fog/, /^rainbow/, /^cloudy/, /^drizzle/, /^lightning/, /^droplet/],
-  },
+  { id: "arrows", label: "Strzałki", icon: "arrow-right", patterns: [/^arrow/, /^chevron/, /^move/, /^corner/, /^redo/, /^undo/, /^rotate/, /-arrow/] },
+  { id: "layout", label: "Layout", icon: "layout-grid", patterns: [/^layout/, /^grid/, /^columns/, /^rows/, /^panel/, /^sidebar/, /^align/, /^table/, /^kanban/, /^dashboard/] },
+  { id: "text", label: "Tekst", icon: "type", patterns: [/^type/, /^heading/, /^text/, /^bold/, /^italic/, /^underline/, /^strikethrough/, /^list/, /^quote/, /^pilcrow/, /^case/, /^font/, /^letter/, /^paragraph/, /^wrap-text/, /^indent/, /^subscript/, /^superscript/, /^whole-word/] },
+  { id: "media", label: "Media", icon: "film", patterns: [/^camera/, /^image/, /^video/, /^film/, /^tv/, /^music/, /^audio/, /^headphones/, /^mic/, /^volume/, /^speaker/, /^play/, /^pause/, /^stop-circle/, /^skip/, /^rewind/, /^fast-forward/, /^radio/, /^cast/, /^disc/, /^podcast/, /^gallery/, /^clapperboard/, /^guitar/, /^piano/, /^drum/, /^theater/] },
+  { id: "files", label: "Pliki", icon: "folder", patterns: [/^file/, /^folder/, /^archive/, /^clipboard/, /^paperclip/, /^book/, /^library/, /^notebook/, /^scroll/, /^sticky-note/, /^bookmark/, /^newspaper/, /^receipt/] },
+  { id: "communication", label: "Komunikacja", icon: "mail", patterns: [/^mail/, /^message/, /^send/, /^inbox/, /^bell/, /^at-sign/, /^phone/, /^voicemail/, /^rss/, /^megaphone/, /^speech/, /^reply/, /^forward/, /^signal/] },
+  { id: "users", label: "Ludzie", icon: "users", patterns: [/^user/, /^users/, /^person/, /^contact/, /^baby/, /^accessibility/, /^footprints/, /^hand/, /^ear/, /^smile/, /^laugh/, /^frown/, /^angry/, /^annoyed/, /^meh/, /^venetian-mask/, /^drama/, /^persistent-avatar/, /^cat/, /^dog/, /^bird/, /^fish/, /^rabbit/, /^turtle/, /^squirrel/, /^snail/, /^bug/, /^worm/, /^rat/, /^origami/] },
+  { id: "shopping", label: "Zakupy", icon: "shopping-bag", patterns: [/^shopping/, /^cart/, /^store/, /^shop/, /^gift/, /^tag/, /^ticket/, /^package/, /^shirt/, /^wallet/, /^credit-card/, /^coins/, /^banknote/, /^piggy/, /^dollar/, /^euro/, /^pound/, /^yen/, /^bitcoin/, /^currency/, /^receipt/, /^percent/, /^badge/, /^scan/] },
+  { id: "devices", label: "Urządzenia", icon: "laptop", patterns: [/^laptop/, /^computer/, /^monitor/, /^smartphone/, /^tablet/, /^watch/, /^printer/, /^scanner/, /^mouse/, /^keyboard/, /^gamepad/, /^joystick/, /^webcam/, /^usb/, /^hard-drive/, /^cpu/, /^memory-stick/, /^floppy/, /^server/, /^router/, /^plug/, /^power/, /^battery/, /^cable/, /^ethernet/, /^bluetooth/, /^wifi/, /^rss/, /^cast/, /^screen/, /^smart/, /^remote/] },
+  { id: "nature", label: "Natura", icon: "leaf", patterns: [/^tree/, /^leaf/, /^flower/, /^cherry/, /^flame/, /^cloud/, /^sun/, /^moon/, /^star/, /^snow/, /^rain/, /^droplet/, /^droplets/, /^wind/, /^waves/, /^mountain/, /^globe/, /^earth/, /^planet/, /^milestone/, /^sprout/, /^leafy/, /^cactus/, /^palm/, /^grape/, /^apple/, /^banana/, /^carrot/, /^orange/, /^lemon/, /^egg/, /^wheat/, /^clover/, /^shell/, /^feather/, /^bone/, /^paw-print/, /^umbrella/, /^rainbow/, /^tornado/, /^haze/, /^fog/] },
+  { id: "tools", label: "Narzędzia", icon: "wrench", patterns: [/^wrench/, /^hammer/, /^screwdriver/, /^drill/, /^saw/, /^ruler/, /^pencil/, /^pen/, /^brush/, /^paintbrush/, /^paint/, /^palette/, /^eraser/, /^pipette/, /^scissors/, /^knife/, /^axe/, /^magnet/, /^wand/, /^cog/, /^settings/, /^sliders/, /^toggle/, /^bolt/, /^plug/, /^stethoscope/, /^syringe/, /^microscope/, /^telescope/, /^binoculars/, /^compass/, /^flashlight/, /^lamp/] },
+  { id: "shapes", label: "Kształty", icon: "shapes", patterns: [/^square/, /^circle/, /^triangle/, /^hexagon/, /^octagon/, /^pentagon/, /^diamond/, /^shapes/, /^spline/, /^ligature/, /^box/, /^cylinder/, /^cone/, /^torus/, /^sphere/, /^ampersand/, /^asterisk/, /^slash/] },
+  { id: "map", label: "Mapy", icon: "map", patterns: [/^map/, /^pin/, /^locate/, /^navigation/, /^compass/, /^route/, /^milestone/, /^flag/, /^building/, /^house/, /^home/, /^landmark/, /^castle/, /^church/, /^hotel/, /^school/, /^warehouse/, /^factory/, /^office/, /^tent/, /^waypoints/] },
+  { id: "transport", label: "Transport", icon: "car", patterns: [/^car/, /^bus/, /^truck/, /^bike/, /^bicycle/, /^scooter/, /^plane/, /^ship/, /^sailboat/, /^rocket/, /^fuel/, /^parking/, /^train/, /^tram/, /^caravan/, /^ambulance/, /^taxi/, /^helicopter/, /^anchor/, /^gauge/, /^footprints/, /^traffic/] },
+  { id: "food", label: "Jedzenie", icon: "utensils", patterns: [/^coffee/, /^cup/, /^wine/, /^beer/, /^martini/, /^milk/, /^candy/, /^cake/, /^cookie/, /^pizza/, /^sandwich/, /^salad/, /^soup/, /^egg/, /^ice-cream/, /^dessert/, /^popcorn/, /^utensils/, /^chef/, /^ham/, /^beef/, /^drumstick/, /^croissant/, /^donut/, /^pretzel/, /^lollipop/, /^bean/] },
+  { id: "sport", label: "Sport", icon: "trophy", patterns: [/^dumbbell/, /^trophy/, /^medal/, /^award/, /^target/, /^flag/, /^gamepad/, /^tent/, /^backpack/, /^bike/, /^ski/, /^snowflake/, /^volleyball/, /^football/, /^basketball/, /^tennis/, /^golf/, /^goal/, /^whistle/, /^stopwatch/, /^timer/] },
+  { id: "security", label: "Bezpieczeństwo", icon: "shield", patterns: [/^lock/, /^unlock/, /^key/, /^shield/, /^scan/, /^fingerprint/, /^eye/, /^eye-off/, /^radar/, /^bug/, /^alert/, /^ban/] },
+  { id: "charts", label: "Wykresy", icon: "bar-chart-3", patterns: [/^chart/, /^bar-chart/, /^line-chart/, /^pie-chart/, /^area-chart/, /^scatter/, /^radar/, /^trending/, /^activity/, /^gauge/, /^sigma/, /^calculator/, /^binary/, /^percent/] },
+  { id: "time", label: "Czas", icon: "clock", patterns: [/^clock/, /^watch/, /^timer/, /^stopwatch/, /^calendar/, /^hourglass/, /^alarm/, /^history/] },
+  { id: "weather", label: "Pogoda", icon: "cloud-sun", patterns: [/^sun/, /^moon/, /^cloud/, /^rain/, /^snow/, /^thermometer/, /^umbrella/, /^wind/, /^tornado/, /^haze/, /^fog/, /^rainbow/, /^cloudy/, /^drizzle/, /^lightning/, /^droplet/] },
 ];
 
 interface Grouped {
