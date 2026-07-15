@@ -135,7 +135,7 @@ export function SectionTabsBar({
               : variant === "segmented"
                 ? "6px 12px"
                 : "8px 14px",
-          fontSize: Math.max(8, Math.min(48, tabs.fontSize ?? 14)),
+          fontSize: `${fontSize}px`,
           fontWeight: active ? 600 : 500,
           cursor: "pointer",
           color: active ? "var(--foreground, inherit)" : "var(--muted-foreground, inherit)",
