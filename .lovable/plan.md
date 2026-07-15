@@ -1,84 +1,60 @@
+# Plan: naprawa SSR 500 na `/` (preview)
 
-## Cel
+## Stan faktyczny
 
-Na podstawie 53 widgetów `team-member` na `/o-nas`:
-1. Utworzyć konta użytkowników (`auth.users`) z rolą `author` dla każdej osoby.
-2. Utworzyć profile prywatne (`profiles`) i publiczne profile eksperckie (`author_profiles`) - hydracja z widgetu (imię, e-mail, telefon, zdjęcie, bio PL/EN, stanowisko, funkcja, socials).
-3. Powiązać widgety w builderze z profilami (dopisać `authorSlug` do `content` widgetu → link "Zobacz pełny profil").
-4. Panel wysyłki zaproszeń w `/admin/users` (modal + zakładka `/admin/users/invitations`) z wyborem trybu per zaproszenie.
+- Preview zwraca 500 na `/` — logi pokazują wyłącznie „h3 swallowed SSR error: {status:500, unhandled:true, message:'HTTPError'}"; oryginalny stack **nie dociera** do logów.
+- Lokalny build (`http://localhost:8080/`) SSR-uje poprawnie (HTTP 200), więc kod się kompiluje i uruchamia w Node; awaria występuje tylko w runtime workerd (Cloudflare) preview.
+- W projekcie jest już warstwa fallbacku (`src/server.ts` + `src/lib/error-capture.ts` + `errorMiddleware` w `src/start.ts`), ale w tym przypadku `consumeLastCapturedError()` nie zwraca nic — czyli błąd leci ścieżką, której obecne przechwyty nie widzą (najpewniej: rzucany podczas **streamowania** ciała odpowiedzi Reacta, już PO tym jak middleware zwróci `Response`, albo w wewnętrznym module h3/TanStack, gdzie throw nigdy nie trafia do `catch` w `errorMiddleware`).
 
-## Architektura
+Bez oryginalnego stack trace zgadywanie „co się psuje" to loteria. Krok 1 planu = zmusić serwer, żeby zawsze logował realny błąd.
 
-### Backend (Supabase)
+## Zakres zmian
 
-Nowa tabela `public.user_invitations`:
-- `email`, `display_name`, `role app_role`, `tenant_id`
-- `mode` enum: `magic_link` | `temp_password`
-- `status` enum: `pending` | `sent` | `accepted` | `revoked` | `failed`
-- `invited_by`, `sent_at`, `accepted_at`, `expires_at`
-- `source` (np. `team_import:o-nas`), `metadata jsonb` (widget id, bio, photo, itp.)
-- `auth_user_id` (po utworzeniu konta)
-- GRANT dla `authenticated` + `service_role`; RLS: tylko admin/super_admin tenanta może SELECT/INSERT/UPDATE, każdy zalogowany może SELECT swojego (po email).
+### 1. Twarde przechwytywanie błędów SSR
 
-### Server functions (`src/lib/admin/invitations.functions.ts`)
+Cel: każdy 500 w preview MUSI zostawić stack w Server Logs.
 
-Wszystkie chronione `requireSupabaseAuth` + weryfikacja `has_role(admin|super_admin)`:
+- `src/lib/error-capture.ts` — obok `addEventListener` dopisać hook na `unhandledrejection` / `error` przez `globalThis.process?.on?.("unhandledRejection", ...)` (jeżeli dostępne) oraz zapewnić, że pojedynczy `recordCapturedError` zapisuje pełny `Error` (z `cause` i `stack`), nie tylko `.message`.
+- `src/start.ts`:
+  - w `securityHeadersMiddleware` i `redirectMiddleware` obłożyć `await next()` w `try/catch` który woła `recordCapturedError(err)` i **rzuca dalej** (żeby `errorMiddleware` mógł zwrócić fallback). Obecnie tylko `errorMiddleware` łapie, ale jeśli h3 opakuje throw wcześniej, kolejność middleware ma znaczenie — `errorMiddleware` idzie pierwszy w tablicy, więc wykonuje się jako najbardziej zewnętrzny; to poprawne, ale dodajemy defensywne logowanie w środku, żeby zobaczyć, który middleware jest źródłem.
+- `src/server.ts` — w `normalizeCatastrophicSsrResponse`, gdy `consumeLastCapturedError()` zwraca `undefined`, wypisać jawnie: `console.error("[ssr-fallback] h3 swallowed error but no captured cause; response body:", body)` z pełnymi nagłówkami żądania (URL, path) — na dziś ta gałąź loguje wyłącznie generyczny string, co widzimy w logach.
+- Zarejestrować w `src/server.ts` handler `error` na `globalThis` jeszcze przed pierwszym `import()` server-entry — moduł `error-capture` już to robi, upewnić się, że jest ładowany jako pierwszy (jest — `import "./lib/error-capture"` w linii 1) i nie jest zTree-shake'owany.
 
-- `previewTeamImport({ pageSlug })` - parsuje `builder_data`, wyciąga `team-member` widgety, deduplikuje po e-mailu, zwraca listę kandydatów (`email`, `name`, `position`, `bio_pl`, `bio_en`, `photo`, `phone`, socials, `programLabel` → mapowanie na przyszłe funkcje) + informację, czy user o takim e-mailu już istnieje.
-- `createInvitations({ items, mode, role })` - masowe utworzenie rekordów `user_invitations` (status: `pending`).
-- `sendInvitation({ id })` - wywołuje `supabaseAdmin.auth.admin.inviteUserByEmail` (magic link) lub `createUser` z tymczasowym hasłem (`crypto.randomBytes` → base32), zapisuje `auth_user_id`, `profiles`, `author_profiles`, `user_roles`, wysyła mail (dla trybu temp_password używa istniejącej infrastruktury `email_domain` - queue). Zapisuje `sent_at`.
-- `sendInvitationsBulk({ ids })` - orkiestruje wysyłkę w batchach z rate-limit.
-- `revokeInvitation({ id })` / `resendInvitation({ id })`.
-- `linkTeamWidgetsToProfiles({ pageSlug })` - po utworzeniu profili przechodzi `builder_data`, dopisuje `content.authorSlug` + `content.authorUserId` do wszystkich widgetów `team-member` matchowanych po e-mailu, zapisuje stronę i tworzy revision.
+### 2. Runtime probe błędów renderowania Reacta
 
-### Profile hydration
+Cel: błąd rzucony w komponencie root/route na `/` musi zostać zalogowany.
 
-Po `inviteUserByEmail`/`createUser`:
-- `INSERT INTO profiles` (id=auth.uid, tenant_id, display_name, slug=slugify(name), avatar_url=photo, bio_pl, bio_en).
-- `INSERT INTO author_profiles` (user_id, job_title=position_pl/en, org_functions=[{pl:programLabel_pl, en:programLabel_en}], full_bio_pl/en, contact_email/phone, linkedin/x/website, is_public=true).
-- `INSERT INTO user_roles` (user_id, role='author').
-- `INSERT INTO profile_badges` (badge='expert') - opcjonalne per wybór admina.
+- W `src/routes/__root.tsx` (`errorComponent`) na samym początku wywołać `console.error(error)` z pełnym `error.stack` **przed** `reportLovableError` (już powinno tam być — zweryfikować podczas implementacji; jeśli nie, dodać).
+- W `router.tsx` sprawdzić / dodać `defaultErrorComponent` który loguje `error` do `console.error` — TanStack po rzucie w loaderze woła to zamiast strony (`tanstack-errors-notfound`).
 
-### UI
+### 3. Zdiagnozowanie realnej przyczyny
 
-`/admin/users/index.tsx` - dodać przyciski:
-- "Zaproś użytkownika" → `<InviteUserDialog />` (pojedyncze zaproszenie, wybór trybu).
-- "Zaimportuj zespół z /o-nas" → `<TeamImportDialog />` z preview tabelą (checkbox per osoba, wybór trybu globalnie lub per wiersz, wybór roli, "Powiąż widgety w builderze" toggle).
+Po zmianach z pkt. 1–2:
 
-Nowa trasa `src/routes/admin.users.invitations.tsx` - lista `user_invitations` z filtrami (status, source, mode), akcje: resend / revoke / view details. Kolumny: e-mail, imię, rola, tryb, status, wysłano, source.
+- Zdeployować preview (automatyczny redeploy po commicie).
+- Odpytać `/` przez `stack_modern--invoke-server-function`.
+- Odczytać nowe logi (`server-function-logs deployment=preview`) — teraz powinny zawierać konkretny stack (np. „Cannot read properties of undefined" z pliku/linii, albo import ładujący coś Node-only na workerdzie).
+- Na podstawie stack trace naprawić konkretny plik. Kandydaci wynikające z ostatnich commitów (tabs / icon picker):
+  - `SectionTabsBar.tsx` (linia 137, `tabs.fontSize`) — używany także w publicznym `BuilderRenderer`; jeśli któraś sekcja ma `tabs: undefined` a kod jej używa, dostaniemy TypeError. Zabezpieczyć `tabs` guarded shape.
+  - `LucideIconPicker.tsx` — `import * as LucideIcons from "lucide-react"` na poziomie modułu; przy nowej liście ikon lucide-react mogło wprowadzić eksport, którego workerd nie lubi. Jeśli okaże się to źródłem, przenieść skan ikon do lazy path (`useMemo` w komponencie po hydratacji lub `import()` on-demand). Plik jest admin-only, ale jeśli jest w wspólnym barrel'u, może być pull-in do bundle SSR — zweryfikować `rg` na importach.
 
-Komponenty:
-- `src/components/admin/users/InviteUserDialog.tsx`
-- `src/components/admin/users/TeamImportDialog.tsx`
-- `src/components/admin/users/InvitationRow.tsx`
-- `src/lib/admin/inviteMode.ts` - enum + i18n labels.
+### 4. Naprawa właściwa
 
-### Widget link
+Zależnie od tego, co pokaże stack z pkt. 3:
 
-`TeamMemberWidget.tsx` już umie renderować link „Zobacz pełny profil eksperta" gdy `authorSlug` jest ustawiony (dodane w poprzedniej iteracji). `linkTeamWidgetsToProfiles` uzupełnia to pole automatycznie. Editor widgetu też pokazuje status "Powiązany z: <slug>".
+- Jeżeli winowajcą jest render publiczny (`SectionTabsBar` / `BuilderRenderer` / dane sekcji z DB), dodać defensywne guardy dla `tabs.fontSize` / `tabs.items` (nullish + typ) i test snapshotowy pod SSR.
+- Jeżeli winowajcą jest moduł na ścieżce klienckiej, który podciąga coś Node-only na workerdzie — wykonać jeden z fixów z knowledge `tanstack-supabase-import-graph` / `server-runtime` (rename na `*.server.ts`, lazy `await import(...)` wewnątrz handlera, albo `createIsomorphicFn`).
+- Zwalidować `/` w preview → HTTP 200 + brak wpisów `dwl.proxy.response.error` w logach.
 
-### Email
+## Weryfikacja
 
-Auth invite (magic_link): `supabase.auth.admin.inviteUserByEmail(email, { redirectTo: <origin>/auth/set-password, data: { display_name } })` - używa domyślnego szablonu Supabase Auth (tenant ma już `email_domain` skonfigurowany).
+- `bunx tsgo --noEmit` = 0 błędów (jest OK już teraz).
+- `curl -s -o /dev/null -w '%{http_code}' https://id-preview--59b9e533-….lovable.app/` → 200.
+- `stack_modern--server-function-logs deployment=preview search=Error` → brak nowych „h3 swallowed" w ciągu 10 min.
+- Ręcznie odwiedzić `/` i kilka podstron (`/blog`, `/experts`, `/post/<slug>`) — brak fallbacku „Reloading…".
+- `errorComponent` w `__root.tsx` nadal działa (celowo rzucić błąd w loaderze dev-only, żeby zweryfikować, że log zawiera stack).
 
-Temp password: własna server-fn generuje hasło, tworzy usera `createUser({ email, password, email_confirm: true })`, wysyła transakcyjny email z loginem + hasłem + linkiem do `/auth?email=…` przez istniejącą kolejkę `transactional_emails` (rendered React Email template `TeamInviteCredentialsEmail`).
+## Ryzyka
 
-### i18n
-
-Wszystkie nowe stringi w `src/lib/i18n-*.ts` (PL + EN): `admin.users.invite.*`, `admin.users.import.*`, `admin.users.invitations.*`.
-
-## Kroki wdrożenia
-
-1. Migracja: enum `invitation_mode`, `invitation_status`, tabela `user_invitations` + GRANT + RLS + trigger `updated_at`.
-2. Server functions (`invitations.functions.ts` + helper `.server.ts` dla admin/email/slug).
-3. React Email template `TeamInviteCredentialsEmail` + rejestracja w kolejce.
-4. Komponenty UI (`InviteUserDialog`, `TeamImportDialog`, `InvitationRow`).
-5. Trasa `/admin/users/invitations`.
-6. Podpięcie w `/admin/users` (przyciski + lazy dialogi).
-7. i18n PL/EN.
-8. Testy: `invitations.functions.test.ts` (parsing widgetów, dedup, walidacja e-maila, mapowanie na profile).
-
-## Punkty do potwierdzenia
-
-- Wysyłka domyślnie **nie startuje** automatycznie po imporcie - admin zaznacza wiersze i klika "Wyślij zaproszenia" (bezpiecznik przy 53 mailach jednorazowo). OK?
-- Wygenerowane hasła tymczasowe wymuszają zmianę hasła przy pierwszym logowaniu (flag w `profiles.metadata`).
+- Zmiany w `error-capture.ts` / `server.ts` dotyczą warstwy SSR — jeśli źle je zbudujemy, cały serwis zwróci 500. Mitigacja: `src/lib/error-page.ts` pozostaje dependency-free (fallback zawsze dostarczalny), a testy `src/server.test.ts` / `src/start.test.ts` muszą przejść przed publikacją.
+- Naprawa realnej przyczyny (pkt. 4) jest ślepa aż do momentu, w którym pkt. 1–2 dostarczą stack; plan zakłada iterację (deploy → log → fix), a nie „napisz i licz na szczęście".
