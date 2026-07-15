@@ -69,8 +69,35 @@ const ROLE_ORDER: readonly Role[] = ["super_admin", "admin", "editor", "author",
 
 type SortKey = "display_name" | "email" | "role" | "created_at";
 type SortDir = "asc" | "desc";
-type GroupBy = "none" | "role" | "subscription";
+type GroupBy = "none" | "role" | "sub_plan" | "sub_status";
 type RoleFilter = Role | "all" | "none";
+type SubStatus = "pending" | "active" | "refunded" | "canceled";
+type StatusFilter = SubStatus | "all" | "none";
+
+const SUB_STATUSES: readonly SubStatus[] = ["active", "pending", "refunded", "canceled"];
+
+function statusLabel(lang: string, s: SubStatus): string {
+  const pl: Record<SubStatus, string> = {
+    active: "Aktywna",
+    pending: "Oczekująca",
+    refunded: "Zwrócona",
+    canceled: "Anulowana",
+  };
+  const en: Record<SubStatus, string> = {
+    active: "Active",
+    pending: "Pending",
+    refunded: "Refunded",
+    canceled: "Canceled",
+  };
+  return (lang === "pl" ? pl : en)[s];
+}
+
+function statusVariant(s: SubStatus): "default" | "secondary" | "outline" | "destructive" {
+  if (s === "active") return "default";
+  if (s === "pending") return "secondary";
+  if (s === "canceled") return "outline";
+  return "destructive";
+}
 
 function roleLabel(t: (k: string, o?: Record<string, unknown>) => string, r: Role): string {
   return t(`admin.users.roles.${r}`, {
