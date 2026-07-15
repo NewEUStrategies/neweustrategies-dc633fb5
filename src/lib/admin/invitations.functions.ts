@@ -657,8 +657,14 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           );
 
         // ślad audytowy - konto powstało w trybie provision (bez maila)
-        await context.supabase.from("user_invitations").upsert(
-          {
+        const { data: existingInv } = await context.supabase
+          .from("user_invitations")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("email", d.email)
+          .maybeSingle();
+        if (!existingInv) {
+          await context.supabase.from("user_invitations").insert({
             tenant_id: tenantId,
             email: d.email,
             display_name: d.name,
@@ -671,9 +677,8 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
             auth_user_id: authUserId,
             sent_at: new Date().toISOString(),
             accepted_at: new Date().toISOString(),
-          },
-          { onConflict: "email,tenant_id", ignoreDuplicates: true },
-        );
+          });
+        }
 
         byEmail.set(d.email, authUserId);
       } catch (err) {
