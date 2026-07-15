@@ -219,6 +219,26 @@ describe("SSR wrapper - module init failure recovery", () => {
 });
 
 describe("SSR wrapper - thrown-error safety net", () => {
+  it("retries once when the dev module transport disconnects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let attempt = 0;
+    const wrapper = await loadWrapper(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        throw Object.assign(new Error("HTTPError"), {
+          cause: new Error('transport was disconnected, cannot call "fetchModule"'),
+        });
+      }
+      return new Response("healed", { status: 200 });
+    });
+
+    const res = await wrapper.fetch(new Request("http://localhost/"), {}, {});
+    expect(attempt).toBe(2);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("healed");
+    expect(errSpy).not.toHaveBeenCalled();
+  });
+
   it("catches synchronous throws from the entry handler", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const wrapper = await loadWrapper(() => {
