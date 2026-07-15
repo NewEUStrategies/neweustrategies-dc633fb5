@@ -431,9 +431,16 @@ function Users() {
     setLastClickedId(null);
   };
 
+  const openBulkRoleConfirm = () => {
+    if (!bulkRole || selected.size === 0) return;
+    if (bulkRole === "super_admin" && !isSuperAdmin) return;
+    setRoleConfirmOpen(true);
+  };
+
   const applyBulkRole = async () => {
     if (!bulkRole || selected.size === 0) return;
     if (bulkRole === "super_admin" && !isSuperAdmin) return;
+    setRoleConfirmOpen(false);
     setBulkBusy(true);
     let ok = 0;
     let fail = 0;
