@@ -52,8 +52,8 @@ export function LucideIconPicker({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ALL_ICON_NAMES.slice(0, 300);
-    return ALL_ICON_NAMES.filter((n) => n.includes(q)).slice(0, 300);
+    if (!q) return ALL_ICON_NAMES;
+    return ALL_ICON_NAMES.filter((n) => n.includes(q));
   }, [query]);
 
   const current = value?.trim() || "";
@@ -131,6 +131,7 @@ export function LucideIconPicker({
                     }
                     title={name}
                     aria-label={name}
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "32px 32px" }}
                   >
                     <DynamicIcon name={name} width={16} height={16} />
                   </button>
@@ -140,9 +141,7 @@ export function LucideIconPicker({
           )}
         </ScrollArea>
         <div className="mt-2 text-[10px] text-muted-foreground truncate">
-          {filtered.length >= 300
-            ? "Pokazano pierwsze 300 - zawęź szukanie"
-            : `${filtered.length} ikon`}
+          {filtered.length} / {ALL_ICON_NAMES.length} ikon
           {current ? ` - wybrano: ${current}` : ""}
         </div>
       </PopoverContent>
