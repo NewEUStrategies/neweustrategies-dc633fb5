@@ -20,7 +20,7 @@ import {
 import { PropField } from "../../atoms";
 import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface Props {
   c: WidgetNode["content"];
