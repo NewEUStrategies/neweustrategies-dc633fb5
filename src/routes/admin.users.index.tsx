@@ -132,6 +132,11 @@ function Users() {
   const [subFilter, setSubFilter] = useState<string>("all"); // "all" | "none" | plan name
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("role");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null);
+  const [bulkRole, setBulkRole] = useState<Role | "">("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const resendBulkFn = useServerFn(resendInvitationsForEmails);
 
   const { data } = useQuery({
     queryKey: ["all-users", tenantId],
