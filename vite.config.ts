@@ -7,40 +7,6 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
-// Vendor code-splitting: pull heavy third-party libraries out of the single
-// entry chunk into cacheable per-library chunks. This shrinks the largest chunk,
-// lets the browser fetch vendors in parallel, and keeps long-lived vendor code
-// cached across app deploys. App/route code keeps the router plugin's per-route
-// splitting (we only assign node_modules here).
-function manualChunks(id: string): string | undefined {
-  if (!id.includes("node_modules")) return undefined;
-  if (/node_modules\/(react-dom|react|scheduler)\//.test(id)) return "vendor-react";
-  if (id.includes("node_modules/@tanstack/")) return "vendor-tanstack";
-  if (id.includes("node_modules/@radix-ui/")) return "vendor-radix";
-  if (id.includes("node_modules/@supabase/")) return "vendor-supabase";
-  if (/node_modules\/(@tiptap|prosemirror)/.test(id)) return "vendor-editor";
-  // Admin-builder-only drag & drop - must never be dragged into first paint.
-  if (id.includes("node_modules/@dnd-kit/")) return "vendor-dnd";
-  if (
-    id.includes("node_modules/react-markdown") ||
-    id.includes("node_modules/remark") ||
-    id.includes("node_modules/micromark") ||
-    id.includes("node_modules/mdast") ||
-    id.includes("node_modules/unist") ||
-    id.includes("node_modules/hast")
-  )
-    return "vendor-markdown";
-  if (/node_modules\/(@fortawesome)/.test(id)) return "vendor-fontawesome";
-  if (id.includes("node_modules/lucide-react")) return "vendor-icons";
-  if (/node_modules\/(isomorphic-)?dompurify/.test(id)) return "vendor-dompurify";
-  if (id.includes("node_modules/date-fns")) return "vendor-datefns";
-  if (/node_modules\/(yet-another-react-lightbox|react-day-picker|cmdk|sonner)/.test(id)) {
-    return "vendor-ui";
-  }
-  if (/node_modules\/(i18next|react-i18next)/.test(id)) return "vendor-i18n";
-  return "vendor";
-}
-
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
@@ -66,10 +32,11 @@ export default defineConfig({
         "seroval",
       ],
     },
-    build: {
-      rollupOptions: {
-        output: { manualChunks },
-      },
-    },
+    // Do not set top-level Rollup `manualChunks` here. This config is shared by
+    // the browser and Cloudflare server environments; forcing vendor chunks at
+    // this level also splits the Worker entry into files that are not available
+    // to the deployed runtime, so module initialization fails and every route
+    // becomes an opaque h3 HTTPError 500. TanStack's route-level splitting and
+    // Vite's client defaults still provide safe browser code splitting.
   },
 });

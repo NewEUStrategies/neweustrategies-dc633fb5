@@ -155,29 +155,49 @@ function contentSecurityPolicy(): string {
 const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
   const response = await next();
   if (!(response instanceof Response)) return response;
+  return applySecurityHeaders(request, response);
+});
+
+/**
+ * Add response headers without mutating a framework/fetch-owned Headers object.
+ * Responses created by the Worker runtime (redirects and proxied fetches in
+ * particular) can use the Web Platform `immutable` header guard. Calling
+ * `response.headers.set()` on those responses throws after the route has
+ * rendered, which h3 then hides behind its generic HTTPError 500. Rebuilding
+ * the Response gives us an owned, mutable header list while preserving the
+ * original streaming body, status and existing headers.
+ */
+export function applySecurityHeaders(request: Request, response: Response): Response {
+  const headers = new Headers(response.headers);
   // HSTS pins the whole origin (RFC 6797), so it goes on EVERY https response,
   // not only HTML - the first response the browser sees is the one that counts.
   // Guarded by the actual request protocol (proxy-aware) so a plain-http dev /
   // preview server never pins localhost.
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const scheme = forwardedProto || new URL(request.url).protocol.replace(":", "");
-  if (scheme === "https" && !response.headers.has("Strict-Transport-Security")) {
-    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
+  if (scheme === "https" && !headers.has("Strict-Transport-Security")) {
+    headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   }
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("text/html")) return response;
-  if (!response.headers.has("Content-Security-Policy")) {
-    response.headers.set("Content-Security-Policy", contentSecurityPolicy());
+  const contentType = headers.get("content-type") ?? "";
+  if (contentType.includes("text/html")) {
+    if (!headers.has("Content-Security-Policy")) {
+      headers.set("Content-Security-Policy", contentSecurityPolicy());
+    }
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("X-Frame-Options", "SAMEORIGIN");
+    headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    headers.set(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=(self)",
+    );
   }
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "SAMEORIGIN");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), payment=(self)",
-  );
-  return response;
-});
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
 
 /**
  * Redirect manager + 404 monitor. Runs before routing on every GET/HEAD:
