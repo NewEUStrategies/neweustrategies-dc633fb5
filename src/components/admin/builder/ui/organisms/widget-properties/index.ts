@@ -12,3 +12,4 @@ export { MegaMenuEditor } from "./MegaMenuEditor";
 export { RichTextEditor } from "./RichTextEditor";
 export { AccountLinkEditor } from "./AccountLinkEditor";
 export { HeadingFallbackPreview } from "./HeadingFallbackPreview";
+export { TeamMemberEditor } from "./TeamMemberEditor";

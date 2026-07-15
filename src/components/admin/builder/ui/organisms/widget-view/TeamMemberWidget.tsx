@@ -61,6 +61,7 @@ export function TeamMemberWidget({
   const bio = sanitizeHtml(localized(cRaw, "bio", lang));
   const email = getStr(c, "email");
   const phone = getStr(c, "phone");
+  const authorSlug = getStr(c, "authorSlug");
   const overlayAlpha = Math.min(1, Math.max(0, Number(cRaw.overlayAlpha) || 0.55));
   const accent = getStr(c, "accentColor") || "var(--brand)";
 
@@ -280,6 +281,15 @@ export function TeamMemberWidget({
                   className="cms-post-content prose prose-sm max-w-none text-sm leading-relaxed text-foreground/90"
                   dangerouslySetInnerHTML={{ __html: bio }}
                 />
+              )}
+
+              {authorSlug && (
+                <a
+                  href={`/author/${authorSlug}`}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[color:var(--brand)] hover:underline"
+                >
+                  {lang === "pl" ? "Zobacz pełny profil eksperta →" : "View full expert profile →"}
+                </a>
               )}
             </div>
           </div>
