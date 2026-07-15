@@ -1,4 +1,5 @@
 // Shared renderer dla strony eksperta. Używany PRZEZ:
+import { htmlToPlainText } from "@/lib/sanitize";
 //   1. admin/expert-layouts (`ExpertLayoutPreview`) - podgląd w draftcie,
 //   2. /author/$slug (public) - realny hub eksperta.
 // Dzięki temu preset, kolory, kolejność i widoczność sekcji są 1:1

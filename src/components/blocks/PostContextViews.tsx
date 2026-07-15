@@ -1,4 +1,5 @@
 // Publiczne renderery dla Phase 2 batch 7: author-bio, related-posts.
+import { htmlToPlainText } from "@/lib/sanitize";
 // Korzystają z CurrentPostCtx (author, categories, tags); dociąganie danych
 // idzie przez react-query (blocks.ts), więc prefetch SSR w loaderze $.tsx
 // renderuje powiązane wpisy również dla crawlerów.
