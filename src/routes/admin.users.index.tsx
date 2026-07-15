@@ -200,7 +200,7 @@ function Users() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (data ?? []).filter((u) => {
+    return users.filter((u: AdminUserRow) => {
       if (q) {
         const hay = `${u.display_name ?? ""} ${u.email ?? ""} ${u.slug ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -450,7 +450,7 @@ function Users() {
 
   const bulkResendInvites = async () => {
     if (selected.size === 0) return;
-    const emails = (data ?? [])
+    const emails = users
       .filter((u) => selected.has(u.id) && !!u.email)
       .map((u) => u.email as string);
     if (emails.length === 0) {
@@ -493,7 +493,7 @@ function Users() {
     roleFilter !== "all" ||
     subFilter !== "all" ||
     statusFilter !== "all";
-  const totalCount = data?.length ?? 0;
+  const totalCount = users.length;
   const resultsCount = sorted.length;
 
   return (
