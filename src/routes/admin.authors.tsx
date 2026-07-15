@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
+import { adminUsersQueryOptions, type AdminRole } from "@/lib/admin/users-query";
 import { BadgeCheck, ExternalLink, Search, Users } from "lucide-react";
 import "@/lib/i18n-experts";
 
