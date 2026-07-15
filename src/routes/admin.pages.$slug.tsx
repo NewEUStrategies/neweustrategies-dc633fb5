@@ -149,8 +149,12 @@ function EditPage() {
 
   useEffect(() => {
     if (page) {
-      history.reset(page);
-      savedFormRef.current = page;
+      // Strony wymuszają wspólną strukturę PL/EN przez Visual Builder.
+      // Legacy tryby (richtext/markdown) są automatycznie migrowane.
+      const normalized: PageForm =
+        page.editor === "builder" ? page : { ...page, editor: "builder" };
+      history.reset(normalized);
+      savedFormRef.current = normalized;
     }
   }, [page, history.reset]);
 
