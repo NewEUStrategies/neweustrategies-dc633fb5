@@ -110,5 +110,8 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1",
     "vitest": "^4.1.7"
+  },
+  "patchedDependencies": {
+    "@tanstack/start-server-core@1.167.22": "patches/@tanstack%2Fstart-server-core@1.167.22.patch"
   }
 }

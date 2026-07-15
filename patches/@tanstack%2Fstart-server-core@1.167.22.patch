@@ -1,0 +1,97 @@
+diff --git a/src/createStartHandler.ts b/src/createStartHandler.ts
+index 4898000..2bd0866 100644
+--- a/src/createStartHandler.ts
++++ b/src/createStartHandler.ts
+@@ -249,7 +249,15 @@ async function loadEntries(): Promise<Entries> {
+ 
+ function getEntries() {
+   if (!entriesPromise) {
+-    entriesPromise = loadEntries()
++    const pending = loadEntries()
++    entriesPromise = pending
++    void pending.catch(() => {
++      // A dev/HMR module runner can disconnect while the virtual entries are
++      // loading. Do not retain that rejected promise: the next request must be
++      // able to resolve the replacement runner's fresh module graph.
++      if (entriesPromise === pending) entriesPromise = undefined
++    })
+   }
+   return entriesPromise
+ }
+@@ -267,7 +275,11 @@ function getBaseManifest(
+   }
+   // In prod, cache the base manifest
+   if (!baseManifestPromise) {
+-    baseManifestPromise = getStartManifest()
++    const pending = getStartManifest()
++    baseManifestPromise = pending
++    void pending.catch(() => {
++      if (baseManifestPromise === pending) baseManifestPromise = undefined
++    })
+   }
+   return baseManifestPromise
+ }
+@@ -300,7 +312,14 @@ async function resolveManifest(
+   // In prod, cache unless we're explicitly doing per-request transforms.
+   if (!transformFn || cache) {
+     if (!cachedFinalManifestPromise) {
+-      cachedFinalManifestPromise = computeFinalManifest()
++      const pending = computeFinalManifest()
++      cachedFinalManifestPromise = pending
++      void pending.catch(() => {
++        if (cachedFinalManifestPromise === pending) {
++          cachedFinalManifestPromise = undefined
++        }
++      })
+     }
+     return cachedFinalManifestPromise
+   }
+diff --git a/dist/esm/createStartHandler.js b/dist/esm/createStartHandler.js
+index 1b89e44..066064f 100644
+--- a/dist/esm/createStartHandler.js
++++ b/dist/esm/createStartHandler.js
+@@ -35,7 +35,13 @@ async function loadEntries() {
+ 	};
+ }
+ function getEntries() {
+-	if (!entriesPromise) entriesPromise = loadEntries();
++	if (!entriesPromise) {
++		const pending = loadEntries();
++		entriesPromise = pending;
++		void pending.catch(() => {
++			if (entriesPromise === pending) entriesPromise = void 0;
++		});
++	}
+ 	return entriesPromise;
+ }
+ /**
+@@ -44,7 +50,13 @@ function getEntries() {
+ */
+ function getBaseManifest(matchedRoutes) {
+ 	if (process.env.TSS_DEV_SERVER === "true") return getStartManifest(matchedRoutes);
+-	if (!baseManifestPromise) baseManifestPromise = getStartManifest();
++	if (!baseManifestPromise) {
++		const pending = getStartManifest();
++		baseManifestPromise = pending;
++		void pending.catch(() => {
++			if (baseManifestPromise === pending) baseManifestPromise = void 0;
++		});
++	}
+ 	return baseManifestPromise;
+ }
+ /**
+@@ -61,7 +73,13 @@ async function resolveManifest(matchedRoutes, transformFn, cache) {
+ 	};
+ 	if (process.env.TSS_DEV_SERVER === "true") return computeFinalManifest();
+ 	if (!transformFn || cache) {
+-		if (!cachedFinalManifestPromise) cachedFinalManifestPromise = computeFinalManifest();
++		if (!cachedFinalManifestPromise) {
++			const pending = computeFinalManifest();
++			cachedFinalManifestPromise = pending;
++			void pending.catch(() => {
++				if (cachedFinalManifestPromise === pending) cachedFinalManifestPromise = void 0;
++			});
++		}
+ 		return cachedFinalManifestPromise;
+ 	}
+ 	return computeFinalManifest();
