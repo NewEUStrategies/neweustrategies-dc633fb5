@@ -39,6 +39,7 @@ export function SectionTabsBar({
 
   const iconPos = tabs.iconPosition ?? "left";
   const iconSize = Math.max(10, Math.min(32, tabs.iconSize ?? 16));
+  const fontSize = Math.max(8, Math.min(48, tabs.fontSize ?? 14));
   const globalAccent = tabs.accentColor && tabs.accentColor.trim()
     ? tabs.accentColor
     : "var(--brand, currentColor)";
