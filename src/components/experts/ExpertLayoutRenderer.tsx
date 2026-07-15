@@ -706,7 +706,8 @@ export function ExpertSectionRenderer({
       );
     }
     case "details": {
-      const bio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
+      const rawBio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
+      const bio = rawBio ? htmlToPlainText(rawBio) : "";
       const isPlaceholder = !bio;
       if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
@@ -716,7 +717,7 @@ export function ExpertSectionRenderer({
         </>,
         <BookOpen className="h-4 w-4" />,
         <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
-          {bio ?? ph.bio}
+          {bio || ph.bio}
         </p>,
       );
     }
