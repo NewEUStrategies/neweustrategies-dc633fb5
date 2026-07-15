@@ -273,7 +273,7 @@ export function SectionTabsBar({
                 }}
               />
             ) : null}
-            <span>{labelOf(it, lang)}</span>
+            <span style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>{labelOf(it, lang)}</span>
             {isUnderline ? (
               <span
                 aria-hidden="true"
