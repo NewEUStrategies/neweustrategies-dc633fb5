@@ -95,6 +95,7 @@ import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layout
 import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
 import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
 import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
+import { Route as AdminPermissionsRouteImport } from './routes/admin.permissions'
 import { Route as AdminPerformanceRouteImport } from './routes/admin.performance'
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
@@ -616,6 +617,11 @@ const AdminPodcastsRoute = AdminPodcastsRouteImport.update({
 const AdminPersonalizedRoute = AdminPersonalizedRouteImport.update({
   id: '/personalized',
   path: '/personalized',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPermissionsRoute = AdminPermissionsRouteImport.update({
+  id: '/permissions',
+  path: '/permissions',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPerformanceRoute = AdminPerformanceRouteImport.update({
@@ -1156,6 +1162,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
+  '/admin/permissions': typeof AdminPermissionsRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
@@ -1332,6 +1339,7 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
+  '/admin/permissions': typeof AdminPermissionsRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
@@ -1510,6 +1518,7 @@ export interface FileRoutesById {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/performance': typeof AdminPerformanceRoute
+  '/admin/permissions': typeof AdminPermissionsRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/popups': typeof AdminPopupsRouteWithChildren
@@ -1692,6 +1701,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/performance'
+    | '/admin/permissions'
     | '/admin/personalized'
     | '/admin/podcasts'
     | '/admin/popups'
@@ -1868,6 +1878,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/performance'
+    | '/admin/permissions'
     | '/admin/personalized'
     | '/admin/podcasts'
     | '/admin/popups'
@@ -2045,6 +2056,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/performance'
+    | '/admin/permissions'
     | '/admin/personalized'
     | '/admin/podcasts'
     | '/admin/popups'
@@ -2835,6 +2847,13 @@ declare module '@tanstack/react-router' {
       path: '/personalized'
       fullPath: '/admin/personalized'
       preLoaderRoute: typeof AdminPersonalizedRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/permissions': {
+      id: '/admin/permissions'
+      path: '/permissions'
+      fullPath: '/admin/permissions'
+      preLoaderRoute: typeof AdminPermissionsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/performance': {
@@ -3700,6 +3719,7 @@ interface AdminRouteChildren {
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
   AdminPerformanceRoute: typeof AdminPerformanceRoute
+  AdminPermissionsRoute: typeof AdminPermissionsRoute
   AdminPersonalizedRoute: typeof AdminPersonalizedRoute
   AdminPodcastsRoute: typeof AdminPodcastsRoute
   AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
@@ -3757,6 +3777,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
   AdminPerformanceRoute: AdminPerformanceRoute,
+  AdminPermissionsRoute: AdminPermissionsRoute,
   AdminPersonalizedRoute: AdminPersonalizedRoute,
   AdminPodcastsRoute: AdminPodcastsRoute,
   AdminPopupsRoute: AdminPopupsRouteWithChildren,
