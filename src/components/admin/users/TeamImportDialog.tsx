@@ -38,6 +38,7 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
   const create = useServerFn(createInvitations);
   const bulkSend = useServerFn(sendInvitationsBulk);
   const link = useServerFn(linkTeamWidgets);
+  const provision = useServerFn(provisionTeamMembers);
 
   useEffect(() => {
     if (!open) return;
