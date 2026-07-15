@@ -17,6 +17,7 @@ import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/build
 import { Row } from "../../atoms";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
 import { ColorPicker } from "../../molecules/ColorPicker";
+import { StepperButtons } from "../../atoms/StepperButtons";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 
