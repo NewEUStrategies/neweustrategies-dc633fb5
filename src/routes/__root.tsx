@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useMemo, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
@@ -50,22 +50,10 @@ import { GlobalAudioPlayerProvider } from "../lib/audio/global-player";
 import { GlobalAudioBar } from "../components/audio/GlobalAudioBar";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
-
-// Non-critical overlays: not visible at first paint (they open on trigger/delay),
-// so they are code-split out of the entry to shrink the critical hydration bundle.
-// Streaming SSR still resolves them server-side, so the rendered HTML is unchanged.
-const LoginPopup = lazy(() =>
-  import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })),
-);
-const NewsletterPopup = lazy(() =>
-  import("../components/NewsletterPopup").then((m) => ({ default: m.NewsletterPopup })),
-);
-const CommandPalette = lazy(() =>
-  import("../components/search/CommandPalette").then((m) => ({ default: m.CommandPalette })),
-);
-const PopupHost = lazy(() =>
-  import("../components/popups/PopupHost").then((m) => ({ default: m.PopupHost })),
-);
+import { LoginPopup } from "../components/LoginPopup";
+import { NewsletterPopup } from "../components/NewsletterPopup";
+import { CommandPalette } from "../components/search/CommandPalette";
+import { PopupHost } from "../components/popups/PopupHost";
 
 function NotFoundComponent() {
   const copy = errorCopy();
