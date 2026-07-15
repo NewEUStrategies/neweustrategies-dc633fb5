@@ -348,7 +348,7 @@ function Users() {
       return;
     }
     toast.success(t("admin.saved"));
-    qc.invalidateQueries({ queryKey: ["all-users"] });
+    qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
   };
 
   // Zbiorczo: bieżąca kolejność wierszy (po filtrowaniu i sortowaniu, płaska
@@ -445,7 +445,7 @@ function Users() {
     if (fail > 0) toast.error(`${fail} ${i18n.language === "pl" ? "błędów" : "failed"}`);
     setBulkRole("");
     clearSelection();
-    qc.invalidateQueries({ queryKey: ["all-users"] });
+    qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
   };
 
   const bulkResendInvites = async () => {
@@ -521,13 +521,13 @@ function Users() {
       <InviteUserDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
-        onDone={() => qc.invalidateQueries({ queryKey: ["all-users"] })}
+        onDone={() => qc.invalidateQueries({ queryKey: ["admin", "all-users"] })}
       />
       <TeamImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
         pageSlug="o-nas"
-        onDone={() => qc.invalidateQueries({ queryKey: ["all-users"] })}
+        onDone={() => qc.invalidateQueries({ queryKey: ["admin", "all-users"] })}
       />
 
       {/* Toolbar: search + filters + grouping */}
