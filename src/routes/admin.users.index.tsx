@@ -145,9 +145,9 @@ function Users() {
     queryFn: async (): Promise<SubscriptionInfo[]> => {
       const { data: rows, error } = await supabase
         .from("user_subscriptions")
-        .select("user_id, status, access_plans!inner(name_pl, name_en)")
+        .select("user_id, status, current_period_end, canceled_at, access_plans!inner(name_pl, name_en)")
         .eq("tenant_id", tenantId)
-        .eq("status", "active");
+        .order("started_at", { ascending: false });
       if (error) {
         // Brak dostępu do widoku nie powinien blokować listy użytkowników.
         console.warn("[admin/users] subscriptions read failed", error.message);
