@@ -140,9 +140,7 @@ export function LucideIconPicker({
           )}
         </ScrollArea>
         <div className="mt-2 text-[10px] text-muted-foreground truncate">
-          {filtered.length >= 300
-            ? "Pokazano pierwsze 300 - zawęź szukanie"
-            : `${filtered.length} ikon`}
+          {filtered.length} / {ALL_ICON_NAMES.length} ikon
           {current ? ` - wybrano: ${current}` : ""}
         </div>
       </PopoverContent>
