@@ -59,6 +59,8 @@ function Users() {
   const tenantId = useRequiredTenant();
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["all-users", tenantId],
