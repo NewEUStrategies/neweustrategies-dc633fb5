@@ -138,14 +138,7 @@ function Users() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const resendBulkFn = useServerFn(resendInvitationsForEmails);
 
-  const { data } = useQuery({
-    queryKey: ["all-users", tenantId],
-    queryFn: async (): Promise<UserRow[]> => {
-      const { data: rows, error } = await supabase.rpc("admin_list_users");
-      if (error) throw error;
-      return (rows ?? []).map((r) => ({ ...r, roles: (r.roles ?? []) as Role[] }));
-    },
-  });
+  const { data } = useQuery(adminUsersQueryOptions(tenantId));
 
   // Subskrypcje: użyte do filtrowania i grupowania po poziomie dostępu.
   // RLS na user_subscriptions dopuszcza admina tenanta.
