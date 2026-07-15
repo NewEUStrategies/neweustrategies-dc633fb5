@@ -710,6 +710,34 @@ function Users() {
         </div>
       )}
 
+      <Dialog open={roleConfirmOpen} onOpenChange={setRoleConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {i18n.language === "pl" ? "Potwierdź zmianę roli" : "Confirm role change"}
+            </DialogTitle>
+            <DialogDescription>
+              {i18n.language === "pl"
+                ? `Wybranych użytkowników: ${selected.size}. Rola, którą otrzymają: ${bulkRole ? roleLabel(t, bulkRole) : "-"}.`
+                : `Selected users: ${selected.size}. Role they will receive: ${bulkRole ? roleLabel(t, bulkRole) : "-"}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRoleConfirmOpen(false)}
+              disabled={bulkBusy}
+            >
+              {i18n.language === "pl" ? "Anuluj" : "Cancel"}
+            </Button>
+            <Button size="sm" onClick={applyBulkRole} disabled={bulkBusy}>
+              {i18n.language === "pl" ? "Tak, zmień rolę" : "Yes, change role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
