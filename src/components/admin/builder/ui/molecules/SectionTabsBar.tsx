@@ -39,6 +39,7 @@ export function SectionTabsBar({
 
   const iconPos = tabs.iconPosition ?? "left";
   const iconSize = Math.max(10, Math.min(32, tabs.iconSize ?? 16));
+  const fontSize = Math.max(8, Math.min(48, tabs.fontSize ?? 14));
   const globalAccent = tabs.accentColor && tabs.accentColor.trim()
     ? tabs.accentColor
     : "var(--brand, currentColor)";
@@ -134,7 +135,7 @@ export function SectionTabsBar({
               : variant === "segmented"
                 ? "6px 12px"
                 : "8px 14px",
-          fontSize: Math.max(8, Math.min(48, tabs.fontSize ?? 14)),
+          fontSize: `${fontSize}px`,
           fontWeight: active ? 600 : 500,
           cursor: "pointer",
           color: active ? "var(--foreground, inherit)" : "var(--muted-foreground, inherit)",
@@ -272,7 +273,7 @@ export function SectionTabsBar({
                 }}
               />
             ) : null}
-            <span>{labelOf(it, lang)}</span>
+            <span style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>{labelOf(it, lang)}</span>
             {isUnderline ? (
               <span
                 aria-hidden="true"
