@@ -298,7 +298,7 @@ export function SectionTabsBar({
                 style={{
                   position: "absolute",
                   left: "50%",
-                  bottom: 2,
+                  bottom: -8,
                   width: 6,
                   height: 6,
                   borderRadius: 999,
