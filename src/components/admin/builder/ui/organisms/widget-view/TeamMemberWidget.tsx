@@ -282,6 +282,15 @@ export function TeamMemberWidget({
                   dangerouslySetInnerHTML={{ __html: bio }}
                 />
               )}
+
+              {authorSlug && (
+                <a
+                  href={`/author/${authorSlug}`}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[color:var(--brand)] hover:underline"
+                >
+                  {lang === "pl" ? "Zobacz pełny profil eksperta →" : "View full expert profile →"}
+                </a>
+              )}
             </div>
           </div>
         </DialogContent>
