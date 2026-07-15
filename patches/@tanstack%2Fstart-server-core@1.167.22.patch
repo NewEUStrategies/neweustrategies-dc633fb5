@@ -2,7 +2,7 @@ diff --git a/src/createStartHandler.ts b/src/createStartHandler.ts
 index 4898000..2bd0866 100644
 --- a/src/createStartHandler.ts
 +++ b/src/createStartHandler.ts
-@@ -249,7 +249,15 @@ async function loadEntries(): Promise<Entries> {
+@@ -249,7 +249,14 @@ async function loadEntries(): Promise<Entries> {
  
  function getEntries() {
    if (!entriesPromise) {
@@ -18,7 +18,7 @@ index 4898000..2bd0866 100644
    }
    return entriesPromise
  }
-@@ -267,7 +275,11 @@ function getBaseManifest(
+@@ -267,7 +274,11 @@ function getBaseManifest(
    }
    // In prod, cache the base manifest
    if (!baseManifestPromise) {
@@ -31,7 +31,7 @@ index 4898000..2bd0866 100644
    }
    return baseManifestPromise
  }
-@@ -300,7 +312,14 @@ async function resolveManifest(
+@@ -300,7 +311,14 @@ async function resolveManifest(
    // In prod, cache unless we're explicitly doing per-request transforms.
    if (!transformFn || cache) {
      if (!cachedFinalManifestPromise) {
