@@ -325,6 +325,33 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
                   value={t.label_en ?? ""}
                   onChange={(e) => patchTab(t.id, { label_en: e.target.value })}
                 />
+                <div className="flex items-center gap-1">
+                  <Input
+                    className="h-7 text-xs flex-1"
+                    placeholder="Ikona lucide (np. rocket, globe, users)"
+                    value={t.icon ?? ""}
+                    onChange={(e) => patchTab(t.id, { icon: e.target.value })}
+                  />
+                  <input
+                    type="color"
+                    value={/^#[0-9a-fA-F]{6}$/.test(t.color ?? "") ? (t.color as string) : "#f59e42"}
+                    onChange={(e) => patchTab(t.id, { color: e.target.value })}
+                    className="h-7 w-9 rounded border border-border bg-background cursor-pointer"
+                    aria-label="Kolor zakładki"
+                    title="Kolor akcentu tej zakładki (nadpisuje globalny)"
+                  />
+                  {t.color ? (
+                    <button
+                      type="button"
+                      onClick={() => patchTab(t.id, { color: undefined })}
+                      className="p-1 text-muted-foreground hover:text-foreground"
+                      aria-label="Wyczyść kolor"
+                      title="Wyczyść kolor"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
             <Button
