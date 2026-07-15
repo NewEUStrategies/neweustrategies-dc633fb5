@@ -33,6 +33,7 @@ import { impersonateUser } from "@/lib/admin/impersonation";
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
 import { resendInvitationsForEmails } from "@/lib/admin/invitations.functions";
+import { adminUsersQueryOptions, type AdminUserRow } from "@/lib/admin/users-query";
 
 export const Route = createFileRoute("/admin/users/")({
   component: Users,
