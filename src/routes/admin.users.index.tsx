@@ -139,7 +139,7 @@ function Users() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const resendBulkFn = useServerFn(resendInvitationsForEmails);
 
-  const { data } = useQuery(adminUsersQueryOptions(tenantId));
+  const { data } = useQuery<AdminUserRow[]>(adminUsersQueryOptions(tenantId));
 
   // Subskrypcje: użyte do filtrowania i grupowania po poziomie dostępu.
   // RLS na user_subscriptions dopuszcza admina tenanta.
