@@ -911,6 +911,9 @@ export function renderSimpleWidget(
     case "team-member": {
       return <TeamMemberWidget node={node} lang={lang} />;
     }
+    case "interactive-circle": {
+      return <InteractiveCircleWidget node={node} lang={lang} />;
+    }
     case "pricing": {
       const plans = Array.isArray(c.plans) ? (c.plans as Array<Record<string, unknown>>) : [];
       return (
