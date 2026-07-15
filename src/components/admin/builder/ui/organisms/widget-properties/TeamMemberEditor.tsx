@@ -128,25 +128,19 @@ export function TeamMemberEditor({ c, lang, setContent }: Props) {
     try {
       const h = await fetchExpertHydration(value);
       if (!h) {
-        toast({
-          title: lang === "pl" ? "Nie znaleziono eksperta" : "Expert not found",
-          variant: "destructive",
-        });
+        toast.error(lang === "pl" ? "Nie znaleziono eksperta" : "Expert not found");
         return;
       }
       applyHydration(h);
-      toast({
-        title: lang === "pl" ? "Dane eksperta wczytane" : "Expert data loaded",
+      toast.success(lang === "pl" ? "Dane eksperta wczytane" : "Expert data loaded", {
         description:
           lang === "pl"
             ? "Możesz nadpisać poszczególne pola poniżej."
             : "You can override individual fields below.",
       });
     } catch (err) {
-      toast({
-        title: lang === "pl" ? "Błąd wczytywania" : "Loading error",
+      toast.error(lang === "pl" ? "Błąd wczytywania" : "Loading error", {
         description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
       });
     } finally {
       setBusy(false);
