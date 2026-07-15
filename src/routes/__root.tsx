@@ -300,6 +300,8 @@ function RootComponent() {
             </GlobalAudioPlayerProvider>
           </ErrorBoundary>
           <ConsentBanner />
+          <ConsentScriptInjector />
+          <ConsentPreviewPanel />
           <Suspense fallback={null}>
             <LoginPopup />
             <NewsletterPopup />
