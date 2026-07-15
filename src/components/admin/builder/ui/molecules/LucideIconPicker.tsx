@@ -131,6 +131,7 @@ export function LucideIconPicker({
                     }
                     title={name}
                     aria-label={name}
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "32px 32px" }}
                   >
                     <DynamicIcon name={name} width={16} height={16} />
                   </button>
