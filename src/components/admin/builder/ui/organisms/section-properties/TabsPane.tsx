@@ -17,6 +17,7 @@ import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/build
 import { Row } from "../../atoms";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
 import { ColorPicker } from "../../molecules/ColorPicker";
+import { StepperButtons } from "../../atoms/StepperButtons";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 
@@ -209,33 +210,61 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
           </Row>
 
           <Row label="Rozmiar ikony">
-            <Input
-              type="number"
-              min={10}
-              max={32}
-              className="h-8 text-xs"
-              value={cfg.iconSize ?? 16}
-              onChange={(e) =>
-                setCfg((c) => {
-                  c.iconSize = Number(e.target.value) || 16;
-                })
-              }
-            />
+            <div className="relative">
+              <Input
+                type="number"
+                min={10}
+                max={32}
+                className="h-8 text-xs pr-6"
+                value={cfg.iconSize ?? 16}
+                onChange={(e) =>
+                  setCfg((c) => {
+                    c.iconSize = Math.max(10, Math.min(32, Number(e.target.value) || 16));
+                  })
+                }
+              />
+              <StepperButtons
+                onIncrement={() =>
+                  setCfg((c) => {
+                    c.iconSize = Math.min(32, (c.iconSize ?? 16) + 1);
+                  })
+                }
+                onDecrement={() =>
+                  setCfg((c) => {
+                    c.iconSize = Math.max(10, (c.iconSize ?? 16) - 1);
+                  })
+                }
+              />
+            </div>
           </Row>
 
           <Row label="Rozmiar czcionki" hint="Rozmiar tekstu etykiet zakładek w pikselach.">
-            <Input
-              type="number"
-              min={8}
-              max={48}
-              className="h-8 text-xs"
-              value={cfg.fontSize ?? 14}
-              onChange={(e) =>
-                setCfg((c) => {
-                  c.fontSize = Number(e.target.value) || 14;
-                })
-              }
-            />
+            <div className="relative">
+              <Input
+                type="number"
+                min={8}
+                max={48}
+                className="h-8 text-xs pr-6"
+                value={cfg.fontSize ?? 14}
+                onChange={(e) =>
+                  setCfg((c) => {
+                    c.fontSize = Math.max(8, Math.min(48, Number(e.target.value) || 14));
+                  })
+                }
+              />
+              <StepperButtons
+                onIncrement={() =>
+                  setCfg((c) => {
+                    c.fontSize = Math.min(48, (c.fontSize ?? 14) + 1);
+                  })
+                }
+                onDecrement={() =>
+                  setCfg((c) => {
+                    c.fontSize = Math.max(8, (c.fontSize ?? 14) - 1);
+                  })
+                }
+              />
+            </div>
           </Row>
 
           <Row label="Wyrównanie">
