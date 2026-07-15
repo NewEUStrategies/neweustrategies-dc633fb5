@@ -1131,6 +1131,8 @@ function ContentFields({
       return <AccountLinkEditor c={c} lang={lang} setContent={setContent} />;
     case "ad-slot":
       return <AdSlotEditor c={c} setContent={setContent} />;
+    case "team-member":
+      return <TeamMemberEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
