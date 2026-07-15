@@ -337,20 +337,26 @@ export function ConsentBanner() {
             >
               <Settings2 className="h-3.5 w-3.5" />
             </Button>
-            <Button size="sm" className="h-7 px-2 text-xs" onClick={acceptAll}>
+            <Button
+              size="sm"
+              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-xs"
+              aria-label={t.acceptAll}
+              title={t.acceptAll}
+              onClick={acceptAll}
+            >
               <Check className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t.acceptAll}</span>
-              <span className="sm:hidden">{isPl ? "Akceptuj" : "Accept"}</span>
+              <span className="hidden sm:inline ml-1.5">{t.acceptAll}</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="h-7 px-2 text-xs"
+              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-xs"
+              aria-label={t.rejectAll}
+              title={t.rejectAll}
               onClick={rejectAll}
             >
               <X className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t.rejectAll}</span>
-              <span className="sm:hidden">{isPl ? "Odrzuć" : "Reject"}</span>
+              <span className="hidden sm:inline ml-1.5">{t.rejectAll}</span>
             </Button>
           </div>
         </div>
