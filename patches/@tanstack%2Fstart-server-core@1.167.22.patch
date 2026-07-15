@@ -2,7 +2,7 @@ diff --git a/src/createStartHandler.ts b/src/createStartHandler.ts
 index 4898000..2bd0866 100644
 --- a/src/createStartHandler.ts
 +++ b/src/createStartHandler.ts
-@@ -249,7 +249,14 @@ async function loadEntries(): Promise<Entries> {
+@@ -249,7 +249,14 @@
  
  function getEntries() {
    if (!entriesPromise) {
@@ -18,7 +18,7 @@ index 4898000..2bd0866 100644
    }
    return entriesPromise
  }
-@@ -267,7 +274,11 @@ function getBaseManifest(
+@@ -267,7 +274,11 @@
    }
    // In prod, cache the base manifest
    if (!baseManifestPromise) {
@@ -31,7 +31,7 @@ index 4898000..2bd0866 100644
    }
    return baseManifestPromise
  }
-@@ -300,7 +311,14 @@ async function resolveManifest(
+@@ -300,7 +311,14 @@
    // In prod, cache unless we're explicitly doing per-request transforms.
    if (!transformFn || cache) {
      if (!cachedFinalManifestPromise) {
@@ -50,7 +50,7 @@ diff --git a/dist/esm/createStartHandler.js b/dist/esm/createStartHandler.js
 index 1b89e44..066064f 100644
 --- a/dist/esm/createStartHandler.js
 +++ b/dist/esm/createStartHandler.js
-@@ -35,7 +35,13 @@ async function loadEntries() {
+@@ -35,7 +35,13 @@
  	};
  }
  function getEntries() {
@@ -65,7 +65,7 @@ index 1b89e44..066064f 100644
  	return entriesPromise;
  }
  /**
-@@ -44,7 +50,13 @@ function getEntries() {
+@@ -44,7 +50,13 @@
  */
  function getBaseManifest(matchedRoutes) {
  	if (process.env.TSS_DEV_SERVER === "true") return getStartManifest(matchedRoutes);
@@ -80,7 +80,7 @@ index 1b89e44..066064f 100644
  	return baseManifestPromise;
  }
  /**
-@@ -61,7 +73,13 @@ async function resolveManifest(matchedRoutes, transformFn, cache) {
+@@ -61,7 +73,13 @@
  	};
  	if (process.env.TSS_DEV_SERVER === "true") return computeFinalManifest();
  	if (!transformFn || cache) {
