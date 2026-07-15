@@ -1,4 +1,5 @@
 // Publiczne renderery dla bloków kontekstowych (post-* / site-*).
+import { htmlToPlainText } from "@/lib/sanitize";
 // Czerpią dane z CurrentPostCtx (dla post-*) i site_settings (dla site-*).
 
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
@@ -89,7 +90,7 @@ export function PostAuthorView({
         ) : (
           <span className="font-medium">{a.name}</span>
         )}
-        {showBio && bio && <p className="text-sm text-muted-foreground m-0 mt-1">{bio}</p>}
+        {showBio && bio && <p className="text-sm text-muted-foreground m-0 mt-1 whitespace-pre-line">{htmlToPlainText(bio)}</p>}
       </div>
     </div>
   );

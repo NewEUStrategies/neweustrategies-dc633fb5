@@ -1,4 +1,5 @@
 // Publiczne renderery dla Phase 2 batch 7: author-bio, related-posts.
+import { htmlToPlainText } from "@/lib/sanitize";
 // Korzystają z CurrentPostCtx (author, categories, tags); dociąganie danych
 // idzie przez react-query (blocks.ts), więc prefetch SSR w loaderze $.tsx
 // renderuje powiązane wpisy również dla crawlerów.
@@ -121,8 +122,9 @@ export function AuthorBioView({
   // przykładowe dane na produkcji).
   if (!author?.name) return null;
 
-  const bio =
-    (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "";
+  const bio = htmlToPlainText(
+    (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "",
+  );
   const profileHref = author.slug ? `/author/${author.slug}` : null;
 
   type IconCmp = ComponentType<SVGProps<SVGSVGElement>>;

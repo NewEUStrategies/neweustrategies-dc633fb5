@@ -27,6 +27,77 @@ export function sanitizeMarkdownHtml(dirty: string): string {
   });
 }
 
+// ---------- Plain text ----------
+
+const HTML_ENTITY_MAP: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  ndash: "-",
+  mdash: "-",
+  hellip: "…",
+  laquo: "«",
+  raquo: "»",
+  bull: "•",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+};
+
+/**
+ * Convert an HTML-ish string to clean plain text for display in UI surfaces
+ * that render as text (cards, admin fields, widget descriptions, meta bars).
+ *
+ * Behaviour:
+ * - Block-level tags (`p`, `div`, `br`, `li`, `h1`-`h6`, `tr`) become line
+ *   breaks so paragraphs stay readable in `whitespace-pre-line` / `pre-wrap`.
+ * - All other tags are removed.
+ * - Common named / numeric HTML entities are decoded.
+ * - Runs of whitespace inside a line are collapsed; blank lines are capped
+ *   at one.
+ *
+ * SSR-safe (no DOMParser / document access).
+ */
+export function htmlToPlainText(input: string | null | undefined): string {
+  if (!input) return "";
+  // If the string has no tag / entity markers, short-circuit.
+  if (!/[<&]/.test(input)) return input.trim();
+
+  let out = input;
+  // Normalise block boundaries to newlines BEFORE stripping tags.
+  out = out.replace(/<\s*(br)\s*\/?>/gi, "\n");
+  out = out.replace(
+    /<\s*\/\s*(p|div|li|h[1-6]|tr|section|article|header|footer|blockquote|pre)\s*>/gi,
+    "\n",
+  );
+  // List item bullets.
+  out = out.replace(/<\s*li[^>]*>/gi, "• ");
+  // Strip any remaining tags.
+  out = out.replace(/<[^>]+>/g, "");
+  // Decode entities.
+  out = out.replace(/&#(\d+);/g, (_, n: string) =>
+    String.fromCodePoint(Number(n)),
+  );
+  out = out.replace(/&#x([0-9a-f]+);/gi, (_, n: string) =>
+    String.fromCodePoint(Number.parseInt(n, 16)),
+  );
+  out = out.replace(/&([a-z]+);/gi, (m, name: string) => {
+    const v = HTML_ENTITY_MAP[name.toLowerCase()];
+    return v ?? m;
+  });
+  // Collapse whitespace inside lines, cap blank lines to 1.
+  out = out
+    .split("\n")
+    .map((l) => l.replace(/[ \t\f\v\u00a0]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return out;
+}
+
 // ---------- HTML id / class ----------
 
 const ID_RE = /^[A-Za-z][\w-]{0,63}$/;

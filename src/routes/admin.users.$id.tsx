@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { htmlToPlainText } from "@/lib/sanitize";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -458,13 +459,14 @@ function Field({
   multiline?: boolean;
 }) {
   if (!value) return null;
+  const clean = multiline ? htmlToPlainText(value) : value;
   return (
     <div>
       <div className="text-xs uppercase text-muted-foreground mb-1">{label}</div>
       <div
-        className={`text-sm ${mono ? "font-mono text-xs" : ""} ${multiline ? "whitespace-pre-wrap" : ""} break-words`}
+        className={`text-sm ${mono ? "font-mono text-xs" : ""} ${multiline ? "whitespace-pre-line" : ""} break-words`}
       >
-        {value}
+        {clean}
       </div>
     </div>
   );

@@ -52,6 +52,7 @@ import {
   CvSection,
 } from "@/components/profile/sections/ProfileExtraSections";
 import { cn } from "@/lib/utils";
+import { htmlToPlainText } from "@/lib/sanitize";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
@@ -364,8 +365,8 @@ function ProfileInline() {
                     rows={3}
                   />
                 ) : (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                    {data.bio || "-"}
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+                    {htmlToPlainText(data.bio) || "-"}
                   </p>
                 )}
               </Card>

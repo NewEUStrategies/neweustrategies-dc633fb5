@@ -1,4 +1,5 @@
 // Shared renderer dla strony eksperta. Używany PRZEZ:
+import { htmlToPlainText } from "@/lib/sanitize";
 //   1. admin/expert-layouts (`ExpertLayoutPreview`) - podgląd w draftcie,
 //   2. /author/$slug (public) - realny hub eksperta.
 // Dzięki temu preset, kolory, kolejność i widoczność sekcji są 1:1
@@ -228,7 +229,7 @@ export function ExpertLayoutHero({
   // Fallback: gdy brak stanowiska i firmy, na publicznej stronie pokaż "Ekspert"
   // zamiast pustej linii - w preview używamy przykładowej roli.
   const roleLine = realRoleLine || (showPlaceholders ? ph.role : LABELS[lang].roleFallback);
-  const realBio = (lang === "en" ? e.bio_en : e.bio_pl) ?? "";
+  const realBio = htmlToPlainText((lang === "en" ? e.bio_en : e.bio_pl) ?? "");
   const bioItems: string[] = (() => {
     const src = realBio.trim();
     if (src) {
@@ -705,7 +706,8 @@ export function ExpertSectionRenderer({
       );
     }
     case "details": {
-      const bio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
+      const rawBio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
+      const bio = rawBio ? htmlToPlainText(rawBio) : "";
       const isPlaceholder = !bio;
       if (isPlaceholder && !showPlaceholders) return null;
       return wrap(
@@ -715,7 +717,7 @@ export function ExpertSectionRenderer({
         </>,
         <BookOpen className="h-4 w-4" />,
         <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
-          {bio ?? ph.bio}
+          {bio || ph.bio}
         </p>,
       );
     }
