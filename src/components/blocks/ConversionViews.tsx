@@ -63,7 +63,7 @@ export function StepListView({
               <div className={numCls}>{idx + 1}</div>
               <div className="font-serif text-lg font-semibold text-foreground">{s.title}</div>
               {s.description ? (
-                <p className="text-sm text-muted-foreground leading-relaxed">{s.description}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{htmlToPlainText(s.description)}</p>
               ) : null}
             </li>
           ))}
@@ -84,7 +84,7 @@ export function StepListView({
             <div className="pt-1.5 space-y-1">
               <div className="font-serif text-lg font-semibold text-foreground">{s.title}</div>
               {s.description ? (
-                <p className="text-sm text-muted-foreground leading-relaxed">{s.description}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{htmlToPlainText(s.description)}</p>
               ) : null}
             </div>
           </li>

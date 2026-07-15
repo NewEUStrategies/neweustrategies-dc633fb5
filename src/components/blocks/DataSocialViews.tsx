@@ -124,7 +124,7 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
                   <div className="text-xs uppercase tracking-wide text-primary">{m.role}</div>
                 ) : null}
                 {m.bio ? (
-                  <p className="text-sm text-muted-foreground leading-relaxed mt-2">{m.bio}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-2 whitespace-pre-line">{htmlToPlainText(m.bio)}</p>
                 ) : null}
                 {m.social ? (
                   <a
