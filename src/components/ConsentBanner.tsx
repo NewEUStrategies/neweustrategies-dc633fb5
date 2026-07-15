@@ -305,7 +305,7 @@ export function ConsentBanner() {
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] text-muted-foreground leading-tight line-clamp-2">
+            <p className="text-[11px] text-muted-foreground leading-tight">
               {isPl
                 ? "Używamy plików cookie. Dowiedz się więcej w"
                 : "We use cookies. Learn more in our"}{" "}
