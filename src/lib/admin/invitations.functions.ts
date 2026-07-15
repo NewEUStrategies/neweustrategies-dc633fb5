@@ -522,3 +522,210 @@ export const listInvitations = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return { invitations: data ?? [] };
   });
+
+// ---------- provision (bez wysyłki maili) ----------------------------------
+//
+// Tworzy realne konta auth.users + profiles + author_profiles + user_roles
+// dla wszystkich osób z widgetów team-member na stronie, BEZ wysyłania maili.
+// Dzięki temu osoby są natychmiast widoczne w /admin/users i /admin/authors.
+// Rekord user_invitations dostaje status "accepted" (source: provision:*)
+// jako ślad audytowy. Maile z linkiem / hasłem można wysłać później.
+
+interface ProvisionResult {
+  created: number;
+  skipped: number;
+  linked: number;
+  errors: { email: string; error: string }[];
+}
+
+export const provisionTeamMembers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        pageSlug: z.string().min(1),
+        role: z.enum(["admin", "editor", "author", "user"]).default("author"),
+        autoLink: z.boolean().default(true),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<ProvisionResult> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: page, error: pageErr } = await context.supabase
+      .from("pages")
+      .select("id, builder_data")
+      .eq("slug", data.pageSlug)
+      .eq("tenant_id", tenantId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (pageErr) throw new Error(pageErr.message);
+    if (!page) throw new Error("Page not found");
+
+    const drafts = extractTeamMembers(page.builder_data);
+    if (drafts.length === 0) return { created: 0, skipped: 0, linked: 0, errors: [] };
+
+    const { data: users } = await context.supabase.rpc("admin_list_users");
+    const byEmail = new Map<string, string>();
+    for (const u of (users ?? []) as { id: string; email: string | null }[]) {
+      if (u.email) byEmail.set(u.email.toLowerCase(), u.id);
+    }
+
+    let created = 0;
+    let skipped = 0;
+    const errors: { email: string; error: string }[] = [];
+
+    for (const d of drafts) {
+      try {
+        let authUserId = byEmail.get(d.email) ?? null;
+
+        if (!authUserId) {
+          const tempPassword = generateTempPassword();
+          const { data: createdUser, error: createErr } =
+            await supabaseAdmin.auth.admin.createUser({
+              email: d.email,
+              password: tempPassword,
+              email_confirm: true,
+              user_metadata: {
+                display_name: d.name,
+                tenant_id: tenantId,
+                must_change_password: true,
+                provisioned: true,
+              },
+            });
+          if (createErr) throw createErr;
+          authUserId = createdUser.user?.id ?? null;
+          if (!authUserId) throw new Error("no_auth_user_id");
+          created++;
+        } else {
+          skipped++;
+        }
+
+        await supabaseAdmin.from("profiles").upsert(
+          {
+            id: authUserId,
+            tenant_id: tenantId,
+            email: d.email,
+            display_name: d.name,
+            slug: slugify(d.name),
+            avatar_url: d.photo,
+            bio_pl: d.bio_pl,
+            bio_en: d.bio_en,
+            phone: d.phone,
+            job_title: d.position_pl ?? d.position_en,
+            linkedin_url: d.linkedin,
+            facebook_url: d.facebook,
+            instagram_url: d.instagram,
+            website_url: d.website,
+          },
+          { onConflict: "id", ignoreDuplicates: false },
+        );
+
+        const orgFunctions: { pl: string; en: string }[] = [];
+        if (d.programLabel_pl || d.programLabel_en) {
+          orgFunctions.push({
+            pl: d.programLabel_pl ?? "",
+            en: d.programLabel_en ?? "",
+          });
+        }
+
+        await supabaseAdmin.from("author_profiles").upsert(
+          {
+            user_id: authUserId,
+            tenant_id: tenantId,
+            job_title: d.position_pl ?? d.position_en,
+            full_bio_pl: d.bio_pl,
+            full_bio_en: d.bio_en,
+            contact_email: d.email,
+            phone: d.phone,
+            linkedin_url: d.linkedin,
+            facebook_url: d.facebook,
+            instagram_url: d.instagram,
+            website_url: d.website,
+            org_functions: orgFunctions,
+            is_public: true,
+          },
+          { onConflict: "user_id" },
+        );
+
+        await supabaseAdmin
+          .from("user_roles")
+          .upsert(
+            { user_id: authUserId, role: data.role as AppRole, tenant_id: tenantId },
+            { onConflict: "user_id,role", ignoreDuplicates: true },
+          );
+
+        // ślad audytowy - konto powstało w trybie provision (bez maila)
+        await context.supabase.from("user_invitations").upsert(
+          {
+            tenant_id: tenantId,
+            email: d.email,
+            display_name: d.name,
+            role: data.role as AppRole,
+            mode: "temp_password" as InviteMode,
+            status: "accepted",
+            source: `provision:${data.pageSlug}`,
+            metadata: { widgetId: d.widgetId, provisioned: true } as never,
+            invited_by: context.userId,
+            auth_user_id: authUserId,
+            sent_at: new Date().toISOString(),
+            accepted_at: new Date().toISOString(),
+          },
+          { onConflict: "email,tenant_id", ignoreDuplicates: true },
+        );
+
+        byEmail.set(d.email, authUserId);
+      } catch (err) {
+        errors.push({
+          email: d.email,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // Powiązanie widgetów team-member z nowo utworzonymi profilami.
+    let linked = 0;
+    if (data.autoLink) {
+      const doc = JSON.parse(JSON.stringify(page.builder_data ?? {})) as unknown;
+      const { data: profs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email, slug")
+        .in(
+          "email",
+          drafts.map((d) => d.email),
+        );
+      const mapByEmail = new Map<string, { id: string; slug: string | null }>();
+      for (const p of profs ?? []) {
+        if (p.email) mapByEmail.set(p.email.toLowerCase(), { id: p.id, slug: p.slug });
+      }
+      const walk = (n: unknown): void => {
+        if (Array.isArray(n)) {
+          for (const v of n) walk(v);
+          return;
+        }
+        if (!n || typeof n !== "object") return;
+        const node = n as UnknownObj;
+        if (node.type === "team-member" && node.content && typeof node.content === "object") {
+          const c = node.content as UnknownObj;
+          const email = ((c.email as string) ?? "").trim().toLowerCase();
+          const match = email ? mapByEmail.get(email) : undefined;
+          if (match) {
+            c.authorUserId = match.id;
+            if (match.slug) c.authorSlug = match.slug;
+            linked++;
+          }
+        }
+        for (const v of Object.values(node)) walk(v);
+      };
+      walk(doc);
+      if (linked > 0) {
+        await context.supabase
+          .from("pages")
+          .update({ builder_data: doc as never })
+          .eq("id", page.id);
+      }
+    }
+
+    return { created, skipped, linked, errors };
+  });
