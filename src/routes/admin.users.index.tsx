@@ -126,6 +126,7 @@ function Users() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [subFilter, setSubFilter] = useState<string>("all"); // "all" | "none" | plan name
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("role");
 
   const { data } = useQuery({
