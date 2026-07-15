@@ -145,6 +145,7 @@ function Users() {
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [bulkRole, setBulkRole] = useState<Role | "">("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
   const resendBulkFn = useServerFn(resendInvitationsForEmails);
   const { data } = useQuery(adminUsersQueryOptions(tenantId));
   const users: AdminUserRow[] = data ?? [];
