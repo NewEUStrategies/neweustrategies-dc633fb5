@@ -7156,6 +7156,74 @@ export type Database = {
         }
         Relationships: []
       }
+      user_invitations: {
+        Row: {
+          accepted_at: string | null
+          auth_user_id: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          expires_at: string | null
+          id: string
+          invited_by: string | null
+          last_error: string | null
+          metadata: Json
+          mode: Database["public"]["Enums"]["invitation_mode"]
+          role: Database["public"]["Enums"]["app_role"]
+          sent_at: string | null
+          source: string | null
+          status: Database["public"]["Enums"]["invitation_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          auth_user_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          email: string
+          expires_at?: string | null
+          id?: string
+          invited_by?: string | null
+          last_error?: string | null
+          metadata?: Json
+          mode?: Database["public"]["Enums"]["invitation_mode"]
+          role?: Database["public"]["Enums"]["app_role"]
+          sent_at?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["invitation_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          auth_user_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          expires_at?: string | null
+          id?: string
+          invited_by?: string | null
+          last_error?: string | null
+          metadata?: Json
+          mode?: Database["public"]["Enums"]["invitation_mode"]
+          role?: Database["public"]["Enums"]["app_role"]
+          sent_at?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["invitation_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_pending_counters: {
         Row: {
           counter_key: string
@@ -8854,6 +8922,8 @@ export type Database = {
         | "lost"
         | "archived"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
+      invitation_mode: "magic_link" | "temp_password"
+      invitation_status: "pending" | "sent" | "accepted" | "revoked" | "failed"
       name_gender: "male" | "female" | "neutral"
       order_kind: "subscription" | "one_time"
       order_status:
@@ -9044,6 +9114,8 @@ export const Constants = {
         "archived",
       ],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
+      invitation_mode: ["magic_link", "temp_password"],
+      invitation_status: ["pending", "sent", "accepted", "revoked", "failed"],
       name_gender: ["male", "female", "neutral"],
       order_kind: ["subscription", "one_time"],
       order_status: [

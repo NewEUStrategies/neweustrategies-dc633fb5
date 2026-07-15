@@ -1,95 +1,84 @@
 
-# Kontenery z zakładkami w Builderze
+## Cel
 
-Rozszerzenie hierarchii Buildera o nowy poziom "Container" znajdujący się nad sekcjami. Container może pracować jako pojedynczy blok albo jako kontener zakładek — w każdej zakładce można umieszczać sekcje, a w sekcjach kolumny/widgety (bez zmian w istniejącej sekcji).
+Na podstawie 53 widgetów `team-member` na `/o-nas`:
+1. Utworzyć konta użytkowników (`auth.users`) z rolą `author` dla każdej osoby.
+2. Utworzyć profile prywatne (`profiles`) i publiczne profile eksperckie (`author_profiles`) - hydracja z widgetu (imię, e-mail, telefon, zdjęcie, bio PL/EN, stanowisko, funkcja, socials).
+3. Powiązać widgety w builderze z profilami (dopisać `authorSlug` do `content` widgetu → link "Zobacz pełny profil").
+4. Panel wysyłki zaproszeń w `/admin/users` (modal + zakładka `/admin/users/invitations`) z wyborem trybu per zaproszenie.
 
-## Nowa hierarchia
+## Architektura
 
-```text
-Document
-├── Section                (istniejące, bez zmian)
-└── Container (nowe)
-    ├── (tryb bez zakładek) → children: Section[]
-    └── (tryb tabs)
-        └── tabs: [{ id, label_pl, label_en, ... }]
-            └── każda sekcja ma tabId → filtrowanie w rendererze
-```
+### Backend (Supabase)
 
-Container nigdy nie zawiera widgetów bezpośrednio — tylko sekcje. Zachowuje to spójność: widgety zawsze siedzą w kolumnach sekcji.
+Nowa tabela `public.user_invitations`:
+- `email`, `display_name`, `role app_role`, `tenant_id`
+- `mode` enum: `magic_link` | `temp_password`
+- `status` enum: `pending` | `sent` | `accepted` | `revoked` | `failed`
+- `invited_by`, `sent_at`, `accepted_at`, `expires_at`
+- `source` (np. `team_import:o-nas`), `metadata jsonb` (widget id, bio, photo, itp.)
+- `auth_user_id` (po utworzeniu konta)
+- GRANT dla `authenticated` + `service_role`; RLS: tylko admin/super_admin tenanta może SELECT/INSERT/UPDATE, każdy zalogowany może SELECT swojego (po email).
 
-## Data model
+### Server functions (`src/lib/admin/invitations.functions.ts`)
 
-- Nowy interfejs `ContainerNode { id, kind: "container", layout?, background?, border?, tabs?: ContainerTabsConfig, children: SectionNode[] }`.
-- `ContainerTabsConfig` = ten sam kształt co `SectionTabsConfig` (orientation, variant, align, mobileMode, items, defaultTabId) — reużycie typu.
-- `SectionNode.tabId?: string` już istnieje w kolumnach; dodajemy ten sam pattern (`tabId`) na poziomie `SectionNode` gdy jest dzieckiem Container-with-tabs.
-- `BuilderDocument.nodes: (SectionNode | ContainerNode)[]` — migracja wsteczna: gdy dokument ma pole `sections`, czytamy je jako `nodes` (kompatybilność publikowanych stron).
+Wszystkie chronione `requireSupabaseAuth` + weryfikacja `has_role(admin|super_admin)`:
 
-## UI - WidgetLibrary (lewy panel)
+- `previewTeamImport({ pageSlug })` - parsuje `builder_data`, wyciąga `team-member` widgety, deduplikuje po e-mailu, zwraca listę kandydatów (`email`, `name`, `position`, `bio_pl`, `bio_en`, `photo`, `phone`, socials, `programLabel` → mapowanie na przyszłe funkcje) + informację, czy user o takim e-mailu już istnieje.
+- `createInvitations({ items, mode, role })` - masowe utworzenie rekordów `user_invitations` (status: `pending`).
+- `sendInvitation({ id })` - wywołuje `supabaseAdmin.auth.admin.inviteUserByEmail` (magic link) lub `createUser` z tymczasowym hasłem (`crypto.randomBytes` → base32), zapisuje `auth_user_id`, `profiles`, `author_profiles`, `user_roles`, wysyła mail (dla trybu temp_password używa istniejącej infrastruktury `email_domain` - queue). Zapisuje `sent_at`.
+- `sendInvitationsBulk({ ids })` - orkiestruje wysyłkę w batchach z rate-limit.
+- `revokeInvitation({ id })` / `resendInvitation({ id })`.
+- `linkTeamWidgetsToProfiles({ pageSlug })` - po utworzeniu profili przechodzi `builder_data`, dopisuje `content.authorSlug` + `content.authorUserId` do wszystkich widgetów `team-member` matchowanych po e-mailu, zapisuje stronę i tworzy revision.
 
-Nowa sekcja **"Nowy kontener"** dodana NAD "Nowa sekcja - wybierz strukturę":
+### Profile hydration
 
-- Przycisk "Kontener" - wstawia pusty Container z jedną sekcją w środku.
-- Przycisk "Kontener z zakładkami" - wstawia Container w trybie tabs (2 zakładki, w każdej pusta sekcja placeholder).
-- Oba draggable (DnD do canvasa), z podglądem ikony.
+Po `inviteUserByEmail`/`createUser`:
+- `INSERT INTO profiles` (id=auth.uid, tenant_id, display_name, slug=slugify(name), avatar_url=photo, bio_pl, bio_en).
+- `INSERT INTO author_profiles` (user_id, job_title=position_pl/en, org_functions=[{pl:programLabel_pl, en:programLabel_en}], full_bio_pl/en, contact_email/phone, linkedin/x/website, is_public=true).
+- `INSERT INTO user_roles` (user_id, role='author').
+- `INSERT INTO profile_badges` (badge='expert') - opcjonalne per wybór admina.
 
-## Renderer
+### UI
 
-`BuilderRenderer` iteruje po `nodes[]`:
-- `SectionNode` → renderuje jak dziś.
-- `ContainerNode` → wrapper z tłem/bordurem, jeśli `tabs.enabled` renderuje `SectionTabsBar` (reużycie molekułu) + panel z sekcjami filtrowanymi po `activeTabId`.
-- Sekcje w kontenerze renderują się przez ten sam `RenderSection` co obecnie.
+`/admin/users/index.tsx` - dodać przyciski:
+- "Zaproś użytkownika" → `<InviteUserDialog />` (pojedyncze zaproszenie, wybór trybu).
+- "Zaimportuj zespół z /o-nas" → `<TeamImportDialog />` z preview tabelą (checkbox per osoba, wybór trybu globalnie lub per wiersz, wybór roli, "Powiąż widgety w builderze" toggle).
 
-## Canvas (edytor)
+Nowa trasa `src/routes/admin.users.invitations.tsx` - lista `user_invitations` z filtrami (status, source, mode), akcje: resend / revoke / view details. Kolumny: e-mail, imię, rola, tryb, status, wysłano, source.
 
-- `VisualCanvas` obsługuje selekcję nowego typu `"container"`.
-- Drop-target logic: sekcje można upuszczać wewnątrz Container-tab-panel (nie tylko na root).
-- Overlay "add section" w każdym pustym tabie kontenera.
-- Selection kind rozszerzony w `builder/types.ts`: `"section" | "column" | "widget" | "inner-section" | "container"`.
+Komponenty:
+- `src/components/admin/users/InviteUserDialog.tsx`
+- `src/components/admin/users/TeamImportDialog.tsx`
+- `src/components/admin/users/InvitationRow.tsx`
+- `src/lib/admin/inviteMode.ts` - enum + i18n labels.
 
-## Properties (prawy panel)
+### Widget link
 
-Nowy komponent `ContainerProperties`:
-- Zakładka **Zakładki** - reużycie `TabsPane` (parametryzowany dla ContainerNode).
-- Zakładka **Styl** - tło, border, spacing (podzestaw `StylePane`).
-- Zakładka **Zaawans.** - anchor id, css classes, visibility.
+`TeamMemberWidget.tsx` już umie renderować link „Zobacz pełny profil eksperta" gdy `authorSlug` jest ustawiony (dodane w poprzedniej iteracji). `linkTeamWidgetsToProfiles` uzupełnia to pole automatycznie. Editor widgetu też pokazuje status "Powiązany z: <slug>".
 
-## Persistence / migracje
+### Email
 
-- Reader: `sections` (stary) → mapowany na `nodes` transparentnie w `emptyDocument` loader; writer zapisuje `nodes` ORAZ `sections` (dublet, na czas przejścia i wstecznej kompatybilności publikowanych stron).
-- Bez migracji SQL — pole `builder_data` to JSONB, kształt walidowany po stronie klienta.
+Auth invite (magic_link): `supabase.auth.admin.inviteUserByEmail(email, { redirectTo: <origin>/auth/set-password, data: { display_name } })` - używa domyślnego szablonu Supabase Auth (tenant ma już `email_domain` skonfigurowany).
 
-## i18n / a11y
+Temp password: własna server-fn generuje hasło, tworzy usera `createUser({ email, password, email_confirm: true })`, wysyła transakcyjny email z loginem + hasłem + linkiem do `/auth?email=…` przez istniejącą kolejkę `transactional_emails` (rendered React Email template `TeamInviteCredentialsEmail`).
 
-- Etykiety kontenerów w PL/EN (`label_pl`, `label_en` w tab items).
-- `role="tablist"` już zapewniony przez `SectionTabsBar`.
-- Wszystkie stringi UI edytora tłumaczone (PL + EN keys w `builder.*`).
+### i18n
 
-## Testy
+Wszystkie nowe stringi w `src/lib/i18n-*.ts` (PL + EN): `admin.users.invite.*`, `admin.users.import.*`, `admin.users.invitations.*`.
 
-- `containerNode.test.ts` - shape + migracja `sections → nodes`.
-- `BuilderRenderer.container.test.tsx` - render trybu bez tabs, render z tabs (filtrowanie sekcji).
-- `WidgetLibrary.container.test.tsx` - obecność przycisków "Nowy kontener".
+## Kroki wdrożenia
 
-## Pliki do utworzenia
+1. Migracja: enum `invitation_mode`, `invitation_status`, tabela `user_invitations` + GRANT + RLS + trigger `updated_at`.
+2. Server functions (`invitations.functions.ts` + helper `.server.ts` dla admin/email/slug).
+3. React Email template `TeamInviteCredentialsEmail` + rejestracja w kolejce.
+4. Komponenty UI (`InviteUserDialog`, `TeamImportDialog`, `InvitationRow`).
+5. Trasa `/admin/users/invitations`.
+6. Podpięcie w `/admin/users` (przyciski + lazy dialogi).
+7. i18n PL/EN.
+8. Testy: `invitations.functions.test.ts` (parsing widgetów, dedup, walidacja e-maila, mapowanie na profile).
 
-- `src/components/admin/builder/ui/organisms/ContainerPicker.tsx` (nowe przyciski w WidgetLibrary).
-- `src/components/admin/builder/ui/organisms/container-properties/ContainerProperties.tsx`.
-- `src/components/admin/builder/ui/organisms/container-properties/ContainerTabsPane.tsx` (adapter do reużytego TabsPane).
-- `src/components/admin/builder/ui/organisms/RenderContainer.tsx` (organism renderujący Container).
+## Punkty do potwierdzenia
 
-## Pliki do modyfikacji
-
-- `src/lib/builder/types.ts` - ContainerNode, ContainerTabsConfig, nodes[], migracja loader.
-- `src/lib/builder/registry.ts` (jeśli potrzebne dla drag-source containera).
-- `src/components/admin/builder/ui/organisms/WidgetLibrary.tsx` - sekcja "Nowy kontener" nad "Nowa sekcja".
-- `src/components/admin/builder/ui/organisms/BuilderRenderer.tsx` - iteracja po `nodes[]` zamiast `sections[]`.
-- `src/components/admin/builder/ui/organisms/builder/VisualCanvas.tsx` - drop-target dla sekcji w kontenerze, selection kind.
-- `src/components/admin/builder/ui/organisms/builder/types.ts` - `SelectionKind` += `"container"`.
-- `src/components/admin/builder/Builder.tsx` - obsługa selekcji Container, akcje CRUD (add/duplicate/delete container).
-
-## Notatki techniczne
-
-- Container jest opcjonalnym opakowaniem - domyślnie użytkownik nadal dodaje sekcje bezpośrednio. Kontener wybiera świadomie, gdy potrzebuje tabs na wielu sekcjach naraz (odróżnienie od "Section as Tab Container" z poprzedniej iteracji: tam tabs były wewnątrz JEDNEJ sekcji, tu tabs grupują wiele sekcji).
-- Reużycie `SectionTabsBar` molekułu - zero duplikacji CSS/keyboard nav.
-- `mobileMode: "scroll" | "wrap"` (dodane w poprzedniej turze) propaguje się automatycznie.
-- Zachowanie DnD z paletą struktur: upuszczenie struktury nad pustym Container-tab tworzy sekcję w tym tabie.
+- Wysyłka domyślnie **nie startuje** automatycznie po imporcie - admin zaznacza wiersze i klika "Wyślij zaproszenia" (bezpiecznik przy 53 mailach jednorazowo). OK?
+- Wygenerowane hasła tymczasowe wymuszają zmianę hasła przy pierwszym logowaniu (flag w `profiles.metadata`).
