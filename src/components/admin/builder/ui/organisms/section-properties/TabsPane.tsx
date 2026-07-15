@@ -322,25 +322,11 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
                     className="flex-1"
                     placeholder="Wybierz ikonę"
                   />
-                  <input
-                    type="color"
-                    value={/^#[0-9a-fA-F]{6}$/.test(t.color ?? "") ? (t.color as string) : "#f59e42"}
-                    onChange={(e) => patchTab(t.id, { color: e.target.value })}
-                    className="h-7 w-9 rounded border border-border bg-background cursor-pointer"
-                    aria-label="Kolor zakładki"
-                    title="Kolor akcentu tej zakładki (nadpisuje globalny)"
+                  <ColorPicker
+                    value={t.color}
+                    onChange={(v) => patchTab(t.id, { color: v })}
+                    ariaLabel="Kolor zakładki"
                   />
-                  {t.color ? (
-                    <button
-                      type="button"
-                      onClick={() => patchTab(t.id, { color: undefined })}
-                      className="p-1 text-muted-foreground hover:text-foreground"
-                      aria-label="Wyczyść kolor"
-                      title="Wyczyść kolor"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ))}
