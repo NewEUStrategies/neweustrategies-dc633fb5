@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/builder/types";
 import { Row } from "../../atoms";
+import { LucideIconPicker } from "../../molecules/LucideIconPicker";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 
@@ -326,11 +327,11 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
                   onChange={(e) => patchTab(t.id, { label_en: e.target.value })}
                 />
                 <div className="flex items-center gap-1">
-                  <Input
-                    className="h-7 text-xs flex-1"
-                    placeholder="Ikona lucide (np. rocket, globe, users)"
-                    value={t.icon ?? ""}
-                    onChange={(e) => patchTab(t.id, { icon: e.target.value })}
+                  <LucideIconPicker
+                    value={t.icon}
+                    onChange={(name) => patchTab(t.id, { icon: name })}
+                    className="flex-1"
+                    placeholder="Wybierz ikonę"
                   />
                   <input
                     type="color"
