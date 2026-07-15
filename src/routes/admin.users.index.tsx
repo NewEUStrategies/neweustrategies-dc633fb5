@@ -354,8 +354,13 @@ function Users() {
     setSearch("");
     setRoleFilter("all");
     setSubFilter("all");
+    setStatusFilter("all");
   };
-  const filtersActive = search !== "" || roleFilter !== "all" || subFilter !== "all";
+  const filtersActive =
+    search !== "" ||
+    roleFilter !== "all" ||
+    subFilter !== "all" ||
+    statusFilter !== "all";
   const totalCount = data?.length ?? 0;
   const resultsCount = sorted.length;
 
