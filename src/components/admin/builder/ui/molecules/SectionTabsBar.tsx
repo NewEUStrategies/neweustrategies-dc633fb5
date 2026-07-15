@@ -296,7 +296,7 @@ export function SectionTabsBar({
                 style={{
                   position: "absolute",
                   left: "50%",
-                  bottom: -4,
+                  bottom: 2,
                   transform: "translateX(-50%)",
                   width: 6,
                   height: 6,
