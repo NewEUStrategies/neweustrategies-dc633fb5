@@ -7795,6 +7795,7 @@ export type Database = {
           website_url: string
         }[]
       }
+      admin_get_user_consent: { Args: { _user_id: string }; Returns: Json }
       admin_grant_membership: {
         Args: {
           p_email: string

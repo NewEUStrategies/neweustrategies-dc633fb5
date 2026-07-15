@@ -156,6 +156,7 @@ import { Route as AdminSettingsMediaRouteImport } from './routes/admin.settings.
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
+import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
@@ -926,6 +927,11 @@ const AdminSettingsDesignRoute = AdminSettingsDesignRouteImport.update({
   path: '/design',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsAnalyticsRoute = AdminSettingsAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -1248,6 +1254,7 @@ export interface FileRoutesByFullPath {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -1422,6 +1429,7 @@ export interface FileRoutesByTo {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -1604,6 +1612,7 @@ export interface FileRoutesById {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -1787,6 +1796,7 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/settings/analytics'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
@@ -1961,6 +1971,7 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/settings/analytics'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
@@ -2142,6 +2153,7 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/settings/analytics'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
@@ -3276,6 +3288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsDesignRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/analytics': {
+      id: '/admin/settings/analytics'
+      path: '/analytics'
+      fullPath: '/admin/settings/analytics'
+      preLoaderRoute: typeof AdminSettingsAnalyticsRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/posts/new': {
       id: '/admin/posts/new'
       path: '/new'
@@ -3643,6 +3662,7 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 )
 
 interface AdminSettingsRouteChildren {
+  AdminSettingsAnalyticsRoute: typeof AdminSettingsAnalyticsRoute
   AdminSettingsDesignRoute: typeof AdminSettingsDesignRoute
   AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
@@ -3655,6 +3675,7 @@ interface AdminSettingsRouteChildren {
 }
 
 const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
+  AdminSettingsAnalyticsRoute: AdminSettingsAnalyticsRoute,
   AdminSettingsDesignRoute: AdminSettingsDesignRoute,
   AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
@@ -3956,13 +3977,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
