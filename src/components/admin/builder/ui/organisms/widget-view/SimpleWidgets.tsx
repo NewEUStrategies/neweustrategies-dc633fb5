@@ -41,6 +41,7 @@ import { SearchButtonWidget } from "./SearchButtonWidget";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
 import { TeamMemberWidget } from "./TeamMemberWidget";
+import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 export { ResizableBox } from "./resizeWrappers";
 
 const compactRowStyle: CSSProperties = {
@@ -909,6 +910,9 @@ export function renderSimpleWidget(
     }
     case "team-member": {
       return <TeamMemberWidget node={node} lang={lang} />;
+    }
+    case "interactive-circle": {
+      return <InteractiveCircleWidget node={node} lang={lang} />;
     }
     case "pricing": {
       const plans = Array.isArray(c.plans) ? (c.plans as Array<Record<string, unknown>>) : [];

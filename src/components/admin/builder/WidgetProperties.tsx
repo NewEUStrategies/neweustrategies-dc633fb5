@@ -72,6 +72,7 @@ import {
   AccountLinkEditor,
   HeadingFallbackPreview,
   TeamMemberEditor,
+  InteractiveCircleEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -1133,6 +1134,8 @@ function ContentFields({
       return <AdSlotEditor c={c} setContent={setContent} />;
     case "team-member":
       return <TeamMemberEditor c={c} lang={lang} setContent={setContent} />;
+    case "interactive-circle":
+      return <InteractiveCircleEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.

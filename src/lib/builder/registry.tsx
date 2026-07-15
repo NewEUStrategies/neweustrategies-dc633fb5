@@ -53,6 +53,7 @@ import {
   Shapes,
   FlaskConical,
   Layers,
+  Target as TargetIcon,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -926,6 +927,38 @@ export const WIDGETS: WidgetDef[] = [
           href: "#",
           featured: true,
         },
+      ],
+    }),
+  },
+  // Interaktywne koło - do 8 pozycji rozłożonych na okręgu / półokręgu.
+  // Kliknięcie / hover na pozycję przenosi treść (tytuł + opis) do środka.
+  {
+    type: "interactive-circle",
+    label: "Interaktywne koło",
+    category: "blocks",
+    icon: TargetIcon,
+    defaults: () => ({
+      layout: "semi",
+      trigger: "hover",
+      size: 480,
+      itemSize: 72,
+      circleColor: "",
+      circleThickness: 2,
+      itemBg: "",
+      itemColor: "",
+      activeBg: "",
+      activeColor: "",
+      title_pl: "Wyświetl treści w półokrągłym układzie",
+      title_en: "Display content in a semi-circular layout",
+      desc_pl: "Zaprezentuj treść w atrakcyjnym układzie kołowym. Możesz wyróżnić kluczowe informacje efektami hover lub kliknięcia i dostosować styl do swoich preferencji.",
+      desc_en: "Present your content in an attractive circle layout. You can highlight key information with click or hover effects and style it as per your preference.",
+      items: [
+        { icon: "Leaf",   label_pl: "Pozycja 1", label_en: "Item 1", title_pl: "Pozycja 1", title_en: "Item 1", desc_pl: "", desc_en: "", href: "" },
+        { icon: "MessageCircle", label_pl: "Pozycja 2", label_en: "Item 2", title_pl: "Pozycja 2", title_en: "Item 2", desc_pl: "", desc_en: "", href: "" },
+        { icon: "MapPin", label_pl: "Pozycja 3", label_en: "Item 3", title_pl: "Pozycja 3", title_en: "Item 3", desc_pl: "", desc_en: "", href: "" },
+        { icon: "Rocket", label_pl: "Pozycja 4", label_en: "Item 4", title_pl: "Pozycja 4", title_en: "Item 4", desc_pl: "", desc_en: "", href: "" },
+        { icon: "Hourglass", label_pl: "Pozycja 5", label_en: "Item 5", title_pl: "Pozycja 5", title_en: "Item 5", desc_pl: "", desc_en: "", href: "" },
+        { icon: "Tag",    label_pl: "Pozycja 6", label_en: "Item 6", title_pl: "Pozycja 6", title_en: "Item 6", desc_pl: "", desc_en: "", href: "" },
       ],
     }),
   },

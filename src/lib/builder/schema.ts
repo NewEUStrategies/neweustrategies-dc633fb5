@@ -81,6 +81,7 @@ export const WIDGET_TYPES = [
   "testimonial",
   "team-member",
   "pricing",
+  "interactive-circle",
   // Rich content (embeds the blocks engine)
   "rich-text",
   // Home-page building blocks

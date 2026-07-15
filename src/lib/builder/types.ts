@@ -400,6 +400,7 @@ export type WidgetType =
   | "testimonial"
   | "team-member"
   | "pricing"
+  | "interactive-circle"
   // Rich content: embeds the full blocks engine (article-style content) inside
   // a builder layout, so the builder is the single page-composition engine.
   | "rich-text"
