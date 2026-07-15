@@ -508,19 +508,43 @@ export interface SectionTabItem {
   id: string;
   label_pl: string;
   label_en?: string;
+  /** Lucide icon name (kebab-case) rendered via DynamicIcon. */
   icon?: string;
+  /** Optional per-tab accent color (CSS color / token). Overrides accentColor. */
+  color?: string;
 }
+
+export type SectionTabsVariant =
+  | "underline"
+  | "underline-dot"
+  | "underline-thick"
+  | "underline-gradient"
+  | "pills"
+  | "pills-solid"
+  | "bordered"
+  | "ghost"
+  | "segmented"
+  | "boxed-top"
+  | "minimal";
 
 export interface SectionTabsConfig {
   enabled: boolean;
   items: SectionTabItem[];
   orientation?: "horizontal" | "vertical";
-  variant?: "underline" | "pills" | "bordered" | "ghost";
+  variant?: SectionTabsVariant;
   align?: "start" | "center" | "end";
   /** Fallback active tab id when nothing else is chosen. */
   defaultTabId?: string;
   /** How the horizontal tab bar behaves when it overflows on narrow viewports. */
   mobileMode?: "scroll" | "wrap";
+  /** Global accent color (CSS color / token). Falls back to --brand. */
+  accentColor?: string;
+  /** Where to place the icon relative to the label. */
+  iconPosition?: "left" | "top";
+  /** Icon size in px. */
+  iconSize?: number;
+  /** Show a small progress rail beneath horizontal tabs indicating active index. */
+  showProgressRail?: boolean;
 }
 
 export interface SectionNode {
