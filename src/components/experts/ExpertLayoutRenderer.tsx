@@ -229,7 +229,7 @@ export function ExpertLayoutHero({
   // Fallback: gdy brak stanowiska i firmy, na publicznej stronie pokaż "Ekspert"
   // zamiast pustej linii - w preview używamy przykładowej roli.
   const roleLine = realRoleLine || (showPlaceholders ? ph.role : LABELS[lang].roleFallback);
-  const realBio = (lang === "en" ? e.bio_en : e.bio_pl) ?? "";
+  const realBio = htmlToPlainText((lang === "en" ? e.bio_en : e.bio_pl) ?? "");
   const bioItems: string[] = (() => {
     const src = realBio.trim();
     if (src) {
