@@ -294,7 +294,7 @@ export function ConsentBanner() {
         role="dialog"
         aria-modal="false"
         aria-label={t.title}
-        className="fixed inset-x-2 bottom-2 z-[60] mx-auto max-w-xl rounded-lg border border-border/80 bg-card/95 backdrop-blur-md text-card-foreground shadow-lg p-2.5 sm:p-3"
+        className="fixed inset-x-2 bottom-2 z-[60] mx-auto max-w-xl sm:max-w-2xl rounded-lg border border-border/80 bg-card/95 backdrop-blur-md text-card-foreground shadow-lg p-2.5 sm:p-3"
       >
         <div className="flex items-center gap-2.5">
           <span
