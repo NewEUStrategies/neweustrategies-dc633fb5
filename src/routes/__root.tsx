@@ -33,6 +33,8 @@ import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
 import { ConsentBanner } from "../components/ConsentBanner";
+import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
+import { ConsentPreviewPanel } from "../components/ConsentPreviewPanel";
 import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
@@ -298,6 +300,8 @@ function RootComponent() {
             </GlobalAudioPlayerProvider>
           </ErrorBoundary>
           <ConsentBanner />
+          <ConsentScriptInjector />
+          <ConsentPreviewPanel />
           <Suspense fallback={null}>
             <LoginPopup />
             <NewsletterPopup />

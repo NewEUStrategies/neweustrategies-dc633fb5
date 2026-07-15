@@ -1,8 +1,11 @@
 // Usercentrics-style consent (CMP-lite).
-// - Kategorie: necessary / functional / analytics / marketing
-// - Wersjonowanie zapisu (przy zmianie polityki bumpniesz CONSENT_VERSION i banner pokaże się ponownie).
-// - localStorage jako fallback; gdy użytkownik zalogowany -> sync do profiles.prefs.consent.
-// - Pełna kompatybilność wstecz: useMarketingConsent() pochodzi z marketing flag.
+// - Kategorie: necessary / functional / analytics / marketing.
+// - Trwały zapis w localStorage + mirror w cookie (nes_cookie_consent), więc
+//   decyzja przetrwa wyczyszczenie localStorage / przejście do subdomen SSR.
+// - Zalogowany użytkownik = synchronizacja z profiles.prefs.consent.
+// - Tryb podglądu (session-scoped) pozwala testować różne zgody bez czyszczenia
+//   trwałych danych - override żyje w sessionStorage i nadpisuje state tylko
+//   dla useEffectiveConsent()/useCategoryGranted().
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +13,11 @@ import { supabase } from "@/integrations/supabase/client";
 const CONSENT_VERSION = 2;
 const STORAGE_KEY = "consent:v2";
 const LEGACY_KEY = "consent:marketing";
+const COOKIE_NAME = "nes_cookie_consent";
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 365 dni
+const PREVIEW_KEY = "consent:preview";
 const EVENT = "consent-change";
+const PREVIEW_EVENT = "consent-preview-change";
 export const OPEN_PREFS_EVENT = "consent-open-preferences";
 
 export type ConsentCategory = "necessary" | "functional" | "analytics" | "marketing";
@@ -59,11 +66,45 @@ function safeParse(raw: string | null): ConsentState | null {
   }
 }
 
+// -------------------- Cookie helpers --------------------
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function writeCookie(name: string, value: string, maxAge: number): void {
+  if (typeof document === "undefined") return;
+  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+}
+
+function deleteCookie(name: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+}
+
+// -------------------- Persistence --------------------
+
 function readLocal(): ConsentState | null {
   if (typeof window === "undefined") return null;
+  // 1) Preferuj świeże localStorage
   const fresh = safeParse(window.localStorage.getItem(STORAGE_KEY));
   if (fresh) return fresh;
-  // Migracja ze starego klucza
+  // 2) Fallback: cookie (przetrwa wyczyszczenie localStorage)
+  const cookie = safeParse(readCookie(COOKIE_NAME));
+  if (cookie) {
+    // Re-hydrate localStorage z cookie, tak aby dalsze operacje były spójne.
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cookie));
+    } catch {
+      /* private mode */
+    }
+    return cookie;
+  }
+  // 3) Migracja ze starego klucza marketingowego
   const legacy = window.localStorage.getItem(LEGACY_KEY);
   if (legacy === "granted" || legacy === "denied") {
     const migrated = defaultConsent(legacy === "granted");
@@ -76,7 +117,13 @@ function readLocal(): ConsentState | null {
 
 function writeLocal(state: ConsentState) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* private mode */
+  }
+  // Mirror do cookie - długoterminowy nośnik decyzji.
+  writeCookie(COOKIE_NAME, JSON.stringify(state), COOKIE_MAX_AGE);
   window.dispatchEvent(new Event(EVENT));
 }
 
@@ -93,15 +140,19 @@ function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
     source: "local",
   };
   writeLocal(next);
-  // Best-effort sync do profilu - nie blokujemy UI
   void syncConsentToProfile(next);
   return next;
 }
 
 function clearConsent() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
-  window.localStorage.removeItem(LEGACY_KEY);
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* ignore */
+  }
+  deleteCookie(COOKIE_NAME);
   window.dispatchEvent(new Event(EVENT));
 }
 
@@ -112,18 +163,15 @@ async function syncConsentToProfile(state: ConsentState): Promise<void> {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
     if (!uid) return;
-    // `prefs` is excluded from the profiles column grant (private preferences);
-    // own-row access goes through the SECURITY DEFINER get_own_profile().
     const { data: ownRows } = await supabase.rpc("get_own_profile");
     const prevPrefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
     const nextPrefs = { ...prevPrefs, consent: { ...state, source: "profile" } };
     await supabase.from("profiles").update({ prefs: nextPrefs }).eq("id", uid);
   } catch {
-    /* offline / brak uprawnień - nie blokujemy */
+    /* offline / brak uprawnień */
   }
 }
 
-/** Pobiera consent z profilu zalogowanego użytkownika i wpisuje do localStorage (jeśli świeższy lub brakuje). */
 async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
   try {
     const { data: auth } = await supabase.auth.getUser();
@@ -137,7 +185,6 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
       writeLocal({ ...remote, source: "profile" });
       return remote;
     }
-    // Jeśli lokalny istnieje, a profil jest pusty - wypchnij do profilu
     if (!remote && local) {
       await syncConsentToProfile(local);
     }
@@ -145,6 +192,58 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
   } catch {
     return null;
   }
+}
+
+// -------------------- Preview mode --------------------
+
+export interface ConsentPreview {
+  categories: Record<ConsentCategory, boolean>;
+}
+
+function readPreview(): ConsentPreview | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(PREVIEW_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ConsentPreview>;
+    const cats = parsed.categories ?? ({} as Record<string, boolean>);
+    return {
+      categories: {
+        necessary: true,
+        functional: !!cats.functional,
+        analytics: !!cats.analytics,
+        marketing: !!cats.marketing,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function setConsentPreview(cats: Partial<Record<ConsentCategory, boolean>>): void {
+  if (typeof window === "undefined") return;
+  const next: ConsentPreview = {
+    categories: {
+      necessary: true,
+      functional: !!cats.functional,
+      analytics: !!cats.analytics,
+      marketing: !!cats.marketing,
+    },
+  };
+  window.sessionStorage.setItem(PREVIEW_KEY, JSON.stringify(next));
+  window.dispatchEvent(new Event(PREVIEW_EVENT));
+}
+
+export function clearConsentPreview(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(PREVIEW_KEY);
+  window.dispatchEvent(new Event(PREVIEW_EVENT));
+}
+
+export function isConsentPreviewRequested(): boolean {
+  if (typeof window === "undefined") return false;
+  const url = new URL(window.location.href);
+  return url.searchParams.get("consent-preview") === "1";
 }
 
 // -------------------- React hooks --------------------
@@ -159,7 +258,6 @@ export function useConsent() {
     const sync = () => setState(readLocal());
     window.addEventListener(EVENT, sync);
     window.addEventListener("storage", sync);
-    // Po zalogowaniu - pobierz z profilu
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
         void hydrateConsentFromProfile().then((r) => {
@@ -190,7 +288,6 @@ export function useConsent() {
 
   return {
     state,
-    /** decided=false dopóki klient się nie zhydratuje, żeby uniknąć błysku banera w SSR. */
     decided: mounted ? !!state : true,
     mounted,
     save,
@@ -198,6 +295,44 @@ export function useConsent() {
     rejectAll,
     clear: clearConsent,
   };
+}
+
+/**
+ * Zwraca aktywny stan zgód: jeśli tryb podglądu jest ustawiony, override wygrywa;
+ * inaczej zwraca trwały zapis. Skrypty analityczne/marketingowe podłączają się
+ * właśnie do tej funkcji, żeby preview realnie wpływał na runtime.
+ */
+export function useEffectiveConsent(): {
+  categories: Record<ConsentCategory, boolean>;
+  preview: boolean;
+  mounted: boolean;
+} {
+  const { state, mounted } = useConsent();
+  const [preview, setPreview] = useState<ConsentPreview | null>(() => readPreview());
+  useEffect(() => {
+    const sync = () => setPreview(readPreview());
+    window.addEventListener(PREVIEW_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(PREVIEW_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const categories = preview?.categories ??
+    state?.categories ?? {
+      necessary: true,
+      functional: false,
+      analytics: false,
+      marketing: false,
+    };
+
+  return { categories, preview: !!preview, mounted };
+}
+
+export function useCategoryGranted(cat: ConsentCategory): boolean {
+  const { categories } = useEffectiveConsent();
+  return !!categories[cat];
 }
 
 // -------- Backward compat (marketing-only API) --------

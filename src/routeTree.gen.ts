@@ -53,6 +53,7 @@ import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
+import { Route as ProfilePrivacyRouteImport } from './routes/profile.privacy'
 import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
@@ -153,9 +154,11 @@ import { Route as AdminSettingsReadingRouteImport } from './routes/admin.setting
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
 import { Route as AdminSettingsPermalinksRouteImport } from './routes/admin.settings.permalinks'
 import { Route as AdminSettingsMediaRouteImport } from './routes/admin.settings.media'
+import { Route as AdminSettingsMarketingRouteImport } from './routes/admin.settings.marketing'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
+import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
@@ -407,6 +410,11 @@ const ProfileSocialRoute = ProfileSocialRouteImport.update({
 const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
   id: '/security',
   path: '/security',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfilePrivacyRoute = ProfilePrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfilePersonalityRoute = ProfilePersonalityRouteImport.update({
@@ -911,6 +919,11 @@ const AdminSettingsMediaRoute = AdminSettingsMediaRouteImport.update({
   path: '/media',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsMarketingRoute = AdminSettingsMarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -924,6 +937,11 @@ const AdminSettingsDiscussionRoute = AdminSettingsDiscussionRouteImport.update({
 const AdminSettingsDesignRoute = AdminSettingsDesignRouteImport.update({
   id: '/design',
   path: '/design',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsAnalyticsRoute = AdminSettingsAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
@@ -1205,6 +1223,7 @@ export interface FileRoutesByFullPath {
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
+  '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -1248,9 +1267,11 @@ export interface FileRoutesByFullPath {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
@@ -1380,6 +1401,7 @@ export interface FileRoutesByTo {
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
+  '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -1422,9 +1444,11 @@ export interface FileRoutesByTo {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
@@ -1561,6 +1585,7 @@ export interface FileRoutesById {
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
+  '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -1604,9 +1629,11 @@ export interface FileRoutesById {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
@@ -1744,6 +1771,7 @@ export interface FileRouteTypes {
     | '/profile/membership'
     | '/profile/orders'
     | '/profile/personality'
+    | '/profile/privacy'
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
@@ -1787,9 +1815,11 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/settings/analytics'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/marketing'
     | '/admin/settings/media'
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
@@ -1919,6 +1949,7 @@ export interface FileRouteTypes {
     | '/profile/membership'
     | '/profile/orders'
     | '/profile/personality'
+    | '/profile/privacy'
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
@@ -1961,9 +1992,11 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/settings/analytics'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/marketing'
     | '/admin/settings/media'
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
@@ -2099,6 +2132,7 @@ export interface FileRouteTypes {
     | '/profile/membership'
     | '/profile/orders'
     | '/profile/personality'
+    | '/profile/privacy'
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
@@ -2142,9 +2176,11 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/settings/analytics'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/marketing'
     | '/admin/settings/media'
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
@@ -2553,6 +2589,13 @@ declare module '@tanstack/react-router' {
       path: '/security'
       fullPath: '/profile/security'
       preLoaderRoute: typeof ProfileSecurityRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/privacy': {
+      id: '/profile/privacy'
+      path: '/privacy'
+      fullPath: '/profile/privacy'
+      preLoaderRoute: typeof ProfilePrivacyRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/personality': {
@@ -3255,6 +3298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsMediaRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/marketing': {
+      id: '/admin/settings/marketing'
+      path: '/marketing'
+      fullPath: '/admin/settings/marketing'
+      preLoaderRoute: typeof AdminSettingsMarketingRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/general': {
       id: '/admin/settings/general'
       path: '/general'
@@ -3274,6 +3324,13 @@ declare module '@tanstack/react-router' {
       path: '/design'
       fullPath: '/admin/settings/design'
       preLoaderRoute: typeof AdminSettingsDesignRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/analytics': {
+      id: '/admin/settings/analytics'
+      path: '/analytics'
+      fullPath: '/admin/settings/analytics'
+      preLoaderRoute: typeof AdminSettingsAnalyticsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
     '/admin/posts/new': {
@@ -3643,9 +3700,11 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 )
 
 interface AdminSettingsRouteChildren {
+  AdminSettingsAnalyticsRoute: typeof AdminSettingsAnalyticsRoute
   AdminSettingsDesignRoute: typeof AdminSettingsDesignRoute
   AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsMarketingRoute: typeof AdminSettingsMarketingRoute
   AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
   AdminSettingsPermalinksRoute: typeof AdminSettingsPermalinksRoute
   AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
@@ -3655,9 +3714,11 @@ interface AdminSettingsRouteChildren {
 }
 
 const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
+  AdminSettingsAnalyticsRoute: AdminSettingsAnalyticsRoute,
   AdminSettingsDesignRoute: AdminSettingsDesignRoute,
   AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsMarketingRoute: AdminSettingsMarketingRoute,
   AdminSettingsMediaRoute: AdminSettingsMediaRoute,
   AdminSettingsPermalinksRoute: AdminSettingsPermalinksRoute,
   AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
@@ -3825,6 +3886,7 @@ interface ProfileRouteChildren {
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
   ProfilePersonalityRoute: typeof ProfilePersonalityRoute
+  ProfilePrivacyRoute: typeof ProfilePrivacyRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
   ProfileSocialRoute: typeof ProfileSocialRoute
   ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
@@ -3841,6 +3903,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
   ProfilePersonalityRoute: ProfilePersonalityRoute,
+  ProfilePrivacyRoute: ProfilePrivacyRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,
   ProfileSocialRoute: ProfileSocialRoute,
   ProfileSubscriptionRoute: ProfileSubscriptionRoute,

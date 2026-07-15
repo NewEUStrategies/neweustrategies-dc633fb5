@@ -18,6 +18,8 @@ function SettingsLayout() {
     { to: "/admin/settings/permalinks", label: t("admin.settingsNav.permalinks") },
     { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
     { to: "/admin/settings/privacy", label: t("admin.settingsNav.privacy") },
+    { to: "/admin/settings/analytics", label: t("admin.settingsNav.analytics", { defaultValue: "Analityka" }) },
+    { to: "/admin/settings/marketing", label: t("admin.settingsNav.marketing", { defaultValue: "Marketing" }) },
   ];
   return (
     <div>
