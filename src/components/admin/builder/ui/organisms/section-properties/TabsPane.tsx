@@ -327,11 +327,11 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
                   onChange={(e) => patchTab(t.id, { label_en: e.target.value })}
                 />
                 <div className="flex items-center gap-1">
-                  <Input
-                    className="h-7 text-xs flex-1"
-                    placeholder="Ikona lucide (np. rocket, globe, users)"
-                    value={t.icon ?? ""}
-                    onChange={(e) => patchTab(t.id, { icon: e.target.value })}
+                  <LucideIconPicker
+                    value={t.icon}
+                    onChange={(name) => patchTab(t.id, { icon: name })}
+                    className="flex-1"
+                    placeholder="Wybierz ikonę"
                   />
                   <input
                     type="color"
