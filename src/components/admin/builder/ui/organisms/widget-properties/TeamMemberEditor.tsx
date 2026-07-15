@@ -154,10 +154,8 @@ export function TeamMemberEditor({ c, lang, setContent }: Props) {
       const h = await fetchExpertHydration(authorId);
       if (h) applyHydration(h);
     } catch (err) {
-      toast({
-        title: lang === "pl" ? "Błąd odświeżania" : "Refresh error",
+      toast.error(lang === "pl" ? "Błąd odświeżania" : "Refresh error", {
         description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
       });
     } finally {
       setBusy(false);
