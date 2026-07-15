@@ -1,4 +1,5 @@
 // Publiczne renderery dla Phase 4 batch 12 (data + social proof).
+import { htmlToPlainText } from "@/lib/sanitize";
 
 import { useState } from "react";
 import type { Json } from "@/lib/blocks/types";

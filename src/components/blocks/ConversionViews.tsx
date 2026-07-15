@@ -1,4 +1,5 @@
 // Publiczne renderery dla Phase 4 batch 13 (konwersja / SEO).
+import { htmlToPlainText } from "@/lib/sanitize";
 
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";

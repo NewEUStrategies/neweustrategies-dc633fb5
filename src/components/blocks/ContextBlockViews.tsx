@@ -1,4 +1,5 @@
 // Publiczne renderery dla bloków kontekstowych (post-* / site-*).
+import { htmlToPlainText } from "@/lib/sanitize";
 // Czerpią dane z CurrentPostCtx (dla post-*) i site_settings (dla site-*).
 
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";

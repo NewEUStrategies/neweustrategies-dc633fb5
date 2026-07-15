@@ -1,4 +1,5 @@
 // Publiczne renderery dla Phase 4 batch 10 (prezentacyjne).
+import { htmlToPlainText } from "@/lib/sanitize";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import type { Json } from "@/lib/blocks/types";
