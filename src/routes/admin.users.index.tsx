@@ -706,19 +706,48 @@ function Users() {
                   return (
                     <tr
                       key={u.id}
-                      className="border-t border-border hover:bg-muted/20 cursor-pointer"
+                      className={
+                        "border-t border-border hover:bg-muted/20 cursor-pointer " +
+                        (selected.has(u.id) ? "bg-primary/5" : "")
+                      }
                       onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
                     >
+                      <td
+                        className="p-3 w-10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {isSelectable(u.id) ? (
+                          <span
+                            role="button"
+                            tabIndex={-1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRow(u.id, e.shiftKey);
+                            }}
+                            className="inline-flex"
+                          >
+                            <Checkbox
+                              checked={selected.has(u.id)}
+                              // eslint-disable-next-line @typescript-eslint/no-empty-function
+                              onCheckedChange={() => {}}
+                              tabIndex={-1}
+                              aria-label={u.display_name ?? u.email ?? u.id}
+                            />
+                          </span>
+                        ) : (
+                          <span className="inline-block w-4 h-4" />
+                        )}
+                      </td>
                       <td className="p-3 font-medium">
                         <div className="flex items-center gap-2">
                           {u.avatar_url ? (
                             <img
                               src={u.avatar_url}
                               alt=""
-                              className="w-7 h-7 rounded-full object-cover"
+                              className="w-7 h-7 rounded-[4px] object-cover"
                             />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-muted" />
+                            <div className="w-7 h-7 rounded-[4px] bg-muted" />
                           )}
                           {u.display_name ?? "-"}
                         </div>
