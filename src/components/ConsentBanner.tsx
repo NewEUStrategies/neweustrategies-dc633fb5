@@ -294,60 +294,66 @@ export function ConsentBanner() {
         role="dialog"
         aria-modal="false"
         aria-label={t.title}
-        className="fixed inset-x-3 bottom-3 z-[60] mx-auto max-w-3xl rounded-xl border border-border/80 bg-card/95 backdrop-blur-md text-card-foreground shadow-2xl p-4 sm:p-5"
+        className="fixed inset-x-2 bottom-2 z-[60] mx-auto max-w-xl sm:max-w-2xl rounded-lg border border-border/80 bg-card/95 backdrop-blur-md text-card-foreground shadow-lg p-2.5 sm:p-3"
       >
-        <div className="flex flex-col gap-3">
-          <div className="flex items-start gap-3">
-            <span
-              aria-hidden
-              className="shrink-0 grid place-items-center h-9 w-9 rounded-full bg-primary/10 text-primary"
-            >
-              <Cookie className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold leading-snug">{t.title}</h2>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                {t.intro}{" "}
-                {privacyHref ? (
-                  <a
-                    href={privacyHref}
-                    className="text-primary underline underline-offset-2 hover:opacity-80"
-                  >
-                    {t.policy}
-                  </a>
-                ) : (
-                  <span className="text-primary">{t.policy}</span>
-                )}{" "}
-                {t.and}{" "}
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="shrink-0 grid place-items-center h-7 w-7 rounded-full bg-primary/10 text-primary"
+          >
+            <Cookie className="h-3.5 w-3.5" />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              {isPl
+                ? "Używamy plików cookie. Dowiedz się więcej w"
+                : "We use cookies. Learn more in our"}{" "}
+              {privacyHref ? (
                 <a
-                  href={dataProcessingHref}
+                  href={privacyHref}
                   className="text-primary underline underline-offset-2 hover:opacity-80"
                 >
-                  {t.dataProcessing}
+                  {t.policy}
                 </a>
-                .
-              </p>
-            </div>
+              ) : (
+                <span className="text-primary">{t.policy}</span>
+              )}
+              .
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 justify-end">
+          <div className="shrink-0 flex items-center gap-1.5">
             <Button
               variant="ghost"
-              size="sm"
-              className="text-xs"
+              size="icon"
+              className="h-7 w-7"
+              aria-label={t.showDetails}
+              title={t.showDetails}
               onClick={() => setDetailsOpen(true)}
             >
               <Settings2 className="h-3.5 w-3.5" />
-              {t.showDetails}
-              <ChevronDown className="h-3.5 w-3.5" />
             </Button>
-            <Button size="sm" onClick={acceptAll}>
-              <Check className="h-4 w-4" />
-              {t.acceptAll}
+            <Button
+              size="sm"
+              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-xs"
+              aria-label={t.acceptAll}
+              title={t.acceptAll}
+              onClick={acceptAll}
+            >
+              <Check className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline ml-1.5">{t.acceptAll}</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={rejectAll}>
-              <X className="h-4 w-4" />
-              {t.rejectAll}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-xs"
+              aria-label={t.rejectAll}
+              title={t.rejectAll}
+              onClick={rejectAll}
+            >
+              <X className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline ml-1.5">{t.rejectAll}</span>
             </Button>
           </div>
         </div>
