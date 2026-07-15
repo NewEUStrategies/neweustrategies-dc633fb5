@@ -71,6 +71,7 @@ import {
   RichTextEditor,
   AccountLinkEditor,
   HeadingFallbackPreview,
+  TeamMemberEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
