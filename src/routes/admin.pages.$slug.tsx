@@ -685,38 +685,7 @@ function EditPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {form.editor === "builder" ? (
-            <PageBuilderPane form={form} set={set} />
-          ) : (
-            <Tabs defaultValue="pl">
-              <TabsList>
-                <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-                <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-              </TabsList>
-              <TabsContent value="pl" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.content")} (PL)</Label>
-                  <PostEditor
-                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
-                    value={form.content_pl ?? ""}
-                    onChange={(v) => set("content_pl", v)}
-                    onPickImage={pickImage}
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="en" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.content")} (EN)</Label>
-                  <PostEditor
-                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
-                    value={form.content_en ?? ""}
-                    onChange={(v) => set("content_en", v)}
-                    onPickImage={pickImage}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
+          <PageBuilderPane form={form} set={set} />
         </div>
       )}
     </div>
