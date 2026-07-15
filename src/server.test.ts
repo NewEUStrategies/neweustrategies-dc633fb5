@@ -31,7 +31,12 @@ async function loadWrapper(handler: EntryFetch) {
   vi.resetModules();
   vi.doMock(SERVER_ENTRY, () => ({ default: { fetch: handler } }));
   // Fresh import so the module-level `serverEntryPromise` cache is empty.
-  const mod = (await import("./server")) as { default: { fetch: EntryFetch } };
+  const mod = (await import("./server")) as typeof import("./server") & {
+    default: { fetch: EntryFetch };
+  };
+  // Warm-up would otherwise evaluate the whole real route graph; inject a
+  // healthy stub so these tests exercise the entry-handler paths in isolation.
+  mod.__setRouteGraphLoader(() => Promise.resolve({}));
   return mod.default;
 }
 
@@ -40,9 +45,10 @@ async function loadWrapperWithRejectedImport(reason: unknown) {
   vi.doMock(SERVER_ENTRY, () => {
     throw reason;
   });
-  const mod = (await import("./server")) as {
+  const mod = (await import("./server")) as typeof import("./server") & {
     default: { fetch: (r: Request, e: unknown, c: unknown) => Promise<Response> };
   };
+  mod.__setRouteGraphLoader(() => Promise.resolve({}));
   return mod.default;
 }
 
@@ -201,9 +207,10 @@ describe("SSR wrapper - module init failure recovery", () => {
       if (attempt === 1) throw new Error("cold start crash");
       return { default: { fetch: () => new Response("healed", { status: 200 }) } };
     });
-    const mod = (await import("./server")) as {
+    const mod = (await import("./server")) as typeof import("./server") & {
       default: { fetch: (r: Request, e: unknown, c: unknown) => Promise<Response> };
     };
+    mod.__setRouteGraphLoader(() => Promise.resolve({}));
 
     const first = await mod.default.fetch(new Request("http://localhost/"), {}, {});
     expect(first.status).toBe(500);
@@ -257,5 +264,96 @@ describe("SSR wrapper - thrown-error safety net", () => {
     const res = await wrapper.fetch(new Request("http://localhost/"), {}, {});
     expect(res.status).toBe(500);
     expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+describe("SSR wrapper - route-graph warm-up (module-init capture)", () => {
+  async function loadWrapperWithGraph(
+    handler: EntryFetch,
+    graphLoader: () => Promise<unknown>,
+  ) {
+    vi.resetModules();
+    vi.doMock(SERVER_ENTRY, () => ({ default: { fetch: handler } }));
+    const mod = (await import("./server")) as typeof import("./server") & {
+      default: { fetch: EntryFetch };
+    };
+    mod.__setRouteGraphLoader(graphLoader);
+    return mod.default;
+  }
+
+  it("surfaces the REAL module-init error (with stack) instead of the opaque h3 body", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // A deterministic module-init fault in a route module (e.g. a workerd-only
+    // global-scope operation) — the class that historically produced an opaque,
+    // stackless 500 the framework cached forever.
+    const realError = new Error("Disallowed operation called within global scope");
+    const wrapper = await loadWrapperWithGraph(
+      () => new Response("<html>ok</html>", { status: 200, headers: { "content-type": "text/html" } }),
+      () => Promise.reject(realError),
+    );
+
+    const res = await wrapper.fetch(new Request("http://localhost/"), {}, {});
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    // The offending module's real error is logged, so the culprit is nameable.
+    expect(errSpy).toHaveBeenCalledWith(realError);
+    // The user never sees the opaque payload.
+    expect(await res.text()).not.toContain('"HTTPError"');
+  });
+
+  it("does NOT poison the entry handler when the graph fails (handler stays untouched)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let handlerCalls = 0;
+    const wrapper = await loadWrapperWithGraph(
+      () => {
+        handlerCalls += 1;
+        return new Response("<html>ok</html>", { status: 200, headers: { "content-type": "text/html" } });
+      },
+      () => Promise.reject(new Error("route module crash")),
+    );
+    await wrapper.fetch(new Request("http://localhost/"), {}, {});
+    // The framework entry handler is never reached (short-circuited before its
+    // uncatchable, self-poisoning getEntries() can run).
+    expect(handlerCalls).toBe(0);
+  });
+
+  it("retries a transient module-runner reload during warm-up, then succeeds", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let attempt = 0;
+    const wrapper = await loadWrapperWithGraph(
+      () => new Response("healed", { status: 200 }),
+      () => {
+        attempt += 1;
+        if (attempt === 1) {
+          return Promise.reject(new Error("module runner has been closed"));
+        }
+        return Promise.resolve({});
+      },
+    );
+
+    const res = await wrapper.fetch(new Request("http://localhost/"), {}, {});
+    expect(attempt).toBe(2);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("healed");
+    // A transient reload self-heals silently — no error surfaced to logs.
+    expect(errSpy).not.toHaveBeenCalled();
+  });
+
+  it("caches a healthy graph — warms once across requests", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let loads = 0;
+    const wrapper = await loadWrapperWithGraph(
+      () => new Response("ok", { status: 200 }),
+      () => {
+        loads += 1;
+        return Promise.resolve({});
+      },
+    );
+    await wrapper.fetch(new Request("http://localhost/"), {}, {});
+    await wrapper.fetch(new Request("http://localhost/a"), {}, {});
+    await wrapper.fetch(new Request("http://localhost/b"), {}, {});
+    expect(loads).toBe(1);
   });
 });

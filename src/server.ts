@@ -9,6 +9,53 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
+// The route-module graph, evaluated in OUR try/catch on the first request.
+//
+// Why this exists: TanStack Start's request resolver calls `getEntries()`
+// (createStartHandler) BEFORE our request middleware chain is installed, so a
+// throw while it imports `#tanstack-router-entry -> routeTree.gen -> every route
+// module` runs OUTSIDE `errorMiddleware`. h3 then serializes that throw as the
+// opaque `{"unhandled":true,"message":"HTTPError"}` 500 AND the framework caches
+// the rejected promise in a module-level singleton we cannot reach - so every
+// later request returns the same opaque 500 with the ORIGINAL stack lost, and no
+// reset here can recover it. A single route/module that throws at module-init
+// time on the deployed runtime (e.g. a workerd-only global-scope fault that Node
+// tolerates) therefore takes the WHOLE site down, undiagnosably.
+//
+// Warming the graph ourselves first (a) surfaces the real module-init error WITH
+// its stack to our own handlers/logs so the offending module is nameable, (b)
+// lets a transient dev/module-runner reload retry instead of poisoning the
+// worker, and (c) short-circuits to the controlled fallback before the framework
+// can cache its opaque rejection.
+let routeGraphPromise: Promise<unknown> | undefined;
+
+/**
+ * Test seam: swap the graph loader so unit tests need not evaluate every route.
+ * The default mirrors what the framework's getEntries() loads (the route tree and
+ * the start instance), so a module-init fault in either is caught here first.
+ */
+let routeGraphLoader: () => Promise<unknown> = () =>
+  Promise.all([import("./routeTree.gen"), import("./start")]);
+
+/** @internal test-only */
+export function __setRouteGraphLoader(loader: () => Promise<unknown>): void {
+  routeGraphLoader = loader;
+  routeGraphPromise = undefined;
+}
+
+async function warmRouteGraph(): Promise<void> {
+  if (!routeGraphPromise) routeGraphPromise = routeGraphLoader();
+  try {
+    await routeGraphPromise;
+  } catch (error) {
+    // Drop the cached rejection so the next request re-evaluates a fresh graph
+    // (a transient module-runner swap self-heals); a deterministic fault simply
+    // rejects again - but now with the real stack, surfaced to the caller.
+    routeGraphPromise = undefined;
+    throw error;
+  }
+}
+
 const TRANSIENT_MODULE_RUNNER_ERRORS = [
   "transport was disconnected",
   "module runner has been closed",
@@ -103,6 +150,9 @@ async function fetchWithFreshEntry(
   ctx: unknown,
 ): Promise<Response> {
   try {
+    // Evaluate the route-module graph in our own try/catch BEFORE the framework's
+    // (uncatchable, self-poisoning) getEntries() runs inside handler.fetch.
+    await warmRouteGraph();
     const handler = await getServerEntry();
     return await handler.fetch(request, env, ctx);
   } catch (error) {
@@ -111,7 +161,9 @@ async function fetchWithFreshEntry(
     // the route entry. Retry once after the current restart turn and resolve a
     // fresh outer entry instead of returning the opaque h3 500 immediately.
     serverEntryPromise = undefined;
+    routeGraphPromise = undefined;
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await warmRouteGraph();
     const handler = await getServerEntry();
     return await handler.fetch(request, env, ctx);
   }
