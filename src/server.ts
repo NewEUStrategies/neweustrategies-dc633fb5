@@ -121,7 +121,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const response = await fetchWithFreshEntry(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      return await normalizeCatastrophicSsrResponse(response, request);
     } catch (error) {
       // A rejected lazy import must not poison every subsequent request in the
       // same worker. Clear it once; the next request gets a fresh module load.
