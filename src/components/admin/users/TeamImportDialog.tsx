@@ -207,11 +207,35 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <div className="flex-1 text-xs text-muted-foreground">
             Zaznaczono: {selected.size} / {candidates.length}
           </div>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Anuluj</Button>
+          <Button
+            variant="outline"
+            disabled={busy || candidates.length === 0}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await provision({ data: { pageSlug, role, autoLink } });
+                toast.success(
+                  `Utworzono ${r.created} kont, pominięto ${r.skipped}, powiązano ${r.linked} widgetów`,
+                );
+                if (r.errors.length > 0) {
+                  toast.error(`Błędy: ${r.errors.length} (${r.errors[0].email}: ${r.errors[0].error})`);
+                }
+                onDone?.();
+                onOpenChange(false);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : String(e));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "..." : "Utwórz konta (bez maili)"}
+          </Button>
           <Button onClick={run} disabled={busy || selected.size === 0}>
             {busy ? "..." : "Utwórz zaproszenia"}
           </Button>
