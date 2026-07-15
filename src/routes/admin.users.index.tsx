@@ -69,8 +69,35 @@ const ROLE_ORDER: readonly Role[] = ["super_admin", "admin", "editor", "author",
 
 type SortKey = "display_name" | "email" | "role" | "created_at";
 type SortDir = "asc" | "desc";
-type GroupBy = "none" | "role" | "subscription";
+type GroupBy = "none" | "role" | "sub_plan" | "sub_status";
 type RoleFilter = Role | "all" | "none";
+type SubStatus = "pending" | "active" | "refunded" | "canceled";
+type StatusFilter = SubStatus | "all" | "none";
+
+const SUB_STATUSES: readonly SubStatus[] = ["active", "pending", "refunded", "canceled"];
+
+function statusLabel(lang: string, s: SubStatus): string {
+  const pl: Record<SubStatus, string> = {
+    active: "Aktywna",
+    pending: "Oczekująca",
+    refunded: "Zwrócona",
+    canceled: "Anulowana",
+  };
+  const en: Record<SubStatus, string> = {
+    active: "Active",
+    pending: "Pending",
+    refunded: "Refunded",
+    canceled: "Canceled",
+  };
+  return (lang === "pl" ? pl : en)[s];
+}
+
+function statusVariant(s: SubStatus): "default" | "secondary" | "outline" | "destructive" {
+  if (s === "active") return "default";
+  if (s === "pending") return "secondary";
+  if (s === "canceled") return "outline";
+  return "destructive";
+}
 
 function roleLabel(t: (k: string, o?: Record<string, unknown>) => string, r: Role): string {
   return t(`admin.users.roles.${r}`, {
@@ -99,6 +126,7 @@ function Users() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [subFilter, setSubFilter] = useState<string>("all"); // "all" | "none" | plan name
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("role");
 
   const { data } = useQuery({
@@ -117,9 +145,9 @@ function Users() {
     queryFn: async (): Promise<SubscriptionInfo[]> => {
       const { data: rows, error } = await supabase
         .from("user_subscriptions")
-        .select("user_id, status, access_plans!inner(name_pl, name_en)")
+        .select("user_id, status, current_period_end, canceled_at, access_plans!inner(name_pl, name_en)")
         .eq("tenant_id", tenantId)
-        .eq("status", "active");
+        .order("started_at", { ascending: false });
       if (error) {
         // Brak dostępu do widoku nie powinien blokować listy użytkowników.
         console.warn("[admin/users] subscriptions read failed", error.message);
@@ -132,18 +160,34 @@ function Users() {
         }).access_plans;
         return {
           user_id: r.user_id,
-          status: r.status as string,
+          status: r.status as SubStatus,
           plan_name: (lang === "pl" ? plan?.name_pl : plan?.name_en) ?? plan?.name_en ?? "-",
         };
       });
     },
   });
 
+  // Priorytet statusów - najnowszy wpis po started_at DESC wchodzi do mapy,
+  // ale gdy istnieje aktywna, promujemy ją nad pending/canceled/refunded.
   const subMap = useMemo(() => {
     const m = new Map<string, SubscriptionInfo>();
-    for (const s of subs ?? []) m.set(s.user_id, s);
+    const priority: Record<SubStatus, number> = {
+      active: 4,
+      pending: 3,
+      canceled: 2,
+      refunded: 1,
+    };
+    for (const s of subs ?? []) {
+      const cur = m.get(s.user_id);
+      if (!cur || priority[s.status as SubStatus] > priority[cur.status as SubStatus]) {
+        m.set(s.user_id, s);
+      }
+    }
     return m;
   }, [subs]);
+
+
+
 
   const planOptions = useMemo(() => {
     const set = new Set<string>();
@@ -173,9 +217,17 @@ function Users() {
           return false;
         }
       }
+      if (statusFilter !== "all") {
+        const s = subMap.get(u.id);
+        if (statusFilter === "none") {
+          if (s) return false;
+        } else if ((s?.status as SubStatus | undefined) !== statusFilter) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [data, search, roleFilter, subFilter, subMap]);
+  }, [data, search, roleFilter, subFilter, statusFilter, subMap]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -217,30 +269,53 @@ function Users() {
         rows: buckets.get(r) ?? [],
       }));
     }
-    // subscription
+    if (groupBy === "sub_plan") {
+      const buckets = new Map<string, UserRow[]>();
+      for (const u of sorted) {
+        const s = subMap.get(u.id);
+        const key = s?.plan_name ?? "__none__";
+        const arr = buckets.get(key) ?? [];
+        arr.push(u);
+        buckets.set(key, arr);
+      }
+      const keys = Array.from(buckets.keys()).sort((a, b) => {
+        if (a === "__none__") return 1;
+        if (b === "__none__") return -1;
+        return a.localeCompare(b);
+      });
+      return keys.map((k) => ({
+        key: `plan:${k}`,
+        label:
+          k === "__none__"
+            ? i18n.language === "pl"
+              ? "Bez subskrypcji"
+              : "No subscription"
+            : k,
+        rows: buckets.get(k) ?? [],
+      }));
+    }
+    // sub_status
     const buckets = new Map<string, UserRow[]>();
     for (const u of sorted) {
       const s = subMap.get(u.id);
-      const key = s?.plan_name ?? "__none__";
+      const key = s ? (s.status as SubStatus) : "__none__";
       const arr = buckets.get(key) ?? [];
       arr.push(u);
       buckets.set(key, arr);
     }
-    const keys = Array.from(buckets.keys()).sort((a, b) => {
-      if (a === "__none__") return 1;
-      if (b === "__none__") return -1;
-      return a.localeCompare(b);
-    });
-    return keys.map((k) => ({
-      key: k,
-      label:
-        k === "__none__"
-          ? i18n.language === "pl"
-            ? "Bez subskrypcji"
-            : "No subscription"
-          : k,
-      rows: buckets.get(k) ?? [],
-    }));
+    const order: readonly string[] = [...SUB_STATUSES, "__none__"];
+    return order
+      .filter((k) => buckets.has(k))
+      .map((k) => ({
+        key: `status:${k}`,
+        label:
+          k === "__none__"
+            ? i18n.language === "pl"
+              ? "Bez subskrypcji"
+              : "No subscription"
+            : statusLabel(i18n.language, k as SubStatus),
+        rows: buckets.get(k) ?? [],
+      }));
   }, [sorted, groupBy, subMap, t, i18n.language]);
 
   const toggleSort = (k: SortKey) => {
@@ -279,8 +354,13 @@ function Users() {
     setSearch("");
     setRoleFilter("all");
     setSubFilter("all");
+    setStatusFilter("all");
   };
-  const filtersActive = search !== "" || roleFilter !== "all" || subFilter !== "all";
+  const filtersActive =
+    search !== "" ||
+    roleFilter !== "all" ||
+    subFilter !== "all" ||
+    statusFilter !== "all";
   const totalCount = data?.length ?? 0;
   const resultsCount = sorted.length;
 
@@ -372,8 +452,27 @@ function Users() {
           </SelectContent>
         </Select>
 
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+          <SelectTrigger className="h-8 w-[170px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">
+              {i18n.language === "pl" ? "Wszystkie statusy" : "All statuses"}
+            </SelectItem>
+            {SUB_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusLabel(i18n.language, s)}
+              </SelectItem>
+            ))}
+            <SelectItem value="none">
+              {i18n.language === "pl" ? "Bez subskrypcji" : "No subscription"}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
         <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-          <SelectTrigger className="h-8 w-[180px] text-xs">
+          <SelectTrigger className="h-8 w-[200px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -383,8 +482,11 @@ function Users() {
             <SelectItem value="role">
               {i18n.language === "pl" ? "Grupuj wg roli" : "Group by role"}
             </SelectItem>
-            <SelectItem value="subscription">
-              {i18n.language === "pl" ? "Grupuj wg subskrypcji" : "Group by subscription"}
+            <SelectItem value="sub_plan">
+              {i18n.language === "pl" ? "Grupuj wg planu" : "Group by plan"}
+            </SelectItem>
+            <SelectItem value="sub_status">
+              {i18n.language === "pl" ? "Grupuj wg statusu subskrypcji" : "Group by subscription status"}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -503,9 +605,14 @@ function Users() {
                       </td>
                       <td className="p-3">
                         {sub ? (
-                          <Badge variant="outline" className="font-normal">
-                            {sub.plan_name}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="font-normal">
+                              {sub.plan_name}
+                            </Badge>
+                            <Badge variant={statusVariant(sub.status as SubStatus)} className="text-[10px]">
+                              {statusLabel(i18n.language, sub.status as SubStatus)}
+                            </Badge>
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
