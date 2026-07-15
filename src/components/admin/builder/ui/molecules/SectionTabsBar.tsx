@@ -80,9 +80,9 @@ export function SectionTabsBar({
           maxWidth: "100%",
           paddingBottom:
             variant === "underline-dot"
-              ? 10
+              ? 18
               : variant === "underline-thick" || variant === "underline-gradient"
-                ? 2
+                ? 4
                 : undefined,
         };
 
