@@ -415,6 +415,13 @@ function AdminShellInner({
                 }),
               },
               {
+                to: "/admin/permissions",
+                icon: ShieldCheck,
+                label: t("admin.nav.permissions", {
+                  defaultValue: lang === "pl" ? "Uprawnienia (role)" : "Permissions (roles)",
+                }),
+              },
+              {
                 to: "/admin/programs",
                 icon: Briefcase,
                 label: t("admin.nav.programs", {
