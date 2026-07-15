@@ -253,10 +253,10 @@ function Authors() {
                     <img
                       src={a.avatar_url}
                       alt=""
-                      className="h-14 w-14 rounded-full object-cover"
+                      className="h-14 w-14 rounded-[5px] object-cover"
                     />
                   ) : (
-                    <div className="grid h-14 w-14 place-items-center rounded-full bg-muted text-sm text-muted-foreground">
+                    <div className="grid h-14 w-14 place-items-center rounded-[5px] bg-muted text-sm text-muted-foreground">
                       {(a.display_name ?? "?").slice(0, 1)}
                     </div>
                   )}
