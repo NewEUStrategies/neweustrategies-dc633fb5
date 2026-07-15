@@ -339,6 +339,10 @@ function UserDetail() {
             <BadgesEditor userId={data.id} tenantId={tenantId ?? null} />
           </Card>
 
+          <Card title={L("Zgody prywatności", "Privacy consent")}>
+            <UserConsentPanel userId={data.id} isPL={isPL} />
+          </Card>
+
           <Card title={L("Akcje", "Actions")}>
             <div className="flex flex-col gap-2">
               <Link to="/admin/users" className="text-sm text-primary hover:underline">
