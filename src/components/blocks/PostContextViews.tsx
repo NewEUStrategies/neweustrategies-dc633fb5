@@ -122,8 +122,9 @@ export function AuthorBioView({
   // przykładowe dane na produkcji).
   if (!author?.name) return null;
 
-  const bio =
-    (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "";
+  const bio = htmlToPlainText(
+    (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "",
+  );
   const profileHref = author.slug ? `/author/${author.slug}` : null;
 
   type IconCmp = ComponentType<SVGProps<SVGSVGElement>>;
