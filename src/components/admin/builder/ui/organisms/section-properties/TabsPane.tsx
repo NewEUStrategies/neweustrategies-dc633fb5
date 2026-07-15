@@ -159,11 +159,78 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="underline">Podkreślenie</SelectItem>
-                <SelectItem value="pills">Pigułki</SelectItem>
+                <SelectItem value="underline-thick">Podkreślenie - grube</SelectItem>
+                <SelectItem value="underline-dot">Podkreślenie - kropka</SelectItem>
+                <SelectItem value="underline-gradient">Podkreślenie - gradient</SelectItem>
+                <SelectItem value="pills">Pigułki (miękkie)</SelectItem>
+                <SelectItem value="pills-solid">Pigułki (solid)</SelectItem>
+                <SelectItem value="segmented">Segmented control</SelectItem>
+                <SelectItem value="boxed-top">Karta z paskiem u góry</SelectItem>
                 <SelectItem value="bordered">Ramka</SelectItem>
                 <SelectItem value="ghost">Ghost</SelectItem>
+                <SelectItem value="minimal">Minimalny</SelectItem>
               </SelectContent>
             </Select>
+          </Row>
+
+          <Row label="Kolor akcentu" hint="Kolor aktywnej zakładki (podkreślenia, tła pigułki). Zostaw puste, aby użyć koloru marki.">
+            <div className="flex items-center gap-2 w-full">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(cfg.accentColor ?? "") ? (cfg.accentColor as string) : "#f59e42"}
+                onChange={(e) =>
+                  setCfg((c) => {
+                    c.accentColor = e.target.value;
+                  })
+                }
+                className="h-8 w-10 rounded border border-border bg-background cursor-pointer"
+                aria-label="Kolor akcentu"
+              />
+              <Input
+                className="h-8 text-xs flex-1"
+                placeholder="np. #f59e42 lub var(--brand)"
+                value={cfg.accentColor ?? ""}
+                onChange={(e) =>
+                  setCfg((c) => {
+                    c.accentColor = e.target.value;
+                  })
+                }
+              />
+            </div>
+          </Row>
+
+          <Row label="Pozycja ikony">
+            <Select
+              value={cfg.iconPosition ?? "left"}
+              onValueChange={(v) =>
+                setCfg((c) => {
+                  c.iconPosition = v as "left" | "top";
+                })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left">Obok etykiety</SelectItem>
+                <SelectItem value="top">Nad etykietą</SelectItem>
+              </SelectContent>
+            </Select>
+          </Row>
+
+          <Row label="Rozmiar ikony">
+            <Input
+              type="number"
+              min={10}
+              max={32}
+              className="h-8 text-xs"
+              value={cfg.iconSize ?? 16}
+              onChange={(e) =>
+                setCfg((c) => {
+                  c.iconSize = Number(e.target.value) || 16;
+                })
+              }
+            />
           </Row>
 
           <Row label="Wyrównanie">
@@ -258,6 +325,33 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
                   value={t.label_en ?? ""}
                   onChange={(e) => patchTab(t.id, { label_en: e.target.value })}
                 />
+                <div className="flex items-center gap-1">
+                  <Input
+                    className="h-7 text-xs flex-1"
+                    placeholder="Ikona lucide (np. rocket, globe, users)"
+                    value={t.icon ?? ""}
+                    onChange={(e) => patchTab(t.id, { icon: e.target.value })}
+                  />
+                  <input
+                    type="color"
+                    value={/^#[0-9a-fA-F]{6}$/.test(t.color ?? "") ? (t.color as string) : "#f59e42"}
+                    onChange={(e) => patchTab(t.id, { color: e.target.value })}
+                    className="h-7 w-9 rounded border border-border bg-background cursor-pointer"
+                    aria-label="Kolor zakładki"
+                    title="Kolor akcentu tej zakładki (nadpisuje globalny)"
+                  />
+                  {t.color ? (
+                    <button
+                      type="button"
+                      onClick={() => patchTab(t.id, { color: undefined })}
+                      className="p-1 text-muted-foreground hover:text-foreground"
+                      aria-label="Wyczyść kolor"
+                      title="Wyczyść kolor"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
             <Button
