@@ -214,7 +214,7 @@ export const createInvitations = createServerFn({ method: "POST" })
       mode: it.mode as InviteMode,
       status: "pending" as const,
       source: it.source ?? null,
-      metadata: it.metadata ?? {},
+      metadata: (it.metadata ?? {}) as never,
       invited_by: context.userId,
     }));
     const { data: inserted, error } = await context.supabase
