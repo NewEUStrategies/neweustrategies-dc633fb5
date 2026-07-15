@@ -20,7 +20,20 @@ function pascalToKebab(pascal: string): string {
     .toLowerCase();
 }
 
-const ALL_ICON_NAMES: string[] = (() => {
+// Lucide ships ~1500+ icon exports. Enumerating them (Object.keys + a regex per
+// name) MUST NOT run at module-initialization time: this file is pulled into the
+// eagerly-imported route-module graph (Builder → SectionProperties → TabsPane →
+// LucideIconPicker), which the framework loads via getEntries() on the first SSR
+// request. On the Cloudflare Worker (workerd) runtime that first load runs inside
+// a strict global-scope startup budget, and doing this whole-namespace scan at
+// module top level deterministically blew it — rejecting the route-module load and
+// 500-ing the entire site with h3's opaque, self-poisoning "HTTPError" (works in
+// local Node SSR, fails only on workerd). The picker only ever renders in the
+// admin UI on the client, so compute it lazily on first use instead — the import
+// itself now does no heavy work.
+let _allIconNames: string[] | null = null;
+function getAllIconNames(): string[] {
+  if (_allIconNames) return _allIconNames;
   const reg = LucideIcons as unknown as Record<string, unknown>;
   const set = new Set<string>();
   for (const key of Object.keys(reg)) {
@@ -30,8 +43,9 @@ const ALL_ICON_NAMES: string[] = (() => {
     const kebab = pascalToKebab(key);
     if (kebab && /^[a-z0-9-]+$/.test(kebab)) set.add(kebab);
   }
-  return Array.from(set).sort();
-})();
+  _allIconNames = Array.from(set).sort();
+  return _allIconNames;
+}
 
 // Category definitions - keyword patterns matched against icon names.
 // Order matters: first matching category wins. Everything else falls to "other".
@@ -94,8 +108,6 @@ function groupIcons(names: string[]): Grouped[] {
   return out;
 }
 
-const GROUPED_ALL: Grouped[] = groupIcons(ALL_ICON_NAMES);
-
 interface Props {
   value?: string;
   onChange: (name: string | undefined) => void;
@@ -113,12 +125,16 @@ export function LucideIconPicker({
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<string>("all");
 
+  // Full icon list, computed lazily on first render (client-side, admin-only) so
+  // the heavy whole-namespace scan never runs at module-init time (see getAllIconNames).
+  const allNames = useMemo(() => getAllIconNames(), []);
+
   // Icons matching current search (or all if empty)
   const searched = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ALL_ICON_NAMES;
-    return ALL_ICON_NAMES.filter((n) => n.includes(q));
-  }, [query]);
+    if (!q) return allNames;
+    return allNames.filter((n) => n.includes(q));
+  }, [query, allNames]);
 
   // Grouped view of the searched set → gives per-category counts
   const groupedSearched: Grouped[] = useMemo(() => groupIcons(searched), [searched]);
@@ -289,7 +305,7 @@ export function LucideIconPicker({
               )}
             </ScrollArea>
             <div className="px-3 py-1.5 border-t border-border text-[10px] text-muted-foreground truncate bg-muted/20">
-              {displayed.length} / {ALL_ICON_NAMES.length} ikon
+              {displayed.length} / {allNames.length} ikon
               {current ? ` · wybrano: ${current}` : ""}
             </div>
           </div>
