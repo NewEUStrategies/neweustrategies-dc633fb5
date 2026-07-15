@@ -65,4 +65,24 @@ describe("edgeTtlCache host scoping", () => {
     vi.advanceTimersByTime(1_500);
     await expect(edgeTtlCache("k", 1_000, () => Promise.resolve("v2"))).resolves.toBe("v2");
   });
+
+  it("bounds the store and evicts the oldest entries beyond the cap (isolate-OOM guard)", async () => {
+    state.host = "a.example";
+    const MAX = 500;
+    // Fill past the cap with distinct keys (the unbounded-growth scenario:
+    // many hosts x per-slug keys over an isolate's lifetime).
+    for (let i = 0; i < MAX + 50; i++) {
+      await edgeTtlCache(`k${i}`, 60_000, () => Promise.resolve(`v${i}`));
+    }
+
+    // The oldest key must have been evicted -> a re-fetch misses and re-runs.
+    const oldest = vi.fn().mockResolvedValue("k0-refetched");
+    await expect(edgeTtlCache("k0", 60_000, oldest)).resolves.toBe("k0-refetched");
+    expect(oldest).toHaveBeenCalledTimes(1);
+
+    // A recent key is still cached -> fetcher never runs.
+    const recent = vi.fn().mockResolvedValue("MISS");
+    await expect(edgeTtlCache(`k${MAX + 49}`, 60_000, recent)).resolves.toBe(`v${MAX + 49}`);
+    expect(recent).not.toHaveBeenCalled();
+  });
 });

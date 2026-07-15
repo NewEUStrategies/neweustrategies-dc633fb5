@@ -31,11 +31,19 @@ let routeGraphPromise: Promise<unknown> | undefined;
 
 /**
  * Test seam: swap the graph loader so unit tests need not evaluate every route.
- * The default mirrors what the framework's getEntries() loads (the route tree and
- * the start instance), so a module-init fault in either is caught here first.
+ *
+ * The default mirrors exactly what the framework's getEntries() loads: the router
+ * entry and the start instance. getEntries() imports `#tanstack-router-entry`,
+ * which the Start plugin aliases to `src/router.tsx` (NOT routeTree.gen directly);
+ * router.tsx in turn imports routeTree.gen, so warming `./router` evaluates every
+ * route module AND router.tsx's own module-init graph (QueryClient, the router <->
+ * query SSR integration, i18n locale runtime) - the part that would otherwise sit
+ * outside this net and could still fault first inside the framework's uncatchable
+ * getEntries(). Its failure set is a strict subset of the framework's, so warming
+ * it can never reject where the framework would have succeeded.
  */
 let routeGraphLoader: () => Promise<unknown> = () =>
-  Promise.all([import("./routeTree.gen"), import("./start")]);
+  Promise.all([import("./router"), import("./start")]);
 
 /** @internal test-only */
 export function __setRouteGraphLoader(loader: () => Promise<unknown>): void {
