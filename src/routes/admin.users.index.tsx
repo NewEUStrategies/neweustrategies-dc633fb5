@@ -645,6 +645,15 @@ function Users() {
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
             <tr>
+              <th className="p-3 w-10">
+                <Checkbox
+                  checked={
+                    allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false
+                  }
+                  onCheckedChange={toggleAllVisible}
+                  aria-label={i18n.language === "pl" ? "Zaznacz wszystkie" : "Select all"}
+                />
+              </th>
               <th
                 className="text-left p-3 cursor-pointer select-none"
                 onClick={() => toggleSort("display_name")}
