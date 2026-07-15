@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, Fragment } from "react";
+import { useMemo, useState, Fragment, useCallback } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -25,10 +27,12 @@ import {
   Users as UsersIcon,
   Search,
   X,
+  Send,
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
+import { resendInvitationsForEmails } from "@/lib/admin/invitations.functions";
 
 export const Route = createFileRoute("/admin/users/")({
   component: Users,
