@@ -94,7 +94,7 @@ async function fetchExpertHydration(userId: string): Promise<ExpertHydration | n
 
 export function TeamMemberEditor({ c, lang, setContent }: Props) {
   const schema = WIDGET_SCHEMAS["team-member"] ?? [];
-  const { toast } = useToast();
+  const [busy2, _] = [false, null];
   const [busy, setBusy] = useState(false);
 
   const authorId = (typeof c.authorId === "string" ? c.authorId : "") as string;
