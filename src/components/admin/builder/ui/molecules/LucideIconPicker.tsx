@@ -52,8 +52,8 @@ export function LucideIconPicker({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ALL_ICON_NAMES.slice(0, 300);
-    return ALL_ICON_NAMES.filter((n) => n.includes(q)).slice(0, 300);
+    if (!q) return ALL_ICON_NAMES;
+    return ALL_ICON_NAMES.filter((n) => n.includes(q));
   }, [query]);
 
   const current = value?.trim() || "";
