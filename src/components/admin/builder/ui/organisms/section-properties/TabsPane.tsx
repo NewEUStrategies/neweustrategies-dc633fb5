@@ -268,6 +268,9 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
             </div>
           </Row>
 
+          <FontSizeLiveCheck sectionId={section.id} expectedPx={cfg.fontSize ?? 14} />
+
+
           <Row label="Wyrównanie">
             <Select
               value={cfg.align ?? "start"}
