@@ -12,7 +12,7 @@ import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 import {
   Select,
   SelectTrigger,
@@ -20,7 +20,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { PostEditor } from "@/components/admin/PostEditor";
+
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Builder } from "@/components/admin/builder/Builder";
@@ -58,7 +58,7 @@ import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
-import { confirmDialog, promptDialog } from "@/lib/appDialogs";
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
@@ -149,8 +149,12 @@ function EditPage() {
 
   useEffect(() => {
     if (page) {
-      history.reset(page);
-      savedFormRef.current = page;
+      // Strony wymuszają wspólną strukturę PL/EN przez Visual Builder.
+      // Legacy tryby (richtext/markdown) są automatycznie migrowane.
+      const normalized: PageForm =
+        page.editor === "builder" ? page : { ...page, editor: "builder" };
+      history.reset(normalized);
+      savedFormRef.current = normalized;
     }
   }, [page, history.reset]);
 
@@ -276,12 +280,6 @@ function EditPage() {
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
     history.set((f) => (f ? { ...f, [k]: v } : f), { coalesceKey: String(k) });
 
-  const pickImage = async (): Promise<string | null> =>
-    promptDialog({
-      title: t("admin.imageUrlTitle", { defaultValue: "Adres URL obrazka" }),
-      placeholder: "https://…",
-      confirmLabel: t("admin.insert", { defaultValue: "Wstaw" }),
-    });
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
@@ -362,16 +360,15 @@ function EditPage() {
       </div>
       <div>
         <Label>{t("admin.posts.editor")}</Label>
-        <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
-            <SelectItem value="richtext">Rich text (legacy)</SelectItem>
-            <SelectItem value="markdown">Markdown (legacy)</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40 text-sm">
+          <span className="font-medium">Visual Builder</span>
+          <span className="text-xs text-muted-foreground">
+            {t("admin.pages.editor.builderLocked", {
+              defaultValue:
+                "Strony używają wspólnej struktury dla PL i EN - przełącznik języka zmienia tylko teksty.",
+            })}
+          </span>
+        </div>
       </div>
       <div>
         <Label>Slug</Label>
@@ -686,38 +683,7 @@ function EditPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {form.editor === "builder" ? (
-            <PageBuilderPane form={form} set={set} />
-          ) : (
-            <Tabs defaultValue="pl">
-              <TabsList>
-                <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-                <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-              </TabsList>
-              <TabsContent value="pl" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.content")} (PL)</Label>
-                  <PostEditor
-                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
-                    value={form.content_pl ?? ""}
-                    onChange={(v) => set("content_pl", v)}
-                    onPickImage={pickImage}
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="en" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.content")} (EN)</Label>
-                  <PostEditor
-                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
-                    value={form.content_en ?? ""}
-                    onChange={(v) => set("content_en", v)}
-                    onPickImage={pickImage}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
+          <PageBuilderPane form={form} set={set} />
         </div>
       )}
     </div>
