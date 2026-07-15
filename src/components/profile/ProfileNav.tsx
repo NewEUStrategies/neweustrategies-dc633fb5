@@ -17,7 +17,8 @@ type NavKey =
   | "billing"
   | "subscription"
   | "orders"
-  | "security";
+  | "security"
+  | "privacy";
 
 type NavItem = { to: string; key: NavKey; search?: Record<string, string> };
 
