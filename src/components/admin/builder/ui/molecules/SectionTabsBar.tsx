@@ -151,34 +151,10 @@ export function SectionTabsBar({
         let variantStyle: CSSProperties = {};
         switch (variant) {
           case "underline":
-            variantStyle = {
-              borderBottom: `2px solid ${active ? activeColor : "transparent"}`,
-              marginBottom: -1,
-            };
-            break;
           case "underline-thick":
-            variantStyle = {
-              borderBottom: `4px solid ${active ? activeColor : "transparent"}`,
-              marginBottom: -1,
-              borderRadius: "2px 2px 0 0",
-            };
-            break;
           case "underline-gradient":
-            variantStyle = {
-              backgroundImage: active
-                ? `linear-gradient(90deg, ${activeColor}, color-mix(in oklab, ${activeColor} 30%, transparent))`
-                : "none",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "left bottom",
-              backgroundSize: active ? "100% 3px" : "0 3px",
-              marginBottom: -1,
-              transition: "background-size .25s ease",
-            };
-            break;
           case "underline-dot":
-            variantStyle = {
-              marginBottom: -1,
-            };
+            variantStyle = { marginBottom: -1 };
             break;
           case "pills":
             variantStyle = {
@@ -220,7 +196,6 @@ export function SectionTabsBar({
             break;
           case "boxed-top":
             variantStyle = {
-              borderTop: `3px solid ${active ? activeColor : "transparent"}`,
               borderLeft: active ? "1px solid var(--border, hsl(var(--border)))" : "1px solid transparent",
               borderRight: active ? "1px solid var(--border, hsl(var(--border)))" : "1px solid transparent",
               borderBottom: "1px solid transparent",
@@ -246,6 +221,14 @@ export function SectionTabsBar({
                 : "transparent",
             };
         }
+
+        // Animated indicators (rendered for all variants, hidden via scale/opacity when inactive)
+        const isUnderline = variant === "underline" || variant === "underline-thick" || variant === "underline-gradient";
+        const barHeight = variant === "underline-thick" ? 4 : variant === "underline-gradient" ? 3 : 2;
+        const barBg = variant === "underline-gradient"
+          ? `linear-gradient(90deg, ${activeColor}, color-mix(in oklab, ${activeColor} 30%, transparent))`
+          : activeColor;
+
 
         return (
           <button
@@ -290,19 +273,59 @@ export function SectionTabsBar({
               />
             ) : null}
             <span>{labelOf(it, lang)}</span>
-            {variant === "underline-dot" && active ? (
+            {isUnderline ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: barHeight,
+                  background: barBg,
+                  borderRadius: variant === "underline-thick" ? "2px 2px 0 0" : 0,
+                  transform: active ? "scaleX(1)" : "scaleX(0)",
+                  transformOrigin: active ? "left center" : "right center",
+                  opacity: active ? 1 : 0,
+                  transition: "transform .28s cubic-bezier(.4,0,.2,1), opacity .18s ease",
+                  pointerEvents: "none",
+                }}
+              />
+            ) : null}
+            {variant === "underline-dot" ? (
               <span
                 aria-hidden="true"
                 style={{
                   position: "absolute",
                   left: "50%",
                   bottom: 2,
-                  transform: "translateX(-50%)",
                   width: 6,
                   height: 6,
                   borderRadius: 999,
                   background: activeColor,
                   boxShadow: `0 0 0 3px color-mix(in oklab, ${activeColor} 20%, transparent)`,
+                  transform: active ? "translateX(-50%) scale(1)" : "translateX(-50%) scale(0)",
+                  opacity: active ? 1 : 0,
+                  transition: "transform .32s cubic-bezier(.34,1.56,.64,1), opacity .2s ease",
+                  pointerEvents: "none",
+                }}
+              />
+            ) : null}
+            {variant === "boxed-top" ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: 3,
+                  background: activeColor,
+                  borderRadius: "8px 8px 0 0",
+                  transform: active ? "scaleX(1)" : "scaleX(0)",
+                  opacity: active ? 1 : 0,
+                  transition: "transform .28s cubic-bezier(.4,0,.2,1), opacity .18s ease",
+                  pointerEvents: "none",
                 }}
               />
             ) : null}
