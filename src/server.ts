@@ -31,7 +31,10 @@ async function getServerEntry(): Promise<ServerEntry> {
 
 // h3 swallows in-handler throws into a normal 500 Response with body
 // {"unhandled":true,"message":"HTTPError"} - try/catch alone never fires for those.
-async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
+async function normalizeCatastrophicSsrResponse(
+  response: Response,
+  request?: Request,
+): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;
@@ -48,6 +51,20 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   // the next request resolves the current, healthy server entry.
   serverEntryPromise = undefined;
   console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
+  // Request-level context helps correlate the swallowed body with the failing
+  // route when the captured cause is missing (workerd rarely fires global
+  // `error` events for framework-caught throws). Logged AFTER the error so
+  // `console.error.mock.calls[0][0]` in `src/server.test.ts` stays the Error.
+  if (request) {
+    try {
+      const url = new URL(request.url);
+      console.error(
+        `[ssr] h3 swallowed 500 · ${request.method} ${url.pathname}${url.search} · body=${body}`,
+      );
+    } catch {
+      /* malformed URL - already logged above */
+    }
+  }
   return new Response(renderErrorPage(), {
     status: 500,
     headers: {
