@@ -357,6 +357,135 @@ function Users() {
     qc.invalidateQueries({ queryKey: ["all-users"] });
   };
 
+  // Zbiorczo: bieżąca kolejność wierszy (po filtrowaniu i sortowaniu, płaska
+  // dla wszystkich grup) - używana do wyliczania zakresu shift-click.
+  const orderedRows = useMemo(() => {
+    if (groupBy === "none") return sorted;
+    return groups.flatMap((g) => g.rows);
+  }, [groupBy, groups, sorted]);
+
+  // Bieżący użytkownik nie może zmienić własnej roli - traktujemy go jako
+  // niezaznaczalnego, żeby akcje zbiorcze nie wywalały RPC z błędem.
+  const isSelectable = useCallback(
+    (id: string) => id !== user?.id,
+    [user?.id],
+  );
+
+  const toggleRow = useCallback(
+    (id: string, shift: boolean) => {
+      if (!isSelectable(id)) return;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (shift && lastClickedId && lastClickedId !== id) {
+          const ids = orderedRows.map((u) => u.id);
+          const a = ids.indexOf(lastClickedId);
+          const b = ids.indexOf(id);
+          if (a !== -1 && b !== -1) {
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            const shouldSelect = !prev.has(id);
+            for (let i = lo; i <= hi; i++) {
+              const rid = ids[i];
+              if (!isSelectable(rid)) continue;
+              if (shouldSelect) next.add(rid);
+              else next.delete(rid);
+            }
+            setLastClickedId(id);
+            return next;
+          }
+        }
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setLastClickedId(id);
+        return next;
+      });
+    },
+    [isSelectable, lastClickedId, orderedRows],
+  );
+
+  const selectableVisibleIds = useMemo(
+    () => orderedRows.filter((u) => isSelectable(u.id)).map((u) => u.id),
+    [orderedRows, isSelectable],
+  );
+  const allVisibleSelected =
+    selectableVisibleIds.length > 0 &&
+    selectableVisibleIds.every((id) => selected.has(id));
+  const someVisibleSelected =
+    !allVisibleSelected && selectableVisibleIds.some((id) => selected.has(id));
+  const toggleAllVisible = () => {
+    setSelected((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const id of selectableVisibleIds) next.delete(id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const id of selectableVisibleIds) next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => {
+    setSelected(new Set());
+    setLastClickedId(null);
+  };
+
+  const applyBulkRole = async () => {
+    if (!bulkRole || selected.size === 0) return;
+    if (bulkRole === "super_admin" && !isSuperAdmin) return;
+    setBulkBusy(true);
+    let ok = 0;
+    let fail = 0;
+    for (const id of selected) {
+      const { error } = await supabase.rpc("change_user_role", {
+        _target_user_id: id,
+        _new_role: bulkRole,
+      });
+      if (error) {
+        fail += 1;
+        console.warn("[admin/users] bulk role failed", id, error.message);
+      } else {
+        ok += 1;
+      }
+    }
+    setBulkBusy(false);
+    if (ok > 0) toast.success(`${ok} ${i18n.language === "pl" ? "zmienione" : "updated"}`);
+    if (fail > 0) toast.error(`${fail} ${i18n.language === "pl" ? "błędów" : "failed"}`);
+    setBulkRole("");
+    clearSelection();
+    qc.invalidateQueries({ queryKey: ["all-users"] });
+  };
+
+  const bulkResendInvites = async () => {
+    if (selected.size === 0) return;
+    const emails = (data ?? [])
+      .filter((u) => selected.has(u.id) && !!u.email)
+      .map((u) => u.email as string);
+    if (emails.length === 0) {
+      toast.error(i18n.language === "pl" ? "Brak adresów e-mail" : "No emails");
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await resendBulkFn({ data: { emails } });
+      const okCount = res.results.filter((r) => r.ok).length;
+      const failCount = res.results.length - okCount;
+      if (okCount > 0)
+        toast.success(`${okCount} ${i18n.language === "pl" ? "wysłane" : "sent"}`);
+      if (failCount > 0)
+        toast.error(`${failCount} ${i18n.language === "pl" ? "błędów" : "failed"}`);
+      if (res.missing.length > 0)
+        toast.info(
+          `${res.missing.length} ${
+            i18n.language === "pl" ? "bez zaproszenia" : "without invitation"
+          }`,
+        );
+      qc.invalidateQueries({ queryKey: ["user-invitations"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
 
   const clearFilters = () => {
