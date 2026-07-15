@@ -2,6 +2,7 @@
 // When enabled, the Section acts as a tab container: only children whose
 // tabId matches the active tab are rendered (children with empty tabId
 // remain visible in every tab).
+import { useEffect, useRef, useState } from "react";
 import {
   Select,
   SelectTrigger,
@@ -12,7 +13,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, Check, X } from "lucide-react";
 import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/builder/types";
 import { Row } from "../../atoms";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
@@ -267,6 +268,9 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
             </div>
           </Row>
 
+          <FontSizeLiveCheck sectionId={section.id} expectedPx={cfg.fontSize ?? 14} />
+
+
           <Row label="Wyrównanie">
             <Select
               value={cfg.align ?? "start"}
@@ -447,3 +451,101 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
     </div>
   );
 }
+
+/**
+ * Live self-check: mierzy rzeczywisty `font-size` etykiet renderowanego
+ * `SectionTabsBar` dla tej sekcji i porównuje z wartością z konfiguracji.
+ * Aktualizowany w czasie rzeczywistym via `MutationObserver` + `requestAnimationFrame`.
+ * Renderuje etykietę i checkbox (read-only), zielony ✔ gdy wszystkie etykiety
+ * mają dokładnie oczekiwany rozmiar, czerwony ✕ w przeciwnym razie.
+ */
+function FontSizeLiveCheck({ sectionId, expectedPx }: { sectionId: string; expectedPx: number }) {
+  const [state, setState] = useState<{
+    ok: boolean;
+    measured: number[];
+    count: number;
+  }>({ ok: false, measured: [], count: 0 });
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      rafRef.current = null;
+      const scope: ParentNode = document;
+      // Match the bar rendered for this section (id used in aria wiring).
+      const buttons = scope.querySelectorAll<HTMLElement>(
+        `[id^="sec-${sectionId}-tab-"][data-section-tab-btn]`,
+      );
+      if (buttons.length === 0) {
+        setState({ ok: false, measured: [], count: 0 });
+        return;
+      }
+      const measured: number[] = [];
+      buttons.forEach((btn) => {
+        const px = parseFloat(window.getComputedStyle(btn).fontSize);
+        measured.push(Math.round(px * 100) / 100);
+      });
+      const ok = measured.every((v) => Math.abs(v - expectedPx) < 0.5);
+      setState({ ok, measured, count: buttons.length });
+    };
+    const schedule = () => {
+      if (rafRef.current !== null) return;
+      rafRef.current = window.requestAnimationFrame(measure);
+    };
+    schedule();
+    const mo = new MutationObserver(schedule);
+    mo.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style", "data-active"],
+      childList: true,
+    });
+    return () => {
+      mo.disconnect();
+      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
+    };
+  }, [sectionId, expectedPx]);
+
+  const { ok, measured, count } = state;
+  const noBar = count === 0;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-2 rounded border border-border bg-muted/30 p-2"
+      data-testid="tabs-fontsize-live-check"
+    >
+      <input
+        type="checkbox"
+        readOnly
+        checked={ok && !noBar}
+        aria-label="Rozmiar czcionki etykiet zakładek jest zsynchronizowany"
+        className="mt-0.5 h-3.5 w-3.5 accent-emerald-500"
+      />
+      <div className="flex-1 space-y-0.5">
+        <div className="flex items-center gap-1 text-[11px] font-medium">
+          {noBar ? (
+            <span className="text-muted-foreground">Brak zakładek do zmierzenia</span>
+          ) : ok ? (
+            <>
+              <Check className="h-3 w-3 text-emerald-500" aria-hidden />
+              <span className="text-emerald-600 dark:text-emerald-400">
+                Zmiana rozmiaru czcionki wpływa na wszystkie etykiety w czasie rzeczywistym
+              </span>
+            </>
+          ) : (
+            <>
+              <X className="h-3 w-3 text-destructive" aria-hidden />
+              <span className="text-destructive">Rozmiar niezsynchronizowany</span>
+            </>
+          )}
+        </div>
+        {!noBar && (
+          <div className="text-[10px] text-muted-foreground">
+            Oczekiwany: {expectedPx}px - zmierzony: {measured.join(", ")}px ({count})
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
