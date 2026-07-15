@@ -46,6 +46,7 @@ const FINANCE: NavItem[] = [
   { to: "/profile/subscription", key: "subscription" },
   { to: "/profile/orders", key: "orders" },
   { to: "/profile/security", key: "security" },
+  { to: "/profile/privacy", key: "privacy" },
 ];
 
 export function ProfileNav() {
