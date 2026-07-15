@@ -276,12 +276,6 @@ function EditPage() {
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
     history.set((f) => (f ? { ...f, [k]: v } : f), { coalesceKey: String(k) });
 
-  const pickImage = async (): Promise<string | null> =>
-    promptDialog({
-      title: t("admin.imageUrlTitle", { defaultValue: "Adres URL obrazka" }),
-      placeholder: "https://…",
-      confirmLabel: t("admin.insert", { defaultValue: "Wstaw" }),
-    });
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
