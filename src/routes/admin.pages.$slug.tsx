@@ -58,7 +58,7 @@ import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
-import { confirmDialog, promptDialog } from "@/lib/appDialogs";
+import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
