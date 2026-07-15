@@ -641,6 +641,65 @@ function Users() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs">
+          <span className="font-medium tabular-nums">
+            {selected.size}{" "}
+            {i18n.language === "pl" ? "zaznaczonych" : "selected"}
+          </span>
+          <span className="mx-1 h-4 w-px bg-border" />
+
+          <Select value={bulkRole} onValueChange={(v) => setBulkRole(v as Role)}>
+            <SelectTrigger className="h-8 w-[160px] text-xs">
+              <SelectValue
+                placeholder={i18n.language === "pl" ? "Zmień rolę…" : "Change role…"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {isSuperAdmin && (
+                <SelectItem value="super_admin">{roleLabel(t, "super_admin")}</SelectItem>
+              )}
+              {ASSIGNABLE_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {roleLabel(t, r)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            disabled={!bulkRole || bulkBusy}
+            onClick={applyBulkRole}
+          >
+            <UserCog className="w-3.5 h-3.5 mr-1" />
+            {i18n.language === "pl" ? "Zastosuj rolę" : "Apply role"}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={bulkBusy}
+            onClick={bulkResendInvites}
+          >
+            <Send className="w-3.5 h-3.5 mr-1" />
+            {i18n.language === "pl" ? "Wyślij ponownie zaproszenia" : "Resend invitations"}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs ml-auto"
+            onClick={clearSelection}
+            disabled={bulkBusy}
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            {i18n.language === "pl" ? "Wyczyść zaznaczenie" : "Clear selection"}
+          </Button>
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
