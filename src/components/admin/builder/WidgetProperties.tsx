@@ -72,6 +72,7 @@ import {
   AccountLinkEditor,
   HeadingFallbackPreview,
   TeamMemberEditor,
+  InteractiveCircleEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
