@@ -16,6 +16,7 @@ import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/builder/types";
 import { Row } from "../../atoms";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
+import { ColorPicker } from "../../molecules/ColorPicker";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 
