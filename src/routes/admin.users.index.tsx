@@ -680,7 +680,7 @@ function Users() {
             size="sm"
             className="h-8 text-xs"
             disabled={!bulkRole || bulkBusy}
-            onClick={applyBulkRole}
+            onClick={openBulkRoleConfirm}
           >
             <UserCog className="w-3.5 h-3.5 mr-1" />
             {i18n.language === "pl" ? "Zastosuj rolę" : "Apply role"}
