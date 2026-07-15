@@ -3,36 +3,12 @@ import { pickMode } from "./themed";
 
 type Specificity = 1 | 2 | 3;
 
-// Deterministic CSS.escape polyfill used on BOTH server and client. We can't
-// call the runtime `CSS.escape` here because it exists in the browser but not
-// during SSR - a leading digit like the `6` in a UUID would produce different
-// escaped output on each side, and the resulting `<style>` string would fail
-// hydration (and, on the preview worker, crash SSR entirely).
-// Mirrors the WHATWG CSS.escape spec for the characters we actually see here
-// (UUIDs + kebab keys): escape leading digit as `\HH `, escape non-word chars.
-function cssEscape(value: string): string {
-  let out = "";
-  for (let i = 0; i < value.length; i++) {
-    const ch = value.charCodeAt(i);
-    // Leading digit: escape as `\HH ` (hex + trailing space).
-    if (i === 0 && ch >= 0x30 && ch <= 0x39) {
-      out += "\\" + ch.toString(16) + " ";
-      continue;
-    }
-    // Word chars stay verbatim.
-    if (
-      (ch >= 0x30 && ch <= 0x39) || // 0-9
-      (ch >= 0x41 && ch <= 0x5a) || // A-Z
-      (ch >= 0x61 && ch <= 0x7a) || // a-z
-      ch === 0x5f || // _
-      ch === 0x2d // -
-    ) {
-      out += value[i];
-      continue;
-    }
-    out += "\\" + value[i];
-  }
-  return out;
+// The id is interpolated into a quoted attribute value, where a leading digit
+// is already valid CSS and must not be escaped. Escape only characters that can
+// terminate that quoted value. Keeping this implementation independent from the
+// browser-only `CSS.escape` guarantees byte-identical SSR and hydration output.
+function cssAttributeValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\n\r\f]/g, "\\a ");
 }
 
 function pickResponsiveValue<T>(
@@ -93,7 +69,7 @@ function buildWidgetTypographyRules(
   device: Device,
   options: { ancestor?: string; specificity?: Specificity } = {},
 ): string[] {
-  const id = cssEscape(widgetId);
+  const id = cssAttributeValue(widgetId);
   const ancestor = options.ancestor ?? "";
   const specificity = options.specificity ?? 3;
   const repeat = "[data-w-id]".repeat(Math.max(0, specificity - 1));
