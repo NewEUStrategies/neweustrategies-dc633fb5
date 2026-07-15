@@ -21,6 +21,7 @@ const pl = {
       subscription: "Subskrypcja",
       orders: "Historia płatności",
       security: "Bezpieczeństwo",
+      privacy: "Prywatność",
     },
     navGroups: {
       identity: "Tożsamość",
