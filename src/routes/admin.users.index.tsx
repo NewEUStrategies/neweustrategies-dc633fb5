@@ -117,20 +117,23 @@ function Users() {
     queryFn: async (): Promise<SubscriptionInfo[]> => {
       const { data: rows, error } = await supabase
         .from("user_subscriptions")
-        .select("user_id, status, access_plans!inner(name)")
+        .select("user_id, status, access_plans!inner(name_pl, name_en)")
         .eq("tenant_id", tenantId)
-        .in("status", ["active", "trialing", "past_due"]);
+        .eq("status", "active");
       if (error) {
         // Brak dostępu do widoku nie powinien blokować listy użytkowników.
         console.warn("[admin/users] subscriptions read failed", error.message);
         return [];
       }
+      const lang = i18n.language === "pl" ? "pl" : "en";
       return (rows ?? []).map((r) => {
-        const plan = (r as { access_plans: { name: string } | null }).access_plans;
+        const plan = (r as unknown as {
+          access_plans: { name_pl: string; name_en: string } | null;
+        }).access_plans;
         return {
           user_id: r.user_id,
           status: r.status as string,
-          plan_name: plan?.name ?? "-",
+          plan_name: (lang === "pl" ? plan?.name_pl : plan?.name_en) ?? plan?.name_en ?? "-",
         };
       });
     },
