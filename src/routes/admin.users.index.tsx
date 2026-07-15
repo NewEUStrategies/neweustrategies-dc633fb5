@@ -160,12 +160,31 @@ function Users() {
         }).access_plans;
         return {
           user_id: r.user_id,
-          status: r.status as string,
+          status: r.status as SubStatus,
           plan_name: (lang === "pl" ? plan?.name_pl : plan?.name_en) ?? plan?.name_en ?? "-",
         };
       });
     },
   });
+
+  // Priorytet statusów - najnowszy wpis po started_at DESC wchodzi do mapy,
+  // ale gdy istnieje aktywna, promujemy ją nad pending/canceled/refunded.
+  const subMap = useMemo(() => {
+    const m = new Map<string, SubscriptionInfo>();
+    const priority: Record<SubStatus, number> = {
+      active: 4,
+      pending: 3,
+      canceled: 2,
+      refunded: 1,
+    };
+    for (const s of subs ?? []) {
+      const cur = m.get(s.user_id);
+      if (!cur || priority[s.status as SubStatus] > priority[cur.status as SubStatus]) {
+        m.set(s.user_id, s);
+      }
+    }
+    return m;
+  }, [subs]);
 
   const subMap = useMemo(() => {
     const m = new Map<string, SubscriptionInfo>();
