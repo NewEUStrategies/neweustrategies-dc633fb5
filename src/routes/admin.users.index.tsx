@@ -269,30 +269,53 @@ function Users() {
         rows: buckets.get(r) ?? [],
       }));
     }
-    // subscription
+    if (groupBy === "sub_plan") {
+      const buckets = new Map<string, UserRow[]>();
+      for (const u of sorted) {
+        const s = subMap.get(u.id);
+        const key = s?.plan_name ?? "__none__";
+        const arr = buckets.get(key) ?? [];
+        arr.push(u);
+        buckets.set(key, arr);
+      }
+      const keys = Array.from(buckets.keys()).sort((a, b) => {
+        if (a === "__none__") return 1;
+        if (b === "__none__") return -1;
+        return a.localeCompare(b);
+      });
+      return keys.map((k) => ({
+        key: `plan:${k}`,
+        label:
+          k === "__none__"
+            ? i18n.language === "pl"
+              ? "Bez subskrypcji"
+              : "No subscription"
+            : k,
+        rows: buckets.get(k) ?? [],
+      }));
+    }
+    // sub_status
     const buckets = new Map<string, UserRow[]>();
     for (const u of sorted) {
       const s = subMap.get(u.id);
-      const key = s?.plan_name ?? "__none__";
+      const key = s ? (s.status as SubStatus) : "__none__";
       const arr = buckets.get(key) ?? [];
       arr.push(u);
       buckets.set(key, arr);
     }
-    const keys = Array.from(buckets.keys()).sort((a, b) => {
-      if (a === "__none__") return 1;
-      if (b === "__none__") return -1;
-      return a.localeCompare(b);
-    });
-    return keys.map((k) => ({
-      key: k,
-      label:
-        k === "__none__"
-          ? i18n.language === "pl"
-            ? "Bez subskrypcji"
-            : "No subscription"
-          : k,
-      rows: buckets.get(k) ?? [],
-    }));
+    const order: readonly string[] = [...SUB_STATUSES, "__none__"];
+    return order
+      .filter((k) => buckets.has(k))
+      .map((k) => ({
+        key: `status:${k}`,
+        label:
+          k === "__none__"
+            ? i18n.language === "pl"
+              ? "Bez subskrypcji"
+              : "No subscription"
+            : statusLabel(i18n.language, k as SubStatus),
+        rows: buckets.get(k) ?? [],
+      }));
   }, [sorted, groupBy, subMap, t, i18n.language]);
 
   const toggleSort = (k: SortKey) => {
