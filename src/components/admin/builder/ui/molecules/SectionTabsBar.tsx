@@ -73,11 +73,17 @@ export function SectionTabsBar({
               ? "color-mix(in oklab, currentColor 6%, transparent)"
               : undefined,
           borderRadius: variant === "segmented" ? 10 : undefined,
-          overflowX: wrapMode === "scroll" ? "auto" : undefined,
-          overflowY: "hidden",
+          overflowX: wrapMode === "scroll" ? "auto" : "visible",
+          overflowY: "visible",
           WebkitOverflowScrolling: "touch",
           scrollbarWidth: "thin",
           maxWidth: "100%",
+          paddingBottom:
+            variant === "underline-dot"
+              ? 10
+              : variant === "underline-thick" || variant === "underline-gradient"
+                ? 2
+                : undefined,
         };
 
   const idxOf = (id: string) => items.findIndex((t) => t.id === id);
