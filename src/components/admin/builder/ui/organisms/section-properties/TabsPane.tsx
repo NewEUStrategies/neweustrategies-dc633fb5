@@ -176,29 +176,17 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
           </Row>
 
           <Row label="Kolor akcentu" hint="Kolor aktywnej zakładki (podkreślenia, tła pigułki). Zostaw puste, aby użyć koloru marki.">
-            <div className="flex items-center gap-2 w-full">
-              <input
-                type="color"
-                value={/^#[0-9a-fA-F]{6}$/.test(cfg.accentColor ?? "") ? (cfg.accentColor as string) : "#f59e42"}
-                onChange={(e) =>
-                  setCfg((c) => {
-                    c.accentColor = e.target.value;
-                  })
-                }
-                className="h-8 w-10 rounded border border-border bg-background cursor-pointer"
-                aria-label="Kolor akcentu"
-              />
-              <Input
-                className="h-8 text-xs flex-1"
-                placeholder="np. #f59e42 lub var(--brand)"
-                value={cfg.accentColor ?? ""}
-                onChange={(e) =>
-                  setCfg((c) => {
-                    c.accentColor = e.target.value;
-                  })
-                }
-              />
-            </div>
+            <ColorPicker
+              value={cfg.accentColor}
+              onChange={(v) =>
+                setCfg((c) => {
+                  c.accentColor = v;
+                })
+              }
+              ariaLabel="Kolor akcentu"
+              showInput
+              placeholder="np. #f59e42 lub var(--brand)"
+            />
           </Row>
 
           <Row label="Pozycja ikony">
