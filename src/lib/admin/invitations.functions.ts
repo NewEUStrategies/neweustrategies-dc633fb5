@@ -374,12 +374,14 @@ async function performSend(
       })
       .eq("id", invitationId);
 
-    // Audit trail
+    // Audit trail (best-effort, nie blokuje wysyłki)
     void supabase.from("audit_log").insert({
       actor_id: userId,
       action: "user_invitation_sent",
-      target_id: authUserId,
-      metadata: { invitation_id: invitationId, mode: inv.mode, email },
+      entity_type: "user_invitation",
+      entity_id: invitationId,
+      tenant_id: inv.tenant_id,
+      metadata: { mode: inv.mode, email, auth_user_id: authUserId } as never,
     });
 
     return { ok: true, email, tempPassword };
