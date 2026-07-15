@@ -176,7 +176,7 @@ export function SectionTabsBar({
             break;
           case "pills":
             variantStyle = {
-              borderRadius: 999,
+              borderRadius: 5,
               color: active ? activeColor : "var(--muted-foreground, inherit)",
               background: active
                 ? `color-mix(in oklab, ${activeColor} 14%, transparent)`
@@ -185,7 +185,7 @@ export function SectionTabsBar({
             break;
           case "pills-solid":
             variantStyle = {
-              borderRadius: 999,
+              borderRadius: 5,
               color: active ? "var(--primary-foreground, #fff)" : "var(--muted-foreground, inherit)",
               background: active ? activeColor : "transparent",
               boxShadow: active
