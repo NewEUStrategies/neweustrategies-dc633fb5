@@ -144,6 +144,7 @@ import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
+import { Route as AdminUsersInvitationsRouteImport } from './routes/admin.users.invitations'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
 import { Route as AdminSuperMobileDrawerRouteImport } from './routes/admin.super.mobile-drawer'
 import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
@@ -864,6 +865,11 @@ const ApiPublicAdEventRoute = ApiPublicAdEventRouteImport.update({
   path: '/api/public/ad-event',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminUsersInvitationsRoute = AdminUsersInvitationsRouteImport.update({
+  id: '/invitations',
+  path: '/invitations',
+  getParentRoute: () => AdminUsersRoute,
+} as any)
 const AdminUsersIdRoute = AdminUsersIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -1245,6 +1251,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
+  '/admin/users/invitations': typeof AdminUsersInvitationsRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
@@ -1417,6 +1424,7 @@ export interface FileRoutesByTo {
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
+  '/admin/users/invitations': typeof AdminUsersInvitationsRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
@@ -1597,6 +1605,7 @@ export interface FileRoutesById {
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
+  '/admin/users/invitations': typeof AdminUsersInvitationsRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
@@ -1778,6 +1787,7 @@ export interface FileRouteTypes {
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
+    | '/admin/users/invitations'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
@@ -1950,6 +1960,7 @@ export interface FileRouteTypes {
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
+    | '/admin/users/invitations'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
@@ -2129,6 +2140,7 @@ export interface FileRouteTypes {
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
+    | '/admin/users/invitations'
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
@@ -3168,6 +3180,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAdEventRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/users/invitations': {
+      id: '/admin/users/invitations'
+      path: '/invitations'
+      fullPath: '/admin/users/invitations'
+      preLoaderRoute: typeof AdminUsersInvitationsRouteImport
+      parentRoute: typeof AdminUsersRoute
+    }
     '/admin/users/$id': {
       id: '/admin/users/$id'
       path: '/$id'
@@ -3634,11 +3653,13 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
 
 interface AdminUsersRouteChildren {
   AdminUsersIdRoute: typeof AdminUsersIdRoute
+  AdminUsersInvitationsRoute: typeof AdminUsersInvitationsRoute
   AdminUsersIndexRoute: typeof AdminUsersIndexRoute
 }
 
 const AdminUsersRouteChildren: AdminUsersRouteChildren = {
   AdminUsersIdRoute: AdminUsersIdRoute,
+  AdminUsersInvitationsRoute: AdminUsersInvitationsRoute,
   AdminUsersIndexRoute: AdminUsersIndexRoute,
 }
 
