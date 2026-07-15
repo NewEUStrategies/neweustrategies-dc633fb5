@@ -135,7 +135,22 @@ function Users() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold mb-6">{t("admin.users.title")}</h1>
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <h1 className="font-display text-3xl font-bold">{t("admin.users.title")}</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/admin/users/invitations"><Mail className="w-4 h-4 mr-1" />Zaproszenia</Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <UsersIcon className="w-4 h-4 mr-1" />Import zespołu z /o-nas
+          </Button>
+          <Button size="sm" onClick={() => setInviteOpen(true)}>
+            <Mail className="w-4 h-4 mr-1" />Zaproś użytkownika
+          </Button>
+        </div>
+      </div>
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} onDone={() => qc.invalidateQueries({ queryKey: ["all-users"] })} />
+      <TeamImportDialog open={importOpen} onOpenChange={setImportOpen} pageSlug="o-nas" onDone={() => qc.invalidateQueries({ queryKey: ["all-users"] })} />
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
