@@ -2,6 +2,7 @@
 // When enabled, the Section acts as a tab container: only children whose
 // tabId matches the active tab are rendered (children with empty tabId
 // remain visible in every tab).
+import { useEffect, useRef, useState } from "react";
 import {
   Select,
   SelectTrigger,
@@ -12,7 +13,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, Check, X } from "lucide-react";
 import type { SectionNode, SectionTabItem, SectionTabsConfig } from "@/lib/builder/types";
 import { Row } from "../../atoms";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
