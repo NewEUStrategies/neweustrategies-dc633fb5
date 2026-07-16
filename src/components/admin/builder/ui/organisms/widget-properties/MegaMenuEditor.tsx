@@ -170,6 +170,20 @@ function ColumnEditor({
         />
       </PropField>
 
+      <PropField label="Strona z platformy (link nagłówka)">
+        <PagePicker
+          value={str(col.href) || undefined}
+          onChange={(v) => set("href", v ?? "")}
+          lang={lang}
+        />
+        <Input
+          value={str(col.href)}
+          onChange={(e) => set("href", e.target.value)}
+          className="h-7 text-xs mt-1"
+          placeholder={lang === "pl" ? "lub własny URL (np. /o-nas)" : "or custom URL"}
+        />
+      </PropField>
+
       {kind === "category" && (
         <CategoryColumnFields
           slug={str(col.categorySlug)}
