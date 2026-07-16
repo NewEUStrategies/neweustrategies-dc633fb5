@@ -45,6 +45,16 @@ export default tseslint.config(
               message:
                 "TanStack Start does not use the Next.js `server-only` package. Rename the module to `*.server.ts` or mark it with `@tanstack/react-start/server-only`.",
             },
+            {
+              name: "isomorphic-dompurify",
+              message:
+                "isomorphic-dompurify crashes the Cloudflare Worker at module init (its browser build binds DOMPurify methods eagerly and there is no DOM in workerd) - every request then 500s. Use sanitizeHtml/sanitizeMarkdownHtml from @/lib/sanitize instead.",
+            },
+            {
+              name: "i18n-iso-countries",
+              message:
+                "The bare package resolves to its Node entry in the SSR Worker build, which registers every locale via a dynamic require that Rollup cannot bundle - the Worker then 500s at module init. Import 'i18n-iso-countries/index.js' and register the needed langs explicitly.",
+            },
           ],
         },
       ],

@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
-import DOMPurify from "isomorphic-dompurify";
 import { useMemo } from "react";
+
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Props {
   block: Block;
@@ -10,7 +11,7 @@ interface Props {
 // Canvas preview only - raw HTML editing lives in the right "Blok" sidebar.
 export function HtmlBlock({ block, onChange: _onChange }: Props) {
   const html = String(block.data.html ?? "");
-  const safe = useMemo(() => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }), [html]);
+  const safe = useMemo(() => sanitizeHtml(html), [html]);
 
   if (!html.trim()) {
     return (

@@ -2,14 +2,29 @@
  * Sanitization helpers for user-authored builder content.
  * Use everywhere we render values coming out of `builder_data` JSONB or any
  * other user-controlled field.
+ *
+ * Two engines behind one API:
+ *   - Browser: DOMPurify. Imported from `dompurify` directly - NEVER from
+ *     `isomorphic-dompurify`, whose browser build calls
+ *     `purify.sanitize.bind(purify)` at module scope and therefore crashes the
+ *     whole Cloudflare Worker at init (no DOM -> no `sanitize` -> TypeError ->
+ *     every request 500s as an opaque h3 HTTPError), and whose Node fallback
+ *     (jsdom) cannot run on workerd either.
+ *   - Server (SSR in workerd / Node dev): the allowlist walker in
+ *     lib/ssrSanitizeHtml. The `import.meta.env.SSR` branch is statically
+ *     replaced per build target, so the client bundle tree-shakes the parser
+ *     away and the worker bundle never calls DOMPurify.
  */
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify from "dompurify";
+
+import { ssrSanitizeHtml } from "./ssrSanitizeHtml";
 
 // ---------- HTML ----------
 
 /** Sanitize a string of HTML, preserving safe markup only. */
 export function sanitizeHtml(dirty: string): string {
   if (!dirty) return "";
+  if (import.meta.env.SSR) return ssrSanitizeHtml(dirty);
   return DOMPurify.sanitize(dirty, {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form"],
@@ -20,6 +35,7 @@ export function sanitizeHtml(dirty: string): string {
 /** Sanitize markdown-rendered HTML. Allow more (figures, blockquotes). */
 export function sanitizeMarkdownHtml(dirty: string): string {
   if (!dirty) return "";
+  if (import.meta.env.SSR) return ssrSanitizeHtml(dirty, { allowStyleAttr: true });
   return DOMPurify.sanitize(dirty, {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "style"],
@@ -78,9 +94,7 @@ export function htmlToPlainText(input: string | null | undefined): string {
   // Strip any remaining tags.
   out = out.replace(/<[^>]+>/g, "");
   // Decode entities.
-  out = out.replace(/&#(\d+);/g, (_, n: string) =>
-    String.fromCodePoint(Number(n)),
-  );
+  out = out.replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)));
   out = out.replace(/&#x([0-9a-f]+);/gi, (_, n: string) =>
     String.fromCodePoint(Number.parseInt(n, 16)),
   );
