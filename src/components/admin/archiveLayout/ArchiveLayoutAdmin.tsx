@@ -33,7 +33,9 @@ const HERO_STYLES: HeroBgStyle[] = ["gradient", "image", "solid", "pattern", "me
 const LIST_STYLES: ListStyle[] = ["grid", "list", "masonry"];
 
 export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const previewLang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+
   const qc = useQueryClient();
   const { data, isLoading } = useQuery(archiveLayoutQueryOptions(archiveType));
   const [draft, setDraft] = useState<ArchiveLayoutSettings | null>(null);
