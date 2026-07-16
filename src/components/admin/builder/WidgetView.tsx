@@ -872,8 +872,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       ) as "card" | "split" | "inline" | "split-image";
       const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
       const interestsDisplay = (
-        getStr(c, "interestsDisplay") === "droplist" ? "droplist" : "chips"
+        getStr(c, "interestsDisplay") === "chips" ? "chips" : "droplist"
       ) as "chips" | "droplist";
+
       const interestSlugsRaw = c.interestSlugs;
       const interestSlugs = Array.isArray(interestSlugsRaw)
         ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
