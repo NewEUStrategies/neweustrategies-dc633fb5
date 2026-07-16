@@ -10,7 +10,7 @@
  *  - Fully keyboard accessible via shadcn primitives.
  */
 import { useMemo, useState } from "react";
-import { CalendarIcon } from "@/lib/lucide-shim";
+import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
