@@ -63,6 +63,8 @@ export interface AnalyticsStatus {
     // True gdy przynajmniej jeden tryb odczytu raportów jest gotowy
     // (service_account lub oauth_refresh) + property id.
     configured: boolean;
+    // Zewnętrzny "kill switch" wymuszony przez admina (Odłącz w UI).
+    enabled: boolean;
     // Który tryb jest aktywny do pobierania raportów Data API.
     activeMode: Ga4Mode;
     hasServiceAccount: boolean;
@@ -76,6 +78,8 @@ export interface AnalyticsStatus {
     propertyId: string | null;
     measurementId: string | null;
     embedUrl: string | null;
+    // Podpowiedzi UX - czego brakuje po stronie sekretów projektu.
+    missingSecrets: string[];
   };
   vitals: { configured: boolean };
 }
