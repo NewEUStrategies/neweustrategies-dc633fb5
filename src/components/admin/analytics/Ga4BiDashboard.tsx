@@ -33,6 +33,8 @@ import type { EChartsCoreOption } from "echarts/core";
 import { runGa4Report, type Ga4Report } from "@/lib/analytics/ga4.functions";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
+import { InsightSection } from "./InsightSection";
+import { buildGa4Insights } from "./ga4Insights";
 
 const CORE_METRICS = ["sessions", "activeUsers", "screenPageViews", "engagementRate"] as const;
 type CoreMetric = typeof CORE_METRICS[number];
@@ -344,6 +346,21 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
       </div>
 
       <ChartCard title="Top strony" subtitle="Rank wg odsłon" option={topPagesOption} height={340} />
+
+      {/* Interpretacja + rekomendacje per element dashboardu */}
+      <InsightSection
+        subtitle={`Analiza GA4 · okno ${days} dni · tryb: ${activeMode === "oauth_refresh" ? "OAuth" : "Service Account"}`}
+        insights={buildGa4Insights({
+          dateReport: dateQ.data,
+          prevReport: prevQ.data,
+          sourceReport: sourceQ.data,
+          countryReport: countryQ.data,
+          deviceReport: deviceQ.data,
+          pageReport: pageQ.data,
+          engagementReport: engageQ.data,
+          windowDays: days,
+        })}
+      />
     </div>
   );
 }

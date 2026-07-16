@@ -33,6 +33,8 @@ import type { EChartsCoreOption } from "echarts/core";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
+import { InsightSection } from "./InsightSection";
+import { buildGscInsights } from "./gscInsights";
 
 function daysAgoISO(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
@@ -505,6 +507,21 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           height={320}
         />
       </div>
+
+      {/* Interpretacja + rekomendacje per element dashboardu */}
+      <InsightSection
+        subtitle={`Analiza dla właściwości ${effectiveSite} · okno ${days} dni`}
+        insights={buildGscInsights({
+          totals,
+          prevTotals,
+          dateRows,
+          queryRows,
+          pageRows,
+          countryRows,
+          deviceRows,
+          windowDays: days,
+        })}
+      />
     </div>
   );
 }
