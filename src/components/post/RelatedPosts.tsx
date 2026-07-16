@@ -15,6 +15,8 @@ import {
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
 import { formatDate } from "@/lib/i18n/format";
+import { trackRelatedClick } from "@/lib/relatedClickBeacon";
+
 
 export interface RelatedPostsProps {
   postId: string;
