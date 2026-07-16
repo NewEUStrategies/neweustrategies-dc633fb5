@@ -1,11 +1,4 @@
-/**
- * Regression tests for `applySecurityHeaders`.
- *
- * The SSR error wrapper (previously `errorMiddleware` + `handleMiddlewareError`
- * + `isHttpError`, plus the `src/server.ts` fetch shim) was removed - the
- * framework's default h3 error path is now the single source of truth. Only
- * the security-headers helper remains public and needs regression coverage.
- */
+/** Regression tests for the dependency-free global response middleware. */
 import { describe, expect, it, vi } from "vitest";
 
 import { applySecurityHeaders } from "./start";
