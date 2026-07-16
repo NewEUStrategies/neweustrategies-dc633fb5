@@ -240,7 +240,6 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [
-    errorMiddleware,
     securityHeadersMiddleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
