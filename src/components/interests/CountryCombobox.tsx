@@ -164,7 +164,13 @@ export function CountryCombobox({
         aria-activedescendant={activeId}
         aria-label={ariaLabel}
         name={name}
-        autoComplete="country-name"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-form-type="other"
+        data-lpignore="true"
+        data-1p-ignore="true"
         value={value}
         placeholder={placeholder}
         required={required}
