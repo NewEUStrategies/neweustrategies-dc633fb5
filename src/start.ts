@@ -2,11 +2,9 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import {
-  addLangPrefix,
   isLocalizablePath,
   localizedPath,
   normalizeLang,
-  stripLangPrefix,
 } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 
