@@ -612,37 +612,45 @@ function AdminShellInner({
           </nav>
 
           <div className="p-2 border-t border-border space-y-0.5">
-            <Link
-              to="/"
-              title={t("admin.viewSite")}
-              data-sidebar="menu-button"
-              className={`flex items-center py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted ${compact ? "justify-center px-0" : "gap-1.5 px-2"}`}
-            >
-              <Home className="w-3 h-3 shrink-0" />
-              <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
-            </Link>
-            <SidebarRowButton
-              icon={theme === "dark" ? Sun : Moon}
-              label={t("admin.theme")}
-              title={t("admin.theme")}
-              compact={compact}
-              onClick={toggle}
-            />
-            <SidebarRowButton
-              icon={Globe}
-              label={lang.startsWith("pl") ? "PL" : "EN"}
-              title={lang.startsWith("pl") ? "PL" : "EN"}
-              compact={compact}
-              onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
-            />
-            <SidebarRowButton
-              icon={LogOut}
-              label={t("admin.signout")}
-              title={t("admin.signout")}
-              compact={compact}
-              tone="destructive"
-              onClick={handleSignOut}
-            />
+            <SidebarTooltip label={t("admin.viewSite")} compact={compact}>
+              <Link
+                to="/"
+                title={compact ? undefined : t("admin.viewSite")}
+                data-sidebar="menu-button"
+                className={`flex items-center py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted ${compact ? "justify-center px-0" : "gap-1.5 px-2"}`}
+              >
+                <Home className="w-3 h-3 shrink-0" />
+                <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
+              </Link>
+            </SidebarTooltip>
+            <SidebarTooltip label={t("admin.theme")} compact={compact}>
+              <SidebarRowButton
+                icon={theme === "dark" ? Sun : Moon}
+                label={t("admin.theme")}
+                title={t("admin.theme")}
+                compact={compact}
+                onClick={toggle}
+              />
+            </SidebarTooltip>
+            <SidebarTooltip label={lang.startsWith("pl") ? "PL" : "EN"} compact={compact}>
+              <SidebarRowButton
+                icon={Globe}
+                label={lang.startsWith("pl") ? "PL" : "EN"}
+                title={lang.startsWith("pl") ? "PL" : "EN"}
+                compact={compact}
+                onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
+              />
+            </SidebarTooltip>
+            <SidebarTooltip label={t("admin.signout")} compact={compact}>
+              <SidebarRowButton
+                icon={LogOut}
+                label={t("admin.signout")}
+                title={t("admin.signout")}
+                compact={compact}
+                tone="destructive"
+                onClick={handleSignOut}
+              />
+            </SidebarTooltip>
           </div>
           </TooltipProvider>
         </aside>
