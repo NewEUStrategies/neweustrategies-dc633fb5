@@ -31,6 +31,7 @@ import {
   prefetchBuilderSectionQuery,
   sectionQueryOptionsList,
 } from "@/lib/builder/prefetch";
+import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 
 /**
  * True while the server streams HTML, false in the browser. Vite replaces
@@ -164,14 +165,16 @@ export function StreamingSection({
   }
 
   return (
-    <Suspense fallback={<SectionStreamSkeleton />}>
-      {IS_SSR ? (
-        <ServerSectionGate section={section} lang={lang}>
-          {children}
-        </ServerSectionGate>
-      ) : (
-        children
-      )}
-    </Suspense>
+    <RenderErrorBoundary label={`stream-section:${section.id}`} fallback={null}>
+      <Suspense fallback={<SectionStreamSkeleton />}>
+        {IS_SSR ? (
+          <ServerSectionGate section={section} lang={lang}>
+            {children}
+          </ServerSectionGate>
+        ) : (
+          children
+        )}
+      </Suspense>
+    </RenderErrorBoundary>
   );
 }

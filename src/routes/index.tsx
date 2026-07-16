@@ -278,14 +278,14 @@ function Index() {
         {isLatestPosts ? (
           <LatestPostsHome lang={lang} />
         ) : doc && doc.sections.length > 0 ? (
-          // The loader settles the whole document's widget queries before the
-          // router dehydrates (see loader note), so sections normally render
-          // eagerly with data into the SSR shell. `stream` +
-          // aboveFoldCount={0} stay on purely as the budget-overrun safety
-          // valve: a query that outruns the loader's prefetch budget streams
-          // through the ServerSectionGate instead of blocking or blanking the
-          // response.
-          <BuilderRenderer doc={doc} lang={lang} stream aboveFoldCount={0} />
+          // Streaming is deliberately DISABLED here: the loader already settles
+          // every widget query before dehydration (see prefetchCachedRouteQueries),
+          // and any streaming Suspense/Await boundary that rejects mid-flush can
+          // corrupt the inline $_TSR.router bootstrap script and force React to
+          // rebuild the whole page client-side (visible SSR flash + refetch).
+          // Rendering eagerly keeps SSR HTML and client hydration in lockstep.
+          <BuilderRenderer doc={doc} lang={lang} />
+
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">
