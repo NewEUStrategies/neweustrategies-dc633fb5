@@ -321,7 +321,7 @@ export function ConsentBanner() {
     </div>
   ) : null;
 
-  // ---------- Compact strip (bottom, no details) ----------
+  // ---------- Compact editorial bar (bottom) ----------
   if (!detailsOpen) {
     return (
       <div
@@ -330,69 +330,106 @@ export function ConsentBanner() {
         aria-label={t.title}
         style={styleVars}
         className={cn(
-          "fixed inset-x-2 bottom-2 z-[60] mx-auto max-w-xl sm:max-w-2xl rounded-lg border shadow-lg backdrop-blur-md",
-          "bg-[color:var(--cb-surface,var(--card))]/95 text-[color:var(--cb-fg,var(--card-foreground))] border-[color:var(--cb-border,var(--border))]",
-          "p-3",
+          "fixed inset-x-3 bottom-3 z-[60] mx-auto w-auto sm:inset-x-4 sm:bottom-4",
+          "sm:max-w-4xl",
+          "border shadow-2xl backdrop-blur-md rounded-none sm:rounded-sm",
+          "bg-[color:var(--cb-surface,var(--card))]/98 text-[color:var(--cb-fg,var(--card-foreground))]",
+          "border-[color:var(--cb-border,var(--border))]",
+          "animate-in fade-in slide-in-from-bottom-2 duration-300",
         )}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-          <div className="flex items-start gap-2.5 flex-1 min-w-0">
-            <span
-              aria-hidden
-              className="shrink-0 grid place-items-center h-7 w-7 rounded-full bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]"
+        {/* Accent hairline top-edge for editorial feel */}
+        <div
+          aria-hidden
+          className="h-[2px] w-full bg-[color:var(--cb-accent,var(--primary))]"
+        />
+        <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-5 md:gap-8">
+          {/* Left: content */}
+          <div className="flex-1 min-w-0 space-y-2.5">
+            <div className="flex items-center justify-between md:justify-start gap-4 flex-wrap">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  aria-hidden
+                  className="shrink-0 grid place-items-center h-6 w-6 rounded-sm bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                </span>
+                <h2
+                  id="consent-title"
+                  className="text-[13px] md:text-[14px] font-bold uppercase tracking-[0.14em] leading-tight text-[color:var(--cb-fg,var(--foreground))] truncate"
+                >
+                  {t.title}
+                </h2>
+              </div>
+              {LangSwitcher}
+            </div>
+            <p
+              className={cn(
+                "text-[12.5px] md:text-[13px] leading-relaxed max-w-2xl",
+                "text-[color:var(--cb-fg,var(--muted-foreground))]/85",
+              )}
             >
-              <Cookie className="h-3.5 w-3.5" />
-            </span>
-            <p className={cn(TX.body, "min-w-0 flex-1 text-[color:var(--cb-fg,var(--foreground))]/85")}>
               {t.compactMessage}{" "}
               {privacyHref ? (
                 <a
                   href={privacyHref}
-                  className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
+                  className="font-semibold text-[color:var(--cb-accent,var(--primary))] underline underline-offset-4 decoration-[color:var(--cb-accent,var(--primary))]/40 hover:decoration-[color:var(--cb-accent,var(--primary))] transition-colors"
                 >
                   {t.policyLabel}
                 </a>
               ) : (
-                <span className="text-[color:var(--cb-accent,var(--primary))]">{t.policyLabel}</span>
+                <span className="font-semibold text-[color:var(--cb-accent,var(--primary))]">
+                  {t.policyLabel}
+                </span>
               )}
               .
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-1.5 justify-end flex-wrap">
-            {LangSwitcher}
+          {/* Right: actions */}
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 md:shrink-0">
             <button
               type="button"
-              className={BTN_OUTLINE}
-              aria-label={t.showDetails}
               onClick={() => setDetailsOpen(true)}
+              aria-label={t.showDetails}
+              className={cn(
+                "text-[11px] font-bold uppercase tracking-[0.15em] px-3 py-3 transition-colors",
+                "text-[color:var(--cb-fg,var(--muted-foreground))] hover:text-[color:var(--cb-fg,var(--foreground))]",
+              )}
             >
-              <Settings2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t.showDetails}</span>
+              <Settings2 className="inline-block h-3.5 w-3.5 mr-1.5 -mt-0.5" aria-hidden />
+              {t.showDetails}
             </button>
             <button
               type="button"
-              className={BTN_OUTLINE}
-              aria-label={t.rejectAll}
               onClick={rejectAll}
+              aria-label={t.rejectAll}
+              className={cn(
+                "text-[11px] font-bold uppercase tracking-[0.15em] px-5 py-3 whitespace-nowrap transition-colors",
+                "border border-[color:var(--cb-border,var(--border))] text-[color:var(--cb-fg,var(--foreground))]",
+                "hover:bg-[color:var(--cb-muted,var(--muted))]/60",
+              )}
             >
-              <X className="h-3.5 w-3.5" />
-              <span>{t.rejectAll}</span>
+              {t.rejectAll}
             </button>
             <button
               type="button"
-              className={BTN_PRIMARY}
-              aria-label={t.acceptAll}
               onClick={acceptAll}
+              aria-label={t.acceptAll}
+              className={cn(
+                "text-[11px] font-bold uppercase tracking-[0.15em] px-6 py-3 whitespace-nowrap transition-all shadow-sm",
+                "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]",
+                "hover:bg-[color:var(--cb-accent,var(--primary))]/90 hover:shadow-[0_0_24px_-4px_color-mix(in_oklab,var(--cb-accent,var(--primary))_45%,transparent)]",
+              )}
             >
-              <Check className="h-3.5 w-3.5" />
-              <span>{t.acceptAll}</span>
+              {t.acceptAll}
             </button>
           </div>
         </div>
       </div>
     );
   }
+
 
   // ---------- Expanded modal with per-category vendor tables ----------
   return (
