@@ -329,19 +329,16 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       {mounted && open && anchor
         ? createPortal(
             (() => {
-              // Mega panels are wide (~1120px). Clamp the panel horizontally so
-              // it never overflows the viewport regardless of which top-level
-              // item was hovered.
+              // Mega panels: wyśrodkuj poziomo względem viewportu.
+              // Zwykłe dropdowny: dokotwicz do triggera z clampem do krawędzi.
               const hasNested =
                 node.children.length > 0 && node.children.some((c) => c.children.length > 0);
               const isMega = node.mega_enabled || hasNested;
               const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
               const panelWidth = isMega ? Math.min(1120, vw - 32) : 260;
-              const rawLeft = anchor.left;
-              const clampedLeft = Math.max(
-                16,
-                Math.min(rawLeft, vw - panelWidth - 16),
-              );
+              const clampedLeft = isMega
+                ? Math.round((vw - panelWidth) / 2)
+                : Math.max(16, Math.min(anchor.left, vw - panelWidth - 16));
               return (
                 <div
                   ref={panelRef}
