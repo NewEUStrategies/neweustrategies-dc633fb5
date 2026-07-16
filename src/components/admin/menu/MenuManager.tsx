@@ -149,6 +149,7 @@ export function MenuManager({ menuKey }: Props) {
         href: p.href,
         target: "_self",
         css_class: "",
+        icon: "",
         mega_enabled: false,
         mega_config: DEFAULT_MEGA_CONFIG,
       }));
