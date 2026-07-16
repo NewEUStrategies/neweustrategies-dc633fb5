@@ -80,6 +80,7 @@ export function MenuManager({ menuKey }: Props) {
       href: it.href,
       target: (it.target === "_blank" ? "_blank" : "_self") as "_self" | "_blank",
       css_class: it.css_class,
+      icon: it.icon ?? "",
       mega_enabled: it.mega_enabled,
       mega_config: it.mega_config,
     }));
