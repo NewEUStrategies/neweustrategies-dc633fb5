@@ -789,14 +789,33 @@ function MegaColumnsEditor({
   onChange,
   triggerPl,
   triggerEn,
+  treeChildren,
 }: {
   config: MegaConfig;
   onChange: (cfg: MegaConfig) => void;
   triggerPl: string;
   triggerEn: string;
+  treeChildren: TreeNode[];
 }) {
   const { t } = useTranslation();
   const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
+  const derivedCols = useMemo<MegaConfig["columns"]>(
+    () =>
+      treeChildren.map((c) => ({
+        title_pl: c.item.label_pl,
+        title_en: c.item.label_en,
+        href: c.item.href,
+        links: c.children.map((gc) => ({
+          label_pl: gc.item.label_pl,
+          label_en: gc.item.label_en,
+          href: gc.item.href,
+          icon: gc.item.icon ?? "",
+        })),
+      })),
+    [treeChildren],
+  );
+  const importFromTree = () =>
+    onChange({ ...config, columns: derivedCols });
   const addColumn = () =>
     onChange({
       ...config,
