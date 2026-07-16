@@ -414,7 +414,7 @@ export function ConsentBanner() {
               <button
                 type="button"
                 onClick={() => setDetailsOpen(false)}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-primary hover:bg-accent transition-colors"
+                className="mt-3 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-foreground hover:bg-primary/15 hover:text-foreground hover:border-primary/40 transition-colors"
               >
                 <Settings2 className="h-3.5 w-3.5" />
                 {t.hideDetails}
@@ -471,7 +471,7 @@ export function ConsentBanner() {
                   type="button"
                   onClick={() => toggleVendors(cat)}
                   aria-expanded={vendorsOpen}
-                  className="mt-3 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-primary hover:bg-accent transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-foreground hover:bg-primary/15 hover:text-foreground hover:border-primary/40 transition-colors"
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {vendorsOpen ? t.hideVendors : t.showVendors}
