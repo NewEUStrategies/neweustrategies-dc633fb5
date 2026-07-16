@@ -72,7 +72,13 @@ function DropdownPanel({
   lang: SiteMenuLang;
   onRequestClose: () => void;
 }) {
-  if (node.mega_enabled) {
+  // Auto-promote nested menus (top-level item whose children have their own
+  // children) to the editorial mega layout, even if the admin did not tick
+  // `mega_enabled`. A flat single-level dropdown keeps the compact list style.
+  const hasNestedChildren =
+    node.children.length > 0 && node.children.some((c) => c.children.length > 0);
+  const useMega = node.mega_enabled || hasNestedChildren;
+  if (useMega) {
     return <MegaPanel node={node} lang={lang} onRequestClose={onRequestClose} />;
   }
   return (
