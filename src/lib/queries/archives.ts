@@ -43,6 +43,7 @@ const POST_COLS =
 //  agreguje materiały wielu typów, nie tylko wpisy.)
 
 export type TaxonomyKind = "category" | "tag";
+export type ArchiveSort = "newest" | "oldest" | "popular";
 
 export interface TaxonomyMeta {
   id: string;
@@ -67,16 +68,32 @@ async function fetchFeaturedSection(templateId: string | null): Promise<SectionN
   return d;
 }
 
+export interface TaxonomyArchiveParams {
+  page?: number;
+  pageSize?: number;
+  sort?: ArchiveSort;
+}
+
+export interface TaxonomyArchiveResult {
+  taxonomy: TaxonomyMeta;
+  posts: BlogListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  sort: ArchiveSort;
+}
+
 export const taxonomyArchiveQueryOptions = (
   kind: TaxonomyKind,
   slug: string,
-  limit: number = ARCHIVE_PAGE_SIZE,
-) =>
-  queryOptions({
-    queryKey: ["public", "archive", kind, slug, { limit }] as const,
-    queryFn: async (): Promise<{ taxonomy: TaxonomyMeta; posts: BlogListItem[] } | null> => {
-      // Errors are thrown (route error boundary), never collapsed into a fake
-      // "not found" - null is reserved for a genuinely missing taxonomy row.
+  params: TaxonomyArchiveParams = {},
+) => {
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.max(1, Math.min(200, params.pageSize ?? ARCHIVE_PAGE_SIZE));
+  const sort: ArchiveSort = params.sort ?? "newest";
+  return queryOptions({
+    queryKey: ["public", "archive", kind, slug, { page, pageSize, sort }] as const,
+    queryFn: async (): Promise<TaxonomyArchiveResult | null> => {
       let taxRow: {
         id: string;
         slug: string;
@@ -142,16 +159,25 @@ export const taxonomyArchiveQueryOptions = (
       const featured_section = await fetchFeaturedSection(taxRow.featured_template_id);
 
       let posts: BlogListItem[] = [];
+      let total = 0;
       if (postIds.length > 0) {
-        const { data: rows, error: postsError } = await supabase
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        let q = supabase
           .from("posts")
-          .select(POST_COLS)
+          .select(POST_COLS, { count: "exact" })
           .in("id", postIds)
           .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false })
-          .limit(limit);
+          .is("deleted_at", null);
+        if (sort === "oldest") q = q.order("published_at", { ascending: true });
+        else if (sort === "popular")
+          q = q
+            .order("views_count", { ascending: false })
+            .order("published_at", { ascending: false });
+        else q = q.order("published_at", { ascending: false });
+        const { data: rows, count, error: postsError } = await q.range(from, to);
         if (postsError) throw postsError;
+        total = count ?? 0;
         posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
       }
 
@@ -167,10 +193,16 @@ export const taxonomyArchiveQueryOptions = (
           featured_section,
         },
         posts,
+        total,
+        page,
+        pageSize,
+        sort,
       };
     },
     staleTime: TTL,
   });
+};
+
 
 // ---------- SEARCH ---------------------------------------------------------
 

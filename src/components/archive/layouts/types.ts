@@ -2,6 +2,7 @@
 import type { BlogListItem } from "@/lib/queries/public";
 import type { ArchiveLayoutSettings } from "@/lib/archive-layout-settings";
 import type { SectionNode } from "@/lib/builder/types";
+import type { ArchiveSort } from "@/lib/queries/archives";
 
 export interface TaxonomyMetaLike {
   id: string;
@@ -19,11 +20,16 @@ export interface ArchiveLayoutProps {
   posts: readonly BlogListItem[];
   lang: "pl" | "en";
   settings: ArchiveLayoutSettings;
-  canLoadMore: boolean;
+  // Pagination + sort
+  page: number;
+  pageSize: number;
+  total: number;
+  sort: ArchiveSort;
+  onPageChange: (page: number) => void;
+  onSortChange: (sort: ArchiveSort) => void;
   isPending: boolean;
-  onLoadMore: () => void;
   emptyText: string;
-  loadingText: string;
-  loadMoreText: string;
   extraBelow?: React.ReactNode;
+  /** When true, disables interactive controls (used for admin live preview). */
+  previewMode?: boolean;
 }

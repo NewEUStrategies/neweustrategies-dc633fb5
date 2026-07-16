@@ -18,7 +18,10 @@ import {
   type SidebarPosition,
 } from "@/lib/archive-layout-settings";
 import { LAYOUT_REGISTRY, type LayoutVariant } from "@/components/archive/layouts/registry";
+import { ArchiveLivePreview } from "./ArchiveLivePreview";
 import "@/lib/i18n-archive-layout";
+
+
 
 interface Props {
   archiveType: ArchiveType;
@@ -30,7 +33,9 @@ const HERO_STYLES: HeroBgStyle[] = ["gradient", "image", "solid", "pattern", "me
 const LIST_STYLES: ListStyle[] = ["grid", "list", "masonry"];
 
 export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const previewLang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+
   const qc = useQueryClient();
   const { data, isLoading } = useQuery(archiveLayoutQueryOptions(archiveType));
   const [draft, setDraft] = useState<ArchiveLayoutSettings | null>(null);
@@ -156,6 +161,11 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
           })}
         </div>
       </section>
+
+      {/* Live preview */}
+      <ArchiveLivePreview archiveType={archiveType} settings={draft} lang={previewLang} />
+
+
 
       {/* Display toggles */}
       <FieldsGrid title={t("archiveLayout.sections.display")}>
