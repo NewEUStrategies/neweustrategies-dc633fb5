@@ -1004,7 +1004,6 @@ export function JoinUsForm({
                     </div>,
                     document.body,
                   )}
-                )}
               </div>
             </div>
           ) : (
