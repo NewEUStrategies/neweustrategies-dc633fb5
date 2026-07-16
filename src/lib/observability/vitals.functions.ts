@@ -34,7 +34,13 @@ export interface VitalsSummaryResult extends VitalsReport {
 export const getVitalsSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
-    z.object({ days: z.number().int().min(1).max(90).default(7) }).parse(i ?? {}),
+    z
+      .object({
+        days: z.number().int().min(1).max(365).optional(),
+        sinceIso: z.string().datetime().optional(),
+        untilIso: z.string().datetime().optional(),
+      })
+      .parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<VitalsSummaryResult> => {
     // Admin gate: a user can read their own roles under RLS (see useAuth), so we
@@ -47,9 +53,19 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     const isAdmin = (roles ?? []).some((r) => r.role === "admin");
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
-    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+    // Resolve the analytical window. Custom range (sinceIso/untilIso) wins over
+    // the `days` preset; falls back to 7d when nothing is supplied.
+    const now = Date.now();
+    const untilMs = data.untilIso ? Date.parse(data.untilIso) : now;
+    const sinceMs = data.sinceIso
+      ? Date.parse(data.sinceIso)
+      : now - (data.days ?? 7) * 86_400_000;
+    const since = new Date(sinceMs).toISOString();
+    const until = new Date(untilMs).toISOString();
+    const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
+    const hasCustomUntil = Boolean(data.untilIso);
     const empty: VitalsSummaryResult = {
-      windowDays: data.days,
+      windowDays,
       total: 0,
       metrics: [],
       paths: [],
@@ -57,6 +73,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       windowTotal: 0,
       capped: false,
     };
+
 
     // Degrade gracefully on any data-read failure (e.g. the web_vitals migration
     // hasn't been applied to this database yet): the dashboard shows "no data"
