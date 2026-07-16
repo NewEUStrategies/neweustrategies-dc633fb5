@@ -180,11 +180,13 @@ import { Route as AdminCommunityEngagementRouteImport } from './routes/admin.com
 import { Route as AdminCommunityContributorsRouteImport } from './routes/admin.community.contributors'
 import { Route as AdminCommunityChatRouteImport } from './routes/admin.community.chat'
 import { Route as AdminCommunityBadgesRouteImport } from './routes/admin.community.badges'
+import { Route as AdminAppearanceTagArchiveRouteImport } from './routes/admin.appearance.tag-archive'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/admin.appearance.category-archive'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
@@ -1056,6 +1058,12 @@ const AdminCommunityBadgesRoute = AdminCommunityBadgesRouteImport.update({
   path: '/badges',
   getParentRoute: () => AdminCommunityRoute,
 } as any)
+const AdminAppearanceTagArchiveRoute =
+  AdminAppearanceTagArchiveRouteImport.update({
+    id: '/tag-archive',
+    path: '/tag-archive',
+    getParentRoute: () => AdminAppearanceRoute,
+  } as any)
 const AdminAppearancePostSidebarRoute =
   AdminAppearancePostSidebarRouteImport.update({
     id: '/post-sidebar',
@@ -1083,6 +1091,12 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AdminAppearanceCategoryArchiveRoute =
+  AdminAppearanceCategoryArchiveRouteImport.update({
+    id: '/category-archive',
+    path: '/category-archive',
+    getParentRoute: () => AdminAppearanceRoute,
+  } as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -1249,11 +1263,13 @@ export interface FileRoutesByFullPath {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/appearance/tag-archive': typeof AdminAppearanceTagArchiveRoute
   '/admin/community/badges': typeof AdminCommunityBadgesRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/community/contributors': typeof AdminCommunityContributorsRoute
@@ -1428,11 +1444,13 @@ export interface FileRoutesByTo {
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/appearance/tag-archive': typeof AdminAppearanceTagArchiveRoute
   '/admin/community/badges': typeof AdminCommunityBadgesRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/community/contributors': typeof AdminCommunityContributorsRoute
@@ -1613,11 +1631,13 @@ export interface FileRoutesById {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/appearance/tag-archive': typeof AdminAppearanceTagArchiveRoute
   '/admin/community/badges': typeof AdminCommunityBadgesRoute
   '/admin/community/chat': typeof AdminCommunityChatRoute
   '/admin/community/contributors': typeof AdminCommunityContributorsRoute
@@ -1800,11 +1820,13 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/appearance/category-archive'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/appearance/tag-archive'
     | '/admin/community/badges'
     | '/admin/community/chat'
     | '/admin/community/contributors'
@@ -1979,11 +2001,13 @@ export interface FileRouteTypes {
     | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/appearance/category-archive'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/appearance/tag-archive'
     | '/admin/community/badges'
     | '/admin/community/chat'
     | '/admin/community/contributors'
@@ -2163,11 +2187,13 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/appearance/category-archive'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/appearance/tag-archive'
     | '/admin/community/badges'
     | '/admin/community/chat'
     | '/admin/community/contributors'
@@ -3493,6 +3519,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommunityBadgesRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
+    '/admin/appearance/tag-archive': {
+      id: '/admin/appearance/tag-archive'
+      path: '/tag-archive'
+      fullPath: '/admin/appearance/tag-archive'
+      preLoaderRoute: typeof AdminAppearanceTagArchiveRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
     '/admin/appearance/post-sidebar': {
       id: '/admin/appearance/post-sidebar'
       path: '/post-sidebar'
@@ -3526,6 +3559,13 @@ declare module '@tanstack/react-router' {
       path: '/footer'
       fullPath: '/admin/appearance/footer'
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
+    '/admin/appearance/category-archive': {
+      id: '/admin/appearance/category-archive'
+      path: '/category-archive'
+      fullPath: '/admin/appearance/category-archive'
+      preLoaderRoute: typeof AdminAppearanceCategoryArchiveRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
     '/.mcp/invoke-tool/$tool': {
@@ -3581,19 +3621,23 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminAppearanceRouteChildren {
+  AdminAppearanceCategoryArchiveRoute: typeof AdminAppearanceCategoryArchiveRoute
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
   AdminAppearanceGlobalColorsRoute: typeof AdminAppearanceGlobalColorsRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
   AdminAppearanceMenuRoute: typeof AdminAppearanceMenuRoute
   AdminAppearancePostSidebarRoute: typeof AdminAppearancePostSidebarRoute
+  AdminAppearanceTagArchiveRoute: typeof AdminAppearanceTagArchiveRoute
 }
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
+  AdminAppearanceCategoryArchiveRoute: AdminAppearanceCategoryArchiveRoute,
   AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
   AdminAppearanceGlobalColorsRoute: AdminAppearanceGlobalColorsRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,
   AdminAppearanceMenuRoute: AdminAppearanceMenuRoute,
   AdminAppearancePostSidebarRoute: AdminAppearancePostSidebarRoute,
+  AdminAppearanceTagArchiveRoute: AdminAppearanceTagArchiveRoute,
 }
 
 const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
