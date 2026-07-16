@@ -7,6 +7,7 @@ import {
   normalizeLang,
 } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
+import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
