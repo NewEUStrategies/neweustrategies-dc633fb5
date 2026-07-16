@@ -1059,20 +1059,27 @@ function MegaPreview({
   triggerEn,
   lang,
   onLangChange,
+  derivedCols,
 }: {
   config: MegaConfig;
   triggerPl: string;
   triggerEn: string;
   lang: "pl" | "en";
   onLangChange: (l: "pl" | "en") => void;
+  derivedCols: MegaConfig["columns"];
 }) {
   const { t } = useTranslation();
   const featuredQuery = useQuery(megaFeaturedPostQueryOptions(config.featured_post_id ?? null));
   const featured = featuredQuery.data ?? null;
 
+  // 1:1 z SiteMenu: gdy konfiguracja kolumn jest pusta, front auto-buduje kolumny
+  // z drzewa dzieci tej pozycji. Admin musi pokazać dokładnie ten sam widok.
+  const configuredCols = config.columns;
+  const usingDerived = configuredCols.length === 0;
   const cols = useMemo(
-    () =>
-      config.columns.map((c) => ({
+    () => {
+      const source = usingDerived ? derivedCols : configuredCols;
+      return source.map((c) => ({
         title_pl: c.title_pl,
         title_en: c.title_en,
         href: c.href,
@@ -1082,8 +1089,9 @@ function MegaPreview({
           href: l.href,
           icon: l.icon ?? "",
         })),
-      })),
-    [config.columns],
+      }));
+    },
+    [usingDerived, configuredCols, derivedCols],
   );
 
   const parentLabel = lang === "en" ? triggerEn || triggerPl : triggerPl;
