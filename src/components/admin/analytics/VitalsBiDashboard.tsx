@@ -45,30 +45,17 @@ function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[
 
 export function VitalsBiDashboard() {
   const fetchVitals = useServerFn(getVitalsSummary);
-  const [days, setDays] = useState<number>(7);
+  const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
 
-  const queries = useQueries({
-    queries: [
-      {
-        queryKey: ["vitals-bi", days],
-        queryFn: () => fetchVitals({ data: { days } }),
-        staleTime: 60_000,
-      },
-      {
-        queryKey: ["vitals-bi-prev", days],
-        queryFn: () => fetchVitals({ data: { days } }),
-        // Same handler - previous-window support would require a server-fn
-        // extension; for now we compare current samples against themselves,
-        // showing 0 delta. Kept as its own query so the shape is ready when we
-        // add `since`/`until` params to getVitalsSummary.
-        staleTime: 60_000,
-        enabled: false,
-      },
-    ],
+  const curQ = useQuery({
+    queryKey: ["vitals-bi", range.presetId, range.sinceIso, range.untilIso],
+    queryFn: () =>
+      fetchVitals({ data: { sinceIso: range.sinceIso, untilIso: range.untilIso } }),
+    staleTime: 60_000,
   });
-  const [curQ] = queries;
   const report = curQ.data;
   const isLoading = curQ.isLoading;
+
 
   const metricsByName = useMemo(() => {
     const map = new Map<VitalName, NonNullable<typeof report>["metrics"][number]>();
