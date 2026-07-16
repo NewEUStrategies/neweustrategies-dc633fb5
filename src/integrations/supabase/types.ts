@@ -6579,6 +6579,58 @@ export type Database = {
           },
         ]
       }
+      related_post_clicks: {
+        Row: {
+          clicked_at: string
+          id: string
+          source_post_id: string
+          target_post_id: string
+          tenant_id: string
+          user_id: string | null
+          viewer_hash: string
+        }
+        Insert: {
+          clicked_at?: string
+          id?: string
+          source_post_id: string
+          target_post_id: string
+          tenant_id: string
+          user_id?: string | null
+          viewer_hash: string
+        }
+        Update: {
+          clicked_at?: string
+          id?: string
+          source_post_id?: string
+          target_post_id?: string
+          tenant_id?: string
+          user_id?: string | null
+          viewer_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "related_post_clicks_source_post_id_fkey"
+            columns: ["source_post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "related_post_clicks_target_post_id_fkey"
+            columns: ["target_post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "related_post_clicks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       related_posts_config: {
         Row: {
           after_paragraph: number
@@ -6587,6 +6639,7 @@ export type Database = {
           enabled: boolean
           items_limit: number
           layout: string
+          min_score: number
           position: string
           recency_boost_days: number
           show_cover: boolean
@@ -6599,6 +6652,14 @@ export type Database = {
           title_en: string
           title_pl: string
           updated_at: string
+          use_idf: boolean
+          weight_author: number
+          weight_categories: number
+          weight_dwell: number
+          weight_personalization: number
+          weight_popularity: number
+          weight_recency: number
+          weight_tags: number
         }
         Insert: {
           after_paragraph?: number
@@ -6607,6 +6668,7 @@ export type Database = {
           enabled?: boolean
           items_limit?: number
           layout?: string
+          min_score?: number
           position?: string
           recency_boost_days?: number
           show_cover?: boolean
@@ -6619,6 +6681,14 @@ export type Database = {
           title_en?: string
           title_pl?: string
           updated_at?: string
+          use_idf?: boolean
+          weight_author?: number
+          weight_categories?: number
+          weight_dwell?: number
+          weight_personalization?: number
+          weight_popularity?: number
+          weight_recency?: number
+          weight_tags?: number
         }
         Update: {
           after_paragraph?: number
@@ -6627,6 +6697,7 @@ export type Database = {
           enabled?: boolean
           items_limit?: number
           layout?: string
+          min_score?: number
           position?: string
           recency_boost_days?: number
           show_cover?: boolean
@@ -6639,6 +6710,14 @@ export type Database = {
           title_en?: string
           title_pl?: string
           updated_at?: string
+          use_idf?: boolean
+          weight_author?: number
+          weight_categories?: number
+          weight_dwell?: number
+          weight_personalization?: number
+          weight_popularity?: number
+          weight_recency?: number
+          weight_tags?: number
         }
         Relationships: [
           {
@@ -8851,6 +8930,10 @@ export type Database = {
       record_seo_404: {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
+      }
+      related_posts_signals: {
+        Args: { _since_days?: number; _tenant: string }
+        Returns: Json
       }
       rename_group_conversation: {
         Args: { p_conversation_id: string; p_title: string }
