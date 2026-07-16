@@ -155,7 +155,13 @@ export function VitalsBiDashboard() {
 
   const pathTreemapOption = useMemo<EChartsCoreOption>(() => {
     const paths = (report?.paths ?? []).slice(0, 25);
-    const [, lcpPoor] = VITAL_THRESHOLDS.LCP;
+    const [lcpGood, lcpPoor] = VITAL_THRESHOLDS.LCP;
+    const colorFor = (lcp: number): string => {
+      if (!lcp) return "#64748b"; // brak danych LCP - neutralny slate
+      if (lcp <= lcpGood) return "#16a34a";
+      if (lcp <= lcpPoor) return "#f59e0b";
+      return "#dc2626";
+    };
     return {
       tooltip: {
         formatter: (raw: unknown) => {
@@ -163,30 +169,32 @@ export function VitalsBiDashboard() {
           return `${p.name}<br/>Próbek: <b>${p.value}</b><br/>LCP p75: ${p.data.lcp ? fmtValue("LCP", p.data.lcp) : "-"}`;
         },
       },
-      visualMap: {
-        min: 0,
-        max: lcpPoor * 1.5,
-        dimension: "lcp",
-        show: false,
-        inRange: { color: ["#16a34a", "#f59e0b", "#dc2626"] },
-      },
       series: [
         {
           type: "treemap",
           roam: false,
           nodeClick: false,
           breadcrumb: { show: false },
-          label: { show: true, formatter: "{b}", fontSize: 10, color: "#fff" },
+          label: {
+            show: true,
+            formatter: "{b}",
+            fontSize: 11,
+            color: "#ffffff",
+            textBorderColor: "rgba(0,0,0,0.35)",
+            textBorderWidth: 2,
+          },
           itemStyle: { borderColor: "hsl(var(--background))", borderWidth: 2, gapWidth: 2 },
           data: paths.map((p) => {
             const lcp = p.metrics.find((m) => m.metric === "LCP")?.p75 ?? 0;
             const shown = p.path.length > 26 ? p.path.slice(0, 26) + "…" : p.path;
-            return { name: shown, value: p.total, lcp };
+            return { name: shown, value: p.total, lcp, itemStyle: { color: colorFor(lcp) } };
           }),
         },
       ],
     };
   }, [report]);
+
+
 
   const overallPieOption = useMemo<EChartsCoreOption>(() => {
     const good = (report?.metrics ?? []).reduce((acc, m) => acc + m.good, 0);
