@@ -22,7 +22,7 @@ import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/met
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { getLayoutComponent } from "@/components/archive/layouts/registry";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { homeLabel } from "@/lib/i18n/commonLabels";
+
 import "@/lib/i18n-archive-layout";
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
