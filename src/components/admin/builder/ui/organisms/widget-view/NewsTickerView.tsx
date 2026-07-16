@@ -1,5 +1,5 @@
 // News ticker - horizontal marquee of latest posts. Used as a builder widget.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
@@ -123,7 +123,14 @@ function NewsTickerMarquee({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [animName] = useState(() => `news-ticker-${Math.random().toString(36).slice(2, 8)}`);
+  // Stable across SSR and client hydration. useId is deterministic per component
+  // position, so the injected `@keyframes` name and the element's `animation`
+  // style match byte-for-byte between server and client. `Math.random()` here
+  // generated a DIFFERENT name on the client's hydration pass, so the SSR markup
+  // and the hydrated render disagreed - a hydration mismatch that makes React 19
+  // throw away the server HTML and re-render the subtree on the client. Colons
+  // from useId are not valid in a CSS identifier, so strip them.
+  const animName = `news-ticker-${useId().replace(/:/g, "")}`;
 
   return (
     <div

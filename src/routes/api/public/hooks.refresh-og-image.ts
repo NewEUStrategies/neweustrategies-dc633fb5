@@ -7,7 +7,16 @@
 // Nagłówek: `x-og-signature: <hex>`. Bez sekretu w env → 501 (opt-in).
 // Autor SPA używa server function `refreshAuthorOgImage` (JWT), nie tego endpointu.
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
+// MUST use the `node:` prefix. This module is a ROUTE, so it is eagerly imported
+// by routeTree.gen and evaluated during the framework's getEntries() on the first
+// SSR request. On the Cloudflare Worker (workerd) runtime a bare "crypto"
+// specifier is not a resolvable module (nodejs_compat exposes builtins only under
+// the `node:` prefix); the unresolved import throws at module-init, rejects the
+// whole route-module graph, and h3 serializes it as the opaque, self-poisoning
+// `{"unhandled":true,"message":"HTTPError"}` 500 for EVERY route (Node resolves
+// the bare specifier, so it only ever failed on workerd). Every other route here
+// already uses "node:crypto"; this was the lone inconsistency.
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 const Body = z.object({
