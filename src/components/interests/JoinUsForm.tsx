@@ -913,6 +913,7 @@ export function JoinUsForm({
               {/* Dropdown trigger + menu */}
               <div ref={dropRef} className="relative">
                 <button
+                  ref={triggerRef}
                   type="button"
                   onClick={() => setDropOpen((v) => !v)}
                   aria-haspopup="listbox"
