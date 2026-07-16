@@ -49,6 +49,21 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
   }
 }
 
+interface StoredAnalytics {
+  ga4_enabled?: boolean;
+  ga4_property_id?: string;
+}
+async function readStoredAnalytics(ctx: GatewayCtx): Promise<StoredAnalytics> {
+  try {
+    const res = await ctx.supabase.from("site_settings").select("value").eq("key", "analytics");
+    if (res.error) return {};
+    const rows = (res.data ?? []) as Array<{ value: StoredAnalytics | null }>;
+    return rows[0]?.value ?? {};
+  } catch {
+    return {};
+  }
+}
+
 interface ServiceAccount {
   client_email: string;
   private_key: string;
