@@ -86,7 +86,7 @@ export function AddItemPanel({ onAdd }: Props) {
           table="categories"
           titleField={lang === "en" ? "name_en" : "name_pl"}
           fallbackField={lang === "en" ? "name_pl" : "name_en"}
-          hrefBuilder={(slug) => `/kategoria/${slug}`}
+          hrefBuilder={(slug) => `/category/${slug}`}
           onAdd={onAdd}
         />
       </SectionShell>
@@ -99,8 +99,8 @@ export function AddItemPanel({ onAdd }: Props) {
         <PickList
           type="tag"
           table="tags"
-          titleField={lang === "en" ? "name_en" : "name_pl"}
-          fallbackField={lang === "en" ? "name_pl" : "name_en"}
+          titleField="name"
+          fallbackField="name"
           hrefBuilder={(slug) => `/tag/${slug}`}
           onAdd={onAdd}
         />
@@ -192,8 +192,14 @@ function PickList({
         return {
           id: String(rec.id ?? ""),
           slug,
-          title_pl: table === "pages" || table === "posts" ? String(rec["title_pl"] ?? "") : String(rec["name_pl"] ?? ""),
-          title_en: table === "pages" || table === "posts" ? String(rec["title_en"] ?? "") : String(rec["name_en"] ?? ""),
+          title_pl:
+            table === "pages" || table === "posts"
+              ? String(rec["title_pl"] ?? "")
+              : String(rec[table === "tags" ? "name" : "name_pl"] ?? ""),
+          title_en:
+            table === "pages" || table === "posts"
+              ? String(rec["title_en"] ?? "")
+              : String(rec[table === "tags" ? "name" : "name_en"] ?? ""),
           label: primary || fallback || slug,
           href: hrefBuilder(slug),
         };
@@ -216,8 +222,8 @@ function PickList({
       .map((r) => ({
         item_type: type,
         ref_id: r.id,
-        label_pl: (table === "pages" || table === "posts" ? r.title_pl : (r as unknown as { name_pl?: string }).name_pl) || r.label,
-        label_en: (table === "pages" || table === "posts" ? r.title_en : (r as unknown as { name_en?: string }).name_en) || "",
+        label_pl: r.title_pl || r.label,
+        label_en: r.title_en || r.label,
         href: r.href,
       }));
     if (items.length === 0) return;

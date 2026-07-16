@@ -980,8 +980,8 @@ function InternalContentPicker({
       > = {
         pages: { title: "title_pl", fallback: "title_en", withStatus: true, href: (s) => `/${s}` },
         posts: { title: "title_pl", fallback: "title_en", withStatus: true, href: (s) => `/post/${s}` },
-        categories: { title: "name_pl", fallback: "name_en", withStatus: false, href: (s) => `/kategoria/${s}` },
-        tags: { title: "name_pl", fallback: "name_en", withStatus: false, href: (s) => `/tag/${s}` },
+        categories: { title: "name_pl", fallback: "name_en", withStatus: false, href: (s) => `/category/${s}` },
+        tags: { title: "name", fallback: "name", withStatus: false, href: (s) => `/tag/${s}` },
       };
       const c = cfg[table];
       type Builder = {
