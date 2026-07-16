@@ -13,12 +13,7 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Download, Maximize2, Minimize2, MoreHorizontal } from "lucide-react";
 import type { ECharts, EChartsCoreOption } from "echarts/core";
 import { EChart } from "./EChart";
