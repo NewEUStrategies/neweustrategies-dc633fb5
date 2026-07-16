@@ -1,98 +1,84 @@
 ## Cel
 
-Osobne, dedykowane strony archiwum dla kategorii i tagów z breadcrumbami, 6 uniwersalnymi layoutami do wyboru (globalne ustawienia, osobno per typ) i panelem admina do konfiguracji.
+Nowa strona admina `/admin/analytics` z 4 zakładkami: **Przegląd**, **Google Analytics 4**, **Google Search Console**, **Wydajność (Web Vitals)** — z realnym podłączeniem kluczy Google.
 
-## Zakres
+## Architektura podłączeń
 
-### 1. Tabela ustawień (Lovable Cloud)
+| Źródło | Metoda podłączenia | Uwagi |
+|---|---|---|
+| Google Search Console | Lovable Connector `google_search_console` (OAuth, gateway) | 1 klik "Połącz" — brak ręcznych kluczy |
+| Google Analytics 4 (odczyt) | Service Account JSON + `GA4_PROPERTY_ID` (secrets) | GA4 Data API v1beta; brak connectora, więc BYOK |
+| GA4 (tracking na froncie) | `VITE_GA4_MEASUREMENT_ID` w site_settings | już częściowo istnieje — dodać UI |
+| Web Vitals | Lokalna tabela `web_vitals` (już jest) | agregacja p75 LCP/CLS/INP z ostatnich 7/28 dni |
 
-Migracja `archive_layout_settings` (singleton per typ archiwum):
+## Zakres UI (`/admin/analytics`)
 
-- `id` uuid PK
-- `archive_type` enum: `category` | `tag` (unique)
-- `layout_variant` smallint 1-6
-- `columns` smallint 1-4 (grid)
-- `list_style` text: `grid` | `list` | `masonry`
-- `show_hero` bool, `show_description` bool, `show_follow` bool
-- `show_sidebar` bool, `sidebar_position` (`left`|`right`)
-- `sidebar_widgets` jsonb (kolejność: popular, related, ads, newsletter)
-- `show_featured_top` bool, `show_related_taxonomies` bool, `show_podcasts` bool
-- `hero_bg_style` text: `gradient` | `image` | `solid` | `pattern` | `mesh` | `minimal`
-- `posts_per_page` smallint
-- `created_at`/`updated_at`
-- RLS: SELECT anon+authenticated; INSERT/UPDATE tylko admin (via `has_role`)
-- Grants standardowe
+```text
+┌──────────────────────────────────────────────────┐
+│ Analityka i wydajność                            │
+│ [Przegląd] [GA4] [Search Console] [Web Vitals]   │
+├──────────────────────────────────────────────────┤
+│ Karty statusu połączeń (GSC / GA4 / Vitals)     │
+│  - stan: połączone / brak                        │
+│  - przycisk "Połącz" lub "Rozłącz"               │
+├──────────────────────────────────────────────────┤
+│ Zakładka aktywna → wykresy + tabele              │
+└──────────────────────────────────────────────────┘
+```
 
-### 2. Sześć layoutów (`src/components/archive/layouts/`)
+**Przegląd**: 6 kafelków KPI (sesje 28d, użytkownicy, kliknięcia GSC, wyświetlenia GSC, CTR, śr. pozycja) + sparklines.
 
-Każdy komponent przyjmuje props: `{ taxonomy, posts, lang, settings, kind, canLoadMore, onLoadMore, isPending, podcasts }`. Współdzielą `<Breadcrumbs>`, `<ArchivePostList>`, `<FollowButton>`.
+**GA4**: wybór zakresu dat, wykres sesji/dzień, top strony, top źródła, urządzenia (donut), kraje (tabela).
 
-1. **`LayoutMinimal`** - białe tło, cienka linia pod hero, typografia serif, brak sidebara, gęsty grid
-2. **`LayoutClassic`** - klasyczny nagłówek + sidebar prawy z widgetami, subtelne tło `bg-muted/20`
-3. **`LayoutMagazine`** - featured post po lewej + siatka 2 kolumny po prawej, wyraźny nagłówek z tłem gradientowym
-4. **`LayoutHero`** - pełnoekranowy hero z tłem-mesh/gradient, opis, statystyki (liczba wpisów), potem lista
-5. **`LayoutDark`** - ciemna sekcja hero z pattern-em (SVG grid), jasne karty poniżej
-6. **`LayoutBento`** - bento grid (różne rozmiary kart), sticky nagłówek po lewej
+**Search Console**: wybór właściwości (`/webmasters/v3/sites`), wykres kliknięć+wyświetleń, top zapytania, top strony, URL Inspection dla wpisanego URL.
 
-Każdy używa tokenów Theme Design; brak hardkodów kolorów.
+**Web Vitals**: p75 LCP/CLS/INP, rozkład per ścieżka, sygnalizacja "good/needs-improvement/poor" wg progów Google.
 
-### 3. Aktualizacja routingu
+## Backend (TanStack server functions)
 
-- `src/routes/category.$slug.tsx` i `src/routes/tag.$slug.tsx`: pobierają settings (via query options z SSR), dobierają layout wg `layout_variant`, przekazują wspólne dane
-- Breadcrumbs: dla kategorii - Home > Kategorie > {name}; dla tagu - Home > Tagi > #{name}
-- Zachować SEO head, follow, load-more, podcasty
+Nowe pliki w `src/lib/analytics/`:
+- `gsc.functions.ts` — `listGscSites`, `queryGscAnalytics`, `inspectGscUrl` — przez connector gateway (`X-Connection-Api-Key: $GOOGLE_SEARCH_CONSOLE_API_KEY`).
+- `ga4.functions.ts` — `runGa4Report`, `runGa4Realtime` — Google Analytics Data API v1beta, auth Service Account JWT (jose), secret `GA4_SERVICE_ACCOUNT_JSON` + `GA4_PROPERTY_ID`.
+- `webvitals.functions.ts` — agregacja z `web_vitals` (SQL: percentyle, group by route, day).
+- `analytics-status.functions.ts` — zwraca stan każdego źródła (klucze obecne / brak).
 
-### 4. Admin panel
+Wszystkie chronione `requireSupabaseAuth` + sprawdzenie roli admin przez `has_role`.
 
-Dwie strony:
-- `src/routes/admin.appearance.category-archive.tsx`
-- `src/routes/admin.appearance.tag-archive.tsx`
+## Sekrety
 
-Każda strona:
-- Formularz ustawień (radio grid z podglądem 6 layoutów - miniaturki SVG)
-- Toggles: hero, sidebar, follow, description, featured, related-taxonomies, podcasts
-- Selecty: columns, list_style, sidebar_position, hero_bg_style
-- Drag-drop kolejności widgetów sidebara (dnd-kit już w projekcie)
-- Live preview (iframe z `?preview=<layout>` w URL lub embed komponentu)
-- Przycisk "Podgląd na żywo" -> otwiera `/category/<sample>` w nowej karcie
-- i18n PL/EN dla wszystkich etykiet
+- `GOOGLE_SEARCH_CONSOLE_API_KEY` — auto po `standard_connectors--connect`
+- `GA4_SERVICE_ACCOUNT_JSON` — user paste (add_secret) po instrukcji jak wygenerować w GCP
+- `GA4_PROPERTY_ID` — user paste
+- `LOVABLE_API_KEY` — już jest
 
-Dodać wpisy w menu admina (`admin.appearance.tsx` sidebar) - "Archiwum kategorii", "Archiwum tagów".
+## Menu admina
 
-### 5. Server functions
+Dodać do `AdminShell.tsx` w sekcji "Wydajność / SEO" pozycję:
+`Analityka` → `/admin/analytics` z ikoną `BarChart3`.
 
-`src/lib/archive-layout.functions.ts`:
-- `getArchiveLayoutSettings({ archiveType })` - public, cache w Query
-- `updateArchiveLayoutSettings(...)` - z `requireSupabaseAuth` + sprawdzenie roli admin przez `context.supabase`
+## Bezpieczeństwo / i18n / atomic
 
-### 6. i18n
+- Wszystkie server fns z auth-middleware + kontrola roli admin
+- PL/EN w plikach lokalizacji `src/i18n/locales/*/admin.json`
+- Komponenty atomic: `src/components/admin/analytics/atoms|molecules|organisms`
+- Zero `any`, semantic tokens z `styles.css`
+- Odstępy ikon (jak przed chwilą) — spójne z resztą admina
 
-Dodać klucze do `src/lib/i18n/*` (PL/EN) dla: breadcrumbs (Kategorie/Categories, Tagi/Tags), admin labels, layout names, hero background labels.
+## Kroki wdrożenia
 
-### 7. Testy
+1. Migracja: `analytics_connections_status` view (opcjonalne, może wystarczyć fetch_secrets)
+2. Connector `google_search_console` — link
+3. Server functions (4 pliki) + typed Zod inputy
+4. Route `src/routes/admin.analytics.tsx` + `admin.analytics.$tab.tsx` (tabs jako parametr)
+5. Komponenty: `ConnectionStatusCards`, `Ga4Panel`, `GscPanel`, `WebVitalsPanel`, `OverviewPanel`
+6. Wpięcie w menu `AdminShell`
+7. Tłumaczenia PL/EN
+8. Testy: unit dla parserów GA4 response + integracyjny smoke test server fn (mock fetch)
 
-- `src/components/archive/layouts/__tests__/layoutSelection.test.tsx` - właściwy wariant renderowany dla `layout_variant`
-- `src/lib/__tests__/archiveLayoutSettings.test.ts` - fallback do domyślnych gdy brak wiersza
-- Playwright: breadcrumbs widoczne dla `/category/europa` i `/tag/*`
+## Poza zakresem (świadome pominięcia)
 
-## Uwagi techniczne
+- Google Ads / Tag Manager (osobny etap)
+- Custom eventów GA4 z builderа (kolejny etap)
+- Bing/Yandex Webmaster (kolejny etap)
 
-- SSR: loader kategorii/tagu robi `Promise.all([taxonomyArchive, archiveLayoutSettings])` przez `ensureQueryData`
-- Podglądy layoutów w adminie: małe SVG wireframe'y (nie iframe) - lżej, bez extra requestów
-- Fallback: jeśli brak rekordu w DB -> domyślny `LayoutClassic` z sensownymi defaults
-- Rejestr layoutów w `src/components/archive/layouts/registry.ts` - mapowanie `1..6 -> Component + label + preview SVG`
-- Reużyć `ArchivePostList`, `PodcastEpisodeStrip`, `FollowButton`, `Breadcrumbs`
-- Widget sidebara: nowe małe komponenty `PopularPostsWidget`, `RelatedTaxonomiesWidget`, `NewsletterWidget`, `AdWidget` (opakowanie istniejącego `AdSlot`)
-- Bez `any`; typy z `Database` dla wiersza settings
-
-## Deliverables
-
-- 1 migracja SQL (tabela + RLS + grants + seed 2 wierszy z defaults)
-- 6 komponentów layoutów + registry + wspólne widgety sidebara
-- 2 strony admina + wpisy w nawigacji appearance
-- Zaktualizowane `category.$slug.tsx` i `tag.$slug.tsx`
-- Server functions + query options
-- Klucze i18n PL/EN
-- Testy jednostkowe + smoke e2e breadcrumbs
-
-Po akceptacji zaczynam od migracji, potem layouty, potem admin.
+Potwierdź, aby wdrożyć — zacznę od connectora GSC + szkieletu strony, potem GA4 (poproszę o secret) i Web Vitals.
