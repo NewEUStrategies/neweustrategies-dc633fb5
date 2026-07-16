@@ -32,4 +32,6 @@ export interface ArchiveLayoutProps {
   extraBelow?: React.ReactNode;
   /** When true, disables interactive controls (used for admin live preview). */
   previewMode?: boolean;
+  /** When true, ArchiveBody skips its generic featured-top card (layout renders its own). */
+  hasCustomFeaturedTop?: boolean;
 }
