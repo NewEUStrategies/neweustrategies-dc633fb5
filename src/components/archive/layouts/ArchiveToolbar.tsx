@@ -1,5 +1,13 @@
 // Sort selector + result count bar above the archive grid.
 import type { ArchiveSort } from "@/lib/queries/archives";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 const SORT_LABEL_PL: Record<ArchiveSort, string> = {
   newest: "Najnowsze",
