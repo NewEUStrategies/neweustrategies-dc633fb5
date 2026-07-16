@@ -64,9 +64,21 @@ export function RelatedPosts({
       aria-label={title}
     >
       <h2 className="font-display text-2xl mb-5">{title}</h2>
-      {layout === "grid" && <RelatedGrid posts={posts} columns={columns} cfg={cfg} lang={lang} />}
-      {layout === "list" && <RelatedList posts={posts} cfg={cfg} lang={lang} />}
-      {layout === "slider" && <RelatedSlider posts={posts} cfg={cfg} lang={lang} />}
+      {layout === "grid" && (
+        <RelatedGrid
+          posts={posts}
+          columns={columns}
+          cfg={cfg}
+          lang={lang}
+          sourcePostId={postId}
+        />
+      )}
+      {layout === "list" && (
+        <RelatedList posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "slider" && (
+        <RelatedSlider posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
     </section>
   );
 }
@@ -77,7 +89,9 @@ interface ViewProps {
   posts: readonly BlogListItem[];
   cfg: RelatedPostsConfig;
   lang: "pl" | "en";
+  sourcePostId: string;
 }
+
 
 function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
   if (!cfg.show_cover || !p.cover_image_url) return null;
