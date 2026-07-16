@@ -271,11 +271,28 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
+  const router = useRouter();
   useEffect(() => {
     // Consolidated client observability: Core Web Vitals (RUM) + global error
     // capture, beaconed to the configurable observability endpoint.
     void import("../lib/observability").then((m) => m.initObservability());
-  }, []);
+    // Attribute Web Vitals to the correct subpage on soft navigations
+    // (kategorie, wpisy, strony statyczne). Flush the previous path's
+    // accumulators before switching so LCP/CLS/INP land per URL.
+    let lastPath = typeof window !== "undefined" ? window.location.pathname : "/";
+    const unsub = router.subscribe("onResolved", () => {
+      void import("../lib/webVitals").then((m) => {
+        const nextPath = window.location.pathname;
+        if (nextPath !== lastPath) {
+          m.markWebVitalsPage(nextPath);
+          lastPath = nextPath;
+        }
+      });
+    });
+    return () => {
+      unsub();
+    };
+  }, [router]);
 
   // Per-request i18next instance on the server (isolates the render language
   // from concurrent requests); the shared singleton on the client. Rendered
