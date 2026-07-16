@@ -286,6 +286,7 @@ export type Database = {
           show_sidebar: boolean
           sidebar_position: string
           sidebar_widgets: Json
+          tenant_id: string
           updated_at: string
         }
         Insert: {
@@ -307,6 +308,7 @@ export type Database = {
           show_sidebar?: boolean
           sidebar_position?: string
           sidebar_widgets?: Json
+          tenant_id?: string
           updated_at?: string
         }
         Update: {
@@ -328,9 +330,18 @@ export type Database = {
           show_sidebar?: boolean
           sidebar_position?: string
           sidebar_widgets?: Json
+          tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "archive_layout_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_log: {
         Row: {
