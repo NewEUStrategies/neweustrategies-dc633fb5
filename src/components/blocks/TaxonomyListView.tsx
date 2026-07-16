@@ -61,27 +61,28 @@ export function TaxonomyListView({ kind, lang, showCount, layout, limit }: Props
   if (items.length === 0) return null;
 
   if (layout === "dropdown") {
+    const placeholder = lang === "en" ? "Choose…" : "Wybierz…";
     return (
-      <select
-        className="not-prose bg-background border border-border rounded px-3 py-2 text-sm"
-        onChange={(e) => {
-          if (e.target.value && typeof window !== "undefined")
-            window.location.href = e.target.value;
+      <Select
+        onValueChange={(v) => {
+          if (v && typeof window !== "undefined") window.location.href = v;
         }}
-        defaultValue=""
       >
-        <option value="" disabled>
-          {lang === "en" ? "Choose…" : "Wybierz…"}
-        </option>
-        {items.map((it) => (
-          <option key={it.href} value={it.href}>
-            {it.label}
-            {showCount && it.count ? ` (${it.count})` : ""}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="not-prose h-10 text-sm w-full max-w-sm" aria-label={placeholder}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {items.map((it) => (
+            <SelectItem key={it.href} value={it.href} className="text-sm">
+              {it.label}
+              {showCount && it.count ? ` (${it.count})` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     );
   }
+
 
   return (
     <ul className="not-prose m-0 p-0 list-none space-y-1">
