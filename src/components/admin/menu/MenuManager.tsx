@@ -15,6 +15,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { saveMenu as saveMenuFn } from "@/lib/menus/menu.functions";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { AddItemPanel } from "./AddItemPanel";
+import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import {
   DEFAULT_MEGA_CONFIG,
   type MenuItemInput,
