@@ -3,7 +3,7 @@
 // picks up changes automatically via useSiteSetting()/react-query invalidation.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import {
