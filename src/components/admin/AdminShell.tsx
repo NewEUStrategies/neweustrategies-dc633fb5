@@ -430,6 +430,13 @@ function AdminShellInner({
             items: [
               { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
               {
+                to: "/admin/analytics",
+                icon: TrendingUp,
+                label: t("admin.nav.analytics", {
+                  defaultValue: lang === "pl" ? "Analityka (GA4 / GSC)" : "Analytics (GA4 / GSC)",
+                }),
+              },
+              {
                 to: "/admin/audience",
                 icon: TrendingUp,
                 label: t("admin.nav.audience", {
