@@ -528,7 +528,11 @@ function AdminShellInner({
                 )}
                 <div className="space-y-0.5">
                   {group.items.map(({ to, icon: Icon, label }) => {
-                    const active = path === to || (to !== "/admin" && path.startsWith(to));
+                    const active =
+                      path === to ||
+                      (to !== "/admin" &&
+                        to !== "/admin/appearance" &&
+                        path.startsWith(`${to}/`));
                     return (
                       <Link
                         key={to}
