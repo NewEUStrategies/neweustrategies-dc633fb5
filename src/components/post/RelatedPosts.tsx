@@ -234,7 +234,7 @@ function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
             className="snap-start shrink-0 w-[85%] sm:w-[45%] lg:w-[31%] space-y-3"
           >
             <CardThumb p={p} cfg={cfg} />
-            <CardBody p={p} cfg={cfg} lang={lang} />
+            <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
           </article>
         ))}
       </div>
