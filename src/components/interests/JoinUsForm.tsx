@@ -236,6 +236,9 @@ export function JoinUsForm({
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties | null>(null);
   useEffect(() => {
     if (!dropOpen) return;
     const onDoc = (e: MouseEvent) => {
