@@ -1304,22 +1304,42 @@ function GroupTabs({
     };
   }, [groups.length]);
 
-  // Drag-to-scroll (pointer).
-  const dragRef = useRef<{ startX: number; startLeft: number; moved: boolean } | null>(null);
+  // Drag-to-scroll (pointer). Capture uruchamiamy dopiero po przekroczeniu
+  // progu ruchu (5 px), inaczej pointer capture na kontenerze "zjadałby"
+  // click na dziecko-button i zakładki byłyby nieklikalne.
+  const dragRef = useRef<{
+    startX: number;
+    startLeft: number;
+    pointerId: number;
+    moved: boolean;
+  } | null>(null);
+  const DRAG_THRESHOLD = 5;
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
     const bar = barRef.current;
     if (!bar) return;
     if ((e.target as HTMLElement).closest("button[data-tab-nudge]")) return;
-    dragRef.current = { startX: e.clientX, startLeft: bar.scrollLeft, moved: false };
-    bar.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      startX: e.clientX,
+      startLeft: bar.scrollLeft,
+      pointerId: e.pointerId,
+      moved: false,
+    };
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     const bar = barRef.current;
     if (!d || !bar) return;
     const dx = e.clientX - d.startX;
-    if (Math.abs(dx) > 3) d.moved = true;
-    bar.scrollLeft = d.startLeft - dx;
+    if (!d.moved && Math.abs(dx) > DRAG_THRESHOLD) {
+      d.moved = true;
+      try {
+        bar.setPointerCapture(d.pointerId);
+      } catch {
+        /* pointer already released */
+      }
+    }
+    if (d.moved) bar.scrollLeft = d.startLeft - dx;
   };
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const bar = barRef.current;
