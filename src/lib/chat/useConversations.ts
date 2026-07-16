@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { chatKeys } from "./keys";
+// Cykl modułowy (useIncomingChatToasts importuje stąd mutedUntilMs) jest
+// bezpieczny: obie strony sięgają po eksporty wyłącznie wewnątrz funkcji.
+import { invalidateMuteCache } from "./useIncomingChatToasts";
 import type {
   ConversationRow,
   ConversationView,
@@ -313,6 +316,9 @@ export function useSetConversationMuted() {
         p_seconds: args.seconds as number,
       });
       if (error) throw error;
+      // The toast layer caches mute state for 60 s - drop it so muting
+      // silences incoming toasts immediately, not after the TTL.
+      invalidateMuteCache(args.conversationId);
     },
   );
 }

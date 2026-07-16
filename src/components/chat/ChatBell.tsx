@@ -11,6 +11,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { conversationDisplay } from "@/lib/chat/display";
+import { useNicknames } from "@/lib/chat/nicknames";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   useChatListRealtime,
@@ -54,14 +55,18 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
     [views],
   );
   const peersQ = usePeerProfiles(peerIds);
+  const nicknamesQ = useNicknames();
 
   if (!user) return null;
 
   const peers = peersQ.data;
+  const nicknames = nicknamesQ.data;
   const normalizedFilter = filter.trim().toLowerCase();
   const filtered = normalizedFilter
     ? views.filter((v) =>
-        conversationDisplay(v, peers).name.toLowerCase().includes(normalizedFilter),
+        conversationDisplay(v, peers, undefined, nicknames?.get(v.conversation.id))
+          .name.toLowerCase()
+          .includes(normalizedFilter),
       )
     : views;
 
@@ -210,6 +215,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                       <ConversationListItem
                         view={view}
                         profiles={peers}
+                        nicknames={nicknames?.get(view.conversation.id)}
                         onlineUsers={online}
                         myUserId={user.id}
                         lang={lang}

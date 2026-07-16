@@ -56,6 +56,16 @@ function attachmentSummary(row: MessageRow): string | null {
 // lightweight own-row select per conversation per minute, worst case.
 const muteCache = new Map<string, { until: number | null; at: number }>();
 
+/**
+ * Drop the cached mute state of one conversation (or all). Called by the
+ * mute mutation so "wycisz" silences toasts IMMEDIATELY instead of after the
+ * cache's 60 s TTL.
+ */
+export function invalidateMuteCache(conversationId?: string): void {
+  if (conversationId) muteCache.delete(conversationId);
+  else muteCache.clear();
+}
+
 async function isMutedConversation(uid: string, conversationId: string): Promise<boolean> {
   const now = Date.now();
   const cached = muteCache.get(conversationId);
