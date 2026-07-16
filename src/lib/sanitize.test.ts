@@ -1,3 +1,12 @@
+// @vitest-environment node
+//
+// Node environment on purpose: with no DOM, sanitizeHtml/sanitizeMarkdownHtml
+// take their SSR branch (the engine that actually guards server-rendered
+// output in the Cloudflare Worker - see lib/ssrSanitizeHtml.ts). Under
+// happy-dom these tests would instead exercise DOMPurify against a partial
+// DOM emulation it does not fully support (e.g. <style> handling diverges
+// from real browsers). The browser DOMPurify path is covered by Playwright
+// against a real Chromium.
 import { describe, it, expect } from "vitest";
 import {
   sanitizeHtml,

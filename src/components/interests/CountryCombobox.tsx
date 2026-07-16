@@ -3,7 +3,12 @@
 // - Użytkownik może wybrać z listy albo wpisać własną nazwę (free text zapisywany 1:1).
 // - Dostępny z klawiatury (↑ ↓ Enter Esc), aria zgodne z combobox pattern.
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import countries from "i18n-iso-countries";
+// `/index.js` and NOT the bare package: the package's Node entry (`main:
+// entry-node`) registers every locale through a dynamic `require("./langs/" +
+// lang + ".json")` that Rollup cannot bundle, so the SSR Worker chunk throws at
+// module init and every request 500s. The browser field points at index.js;
+// importing it directly gives both builds the same lazily-registered library.
+import countries from "i18n-iso-countries/index.js";
 import enLocale from "i18n-iso-countries/langs/en.json";
 import plLocale from "i18n-iso-countries/langs/pl.json";
 import { cn } from "@/lib/utils";
