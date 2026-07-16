@@ -22,6 +22,7 @@ import {
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
 import { RELATED_POSTS_DEFAULTS, type RelatedPostsConfig } from "@/lib/relatedPosts";
 import { RelatedPostsAnalytics } from "@/components/admin/analytics/RelatedPostsAnalytics";
+import { RelatedLayoutPreview } from "@/components/admin/RelatedLayoutPreview";
 
 export const Route = createFileRoute("/admin/related-posts")({
   component: AdminRelatedPostsPage,
@@ -195,7 +196,22 @@ function AdminRelatedPostsPage() {
                     <SelectItem value="author">Ten sam autor</SelectItem>
                   </SelectContent>
                 </Select>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <div className="flex items-baseline justify-between">
+                <Label className="text-sm font-semibold">Podgląd układu</Label>
+                <span className="text-xs text-muted-foreground">
+                  Kliknij miniaturę, aby wybrać układ
+                </span>
               </div>
+              <RelatedLayoutPreview
+                value={form.layout}
+                onChange={(v) => set("layout", v)}
+              />
+            </div>
+
+
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
