@@ -62,6 +62,12 @@ import {
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
