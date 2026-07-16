@@ -185,10 +185,25 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
 }
 
 export const startInstance = createStart(() => ({
-  // Keep the global request path deterministic and dependency-free. Database
-  // lookups, tenant discovery and observability writes do not belong in the
-  // SSR dispatch chain: a failed dynamic import there used to take down every
-  // document and asset request before the router could render an error boundary.
-  requestMiddleware: [securityHeadersMiddleware, legacyLangQueryMiddleware],
+  // Middleware order matters:
+  //   1. securityHeaders wraps everything so even 301/302/410 responses carry
+  //      HSTS on https.
+  //   2. seo404Middleware sits above the router so it observes the final
+  //      response after the redirect matcher had its chance (matched requests
+  //      never reach the router, so a redirected path is not double-counted
+  //      as a 404).
+  //   3. redirectMiddleware short-circuits WP-legacy paths.
+  //   4. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
+  //
+  // All DB-touching middleware wraps its work in try/catch and swallows
+  // failures - the SSR document path stays deterministic even if Supabase is
+  // briefly unavailable (the earlier comment about DB lookups in the SSR chain
+  // still holds; that risk is why these middleware never throw upward).
+  requestMiddleware: [
+    securityHeadersMiddleware,
+    seo404Middleware,
+    redirectMiddleware,
+    legacyLangQueryMiddleware,
+  ],
   functionMiddleware: [attachSupabaseAuth],
 }));
