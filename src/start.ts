@@ -1,7 +1,5 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
-import { renderErrorPage } from "./lib/ssr-error-page";
-import { recordCapturedError } from "./lib/ssr-error-capture";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import {
   addLangPrefix,
@@ -12,56 +10,6 @@ import {
 } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { isProtectedPath } from "@/lib/seo/redirects";
-
-/**
- * Pure classifier + fallback used by the request `errorMiddleware`. Exported so
- * SSR regression tests can drive it directly without booting the framework
- * runtime. Returns either:
- *   - `{ rethrow: error }`  - genuine h3 `HTTPError`, control flow, bubble up.
- *   - `{ response: Response }` - swallowed non-HTTP error, capture + fallback.
- * The rule is intentionally strict: `name === "HTTPError"` + numeric `status`.
- * The old `"statusCode" in error` check let library errors (DB, fetch clients)
- * that happen to expose `statusCode` bypass the boundary, so h3 replaced their
- * message + stack with the opaque `{ unhandled:true, message:"HTTPError" }`
- * response - the exact regression these tests defend against.
- */
-export function isHttpError(error: unknown): error is Error & { status: number } {
-  if (error == null || typeof error !== "object") return false;
-  const candidate = error as { name?: unknown; status?: unknown };
-  return candidate.name === "HTTPError" && typeof candidate.status === "number";
-}
-
-export type MiddlewareErrorOutcome =
-  | { rethrow: unknown }
-  | { response: Response };
-
-export function handleMiddlewareError(error: unknown): MiddlewareErrorOutcome {
-  if (isHttpError(error)) {
-    if (error.status >= 500) recordCapturedError(error);
-    return { rethrow: error };
-  }
-  recordCapturedError(error);
-  console.error(error);
-  return {
-    response: new Response(renderErrorPage(), {
-      status: 500,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-      },
-    }),
-  };
-}
-
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
-  try {
-    return await next();
-  } catch (error) {
-    const outcome = handleMiddlewareError(error);
-    if ("rethrow" in outcome) throw outcome.rethrow;
-    return outcome.response;
-  }
-});
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
