@@ -336,7 +336,7 @@ export function ConsentBanner() {
             </Button>
             <Button
               size="sm"
-              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-xs"
+              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-[11px]"
               aria-label={t.acceptAll}
               title={t.acceptAll}
               onClick={acceptAll}
@@ -347,7 +347,7 @@ export function ConsentBanner() {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-xs"
+              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-[11px]"
               aria-label={t.rejectAll}
               title={t.rejectAll}
               onClick={rejectAll}
@@ -526,6 +526,7 @@ export function ConsentBanner() {
           <Button
             size="sm"
             variant="outline"
+            className="text-[11px]"
             onClick={() => {
               save(draft);
               setDetailsOpen(false);
@@ -536,6 +537,7 @@ export function ConsentBanner() {
           </Button>
           <Button
             size="sm"
+            className="text-[11px]"
             onClick={() => {
               acceptAll();
               setDetailsOpen(false);
@@ -547,6 +549,7 @@ export function ConsentBanner() {
           <Button
             size="sm"
             variant="ghost"
+            className="text-[11px]"
             onClick={() => {
               rejectAll();
               setDetailsOpen(false);
