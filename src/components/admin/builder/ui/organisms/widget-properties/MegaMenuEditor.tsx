@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
+import { PagePicker } from "./PagePicker";
 import { itemsOf, type Item } from "./shared";
 
 interface Props {
