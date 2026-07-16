@@ -21,13 +21,24 @@ export async function fetchAdminResources(): Promise<MemberResourceRow[]> {
   return data ?? [];
 }
 
-/** Upload pliku do prywatnego bucketu; zwraca ścieżkę obiektu (file_path). */
+/** Upload pliku do prywatnego bucketu; zwraca ścieżkę obiektu (file_path).
+ *  Ścieżka MUSI zaczynać się od tenant_id, żeby RLS na storage.objects
+ *  ('member resources staff *') odrzuciło dostęp międzytenantowy. */
 export async function uploadResourceFile(file: File): Promise<{ path: string; size: number }> {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id ?? "anon";
+  if (uid === "anon") throw new Error("Not authenticated");
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", uid)
+    .maybeSingle();
+  if (profileError) throw profileError;
+  const tenantId = profile?.tenant_id;
+  if (!tenantId) throw new Error("Missing tenant for current user");
   const safeName = file.name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120) || "file";
-  // Ścieżka z prefiksem konta + znacznik czasu, żeby uniknąć kolizji nazw.
-  const path = `${uid}/${Date.now()}-${safeName}`;
+  // Prefiks: <tenant_id>/<user_id>/<timestamp>-<nazwa> - unika kolizji + spina RLS.
+  const path = `${tenantId}/${uid}/${Date.now()}-${safeName}`;
   const { error } = await supabase.storage.from(RESOURCE_BUCKET).upload(path, file, {
     upsert: false,
     contentType: file.type || undefined,
