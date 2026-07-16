@@ -389,8 +389,15 @@ export async function prefetchCachedRouteQueries(
   lang: Lang,
   budgetMs: number = CACHED_ROUTE_PREFETCH_BUDGET_MS,
 ): Promise<void> {
-  await prefetchAboveFoldQueries(queryClient, doc, lang, {
-    sections: doc.sections.length,
-    budgetMs,
-  });
+  // Fully isolate: a throw here would propagate into the route loader and
+  // desynchronize SSR HTML from the dehydrated router bootstrap.
+  try {
+    await prefetchAboveFoldQueries(queryClient, doc, lang, {
+      sections: doc.sections.length,
+      budgetMs,
+    });
+  } catch {
+    /* prefetch is best-effort; widgets fall back to their client fetch */
+  }
 }
+
