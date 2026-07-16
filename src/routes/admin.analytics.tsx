@@ -266,7 +266,12 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
               GA4 → Admin → Data Streams → wybierz strumień web → <b>Measurement Protocol API secrets</b> → utwórz nowy sekret.
             </li>
             <li>
-              Sekrety: <code>GA4_MEASUREMENT_ID</code> (np. G-XXXXXXX), <code>GA4_API_SECRET</code>.
+              <b>Measurement ID</b> ustaw w{" "}
+              <a href="/admin/settings/analytics" className="underline">Ustawienia → Analityka</a>{" "}
+              (pole <code>Measurement ID</code>, np. G-XXXXXXX) - jest współdzielony z tym panelem.
+            </li>
+            <li>
+              Sekret projektu: <code>GA4_API_SECRET</code> (tylko klucz API - poufny).
             </li>
             <li>Ten tryb służy do <b>wysyłania</b> eventów server-side, nie do czytania raportów.</li>
           </ol>
