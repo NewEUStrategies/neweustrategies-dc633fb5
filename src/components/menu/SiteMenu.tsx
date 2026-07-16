@@ -221,11 +221,21 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const hasPanel = node.mega_enabled || node.children.length > 0;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLLIElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
+
+  useEffect(() => {
+    if (!open) {
+      setVisible(false);
+      return;
+    }
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
 
   useEffect(() => setMounted(true), []);
 
