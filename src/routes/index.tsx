@@ -98,14 +98,13 @@ export const Route = createFileRoute("/")({
     // reasoning the root loader spells out for its allSettled warm-up). A
     // transient backend blip on the critical fetch here (`homePageQueryOptions`
     // / `blogListQueryOptions` / `siteSettingsQueryOptions` all `throw` on a
-    // PostgREST error) used to bubble out of SSR; h3 masks such throws as
-    // {"unhandled":true,"message":"HTTPError"} and the emergency page (see
-    // src/server.ts) is served instead of the site. Worse, the edge cache
-    // header was set at the TOP of this loader, BEFORE the fetch - so a degraded
-    // render could be emitted with a long s-maxage / stale-while-revalidate
-    // policy and re-served to everyone until revalidation. Fetch defensively
-    // instead: settle what we can, seed safe fallbacks for anything that fails,
-    // and gate the shared-cache header on a clean render.
+    // PostgREST error) used to bubble out of SSR as an opaque h3 500. Worse,
+    // the edge cache header was set at the TOP of this loader, BEFORE the
+    // fetch - so a degraded render could be emitted with a long s-maxage /
+    // stale-while-revalidate policy and re-served to everyone until
+    // revalidation. Fetch defensively instead: settle what we can, seed safe
+    // fallbacks for anything that fails, and gate the shared-cache header on
+    // a clean render.
     const queryClient = context.queryClient;
     let homePage: PageData | null = null;
     let homeMode = "";
