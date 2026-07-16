@@ -232,8 +232,17 @@ export function VitalsBiDashboard() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <TimeRangeFilter value={range} onChange={setRange} />
-        <Button variant="outline" size="sm" onClick={() => curQ.refetch()} className="h-7">
-          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Odśwież
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void curQ.refetch({ cancelRefetch: true })}
+          disabled={isFetching}
+          className="h-7"
+          aria-label="Odśwież dane Web Vitals"
+          title={report?.generatedAtIso ? `Ostatnie odświeżenie: ${new Date(report.generatedAtIso).toLocaleTimeString()}` : "Odśwież"}
+        >
+          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
+          {isFetching ? "Odświeżanie…" : "Odśwież"}
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
           <Gauge className="w-3 h-3" /> Próbek w oknie: {report?.windowTotal ?? 0}
