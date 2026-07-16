@@ -659,11 +659,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MegaColumnsEditor({
   config,
   onChange,
+  triggerPl,
+  triggerEn,
 }: {
   config: MegaConfig;
   onChange: (cfg: MegaConfig) => void;
+  triggerPl: string;
+  triggerEn: string;
 }) {
   const { t } = useTranslation();
+  const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
   const addColumn = () =>
     onChange({
       ...config,
