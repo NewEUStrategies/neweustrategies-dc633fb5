@@ -103,6 +103,47 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
 });
 
 /**
+ * Redirect manager (front-half): match GET/HEAD requests against per-tenant
+ * rules from `public.redirects` BEFORE the router runs. A hit short-circuits
+ * with the configured 301/302/307/308/410 - preserving link equity through
+ * WP migrations and letting the admin at /admin/redirects actually do
+ * something. Failures are swallowed: the SSR chain must not depend on a DB
+ * lookup succeeding for every document.
+ */
+const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
+  try {
+    const hit = await resolveRedirectForRequest(request);
+    if (hit) {
+      if (hit.status === 410) {
+        return new Response("Gone", { status: 410 });
+      }
+      return new Response(null, {
+        status: hit.status,
+        headers: { Location: hit.target, "Cache-Control": "no-store" },
+      });
+    }
+  } catch (e) {
+    console.warn("[redirects] middleware error:", e);
+  }
+  return next();
+});
+
+/**
+ * Redirect manager (back-half): once the router responded, feed 404 HTML
+ * responses into the seo_404_hits monitor so /admin/redirects can surface
+ * broken links and the operator can create a rule with one click. Runs
+ * post-response and never awaits before returning - the log is best-effort.
+ */
+const seo404Middleware = createMiddleware().server(async ({ request, next }) => {
+  const response = await next();
+  if (response instanceof Response) {
+    // Fire-and-forget: don't hold the response open on the observability write.
+    void maybeLog404(request, response).catch(() => undefined);
+  }
+  return response;
+});
+
+/**
  * Add response headers without mutating a framework/fetch-owned Headers object.
  * Responses created by the Worker runtime (redirects and proxied fetches in
  * particular) can use the Web Platform `immutable` header guard. Calling
