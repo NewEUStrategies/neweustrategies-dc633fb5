@@ -18,7 +18,7 @@ import { AddItemPanel } from "./AddItemPanel";
 import { MegaPanelView } from "@/components/menu/MegaPanelView";
 import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
 import { megaFeaturedPostQueryOptions, type MegaFeaturedPost } from "@/lib/menus/megaFeatured";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+
 import {
   DEFAULT_MEGA_CONFIG,
   type MenuItemInput,
