@@ -1221,7 +1221,7 @@ function GroupTabs({
   scrollContainerId,
   ariaLabel,
 }: {
-  groups: InterestGroup[];
+  groups: { key: string; title: string; items: readonly unknown[] }[];
   jusId: string;
   scrollContainerId: string;
   ariaLabel: string;
