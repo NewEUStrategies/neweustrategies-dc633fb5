@@ -126,10 +126,11 @@ const inspectInput = z.object({
 export const inspectGscUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => inspectInput.parse(i))
-  .handler(async ({ data, context }): Promise<Record<string, unknown>> => {
+  .handler(async ({ data, context }): Promise<{ raw: string }> => {
     await requireAdmin(context as unknown as GatewayCtx);
-    return gwFetch<Record<string, unknown>>("/v1/urlInspection/index:inspect", {
+    const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return { raw: JSON.stringify(res) };
   });
