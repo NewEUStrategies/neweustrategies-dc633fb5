@@ -33,6 +33,7 @@ import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
+import { VitalsRecommendations } from "./VitalsRecommendations";
 
 const METRIC_ORDER: VitalName[] = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 
@@ -323,6 +324,10 @@ export function VitalsBiDashboard() {
             option={pathTreemapOption}
             height={340}
           />
+
+          {/* Interpretacja + rekomendacje - priorytetyzowana lista działań
+              per metryka i per ścieżka, zbudowana z tego samego raportu. */}
+          <VitalsRecommendations report={report} />
         </>
       )}
     </div>
