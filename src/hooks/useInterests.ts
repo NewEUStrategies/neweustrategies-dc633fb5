@@ -14,6 +14,13 @@ export interface InterestItem {
   type: InterestTargetType;
   label: string;
   slug: string;
+  /** Dla kategorii: id kategorii-rodzica (np. Region, Specjalizacja). */
+  parentId?: string | null;
+  /** Zdenormalizowana etykieta rodzica w bieżącym języku - używana do
+   *  grupowania widgetów (JoinUsForm) po obszarach. `null` dla top-level. */
+  parentLabel?: string | null;
+  /** Slug rodzica - używany jako klucz custom field w CRM (interests_<slug>). */
+  parentSlug?: string | null;
 }
 
 export interface InterestCatalog {
@@ -57,21 +64,55 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
     staleTime: 60_000,
     queryFn: async () => {
       const [{ data: cats }, { data: tags }] = await Promise.all([
-        supabase.from("categories").select("id, slug, name_pl, name_en").order("name_pl"),
+        supabase
+          .from("categories")
+          .select("id, slug, name_pl, name_en, parent_id")
+          .order("name_pl"),
         supabase.from("tags").select("id, slug, name").order("name"),
       ]);
+      // Rozwiąż etykietę rodzica po `parent_id` żeby móc grupować kategorie
+      // po obszarach (np. Region -> Afryka, Specjalizacja -> Dyplomacja).
+      const byId = new Map<string, { name_pl: string | null; name_en: string | null; slug: string }>();
+      for (const c of cats ?? []) {
+        byId.set(c.id as string, {
+          name_pl: (c.name_pl as string | null) ?? null,
+          name_en: (c.name_en as string | null) ?? null,
+          slug: c.slug as string,
+        });
+      }
+      const resolveParent = (pid: string | null) => {
+        if (!pid) return { label: null, slug: null } as const;
+        const p = byId.get(pid);
+        if (!p) return { label: null, slug: null } as const;
+        return {
+          label: (lang === "en" ? p.name_en : p.name_pl) || p.name_pl || p.slug,
+          slug: p.slug,
+        } as const;
+      };
       return {
-        categories: (cats ?? []).map((c) => ({
-          id: c.id,
-          type: "category" as const,
-          slug: c.slug,
-          label: (lang === "en" ? c.name_en : c.name_pl) || c.name_pl || c.slug,
-        })),
+        categories: (cats ?? []).map((c) => {
+          const parent = resolveParent((c.parent_id as string | null) ?? null);
+          return {
+            id: c.id as string,
+            type: "category" as const,
+            slug: c.slug as string,
+            label:
+              (lang === "en" ? (c.name_en as string | null) : (c.name_pl as string | null)) ||
+              (c.name_pl as string | null) ||
+              (c.slug as string),
+            parentId: (c.parent_id as string | null) ?? null,
+            parentLabel: parent.label,
+            parentSlug: parent.slug,
+          };
+        }),
         tags: (tags ?? []).map((t) => ({
-          id: t.id,
+          id: t.id as string,
           type: "tag" as const,
-          slug: t.slug,
-          label: t.name,
+          slug: t.slug as string,
+          label: t.name as string,
+          parentId: null,
+          parentLabel: null,
+          parentSlug: null,
         })),
       };
     },

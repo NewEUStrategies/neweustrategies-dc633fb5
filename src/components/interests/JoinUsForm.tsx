@@ -269,6 +269,57 @@ export function JoinUsForm({
     return all.filter((it) => set.has(it.slug.toLowerCase()));
   }, [catalog.data, interestSlugs]);
 
+  // Grupowanie po obszarach: kategorie dzieci trafiają pod etykietę rodzica
+  // (Region, Specjalizacja...), top-level kategorie (bez parenta) lądują pod
+  // "Obszary tematyczne", a tagi w osobnej grupie "Tematy". Kolejność grup
+  // jest deterministyczna: najpierw znane obszary z drzewa kategorii, potem
+  // pozostałe. Struktura używana przez droplist i chips zarazem.
+  interface InterestGroup {
+    key: string;
+    title: string;
+    items: typeof allItems;
+    parentSlug: string | null;
+  }
+  const groupedItems = useMemo<InterestGroup[]>(() => {
+    const topLevelAreaTitle = lang === "en" ? "Areas" : "Obszary";
+    const topicsTitle = lang === "en" ? "Topics" : "Tematy";
+    const byParent = new Map<string, InterestGroup>();
+    const topLevelCats: typeof allItems = [];
+    const tagItems: typeof allItems = [];
+    const orderedKeys: string[] = [];
+    for (const it of allItems) {
+      if (it.type === "tag") {
+        tagItems.push(it);
+        continue;
+      }
+      const parentLabel = it.parentLabel ?? null;
+      const parentSlug = it.parentSlug ?? null;
+      if (!parentLabel || !parentSlug) {
+        topLevelCats.push(it);
+        continue;
+      }
+      const key = `parent:${parentSlug}`;
+      if (!byParent.has(key)) {
+        byParent.set(key, { key, title: parentLabel, items: [], parentSlug });
+        orderedKeys.push(key);
+      }
+      byParent.get(key)!.items.push(it);
+    }
+    const groups: InterestGroup[] = [];
+    for (const key of orderedKeys) {
+      const g = byParent.get(key)!;
+      if (g.items.length > 0) groups.push(g);
+    }
+    if (topLevelCats.length > 0) {
+      groups.push({ key: "top", title: topLevelAreaTitle, items: topLevelCats, parentSlug: null });
+    }
+    if (tagItems.length > 0) {
+      groups.push({ key: "tags", title: topicsTitle, items: tagItems, parentSlug: null });
+    }
+    return groups;
+  }, [allItems, lang]);
+
+
   const togglePick = (id: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -378,10 +429,14 @@ export function JoinUsForm({
         if (v) custom[f.id] = v.slice(0, 500);
       }
 
-      // Interests picked in the widget go to CRM as grouped custom fields
-      // ("interests_areas" = categories, "interests_topics" = tags, plus a
-      // combined "interests" label list). Server persists them under
-      // aliases.custom.<key>, so CRM inherits the multiselect verbatim.
+      // Interests picked in the widget go to CRM as grouped custom fields.
+      // - `interests` = flat list of wszystkich labeli (fallback do dawnych
+      //   automatyzacji)
+      // - `interests_areas` = wszystkie kategorie
+      // - `interests_topics` = wszystkie tagi
+      // - `interests_<slug_obszaru>` = wybory pogrupowane po obszarze
+      //   (Region, Specjalizacja, ...), żeby CRM widział strukturę tak samo
+      //   jak formularz.
       if (showInterests && picked.size > 0) {
         const pickedItems = allItems.filter((it) => picked.has(it.id));
         const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
@@ -390,6 +445,22 @@ export function JoinUsForm({
         if (areas.length) custom.interests_areas = areas.join(", ").slice(0, 500);
         if (topics.length) custom.interests_topics = topics.join(", ").slice(0, 500);
         if (all.length) custom.interests = all.join(", ").slice(0, 500);
+
+        // Per-obszar rozbicie: klucz = interests_<slug_rodzica_z_lat_a-Z0-9_>.
+        const byParent = new Map<string, { title: string; labels: string[] }>();
+        for (const it of pickedItems) {
+          if (it.type !== "category") continue;
+          const pSlug = it.parentSlug ?? null;
+          const pLabel = it.parentLabel ?? null;
+          if (!pSlug || !pLabel) continue;
+          const bucket = byParent.get(pSlug) ?? { title: pLabel, labels: [] };
+          bucket.labels.push(it.label);
+          byParent.set(pSlug, bucket);
+        }
+        for (const [slug, bucket] of byParent.entries()) {
+          const safeKey = `interests_${slug.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`.slice(0, 60);
+          custom[safeKey] = bucket.labels.join(", ").slice(0, 500);
+        }
       }
 
       const res = await subscribe({
@@ -802,90 +873,86 @@ export function JoinUsForm({
                     aria-multiselectable="true"
                     className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded border border-border bg-popover p-1 shadow-lg"
                   >
-                    {(() => {
-                      const groups: { key: "category" | "tag"; title: string; items: typeof allItems }[] = [
-                        {
-                          key: "category",
-                          title: lang === "en" ? "Areas" : "Obszary",
-                          items: allItems.filter((it) => it.type === "category"),
-                        },
-                        {
-                          key: "tag",
-                          title: lang === "en" ? "Topics" : "Tematy",
-                          items: allItems.filter((it) => it.type === "tag"),
-                        },
-                      ];
-                      return groups
-                        .filter((g) => g.items.length > 0)
-                        .map((g) => (
-                          <div key={`grp:${g.key}`} className="pb-1">
-                            <div
-                              role="presentation"
-                              className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                    {groupedItems.map((g) => (
+                      <div key={`grp:${g.key}`} className="pb-1">
+                        <div
+                          role="presentation"
+                          className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                        >
+                          {g.title}
+                          <span className="ml-1 opacity-60">({g.items.length})</span>
+                        </div>
+                        {g.items.map((it) => {
+                          const active = picked.has(it.id);
+                          return (
+                            <button
+                              key={`opt:${it.type}:${it.id}`}
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              onClick={() => togglePick(it.id)}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
+                                active && "text-brand",
+                              )}
                             >
-                              {g.title}
-                            </div>
-                            {g.items.map((it) => {
-                              const active = picked.has(it.id);
-                              return (
-                                <button
-                                  key={`opt:${it.type}:${it.id}`}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={active}
-                                  onClick={() => togglePick(it.id)}
-                                  className={cn(
-                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
-                                    active && "text-brand",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                                      active
-                                        ? "border-brand bg-brand text-brand-foreground"
-                                        : "border-input bg-background",
-                                    )}
-                                  >
-                                    {active && <Check className="h-2.5 w-2.5" />}
-                                  </span>
-                                  <span className="flex-1">{it.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ));
-                    })()}
+                              <span
+                                className={cn(
+                                  "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
+                                  active
+                                    ? "border-brand bg-brand text-brand-foreground"
+                                    : "border-input bg-background",
+                                )}
+                              >
+                                {active && <Check className="h-2.5 w-2.5" />}
+                              </span>
+                              <span className="flex-1">{it.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto pr-1">
-              {allItems.map((it) => {
-                const active = picked.has(it.id);
-                return (
-                  <button
-                    key={`${it.type}:${it.id}`}
-                    type="button"
-                    onClick={() => togglePick(it.id)}
-                    aria-pressed={active}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-xs transition",
-                      active
-                        ? "border-brand bg-brand text-brand-foreground"
-                        : "border-border bg-background hover:border-brand/60",
-                    )}
-                    style={chipStyle}
-                  >
-                    {it.label}
-                  </button>
-                );
-              })}
+            <div className="max-h-56 space-y-2 overflow-auto pr-1">
+              {groupedItems.map((g) => (
+                <div key={`chips-grp:${g.key}`}>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {g.title}
+                    <span className="ml-1 opacity-60">({g.items.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.items.map((it) => {
+                      const active = picked.has(it.id);
+                      return (
+                        <button
+                          key={`${it.type}:${it.id}`}
+                          type="button"
+                          onClick={() => togglePick(it.id)}
+                          aria-pressed={active}
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-xs transition",
+                            active
+                              ? "border-brand bg-brand text-brand-foreground"
+                              : "border-border bg-background hover:border-brand/60",
+                          )}
+                          style={chipStyle}
+                        >
+                          {it.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
+
 
       <button
         type="submit"
