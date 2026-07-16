@@ -493,7 +493,14 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
           </button>
           <div className="flex-1 min-w-0 flex items-center gap-2">
             <span className="text-xs font-medium truncate">{item.label_pl || "(bez nazwy)"}</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
+            {depth > 0 && (
+              <span className="text-[10px] italic text-muted-foreground shrink-0">
+                {depth === 1
+                  ? t("admin.menu.childItem", { defaultValue: "element podrzędny" })
+                  : t("admin.menu.grandchildItem", { defaultValue: "element podrzędny 2. poziomu" })}
+              </span>
+            )}
+            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
               {typeLabel}
             </span>
             {item.mega_enabled && (
