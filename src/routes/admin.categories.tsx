@@ -402,6 +402,9 @@ function Categories() {
                         {c.parent_id ? " ↳" : ""}
                       </span>
                     </td>
+                    <td className="p-2">
+                      <LangCoverageBadges pl={pl} en={en} />
+                    </td>
                     <td
                       className="p-2 text-[11px] text-muted-foreground truncate max-w-[180px]"
                       title={c.slug}
