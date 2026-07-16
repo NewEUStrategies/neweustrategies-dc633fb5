@@ -94,7 +94,7 @@ function DropdownPanel({
                 {title ? (
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {col.href ? (
-                      <AppLink to={safeUrl(col.href) || "#"} className="hover:text-foreground">
+                      <AppLink href={safeUrl(col.href) || "#"} className="hover:text-foreground">
                         {title}
                       </AppLink>
                     ) : (
@@ -110,7 +110,7 @@ function DropdownPanel({
                     return (
                       <li key={j}>
                         <AppLink
-                          to={safeUrl(lnk.href) || "#"}
+                          href={safeUrl(lnk.href) || "#"}
                           className="text-sm text-foreground/80 hover:text-foreground"
                           role="menuitem"
                         >
@@ -136,7 +136,7 @@ function DropdownPanel({
       {node.children.map((child) => (
         <li key={child.id}>
           <AppLink
-            to={itemHref(child)}
+            href={itemHref(child)}
             target={itemTarget(child)}
             rel={itemTarget(child) === "_blank" ? "noopener noreferrer" : undefined}
             className="block rounded px-3 py-2 text-sm hover:bg-muted"
@@ -191,7 +191,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     return (
       <li className={node.css_class || undefined}>
         <AppLink
-          to={itemHref(node)}
+          href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
           className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
@@ -255,7 +255,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     return (
       <li>
         <AppLink
-          to={itemHref(node)}
+          href={itemHref(node)}
           target={itemTarget(node)}
           className="block px-3 py-2 text-sm font-medium"
         >
@@ -282,7 +282,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           {megaLinks.map((lnk, i) =>
             lnk.label ? (
               <li key={`m-${i}`}>
-                <AppLink to={lnk.href} className="block px-3 py-2 text-sm text-foreground/80">
+                <AppLink href={lnk.href} className="block px-3 py-2 text-sm text-foreground/80">
                   {lnk.label}
                 </AppLink>
               </li>
