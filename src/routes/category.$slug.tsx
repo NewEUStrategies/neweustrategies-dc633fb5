@@ -37,7 +37,7 @@ function parseSearch(search: Record<string, unknown>): { page?: number; sort?: A
 
 export const Route = createFileRoute("/category/$slug")({
   validateSearch: parseSearch,
-  loaderDeps: ({ search: { page, sort } }) => ({ page, sort }),
+  loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
     const settings = await context.queryClient.ensureQueryData(
       archiveLayoutQueryOptions("category"),
