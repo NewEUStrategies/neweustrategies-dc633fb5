@@ -172,7 +172,7 @@ export function VitalsBiDashboard() {
 
   const pathTreemapOption = useMemo<EChartsCoreOption>(() => {
     const paths = (report?.paths ?? []).slice(0, 25);
-    const t = VITAL_THRESHOLDS.LCP;
+    const [, lcpPoor] = VITAL_THRESHOLDS.LCP;
     return {
       tooltip: {
         formatter: (raw: unknown) => {
@@ -182,7 +182,7 @@ export function VitalsBiDashboard() {
       },
       visualMap: {
         min: 0,
-        max: t.needs * 1.5,
+        max: lcpPoor * 1.5,
         dimension: "lcp",
         show: false,
         inRange: { color: ["#16a34a", "#f59e0b", "#dc2626"] },
