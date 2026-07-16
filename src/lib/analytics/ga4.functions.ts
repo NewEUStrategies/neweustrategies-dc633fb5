@@ -180,7 +180,6 @@ export const runGa4Report = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<Ga4Report> => {
     await requireAdmin(context as unknown as GatewayCtx);
 
-    const sa = readServiceAccount();
     const propertyId = process.env.GA4_PROPERTY_ID;
     const emptyReport: Ga4Report = {
       configured: false,
@@ -189,10 +188,13 @@ export const runGa4Report = createServerFn({ method: "POST" })
       rows: [],
       totals: [],
     };
-    if (!sa || !propertyId) return emptyReport;
+    if (!propertyId) return emptyReport;
+    const auth = await resolveAccessToken();
+    if (!auth) return emptyReport;
 
     try {
-      const token = await getAccessToken(sa);
+      const token = auth.token;
+
       const res = await fetch(
         `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
         {
