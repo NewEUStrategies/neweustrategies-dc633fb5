@@ -562,6 +562,9 @@ function AnalyticsPage() {
           <TabsTrigger value="vitals">
             <Gauge className="w-3.5 h-3.5 mr-2" /> Web Vitals
           </TabsTrigger>
+          <TabsTrigger value="audience">
+            <Users className="w-3.5 h-3.5 mr-2" /> Audytorium
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
