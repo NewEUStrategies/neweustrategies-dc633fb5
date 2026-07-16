@@ -5,7 +5,8 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -99,7 +100,7 @@ function DropdownPanel({
     return (
       <div
         role="menu"
-        className="absolute left-0 top-full z-50 mt-1 rounded-md border bg-popover p-4 text-popover-foreground shadow-lg"
+        className="rounded-md border bg-popover p-4 text-popover-foreground shadow-lg"
         style={{ width }}
         onMouseLeave={onRequestClose}
       >
@@ -150,7 +151,7 @@ function DropdownPanel({
   return (
     <ul
       role="menu"
-      className="absolute left-0 top-full z-50 mt-1 min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+      className="min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
       onMouseLeave={onRequestClose}
     >
       {node.children.map((child) => (
@@ -219,24 +220,49 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const hasPanel = node.mega_enabled || node.children.length > 0;
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLLIElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    const onScrollOrResize = () => updateAnchor();
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const updateAnchor = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setAnchor({ top: r.bottom, left: r.left, width: r.width });
+  };
+
+  useLayoutEffect(() => {
+    if (open) updateAnchor();
   }, [open]);
 
   const scheduleClose = () => {
@@ -293,18 +319,26 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
         />
       </button>
-      <div
-        id={panelId}
-        onMouseEnter={cancelClose}
-        className={`transition-[opacity,margin] duration-150 ease-in-out ${
-          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        aria-hidden={!open}
-      >
-        {open ? (
-          <DropdownPanel node={node} lang={lang} onRequestClose={scheduleClose} />
-        ) : null}
-      </div>
+      {mounted && open && anchor
+        ? createPortal(
+            <div
+              ref={panelRef}
+              id={panelId}
+              onMouseEnter={cancelClose}
+              onMouseLeave={scheduleClose}
+              style={{
+                position: "fixed",
+                top: anchor.top + 4,
+                left: anchor.left,
+                zIndex: 60,
+              }}
+              aria-hidden={!open}
+            >
+              <DropdownPanel node={node} lang={lang} onRequestClose={scheduleClose} />
+            </div>,
+            document.body,
+          )
+        : null}
     </li>
   );
 }
