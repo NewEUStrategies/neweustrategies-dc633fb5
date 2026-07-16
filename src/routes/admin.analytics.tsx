@@ -389,7 +389,7 @@ function VitalsMiniPanel() {
 // --------- Overview ---------
 
 function OverviewPanel({ status }: { status: AnalyticsStatus }) {
-  const insights: import("@/components/admin/analytics/InsightSection").Insight[] = [];
+  const insights: Insight[] = [];
   // GSC
   insights.push({
     id: "gsc",
