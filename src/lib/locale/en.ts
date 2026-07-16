@@ -118,6 +118,53 @@ export const en = {
       saveError: "Failed to save colors",
       reset: "Restore recommended",
     },
+    analyticsSettings: {
+      title: "Analytics",
+      subtitle:
+        "Configuration for Google Analytics 4, Google Search Console, Plausible and custom scripts. Scripts load only after the visitor consents to the Analytics category.",
+      status: {
+        connected: "Connected",
+        notConfigured: "Not configured",
+        partial: "Partial",
+        checking: "Checking…",
+      },
+      ga4: {
+        title: "Google Analytics 4",
+        desc: "Traffic, conversion and engagement measurement. Enter the Measurement ID or connect a service account via project secrets.",
+        measurementId: "Measurement ID",
+        measurementIdHint: "Public identifier loaded into gtag.js on the front-end.",
+        gtm: "Google Tag Manager (Container ID)",
+        gtmHint: "Optional: use only if you route tags through GTM instead of direct gtag.",
+        activeMode: "Active read mode",
+        modes: {
+          service_account: "Service account (Data API)",
+          oauth_refresh: "OAuth refresh token",
+          measurement_protocol: "Measurement Protocol",
+          embed: "Embedded Looker Studio",
+          none: "None - collection only",
+        },
+      },
+      gsc: {
+        title: "Google Search Console",
+        desc: "Domain verification and search performance reports (clicks, impressions, CTR, position).",
+        managed: "Connection managed via connector - API keys kept safely in project secrets.",
+        openDashboard: "Open analytics dashboard",
+        needsConnector:
+          "To enable GSC reports, connect the Google Search Console connector in project settings.",
+      },
+      plausible: {
+        title: "Plausible Analytics",
+        desc: "A lightweight, privacy-friendly alternative to GA4. Leave empty to disable.",
+        domain: "Domain",
+        scriptUrl: "Script URL",
+      },
+      custom: {
+        title: "Custom scripts",
+        desc: "HTML injections into <head> and <body>. Loaded only after Analytics consent.",
+        head: "Custom <head> HTML",
+        body: "Custom <body> HTML",
+      },
+    },
     popups: {
       title: "Popups",
       subtitle:
