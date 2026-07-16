@@ -214,6 +214,8 @@ export function JoinUsForm({
   const catalog = useInterestCatalog(lang);
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);
+  const fetchPrefill = useServerFn(getJoinUsPrefill);
+  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
   // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
   // builder the widget must NEVER unmount to null — otherwise disabling the
   // newsletter in settings makes it silently vanish from the canvas.
