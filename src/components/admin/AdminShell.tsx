@@ -512,15 +512,17 @@ function AdminShellInner({
           <TooltipProvider delayDuration={0}>
           <div className="p-3 border-b border-border">
             <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
-              <Link
-                to="/admin"
-                data-sidebar-brand
-                className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
-                style={{ background: "transparent" }}
-                title="Kokpit"
-              >
-                <SidebarBrand compact={compact} />
-              </Link>
+              <SidebarTooltip label={t("admin.nav.dashboard", { defaultValue: "Kokpit" })} compact={compact}>
+                <Link
+                  to="/admin"
+                  data-sidebar-brand
+                  title={compact ? undefined : t("admin.nav.dashboard", { defaultValue: "Kokpit" })}
+                  className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
+                  style={{ background: "transparent" }}
+                >
+                  <SidebarBrand compact={compact} />
+                </Link>
+              </SidebarTooltip>
               {!compact && (
                 <button
                   onClick={() => setForceCompact((s) => !s)}
