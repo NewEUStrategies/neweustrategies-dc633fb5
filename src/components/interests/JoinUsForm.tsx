@@ -23,6 +23,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { cn } from "@/lib/utils";
@@ -214,6 +215,8 @@ export function JoinUsForm({
   const catalog = useInterestCatalog(lang);
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);
+  const fetchPrefill = useServerFn(getJoinUsPrefill);
+  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
   // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
   // builder the widget must NEVER unmount to null — otherwise disabling the
   // newsletter in settings makes it silently vanish from the canvas.
@@ -307,6 +310,33 @@ export function JoinUsForm({
     if (!my.data) return;
     setPicked(new Set([...my.data.categoryIds, ...my.data.tagIds]));
   }, [my.data]);
+
+  // Prefill z profilu zalogowanego usera - wyłącznie do PUSTYCH pól, żeby
+  // nie nadpisać tego, co użytkownik już wpisał w tej sesji. Odpalamy raz na
+  // zalogowanie się (my.userId zmienia się z null → uuid).
+  useEffect(() => {
+    if (!my.userId) return;
+    let cancelled = false;
+    fetchPrefill()
+      .then((p) => {
+        if (cancelled || !p) return;
+        setExtra((prev) => ({
+          firstName: prev.firstName || p.firstName,
+          lastName: prev.lastName || p.lastName,
+          position: prev.position || p.position,
+          linkedin: prev.linkedin || p.linkedin,
+          phone: prev.phone || p.phone,
+          company: prev.company || p.company,
+          country: prev.country || p.country,
+        }));
+      })
+      .catch(() => {
+        /* non-fatal - formularz działa dalej z pustymi polami */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [my.userId, fetchPrefill]);
 
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
@@ -580,6 +610,30 @@ export function JoinUsForm({
         /* non-fatal */
       }
     }
+
+    // Zalogowany user: powiąż subskrypcję z auth.uid() i uzupełnij PUSTE pola profilu
+    // (RPC join_us_link_and_backfill po stronie SQL używa COALESCE - nie nadpisuje
+    // istniejących wartości). Niekrytyczne dla samego zapisu do newslettera.
+    if (my.userId) {
+      try {
+        await linkAndBackfill({
+          data: {
+            email: trimmed,
+            firstName,
+            lastName,
+            country: extra.country.trim(),
+            linkedin: extra.linkedin.trim(),
+            phone: extra.phone.trim(),
+            company: extra.company.trim(),
+            position: extra.position.trim(),
+          },
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
+
+
 
     setState("ok");
     setEmail("");
