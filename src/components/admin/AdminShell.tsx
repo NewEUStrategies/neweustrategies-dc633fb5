@@ -118,7 +118,8 @@ export function SidebarRowButton({
       title={title}
       data-sidebar="menu-button"
       className={cn(
-        "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] text-left transition",
+        "w-full flex items-center py-1 rounded-md text-[13px] text-left transition",
+        compact ? "justify-center px-0" : "gap-1.5 px-2",
         tone === "destructive" && "text-destructive hover:bg-destructive/10",
         tone === "accent" &&
           (active
