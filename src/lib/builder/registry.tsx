@@ -638,6 +638,15 @@ export const WIDGETS: WidgetDef[] = [
       ],
     }),
   },
+  {
+    type: "menu",
+    label: "Menu",
+    category: "navigation",
+    icon: List,
+    defaults: () => ({
+      menu_key: "main",
+    }),
+  },
   // Site chrome (header / footer / menu)
   {
     type: "social-icons",
