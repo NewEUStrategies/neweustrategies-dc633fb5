@@ -504,6 +504,12 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
   const megaHasFeatured = !!item.mega_config?.featured_post_id;
   const hasNestedChildren = children.some((c) => c.children.length > 0);
   const isMegaLike = depth === 0 && (item.mega_enabled || hasNestedChildren);
+  // Front auto-buduje kolumny z drzewa, gdy admin nie skonfigurował własnych.
+  const derivedColsCount = children.length;
+  const derivedLinksCount = children.reduce((sum, c) => sum + c.children.length, 0);
+  const usingDerivedMega = item.mega_enabled && megaColsCount === 0 && derivedColsCount > 0;
+  const displayColsCount = megaColsCount > 0 ? megaColsCount : derivedColsCount;
+  const displayLinksCount = megaColsCount > 0 ? megaLinksCount : derivedLinksCount;
 
   // Depth-aware surface: root = strong card; L2 = softer chip; L3 = compact row.
   const cardClass =
@@ -584,10 +590,13 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
                 <span
                   className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                   style={{ background: "color-mix(in oklab, var(--brand) 14%, transparent)", color: "var(--brand)" }}
-                  title={`${megaColsCount} kolumn · ${megaLinksCount} linków${megaHasFeatured ? " · Wyróżniony" : ""}`}
+                  title={`${displayColsCount} kolumn · ${displayLinksCount} linków${usingDerivedMega ? " · auto z drzewa" : ""}${megaHasFeatured ? " · Wyróżniony" : ""}`}
                 >
                   <Sparkles size={10} />
                   Mega
+                  {usingDerivedMega ? (
+                    <span className="ml-1 rounded bg-amber-100 px-1 py-[1px] text-[8px] text-amber-800">auto</span>
+                  ) : null}
                 </span>
               ) : null}
               {megaHasFeatured ? (
@@ -637,15 +646,23 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
         </div>
 
         {/* Mega summary strip - visible when collapsed */}
-        {!isOpen && isMegaLike && megaColsCount > 0 ? (
+        {!isOpen && isMegaLike && displayColsCount > 0 ? (
           <div className="border-t border-border/40 px-3 py-1.5 flex items-center gap-3 text-[10px] text-muted-foreground bg-muted/20">
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold text-foreground/70">{megaColsCount}</span> kolumn
+              <span className="font-bold text-foreground/70">{displayColsCount}</span> kolumn
             </span>
             <span className="opacity-30">·</span>
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold text-foreground/70">{megaLinksCount}</span> linków
+              <span className="font-bold text-foreground/70">{displayLinksCount}</span> linków
             </span>
+            {usingDerivedMega ? (
+              <>
+                <span className="opacity-30">·</span>
+                <span className="inline-flex items-center gap-1 text-amber-700">
+                  auto z drzewa
+                </span>
+              </>
+            ) : null}
             {megaHasFeatured ? (
               <>
                 <span className="opacity-30">·</span>
@@ -737,6 +754,7 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
                 config={item.mega_config}
                 triggerPl={item.label_pl}
                 triggerEn={item.label_en}
+                treeChildren={children}
                 onChange={(cfg) => onUpdate(item.local_id, { mega_config: cfg })}
               />
             )}
@@ -788,14 +806,33 @@ function MegaColumnsEditor({
   onChange,
   triggerPl,
   triggerEn,
+  treeChildren,
 }: {
   config: MegaConfig;
   onChange: (cfg: MegaConfig) => void;
   triggerPl: string;
   triggerEn: string;
+  treeChildren: TreeNode[];
 }) {
   const { t } = useTranslation();
   const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
+  const derivedCols = useMemo<MegaConfig["columns"]>(
+    () =>
+      treeChildren.map((c) => ({
+        title_pl: c.item.label_pl,
+        title_en: c.item.label_en,
+        href: c.item.href,
+        links: c.children.map((gc) => ({
+          label_pl: gc.item.label_pl,
+          label_en: gc.item.label_en,
+          href: gc.item.href,
+          icon: gc.item.icon ?? "",
+        })),
+      })),
+    [treeChildren],
+  );
+  const importFromTree = () =>
+    onChange({ ...config, columns: derivedCols });
   const addColumn = () =>
     onChange({
       ...config,
@@ -982,9 +1019,38 @@ function MegaColumnsEditor({
             </div>
           </div>
         ))}
-        <Button size="sm" variant="outline" onClick={addColumn}>
-          + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={addColumn}>
+            + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
+          </Button>
+          {derivedCols.length > 0 ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={importFromTree}
+              title={t("admin.menu.importFromTreeHint", {
+                defaultValue:
+                  "Skopiuj kolumny z aktualnej struktury drzewa (dzieci = kolumny, wnuki = linki).",
+              })}
+            >
+              {config.columns.length === 0
+                ? t("admin.menu.importFromTree", {
+                    defaultValue: "Wygeneruj kolumny z drzewa menu",
+                  })
+                : t("admin.menu.overwriteFromTree", {
+                    defaultValue: "Nadpisz kolumny z drzewa menu",
+                  })}
+            </Button>
+          ) : null}
+        </div>
+        {config.columns.length === 0 && derivedCols.length > 0 ? (
+          <p className="text-[11px] text-muted-foreground italic">
+            {t("admin.menu.autoDerivedHint", {
+              defaultValue:
+                "Brak konfiguracji kolumn - front automatycznie buduje mega menu z dzieci tej pozycji (poniżej podgląd 1:1).",
+            })}
+          </p>
+        ) : null}
       </div>
       <FeaturedPostPicker
         value={config.featured_post_id}
@@ -996,6 +1062,7 @@ function MegaColumnsEditor({
         triggerEn={triggerEn}
         lang={previewLang}
         onLangChange={setPreviewLang}
+        derivedCols={derivedCols}
       />
     </div>
   );
@@ -1009,20 +1076,27 @@ function MegaPreview({
   triggerEn,
   lang,
   onLangChange,
+  derivedCols,
 }: {
   config: MegaConfig;
   triggerPl: string;
   triggerEn: string;
   lang: "pl" | "en";
   onLangChange: (l: "pl" | "en") => void;
+  derivedCols: MegaConfig["columns"];
 }) {
   const { t } = useTranslation();
   const featuredQuery = useQuery(megaFeaturedPostQueryOptions(config.featured_post_id ?? null));
   const featured = featuredQuery.data ?? null;
 
+  // 1:1 z SiteMenu: gdy konfiguracja kolumn jest pusta, front auto-buduje kolumny
+  // z drzewa dzieci tej pozycji. Admin musi pokazać dokładnie ten sam widok.
+  const configuredCols = config.columns;
+  const usingDerived = configuredCols.length === 0;
   const cols = useMemo(
-    () =>
-      config.columns.map((c) => ({
+    () => {
+      const source = usingDerived ? derivedCols : configuredCols;
+      return source.map((c) => ({
         title_pl: c.title_pl,
         title_en: c.title_en,
         href: c.href,
@@ -1032,8 +1106,9 @@ function MegaPreview({
           href: l.href,
           icon: l.icon ?? "",
         })),
-      })),
-    [config.columns],
+      }));
+    },
+    [usingDerived, configuredCols, derivedCols],
   );
 
   const parentLabel = lang === "en" ? triggerEn || triggerPl : triggerPl;
@@ -1044,6 +1119,11 @@ function MegaPreview({
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold">
           {t("admin.menu.preview", { defaultValue: "Podgląd na żywo (front)" })}
+          {usingDerived && hasContent ? (
+            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
+              {t("admin.menu.autoFromTree", { defaultValue: "auto z drzewa" })}
+            </span>
+          ) : null}
         </span>
         <div className="inline-flex rounded-md border border-border overflow-hidden">
           {(["pl", "en"] as const).map((l) => (
