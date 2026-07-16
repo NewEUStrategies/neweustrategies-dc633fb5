@@ -26,7 +26,7 @@ export function LayoutMinimal(props: ArchiveLayoutProps) {
         name={name(props)}
         description={desc(props)}
         lang={props.lang}
-        settings={{ ...props.settings, hero_bg_style: "minimal" }}
+        settings={props.settings}
         variant="compact"
       />
       <div className="border-t border-border" />
@@ -68,7 +68,7 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
         name={name(props)}
         description={desc(props)}
         lang={props.lang}
-        settings={{ ...props.settings, hero_bg_style: "gradient" }}
+        settings={props.settings}
         variant="wide"
       />
       <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-16">
@@ -84,7 +84,11 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
             </div>
           </div>
         )}
-        <ArchiveBody {...props} posts={showFeatured ? rest.slice(4) : props.posts} />
+        <ArchiveBody
+          {...props}
+          posts={showFeatured ? rest.slice(4) : props.posts}
+          hasCustomFeaturedTop
+        />
       </section>
     </div>
   );
@@ -100,7 +104,7 @@ export function LayoutHero(props: ArchiveLayoutProps) {
         name={name(props)}
         description={desc(props)}
         lang={props.lang}
-        settings={{ ...props.settings, hero_bg_style: "mesh" }}
+        settings={props.settings}
         variant="wide"
       />
       <div className="max-w-[1200px] mx-auto px-4 lg:px-8 -mt-4">
@@ -126,7 +130,7 @@ export function LayoutDark(props: ArchiveLayoutProps) {
           name={name(props)}
           description={desc(props)}
           lang={props.lang}
-          settings={{ ...props.settings, hero_bg_style: "pattern" }}
+          settings={props.settings}
           variant="wide"
         />
       </div>
@@ -150,7 +154,7 @@ export function LayoutBento(props: ArchiveLayoutProps) {
               name={name(props)}
               description={desc(props)}
               lang={props.lang}
-              settings={{ ...props.settings, hero_bg_style: "minimal" }}
+              settings={props.settings}
               variant="compact"
             />
           </div>
