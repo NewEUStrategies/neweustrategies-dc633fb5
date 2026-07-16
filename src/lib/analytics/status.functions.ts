@@ -87,7 +87,11 @@ export interface AnalyticsStatus {
 export const getAnalyticsStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AnalyticsStatus> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+
+    const stored = await readAnalyticsSettings(ctx);
+    const ga4Enabled = stored.ga4_enabled !== false;
 
     const gscOk = Boolean(process.env.LOVABLE_API_KEY && process.env.GOOGLE_SEARCH_CONSOLE_API_KEY);
 
@@ -113,29 +117,39 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
     );
     const oauthRefreshOk = Boolean(process.env.GA4_OAUTH_REFRESH_TOKEN);
 
-    // Measurement Protocol (send events)
-    const measurementId = process.env.GA4_MEASUREMENT_ID ?? null;
+    // Measurement Protocol (send events) - fall back to stored measurement id.
+    const measurementId =
+      process.env.GA4_MEASUREMENT_ID ?? (stored.ga4_measurement_id?.trim() || null);
     const apiSecretOk = Boolean(process.env.GA4_API_SECRET);
     const mpOk = Boolean(measurementId && apiSecretOk);
 
     // Embed (Looker Studio / iframe)
     const embedUrl = process.env.GA4_EMBED_URL ?? null;
 
-    const propertyId = process.env.GA4_PROPERTY_ID ?? null;
+    // Property ID: env pierwsze, potem konfiguracja z bazy.
+    const propertyId = process.env.GA4_PROPERTY_ID ?? (stored.ga4_property_id?.trim() || null);
     const hasProperty = Boolean(propertyId);
 
     let activeMode: Ga4Mode = null;
-    if (saOk && hasProperty) activeMode = "service_account";
-    else if (oauthClientOk && oauthRefreshOk && hasProperty) activeMode = "oauth_refresh";
-    else if (embedUrl) activeMode = "embed";
-    else if (mpOk) activeMode = "measurement_protocol";
+    if (ga4Enabled) {
+      if (saOk && hasProperty) activeMode = "service_account";
+      else if (oauthClientOk && oauthRefreshOk && hasProperty) activeMode = "oauth_refresh";
+      else if (embedUrl) activeMode = "embed";
+      else if (mpOk) activeMode = "measurement_protocol";
+    }
 
+    const missingSecrets: string[] = [];
+    if (!hasProperty) missingSecrets.push("GA4_PROPERTY_ID");
+    if (!saOk && !(oauthClientOk && oauthRefreshOk)) {
+      missingSecrets.push("GA4_SERVICE_ACCOUNT_JSON");
+    }
+
+    const readyToRead = (saOk || (oauthClientOk && oauthRefreshOk)) && hasProperty;
     return {
       gsc: { configured: gscOk },
       ga4: {
-        configured: Boolean(
-          (saOk || (oauthClientOk && oauthRefreshOk)) && hasProperty,
-        ),
+        configured: ga4Enabled && readyToRead,
+        enabled: ga4Enabled,
         activeMode,
         hasServiceAccount: saOk,
         hasPropertyId: hasProperty,
@@ -148,6 +162,7 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
         propertyId,
         measurementId,
         embedUrl,
+        missingSecrets,
       },
       vitals: { configured: true },
     };
