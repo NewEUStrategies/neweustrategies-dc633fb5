@@ -25,6 +25,15 @@ export default defineConfig({
         "seroval",
       ],
     },
+    // Skip minification of the SSR bundle: the Worker/Nitro SSR chunk grew past
+    // 2.5 MB (route tree + heavy admin analytics/builder trees) and V8's mark-
+    // compact ran out of memory during minify at `build:dev`. Minifying the
+    // server bundle is a size optimisation, not a correctness requirement -
+    // dropping it cuts peak RSS enough to build cleanly and does not affect the
+    // browser bundle (which still minifies with the default esbuild path).
+    build: {
+      minify: false,
+    },
     // Do not set top-level Rollup `manualChunks` here. This config is shared by
     // the browser and Cloudflare server environments; forcing vendor chunks at
     // this level also splits the Worker entry into files that are not available
@@ -33,3 +42,4 @@ export default defineConfig({
     // Vite's client defaults still provide safe browser code splitting.
   },
 });
+
