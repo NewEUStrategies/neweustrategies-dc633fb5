@@ -100,7 +100,7 @@ function DropdownPanel({
     return (
       <div
         role="menu"
-        className="absolute left-0 top-full z-50 mt-1 rounded-md border bg-popover p-4 text-popover-foreground shadow-lg"
+        className="rounded-md border bg-popover p-4 text-popover-foreground shadow-lg"
         style={{ width }}
         onMouseLeave={onRequestClose}
       >
