@@ -221,23 +221,10 @@ export function VitalsBiDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-9 text-sm w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">24 godz.</SelectItem>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => curQ.refetch()} className="h-9">
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
+      <div className="flex flex-wrap items-center gap-3">
+        <TimeRangeFilter value={range} onChange={setRange} />
+        <Button variant="outline" size="sm" onClick={() => curQ.refetch()} className="h-7">
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Odśwież
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
           <Gauge className="w-3 h-3" /> Próbek w oknie: {report?.windowTotal ?? 0}
@@ -249,6 +236,7 @@ export function VitalsBiDashboard() {
           </span>
         ) : null}
       </div>
+
 
       {!report || report.total === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
