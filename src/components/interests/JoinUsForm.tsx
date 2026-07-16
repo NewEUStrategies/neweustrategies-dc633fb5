@@ -946,64 +946,119 @@ export function JoinUsForm({
                       role="listbox"
                       aria-multiselectable="true"
                       style={popupStyle}
-                      className="flex flex-col rounded border border-border bg-popover shadow-2xl overflow-hidden"
+                      className="flex flex-col rounded-lg border border-border bg-popover shadow-2xl overflow-hidden"
                     >
-                      {/* Zakładki – szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
+                      {/* Zakładki - szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
                       {groupedItems.length > 1 && (
                         <GroupTabs
                           groups={groupedItems}
                           jusId={jusId}
                           scrollContainerId={`${jusId}-drop-scroll`}
                           ariaLabel={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
+                          pickedByGroup={Object.fromEntries(
+                            groupedItems.map((g) => [
+                              g.key,
+                              g.items.reduce((n, it) => n + (picked.has(it.id) ? 1 : 0), 0),
+                            ]),
+                          )}
                         />
                       )}
                       <div
                         id={`${jusId}-drop-scroll`}
-                        className="flex-1 overflow-auto p-1"
+                        className="flex-1 overflow-auto"
                       >
-                        {groupedItems.map((g) => (
-                          <div
-                            key={`grp:${g.key}`}
-                            id={`${jusId}-drop-grp-${g.key}`}
-                            className="pb-1 scroll-mt-1"
-                          >
-                            {/* Nagłówki grup są w pasku zakładek powyżej -
-                                nie duplikujemy ich na liście. Sam anchor `id`
-                                na wrapperze wystarcza do scrollIntoView z tabs. */}
-                            {g.items.map((it) => {
-                              const active = picked.has(it.id);
-                              return (
-                                <button
-                                  key={`opt:${it.type}:${it.id}`}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={active}
-                                  onClick={() => togglePick(it.id)}
-                                  className={cn(
-                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
-                                    active && "text-brand",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                                      active
-                                        ? "border-brand bg-brand text-brand-foreground"
-                                        : "border-input bg-background",
-                                    )}
-                                  >
-                                    {active && <Check className="h-2.5 w-2.5" />}
-                                  </span>
-                                  <span className="flex-1">{it.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
+                        {groupedItems.map((g) => {
+                          const selectedInGroup = g.items.reduce(
+                            (n, it) => n + (picked.has(it.id) ? 1 : 0),
+                            0,
+                          );
+                          return (
+                            <section
+                              key={`grp:${g.key}`}
+                              id={`${jusId}-drop-grp-${g.key}`}
+                              className="scroll-mt-0"
+                            >
+                              {/* Sticky mini nagłówek grupy - widoczny przy scrollu wewnątrz listy. */}
+                              <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border/60 bg-popover/95 px-3 py-1.5 backdrop-blur">
+                                <span className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                  {g.title}
+                                </span>
+                                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                                  {selectedInGroup > 0
+                                    ? `${selectedInGroup}/${g.items.length}`
+                                    : g.items.length}
+                                </span>
+                              </header>
+                              <div className="grid grid-cols-1 gap-0.5 p-1.5 sm:grid-cols-2">
+                                {g.items.map((it) => {
+                                  const active = picked.has(it.id);
+                                  return (
+                                    <button
+                                      key={`opt:${it.type}:${it.id}`}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={active}
+                                      onClick={() => togglePick(it.id)}
+                                      className={cn(
+                                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition min-w-0",
+                                        active
+                                          ? "bg-brand/10 text-brand"
+                                          : "hover:bg-accent",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition",
+                                          active
+                                            ? "border-brand bg-brand text-brand-foreground"
+                                            : "border-input bg-background",
+                                        )}
+                                      >
+                                        {active && <Check className="h-2.5 w-2.5" />}
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">{it.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          );
+                        })}
                       </div>
+                      {/* Stopka: licznik + wyczyść */}
+                      <footer className="flex items-center justify-between gap-2 border-t border-border bg-popover px-3 py-2">
+                        <span className="text-[11px] text-muted-foreground tabular-nums">
+                          {picked.size > 0
+                            ? lang === "en"
+                              ? `${picked.size} selected`
+                              : `Wybrano: ${picked.size}`
+                            : lang === "en"
+                              ? "Nothing selected"
+                              : "Brak wyboru"}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {picked.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setPicked(new Set())}
+                              className="rounded px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                            >
+                              {lang === "en" ? "Clear" : "Wyczyść"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDropOpen(false)}
+                            className="rounded bg-foreground px-2.5 py-1 text-[11px] font-medium text-background transition hover:opacity-90"
+                          >
+                            {lang === "en" ? "Done" : "Gotowe"}
+                          </button>
+                        </div>
+                      </footer>
                     </div>,
                     document.body,
                   )}
+
               </div>
             </div>
           ) : (
@@ -1292,11 +1347,13 @@ function GroupTabs({
   jusId,
   scrollContainerId,
   ariaLabel,
+  pickedByGroup,
 }: {
   groups: { key: string; title: string; items: readonly unknown[] }[];
   jusId: string;
   scrollContainerId: string;
   ariaLabel: string;
+  pickedByGroup?: Record<string, number>;
 }) {
   const barRef = useRef<HTMLDivElement | null>(null);
   const [activeKey, setActiveKey] = useState<string>(groups[0]?.key ?? "");
@@ -1452,6 +1509,7 @@ function GroupTabs({
       >
         {groups.map((g) => {
           const active = g.key === activeKey;
+          const selected = pickedByGroup?.[g.key] ?? 0;
           return (
             <button
               key={`tab:${g.key}`}
@@ -1461,15 +1519,26 @@ function GroupTabs({
               data-tab-key={g.key}
               onClick={() => jumpTo(g.key)}
               className={cn(
-                "whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all border",
+                "group/tab inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all border",
                 active
                   ? "bg-foreground text-background border-foreground shadow-sm"
                   : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              {g.title}
-              <span className={cn("ml-1", active ? "opacity-70" : "opacity-50")}>
-                ({g.items.length})
+              <span>{g.title}</span>
+              <span
+                className={cn(
+                  "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] tabular-nums transition",
+                  selected > 0
+                    ? active
+                      ? "bg-background/20 text-background"
+                      : "bg-brand text-brand-foreground"
+                    : active
+                      ? "bg-background/15 text-background/80"
+                      : "bg-muted text-muted-foreground/80",
+                )}
+              >
+                {selected > 0 ? `${selected}/${g.items.length}` : g.items.length}
               </span>
             </button>
           );
