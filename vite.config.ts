@@ -15,8 +15,8 @@ export default defineConfig({
     // FIRST page load - "new dependencies optimized: ... reloading" then forces
     // a full page reload mid-session (the page visibly loads twice after every
     // dev-server restart). Pre-bundling them up front removes that reload.
-    // (Deliberately NOT @tanstack/react-start itself - see the wrapper's note:
-    // its node:async_hooks server entry must stay out of the client bundle.)
+    // @tanstack/react-start stays out because its server entry must never be
+    // pulled into the browser dependency graph.
     optimizeDeps: {
       include: [
         "@tanstack/history",
