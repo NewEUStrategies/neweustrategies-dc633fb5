@@ -592,16 +592,19 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
 
       {hasChildren && (
         <div className="ml-6 mt-1 space-y-1">
-          {children.map((child) => (
+          {children.map((child, i) => (
             <MenuNode
               key={child.item.local_id}
               node={child}
               depth={depth + 1}
+              siblingIndex={i}
               expanded={expanded}
               onToggleExpanded={onToggleExpanded}
               onUpdate={onUpdate}
               onRemove={onRemove}
               onMove={onMove}
+              onIndent={onIndent}
+              onOutdent={onOutdent}
             />
           ))}
         </div>
