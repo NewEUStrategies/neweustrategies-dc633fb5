@@ -731,6 +731,16 @@ function MegaColumnsEditor({
                 placeholder="href kolumny (opcjonalnie)"
                 className="h-7 text-xs"
               />
+              <InternalContentPicker
+                onPick={(p) =>
+                  updateColumn(idx, {
+                    title_pl: col.title_pl || p.label_pl,
+                    title_en: col.title_en || p.label_en,
+                    href: p.href,
+                  })
+                }
+                title="Powiąż nagłówek kolumny z treścią"
+              />
               <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeColumn(idx)}>
                 <Trash2 className="h-3 w-3" />
               </Button>
@@ -767,6 +777,22 @@ function MegaColumnsEditor({
                     }
                     placeholder="href"
                     className="h-7 text-xs"
+                  />
+                  <InternalContentPicker
+                    onPick={(p) =>
+                      updateColumn(idx, {
+                        links: col.links.map((x, i) =>
+                          i === li
+                            ? {
+                                label_pl: x.label_pl || p.label_pl,
+                                label_en: x.label_en || p.label_en,
+                                href: p.href,
+                              }
+                            : x,
+                        ),
+                      })
+                    }
+                    title="Powiąż link z treścią wewnętrzną"
                   />
                   <Button
                     size="icon"
