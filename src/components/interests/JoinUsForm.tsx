@@ -1509,6 +1509,7 @@ function GroupTabs({
       >
         {groups.map((g) => {
           const active = g.key === activeKey;
+          const selected = pickedByGroup?.[g.key] ?? 0;
           return (
             <button
               key={`tab:${g.key}`}
@@ -1518,15 +1519,26 @@ function GroupTabs({
               data-tab-key={g.key}
               onClick={() => jumpTo(g.key)}
               className={cn(
-                "whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all border",
+                "group/tab inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all border",
                 active
                   ? "bg-foreground text-background border-foreground shadow-sm"
                   : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              {g.title}
-              <span className={cn("ml-1", active ? "opacity-70" : "opacity-50")}>
-                ({g.items.length})
+              <span>{g.title}</span>
+              <span
+                className={cn(
+                  "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] tabular-nums transition",
+                  selected > 0
+                    ? active
+                      ? "bg-background/20 text-background"
+                      : "bg-brand text-brand-foreground"
+                    : active
+                      ? "bg-background/15 text-background/80"
+                      : "bg-muted text-muted-foreground/80",
+                )}
+              >
+                {selected > 0 ? `${selected}/${g.items.length}` : g.items.length}
               </span>
             </button>
           );
