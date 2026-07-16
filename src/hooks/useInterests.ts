@@ -14,6 +14,13 @@ export interface InterestItem {
   type: InterestTargetType;
   label: string;
   slug: string;
+  /** Dla kategorii: id kategorii-rodzica (np. Region, Specjalizacja). */
+  parentId?: string | null;
+  /** Zdenormalizowana etykieta rodzica w bieżącym języku - używana do
+   *  grupowania widgetów (JoinUsForm) po obszarach. `null` dla top-level. */
+  parentLabel?: string | null;
+  /** Slug rodzica - używany jako klucz custom field w CRM (interests_<slug>). */
+  parentSlug?: string | null;
 }
 
 export interface InterestCatalog {
