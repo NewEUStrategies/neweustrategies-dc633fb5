@@ -613,6 +613,8 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
             {depth === 0 && item.mega_enabled && (
               <MegaColumnsEditor
                 config={item.mega_config}
+                triggerPl={item.label_pl}
+                triggerEn={item.label_en}
                 onChange={(cfg) => onUpdate(item.local_id, { mega_config: cfg })}
               />
             )}
