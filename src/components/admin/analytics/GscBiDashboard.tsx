@@ -507,6 +507,21 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           height={320}
         />
       </div>
+
+      {/* Interpretacja + rekomendacje per element dashboardu */}
+      <InsightSection
+        subtitle={`Analiza dla właściwości ${effectiveSite} · okno ${days} dni`}
+        insights={buildGscInsights({
+          totals,
+          prevTotals,
+          dateRows,
+          queryRows,
+          pageRows,
+          countryRows,
+          deviceRows,
+          windowDays: days,
+        })}
+      />
     </div>
   );
 }
