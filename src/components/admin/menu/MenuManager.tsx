@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, GripVertical, Save, Trash2, Loader2 } from "@/lib/lucide-shim";
+import { ChevronDown, ChevronRight, GripVertical, Save, Trash2, Loader2, ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { useServerFn } from "@tanstack/react-start";
 import { saveMenu as saveMenuFn } from "@/lib/menus/menu.functions";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
