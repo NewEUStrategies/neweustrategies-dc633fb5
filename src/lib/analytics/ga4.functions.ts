@@ -52,6 +52,7 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
 interface StoredAnalytics {
   ga4_enabled?: boolean;
   ga4_property_id?: string;
+  ga4_measurement_id?: string;
 }
 async function readStoredAnalytics(ctx: GatewayCtx): Promise<StoredAnalytics> {
   try {
