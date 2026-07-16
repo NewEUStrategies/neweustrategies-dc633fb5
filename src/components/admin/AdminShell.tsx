@@ -143,6 +143,26 @@ export function SidebarRowButton({
   );
 }
 
+function SidebarTooltip({
+  label,
+  compact,
+  children,
+}: {
+  label: ReactNode;
+  compact: boolean;
+  children: React.ReactElement;
+}) {
+  if (!compact) return children;
+  return (
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AdminShell({
   children,
   hideSidebar,
