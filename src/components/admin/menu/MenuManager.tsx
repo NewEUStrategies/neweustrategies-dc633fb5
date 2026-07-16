@@ -708,6 +708,14 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
                   className="h-8 text-xs"
                 />
               </Field>
+              <Field label={t("admin.menu.icon", { defaultValue: "Ikona" })}>
+                <div className="h-8 flex items-center">
+                  <LucideIconPicker
+                    value={item.icon}
+                    onChange={(name) => onUpdate(item.local_id, { icon: name ?? "" })}
+                  />
+                </div>
+              </Field>
               {depth === 0 && (
                 <Field label={t("admin.menu.megaToggle", { defaultValue: "Mega panel" })}>
                   <div className="flex items-center gap-2 h-8">
