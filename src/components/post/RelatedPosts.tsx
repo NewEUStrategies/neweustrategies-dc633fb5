@@ -193,7 +193,8 @@ function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <CardBody p={p} cfg={cfg} lang={lang} />
+            <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
+
           </div>
         </li>
       ))}
