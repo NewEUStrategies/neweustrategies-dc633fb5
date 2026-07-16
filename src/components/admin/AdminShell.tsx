@@ -121,7 +121,7 @@ export function SidebarRowButton({
     <button
       type="button"
       onClick={onClick}
-      title={title}
+      title={compact ? undefined : title}
       data-sidebar="menu-button"
       className={cn(
         "w-full flex items-center py-1 rounded-md text-[13px] text-left transition",
