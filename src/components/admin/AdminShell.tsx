@@ -535,14 +535,15 @@ function AdminShellInner({
               )}
             </div>
             {compact && (
-              <button
-                onClick={() => setForceCompact((s) => !s)}
-                data-sidebar-toggle
-                className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent"
-                title={t("admin.sidebar.expand")}
-              >
-                <PanelLeft className="w-4 h-4" />
-              </button>
+              <SidebarTooltip label={t("admin.sidebar.expand")} compact={compact}>
+                <button
+                  onClick={() => setForceCompact((s) => !s)}
+                  data-sidebar-toggle
+                  className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent"
+                >
+                  <PanelLeft className="w-4 h-4" />
+                </button>
+              </SidebarTooltip>
             )}
           </div>
           <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
