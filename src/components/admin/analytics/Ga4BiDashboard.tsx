@@ -346,6 +346,21 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
       </div>
 
       <ChartCard title="Top strony" subtitle="Rank wg odsłon" option={topPagesOption} height={340} />
+
+      {/* Interpretacja + rekomendacje per element dashboardu */}
+      <InsightSection
+        subtitle={`Analiza GA4 · okno ${days} dni · tryb: ${activeMode === "oauth_refresh" ? "OAuth" : "Service Account"}`}
+        insights={buildGa4Insights({
+          dateReport: dateQ.data,
+          prevReport: prevQ.data,
+          sourceReport: sourceQ.data,
+          countryReport: countryQ.data,
+          deviceReport: deviceQ.data,
+          pageReport: pageQ.data,
+          engagementReport: engageQ.data,
+          windowDays: days,
+        })}
+      />
     </div>
   );
 }
