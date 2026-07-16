@@ -8,7 +8,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, ChevronRight } from "@/lib/lucide-shim";
+import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitize";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
