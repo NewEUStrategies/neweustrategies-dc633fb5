@@ -871,47 +871,82 @@ export function JoinUsForm({
                   <div
                     role="listbox"
                     aria-multiselectable="true"
-                    className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded border border-border bg-popover p-1 shadow-lg"
+                    className="absolute z-20 mt-1 w-full rounded border border-border bg-popover shadow-lg overflow-hidden"
                   >
-                    {groupedItems.map((g) => (
-                      <div key={`grp:${g.key}`} className="pb-1">
+                    {/* Zakładki – szybkie przejście do grupy */}
+                    {groupedItems.length > 1 && (
+                      <div
+                        role="tablist"
+                        aria-label={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
+                        className="flex gap-1 overflow-x-auto border-b border-border bg-popover/95 px-1 py-1"
+                      >
+                        {groupedItems.map((g) => (
+                          <button
+                            key={`tab:${g.key}`}
+                            type="button"
+                            role="tab"
+                            onClick={() => {
+                              const el = document.getElementById(
+                                `${jusId}-drop-grp-${g.key}`,
+                              );
+                              el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                            className="whitespace-nowrap rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground transition"
+                          >
+                            {g.title}
+                            <span className="ml-1 opacity-60">({g.items.length})</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      id={`${jusId}-drop-scroll`}
+                      className="max-h-[22rem] overflow-auto p-1"
+                    >
+                      {groupedItems.map((g) => (
                         <div
-                          role="presentation"
-                          className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                          key={`grp:${g.key}`}
+                          id={`${jusId}-drop-grp-${g.key}`}
+                          className="pb-1 scroll-mt-1"
                         >
-                          {g.title}
-                          <span className="ml-1 opacity-60">({g.items.length})</span>
-                        </div>
-                        {g.items.map((it) => {
-                          const active = picked.has(it.id);
-                          return (
-                            <button
-                              key={`opt:${it.type}:${it.id}`}
-                              type="button"
-                              role="option"
-                              aria-selected={active}
-                              onClick={() => togglePick(it.id)}
-                              className={cn(
-                                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
-                                active && "text-brand",
-                              )}
-                            >
-                              <span
+                          <div
+                            role="presentation"
+                            className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                          >
+                            {g.title}
+                            <span className="ml-1 opacity-60">({g.items.length})</span>
+                          </div>
+                          {g.items.map((it) => {
+                            const active = picked.has(it.id);
+                            return (
+                              <button
+                                key={`opt:${it.type}:${it.id}`}
+                                type="button"
+                                role="option"
+                                aria-selected={active}
+                                onClick={() => togglePick(it.id)}
                                 className={cn(
-                                  "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                                  active
-                                    ? "border-brand bg-brand text-brand-foreground"
-                                    : "border-input bg-background",
+                                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
+                                  active && "text-brand",
                                 )}
                               >
-                                {active && <Check className="h-2.5 w-2.5" />}
-                              </span>
-                              <span className="flex-1">{it.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ))}
+                                <span
+                                  className={cn(
+                                    "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
+                                    active
+                                      ? "border-brand bg-brand text-brand-foreground"
+                                      : "border-input bg-background",
+                                  )}
+                                >
+                                  {active && <Check className="h-2.5 w-2.5" />}
+                                </span>
+                                <span className="flex-1">{it.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
