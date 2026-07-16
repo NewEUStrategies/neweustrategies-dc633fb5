@@ -588,7 +588,7 @@ function AdminShellInner({
               to="/"
               title={t("admin.viewSite")}
               data-sidebar="menu-button"
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted"
+              className={`flex items-center py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted ${compact ? "justify-center px-0" : "gap-1.5 px-2"}`}
             >
               <Home className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
