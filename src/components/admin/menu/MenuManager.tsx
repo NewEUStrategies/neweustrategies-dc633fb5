@@ -414,14 +414,17 @@ function depthOf(items: ClientItem[], local_id: string): number {
 interface NodeProps {
   node: TreeNode;
   depth: number;
+  siblingIndex: number;
   expanded: Set<string>;
   onToggleExpanded: (id: string) => void;
   onUpdate: (id: string, patch: Partial<ClientItem>) => void;
   onRemove: (id: string) => void;
   onMove: (dragId: string, targetId: string | null, mode: "before" | "after" | "child") => void;
+  onIndent: (id: string) => void;
+  onOutdent: (id: string) => void;
 }
 
-function MenuNode({ node, depth, expanded, onToggleExpanded, onUpdate, onRemove, onMove }: NodeProps) {
+function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpdate, onRemove, onMove, onIndent, onOutdent }: NodeProps) {
   const { t } = useTranslation();
   const { item, children } = node;
   const isOpen = expanded.has(item.local_id);
