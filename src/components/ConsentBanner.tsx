@@ -253,6 +253,7 @@ export function ConsentBanner() {
   }, [mounted, state]);
 
   const bannerEnabled = privacy.cookie_banner && banner.enabled;
+  const styleVars = useMemo(() => bannerStyleVars(banner.colors), [banner.colors]);
   if (!mounted) return null;
   if (decided && !detailsOpen) return null;
   if (!bannerEnabled && !detailsOpen) return null;
@@ -288,8 +289,6 @@ export function ConsentBanner() {
         return t.descMarketing;
     }
   };
-
-  const styleVars = useMemo(() => bannerStyleVars(banner.colors), [banner.colors]);
 
   const LangSwitcher = banner.languageSwitcher ? (
     <div

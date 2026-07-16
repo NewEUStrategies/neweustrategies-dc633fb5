@@ -47,7 +47,13 @@ export const Route = createFileRoute("/tag/$slug")({
     const tax = loaderData?.taxonomy;
     const total = loaderData?.total ?? 0;
     const page = loaderData?.page ?? 1;
-    const url = getRequestUrl() || `/tag/${params.slug}`;
+    const requestedUrl = getRequestUrl() || `/tag/${params.slug}`;
+    const request = new URL(requestedUrl, SITE_CANONICAL_ORIGIN);
+    request.searchParams.delete("page");
+    request.searchParams.delete("sort");
+    const url = request.origin === SITE_CANONICAL_ORIGIN && !requestedUrl.startsWith("http")
+      ? request.pathname
+      : request.toString();
     const lang = activeLang(url);
     const name = tax
       ? lang === "en"

@@ -155,6 +155,37 @@ export const Route = createFileRoute("/sitemap.xml")({
             });
           }
 
+          // Category and tag archive pages are independently indexable and
+          // carry their own localized metadata, breadcrumbs and CollectionPage schema.
+          const [{ data: categories }, { data: tags }] = await Promise.all([
+            supabaseAdmin
+              .from("categories")
+              .select("slug, created_at")
+              .eq("tenant_id", tenantId),
+            supabaseAdmin
+              .from("tags")
+              .select("slug, created_at")
+              .eq("tenant_id", tenantId),
+          ]);
+          for (const row of categories ?? []) {
+            const category = row as { slug: string; created_at: string | null };
+            entries.push({
+              loc: `${origin}/category/${category.slug}`,
+              lastmod: (category.created_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.6",
+            });
+          }
+          for (const row of tags ?? []) {
+            const tag = row as { slug: string; created_at: string | null };
+            entries.push({
+              loc: `${origin}/tag/${tag.slug}`,
+              lastmod: (tag.created_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.5",
+            });
+          }
+
           // Published podcast programs (series) - each program has its own page.
           const { data: shows } = await supabaseAdmin
             .from("podcast_shows")
