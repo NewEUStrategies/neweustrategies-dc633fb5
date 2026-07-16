@@ -115,9 +115,9 @@ export function VitalsBiDashboard() {
             silent: true,
             itemStyle: { opacity: 0.12 },
             data: [
-              [{ yAxis: 0, itemStyle: { color: "#16a34a" } }, { yAxis: thresholds.good }],
-              [{ yAxis: thresholds.good, itemStyle: { color: "#f59e0b" } }, { yAxis: thresholds.needs }],
-              [{ yAxis: thresholds.needs, itemStyle: { color: "#dc2626" } }, { yAxis: "max" }],
+              [{ yAxis: 0, itemStyle: { color: "#16a34a" } }, { yAxis: thGood }],
+              [{ yAxis: thGood, itemStyle: { color: "#f59e0b" } }, { yAxis: thPoor }],
+              [{ yAxis: thPoor, itemStyle: { color: "#dc2626" } }, { yAxis: "max" }],
             ],
           },
           markLine: {
@@ -125,8 +125,8 @@ export function VitalsBiDashboard() {
             symbol: "none",
             lineStyle: { color: "hsl(var(--muted-foreground))", type: "dashed", width: 1 },
             data: [
-              { yAxis: thresholds.good, label: { formatter: `Good ${fmtValue(metric, thresholds.good)}`, fontSize: 9 } },
-              { yAxis: thresholds.needs, label: { formatter: `Poor ${fmtValue(metric, thresholds.needs)}`, fontSize: 9 } },
+              { yAxis: thGood, label: { formatter: `Good ${fmtValue(metric, thGood)}`, fontSize: 9 } },
+              { yAxis: thPoor, label: { formatter: `Poor ${fmtValue(metric, thPoor)}`, fontSize: 9 } },
             ],
           },
         },
