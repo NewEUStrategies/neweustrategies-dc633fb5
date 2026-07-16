@@ -273,6 +273,9 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
           <div className="flex flex-wrap gap-2 items-center pt-1">
             <Badge variant="outline" className="text-[10px]">
               Measurement ID {status.hasMeasurementId ? "✓" : "×"}
+              {status.measurementId ? (
+                <span className="ml-1 font-mono opacity-80">{status.measurementId}</span>
+              ) : null}
             </Badge>
             <Badge variant="outline" className="text-[10px]">
               API secret {status.hasMeasurementProtocol && status.hasMeasurementId ? "✓" : "×"}
