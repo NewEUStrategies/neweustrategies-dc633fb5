@@ -296,12 +296,9 @@ export const sendGa4Event = createServerFn({ method: "POST" })
       });
       if (data.debug) {
         const body = await res.text();
-        try {
-          return { ok: res.ok, configured: true, debug: JSON.parse(body) };
-        } catch {
-          return { ok: res.ok, configured: true, debug: body };
-        }
+        return { ok: res.ok, configured: true, debug: body };
       }
+
       // Produkcyjny /mp/collect zawsze zwraca 204 przy sukcesie.
       if (!res.ok) {
         const t = await res.text();
