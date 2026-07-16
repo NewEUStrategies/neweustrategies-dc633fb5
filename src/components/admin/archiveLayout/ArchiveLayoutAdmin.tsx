@@ -380,21 +380,21 @@ function SelectField({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="h-9 rounded-md border border-border bg-background px-2 disabled:opacity-50"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex flex-col gap-1.5 text-sm">
+      <Label className="text-muted-foreground text-xs font-medium">{label}</Label>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger className="h-9 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value} className="text-sm">
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -412,16 +412,16 @@ function NumberField({
   max?: number;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <input
+    <div className="flex flex-col gap-1.5 text-sm">
+      <Label className="text-muted-foreground text-xs font-medium">{label}</Label>
+      <Input
         type="number"
         value={value}
         min={min}
         max={max}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-9 rounded-md border border-border bg-background px-2"
+        className="h-9"
       />
-    </label>
+    </div>
   );
 }
