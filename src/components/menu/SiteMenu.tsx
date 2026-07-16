@@ -147,7 +147,7 @@ function MegaPanel({
           })),
         }));
 
-  const featuredQuery = useQuery(megaFeaturedPostQueryOptions);
+  const featuredQuery = useQuery(megaFeaturedPostQueryOptions(cfg.featured_post_id ?? null));
   const featured = featuredQuery.data ?? null;
 
   const showFeatured = cols.length <= 2 && !!featured;
