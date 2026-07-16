@@ -388,6 +388,71 @@ function VitalsMiniPanel() {
 // --------- Overview ---------
 
 function OverviewPanel({ status }: { status: AnalyticsStatus }) {
+  const insights: import("@/components/admin/analytics/InsightSection").Insight[] = [];
+  // GSC
+  insights.push({
+    id: "gsc",
+    element: "Search Console",
+    severity: status.gsc.configured ? "good" : "critical",
+    title: status.gsc.configured ? "GSC podłączony i zbiera dane" : "Brak połączenia z GSC",
+    detail: status.gsc.configured
+      ? "OAuth aktywny - dashboard GSC ma dostęp do wszystkich zweryfikowanych właściwości."
+      : "Bez GSC nie ma widoczności SERP: brak zapytań, pozycji, CTR i sitemap health.",
+    fixes: status.gsc.configured
+      ? [
+          "Zweryfikuj że wszystkie warianty domeny (http/https, www/apex) są dodane w GSC.",
+          "Wgraj świeży sitemap.xml raz w tygodniu (możesz zautomatyzować przez pg_cron).",
+        ]
+      : [
+          "Otwórz Ustawienia → Konektory → Google Search Console i podłącz konto z dostępem do właściwości.",
+          "Po podłączeniu odśwież ten panel - dashboard GSC zacznie zbierać dane w ciągu godziny.",
+        ],
+  });
+  // GA4
+  insights.push({
+    id: "ga4",
+    element: "Google Analytics 4",
+    severity: status.ga4.configured ? "good" : status.ga4.hasServiceAccount ? "warn" : "critical",
+    title: status.ga4.configured
+      ? `GA4 aktywny (property ${status.ga4.propertyId})`
+      : status.ga4.hasServiceAccount
+        ? "Service account jest, brak GA4_PROPERTY_ID"
+        : "GA4 nie jest podłączony",
+    detail: status.ga4.configured
+      ? "Data API odpowiada - masz sesje, źródła, urządzenia, konwersje na dashboardzie GA4."
+      : "Bez GA4 nie ma pomiaru zachowań usera po wejściu (bounce, engagement, conversions).",
+    fixes: status.ga4.configured
+      ? [
+          "Skonfiguruj konwersje (kontakt, newsletter) - bez nich engagement rate nie ma kontekstu.",
+          "Zdefiniuj mikroeventy (scroll_75, cta_click) - lepsze segmenty.",
+        ]
+      : status.ga4.hasServiceAccount
+        ? ["Dodaj sekret GA4_PROPERTY_ID (numer property, nie tag pomiaru)."]
+        : [
+            "Zbierz service account JSON z Google Cloud Console (rola Viewer w GA4).",
+            "Dodaj sekret GA4_SERVICE_ACCOUNT_JSON + GA4_PROPERTY_ID.",
+          ],
+  });
+  // Vitals
+  insights.push({
+    id: "vitals",
+    element: "Web Vitals",
+    severity: status.vitals.configured ? "good" : "warn",
+    title: status.vitals.configured ? "RUM zbierany z realnego ruchu" : "Brak samples RUM w oknie",
+    detail: status.vitals.configured
+      ? "Beacon `/api/public/vitals` odbiera LCP/INP/CLS/FCP/TTFB. Web Vitals BI attribute per podstrona."
+      : "Brak próbek zwykle oznacza, że ruch jest zbyt niski lub RUM został wyłączony w consent bannerze.",
+    fixes: status.vitals.configured
+      ? [
+          "Otwórz zakładkę Web Vitals - konkretne rekomendacje per metryka są tam wygenerowane.",
+          "Jeśli LCP > 2.5s: preload obrazu bohatera + AVIF/WebP.",
+        ]
+      : [
+          "Sprawdź w Consent Banner że kategoria 'Analytics' jest opcjonalna z domyślnie akceptowaną (jeśli prawnie OK).",
+          "W dev otwórz kilka podstron - konsola powinna pokazać `[web-vitals]`.",
+        ],
+  });
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -411,6 +476,12 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
       </div>
 
       <VitalsMiniPanel />
+
+      <InsightSection
+        title="Stan integracji i rekomendacje"
+        subtitle="Analiza gotowości: GSC · GA4 · Web Vitals"
+        insights={insights}
+      />
 
       <Card className="p-4 text-sm space-y-2">
         <div className="font-semibold">Jak podłączyć klucze Google?</div>
