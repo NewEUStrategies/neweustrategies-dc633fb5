@@ -10,6 +10,7 @@ export const megaColumnLinkSchema = z.object({
   label_pl: z.string().max(200).default(""),
   label_en: z.string().max(200).default(""),
   href: z.string().max(1000).default(""),
+  icon: z.string().max(64).default(""),
 });
 export type MegaColumnLink = z.infer<typeof megaColumnLinkSchema>;
 
@@ -25,6 +26,7 @@ export const megaConfigSchema = z.object({
   columns_per_row: z.number().int().min(1).max(6).default(4),
   width: z.enum(["container", "full"]).default("container"),
   columns: z.array(megaColumnSchema).max(12).default([]),
+  featured_post_id: z.string().uuid().nullable().default(null),
 });
 export type MegaConfig = z.infer<typeof megaConfigSchema>;
 
@@ -32,6 +34,7 @@ export const DEFAULT_MEGA_CONFIG: MegaConfig = {
   columns_per_row: 4,
   width: "container",
   columns: [],
+  featured_post_id: null,
 };
 
 export const menuItemInputSchema = z.object({

@@ -15,7 +15,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { saveMenu as saveMenuFn } from "@/lib/menus/menu.functions";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { AddItemPanel } from "./AddItemPanel";
-import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
+import { MegaPanelView } from "@/components/menu/MegaPanelView";
+import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
+import { megaFeaturedPostQueryOptions, type MegaFeaturedPost } from "@/lib/menus/megaFeatured";
+
 import {
   DEFAULT_MEGA_CONFIG,
   type MenuItemInput,
@@ -756,6 +759,18 @@ function MegaColumnsEditor({
             <div className="pl-2 space-y-1">
               {col.links.map((l, li) => (
                 <div key={li} className="flex items-center gap-1">
+                  <LucideIconPicker
+                    value={l.icon}
+                    onChange={(name) =>
+                      updateColumn(idx, {
+                        links: col.links.map((x, i) =>
+                          i === li ? { ...x, icon: name ?? "" } : x,
+                        ),
+                      })
+                    }
+                    className="h-7"
+                    placeholder="Ikona"
+                  />
                   <Input
                     value={l.label_pl}
                     onChange={(e) =>
@@ -792,6 +807,7 @@ function MegaColumnsEditor({
                         links: col.links.map((x, i) =>
                           i === li
                             ? {
+                                ...x,
                                 label_pl: x.label_pl || p.label_pl,
                                 label_en: x.label_en || p.label_en,
                                 href: p.href,
@@ -821,7 +837,7 @@ function MegaColumnsEditor({
                   className="h-7 text-[11px]"
                   onClick={() =>
                     updateColumn(idx, {
-                      links: [...col.links, { label_pl: "", label_en: "", href: "" }],
+                      links: [...col.links, { label_pl: "", label_en: "", href: "", icon: "" }],
                     })
                   }
                 >
@@ -832,7 +848,7 @@ function MegaColumnsEditor({
                     updateColumn(idx, {
                       links: [
                         ...col.links,
-                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href },
+                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href, icon: "" },
                       ],
                     })
                   }
@@ -847,6 +863,10 @@ function MegaColumnsEditor({
           + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
         </Button>
       </div>
+      <FeaturedPostPicker
+        value={config.featured_post_id}
+        onChange={(id) => onChange({ ...config, featured_post_id: id })}
+      />
       <MegaPreview
         config={config}
         triggerPl={triggerPl}
@@ -858,9 +878,8 @@ function MegaColumnsEditor({
   );
 }
 
-// Podgląd na żywo mega-menu w panelu admina - używa tego samego komponentu
-// `MegaMenu` co front, w trybie akordeonu (`mobile`), żeby wszystkie kolumny
-// były od razu widoczne bez interakcji hover.
+// Podgląd na żywo mega-menu w panelu admina - renderuje ten sam komponent
+// `MegaPanelView` co front, żeby admin widział 1:1 to, co użytkownik.
 function MegaPreview({
   config,
   triggerPl,
@@ -875,34 +894,33 @@ function MegaPreview({
   onLangChange: (l: "pl" | "en") => void;
 }) {
   const { t } = useTranslation();
-  const widgetConfig: MegaMenuConfig = useMemo(
-    () => ({
-      trigger_pl: triggerPl || "Menu",
-      trigger_en: triggerEn || triggerPl || "Menu",
-      triggerOn: "click",
-      width: config.width === "full" ? "fluid" : "container",
-      columns: config.columns.map((c) => ({
-        kind: "links" as const,
+  const featuredQuery = useQuery(megaFeaturedPostQueryOptions(config.featured_post_id ?? null));
+  const featured = featuredQuery.data ?? null;
+
+  const cols = useMemo(
+    () =>
+      config.columns.map((c) => ({
         title_pl: c.title_pl,
         title_en: c.title_en,
+        href: c.href,
         links: c.links.map((l) => ({
           label_pl: l.label_pl,
           label_en: l.label_en,
           href: l.href,
+          icon: l.icon ?? "",
         })),
-        featured: null,
       })),
-    }),
-    [config, triggerPl, triggerEn],
+    [config.columns],
   );
 
-  const hasContent = config.columns.length > 0;
+  const parentLabel = lang === "en" ? triggerEn || triggerPl : triggerPl;
+  const hasContent = cols.length > 0;
 
   return (
     <div className="mt-3 border-t border-border pt-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold">
-          {t("admin.menu.preview", { defaultValue: "Podgląd na żywo" })}
+          {t("admin.menu.preview", { defaultValue: "Podgląd na żywo (front)" })}
         </span>
         <div className="inline-flex rounded-md border border-border overflow-hidden">
           {(["pl", "en"] as const).map((l) => (
@@ -921,18 +939,159 @@ function MegaPreview({
         </div>
       </div>
       {hasContent ? (
-        <nav
+        <div
           aria-label={t("admin.menu.previewAria", { defaultValue: "Podgląd mega-menu" })}
-          className="rounded-md border border-border bg-background p-2"
+          className="rounded-md bg-muted/30 p-3"
         >
-          <MegaMenu config={widgetConfig} lang={lang} mobile />
-        </nav>
+          <MegaPanelView
+            cols={cols}
+            lang={lang}
+            parentLabel={parentLabel}
+            parentHref="#"
+            featured={featured}
+            variant="preview"
+          />
+        </div>
       ) : (
         <p className="text-[11px] text-muted-foreground italic">
           {t("admin.menu.previewEmpty", {
             defaultValue: "Dodaj co najmniej jedną kolumnę, aby zobaczyć podgląd.",
           })}
         </p>
+      )}
+    </div>
+  );
+}
+
+// Picker wyróżnionego wpisu do prawej kolumny mega-panelu.
+// Domyślnie (null) = najnowszy opublikowany wpis z okładką.
+function FeaturedPostPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const { data: current } = useQuery({
+    queryKey: ["mega-featured-current", value],
+    enabled: !!value,
+    staleTime: 60_000,
+    queryFn: async (): Promise<MegaFeaturedPost | null> => {
+      if (!value) return null;
+      const { data } = await supabase
+        .from("posts")
+        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format")
+        .eq("id", value)
+        .maybeSingle();
+      return (data as MegaFeaturedPost | null) ?? null;
+    },
+  });
+
+  const { data: hits = [], isFetching } = useQuery({
+    queryKey: ["mega-featured-search", search],
+    enabled: open,
+    staleTime: 30_000,
+    queryFn: async (): Promise<{ id: string; title: string; slug: string }[]> => {
+      let q = supabase
+        .from("posts")
+        .select("id, slug, title_pl, title_en")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("published_at", { ascending: false });
+      const term = search.trim();
+      if (term.length >= 2) {
+        q = q.or(`title_pl.ilike.%${term}%,title_en.ilike.%${term}%,slug.ilike.%${term}%`);
+      }
+      const { data } = await q.limit(20);
+      return (data ?? []).map((r) => ({
+        id: String(r.id),
+        slug: String(r.slug ?? ""),
+        title: String(r.title_pl ?? r.title_en ?? r.slug ?? ""),
+      }));
+    },
+  });
+
+  const currentTitle = current
+    ? current.title_pl || current.title_en || current.slug || ""
+    : "";
+
+  return (
+    <div className="mt-3 border-t border-border pt-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold">Wyróżniony wpis</span>
+        <div className="flex items-center gap-1">
+          {value ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[11px]"
+              onClick={() => onChange(null)}
+            >
+              Wyczyść
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={() => setOpen((o) => !o)}
+          >
+            {value ? "Zmień" : "Wybierz wpis"}
+          </Button>
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        {value ? (
+          <>
+            Wybrany: <span className="font-medium text-foreground">{currentTitle || value}</span>
+          </>
+        ) : (
+          "Domyślnie: najnowszy opublikowany wpis z okładką."
+        )}
+      </p>
+      {open && (
+        <div className="rounded-md border border-border bg-popover p-2 space-y-2">
+          <Input
+            autoFocus
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Szukaj wpisu..."
+            className="h-7 text-xs"
+          />
+          <div className="max-h-56 overflow-y-auto rounded border border-border bg-background">
+            {isFetching && (
+              <div className="px-2 py-2 text-[11px] text-muted-foreground text-center">
+                <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                Wczytywanie...
+              </div>
+            )}
+            {!isFetching && hits.length === 0 && (
+              <div className="px-2 py-2 text-[11px] text-muted-foreground text-center">
+                Brak wyników
+              </div>
+            )}
+            {hits.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => {
+                  onChange(h.id);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full text-left px-2 py-1 text-xs hover:bg-muted flex items-center gap-2 border-b border-border/60 last:border-b-0 ${
+                  value === h.id ? "bg-primary/10" : ""
+                }`}
+              >
+                <span className="flex-1 truncate">{h.title}</span>
+                <span className="text-[10px] text-muted-foreground truncate">/{h.slug}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
