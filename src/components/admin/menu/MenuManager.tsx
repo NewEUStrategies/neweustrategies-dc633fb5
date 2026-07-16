@@ -646,15 +646,23 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
         </div>
 
         {/* Mega summary strip - visible when collapsed */}
-        {!isOpen && isMegaLike && megaColsCount > 0 ? (
+        {!isOpen && isMegaLike && displayColsCount > 0 ? (
           <div className="border-t border-border/40 px-3 py-1.5 flex items-center gap-3 text-[10px] text-muted-foreground bg-muted/20">
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold text-foreground/70">{megaColsCount}</span> kolumn
+              <span className="font-bold text-foreground/70">{displayColsCount}</span> kolumn
             </span>
             <span className="opacity-30">·</span>
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold text-foreground/70">{megaLinksCount}</span> linków
+              <span className="font-bold text-foreground/70">{displayLinksCount}</span> linków
             </span>
+            {usingDerivedMega ? (
+              <>
+                <span className="opacity-30">·</span>
+                <span className="inline-flex items-center gap-1 text-amber-700">
+                  auto z drzewa
+                </span>
+              </>
+            ) : null}
             {megaHasFeatured ? (
               <>
                 <span className="opacity-30">·</span>
