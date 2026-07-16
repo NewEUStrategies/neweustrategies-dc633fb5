@@ -33,6 +33,8 @@ import type { EChartsCoreOption } from "echarts/core";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
+import { InsightSection } from "./InsightSection";
+import { buildGscInsights } from "./gscInsights";
 
 function daysAgoISO(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
