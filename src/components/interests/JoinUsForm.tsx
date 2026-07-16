@@ -1343,8 +1343,13 @@ function GroupTabs({
   };
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const bar = barRef.current;
-    bar?.releasePointerCapture?.(e.pointerId);
-    // Zablokuj kliknięcie po drag'u.
+    try {
+      bar?.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* not captured */
+    }
+    // Zablokuj click TYLKO gdy faktycznie doszło do drag'u - inaczej pojedyncze
+    // kliknięcie zakładki nie dotarłoby do onClick i tab byłby nieklikalny.
     if (dragRef.current?.moved) {
       const stop = (ev: Event) => {
         ev.stopPropagation();
