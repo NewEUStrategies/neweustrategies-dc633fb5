@@ -341,6 +341,11 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
                 top: anchor.top + 4,
                 left: anchor.left,
                 zIndex: 60,
+                opacity: visible ? 1 : 0,
+                transform: visible ? "translateY(0)" : "translateY(-6px)",
+                transition: "opacity 180ms ease-out, transform 180ms ease-out",
+                pointerEvents: visible ? "auto" : "none",
+                willChange: "opacity, transform",
               }}
               aria-hidden={!open}
             >
