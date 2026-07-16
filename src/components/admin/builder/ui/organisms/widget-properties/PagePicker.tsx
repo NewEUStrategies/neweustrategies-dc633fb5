@@ -1,7 +1,8 @@
-// Lightweight page picker - searches published pages by title/slug and returns
-// the public URL (/{slug}). Used by MegaMenuEditor so each column can be
-// linked to a page from the platform via a searchable dropdown matching the
-// rest of the builder side-panel (h-8 text-xs, border-border, popover styles).
+// Combobox-style page picker - typing into the input immediately opens a
+// dropdown with matching published pages. Used by MegaMenuEditor so each
+// column can be linked to a page from the platform via a searchable dropdown
+// matching the rest of the builder side-panel (h-8 text-xs, border-border,
+// popover styles).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +30,9 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const boundSlug = useMemo(() => {
     if (!value) return "";
@@ -75,12 +78,17 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
   });
 
   const label = useMemo(() => {
-    if (!bound) return "";
+    if (!bound) return boundSlug;
     return (lang === "en" ? bound.title_en : bound.title_pl) ?? bound.slug;
-  }, [bound, lang]);
+  }, [bound, lang, boundSlug]);
+
+  const displayValue = open ? search : label;
 
   useEffect(() => {
-    if (!open) setSearch("");
+    if (open) {
+      setSearch("");
+      setFocusedIndex(-1);
+    }
   }, [open]);
 
   // Close on outside click.
@@ -93,55 +101,107 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
     return () => window.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  const selectHit = (p: PageHit) => {
+    onChange(hrefOf(p.slug));
+    setOpen(false);
+    setSearch("");
+    setFocusedIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "Enter") {
+        e.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedIndex((i) => Math.min(i + 1, hits.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (focusedIndex >= 0 && hits[focusedIndex]) {
+        selectHit(hits[focusedIndex]);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      inputRef.current?.blur();
+    }
+  };
+
   return (
     <div ref={rootRef} className="space-y-1">
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="flex-1 h-8 px-2 rounded border border-border bg-background text-left text-xs hover:bg-muted truncate"
-          aria-haspopup="listbox"
-          aria-expanded={open}
-        >
-          {value
-            ? `${t("widget.boundToPage", "Strona:")} ${label || boundSlug}`
-            : (placeholder ??
-              t("widget.bindPage", "Wybierz stronę z platformy..."))}
-        </button>
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange(undefined)}
-            className="h-8 w-8 inline-flex items-center justify-center rounded border border-border hover:bg-destructive/10 text-destructive text-xs"
-            aria-label={t("widget.unbindPage", "Odepnij stronę")}
-          >
-            ×
-          </button>
-        )}
+        <div className="relative flex-1">
+          <Input
+            ref={inputRef}
+            value={displayValue}
+            onChange={(e) => {
+              const next = e.target.value;
+              setSearch(next);
+              if (!open) setOpen(true);
+              setFocusedIndex(-1);
+            }}
+            onFocus={() => {
+              setSearch(open ? search : "");
+              setOpen(true);
+              setFocusedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder ?? t("widget.bindPage", "Wybierz stronę z platformy...")}
+            className="h-8 text-xs pr-7"
+            aria-autocomplete="list"
+            aria-expanded={open}
+            aria-controls={open ? "page-picker-listbox" : undefined}
+            aria-activedescendant={
+              open && focusedIndex >= 0 ? `page-picker-hit-${hits[focusedIndex]?.id}` : undefined
+            }
+          />
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(undefined);
+                setSearch("");
+                setOpen(false);
+                inputRef.current?.focus();
+              }}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive text-xs"
+              aria-label={t("widget.unbindPage", "Odepnij stronę")}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
       {open && (
-        <div className="rounded border border-border bg-popover text-popover-foreground shadow-md p-2 space-y-1">
-          <Input
-            autoFocus
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("widget.searchPages", "Szukaj stron...") ?? ""}
-            className="h-7 text-xs"
-          />
-          <div className="max-h-56 overflow-y-auto space-y-0.5" role="listbox">
-            {hits.map((p) => {
+        <div
+          id="page-picker-listbox"
+          className="rounded border border-border bg-popover text-popover-foreground shadow-md p-1 space-y-0.5"
+          role="listbox"
+        >
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
+            {hits.map((p, i) => {
               const ttl = (lang === "en" ? p.title_en : p.title_pl) ?? p.slug;
               return (
                 <button
                   key={p.id}
+                  id={`page-picker-hit-${p.id}`}
                   type="button"
                   role="option"
                   aria-selected={boundSlug === p.slug}
-                  onClick={() => {
-                    onChange(hrefOf(p.slug));
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-2 py-1 rounded text-xs hover:bg-muted truncate flex items-center justify-between gap-2"
+                  onClick={() => selectHit(p)}
+                  onMouseEnter={() => setFocusedIndex(i)}
+                  className={
+                    "w-full text-left px-2 py-1.5 rounded text-xs truncate flex items-center justify-between gap-2 " +
+                    (i === focusedIndex ? "bg-muted" : "hover:bg-muted")
+                  }
                 >
                   <span className="truncate">{ttl}</span>
                   <span className="text-[10px] text-muted-foreground truncate">/{p.slug}</span>
