@@ -8,7 +8,7 @@
 import type { BlogListItem } from "@/lib/queries/public";
 
 export type RelatedPosition = "end" | "sidebar" | "after_paragraph";
-export type RelatedLayout = "grid" | "list" | "slider";
+export type RelatedLayout = "grid" | "list" | "slider" | "cards" | "magazine" | "timeline";
 export type RelatedSource = "categories" | "tags" | "both" | "author";
 
 export interface RelatedPostsConfig {
