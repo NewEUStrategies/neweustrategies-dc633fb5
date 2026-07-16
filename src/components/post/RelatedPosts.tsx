@@ -16,6 +16,8 @@ import {
 import type { BlogListItem } from "@/lib/queries/public";
 import { formatDate } from "@/lib/i18n/format";
 import { trackRelatedClick } from "@/lib/relatedClickBeacon";
+import { accentFor } from "./relatedVisuals";
+import { ArrowUpRight, Clock, Sparkles } from "lucide-react";
 
 
 export interface RelatedPostsProps {
