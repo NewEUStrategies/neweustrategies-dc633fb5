@@ -120,7 +120,7 @@ export function SourceLibrary({ config, lang, className }: Props) {
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t.search}
               aria-label={t.search}
-              className="h-8 w-44 rounded-md border border-border bg-background pl-7 pr-2 text-xs"
+              className="h-8 w-44 rounded-md border border-border bg-background pl-8 pr-2 text-xs"
             />
           </div>
         )}

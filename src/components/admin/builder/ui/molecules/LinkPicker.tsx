@@ -269,7 +269,7 @@ function EntityPicker({
                 ? "Szukaj stron..."
                 : "Search pages..."
           }
-          className="h-8 pl-7 text-xs"
+          className="h-8 pl-8 text-xs"
         />
       </div>
       {q.trim().length >= 2 && (

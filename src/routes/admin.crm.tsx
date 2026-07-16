@@ -439,7 +439,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={L.search}
-            className="pl-7 h-8 text-[13px]"
+            className="pl-8 h-8 text-[13px]"
           />
         </div>
         <Select value={stage} onValueChange={(v) => setStage(v as Stage | "all")}>

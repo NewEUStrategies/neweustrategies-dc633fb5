@@ -794,7 +794,7 @@ function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; sea
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={L("e-mail konta", "account email")}
-            className="h-8 pl-7 text-sm"
+            className="h-8 pl-8 text-sm"
           />
         </div>
         <Select value={role} onValueChange={(v) => setRole(v as "owner" | "member")}>

@@ -558,7 +558,7 @@ function Users() {
                 ? "Szukaj po nazwie, e-mailu, slug…"
                 : "Search name, email, slug…"
             }
-            className="pl-7 h-8 text-xs"
+            className="pl-8 h-8 text-xs"
           />
         </div>
 
