@@ -5,13 +5,14 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
+import { ArrowRight, ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitize";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
+import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
 import type { MenuItemRow } from "@/lib/menus/types";
 
 export type SiteMenuLang = "pl" | "en";
