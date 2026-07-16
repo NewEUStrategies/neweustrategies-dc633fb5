@@ -33,6 +33,8 @@ import type { EChartsCoreOption } from "echarts/core";
 import { runGa4Report, type Ga4Report } from "@/lib/analytics/ga4.functions";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
+import { InsightSection } from "./InsightSection";
+import { buildGa4Insights } from "./ga4Insights";
 
 const CORE_METRICS = ["sessions", "activeUsers", "screenPageViews", "engagementRate"] as const;
 type CoreMetric = typeof CORE_METRICS[number];
