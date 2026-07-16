@@ -737,6 +737,7 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
                 config={item.mega_config}
                 triggerPl={item.label_pl}
                 triggerEn={item.label_en}
+                treeChildren={children}
                 onChange={(cfg) => onUpdate(item.local_id, { mega_config: cfg })}
               />
             )}
