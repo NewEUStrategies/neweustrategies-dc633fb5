@@ -175,7 +175,7 @@ function pathFindings(paths: VitalPathRow[]): Finding[] {
 
 const SEVERITY_ORDER: Record<Severity, number> = { poor: 0, "needs-improvement": 1, good: 2 };
 
-const SEVERITY_STYLE: Record<Exclude<Severity, "good">, { badge: string; ring: string; icon: JSX.Element }> = {
+const SEVERITY_STYLE: Record<Exclude<Severity, "good">, { badge: string; ring: string; icon: ReactNode }> = {
   poor: {
     badge: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
     ring: "border-red-500/30",
