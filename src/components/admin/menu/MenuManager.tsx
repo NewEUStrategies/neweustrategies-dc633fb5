@@ -349,7 +349,7 @@ export function MenuManager({ menuKey }: Props) {
         </div>
 
         <div
-          className="space-y-1 border border-border rounded-lg bg-card p-3 min-h-[200px]"
+          className="space-y-2 rounded-xl border border-border/70 bg-gradient-to-b from-muted/20 to-card p-4 min-h-[200px]"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             const dragId = e.dataTransfer.getData(DND_MIME);
@@ -362,6 +362,17 @@ export function MenuManager({ menuKey }: Props) {
                 defaultValue: "Brak elementów. Dodaj strony, wpisy, kategorie lub własne odnośniki z panelu po lewej.",
               })}
             </p>
+          )}
+          {tree.length > 0 && (
+            <div className="flex items-center gap-2 border-b border-border/50 pb-2 mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+              <span
+                aria-hidden
+                className="inline-block h-3 w-1 rounded-sm"
+                style={{ background: "var(--brand)" }}
+              />
+              <span>Poziom 1 · pozycje główne</span>
+              <span className="ml-auto opacity-60">{tree.length} {tree.length === 1 ? "pozycja" : "pozycji"}</span>
+            </div>
           )}
           {tree.map((node, i) => (
             <MenuNode
