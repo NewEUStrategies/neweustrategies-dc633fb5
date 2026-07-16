@@ -164,14 +164,16 @@ export function StreamingSection({
   }
 
   return (
-    <Suspense fallback={<SectionStreamSkeleton />}>
-      {IS_SSR ? (
-        <ServerSectionGate section={section} lang={lang}>
-          {children}
-        </ServerSectionGate>
-      ) : (
-        children
-      )}
-    </Suspense>
+    <RenderErrorBoundary label={`stream-section:${section.id}`} fallback={null}>
+      <Suspense fallback={<SectionStreamSkeleton />}>
+        {IS_SSR ? (
+          <ServerSectionGate section={section} lang={lang}>
+            {children}
+          </ServerSectionGate>
+        ) : (
+          children
+        )}
+      </Suspense>
+    </RenderErrorBoundary>
   );
 }
