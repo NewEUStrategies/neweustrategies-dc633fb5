@@ -7,7 +7,7 @@
 //   - wariant mobilny (accordion na <details>).
 import { memo, useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "@/lib/lucide-shim";
+import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitize";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
@@ -130,23 +130,69 @@ function DropdownPanel({
   return (
     <ul
       role="menu"
-      className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+      className="absolute left-0 top-full z-50 mt-1 min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
       onMouseLeave={onRequestClose}
     >
       {node.children.map((child) => (
-        <li key={child.id}>
-          <AppLink
-            href={itemHref(child)}
-            target={itemTarget(child)}
-            rel={itemTarget(child) === "_blank" ? "noopener noreferrer" : undefined}
-            className="block rounded px-3 py-2 text-sm hover:bg-muted"
-            role="menuitem"
-          >
-            {pickLabel(child, lang)}
-          </AppLink>
-        </li>
+        <SubmenuItem key={child.id} node={child} lang={lang} />
       ))}
     </ul>
+  );
+}
+
+function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
+  const [open, setOpen] = useState(false);
+  const hasChildren = node.children.length > 0;
+  const label = pickLabel(node, lang);
+  if (!label) return null;
+
+  if (!hasChildren) {
+    return (
+      <li>
+        <AppLink
+          href={itemHref(node)}
+          target={itemTarget(node)}
+          rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+          className="block rounded px-3 py-2 text-sm hover:bg-muted"
+          role="menuitem"
+        >
+          {label}
+        </AppLink>
+      </li>
+    );
+  }
+
+  return (
+    <li
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <div className="flex items-center justify-between rounded px-3 py-2 text-sm hover:bg-muted">
+        <AppLink
+          href={itemHref(node)}
+          target={itemTarget(node)}
+          rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+          className="flex-1"
+          role="menuitem"
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          {label}
+        </AppLink>
+        <ChevronRight size={14} aria-hidden className="text-muted-foreground" />
+      </div>
+      {open ? (
+        <ul
+          role="menu"
+          className="absolute left-full top-0 z-50 ml-1 min-w-[220px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+        >
+          {node.children.map((child) => (
+            <SubmenuItem key={child.id} node={child} lang={lang} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
   );
 }
 
