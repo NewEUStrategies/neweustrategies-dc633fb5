@@ -450,8 +450,11 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
-          className="block px-3 py-2 text-sm font-medium"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium"
         >
+          {node.icon ? (
+            <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+          ) : null}
           {label}
         </AppLink>
       </li>
@@ -461,7 +464,12 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     <li>
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium">
-          {label}
+          <span className="flex items-center gap-2">
+            {node.icon ? (
+              <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+            ) : null}
+            {label}
+          </span>
           <ChevronDown
             size={14}
             className="transition-transform group-open:rotate-180"
