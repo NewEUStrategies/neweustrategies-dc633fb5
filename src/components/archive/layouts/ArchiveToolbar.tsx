@@ -1,5 +1,13 @@
 // Sort selector + result count bar above the archive grid.
 import type { ArchiveSort } from "@/lib/queries/archives";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 const SORT_LABEL_PL: Record<ArchiveSort, string> = {
   newest: "Najnowsze",
@@ -48,22 +56,32 @@ export function ArchiveToolbar({
       <div className="text-sm text-muted-foreground" aria-live="polite">
         {isPending ? (lang === "en" ? "Loading..." : "Ładowanie...") : countText}
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">{sortLabel}:</span>
-        <select
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground" id="archive-sort-label">
+          {sortLabel}:
+        </span>
+        <Select
           value={sort}
+          onValueChange={(v) => onSortChange(v as ArchiveSort)}
           disabled={disabled}
-          onChange={(e) => onSortChange(e.target.value as ArchiveSort)}
-          className="h-9 rounded-md border border-border bg-background px-2 text-sm disabled:opacity-60"
-          aria-label={sortLabel}
         >
-          {(["newest", "oldest", "popular"] as ArchiveSort[]).map((s) => (
-            <option key={s} value={s}>
-              {labels[s]}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger
+            aria-labelledby="archive-sort-label"
+            aria-label={sortLabel}
+            className="h-9 w-48 text-sm"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(["newest", "oldest", "popular"] as ArchiveSort[]).map((s) => (
+              <SelectItem key={s} value={s} className="text-sm">
+                {labels[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
     </div>
   );
 }
