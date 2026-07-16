@@ -429,10 +429,14 @@ export function JoinUsForm({
         if (v) custom[f.id] = v.slice(0, 500);
       }
 
-      // Interests picked in the widget go to CRM as grouped custom fields
-      // ("interests_areas" = categories, "interests_topics" = tags, plus a
-      // combined "interests" label list). Server persists them under
-      // aliases.custom.<key>, so CRM inherits the multiselect verbatim.
+      // Interests picked in the widget go to CRM as grouped custom fields.
+      // - `interests` = flat list of wszystkich labeli (fallback do dawnych
+      //   automatyzacji)
+      // - `interests_areas` = wszystkie kategorie
+      // - `interests_topics` = wszystkie tagi
+      // - `interests_<slug_obszaru>` = wybory pogrupowane po obszarze
+      //   (Region, Specjalizacja, ...), żeby CRM widział strukturę tak samo
+      //   jak formularz.
       if (showInterests && picked.size > 0) {
         const pickedItems = allItems.filter((it) => picked.has(it.id));
         const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
@@ -441,6 +445,22 @@ export function JoinUsForm({
         if (areas.length) custom.interests_areas = areas.join(", ").slice(0, 500);
         if (topics.length) custom.interests_topics = topics.join(", ").slice(0, 500);
         if (all.length) custom.interests = all.join(", ").slice(0, 500);
+
+        // Per-obszar rozbicie: klucz = interests_<slug_rodzica_z_lat_a-Z0-9_>.
+        const byParent = new Map<string, { title: string; labels: string[] }>();
+        for (const it of pickedItems) {
+          if (it.type !== "category") continue;
+          const pSlug = it.parentSlug ?? null;
+          const pLabel = it.parentLabel ?? null;
+          if (!pSlug || !pLabel) continue;
+          const bucket = byParent.get(pSlug) ?? { title: pLabel, labels: [] };
+          bucket.labels.push(it.label);
+          byParent.set(pSlug, bucket);
+        }
+        for (const [slug, bucket] of byParent.entries()) {
+          const safeKey = `interests_${slug.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`.slice(0, 60);
+          custom[safeKey] = bucket.labels.join(", ").slice(0, 500);
+        }
       }
 
       const res = await subscribe({
