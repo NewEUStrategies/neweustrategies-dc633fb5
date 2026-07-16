@@ -263,19 +263,31 @@ function CookieBannerSettings() {
 // event the footer uses. We wrap it with the current draft not-yet-saved by
 // simply relying on the last saved config; the note below explains that.
 function PreviewOverlay({ onClose }: { onClose: () => void }) {
+  // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS_EVENT so
+  // it opens the expanded modal for the preview regardless of prior consent.
+  useEffectOnce(() => {
+    window.dispatchEvent(new Event(OPEN_PREFS_EVENT));
+  });
   return (
     <div className="fixed inset-0 z-[70]">
-      <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative">
-        <ConsentBanner />
-        <button
-          type="button"
-          onClick={onClose}
-          className="fixed top-4 right-4 z-[90] h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
-        >
-          Zamknij podgląd
-        </button>
-      </div>
+      <ConsentBanner />
+      <button
+        type="button"
+        onClick={onClose}
+        className="fixed top-4 right-4 z-[90] h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
+      >
+        Zamknij podgląd
+      </button>
     </div>
   );
 }
+
+function useEffectOnce(fn: () => void) {
+  const ran = useRef(false);
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+    fn();
+  }, [fn]);
+}
+
