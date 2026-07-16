@@ -371,8 +371,14 @@ function Categories() {
                 <th className="text-left p-2">Nazwa (PL)</th>
                 <th className="text-left p-2">Name (EN)</th>
                 <th className="text-left p-2 w-[130px]">Wymiar</th>
-                <th className="text-left p-2 w-[110px]">
-                  {t("admin.list.lang.col", { defaultValue: "Języki" })}
+                <th
+                  className="text-left p-2 w-[110px]"
+                  title={t("admin.list.lang.help", {
+                    defaultValue:
+                      "Pokrycie tłumaczeniami: PL = wypełniona nazwa polska, EN = wypełniona nazwa angielska",
+                  })}
+                >
+                  {t("admin.list.lang.col", { defaultValue: "Tłumaczenia" })}
                 </th>
                 <th className="text-left p-2 w-[180px]">Slug</th>
                 <th className="p-2 w-[70px]" />
