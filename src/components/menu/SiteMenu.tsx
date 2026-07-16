@@ -492,26 +492,41 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       </button>
       {mounted && open && anchor
         ? createPortal(
-            <div
-              ref={panelRef}
-              id={panelId}
-              onMouseEnter={cancelClose}
-              onMouseLeave={scheduleClose}
-              style={{
-                position: "fixed",
-                top: anchor.top + 4,
-                left: anchor.left,
-                zIndex: 60,
-                opacity: visible ? 1 : 0,
-                transform: visible ? "translateY(0)" : "translateY(-6px)",
-                transition: "opacity 180ms ease-out, transform 180ms ease-out",
-                pointerEvents: visible ? "auto" : "none",
-                willChange: "opacity, transform",
-              }}
-              aria-hidden={!open}
-            >
-              <DropdownPanel node={node} lang={lang} onRequestClose={scheduleClose} />
-            </div>,
+            (() => {
+              // Mega panels are wide (~1120px). Clamp the panel horizontally so
+              // it never overflows the viewport regardless of which top-level
+              // item was hovered.
+              const isMega = node.mega_enabled;
+              const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
+              const panelWidth = isMega ? Math.min(1120, vw - 32) : 260;
+              const rawLeft = anchor.left;
+              const clampedLeft = Math.max(
+                16,
+                Math.min(rawLeft, vw - panelWidth - 16),
+              );
+              return (
+                <div
+                  ref={panelRef}
+                  id={panelId}
+                  onMouseEnter={cancelClose}
+                  onMouseLeave={scheduleClose}
+                  style={{
+                    position: "fixed",
+                    top: anchor.top + 8,
+                    left: clampedLeft,
+                    zIndex: 60,
+                    opacity: visible ? 1 : 0,
+                    transform: visible ? "translateY(0)" : "translateY(-6px)",
+                    transition: "opacity 180ms ease-out, transform 180ms ease-out",
+                    pointerEvents: visible ? "auto" : "none",
+                    willChange: "opacity, transform",
+                  }}
+                  aria-hidden={!open}
+                >
+                  <DropdownPanel node={node} lang={lang} onRequestClose={scheduleClose} />
+                </div>
+              );
+            })(),
             document.body,
           )
         : null}
