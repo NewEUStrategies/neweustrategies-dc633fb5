@@ -18,7 +18,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { consumeLastCapturedError } from "./lib/error-capture";
+import { consumeLastCapturedError } from "./lib/ssr-error-capture";
 
 // The wrapper lazily imports this module. We swap it per-test with vi.doMock
 // so each scenario gets a fresh implementation without a cached handler
@@ -136,9 +136,9 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
     );
 
     // Record via the SAME module graph the wrapper reads from (vi.resetModules
-    // gave us a fresh copy of ./lib/error-capture inside the wrapper's graph).
+    // gave us a fresh copy of ./lib/ssr-error-capture inside the wrapper's graph).
     // This is what the SSR handler's globalThis error listeners do in prod.
-    const cap = (await import("./lib/error-capture")) as typeof import("./lib/error-capture");
+    const cap = (await import("./lib/ssr-error-capture")) as typeof import("./lib/ssr-error-capture");
     cap.recordCapturedError(original);
 
     await wrapper.fetch(new Request("http://localhost/"), {}, {});
@@ -169,19 +169,24 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
 
   it("clears a poisoned entry after an opaque response so the next request can reload it", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const wrapper = await loadWrapper(
-      () =>
-        new Response(H3_SWALLOWED, {
-          status: 500,
-          headers: { "content-type": "application/json" },
-        }),
-    );
-    const mod = (await import("./server")) as typeof import("./server");
+    // Verify the invariant through observable behavior: the mock loader must
+    // be re-invoked on the second request after the wrapper cleared its
+    // cached entry. No peeking at internal module state needed.
+    let calls = 0;
+    const wrapper = await loadWrapper(() => {
+      calls += 1;
+      return new Response(H3_SWALLOWED, {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    });
 
-    expect(mod.isServerEntryCached()).toBe(false);
     const first = await wrapper.fetch(new Request("http://localhost/"), {}, {});
     expect(first.status).toBe(500);
-    expect(mod.isServerEntryCached()).toBe(false);
+    const second = await wrapper.fetch(new Request("http://localhost/"), {}, {});
+    expect(second.status).toBe(500);
+    // If the poisoned entry had been reused, `calls` would stay at 1.
+    expect(calls).toBe(2);
   });
 });
 

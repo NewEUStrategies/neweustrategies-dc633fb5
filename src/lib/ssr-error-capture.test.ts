@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { consumeLastCapturedError, recordCapturedError } from "./error-capture";
+import { consumeLastCapturedError, recordCapturedError } from "./ssr-error-capture";
 
 describe("SSR error capture", () => {
   beforeEach(() => {

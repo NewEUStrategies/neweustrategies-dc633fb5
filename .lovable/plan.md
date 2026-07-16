@@ -1,62 +1,111 @@
-# Plan: naprawa SSR 500 na `/` (preview)
+# Przebudowa SSR wrappera
 
-## Stan faktyczny
+## Cele
 
-- Preview zwraca 500 na `/` — logi pokazują wyłącznie „h3 swallowed SSR error: {status:500, unhandled:true, message:'HTTPError'}"; oryginalny stack **nie dociera** do logów.
-- Lokalny build (`http://localhost:8080/`) SSR-uje poprawnie (HTTP 200), więc kod się kompiluje i uruchamia w Node; awaria występuje tylko w runtime workerd (Cloudflare) preview.
-- Ustalony wspólny punkt dla `/`, `/robots.txt` i `/api/public/*`: `securityHeadersMiddleware` modyfikował `response.headers` in-place. Odpowiedzi zwracane przez runtime Worker mogą mieć Web Platform header guard `immutable`; `.set()` rzuca wtedy już po poprawnej obsłudze trasy, a h3 zamienia wyjątek na ogólny HTTPError 500. Middleware przebudowuje teraz `Response` z własną kopią `Headers`, zachowując streaming body, status i istniejące nagłówki.
-- Właściwa produkcyjna przyczyna modułowa: top-level `vite.build.rollupOptions.output.manualChunks` był współdzielony przez build przeglądarki i serwera. Rozcinał entry Workera na ręczne chunki vendorów, których wdrożony runtime nie mógł rozwiązać przy inicjalizacji. Usunięto globalny `manualChunks`; bezpieczny route splitting TanStack i domyślne dzielenie klienta pozostają aktywne.
-- W projekcie jest już warstwa fallbacku (`src/server.ts` + `src/lib/error-capture.ts` + `errorMiddleware` w `src/start.ts`), ale w tym przypadku `consumeLastCapturedError()` nie zwraca nic — czyli błąd leci ścieżką, której obecne przechwyty nie widzą (najpewniej: rzucany podczas **streamowania** ciała odpowiedzi Reacta, już PO tym jak middleware zwróci `Response`, albo w wewnętrznym module h3/TanStack, gdzie throw nigdy nie trafia do `catch` w `errorMiddleware`).
+1. **Naprawić produkcję** - `neweustrategies.lovable.app` zwraca 500 bo publikacja jest sprzed merge'a PR #31. Fix już jest w `main`, wystarczy Publish.
+2. **Uprościć architekturę** - jeden spójny model odpowiedzialności, bez nakładających się mechanizmów.
+3. **Zamienić fallback HTML** - obecny "Reloading…" + sessionStorage auto-reload → statyczna strona zgodna z layoutem, i18n PL/EN, bez pętli reloadów.
+4. **Zachować pokrycie regresyjne** - wszystkie inwarianty z `server.test.ts` / `start.test.ts` / `error-capture.test.ts` mają być spełnione w nowej architekturze.
 
-Bez oryginalnego stack trace zgadywanie „co się psuje" to loteria. Krok 1 planu = zmusić serwer, żeby zawsze logował realny błąd.
+## Nowy model - trzy warstwy, jedna odpowiedzialność na warstwę
 
-## Zakres zmian
+```text
+                        ┌───────────────────────────────────────┐
+Request ───────────────►│  src/server.ts  (SSR fetch wrapper)   │
+                        │  • lazy import server-entry           │
+                        │  • warm route graph przed getEntries  │
+                        │  • try/catch + retry transient        │
+                        │  • normalize opaque h3 500 → HTML     │
+                        └────────────────┬──────────────────────┘
+                                         │ evaluates
+                                         ▼
+                        ┌───────────────────────────────────────┐
+                        │  src/start.ts   (request middleware)  │
+                        │  • errorMiddleware (strict classifier)│
+                        │  • securityHeaders / redirects / lang │
+                        └────────────────┬──────────────────────┘
+                                         │ records
+                                         ▼
+                        ┌───────────────────────────────────────┐
+                        │  src/lib/ssr-error-capture.ts         │
+                        │  • jedno API: record + consume        │
+                        │  • globalThis listeners               │
+                        │  • BEZ console.error monkey-patch     │
+                        └───────────────────────────────────────┘
+```
 
-### 1. Twarde przechwytywanie błędów SSR
+### Co znika (dead code / redundancje)
 
-Cel: każdy 500 w preview MUSI zostawić stack w Server Logs.
+- **`console.error` monkey-patch** w `error-capture.ts` - zastępuje explicit `recordCapturedError` w `errorMiddleware`; monkey-patch łapie React dev warnings i inne szumy, których nie chcemy jako "captured cause". `errorMiddleware` już wywołuje `recordCapturedError` explicit, więc patch jest redundancją.
+- **`__lovableErrorCapturePatched` global guard** - niepotrzebny bez patcha.
+- **`sessionStorage` auto-reload pętla** w `error-page.ts` - użytkownicy trafiają na "Reloading…" 3x zanim zobaczą UI, przy deterministycznych błędach to 3× dodatkowe requesty na 500.
+- **`isServerEntryCached` test seam** - inwariant "clear cache on failure" testujemy przez efekt (drugi request po failure trafia w handler ponownie), nie przez peek do state'u.
+- **Nadmiarowe komentarze bloczkowe** w `server.ts` (opis dlaczego warm-graph istnieje) - przenieś do jednego docblocka na plik + krótkie linijki inline.
+- **Podwójny reset cache'a** w `normalizeCatastrophicSsrResponse` (opaque body) i w outer `catch` (throw) - konsolidacja do jednej funkcji `resetEntryState()`.
 
-- `src/lib/error-capture.ts` — obok `addEventListener` dopisać hook na `unhandledrejection` / `error` przez `globalThis.process?.on?.("unhandledRejection", ...)` (jeżeli dostępne) oraz zapewnić, że pojedynczy `recordCapturedError` zapisuje pełny `Error` (z `cause` i `stack`), nie tylko `.message`.
-- `src/start.ts`:
-  - w `securityHeadersMiddleware` i `redirectMiddleware` obłożyć `await next()` w `try/catch` który woła `recordCapturedError(err)` i **rzuca dalej** (żeby `errorMiddleware` mógł zwrócić fallback). Obecnie tylko `errorMiddleware` łapie, ale jeśli h3 opakuje throw wcześniej, kolejność middleware ma znaczenie — `errorMiddleware` idzie pierwszy w tablicy, więc wykonuje się jako najbardziej zewnętrzny; to poprawne, ale dodajemy defensywne logowanie w środku, żeby zobaczyć, który middleware jest źródłem.
-- `src/server.ts` — w `normalizeCatastrophicSsrResponse`, gdy `consumeLastCapturedError()` zwraca `undefined`, wypisać jawnie: `console.error("[ssr-fallback] h3 swallowed error but no captured cause; response body:", body)` z pełnymi nagłówkami żądania (URL, path) — na dziś ta gałąź loguje wyłącznie generyczny string, co widzimy w logach.
-- Zarejestrować w `src/server.ts` handler `error` na `globalThis` jeszcze przed pierwszym `import()` server-entry — moduł `error-capture` już to robi, upewnić się, że jest ładowany jako pierwszy (jest — `import "./lib/error-capture"` w linii 1) i nie jest zTree-shake'owany.
+### Co zostaje (zabezpiecza realne bugi, nie rusz)
 
-### 2. Runtime probe błędów renderowania Reacta
+- Lazy `import()` server-entry + reset cache po odrzuceniu importu (test: "next request retries").
+- Warm-graph loader z retry na transient module-runner errors (test: "surfaces REAL module-init error", "retries a transient module-runner reload").
+- Normalizacja opaque h3 500 (test: "replaces the opaque h3 payload").
+- Correlation captured error → response body (test: "correlates a globally-captured error").
+- `isHttpError` strict classifier `name === "HTTPError" && typeof status === "number"` (test: "rejects postgrest / fetch clients").
+- `applySecurityHeaders` rebuild-Response (test: "immutable response").
+- `__setRouteGraphLoader` test seam (potrzebny by nie ewaluować pełnego route graph w vitestach).
 
-Cel: błąd rzucony w komponencie root/route na `/` musi zostać zalogowany.
+## Nowy fallback HTML
 
-- W `src/routes/__root.tsx` (`errorComponent`) na samym początku wywołać `console.error(error)` z pełnym `error.stack` **przed** `reportLovableError` (już powinno tam być — zweryfikować podczas implementacji; jeśli nie, dodać).
-- W `router.tsx` sprawdzić / dodać `defaultErrorComponent` który loguje `error` do `console.error` — TanStack po rzucie w loaderze woła to zamiast strony (`tanstack-errors-notfound`).
+`src/lib/ssr-error-page.ts` (rename z `error-page.ts`):
 
-### 3. Zdiagnozowanie realnej przyczyny
+- Bilingual PL/EN inline (bez dependency na i18n runtime - fallback musi renderować bez app bundle).
+- Zgodny z layoutem: Red Hat Display, brand colors z tokenów (inline w `<style>`, żeby CSS-file failure nie zabił fallbacku).
+- **Brak `sessionStorage` auto-reload.** Zamiast tego:
+  - Tytuł: "Strona chwilowo niedostępna / Page temporarily unavailable"
+  - Krótki opis dwujęzyczny.
+  - Przycisk "Odśwież / Refresh" (button z `location.reload()`).
+  - Link "Wróć na stronę główną / Back to home" (`/`).
+- Meta `robots: noindex, nofollow` żeby crawler nie zaindeksował fallbacku.
+- `Cache-Control: no-store` zostaje (już jest w response, nie w HTML).
+- Bez zewnętrznych fetchy, bez importów - dependency-free jak wymaga `tanstack-ssr-error-handling`.
 
-Po zmianach z pkt. 1–2:
+## Struktura plików
 
-- Zdeployować preview (automatyczny redeploy po commicie).
-- Odpytać `/` przez `stack_modern--invoke-server-function`.
-- Odczytać nowe logi (`server-function-logs deployment=preview`) — teraz powinny zawierać konkretny stack (np. „Cannot read properties of undefined" z pliku/linii, albo import ładujący coś Node-only na workerdzie).
-- Na podstawie stack trace naprawić konkretny plik. Kandydaci wynikające z ostatnich commitów (tabs / icon picker):
-  - `SectionTabsBar.tsx` (linia 137, `tabs.fontSize`) — używany także w publicznym `BuilderRenderer`; jeśli któraś sekcja ma `tabs: undefined` a kod jej używa, dostaniemy TypeError. Zabezpieczyć `tabs` guarded shape.
-  - `LucideIconPicker.tsx` — `import * as LucideIcons from "lucide-react"` na poziomie modułu; przy nowej liście ikon lucide-react mogło wprowadzić eksport, którego workerd nie lubi. Jeśli okaże się to źródłem, przenieść skan ikon do lazy path (`useMemo` w komponencie po hydratacji lub `import()` on-demand). Plik jest admin-only, ale jeśli jest w wspólnym barrel'u, może być pull-in do bundle SSR — zweryfikować `rg` na importach.
+```text
+src/
+├─ server.ts                     (przepisany, ~120 linii zamiast 199)
+├─ start.ts                      (edytowany: mniej indirekcji w handleMiddlewareError)
+├─ lib/
+│  ├─ ssr-error-capture.ts       (nowa nazwa, bez monkey-patcha; ~40 linii zamiast 90)
+│  ├─ ssr-error-page.ts          (nowa nazwa, i18n PL/EN, bez auto-reload)
+│  └─ ...
+├─ server.test.ts                (adaptacja - te same inwarianty, nowe importy)
+├─ start.test.ts                 (adaptacja - te same inwarianty)
+└─ lib/ssr-error-capture.test.ts (adaptacja - usuń test monkey-patcha)
+```
 
-### 4. Naprawa właściwa
+Stare pliki `src/lib/error-capture.ts` i `src/lib/error-page.ts` zostają usunięte (`rm`). Referencje w kodzie (`import "./lib/error-capture"`, `import { renderErrorPage } from "./lib/error-page"`, `import { recordCapturedError }`) - update we wszystkich call-site'ach jednym batch'em.
 
-Zależnie od tego, co pokaże stack z pkt. 3:
+## Kroki
 
-- Jeżeli winowajcą jest render publiczny (`SectionTabsBar` / `BuilderRenderer` / dane sekcji z DB), dodać defensywne guardy dla `tabs.fontSize` / `tabs.items` (nullish + typ) i test snapshotowy pod SSR.
-- Jeżeli winowajcą jest moduł na ścieżce klienckiej, który podciąga coś Node-only na workerdzie — wykonać jeden z fixów z knowledge `tanstack-supabase-import-graph` / `server-runtime` (rename na `*.server.ts`, lazy `await import(...)` wewnątrz handlera, albo `createIsomorphicFn`).
-- Zwalidować `/` w preview → HTTP 200 + brak wpisów `dwl.proxy.response.error` w logach.
+1. Grep wszystkich usage `error-capture` / `error-page` / `renderErrorPage` / `recordCapturedError` / `consumeLastCapturedError` żeby nic nie przeoczyć.
+2. Napisać nowe `src/lib/ssr-error-capture.ts` + `src/lib/ssr-error-page.ts`.
+3. Przepisać `src/server.ts` (uproszczony, ta sama semantyka + testy przechodzą).
+4. Update `src/start.ts` - `handleMiddlewareError` bez zmian API, ale bez odwołań do usuniętych plików.
+5. Update testów (`server.test.ts`, `start.test.ts`, `error-capture.test.ts` → `ssr-error-capture.test.ts`).
+6. `rm src/lib/error-capture.ts src/lib/error-page.ts src/lib/error-capture.test.ts`.
+7. Verify: `bunx tsgo --noEmit`, `bunx vitest run src/server.test.ts src/start.test.ts src/lib/ssr-error-capture.test.ts`.
+8. Publish produkcji (`preview_ui--publish`) - fix z PR #31 idzie live razem z refactorem.
+9. Post-publish: `curl` na `neweustrategies.lovable.app/` → oczekujemy 200. Jeśli 500 dalej występuje po publikacji → zaciągam server-function-logs, analizuję captured stack i naprawiam konkretną klasę błędu (punkt 4 odpowiedzi).
 
-## Weryfikacja
+## Ryzyka i mitygacja
 
-- `bunx tsgo --noEmit` = 0 błędów (jest OK już teraz).
-- `curl -s -o /dev/null -w '%{http_code}' https://id-preview--59b9e533-….lovable.app/` → 200.
-- `stack_modern--server-function-logs deployment=preview search=Error` → brak nowych „h3 swallowed" w ciągu 10 min.
-- Ręcznie odwiedzić `/` i kilka podstron (`/blog`, `/experts`, `/post/<slug>`) — brak fallbacku „Reloading…".
-- `errorComponent` w `__root.tsx` nadal działa (celowo rzucić błąd w loaderze dev-only, żeby zweryfikować, że log zawiera stack).
+- **"Reload nadal łapie 500"** (opcja 4 z pytania) - dopóki nie zobaczę realnego captured stacku z produkcji po publikacji, nie mogę zgadywać przyczyny. Nowa architektura JUŻ loguje captured cause przez explicit `recordCapturedError` w `errorMiddleware` (ta ścieżka zostaje), więc po publikacji będę mógł to zdiagnozować z `stack_modern--server-function-logs`.
+- Usunięcie monkey-patcha `console.error` = tracimy safety-net dla logów h3/React. Kompensacja: `errorMiddleware.recordCapturedError` + `globalThis` listeners pokrywają wszystkie ścieżki, którymi realny błąd może dojść (test: "correlates a globally-captured error" nadal przechodzi).
+- Zmiana ścieżek plików = potencjalne złamanie testów w CI. Mitygacja: grep + update wszystkich importów w jednej serii edycji.
 
-## Ryzyka
+## Techniczne szczegóły (do sekcji "advanced")
 
-- Zmiany w `error-capture.ts` / `server.ts` dotyczą warstwy SSR — jeśli źle je zbudujemy, cały serwis zwróci 500. Mitigacja: `src/lib/error-page.ts` pozostaje dependency-free (fallback zawsze dostarczalny), a testy `src/server.test.ts` / `src/start.test.ts` muszą przejść przed publikacją.
-- Naprawa realnej przyczyny (pkt. 4) jest ślepa aż do momentu, w którym pkt. 1–2 dostarczą stack; plan zakłada iterację (deploy → log → fix), a nie „napisz i licz na szczęście".
+- `isHttpError` semantyka pozostaje: `name === "HTTPError" && typeof status === "number"`. Bez zmian.
+- `applySecurityHeaders` nadal rebuild-Response (nie `.set()` in-place) - to jedyny bezpieczny sposób dla `Response.redirect(...)` z `immutable` header guard w workerd.
+- Warm-graph loader domyślnie: `Promise.all([import("./router"), import("./start")])` - `./router` importuje `routeTree.gen` (wszystkie moduły route'ów), `./start` importuje middleware. Test seam `__setRouteGraphLoader` pozwala vitestom podać `() => Promise.resolve({})`.
+- Retry transient module-runner detection: match po `error.message.includes` na `"transport was disconnected"`, `"module runner has been closed"`, `"cannot call \"fetchModule\""`. Chodzenie po `.cause` (do 5 poziomów, `Set` guard) - bez zmian.

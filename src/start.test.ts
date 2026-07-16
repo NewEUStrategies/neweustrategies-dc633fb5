@@ -15,7 +15,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { applySecurityHeaders, handleMiddlewareError, isHttpError } from "./start";
-import { consumeLastCapturedError } from "./lib/error-capture";
+import { consumeLastCapturedError } from "./lib/ssr-error-capture";
 
 beforeEach(() => {
   // Drain the capture ring so cross-test errors do not correlate.
