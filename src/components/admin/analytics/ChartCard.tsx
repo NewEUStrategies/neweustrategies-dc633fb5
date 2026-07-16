@@ -88,23 +88,31 @@ export function ChartCard({
           ) : null}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <Popover>
+            <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7">
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={doPng}>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-44 p-1">
+              <button
+                type="button"
+                onClick={doPng}
+                className="w-full text-left flex items-center px-2 py-1.5 text-sm rounded hover:bg-accent"
+              >
                 <Download className="w-3.5 h-3.5 mr-2" /> Eksport PNG
-              </DropdownMenuItem>
+              </button>
               {csv ? (
-                <DropdownMenuItem onClick={doCsv}>
+                <button
+                  type="button"
+                  onClick={doCsv}
+                  className="w-full text-left flex items-center px-2 py-1.5 text-sm rounded hover:bg-accent"
+                >
                   <Download className="w-3.5 h-3.5 mr-2" /> Eksport CSV
-                </DropdownMenuItem>
+                </button>
               ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </PopoverContent>
+          </Popover>
           <Button
             variant="ghost"
             size="icon"
