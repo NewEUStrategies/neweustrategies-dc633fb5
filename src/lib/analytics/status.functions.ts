@@ -9,7 +9,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 interface GatewayCtx {
   supabase: {
     from: (t: string) => {
-      select: (c: string) => { eq: (col: string, val: string) => Promise<{ data: unknown; error: { message: string } | null }> };
+      select: (c: string) => {
+        eq: (col: string, val: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
     };
   };
   userId: string;
@@ -27,14 +29,27 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
   }
 }
 
+export type Ga4Mode = "service_account" | "oauth_refresh" | "measurement_protocol" | "embed" | null;
+
 export interface AnalyticsStatus {
   gsc: { configured: boolean };
   ga4: {
+    // True gdy przynajmniej jeden tryb odczytu raportów jest gotowy
+    // (service_account lub oauth_refresh) + property id.
     configured: boolean;
+    // Który tryb jest aktywny do pobierania raportów Data API.
+    activeMode: Ga4Mode;
     hasServiceAccount: boolean;
     hasPropertyId: boolean;
+    hasOauthRefresh: boolean;
+    hasOauthClient: boolean;
+    hasMeasurementProtocol: boolean;
+    hasMeasurementId: boolean;
+    hasEmbedUrl: boolean;
     serviceAccountEmail: string | null;
     propertyId: string | null;
+    measurementId: string | null;
+    embedUrl: string | null;
   };
   vitals: { configured: boolean };
 }
@@ -46,6 +61,7 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
 
     const gscOk = Boolean(process.env.LOVABLE_API_KEY && process.env.GOOGLE_SEARCH_CONSOLE_API_KEY);
 
+    // Service Account
     const saRaw = process.env.GA4_SERVICE_ACCOUNT_JSON ?? "";
     let saEmail: string | null = null;
     let saOk = false;
@@ -60,16 +76,48 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
         saOk = false;
       }
     }
+
+    // OAuth 2.0 refresh token
+    const oauthClientOk = Boolean(
+      process.env.GA4_OAUTH_CLIENT_ID && process.env.GA4_OAUTH_CLIENT_SECRET,
+    );
+    const oauthRefreshOk = Boolean(process.env.GA4_OAUTH_REFRESH_TOKEN);
+
+    // Measurement Protocol (send events)
+    const measurementId = process.env.GA4_MEASUREMENT_ID ?? null;
+    const apiSecretOk = Boolean(process.env.GA4_API_SECRET);
+    const mpOk = Boolean(measurementId && apiSecretOk);
+
+    // Embed (Looker Studio / iframe)
+    const embedUrl = process.env.GA4_EMBED_URL ?? null;
+
     const propertyId = process.env.GA4_PROPERTY_ID ?? null;
+    const hasProperty = Boolean(propertyId);
+
+    let activeMode: Ga4Mode = null;
+    if (saOk && hasProperty) activeMode = "service_account";
+    else if (oauthClientOk && oauthRefreshOk && hasProperty) activeMode = "oauth_refresh";
+    else if (embedUrl) activeMode = "embed";
+    else if (mpOk) activeMode = "measurement_protocol";
 
     return {
       gsc: { configured: gscOk },
       ga4: {
-        configured: saOk && Boolean(propertyId),
+        configured: Boolean(
+          (saOk || (oauthClientOk && oauthRefreshOk)) && hasProperty,
+        ),
+        activeMode,
         hasServiceAccount: saOk,
-        hasPropertyId: Boolean(propertyId),
+        hasPropertyId: hasProperty,
+        hasOauthRefresh: oauthRefreshOk,
+        hasOauthClient: oauthClientOk,
+        hasMeasurementProtocol: mpOk,
+        hasMeasurementId: Boolean(measurementId),
+        hasEmbedUrl: Boolean(embedUrl),
         serviceAccountEmail: saEmail,
         propertyId,
+        measurementId,
+        embedUrl,
       },
       vitals: { configured: true },
     };
