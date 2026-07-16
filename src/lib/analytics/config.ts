@@ -5,6 +5,8 @@ import { z } from "zod";
 
 export const AnalyticsConfigSchema = z.object({
   ga4_measurement_id: z.string().trim().max(64).default(""),
+  ga4_property_id: z.string().trim().max(64).default(""),
+  ga4_enabled: z.boolean().default(true),
   gtm_container_id: z.string().trim().max(64).default(""),
   plausible_domain: z.string().trim().max(255).default(""),
   plausible_script_url: z
