@@ -342,8 +342,11 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
+          className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
         >
+          {node.icon ? (
+            <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+          ) : null}
           {label}
         </AppLink>
       </li>
