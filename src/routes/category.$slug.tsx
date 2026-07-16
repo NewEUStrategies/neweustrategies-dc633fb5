@@ -195,16 +195,8 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
       });
     });
 
-  // A hidden anchor gives crawlers a real link to page 1 alternative sort
-  // orders without polluting the visible UI (crawlable but unobtrusive).
-  // Also improves keyboard nav via a landmark. Skipped in preview mode.
-  // Voice: consolidate ranking - reduce duplicate content by using noindex
-  // on paginated pages (via head robots) while keeping links crawlable.
-  // See head() above.
-  //
-  // Homepage semantics: retain homeLabel so extract localizations stay in
-  // sync with the JSON-LD builder.
-  void homeLabel;
+
+
 
   return (
     <>
