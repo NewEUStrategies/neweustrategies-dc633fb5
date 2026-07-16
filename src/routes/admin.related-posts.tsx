@@ -153,6 +153,9 @@ function AdminRelatedPostsPage() {
                     <SelectItem value="grid">Grid</SelectItem>
                     <SelectItem value="list">Lista</SelectItem>
                     <SelectItem value="slider">Slider</SelectItem>
+                    <SelectItem value="cards">Karty (kolor + ikona)</SelectItem>
+                    <SelectItem value="magazine">Magazyn (hero + lista)</SelectItem>
+                    <SelectItem value="timeline">Oś czasu</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

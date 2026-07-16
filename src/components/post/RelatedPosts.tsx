@@ -16,6 +16,8 @@ import {
 import type { BlogListItem } from "@/lib/queries/public";
 import { formatDate } from "@/lib/i18n/format";
 import { trackRelatedClick } from "@/lib/relatedClickBeacon";
+import { accentFor } from "./relatedVisuals";
+import { ArrowUpRight, Clock, Sparkles } from "lucide-react";
 
 
 export interface RelatedPostsProps {
@@ -63,21 +65,32 @@ export function RelatedPosts({
       data-related-position={cfg.position}
       aria-label={title}
     >
-      <h2 className="font-display text-2xl mb-5">{title}</h2>
+      <div className="flex items-center gap-2 mb-5">
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-brand-ink/10 text-brand-ink"
+          aria-hidden
+        >
+          <Sparkles className="h-4 w-4" />
+        </span>
+        <h2 className="font-display text-2xl">{title}</h2>
+      </div>
       {layout === "grid" && (
-        <RelatedGrid
-          posts={posts}
-          columns={columns}
-          cfg={cfg}
-          lang={lang}
-          sourcePostId={postId}
-        />
+        <RelatedGrid posts={posts} columns={columns} cfg={cfg} lang={lang} sourcePostId={postId} />
       )}
       {layout === "list" && (
         <RelatedList posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
       )}
       {layout === "slider" && (
         <RelatedSlider posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "cards" && (
+        <RelatedCards posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "magazine" && (
+        <RelatedMagazine posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "timeline" && (
+        <RelatedTimeline posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
       )}
     </section>
   );
@@ -256,5 +269,191 @@ function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------- v2 layouts: cards / magazine / timeline -------------------------
+
+/** Karta z akcentem kolorystycznym i ikoną (deterministyczne z postId). */
+function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {posts.map((p) => {
+        const a = accentFor(p.id);
+        const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
+        const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
+        return (
+          <Link
+            key={p.id}
+            to={p.href as "/"}
+            preload="viewport"
+            onClick={() => trackRelatedClick(sourcePostId, p.id)}
+            className={`group relative flex flex-col overflow-hidden rounded-xl border ${a.borderClass} bg-card transition-all hover:-translate-y-0.5 hover:shadow-lg`}
+          >
+            {cfg.show_cover && p.cover_image_url ? (
+              <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+                <OptimizedImage
+                  src={p.cover_image_url}
+                  alt=""
+                  responsive
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <span
+                  className={`absolute top-3 left-3 inline-flex h-8 w-8 items-center justify-center rounded-md ${a.bgClass} ${a.textClass} backdrop-blur-sm ring-1 ${a.borderClass}`}
+                  aria-hidden
+                >
+                  <a.Icon className="h-4 w-4" />
+                </span>
+              </div>
+            ) : (
+              <div className={`h-2 w-full ${a.bgClass}`} aria-hidden />
+            )}
+            <div className="flex flex-1 flex-col gap-2 p-4">
+              <div className={`inline-flex w-fit items-center gap-1.5 rounded-full ${a.bgClass} ${a.textClass} px-2 py-0.5 text-xs font-medium`}>
+                <a.Icon className="h-3 w-3" />
+                {lang === "en" ? "Recommended" : "Polecane"}
+              </div>
+              <h3 className="font-display text-base leading-snug group-hover:text-brand-ink transition-colors">
+                {title}
+              </h3>
+              {cfg.show_excerpt && excerpt && (
+                <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
+              )}
+              <div className="mt-auto flex items-center justify-between pt-2">
+                {cfg.show_meta && p.published_at ? (
+                  <time className="text-xs text-muted-foreground" dateTime={p.published_at}>
+                    {formatDate(p.published_at, lang, { year: "numeric", month: "short", day: "numeric" })}
+                  </time>
+                ) : <span />}
+                <span className={`inline-flex items-center gap-1 text-xs ${a.textClass} opacity-0 group-hover:opacity-100 transition-opacity`}>
+                  {lang === "en" ? "Read" : "Czytaj"}
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </div>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Magazine: 1 duży featured + lista skrócona po prawej. */
+function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
+  if (posts.length === 0) return null;
+  const [hero, ...rest] = posts;
+  const heroAccent = accentFor(hero.id);
+  const heroTitle = lang === "en" ? hero.title_en || hero.title_pl : hero.title_pl || hero.title_en;
+  const heroExcerpt = lang === "en" ? hero.excerpt_en : hero.excerpt_pl;
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+      <Link
+        to={hero.href as "/"}
+        preload="viewport"
+        onClick={() => trackRelatedClick(sourcePostId, hero.id)}
+        className={`group relative lg:col-span-3 overflow-hidden rounded-xl border ${heroAccent.borderClass} bg-card`}
+      >
+        {cfg.show_cover && hero.cover_image_url && (
+          <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+            <OptimizedImage
+              src={hero.cover_image_url}
+              alt=""
+              responsive
+              sizes="(max-width: 1024px) 100vw, 60vw"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent" />
+          </div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 p-5 space-y-2">
+          <div className={`inline-flex w-fit items-center gap-1.5 rounded-full ${heroAccent.bgClass} ${heroAccent.textClass} px-2.5 py-1 text-xs font-medium ring-1 ${heroAccent.borderClass}`}>
+            <heroAccent.Icon className="h-3.5 w-3.5" />
+            {lang === "en" ? "Featured" : "Wyróżnione"}
+          </div>
+          <h3 className="font-display text-2xl leading-tight group-hover:text-brand-ink transition-colors">
+            {heroTitle}
+          </h3>
+          {cfg.show_excerpt && heroExcerpt && (
+            <p className="text-sm text-muted-foreground line-clamp-2 max-w-prose">{heroExcerpt}</p>
+          )}
+        </div>
+      </Link>
+      <ul className="lg:col-span-2 divide-y divide-border rounded-xl border border-border bg-card">
+        {rest.slice(0, 5).map((p) => {
+          const a = accentFor(p.id);
+          const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
+          return (
+            <li key={p.id}>
+              <Link
+                to={p.href as "/"}
+                preload="viewport"
+                onClick={() => trackRelatedClick(sourcePostId, p.id)}
+                className="group flex items-start gap-3 p-3 hover:bg-muted/50 transition-colors"
+              >
+                <span className={`shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-md ${a.bgClass} ${a.textClass} ring-1 ${a.borderClass}`} aria-hidden>
+                  <a.Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand-ink transition-colors">
+                    {title}
+                  </h4>
+                  {cfg.show_meta && p.published_at && (
+                    <time className="mt-0.5 block text-xs text-muted-foreground" dateTime={p.published_at}>
+                      {formatDate(p.published_at, lang, { year: "numeric", month: "short", day: "numeric" })}
+                    </time>
+                  )}
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Pionowa oś czasu z kropkami-ikonami i akcentem per wpis. */
+function RelatedTimeline({ posts, cfg, lang, sourcePostId }: ViewProps) {
+  return (
+    <ol className="relative border-l border-border pl-6 space-y-6">
+      {posts.map((p) => {
+        const a = accentFor(p.id);
+        const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
+        const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
+        return (
+          <li key={p.id} className="relative">
+            <span
+              className={`absolute -left-[34px] top-0 inline-flex h-8 w-8 items-center justify-center rounded-full ${a.bgClass} ${a.textClass} ring-2 ring-background border ${a.borderClass}`}
+              aria-hidden
+            >
+              <a.Icon className="h-4 w-4" />
+            </span>
+            <Link
+              to={p.href as "/"}
+              preload="viewport"
+              onClick={() => trackRelatedClick(sourcePostId, p.id)}
+              className="group block rounded-lg border border-border bg-card p-4 hover:border-brand-ink/40 hover:shadow-sm transition-all"
+            >
+              {cfg.show_meta && p.published_at && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <Clock className="h-3 w-3" />
+                  <time dateTime={p.published_at}>
+                    {formatDate(p.published_at, lang, { year: "numeric", month: "long", day: "numeric" })}
+                  </time>
+                </div>
+              )}
+              <h3 className="font-display text-base leading-snug group-hover:text-brand-ink transition-colors">
+                {title}
+              </h3>
+              {cfg.show_excerpt && excerpt && (
+                <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
