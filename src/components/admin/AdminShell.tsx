@@ -509,6 +509,7 @@ function AdminShellInner({
             "bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen sidebar-shell",
           )}
         >
+          <TooltipProvider delayDuration={0}>
           <div className="p-3 border-b border-border">
             <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
               <Link
