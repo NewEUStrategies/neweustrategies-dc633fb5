@@ -356,7 +356,7 @@ export function ConsentBanner() {
                 </span>
                 <h2
                   id="consent-title"
-                  className="text-[13px] md:text-[14px] font-bold uppercase tracking-[0.14em] leading-tight text-[color:var(--cb-fg,var(--foreground))] truncate"
+                  className="text-[13px] md:text-[14px] font-bold uppercase tracking-[0.14em] leading-tight text-[color:var(--cb-fg,var(--foreground))]"
                 >
                   {t.title}
                 </h2>
