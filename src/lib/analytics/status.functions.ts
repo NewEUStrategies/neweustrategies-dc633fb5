@@ -6,12 +6,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+interface SelectResultRow {
+  data: unknown;
+  error: { message: string } | null;
+}
+interface SelectBuilder {
+  eq: (col: string, val: string) => Promise<SelectResultRow> & {
+    maybeSingle?: () => Promise<SelectResultRow>;
+  };
+  maybeSingle?: () => Promise<SelectResultRow>;
+}
 interface GatewayCtx {
   supabase: {
     from: (t: string) => {
-      select: (c: string) => {
-        eq: (col: string, val: string) => Promise<{ data: unknown; error: { message: string } | null }>;
-      };
+      select: (c: string) => SelectBuilder;
     };
   };
   userId: string;
@@ -26,6 +34,24 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
   const rows = (roles ?? []) as Array<{ role: string }>;
   if (!rows.some((r) => r.role === "admin")) {
     throw new Error("Forbidden: admin role required");
+  }
+}
+
+interface StoredAnalytics {
+  ga4_enabled?: boolean;
+  ga4_property_id?: string;
+  ga4_measurement_id?: string;
+}
+
+async function readAnalyticsSettings(context: GatewayCtx): Promise<StoredAnalytics> {
+  try {
+    const builder = context.supabase.from("site_settings").select("value");
+    const res = await builder.eq("key", "analytics");
+    if (res.error) return {};
+    const rows = (res.data ?? []) as Array<{ value: StoredAnalytics | null }>;
+    return rows[0]?.value ?? {};
+  } catch {
+    return {};
   }
 }
 
