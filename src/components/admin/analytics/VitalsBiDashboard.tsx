@@ -324,6 +324,10 @@ export function VitalsBiDashboard() {
             option={pathTreemapOption}
             height={340}
           />
+
+          {/* Interpretacja + rekomendacje - priorytetyzowana lista działań
+              per metryka i per ścieżka, zbudowana z tego samego raportu. */}
+          <VitalsRecommendations report={report} />
         </>
       )}
     </div>
