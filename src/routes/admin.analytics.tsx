@@ -22,9 +22,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
-import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
-import { runGa4Report, sendGa4Event, type Ga4Report } from "@/lib/analytics/ga4.functions";
+import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
+import { GscBiDashboard } from "@/components/admin/analytics/GscBiDashboard";
+import { Ga4BiDashboard } from "@/components/admin/analytics/Ga4BiDashboard";
+import { VitalsBiDashboard } from "@/components/admin/analytics/VitalsBiDashboard";
 
 
 export const Route = createFileRoute("/admin/analytics")({
