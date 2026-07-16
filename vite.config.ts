@@ -7,12 +7,6 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  // Override TanStack Start's default server entry with our own wrapper so h3
-  // never returns opaque `{"unhandled":true,"message":"HTTPError"}` responses
-  // without a real stacktrace in Server Logs. See src/server.ts.
-  tanstackStart: {
-    server: { entry: "server" },
-  },
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
