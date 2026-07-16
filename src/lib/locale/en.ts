@@ -762,6 +762,7 @@ export const en = {
       media: "Media",
       permalinks: "Permalinks",
       privacy: "Privacy",
+      cookieBanner: "Cookie banner",
       seo: "SEO",
     },
     reading: {
