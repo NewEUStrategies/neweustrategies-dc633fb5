@@ -893,7 +893,7 @@ export function JoinUsForm({
                   <div
                     role="listbox"
                     aria-multiselectable="true"
-                    className="absolute z-20 mt-1 w-full rounded border border-border bg-popover shadow-lg overflow-hidden"
+                    className="absolute left-0 right-0 z-[60] mt-1 rounded border border-border bg-popover shadow-xl overflow-hidden"
                   >
                     {/* Zakładki – szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
                     {groupedItems.length > 1 && (
