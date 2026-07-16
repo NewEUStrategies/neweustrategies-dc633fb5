@@ -853,90 +853,86 @@ export function JoinUsForm({
                     aria-multiselectable="true"
                     className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded border border-border bg-popover p-1 shadow-lg"
                   >
-                    {(() => {
-                      const groups: { key: "category" | "tag"; title: string; items: typeof allItems }[] = [
-                        {
-                          key: "category",
-                          title: lang === "en" ? "Areas" : "Obszary",
-                          items: allItems.filter((it) => it.type === "category"),
-                        },
-                        {
-                          key: "tag",
-                          title: lang === "en" ? "Topics" : "Tematy",
-                          items: allItems.filter((it) => it.type === "tag"),
-                        },
-                      ];
-                      return groups
-                        .filter((g) => g.items.length > 0)
-                        .map((g) => (
-                          <div key={`grp:${g.key}`} className="pb-1">
-                            <div
-                              role="presentation"
-                              className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                    {groupedItems.map((g) => (
+                      <div key={`grp:${g.key}`} className="pb-1">
+                        <div
+                          role="presentation"
+                          className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                        >
+                          {g.title}
+                          <span className="ml-1 opacity-60">({g.items.length})</span>
+                        </div>
+                        {g.items.map((it) => {
+                          const active = picked.has(it.id);
+                          return (
+                            <button
+                              key={`opt:${it.type}:${it.id}`}
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              onClick={() => togglePick(it.id)}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
+                                active && "text-brand",
+                              )}
                             >
-                              {g.title}
-                            </div>
-                            {g.items.map((it) => {
-                              const active = picked.has(it.id);
-                              return (
-                                <button
-                                  key={`opt:${it.type}:${it.id}`}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={active}
-                                  onClick={() => togglePick(it.id)}
-                                  className={cn(
-                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
-                                    active && "text-brand",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                                      active
-                                        ? "border-brand bg-brand text-brand-foreground"
-                                        : "border-input bg-background",
-                                    )}
-                                  >
-                                    {active && <Check className="h-2.5 w-2.5" />}
-                                  </span>
-                                  <span className="flex-1">{it.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ));
-                    })()}
+                              <span
+                                className={cn(
+                                  "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
+                                  active
+                                    ? "border-brand bg-brand text-brand-foreground"
+                                    : "border-input bg-background",
+                                )}
+                              >
+                                {active && <Check className="h-2.5 w-2.5" />}
+                              </span>
+                              <span className="flex-1">{it.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto pr-1">
-              {allItems.map((it) => {
-                const active = picked.has(it.id);
-                return (
-                  <button
-                    key={`${it.type}:${it.id}`}
-                    type="button"
-                    onClick={() => togglePick(it.id)}
-                    aria-pressed={active}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-xs transition",
-                      active
-                        ? "border-brand bg-brand text-brand-foreground"
-                        : "border-border bg-background hover:border-brand/60",
-                    )}
-                    style={chipStyle}
-                  >
-                    {it.label}
-                  </button>
-                );
-              })}
+            <div className="max-h-56 space-y-2 overflow-auto pr-1">
+              {groupedItems.map((g) => (
+                <div key={`chips-grp:${g.key}`}>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {g.title}
+                    <span className="ml-1 opacity-60">({g.items.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.items.map((it) => {
+                      const active = picked.has(it.id);
+                      return (
+                        <button
+                          key={`${it.type}:${it.id}`}
+                          type="button"
+                          onClick={() => togglePick(it.id)}
+                          aria-pressed={active}
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-xs transition",
+                            active
+                              ? "border-brand bg-brand text-brand-foreground"
+                              : "border-border bg-background hover:border-brand/60",
+                          )}
+                          style={chipStyle}
+                        >
+                          {it.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
+
 
       <button
         type="submit"
