@@ -39,6 +39,11 @@ const Ga4BiDashboard = lazy(() =>
 const VitalsBiDashboard = lazy(() =>
   import("@/components/admin/analytics/VitalsBiDashboard").then((m) => ({ default: m.VitalsBiDashboard })),
 );
+const AudienceSegmentsDashboard = lazy(() =>
+  import("@/components/admin/analytics/AudienceSegmentsDashboard").then((m) => ({
+    default: m.AudienceSegmentsDashboard,
+  })),
+);
 
 function DashboardFallback() {
   return (
