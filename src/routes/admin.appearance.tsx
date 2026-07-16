@@ -2,6 +2,7 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { DesignSubNav } from "@/components/admin/DesignSubNav";
+import "@/lib/i18n-archive-layout";
 
 export const Route = createFileRoute("/admin/appearance")({
   component: AppearanceLayout,
@@ -20,6 +21,8 @@ function AppearanceLayout() {
     { to: "/admin/appearance/footer", label: t("admin.appearance.footer") },
     { to: "/admin/appearance/menu", label: t("admin.appearance.menu") },
     { to: "/admin/appearance/post-sidebar", label: t("admin.appearance.postSidebar") },
+    { to: "/admin/appearance/category-archive", label: t("archiveLayout.categoryTab") },
+    { to: "/admin/appearance/tag-archive", label: t("archiveLayout.tagTab") },
     { to: "/admin/appearance/global-colors", label: t("admin.appearance.globalColors") },
   ];
   return (

@@ -266,6 +266,72 @@ export type Database = {
           },
         ]
       }
+      archive_layout_settings: {
+        Row: {
+          archive_type: string
+          columns: number
+          created_at: string
+          hero_bg_style: string
+          id: string
+          layout_variant: number
+          list_style: string
+          posts_per_page: number
+          show_breadcrumbs: boolean
+          show_description: boolean
+          show_featured_top: boolean
+          show_follow: boolean
+          show_hero: boolean
+          show_podcasts: boolean
+          show_related_taxonomies: boolean
+          show_sidebar: boolean
+          sidebar_position: string
+          sidebar_widgets: Json
+          updated_at: string
+        }
+        Insert: {
+          archive_type: string
+          columns?: number
+          created_at?: string
+          hero_bg_style?: string
+          id?: string
+          layout_variant?: number
+          list_style?: string
+          posts_per_page?: number
+          show_breadcrumbs?: boolean
+          show_description?: boolean
+          show_featured_top?: boolean
+          show_follow?: boolean
+          show_hero?: boolean
+          show_podcasts?: boolean
+          show_related_taxonomies?: boolean
+          show_sidebar?: boolean
+          sidebar_position?: string
+          sidebar_widgets?: Json
+          updated_at?: string
+        }
+        Update: {
+          archive_type?: string
+          columns?: number
+          created_at?: string
+          hero_bg_style?: string
+          id?: string
+          layout_variant?: number
+          list_style?: string
+          posts_per_page?: number
+          show_breadcrumbs?: boolean
+          show_description?: boolean
+          show_featured_top?: boolean
+          show_follow?: boolean
+          show_hero?: boolean
+          show_podcasts?: boolean
+          show_related_taxonomies?: boolean
+          show_sidebar?: boolean
+          sidebar_position?: string
+          sidebar_widgets?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
