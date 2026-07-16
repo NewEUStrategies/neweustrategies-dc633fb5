@@ -504,6 +504,12 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
   const megaHasFeatured = !!item.mega_config?.featured_post_id;
   const hasNestedChildren = children.some((c) => c.children.length > 0);
   const isMegaLike = depth === 0 && (item.mega_enabled || hasNestedChildren);
+  // Front auto-buduje kolumny z drzewa, gdy admin nie skonfigurował własnych.
+  const derivedColsCount = children.length;
+  const derivedLinksCount = children.reduce((sum, c) => sum + c.children.length, 0);
+  const usingDerivedMega = item.mega_enabled && megaColsCount === 0 && derivedColsCount > 0;
+  const displayColsCount = megaColsCount > 0 ? megaColsCount : derivedColsCount;
+  const displayLinksCount = megaColsCount > 0 ? megaLinksCount : derivedLinksCount;
 
   // Depth-aware surface: root = strong card; L2 = softer chip; L3 = compact row.
   const cardClass =
