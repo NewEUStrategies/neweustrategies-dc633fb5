@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -24,9 +24,28 @@ import { toast } from "sonner";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
-import { GscBiDashboard } from "@/components/admin/analytics/GscBiDashboard";
-import { Ga4BiDashboard } from "@/components/admin/analytics/Ga4BiDashboard";
-import { VitalsBiDashboard } from "@/components/admin/analytics/VitalsBiDashboard";
+
+// BI dashboards are heavy (ECharts + per-widget datasets). Lazy-load them so
+// the SSR route chunk stays under V8's mark-compact ceiling during `build:dev`
+// and the browser only pays for the panel the user actually opens.
+const GscBiDashboard = lazy(() =>
+  import("@/components/admin/analytics/GscBiDashboard").then((m) => ({ default: m.GscBiDashboard })),
+);
+const Ga4BiDashboard = lazy(() =>
+  import("@/components/admin/analytics/Ga4BiDashboard").then((m) => ({ default: m.Ga4BiDashboard })),
+);
+const VitalsBiDashboard = lazy(() =>
+  import("@/components/admin/analytics/VitalsBiDashboard").then((m) => ({ default: m.VitalsBiDashboard })),
+);
+
+function DashboardFallback() {
+  return (
+    <div className="flex items-center justify-center py-12 text-muted-foreground">
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      Ładowanie dashboardu…
+    </div>
+  );
+}
 
 
 export const Route = createFileRoute("/admin/analytics")({
