@@ -22,6 +22,7 @@ import {
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
 import { RELATED_POSTS_DEFAULTS, type RelatedPostsConfig } from "@/lib/relatedPosts";
 import { RelatedPostsAnalytics } from "@/components/admin/analytics/RelatedPostsAnalytics";
+import { RelatedLayoutPreview } from "@/components/admin/RelatedLayoutPreview";
 
 export const Route = createFileRoute("/admin/related-posts")({
   component: AdminRelatedPostsPage,
