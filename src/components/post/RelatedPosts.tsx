@@ -202,7 +202,7 @@ function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
   );
 }
 
-function RelatedSlider({ posts, cfg, lang }: ViewProps) {
+function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
 
