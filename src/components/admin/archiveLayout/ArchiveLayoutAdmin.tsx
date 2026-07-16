@@ -17,8 +17,10 @@ import {
   type ListStyle,
   type SidebarPosition,
 } from "@/lib/archive-layout-settings";
-import { LAYOUT_REGISTRY, type LayoutVariant } from "@/components/archive/layouts/registry";
+import { LAYOUT_REGISTRY, type LayoutVariant, getLayoutComponent } from "@/components/archive/layouts/registry";
+import { ArchiveLivePreview } from "./ArchiveLivePreview";
 import "@/lib/i18n-archive-layout";
+
 
 interface Props {
   archiveType: ArchiveType;
