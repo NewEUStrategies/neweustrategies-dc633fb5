@@ -283,41 +283,63 @@ export function JoinUsForm({
   const groupedItems = useMemo<InterestGroup[]>(() => {
     const topLevelAreaTitle = lang === "en" ? "Areas" : "Obszary";
     const topicsTitle = lang === "en" ? "Topics" : "Tematy";
-    const byParent = new Map<string, InterestGroup>();
-    const topLevelCats: typeof allItems = [];
-    const tagItems: typeof allItems = [];
+
+    // Zbuduj mapę id -> kategoria z PEŁNEGO katalogu (nie z `allItems`, które
+    // może być odfiltrowane przez `interestSlugs`) - potrzebna do wspinaczki
+    // po parent_id aż do korzenia drzewa (Region, Specjalizacja, Recenzja...).
+    const allCats = catalog.data?.categories ?? [];
+    const catById = new Map<string, (typeof allCats)[number]>();
+    for (const c of allCats) catById.set(c.id, c);
+    const rootOf = (
+      id: string,
+    ): { id: string; slug: string; label: string } | null => {
+      let cur = catById.get(id);
+      if (!cur) return null;
+      // Wspinaj się do korzenia (parentId === null).
+      while (cur.parentId) {
+        const p = catById.get(cur.parentId);
+        if (!p) break;
+        cur = p;
+      }
+      return { id: cur.id, slug: cur.slug, label: cur.label };
+    };
+
+    const byRoot = new Map<string, InterestGroup>();
     const orderedKeys: string[] = [];
+    const tagItems: typeof allItems = [];
     for (const it of allItems) {
       if (it.type === "tag") {
         tagItems.push(it);
         continue;
       }
-      const parentLabel = it.parentLabel ?? null;
-      const parentSlug = it.parentSlug ?? null;
-      if (!parentLabel || !parentSlug) {
-        topLevelCats.push(it);
+      const root = rootOf(it.id);
+      // Element sam jest korzeniem - własna grupa "Obszary" (poniżej).
+      if (!root || root.id === it.id) {
+        const key = "top";
+        if (!byRoot.has(key)) {
+          byRoot.set(key, { key, title: topLevelAreaTitle, items: [], parentSlug: null });
+          orderedKeys.push(key);
+        }
+        byRoot.get(key)!.items.push(it);
         continue;
       }
-      const key = `parent:${parentSlug}`;
-      if (!byParent.has(key)) {
-        byParent.set(key, { key, title: parentLabel, items: [], parentSlug });
+      const key = `root:${root.slug}`;
+      if (!byRoot.has(key)) {
+        byRoot.set(key, { key, title: root.label, items: [], parentSlug: root.slug });
         orderedKeys.push(key);
       }
-      byParent.get(key)!.items.push(it);
+      byRoot.get(key)!.items.push(it);
     }
     const groups: InterestGroup[] = [];
     for (const key of orderedKeys) {
-      const g = byParent.get(key)!;
+      const g = byRoot.get(key)!;
       if (g.items.length > 0) groups.push(g);
-    }
-    if (topLevelCats.length > 0) {
-      groups.push({ key: "top", title: topLevelAreaTitle, items: topLevelCats, parentSlug: null });
     }
     if (tagItems.length > 0) {
       groups.push({ key: "tags", title: topicsTitle, items: tagItems, parentSlug: null });
     }
     return groups;
-  }, [allItems, lang]);
+  }, [allItems, catalog.data, lang]);
 
 
   const togglePick = (id: string) => {
