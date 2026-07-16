@@ -52,6 +52,7 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
 interface StoredAnalytics {
   ga4_enabled?: boolean;
   ga4_property_id?: string;
+  ga4_measurement_id?: string;
 }
 async function readStoredAnalytics(ctx: GatewayCtx): Promise<StoredAnalytics> {
   try {
@@ -295,10 +296,14 @@ export const sendGa4Event = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<Ga4MpResult> => {
     await requireAdmin(context as unknown as GatewayCtx);
 
-    const measurementId = process.env.GA4_MEASUREMENT_ID;
+    const stored = await readStoredAnalytics(context as unknown as GatewayCtx);
+    const measurementId =
+      process.env.GA4_MEASUREMENT_ID?.trim() ||
+      stored.ga4_measurement_id?.trim() ||
+      "";
     const apiSecret = process.env.GA4_API_SECRET;
     if (!measurementId || !apiSecret) {
-      return { ok: false, configured: false, error: "Brak GA4_MEASUREMENT_ID lub GA4_API_SECRET" };
+      return { ok: false, configured: false, error: "Brak Measurement ID (ustawienia analityki) lub GA4_API_SECRET (sekret)" };
     }
 
     const path = data.debug ? "/debug/mp/collect" : "/mp/collect";
