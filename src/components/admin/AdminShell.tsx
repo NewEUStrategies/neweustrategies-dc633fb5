@@ -643,6 +643,7 @@ function AdminShellInner({
               onClick={handleSignOut}
             />
           </div>
+          </TooltipProvider>
         </aside>
       )}
       <main
