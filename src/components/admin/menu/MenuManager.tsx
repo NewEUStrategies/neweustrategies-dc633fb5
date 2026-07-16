@@ -1102,6 +1102,11 @@ function MegaPreview({
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold">
           {t("admin.menu.preview", { defaultValue: "Podgląd na żywo (front)" })}
+          {usingDerived && hasContent ? (
+            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
+              {t("admin.menu.autoFromTree", { defaultValue: "auto z drzewa" })}
+            </span>
+          ) : null}
         </span>
         <div className="inline-flex rounded-md border border-border overflow-hidden">
           {(["pl", "en"] as const).map((l) => (
