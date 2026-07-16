@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
+import { InsightSection, type Insight } from "@/components/admin/analytics/InsightSection";
 
 // BI dashboards are heavy (ECharts + per-widget datasets). Lazy-load them so
 // the SSR route chunk stays under V8's mark-compact ceiling during `build:dev`
