@@ -864,9 +864,11 @@ interface PickerHit {
 function InternalContentPicker({
   onPick,
   title,
+  variant = "icon",
 }: {
   onPick: (r: PickerResult) => void;
   title: string;
+  variant?: "icon" | "button";
 }) {
   const [open, setOpen] = useState(false);
   const [table, setTable] = useState<PickerTable>("pages");
