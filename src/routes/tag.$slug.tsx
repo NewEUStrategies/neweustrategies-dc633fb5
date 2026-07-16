@@ -115,6 +115,6 @@ export const Route = createFileRoute("/tag/$slug")({
 
 function TagArchivePage() {
   const { slug } = Route.useParams();
-  const search = Route.useSearch();
-  return <TaxonomyPage kind="tag" slug={slug} page={search.page} sort={search.sort} />;
+  const { page = 1, sort = "newest" } = Route.useSearch();
+  return <TaxonomyPage kind="tag" slug={slug} page={page} sort={sort} />;
 }
