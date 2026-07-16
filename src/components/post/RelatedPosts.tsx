@@ -153,7 +153,9 @@ function RelatedGrid({
   columns,
   cfg,
   lang,
+  sourcePostId,
 }: ViewProps & { columns: RelatedPostsConfig["columns"] }) {
+
   const colClass =
     columns === 2
       ? "sm:grid-cols-2"
