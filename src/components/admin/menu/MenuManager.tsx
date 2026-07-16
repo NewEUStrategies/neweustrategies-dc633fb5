@@ -759,6 +759,18 @@ function MegaColumnsEditor({
             <div className="pl-2 space-y-1">
               {col.links.map((l, li) => (
                 <div key={li} className="flex items-center gap-1">
+                  <LucideIconPicker
+                    value={l.icon}
+                    onChange={(name) =>
+                      updateColumn(idx, {
+                        links: col.links.map((x, i) =>
+                          i === li ? { ...x, icon: name ?? "" } : x,
+                        ),
+                      })
+                    }
+                    className="h-7"
+                    placeholder="Ikona"
+                  />
                   <Input
                     value={l.label_pl}
                     onChange={(e) =>
@@ -795,6 +807,7 @@ function MegaColumnsEditor({
                         links: col.links.map((x, i) =>
                           i === li
                             ? {
+                                ...x,
                                 label_pl: x.label_pl || p.label_pl,
                                 label_en: x.label_en || p.label_en,
                                 href: p.href,
@@ -824,7 +837,7 @@ function MegaColumnsEditor({
                   className="h-7 text-[11px]"
                   onClick={() =>
                     updateColumn(idx, {
-                      links: [...col.links, { label_pl: "", label_en: "", href: "" }],
+                      links: [...col.links, { label_pl: "", label_en: "", href: "", icon: "" }],
                     })
                   }
                 >
@@ -835,7 +848,7 @@ function MegaColumnsEditor({
                     updateColumn(idx, {
                       links: [
                         ...col.links,
-                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href },
+                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href, icon: "" },
                       ],
                     })
                   }
