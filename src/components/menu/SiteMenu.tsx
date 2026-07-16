@@ -5,7 +5,7 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown, ChevronRight } from "@/lib/lucide-shim";
@@ -325,8 +325,6 @@ function MegaPanel({
   );
 }
 
-// silence unused import warning when useMemo isn't referenced (kept for future extensions)
-void useMemo;
 
 function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const [open, setOpen] = useState(false);
