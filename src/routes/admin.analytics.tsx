@@ -84,25 +84,6 @@ function StatusPill({ ok, label, detail }: PillProps) {
 // --------- GA4 panel ---------
 
 function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
-  const fetchReport = useServerFn(runGa4Report);
-  const [days, setDays] = useState<number>(28);
-  const [dim, setDim] = useState<string>("date");
-
-  const reportQ = useQuery({
-    queryKey: ["ga4-report", days, dim],
-    queryFn: () =>
-      fetchReport({
-        data: {
-          startDate: `${days}daysAgo`,
-          endDate: "today",
-          dimensions: [dim],
-          metrics: ["sessions", "activeUsers", "screenPageViews", "engagementRate"],
-          limit: 100,
-        },
-      }),
-    enabled: status.configured,
-  });
-
   // Panel konfiguracji trybów - zawsze widoczny, żeby admin mógł włączyć
   // dowolny sposób (Service Account, OAuth refresh, Measurement Protocol, Embed).
   const configPanel = <Ga4ConfigPanel status={status} />;
@@ -116,60 +97,9 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
     );
   }
 
-
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-9 text-sm w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Wymiar</label>
-          <Select value={dim} onValueChange={setDim}>
-            <SelectTrigger className="h-9 text-sm w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Dzień</SelectItem>
-              <SelectItem value="pagePath">Strona</SelectItem>
-              <SelectItem value="sessionSource">Źródło</SelectItem>
-              <SelectItem value="country">Kraj</SelectItem>
-              <SelectItem value="deviceCategory">Urządzenie</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => reportQ.refetch()} className="h-9">
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
-        </Button>
-      </div>
-
-      <Ga4Totals report={reportQ.data} loading={reportQ.isLoading} />
-
-      <Card className="overflow-hidden">
-        <div className="p-3 border-b border-border text-sm font-semibold flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" /> GA4 raport ({status.activeMode === "oauth_refresh" ? "OAuth" : "Service Account"})
-        </div>
-        {reportQ.isLoading ? (
-          <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> Ładowanie...
-          </div>
-        ) : reportQ.data?.error ? (
-          <div className="p-6 text-sm text-destructive">{reportQ.data.error}</div>
-        ) : (
-          <Ga4Table report={reportQ.data} />
-        )}
-      </Card>
-
+      <Ga4BiDashboard configured={status.configured} activeMode={status.activeMode} />
       {status.hasEmbedUrl && status.embedUrl ? <Ga4EmbedCard url={status.embedUrl} /> : null}
       {configPanel}
     </div>
