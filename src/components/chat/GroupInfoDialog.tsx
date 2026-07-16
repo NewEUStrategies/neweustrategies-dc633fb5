@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
-import { usePeerProfiles } from "@/lib/chat/useConversations";
+import { usePeerProfiles, useSetGroupDescription } from "@/lib/chat/useConversations";
 import { useAddGroupMembers, useLeaveGroup, useRenameGroup } from "@/lib/chat/useGroups";
 import type { ConversationView } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -55,14 +55,36 @@ export function GroupInfoDialog({
   const renameGroup = useRenameGroup();
   const addMembers = useAddGroupMembers();
   const leaveGroup = useLeaveGroup();
+  const setDescription = useSetGroupDescription();
 
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState("");
   const [inviting, setInviting] = useState(false);
   const [invitees, setInvitees] = useState<ReadonlyMap<string, string>>(new Map());
   const [leaveOpen, setLeaveOpen] = useState(false);
 
   const title = view.conversation.title?.trim() || t("chat.group.circle");
+  const description = view.conversation.description?.trim() || "";
+
+  const startDescriptionEdit = () => {
+    setDescriptionDraft(description);
+    setEditingDescription(true);
+  };
+
+  const saveDescription = () => {
+    setDescription.mutate(
+      { conversationId, description: descriptionDraft.trim() },
+      {
+        onSuccess: () => {
+          setEditingDescription(false);
+          toast.success(t("chat.group.descriptionSaved"));
+        },
+        onError: () => toast.error(t("chat.group.descriptionError")),
+      },
+    );
+  };
 
   const startRename = () => {
     setTitleDraft(view.conversation.title ?? "");
@@ -184,6 +206,68 @@ export function GroupInfoDialog({
           </DialogHeader>
 
           <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto p-4">
+            <section aria-label={t("chat.group.descriptionLabel")}>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("chat.group.descriptionLabel")}
+                </h3>
+                {isOwner && !editingDescription && (
+                  <button
+                    type="button"
+                    onClick={startDescriptionEdit}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label={t("chat.group.descriptionLabel")}
+                    title={t("chat.group.descriptionLabel")}
+                  >
+                    <Pencil className="h-3 w-3" aria-hidden />
+                  </button>
+                )}
+              </div>
+              {editingDescription ? (
+                <div className="mt-1.5 flex flex-col gap-2">
+                  <textarea
+                    value={descriptionDraft}
+                    autoFocus
+                    maxLength={500}
+                    rows={3}
+                    placeholder={t("chat.group.descriptionPlaceholder")}
+                    onChange={(e) => setDescriptionDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setEditingDescription(false);
+                    }}
+                    aria-label={t("chat.group.descriptionLabel")}
+                    className="w-full resize-none rounded-[6px] border border-input bg-muted/40 px-2.5 py-1.5 text-[13px] leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingDescription(false)}
+                      className="h-8 rounded-[6px] border border-border/60 px-3 text-[12px] font-medium transition-colors hover:bg-muted"
+                    >
+                      {t("chat.close")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveDescription}
+                      disabled={setDescription.isPending}
+                      className="h-8 rounded-[6px] bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {t("chat.group.descriptionSave")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p
+                  className={cn(
+                    "mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed",
+                    description ? "text-foreground" : "italic text-muted-foreground",
+                  )}
+                >
+                  {description || t("chat.group.descriptionEmpty")}
+                </p>
+              )}
+            </section>
+
             <ul className="flex flex-col gap-0.5" aria-label={t("chat.group.membersLabel")}>
               {rows.map(({ participant, isMe }) => {
                 const profile = profilesQ.data?.get(participant.user_id);

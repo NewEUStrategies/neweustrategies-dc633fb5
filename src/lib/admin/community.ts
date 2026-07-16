@@ -113,7 +113,7 @@ export async function fetchAdminConversations(params: {
   const query = supabase
     .from("conversations")
     .select(
-      "id, tenant_id, kind, created_by, created_at, last_message_at, last_message_kind, last_message_preview, last_message_sender, direct_key, updated_at, message_ttl_seconds, title",
+      "id, tenant_id, kind, created_by, created_at, last_message_at, last_message_kind, last_message_preview, last_message_sender, direct_key, updated_at, message_ttl_seconds, title, theme, wallpaper, quick_emoji, description",
     )
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(limit);

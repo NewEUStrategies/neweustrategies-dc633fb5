@@ -33,7 +33,7 @@ import {
 // Re-exported so existing consumers (ChatWindow, /messages) keep their import
 // path; the implementations now live in the pure, unit-tested messageCache.
 export type { MessagesCursor, MessagesPage } from "./messageCache";
-export { canEditMessage, EDIT_WINDOW_MS } from "./messageCache";
+export { canEditMessage, EDIT_WINDOW_MS, retrySendInput } from "./messageCache";
 
 const PAGE_SIZE = 40;
 
@@ -351,7 +351,14 @@ export function useToggleReaction(conversationId: string) {
       if (!user || !tenantId) return;
       const key = chatKeys.reactions(user.id, conversationId);
       await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<ReactionsData>(key);
+      // Keep only OUR previous row for the rollback: restoring a full-map
+      // snapshot would silently revert other users' reactions that arrived
+      // via realtime while the mutation was in flight.
+      const ownRow =
+        qc
+          .getQueryData<ReactionsData>(key)
+          ?.get(input.messageId)
+          ?.find((r) => r.user_id === user.id) ?? null;
       qc.setQueryData<ReactionsData>(key, (old) =>
         patchReactions(old, input.messageId, (list) => {
           const without = list.filter((r) => r.user_id !== user.id);
@@ -368,11 +375,17 @@ export function useToggleReaction(conversationId: string) {
           return [...without, optimistic];
         }),
       );
-      return { previous };
+      return { ownRow, messageId: input.messageId };
     },
     onError: (_err, _input, ctx) => {
       if (!user || !ctx) return;
-      qc.setQueryData(chatKeys.reactions(user.id, conversationId), ctx.previous);
+      const key = chatKeys.reactions(user.id, conversationId);
+      qc.setQueryData<ReactionsData>(key, (old) =>
+        patchReactions(old, ctx.messageId, (list) => {
+          const without = list.filter((r) => r.user_id !== user.id);
+          return ctx.ownRow ? [...without, ctx.ownRow] : without;
+        }),
+      );
     },
   });
 }
@@ -591,6 +604,20 @@ export function useConversationChannel(
         },
         () => {
           void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversation_nicknames",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          // Nicknames are a small per-user index and rename events are rare;
+          // a refetch is cheaper and safer than patching event payloads.
+          void qc.invalidateQueries({ queryKey: chatKeys.nicknames(uid) });
         },
       )
       .subscribe((status) => {

@@ -3848,3 +3848,193 @@ textarea::placeholder {
     0 0,
     11px 11px;
 }
+
+/* ---- Personalizacja rozmów: motywy ----------------------------------------
+   Każdy motyw nadpisuje wyłącznie tokeny --chat-user-* w poddrzewie okna
+   rozmowy (klasa na korzeniu ChatWindow), więc wszystkie powierzchnie -
+   dymki, ticki, tapeta, flash cytatu - przebarwiają się spójnie i za darmo.
+   Ciemniejszy stop gradientu trzyma kontrast >= 4.5:1 z białym tekstem w OBU
+   trybach; lista dozwolonych id lustrzana z conversations_theme_check
+   (pilnuje test src/lib/chat/__tests__/themes.test.ts). */
+.chat-theme-ocean {
+  --chat-user-from: #5aa7f0;
+  --chat-user-to: #1e6fd0;
+  --chat-user-tick-read: #b5e6ff;
+}
+.dark .chat-theme-ocean {
+  --chat-user-from: #4a94dd;
+  --chat-user-to: #1a5db1;
+}
+.chat-theme-forest {
+  --chat-user-from: #4fbf85;
+  --chat-user-to: #177a4e;
+  --chat-user-tick-read: #b9f7d4;
+}
+.dark .chat-theme-forest {
+  --chat-user-from: #46ab79;
+  --chat-user-to: #136843;
+}
+.chat-theme-sunset {
+  --chat-user-from: #f98a8a;
+  --chat-user-to: #c93248;
+  --chat-user-tick-read: #ffe0a3;
+}
+.dark .chat-theme-sunset {
+  --chat-user-from: #e97e7e;
+  --chat-user-to: #b02b3e;
+}
+.chat-theme-orchid {
+  --chat-user-from: #b18cf2;
+  --chat-user-to: #7a3fd4;
+  --chat-user-tick-read: #ecd9ff;
+}
+.dark .chat-theme-orchid {
+  --chat-user-from: #a07ede;
+  --chat-user-to: #6a35bd;
+}
+.chat-theme-rose {
+  --chat-user-from: #f48fb9;
+  --chat-user-to: #c02b70;
+  --chat-user-tick-read: #ffd6e7;
+}
+.dark .chat-theme-rose {
+  --chat-user-from: #e082aa;
+  --chat-user-to: #a82562;
+}
+.chat-theme-graphite {
+  --chat-user-from: #8a919c;
+  --chat-user-to: #3f4650;
+  --chat-user-tick-read: #a5e3ff;
+}
+.dark .chat-theme-graphite {
+  --chat-user-from: #7d848f;
+  --chat-user-to: #333a44;
+}
+.chat-theme-midnight {
+  --chat-user-from: #6d7fd6;
+  --chat-user-to: #2b3a8f;
+  --chat-user-tick-read: #bcc9ff;
+}
+.dark .chat-theme-midnight {
+  --chat-user-from: #5f70c2;
+  --chat-user-to: #25327c;
+}
+
+/* ---- Personalizacja rozmów: tapety -----------------------------------------
+   Warianty nadpisują background-image bazowej .chat-wallpaper (kropki);
+   wszystkie barwione przez --chat-user-to, więc podążają za motywem. */
+.chat-wallpaper-soft {
+  background-image:
+    radial-gradient(
+      110% 80% at 100% 0%,
+      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 10%, transparent) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      120% 90% at 0% 100%,
+      color-mix(in oklab, var(--chat-user-from, #fbaa6d) 12%, transparent) 0%,
+      transparent 55%
+    );
+  background-size: auto;
+  background-position: 0 0;
+}
+.chat-wallpaper-lines {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--chat-user-to, #ed6d1f) 8%, transparent) 0 1px,
+    transparent 1px 14px
+  );
+  background-size: auto;
+  background-position: 0 0;
+}
+.chat-wallpaper-none {
+  background-color: color-mix(in oklab, var(--muted, #f4f4f5) 45%, var(--background, #fff));
+}
+
+/* ---- Animacje czatu ---------------------------------------------------------
+   Ręczne keyframes (bez bibliotek JS - budżet bundle): wejścia dymków z
+   kierunkiem nadawcy, pop reakcji z przestrzeleniem, fala kropek "pisze...",
+   wejścia drobnych elementów. Wszystko wyłączane przy reduced motion. */
+@keyframes chat-msg-in-mine-kf {
+  from {
+    opacity: 0;
+    transform: translate3d(14px, 10px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes chat-msg-in-theirs-kf {
+  from {
+    opacity: 0;
+    transform: translate3d(-14px, 10px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.chat-msg-enter-mine {
+  animation: chat-msg-in-mine-kf 260ms cubic-bezier(0.21, 1.02, 0.55, 1);
+}
+.chat-msg-enter-theirs {
+  animation: chat-msg-in-theirs-kf 260ms cubic-bezier(0.21, 1.02, 0.55, 1);
+}
+
+@keyframes chat-reaction-pop-kf {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  70% {
+    transform: scale(1.16);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.chat-reaction-pop {
+  animation: chat-reaction-pop-kf 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes chat-typing-dot-kf {
+  0%,
+  60%,
+  100% {
+    opacity: 0.5;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+.chat-typing-dot {
+  animation: chat-typing-dot-kf 1.15s ease-in-out infinite;
+}
+
+@keyframes chat-pop-in-kf {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.chat-pop-in {
+  animation: chat-pop-in-kf 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-msg-enter-mine,
+  .chat-msg-enter-theirs,
+  .chat-reaction-pop,
+  .chat-typing-dot,
+  .chat-pop-in {
+    animation: none;
+  }
+}

@@ -24,6 +24,8 @@ export function conversationDisplay(
   view: ConversationView,
   profiles: ReadonlyMap<string, PeerProfile> | undefined,
   fallbackGroupName = "…",
+  /** This conversation's nickname map (user id -> nickname); nickname wins. */
+  nicknames?: ReadonlyMap<string, string>,
 ): ConversationDisplay {
   if (isGroupView(view)) {
     return {
@@ -35,9 +37,10 @@ export function conversationDisplay(
   }
   const peerId = view.peers[0]?.user_id ?? null;
   const profile = peerId ? profiles?.get(peerId) : undefined;
+  const nickname = peerId ? nicknames?.get(peerId) : undefined;
   return {
     isGroup: false,
-    name: profile?.display_name ?? "...",
+    name: nickname ?? profile?.display_name ?? "...",
     avatarUrl: profile?.avatar_url ?? null,
     peerId,
   };

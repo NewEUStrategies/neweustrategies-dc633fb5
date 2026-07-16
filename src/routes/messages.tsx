@@ -24,6 +24,7 @@ import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
 import { useAuth } from "@/hooks/useAuth";
 import { conversationDisplay } from "@/lib/chat/display";
+import { useNicknames } from "@/lib/chat/nicknames";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   splitArchived,
@@ -99,6 +100,7 @@ function MessagesInner() {
   useChatListRealtime();
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
+  const nicknamesQ = useNicknames();
   const views = useMemo(() => conversationsQ.data ?? [], [conversationsQ.data]);
   const peerIds = useMemo(
     () => [...new Set(views.flatMap((v) => v.peers.map((p) => p.user_id)))],
@@ -138,7 +140,9 @@ function MessagesInner() {
   const sourceViews = showArchived ? archivedViews : activeViews;
   const filtered = normalizedFilter
     ? sourceViews.filter((v) =>
-        conversationDisplay(v, peersQ.data).name.toLowerCase().includes(normalizedFilter),
+        conversationDisplay(v, peersQ.data, undefined, nicknamesQ.data?.get(v.conversation.id))
+          .name.toLowerCase()
+          .includes(normalizedFilter),
       )
     : sourceViews;
 
@@ -321,6 +325,7 @@ function MessagesInner() {
                             <ConversationListItem
                               view={view}
                               profiles={peersQ.data}
+                              nicknames={nicknamesQ.data?.get(view.conversation.id)}
                               onlineUsers={online}
                               myUserId={user.id}
                               lang={lang}

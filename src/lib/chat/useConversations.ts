@@ -330,6 +330,77 @@ export function useClearConversationHistory() {
   );
 }
 
+export interface AppearanceInput {
+  conversationId: string;
+  /** Undefined = keep; null = reset to default. */
+  theme?: string | null;
+  wallpaper?: string | null;
+  quickEmoji?: string | null;
+}
+
+/**
+ * Shared conversation appearance (theme / wallpaper / quick emoji) - any
+ * member may set it, Messenger-style. Optimistic: the new look applies the
+ * moment the swatch is tapped; the RPC bumps every member's participant row,
+ * so peers receive it live over the existing list channel.
+ */
+export function useSetConversationAppearance() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: AppearanceInput) => {
+      const { error } = await supabase.rpc("chat_set_appearance", {
+        p_conversation_id: input.conversationId,
+        // 'keep' is the RPC sentinel for "leave this field unchanged".
+        p_theme: input.theme === undefined ? "keep" : input.theme,
+        p_wallpaper: input.wallpaper === undefined ? "keep" : input.wallpaper,
+        p_quick_emoji: input.quickEmoji === undefined ? "keep" : input.quickEmoji,
+      });
+      if (error) throw error;
+    },
+    onMutate: async (input) => {
+      if (!user) return;
+      const key = chatKeys.conversations(user.id);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ConversationView[]>(key);
+      qc.setQueryData<ConversationView[]>(key, (old) =>
+        old?.map((view) =>
+          view.conversation.id === input.conversationId
+            ? {
+                ...view,
+                conversation: {
+                  ...view.conversation,
+                  ...(input.theme !== undefined ? { theme: input.theme } : {}),
+                  ...(input.wallpaper !== undefined ? { wallpaper: input.wallpaper } : {}),
+                  ...(input.quickEmoji !== undefined ? { quick_emoji: input.quickEmoji } : {}),
+                },
+              }
+            : view,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_err, _input, ctx) => {
+      if (!user || !ctx) return;
+      qc.setQueryData(chatKeys.conversations(user.id), ctx.previous);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
+    },
+  });
+}
+
+/** Group description (owner only, mirrors the title semantics). */
+export function useSetGroupDescription() {
+  return useConversationSetting(async (args: { conversationId: string; description: string }) => {
+    const { error } = await supabase.rpc("chat_set_group_description", {
+      p_conversation_id: args.conversationId,
+      p_description: args.description,
+    });
+    if (error) throw error;
+  });
+}
+
 /** Disappearing messages window for NEW messages (either participant may set it). */
 export function useSetMessageTtl() {
   return useConversationSetting(
