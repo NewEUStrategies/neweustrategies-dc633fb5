@@ -505,6 +505,28 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
           <Button
             size="icon"
             variant="ghost"
+            className="h-6 w-6"
+            onClick={() => onOutdent(item.local_id)}
+            disabled={depth === 0}
+            aria-label={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo" })}
+            title={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo (poziom wyżej)" })}
+          >
+            <ArrowLeft className="h-3 w-3" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => onIndent(item.local_id)}
+            disabled={siblingIndex === 0 || depth + 1 >= MAX_DEPTH}
+            aria-label={t("admin.menu.indent", { defaultValue: "Podepnij w prawo" })}
+            title={t("admin.menu.indent", { defaultValue: "Podepnij w prawo (jako podstrona)" })}
+          >
+            <ArrowRight className="h-3 w-3" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
             className="h-6 w-6 text-destructive"
             onClick={() => onRemove(item.local_id)}
             aria-label={t("common.delete", { defaultValue: "Usuń" })}
