@@ -27,7 +27,7 @@
 // or navigation widgets - heading, text, button, nav-link, mega-menu,
 // post-list / carousel, categories, tags, cta, dark-featured-card. Splitting
 // those would risk a visible pop-in on first paint.
-import { lazy, Suspense, type ComponentProps, type ComponentType } from "react";
+import { lazy, Suspense, type ComponentProps, type ComponentType, type ReactElement } from "react";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 
 import type { NewsletterForm as NewsletterFormImpl } from "@/components/NewsletterForm";
