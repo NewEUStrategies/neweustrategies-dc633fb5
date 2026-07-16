@@ -83,16 +83,37 @@ function DropdownPanel({
   if (useMega) {
     return <MegaPanel node={node} lang={lang} onRequestClose={onRequestClose} />;
   }
+  const parentLabel = pickLabel(node, lang);
+  const eyebrow = lang === "en" ? "In section" : "W sekcji";
   return (
-    <ul
+    <div
       role="menu"
-      className="min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+      className="overflow-hidden rounded-lg border border-border/40 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5"
+      style={{ width: "min(360px, calc(100vw - 32px))" }}
       onMouseLeave={onRequestClose}
     >
-      {node.children.map((child) => (
-        <SubmenuItem key={child.id} node={child} lang={lang} />
-      ))}
-    </ul>
+      {parentLabel ? (
+        <div className="flex items-center gap-2 border-b border-border/50 bg-muted/40 px-5 py-3">
+          <span
+            aria-hidden
+            className="inline-block h-4 w-1 rounded-sm"
+            style={{ background: "var(--brand)" }}
+          />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+            {eyebrow}
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/80">
+            {parentLabel}
+          </span>
+        </div>
+      ) : null}
+      <ul className="flex flex-col p-2">
+        {node.children.map((child) => (
+          <SubmenuItem key={child.id} node={child} lang={lang} />
+        ))}
+      </ul>
+    </div>
+  );
   );
 }
 
