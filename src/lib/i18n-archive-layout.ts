@@ -11,6 +11,8 @@ const pl = {
       "Wybierz układ i skonfiguruj sekcje wyświetlane na stronie archiwum. Ustawienia są globalne.",
     layoutHeader: "Wariant układu",
     layoutHint: "Wybierz jeden z 6 gotowych layoutów.",
+    livePreview: "Podgląd na żywo",
+    livePreviewHint: "Zmiany są widoczne przed zapisaniem",
     variants: {
       "1": "Minimal",
       "2": "Klasyczny",
@@ -89,6 +91,8 @@ const en: typeof pl = {
       "Choose a layout and configure sections shown on the archive page. Settings are global.",
     layoutHeader: "Layout variant",
     layoutHint: "Pick one of 6 pre-built layouts.",
+    livePreview: "Live preview",
+    livePreviewHint: "Changes are visible before saving",
     variants: {
       "1": "Minimal",
       "2": "Classic",

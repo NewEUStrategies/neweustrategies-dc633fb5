@@ -125,23 +125,37 @@ export const Route = createFileRoute("/category/$slug")({
       ],
     };
   },
-  component: () => <TaxonomyPage kind="category" />,
+  component: CategoryArchivePage,
   pendingComponent: () => <ArchiveSkeleton />,
   notFoundComponent: PublicNotFound,
   errorComponent: (props) => <RouteErrorFallback {...props} />,
 });
 
-export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
+function CategoryArchivePage() {
   const { slug } = Route.useParams();
   const search = Route.useSearch();
+  return <TaxonomyPage kind="category" slug={slug} page={search.page} sort={search.sort} />;
+}
+
+export function TaxonomyPage({
+  kind,
+  slug,
+  page,
+  sort,
+}: {
+  kind: "category" | "tag";
+  slug: string;
+  page: number;
+  sort: ArchiveSort;
+}) {
   const navigate = useNavigate();
   const [isPending, startTransition] = useTransition();
   const { data: settings } = useSuspenseQuery(archiveLayoutQueryOptions(kind));
   const { data } = useSuspenseQuery(
     taxonomyArchiveQueryOptions(kind, slug, {
-      page: search.page,
+      page,
       pageSize: settings.posts_per_page,
-      sort: search.sort,
+      sort,
     }),
   );
   const { t, i18n } = useTranslation();
@@ -153,13 +167,13 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
 
   // Scroll to top when page changes (better UX than staying mid-scroll).
   useEffect(() => {
-    if (typeof window !== "undefined" && search.page > 1) {
+    if (typeof window !== "undefined" && page > 1) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [search.page]);
+  }, [page]);
 
   if (!data) return <PublicNotFound />;
-  const { taxonomy, posts, total, page, pageSize, sort } = data;
+  const { taxonomy, posts, total, page: currentPage, pageSize, sort: currentSort } = data;
 
   const LayoutComponent = getLayoutComponent(settings.layout_variant);
 
@@ -191,7 +205,7 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
       void navigate({
         to: kind === "category" ? "/category/$slug" : "/tag/$slug",
         params: { slug },
-        search: { page: nextPage, sort },
+        search: { page: nextPage, sort: currentSort },
       });
     });
 
@@ -214,10 +228,10 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
         posts={posts}
         lang={lang}
         settings={settings}
-        page={page}
+        page={currentPage}
         pageSize={pageSize}
         total={total}
-        sort={sort}
+        sort={currentSort}
         onPageChange={onPageChange}
         onSortChange={onSortChange}
         isPending={isPending}

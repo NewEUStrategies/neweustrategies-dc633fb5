@@ -101,8 +101,14 @@ export const Route = createFileRoute("/tag/$slug")({
       ],
     };
   },
-  component: () => <TaxonomyPage kind="tag" />,
+  component: TagArchivePage,
   pendingComponent: () => <ArchiveSkeleton />,
   notFoundComponent: PublicNotFound,
   errorComponent: (props) => <RouteErrorFallback {...props} />,
 });
+
+function TagArchivePage() {
+  const { slug } = Route.useParams();
+  const search = Route.useSearch();
+  return <TaxonomyPage kind="tag" slug={slug} page={search.page} sort={search.sort} />;
+}

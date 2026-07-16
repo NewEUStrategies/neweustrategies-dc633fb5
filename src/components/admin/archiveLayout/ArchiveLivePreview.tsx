@@ -78,8 +78,8 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
           {t("archiveLayout.livePreviewHint", {
             defaultValue:
               lang === "en"
-                ? "Non-interactive - mock data"
-                : "Nieinteraktywny - dane przykładowe",
+                ? "Changes are visible before saving"
+                : "Zmiany są widoczne przed zapisaniem",
           })}
         </span>
       </div>
@@ -90,7 +90,7 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
         }
       >
         <div
-          className="pointer-events-none select-none max-h-[720px] overflow-hidden"
+          className="pointer-events-none select-none max-h-[680px] overflow-auto"
           // Layout components use full-viewport sections; a fixed max height
           // keeps the preview compact without breaking their internal grid.
         >
