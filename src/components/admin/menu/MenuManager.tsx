@@ -590,10 +590,13 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
                 <span
                   className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                   style={{ background: "color-mix(in oklab, var(--brand) 14%, transparent)", color: "var(--brand)" }}
-                  title={`${megaColsCount} kolumn · ${megaLinksCount} linków${megaHasFeatured ? " · Wyróżniony" : ""}`}
+                  title={`${displayColsCount} kolumn · ${displayLinksCount} linków${usingDerivedMega ? " · auto z drzewa" : ""}${megaHasFeatured ? " · Wyróżniony" : ""}`}
                 >
                   <Sparkles size={10} />
                   Mega
+                  {usingDerivedMega ? (
+                    <span className="ml-1 rounded bg-amber-100 px-1 py-[1px] text-[8px] text-amber-800">auto</span>
+                  ) : null}
                 </span>
               ) : null}
               {megaHasFeatured ? (
