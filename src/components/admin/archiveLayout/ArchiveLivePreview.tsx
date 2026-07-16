@@ -54,7 +54,8 @@ function mockPosts(lang: "pl" | "en"): BlogListItem[] {
 export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
   const { t } = useTranslation();
   const LayoutComponent = getLayoutComponent(settings.layout_variant);
-  const posts = mockPosts(lang);
+  const allPosts = mockPosts(lang);
+  const posts = allPosts.slice(0, Math.max(1, Math.min(settings.posts_per_page, allPosts.length)));
   const name =
     archiveType === "category"
       ? lang === "en"
@@ -67,6 +68,32 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
     lang === "en"
       ? "This is a live preview populated with mock posts. Toggle settings above to see the effect immediately."
       : "To jest podgląd na żywo z przykładowymi wpisami. Zmień ustawienia powyżej, aby zobaczyć efekt.";
+
+  const podcastsMock = settings.show_podcasts ? (
+    <div className="pt-10 mt-10 border-t border-border">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+        {lang === "en" ? "Podcasts" : "Podcasty"}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-xl border border-border bg-card/60 p-4 flex gap-3 items-center"
+          >
+            <div className="h-14 w-14 rounded-md bg-muted shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">
+                {lang === "en" ? `Sample episode ${i + 1}` : `Odcinek przykładowy ${i + 1}`}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {lang === "en" ? "Mock preview" : "Podgląd"}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   return (
     <section className="space-y-3">
@@ -117,6 +144,7 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
             isPending={false}
             emptyText={lang === "en" ? "No posts." : "Brak wpisów."}
             previewMode
+            extraBelow={podcastsMock}
           />
         </div>
       </div>
