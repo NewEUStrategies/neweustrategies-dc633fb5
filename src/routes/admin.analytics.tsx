@@ -89,7 +89,14 @@ function GscPanel({ configured }: { configured: boolean }) {
     enabled: configured,
   });
 
-  const effectiveSite = siteUrl || sitesQ.data?.sites?.[0]?.siteUrl || "";
+  const sites = sitesQ.data?.sites ?? [];
+  const preferredSite = useMemo(() => {
+    const match = sites.find((s) =>
+      s.siteUrl.toLowerCase().includes("neweuropeanstrategies.com"),
+    );
+    return match?.siteUrl ?? sites[0]?.siteUrl ?? "";
+  }, [sites]);
+  const effectiveSite = siteUrl || preferredSite;
 
   const dataQ = useQuery({
     queryKey: ["gsc-query", effectiveSite, days, dim],
