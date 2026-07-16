@@ -1063,9 +1063,20 @@ export const bulkUpdatePages = createServerFn({ method: "POST" })
 
 // ---------- CATEGORIES ----------
 
+const NonEmptyTrimmed = (field: "PL" | "EN") =>
+  z
+    .string()
+    .transform((v) => v.trim())
+    .refine((v) => v.length >= 1, {
+      message: `Brakuje tłumaczenia ${field} - nazwa nie może być pusta`,
+    })
+    .refine((v) => v.length <= 200, {
+      message: `Nazwa ${field} przekracza 200 znaków`,
+    });
+
 const CategoryCore = z.object({
-  name_pl: z.string().min(1).max(200),
-  name_en: z.string().min(1).max(200),
+  name_pl: NonEmptyTrimmed("PL"),
+  name_en: NonEmptyTrimmed("EN"),
   slug: SlugInput,
   description_pl: NullableStr(2000),
   description_en: NullableStr(2000),
@@ -1079,6 +1090,26 @@ const CategoryCore = z.object({
   parent_id: UUID.nullable().optional(),
 });
 
+async function assertSlugAvailable(
+  supabase: SupabaseClient,
+  tenantId: string,
+  slug: string,
+  ignoreId?: string,
+): Promise<void> {
+  let q = supabase
+    .from("categories")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("slug", slug)
+    .limit(1);
+  if (ignoreId) q = q.neq("id", ignoreId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  if (data && data.length > 0) {
+    throw new Error(`Slug "${slug}" jest już używany przez inną kategorię`);
+  }
+}
+
 export const upsertCategory = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID.optional(), fields: CategoryCore }).parse(i))
@@ -1086,15 +1117,23 @@ export const upsertCategory = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("category.upsert", userId, 60, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const slug = await uniqueSlug(
-        supabase,
-        "categories",
-        tenantId,
-        data.fields.slug || data.fields.name_pl || data.fields.name_en,
-        data.id,
-      );
       if (data.id && data.fields.parent_id === data.id) {
         throw new Error("Kategoria nie może być własnym rodzicem");
+      }
+      // Slug jawny -> walidacja unikalności (twardy błąd).
+      // Slug pusty -> auto-generacja z sufiksem numerycznym w razie kolizji.
+      let slug: string;
+      if (data.fields.slug && data.fields.slug.trim().length > 0) {
+        slug = data.fields.slug.trim();
+        await assertSlugAvailable(supabase, tenantId, slug, data.id);
+      } else {
+        slug = await uniqueSlug(
+          supabase,
+          "categories",
+          tenantId,
+          data.fields.name_pl || data.fields.name_en,
+          data.id,
+        );
       }
       // undefined znika przy serializacji JSON, więc INSERT korzysta z domyślnej
       // wartości kind ('category'); panel edycji zawsze wysyła kind jawnie.
