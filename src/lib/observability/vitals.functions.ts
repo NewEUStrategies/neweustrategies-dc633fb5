@@ -93,7 +93,8 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
         .from("web_vitals" as never)
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
-        .gte("created_at", since);
+        .gte("created_at", since)
+        .lte("created_at", until);
       if (countErr) throw new Error(countErr.message);
 
       const { data: rows, error } = await supabaseAdmin
@@ -101,33 +102,38 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
         .select("metric, value, rating, path, created_at")
         .eq("tenant_id", tenantId)
         .gte("created_at", since)
+        .lte("created_at", until)
         .order("created_at", { ascending: false })
         .limit(SAMPLE_CAP);
       if (error) throw new Error(error.message);
 
       const samples = (rows ?? []) as unknown as VitalSample[];
-      const report = aggregateVitals(samples, { windowDays: data.days });
+      const report = aggregateVitals(samples, { windowDays });
       const windowTotal = windowCount ?? samples.length;
 
       // The in-memory trend above is computed over only the capped newest rows,
       // so on a busy site it truncates to the most recent days. Recompute the
       // per-day p75 trend in Postgres over the FULL window via an RPC. If the
-      // function isn't present yet (older DB), fall back to the in-memory trend
-      // - same degrade-gracefully contract as the rest of this handler.
+      // function isn't present yet (older DB), fall back to the in-memory trend.
+      // For custom ranges with an explicit `until` in the past we skip the RPC
+      // (its signature only takes `p_since`) and rely on the in-memory trend.
       let trends = report.trends;
-      try {
-        const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
-          "web_vitals_daily_p75" as never,
-          { p_since: since, p_tenant: tenantId } as never,
-        );
-        if (!trendErr && Array.isArray(trendRows)) {
-          trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
+      if (!hasCustomUntil) {
+        try {
+          const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
+            "web_vitals_daily_p75" as never,
+            { p_since: since, p_tenant: tenantId } as never,
+          );
+          if (!trendErr && Array.isArray(trendRows)) {
+            trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
+          }
+        } catch {
+          // Keep the in-memory trend.
         }
-      } catch {
-        // Keep the in-memory trend.
       }
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
+
     } catch (e) {
       console.warn(
         "[vitals] summary read failed; returning empty report:",
