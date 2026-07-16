@@ -136,9 +136,9 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
     );
 
     // Record via the SAME module graph the wrapper reads from (vi.resetModules
-    // gave us a fresh copy of ./lib/error-capture inside the wrapper's graph).
+    // gave us a fresh copy of ./lib/ssr-error-capture inside the wrapper's graph).
     // This is what the SSR handler's globalThis error listeners do in prod.
-    const cap = (await import("./lib/error-capture")) as typeof import("./lib/error-capture");
+    const cap = (await import("./lib/ssr-error-capture")) as typeof import("./lib/ssr-error-capture");
     cap.recordCapturedError(original);
 
     await wrapper.fetch(new Request("http://localhost/"), {}, {});
