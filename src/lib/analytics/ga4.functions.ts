@@ -193,9 +193,11 @@ export const runGa4Report = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => reportInput.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<Ga4Report> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
 
-    const propertyId = process.env.GA4_PROPERTY_ID;
+    const stored = await readStoredAnalytics(ctx);
+    const propertyId = process.env.GA4_PROPERTY_ID ?? (stored.ga4_property_id?.trim() || undefined);
     const emptyReport: Ga4Report = {
       configured: false,
       dimensionHeaders: [],
@@ -203,6 +205,7 @@ export const runGa4Report = createServerFn({ method: "POST" })
       rows: [],
       totals: [],
     };
+    if (stored.ga4_enabled === false) return { ...emptyReport, error: "GA4 wyłączone przez administratora" };
     if (!propertyId) return emptyReport;
     const auth = await resolveAccessToken();
     if (!auth) return emptyReport;
