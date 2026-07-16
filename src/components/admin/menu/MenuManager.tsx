@@ -482,6 +482,40 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
             ? t("admin.menu.typeTag", { defaultValue: "Tag" })
             : t("admin.menu.typeCustom", { defaultValue: "Własny" });
 
+  // Type icon + depth-aware color for the type chip.
+  const TypeIcon =
+    item.item_type === "page"
+      ? FileText
+      : item.item_type === "post"
+        ? BookOpen
+        : item.item_type === "category"
+          ? Folder
+          : item.item_type === "tag"
+            ? TagIcon
+            : LinkIcon;
+
+  const configuredCols = item.mega_config?.columns ?? [];
+  const megaColsCount = configuredCols.length;
+  const megaLinksCount = configuredCols.reduce((sum, c) => sum + (c.links?.length ?? 0), 0);
+  const megaHasFeatured = !!item.mega_config?.featured_post_id;
+  const hasNestedChildren = children.some((c) => c.children.length > 0);
+  const isMegaLike = depth === 0 && (item.mega_enabled || hasNestedChildren);
+
+  // Depth-aware surface: root = strong card; L2 = softer chip; L3 = compact row.
+  const cardClass =
+    depth === 0
+      ? "border border-border/70 rounded-lg bg-card shadow-sm hover:shadow-md transition-all"
+      : depth === 1
+        ? "border border-border/50 rounded-md bg-background/70 transition-all"
+        : "border border-border/30 rounded bg-muted/30 transition-all";
+  const paddingClass = depth === 0 ? "px-3 py-2.5" : depth === 1 ? "px-3 py-2" : "px-2.5 py-1.5";
+  const titleClass =
+    depth === 0
+      ? "text-sm font-bold text-foreground"
+      : depth === 1
+        ? "text-xs font-semibold text-foreground/90"
+        : "text-[11px] font-medium text-foreground/80";
+
   return (
     <div className="relative">
       <div
@@ -491,75 +525,136 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
         onDragLeave={() => setDropZone(null)}
         onDrop={onDrop}
         className={
-          "border border-border rounded-md bg-background transition " +
-          (dropZone === "before" ? "border-t-2 border-t-primary " : "") +
-          (dropZone === "after" ? "border-b-2 border-b-primary " : "") +
-          (dropZone === "child" ? "ring-2 ring-primary/50 " : "")
+          cardClass + " " +
+          (dropZone === "before" ? "!border-t-2 !border-t-brand shadow-[0_-2px_0_var(--brand)] " : "") +
+          (dropZone === "after" ? "!border-b-2 !border-b-brand shadow-[0_2px_0_var(--brand)] " : "") +
+          (dropZone === "child" ? "ring-2 ring-brand/60 bg-brand/5 " : "")
         }
       >
-        <div className="flex items-center gap-1.5 px-2 py-1.5 cursor-move">
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className={"flex items-center gap-2 cursor-move " + paddingClass}>
+          {/* Depth-0: brand accent bar */}
+          {depth === 0 ? (
+            <span
+              aria-hidden
+              className="inline-block h-6 w-1 shrink-0 rounded-sm"
+              style={{ background: isMegaLike ? "var(--brand)" : "hsl(var(--border))" }}
+            />
+          ) : null}
+          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
           <button
             type="button"
             onClick={() => onToggleExpanded(item.local_id)}
-            className="p-0.5 hover:bg-muted rounded shrink-0"
+            className="p-1 -m-1 hover:bg-muted rounded shrink-0 transition-colors"
             aria-label={isOpen ? "Zwiń" : "Rozwiń"}
           >
-            {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <span className="text-xs font-medium truncate">{item.label_pl || "(bez nazwy)"}</span>
-            {depth > 0 && (
-              <span className="text-[10px] italic text-muted-foreground shrink-0">
-                {depth === 1
-                  ? t("admin.menu.childItem", { defaultValue: "element podrzędny" })
-                  : t("admin.menu.grandchildItem", { defaultValue: "element podrzędny 2. poziomu" })}
-              </span>
-            )}
-            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
-              {typeLabel}
+          <span
+            className={
+              "flex items-center justify-center rounded-md shrink-0 " +
+              (depth === 0 ? "h-7 w-7 bg-muted ring-1 ring-border/60" : "h-5 w-5 bg-muted/60")
+            }
+            aria-hidden
+          >
+            <TypeIcon size={depth === 0 ? 14 : 11} className="text-muted-foreground" />
+          </span>
+          <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+            <span className={titleClass + " truncate max-w-[240px]"}>
+              {item.label_pl || "(bez nazwy)"}
             </span>
-            {item.mega_enabled && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
-                Mega
+            {item.label_en && depth === 0 ? (
+              <span className="text-[10px] text-muted-foreground truncate max-w-[160px]">
+                / {item.label_en}
               </span>
-            )}
+            ) : null}
+            {item.href ? (
+              <span className="text-[10px] font-mono text-muted-foreground/70 truncate max-w-[220px]">
+                {item.href}
+              </span>
+            ) : null}
+            <span className="ml-auto flex items-center gap-1 shrink-0">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/80 px-1.5 py-0.5 rounded bg-muted/60">
+                {typeLabel}
+              </span>
+              {isMegaLike ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style={{ background: "color-mix(in oklab, var(--brand) 14%, transparent)", color: "var(--brand)" }}
+                  title={`${megaColsCount} kolumn · ${megaLinksCount} linków${megaHasFeatured ? " · Wyróżniony" : ""}`}
+                >
+                  <Sparkles size={10} />
+                  Mega
+                </span>
+              ) : null}
+              {megaHasFeatured ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600"
+                  title="Wyróżniony wpis skonfigurowany"
+                >
+                  <Star size={10} />
+                  Featured
+                </span>
+              ) : null}
+            </span>
           </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onOutdent(item.local_id)}
-            disabled={depth === 0}
-            aria-label={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo" })}
-            title={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo (poziom wyżej)" })}
-          >
-            <ArrowLeft className="h-3 w-3" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onIndent(item.local_id)}
-            disabled={siblingIndex === 0 || depth + 1 >= MAX_DEPTH}
-            aria-label={t("admin.menu.indent", { defaultValue: "Podepnij w prawo" })}
-            title={t("admin.menu.indent", { defaultValue: "Podepnij w prawo (jako podstrona)" })}
-          >
-            <ArrowRight className="h-3 w-3" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6 text-destructive"
-            onClick={() => onRemove(item.local_id)}
-            aria-label={t("common.delete", { defaultValue: "Usuń" })}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={() => onOutdent(item.local_id)}
+              disabled={depth === 0}
+              aria-label={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo" })}
+              title={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo (poziom wyżej)" })}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={() => onIndent(item.local_id)}
+              disabled={siblingIndex === 0 || depth + 1 >= MAX_DEPTH}
+              aria-label={t("admin.menu.indent", { defaultValue: "Podepnij w prawo" })}
+              title={t("admin.menu.indent", { defaultValue: "Podepnij w prawo (jako podstrona)" })}
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+              onClick={() => onRemove(item.local_id)}
+              aria-label={t("common.delete", { defaultValue: "Usuń" })}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
+        {/* Mega summary strip - visible when collapsed */}
+        {!isOpen && isMegaLike && megaColsCount > 0 ? (
+          <div className="border-t border-border/40 px-3 py-1.5 flex items-center gap-3 text-[10px] text-muted-foreground bg-muted/20">
+            <span className="inline-flex items-center gap-1">
+              <span className="font-bold text-foreground/70">{megaColsCount}</span> kolumn
+            </span>
+            <span className="opacity-30">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="font-bold text-foreground/70">{megaLinksCount}</span> linków
+            </span>
+            {megaHasFeatured ? (
+              <>
+                <span className="opacity-30">·</span>
+                <span className="inline-flex items-center gap-1 text-amber-600">
+                  <Star size={10} /> Wyróżniony wpis
+                </span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
         {isOpen && (
-          <div className="border-t border-border p-3 space-y-2 bg-muted/30">
+          <div className="border-t border-border/60 p-3 space-y-2 bg-muted/20 rounded-b-lg">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <Field label={t("admin.menu.labelPl", { defaultValue: "Etykieta (PL)" })}>
                 <Input
@@ -638,7 +733,12 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
       </div>
 
       {hasChildren && (
-        <div className="ml-8 mt-1 space-y-1 border-l-2 border-border/60 pl-3 relative">
+        <div
+          className={
+            "mt-2 space-y-1.5 relative " +
+            (depth === 0 ? "ml-6 pl-4 border-l-2 border-brand/30" : "ml-5 pl-3 border-l border-border/50")
+          }
+        >
           {children.map((child, i) => (
             <MenuNode
               key={child.item.local_id}
