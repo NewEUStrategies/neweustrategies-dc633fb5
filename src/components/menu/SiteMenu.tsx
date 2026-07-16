@@ -195,10 +195,19 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70"
           role="menuitem"
         >
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
-          />
+          {node.icon ? (
+            <span
+              aria-hidden
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand"
+            >
+              <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} />
+            </span>
+          ) : (
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
+            />
+          )}
           <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
             {label}
           </span>
