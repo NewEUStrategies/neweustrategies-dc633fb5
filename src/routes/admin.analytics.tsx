@@ -22,9 +22,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
-import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
-import { runGa4Report, sendGa4Event, type Ga4Report } from "@/lib/analytics/ga4.functions";
+import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
+import { GscBiDashboard } from "@/components/admin/analytics/GscBiDashboard";
+import { Ga4BiDashboard } from "@/components/admin/analytics/Ga4BiDashboard";
+import { VitalsBiDashboard } from "@/components/admin/analytics/VitalsBiDashboard";
 
 
 export const Route = createFileRoute("/admin/analytics")({
@@ -75,204 +77,13 @@ function StatusPill({ ok, label, detail }: PillProps) {
 }
 
 // --------- GSC panel ---------
-
-function GscPanel({ configured }: { configured: boolean }) {
-  const fetchSites = useServerFn(listGscSites);
-  const fetchAnalytics = useServerFn(queryGscAnalytics);
-  const [siteUrl, setSiteUrl] = useState<string>("");
-  const [days, setDays] = useState<number>(28);
-  const [dim, setDim] = useState<"query" | "page" | "country" | "device" | "date">("query");
-
-  const sitesQ = useQuery({
-    queryKey: ["gsc-sites"],
-    queryFn: () => fetchSites(),
-    enabled: configured,
-  });
-
-  const sites = sitesQ.data?.sites ?? [];
-  const preferredSite = useMemo(() => {
-    const match = sites.find((s) =>
-      s.siteUrl.toLowerCase().includes("neweuropeanstrategies.com"),
-    );
-    return match?.siteUrl ?? sites[0]?.siteUrl ?? "";
-  }, [sites]);
-  const effectiveSite = siteUrl || preferredSite;
-
-  const dataQ = useQuery({
-    queryKey: ["gsc-query", effectiveSite, days, dim],
-    queryFn: () =>
-      fetchAnalytics({
-        data: {
-          siteUrl: effectiveSite,
-          startDate: daysAgoISO(days),
-          endDate: todayISO(),
-          dimensions: [dim],
-          rowLimit: 50,
-        },
-      }),
-    enabled: configured && Boolean(effectiveSite),
-  });
-
-  if (!configured) {
-    return (
-      <Card className="p-6 text-sm text-muted-foreground">
-        Search Console nie jest jeszcze podłączony. Wróć do zakładki <b>Przegląd</b> i użyj przycisku „Połącz Search Console".
-      </Card>
-    );
-  }
-
-  const totals = useMemo(() => {
-    const rows = dataQ.data?.rows ?? [];
-    return rows.reduce(
-      (acc, r) => {
-        acc.clicks += r.clicks;
-        acc.impressions += r.impressions;
-        return acc;
-      },
-      { clicks: 0, impressions: 0 },
-    );
-  }, [dataQ.data]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[220px]">
-          <label className="text-xs text-muted-foreground block mb-1">Właściwość</label>
-          <Select value={effectiveSite} onValueChange={setSiteUrl}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Wybierz właściwość" />
-            </SelectTrigger>
-            <SelectContent>
-              {(sitesQ.data?.sites ?? []).map((s) => (
-                <SelectItem key={s.siteUrl} value={s.siteUrl}>
-                  {s.siteUrl}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-9 text-sm w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Grupuj wg</label>
-          <Select value={dim} onValueChange={(v) => setDim(v as typeof dim)}>
-            <SelectTrigger className="h-9 text-sm w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="query">Zapytanie</SelectItem>
-              <SelectItem value="page">Strona</SelectItem>
-              <SelectItem value="country">Kraj</SelectItem>
-              <SelectItem value="device">Urządzenie</SelectItem>
-              <SelectItem value="date">Dzień</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => dataQ.refetch()}
-          className="h-9"
-        >
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Kliknięcia" value={totals.clicks.toLocaleString("pl-PL")} />
-        <KpiCard label="Wyświetlenia" value={totals.impressions.toLocaleString("pl-PL")} />
-        <KpiCard
-          label="CTR"
-          value={
-            totals.impressions
-              ? `${((totals.clicks / totals.impressions) * 100).toFixed(2)}%`
-              : "-"
-          }
-        />
-        <KpiCard label="Wierszy" value={String(dataQ.data?.rows.length ?? 0)} />
-      </div>
-
-      <Card className="overflow-hidden">
-        <div className="p-3 border-b border-border text-sm font-semibold flex items-center gap-2">
-          <SearchIcon className="w-4 h-4" /> Top {dim === "query" ? "zapytania" : dim === "page" ? "strony" : dim === "country" ? "kraje" : dim === "device" ? "urządzenia" : "dni"}
-        </div>
-        {dataQ.isLoading ? (
-          <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> Ładowanie danych GSC...
-          </div>
-        ) : (
-          <GscTable rows={dataQ.data?.rows ?? []} />
-        )}
-      </Card>
-    </div>
-  );
-}
-
-function GscTable({ rows }: { rows: GscRow[] }) {
-  if (!rows.length) {
-    return <div className="p-6 text-sm text-muted-foreground">Brak danych w tym oknie.</div>;
-  }
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="text-left px-3 py-2">Klucz</th>
-            <th className="text-right px-3 py-2">Kliknięcia</th>
-            <th className="text-right px-3 py-2">Wyświetlenia</th>
-            <th className="text-right px-3 py-2">CTR</th>
-            <th className="text-right px-3 py-2">Pozycja</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="border-t border-border/60">
-              <td className="px-3 py-2 truncate max-w-[380px]">{r.keys.join(" / ")}</td>
-              <td className="text-right px-3 py-2 tabular-nums">{r.clicks.toLocaleString("pl-PL")}</td>
-              <td className="text-right px-3 py-2 tabular-nums">{r.impressions.toLocaleString("pl-PL")}</td>
-              <td className="text-right px-3 py-2 tabular-nums">{(r.ctr * 100).toFixed(2)}%</td>
-              <td className="text-right px-3 py-2 tabular-nums">{r.position.toFixed(1)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+// Renderowanie i pobieranie danych GSC żyje teraz w komponencie
+// `GscBiDashboard` (patrz src/components/admin/analytics). Ten route trzyma
+// wyłącznie warstwę tabów + statusu, żeby nie duplikować logiki wykresów.
 
 // --------- GA4 panel ---------
 
 function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
-  const fetchReport = useServerFn(runGa4Report);
-  const [days, setDays] = useState<number>(28);
-  const [dim, setDim] = useState<string>("date");
-
-  const reportQ = useQuery({
-    queryKey: ["ga4-report", days, dim],
-    queryFn: () =>
-      fetchReport({
-        data: {
-          startDate: `${days}daysAgo`,
-          endDate: "today",
-          dimensions: [dim],
-          metrics: ["sessions", "activeUsers", "screenPageViews", "engagementRate"],
-          limit: 100,
-        },
-      }),
-    enabled: status.configured,
-  });
-
   // Panel konfiguracji trybów - zawsze widoczny, żeby admin mógł włączyć
   // dowolny sposób (Service Account, OAuth refresh, Measurement Protocol, Embed).
   const configPanel = <Ga4ConfigPanel status={status} />;
@@ -286,60 +97,9 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
     );
   }
 
-
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-9 text-sm w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Wymiar</label>
-          <Select value={dim} onValueChange={setDim}>
-            <SelectTrigger className="h-9 text-sm w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Dzień</SelectItem>
-              <SelectItem value="pagePath">Strona</SelectItem>
-              <SelectItem value="sessionSource">Źródło</SelectItem>
-              <SelectItem value="country">Kraj</SelectItem>
-              <SelectItem value="deviceCategory">Urządzenie</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => reportQ.refetch()} className="h-9">
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
-        </Button>
-      </div>
-
-      <Ga4Totals report={reportQ.data} loading={reportQ.isLoading} />
-
-      <Card className="overflow-hidden">
-        <div className="p-3 border-b border-border text-sm font-semibold flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" /> GA4 raport ({status.activeMode === "oauth_refresh" ? "OAuth" : "Service Account"})
-        </div>
-        {reportQ.isLoading ? (
-          <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> Ładowanie...
-          </div>
-        ) : reportQ.data?.error ? (
-          <div className="p-6 text-sm text-destructive">{reportQ.data.error}</div>
-        ) : (
-          <Ga4Table report={reportQ.data} />
-        )}
-      </Card>
-
+      <Ga4BiDashboard configured={status.configured} activeMode={status.activeMode ?? undefined} />
       {status.hasEmbedUrl && status.embedUrl ? <Ga4EmbedCard url={status.embedUrl} /> : null}
       {configPanel}
     </div>
@@ -556,71 +316,8 @@ function Ga4EmbedCard({ url }: { url: string }) {
 }
 
 
-function Ga4Totals({ report, loading }: { report: Ga4Report | undefined; loading: boolean }) {
-  if (loading || !report) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <KpiCard key={i} label="-" value="-" />
-        ))}
-      </div>
-    );
-  }
-  const labels: Record<string, string> = {
-    sessions: "Sesje",
-    activeUsers: "Aktywni użytkownicy",
-    screenPageViews: "Odsłony",
-    engagementRate: "Zaangażowanie",
-  };
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {report.metricHeaders.map((h, i) => {
-        const raw = report.totals[i] ?? "0";
-        const num = Number(raw);
-        const display = h === "engagementRate"
-          ? `${(num * 100).toFixed(1)}%`
-          : Number.isFinite(num) ? num.toLocaleString("pl-PL") : raw;
-        return <KpiCard key={h} label={labels[h] ?? h} value={display} />;
-      })}
-    </div>
-  );
-}
-
-function Ga4Table({ report }: { report: Ga4Report | undefined }) {
-  if (!report || !report.rows.length) {
-    return <div className="p-6 text-sm text-muted-foreground">Brak danych w tym oknie.</div>;
-  }
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            {report.dimensionHeaders.map((h) => (
-              <th key={h} className="text-left px-3 py-2">{h}</th>
-            ))}
-            {report.metricHeaders.map((h) => (
-              <th key={h} className="text-right px-3 py-2">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map((r, i) => (
-            <tr key={i} className="border-t border-border/60">
-              {r.dims.map((v, j) => (
-                <td key={j} className="px-3 py-2 truncate max-w-[280px]">{v}</td>
-              ))}
-              {r.metrics.map((v, j) => (
-                <td key={j} className="text-right px-3 py-2 tabular-nums">
-                  {Number.isFinite(Number(v)) ? Number(v).toLocaleString("pl-PL", { maximumFractionDigits: 2 }) : v}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+// Ga4Totals / Ga4Table zostały zastąpione przez `Ga4BiDashboard`
+// (KPI tiles z delta + trend area + donuty + radar + top strony).
 
 // --------- Vitals mini card ---------
 
@@ -783,11 +480,11 @@ function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="gsc" className="mt-4">
-          {statusQ.data ? <GscPanel configured={statusQ.data.gsc.configured} /> : null}
+          {statusQ.data ? <GscBiDashboard configured={statusQ.data.gsc.configured} /> : null}
         </TabsContent>
 
         <TabsContent value="vitals" className="mt-4">
-          <VitalsMiniPanel />
+          <VitalsBiDashboard />
           <div className="mt-3 text-sm text-muted-foreground">
             Pełny widok RUM z rozkładem per ścieżka:{" "}
             <a href="/admin/performance" className="text-primary hover:underline">
