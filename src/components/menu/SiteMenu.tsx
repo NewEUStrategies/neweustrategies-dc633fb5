@@ -264,16 +264,27 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
+        className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {label}
-        <ChevronDown size={14} aria-hidden />
+        <ChevronDown
+          size={14}
+          aria-hidden
+          className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
       </button>
-      {open ? (
-        <div id={panelId} onMouseEnter={cancelClose}>
+      <div
+        id={panelId}
+        onMouseEnter={cancelClose}
+        className={`transition-[opacity,margin] duration-150 ease-in-out ${
+          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden={!open}
+      >
+        {open ? (
           <DropdownPanel node={node} lang={lang} onRequestClose={scheduleClose} />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </li>
   );
 }
