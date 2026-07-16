@@ -3,7 +3,6 @@
   "private": true,
   "sideEffects": [
     "**/*.css",
-    "./src/lib/error-capture.ts",
     "./src/lib/i18n.ts",
     "./src/lib/i18n-*.ts"
   ],
