@@ -315,17 +315,18 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const label = pickLabel(node, lang);
   if (!label) return null;
   const hasChildren = node.children.length > 0;
-  const megaLinks = node.mega_enabled
-    ? (node.mega_config.columns ?? []).flatMap((col) =>
-        (col.links ?? []).map((lnk) => ({
-          label:
-            (lang === "en" ? lnk.label_en : lnk.label_pl) ||
-            lnk.label_pl ||
-            "",
-          href: safeUrl(lnk.href) || "#",
-        })),
-      )
-    : [];
+  const megaLinks =
+    node.mega_enabled && (node.mega_config.columns ?? []).length > 0
+      ? (node.mega_config.columns ?? []).flatMap((col) =>
+          (col.links ?? []).map((lnk) => ({
+            label:
+              (lang === "en" ? lnk.label_en : lnk.label_pl) ||
+              lnk.label_pl ||
+              "",
+            href: safeUrl(lnk.href) || "#",
+          })),
+        )
+      : [];
   const hasMega = megaLinks.length > 0;
 
   if (!hasChildren && !hasMega) {
