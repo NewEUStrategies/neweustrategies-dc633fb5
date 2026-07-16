@@ -806,18 +806,32 @@ function MegaColumnsEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px]"
-                onClick={() =>
-                  updateColumn(idx, {
-                    links: [...col.links, { label_pl: "", label_en: "", href: "" }],
-                  })
-                }
-              >
-                + Link
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  onClick={() =>
+                    updateColumn(idx, {
+                      links: [...col.links, { label_pl: "", label_en: "", href: "" }],
+                    })
+                  }
+                >
+                  + Własny link
+                </Button>
+                <InternalContentPicker
+                  onPick={(p) =>
+                    updateColumn(idx, {
+                      links: [
+                        ...col.links,
+                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href },
+                      ],
+                    })
+                  }
+                  title="Dodaj link z wewnętrznej treści"
+                  variant="button"
+                />
+              </div>
             </div>
           </div>
         ))}
@@ -850,9 +864,11 @@ interface PickerHit {
 function InternalContentPicker({
   onPick,
   title,
+  variant = "icon",
 }: {
   onPick: (r: PickerResult) => void;
   title: string;
+  variant?: "icon" | "button";
 }) {
   const [open, setOpen] = useState(false);
   const [table, setTable] = useState<PickerTable>("pages");
@@ -903,17 +919,30 @@ function InternalContentPicker({
   });
 
   return (
-    <div className="relative">
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-7 w-7"
-        onClick={() => setOpen((o) => !o)}
-        title={title}
-        aria-label={title}
-      >
-        <LinkIcon className="h-3 w-3" />
-      </Button>
+    <div className="relative inline-block">
+      {variant === "icon" ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => setOpen((o) => !o)}
+          title={title}
+          aria-label={title}
+        >
+          <LinkIcon className="h-3 w-3" />
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => setOpen((o) => !o)}
+          title={title}
+        >
+          <LinkIcon className="h-3 w-3 mr-1" />
+          + Z treści
+        </Button>
+      )}
       {open && (
         <div className="absolute z-50 right-0 mt-1 w-80 rounded-md border border-border bg-popover shadow-lg p-2 space-y-2">
           <div className="flex gap-1">
