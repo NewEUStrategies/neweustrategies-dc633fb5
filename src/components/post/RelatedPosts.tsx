@@ -112,11 +112,25 @@ function CardBody({
   p,
   cfg,
   lang,
+  sourcePostId,
 }: {
   p: BlogListItem;
   cfg: RelatedPostsConfig;
   lang: "pl" | "en";
+  sourcePostId: string;
 }) {
+  const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
+  const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
+  return (
+    <div className="space-y-1">
+      <h3 className="font-display text-base leading-snug">
+        <Link
+          to={p.href as "/"}
+          preload="viewport"
+          className="hover:text-brand-ink transition-colors"
+          onClick={() => trackRelatedClick(sourcePostId, p.id)}
+        >
+
   const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
   const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
   return (
