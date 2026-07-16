@@ -32,9 +32,9 @@ export interface TimeRangeValue {
 }
 
 interface PresetSpec {
-  id: TimeRangePresetId;
+  id: Exclude<TimeRangePresetId, "custom">;
   label: string;
-  hours?: number;
+  hours: number;
 }
 
 const PRESETS: PresetSpec[] = [
@@ -43,6 +43,7 @@ const PRESETS: PresetSpec[] = [
   { id: "30d", label: "30 dni", hours: 24 * 30 },
   { id: "90d", label: "90 dni", hours: 24 * 90 },
 ];
+
 
 export function buildPresetRange(id: Exclude<TimeRangePresetId, "custom">): TimeRangeValue {
   const spec = PRESETS.find((p) => p.id === id) ?? PRESETS[1];
