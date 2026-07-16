@@ -130,40 +130,45 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
         )}
       </header>
 
-      {/* Layout variant */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("archiveLayout.layoutHeader")}
-        </h2>
-        <p className="text-xs text-muted-foreground">{t("archiveLayout.layoutHint")}</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {(Object.keys(LAYOUT_REGISTRY) as unknown as LayoutVariant[]).map((k) => {
-            const num = Number(k) as LayoutVariant;
-            const entry = LAYOUT_REGISTRY[num];
-            const active = draft.layout_variant === num;
-            const Preview = entry.preview;
-            return (
-              <button
-                key={num}
-                type="button"
-                onClick={() => set("layout_variant", num)}
-                className={`text-left rounded-xl border-2 p-2 transition ${
-                  active ? "border-brand ring-2 ring-brand/20" : "border-border hover:border-foreground/30"
-                }`}
-              >
-                <Preview className="w-full h-auto rounded-md" />
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">{t(`archiveLayout.variants.${num}`)}</span>
-                  <span className="text-xs text-muted-foreground">#{num}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        {/* Layout variant */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("archiveLayout.layoutHeader")}
+          </h2>
+          <p className="text-xs text-muted-foreground">{t("archiveLayout.layoutHint")}</p>
+          <div className="grid grid-cols-2 gap-3">
+            {(Object.keys(LAYOUT_REGISTRY) as unknown as LayoutVariant[]).map((k) => {
+              const num = Number(k) as LayoutVariant;
+              const entry = LAYOUT_REGISTRY[num];
+              const active = draft.layout_variant === num;
+              const Preview = entry.preview;
+              return (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => set("layout_variant", num)}
+                  aria-pressed={active}
+                  className={`text-left rounded-md border-2 p-2 transition ${
+                    active ? "border-brand ring-2 ring-brand/20" : "border-border hover:border-foreground/30"
+                  }`}
+                >
+                  <Preview className="w-full h-auto rounded-md" />
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="font-medium">{t(`archiveLayout.variants.${num}`)}</span>
+                    <span className="text-xs text-muted-foreground">#{num}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-      {/* Live preview */}
-      <ArchiveLivePreview archiveType={archiveType} settings={draft} lang={previewLang} />
+        {/* Live preview updates immediately from the unsaved draft. */}
+        <div className="xl:sticky xl:top-4">
+          <ArchiveLivePreview archiveType={archiveType} settings={draft} lang={previewLang} />
+        </div>
+      </div>
 
 
 

@@ -331,6 +331,20 @@ function AdminShellInner({
       label: t("admin.navGroups.design"),
       items: [
         { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
+        {
+          to: "/admin/appearance/category-archive",
+          icon: FolderTree,
+          label: t("archiveLayout.categoryTab", {
+            defaultValue: lang === "pl" ? "Layout kategorii" : "Category layout",
+          }),
+        },
+        {
+          to: "/admin/appearance/tag-archive",
+          icon: Tags,
+          label: t("archiveLayout.tagTab", {
+            defaultValue: lang === "pl" ? "Layout tagów" : "Tag layout",
+          }),
+        },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },
@@ -514,7 +528,11 @@ function AdminShellInner({
                 )}
                 <div className="space-y-0.5">
                   {group.items.map(({ to, icon: Icon, label }) => {
-                    const active = path === to || (to !== "/admin" && path.startsWith(to));
+                    const active =
+                      path === to ||
+                      (to !== "/admin" &&
+                        to !== "/admin/appearance" &&
+                        path.startsWith(`${to}/`));
                     return (
                       <Link
                         key={to}
