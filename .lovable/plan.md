@@ -1,84 +1,99 @@
-## Cel
+# Related Posts: Silnik v2 + Panel Analizy
 
-Nowa strona admina `/admin/analytics` z 4 zakładkami: **Przegląd**, **Google Analytics 4**, **Google Search Console**, **Wydajność (Web Vitals)** — z realnym podłączeniem kluczy Google.
+Rozbudowa modułu `/admin/related-posts` o dwie warstwy: mocniejszy **silnik rekomendacji** (sygnały behawioralne + konfigurowalne wagi) oraz **panel BI "Analiza"** (wizualizacje w stylu ECharts, spójne z Web Vitals / GA4 / GSC). Wszystko izolowane per `tenant_id`.
 
-## Architektura podłączeń
+## 1. Rozszerzenie silnika (`src/lib/relatedPosts.ts`)
 
-| Źródło | Metoda podłączenia | Uwagi |
-|---|---|---|
-| Google Search Console | Lovable Connector `google_search_console` (OAuth, gateway) | 1 klik "Połącz" — brak ręcznych kluczy |
-| Google Analytics 4 (odczyt) | Service Account JSON + `GA4_PROPERTY_ID` (secrets) | GA4 Data API v1beta; brak connectora, więc BYOK |
-| GA4 (tracking na froncie) | `VITE_GA4_MEASUREMENT_ID` w site_settings | już częściowo istnieje — dodać UI |
-| Web Vitals | Lokalna tabela `web_vitals` (już jest) | agregacja p75 LCP/CLS/INP z ostatnich 7/28 dni |
+Nowe pola w `RelatedPostsConfig` (zapisywane w `related_posts_config`, wszystkie z sensownymi defaultami — kompatybilność wstecz):
 
-## Zakres UI (`/admin/analytics`)
+- `weight_categories` (0-10, default 3)
+- `weight_tags` (0-10, default 2)
+- `weight_author` (0-10, default 1; strategia author = 4)
+- `weight_recency` (0-10, default 1)
+- `weight_popularity` (0-10, default 2) — z `post_views` (28d)
+- `weight_dwell` (0-10, default 2) — z `user_read_history` (proxy — więcej wpisów tego samego usera)
+- `weight_personalization` (0-10, default 3) — kategorie/tagi wpisów przeczytanych przez zalogowanego usera
+- `use_idf` (bool, default true) — rzadkie tagi punktują wyżej (Jaccard + IDF)
+- `min_score` (0-100, default 0) — próg widoczności rekomendacji
 
-```text
-┌──────────────────────────────────────────────────┐
-│ Analityka i wydajność                            │
-│ [Przegląd] [GA4] [Search Console] [Web Vitals]   │
-├──────────────────────────────────────────────────┤
-│ Karty statusu połączeń (GSC / GA4 / Vitals)     │
-│  - stan: połączone / brak                        │
-│  - przycisk "Połącz" lub "Rozłącz"               │
-├──────────────────────────────────────────────────┤
-│ Zakładka aktywna → wykresy + tabele              │
-└──────────────────────────────────────────────────┘
-```
+`scoreRelated()` przyjmuje dodatkowo:
+- `signals: { popularityByPost: Map<id, number>, userProfile?: { catAffinity, tagAffinity }, idfCat, idfTag }`
+- zwraca `{ total, breakdown: { categories, tags, author, recency, popularity, personalization } }` (rozbicie potrzebne panelowi analitycznemu)
 
-**Przegląd**: 6 kafelków KPI (sesje 28d, użytkownicy, kliknięcia GSC, wyświetlenia GSC, CTR, śr. pozycja) + sparklines.
+## 2. Migracja bazy
 
-**GA4**: wybór zakresu dat, wykres sesji/dzień, top strony, top źródła, urządzenia (donut), kraje (tabela).
+- `ALTER TABLE related_posts_config` — 8 nowych kolumn z defaultami.
+- Nowa RPC `related_posts_signals(_tenant, _since_days)` (SECURITY DEFINER, admin-only): zwraca dla tenantu w JSON:
+  - top kategorie i tagi (with counts)
+  - macierz współwystąpień tagów top-25 (heatmapa)
+  - rozkład popularności postów (post_views z 28 dni)
+  - avg czytania (proxy z read_history: liczba usera → tenantu)
+  - top pary "źródło → cel" (klik z powiązanych — logujemy w kroku 4)
+- Nowa tabela `related_post_clicks` (tenant_id, source_post_id, target_post_id, user_id NULL, viewer_hash, clicked_at) + RLS: insert `anon+authenticated` przez publiczne API, select tylko admin tenantu. GRANTS + policies.
 
-**Search Console**: wybór właściwości (`/webmasters/v3/sites`), wykres kliknięć+wyświetleń, top zapytania, top strony, URL Inspection dla wpisanego URL.
+## 3. Server function `getRelatedInsights` (per-tenant, admin-gated)
 
-**Web Vitals**: p75 LCP/CLS/INP, rozkład per ścieżka, sygnalizacja "good/needs-improvement/poor" wg progów Google.
+`src/lib/relatedInsights.functions.ts`:
+- `.middleware([requireSupabaseAuth])`
+- Weryfikuje role admin, rozwiązuje `tenantId` z helpera.
+- Woła RPC + doczytuje słownik kategorii/tagów, pakuje DTO.
+- Zwraca: KPIs (rec_ctr, top_cats, top_tags, avg_score), co-occurrence heatmapa, ranking postów-hubów, wykres popularności vs. relewancji, sankey `źródło → cel`.
 
-## Backend (TanStack server functions)
+## 4. Beacon "klik na rekomendacji"
 
-Nowe pliki w `src/lib/analytics/`:
-- `gsc.functions.ts` — `listGscSites`, `queryGscAnalytics`, `inspectGscUrl` — przez connector gateway (`X-Connection-Api-Key: $GOOGLE_SEARCH_CONSOLE_API_KEY`).
-- `ga4.functions.ts` — `runGa4Report`, `runGa4Realtime` — Google Analytics Data API v1beta, auth Service Account JWT (jose), secret `GA4_SERVICE_ACCOUNT_JSON` + `GA4_PROPERTY_ID`.
-- `webvitals.functions.ts` — agregacja z `web_vitals` (SQL: percentyle, group by route, day).
-- `analytics-status.functions.ts` — zwraca stan każdego źródła (klucze obecne / brak).
+- `POST /api/public/related-click` — walidacja Zod, rate-limit per viewer_hash, insert do `related_post_clicks`. Tenant rozwiązywany z `posts.tenant_id`.
+- Komponent `RelatedPosts.tsx` woła `navigator.sendBeacon` przy kliknięciu karty (nie blokuje nawigacji).
 
-Wszystkie chronione `requireSupabaseAuth` + sprawdzenie roli admin przez `has_role`.
+## 5. Podpięcie silnika v2 do query
 
-## Sekrety
+`src/lib/queries/relatedPosts.ts`:
+- Doczytuje `post_views` (28d, per tenant post ids) → mapa popularności.
+- Dla zalogowanego usera: `user_read_history` (top 20) → profil zainteresowań (agreguje kategorie/tagi).
+- Liczy IDF na podstawie liczności tag/category (small in-memory).
+- Woła `scoreRelated` z pełnym kontekstem, filtruje po `min_score`.
 
-- `GOOGLE_SEARCH_CONSOLE_API_KEY` — auto po `standard_connectors--connect`
-- `GA4_SERVICE_ACCOUNT_JSON` — user paste (add_secret) po instrukcji jak wygenerować w GCP
-- `GA4_PROPERTY_ID` — user paste
-- `LOVABLE_API_KEY` — już jest
+## 6. Panel Admin — zakładki
 
-## Menu admina
+`/admin/related-posts` dostaje `<Tabs>`:
 
-Dodać do `AdminShell.tsx` w sekcji "Wydajność / SEO" pozycję:
-`Analityka` → `/admin/analytics` z ikoną `BarChart3`.
+1. **Konfiguracja** — obecny formularz + nowa sekcja "Wagi silnika" (slidery 0-10 dla każdego sygnału, przełącznik IDF, próg min_score).
+2. **Analiza (BI)** — nowa sekcja:
+   - `TimeRangeFilter` (ten sam co Web Vitals: 24h/7d/30d/90d + custom).
+   - KPI tiles: łączna liczba rekomendowanych klik, CTR rekomendacji, avg score, pokrycie (% wpisów z ≥3 rec).
+   - **Heatmapa** współwystępowania tagów (top 25×25, ECharts heatmap).
+   - **Treemap** kategorii (rozmiar = liczba wpisów, kolor = avg dwell/popularity).
+   - **Sankey** "źródło → cel" (top 30 par klik).
+   - **Scatter** popularność vs. dopasowanie (każdy post: X=views, Y=avg_score jako cel).
+   - **Bar** top-hub posts (najczęściej rekomendowane).
+   - `InsightSection` (ten sam primitive co GSC/GA4/Vitals): interpretacja + rekomendacje algorytmiczne (np. "3 kategorie mają <10 wpisów - podnieś wagę tags", "post X ma 40 klik. rec. ale niski score - promuj").
+3. **Podgląd rekomendacji** — wybór wpisu z autocomplete → lista rec z rozbiciem score (stacked bar per kandydat: categories/tags/author/recency/popularity/personalization). Live preview zmian wag.
 
-## Bezpieczeństwo / i18n / atomic
+## 7. Bezpieczeństwo & tenant isolation
 
-- Wszystkie server fns z auth-middleware + kontrola roli admin
-- PL/EN w plikach lokalizacji `src/i18n/locales/*/admin.json`
-- Komponenty atomic: `src/components/admin/analytics/atoms|molecules|organisms`
-- Zero `any`, semantic tokens z `styles.css`
-- Odstępy ikon (jak przed chwilą) — spójne z resztą admina
+- Wszystkie odczyty przez `context.supabase` (RLS) lub RPC SECURITY DEFINER z `_tenant` weryfikowanym przez `resolveUserTenantId`.
+- `related_post_clicks`: insert publiczny (rate-limited), select admin-only tenantu.
+- Żadnego `supabaseAdmin` w loaderach; jeśli potrzebny do RPC-agregacji, tylko po `has_role admin` w tym samym request.
 
-## Kroki wdrożenia
+## 8. Testy
 
-1. Migracja: `analytics_connections_status` view (opcjonalne, może wystarczyć fetch_secrets)
-2. Connector `google_search_console` — link
-3. Server functions (4 pliki) + typed Zod inputy
-4. Route `src/routes/admin.analytics.tsx` + `admin.analytics.$tab.tsx` (tabs jako parametr)
-5. Komponenty: `ConnectionStatusCards`, `Ga4Panel`, `GscPanel`, `WebVitalsPanel`, `OverviewPanel`
-6. Wpięcie w menu `AdminShell`
-7. Tłumaczenia PL/EN
-8. Testy: unit dla parserów GA4 response + integracyjny smoke test server fn (mock fetch)
+- `src/lib/__tests__/relatedPosts.test.ts` — rozbudowa: nowe wagi, IDF, personalization, breakdown.
+- `src/lib/__tests__/relatedInsights.test.ts` — nowy: agregacja co-occurrence, sankey, insighty.
 
-## Poza zakresem (świadome pominięcia)
+## Technicznie
 
-- Google Ads / Tag Manager (osobny etap)
-- Custom eventów GA4 z builderа (kolejny etap)
-- Bing/Yandex Webmaster (kolejny etap)
+- Wykresy: `ECharts` przez istniejący `ChartCard` + `chartTheme`.
+- Wspólny primitive `InsightSection` dla rekomendacji analitycznych.
+- i18n: PL + EN (te same klucze w `src/lib/locale/{pl,en}.ts` pod `admin.relatedPosts.*`).
+- Atomic design: `TimeRangeFilter`, `KpiTile`, `ChartCard`, `InsightSection` reużyte.
+- Bez `any` / `as any`; wszystkie typy explicit.
+- Myślnik `-` zamiast `—`.
 
-Potwierdź, aby wdrożyć — zacznę od connectora GSC + szkieletu strony, potem GA4 (poproszę o secret) i Web Vitals.
+## Kolejność wdrożenia
+
+1. Migracja (kolumny + tabela klik + RPC + GRANTs + RLS).
+2. `relatedPosts.ts` v2 (typy + scoring + breakdown).
+3. Query update (sygnały behawioralne).
+4. Beacon route + wywołanie z `RelatedPosts.tsx`.
+5. Server fn `getRelatedInsights`.
+6. Route `/admin/related-posts` → Tabs + Analiza + Podgląd.
+7. Testy + typecheck.
