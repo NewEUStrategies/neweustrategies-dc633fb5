@@ -10,12 +10,14 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
@@ -234,10 +236,22 @@ export function JoinUsForm({
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties | null>(null);
   useEffect(() => {
     if (!dropOpen) return;
     const onDoc = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false);
+      const t = e.target as Node;
+      // Popup renderowany jest przez portal (poza dropRef), więc sprawdzamy
+      // trigger i popup osobno.
+      if (
+        (dropRef.current && dropRef.current.contains(t)) ||
+        (popupRef.current && popupRef.current.contains(t))
+      ) {
+        return;
+      }
+      setDropOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDropOpen(false);
@@ -247,6 +261,41 @@ export function JoinUsForm({
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
+    };
+  }, [dropOpen]);
+
+  // Pozycjonowanie popupu przez portal - pozwala popupowi wyjść poza
+  // przycięte kontenery (overflow-hidden formy / builder canvas).
+  useLayoutEffect(() => {
+    if (!dropOpen) {
+      setPopupStyle(null);
+      return;
+    }
+    const compute = () => {
+      const btn = triggerRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const spaceBelow = vh - r.bottom;
+      const spaceAbove = r.top;
+      const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
+      const maxH = Math.max(180, Math.min(420, openUp ? spaceAbove - 12 : spaceBelow - 12));
+      setPopupStyle({
+        position: "fixed",
+        left: `${r.left}px`,
+        width: `${r.width}px`,
+        top: openUp ? undefined : `${r.bottom + 4}px`,
+        bottom: openUp ? `${vh - r.top + 4}px` : undefined,
+        maxHeight: `${maxH}px`,
+        zIndex: 1000,
+      });
+    };
+    compute();
+    window.addEventListener("scroll", compute, true);
+    window.addEventListener("resize", compute);
+    return () => {
+      window.removeEventListener("scroll", compute, true);
+      window.removeEventListener("resize", compute);
     };
   }, [dropOpen]);
   const cfList = customFields ?? [];
@@ -864,6 +913,7 @@ export function JoinUsForm({
               {/* Dropdown trigger + menu */}
               <div ref={dropRef} className="relative">
                 <button
+                  ref={triggerRef}
                   type="button"
                   onClick={() => setDropOpen((v) => !v)}
                   aria-haspopup="listbox"
@@ -889,71 +939,71 @@ export function JoinUsForm({
                   />
                 </button>
 
-                {dropOpen && (
-                  <div
-                    role="listbox"
-                    aria-multiselectable="true"
-                    className="absolute z-20 mt-1 w-full rounded border border-border bg-popover shadow-lg overflow-hidden"
-                  >
-                    {/* Zakładki – szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
-                    {groupedItems.length > 1 && (
-                      <GroupTabs
-                        groups={groupedItems}
-                        jusId={jusId}
-                        scrollContainerId={`${jusId}-drop-scroll`}
-                        ariaLabel={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
-                      />
-                    )}
+                {dropOpen && popupStyle && typeof document !== "undefined" &&
+                  createPortal(
                     <div
-                      id={`${jusId}-drop-scroll`}
-                      className="max-h-[22rem] overflow-auto p-1"
+                      ref={popupRef}
+                      role="listbox"
+                      aria-multiselectable="true"
+                      style={popupStyle}
+                      className="flex flex-col rounded border border-border bg-popover shadow-2xl overflow-hidden"
                     >
-                      {groupedItems.map((g) => (
-                        <div
-                          key={`grp:${g.key}`}
-                          id={`${jusId}-drop-grp-${g.key}`}
-                          className="pb-1 scroll-mt-1"
-                        >
+                      {/* Zakładki – szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
+                      {groupedItems.length > 1 && (
+                        <GroupTabs
+                          groups={groupedItems}
+                          jusId={jusId}
+                          scrollContainerId={`${jusId}-drop-scroll`}
+                          ariaLabel={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
+                        />
+                      )}
+                      <div
+                        id={`${jusId}-drop-scroll`}
+                        className="flex-1 overflow-auto p-1"
+                      >
+                        {groupedItems.map((g) => (
                           <div
-                            role="presentation"
-                            className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                            key={`grp:${g.key}`}
+                            id={`${jusId}-drop-grp-${g.key}`}
+                            className="pb-1 scroll-mt-1"
                           >
-                            {g.title}
-                            <span className="ml-1 opacity-60">({g.items.length})</span>
-                          </div>
-                          {g.items.map((it) => {
-                            const active = picked.has(it.id);
-                            return (
-                              <button
-                                key={`opt:${it.type}:${it.id}`}
-                                type="button"
-                                role="option"
-                                aria-selected={active}
-                                onClick={() => togglePick(it.id)}
-                                className={cn(
-                                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
-                                  active && "text-brand",
-                                )}
-                              >
-                                <span
+                            {/* Nagłówki grup są w pasku zakładek powyżej -
+                                nie duplikujemy ich na liście. Sam anchor `id`
+                                na wrapperze wystarcza do scrollIntoView z tabs. */}
+                            {g.items.map((it) => {
+                              const active = picked.has(it.id);
+                              return (
+                                <button
+                                  key={`opt:${it.type}:${it.id}`}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={active}
+                                  onClick={() => togglePick(it.id)}
                                   className={cn(
-                                    "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                                    active
-                                      ? "border-brand bg-brand text-brand-foreground"
-                                      : "border-input bg-background",
+                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
+                                    active && "text-brand",
                                   )}
                                 >
-                                  {active && <Check className="h-2.5 w-2.5" />}
-                                </span>
-                                <span className="flex-1">{it.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                                  <span
+                                    className={cn(
+                                      "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
+                                      active
+                                        ? "border-brand bg-brand text-brand-foreground"
+                                        : "border-input bg-background",
+                                    )}
+                                  >
+                                    {active && <Check className="h-2.5 w-2.5" />}
+                                  </span>
+                                  <span className="flex-1">{it.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>,
+                    document.body,
+                  )}
               </div>
             </div>
           ) : (
