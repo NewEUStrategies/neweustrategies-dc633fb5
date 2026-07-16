@@ -436,12 +436,12 @@ function VitalsMiniPanel() {
       ) : (
         <div className="grid grid-cols-3 gap-3">
           {(q.data?.metrics ?? []).slice(0, 3).map((m) => (
-            <div key={m.name} className="text-center">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{m.name}</div>
+            <div key={m.metric} className="text-center">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{m.metric}</div>
               <div className="text-lg font-semibold tabular-nums">
-                {m.name === "CLS" ? m.p75.toFixed(3) : `${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`}
+                {m.metric === "CLS" ? m.p75.toFixed(3) : `${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`}
               </div>
-              <div className="text-[10px] text-muted-foreground">{m.samples} próbek</div>
+              <div className="text-[10px] text-muted-foreground">{m.count} próbek</div>
             </div>
           ))}
           {!(q.data?.metrics ?? []).length && (
