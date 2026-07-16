@@ -846,6 +846,93 @@ function MegaColumnsEditor({
           + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
         </Button>
       </div>
+      <MegaPreview
+        config={config}
+        triggerPl={triggerPl}
+        triggerEn={triggerEn}
+        lang={previewLang}
+        onLangChange={setPreviewLang}
+      />
+    </div>
+  );
+}
+
+// Podgląd na żywo mega-menu w panelu admina - używa tego samego komponentu
+// `MegaMenu` co front, w trybie akordeonu (`mobile`), żeby wszystkie kolumny
+// były od razu widoczne bez interakcji hover.
+function MegaPreview({
+  config,
+  triggerPl,
+  triggerEn,
+  lang,
+  onLangChange,
+}: {
+  config: MegaConfig;
+  triggerPl: string;
+  triggerEn: string;
+  lang: "pl" | "en";
+  onLangChange: (l: "pl" | "en") => void;
+}) {
+  const { t } = useTranslation();
+  const widgetConfig: MegaMenuConfig = useMemo(
+    () => ({
+      trigger_pl: triggerPl || "Menu",
+      trigger_en: triggerEn || triggerPl || "Menu",
+      triggerOn: "click",
+      width: config.width === "full" ? "fluid" : "container",
+      columns: config.columns.map((c) => ({
+        kind: "links" as const,
+        title_pl: c.title_pl,
+        title_en: c.title_en,
+        links: c.links.map((l) => ({
+          label_pl: l.label_pl,
+          label_en: l.label_en,
+          href: l.href,
+        })),
+        featured: null,
+      })),
+    }),
+    [config, triggerPl, triggerEn],
+  );
+
+  const hasContent = config.columns.length > 0;
+
+  return (
+    <div className="mt-3 border-t border-border pt-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">
+          {t("admin.menu.preview", { defaultValue: "Podgląd na żywo" })}
+        </span>
+        <div className="inline-flex rounded-md border border-border overflow-hidden">
+          {(["pl", "en"] as const).map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => onLangChange(l)}
+              className={`px-2 py-0.5 text-[10px] uppercase font-semibold transition-colors ${
+                lang === l ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+              aria-pressed={lang === l}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {hasContent ? (
+        <nav
+          aria-label={t("admin.menu.previewAria", { defaultValue: "Podgląd mega-menu" })}
+          className="rounded-md border border-border bg-background p-2"
+        >
+          <MegaMenu config={widgetConfig} lang={lang} mobile />
+        </nav>
+      ) : (
+        <p className="text-[11px] text-muted-foreground italic">
+          {t("admin.menu.previewEmpty", {
+            defaultValue: "Dodaj co najmniej jedną kolumnę, aby zobaczyć podgląd.",
+          })}
+        </p>
+      )}
     </div>
   );
 }
