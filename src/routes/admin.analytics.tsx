@@ -99,7 +99,7 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
 
   return (
     <div className="space-y-4">
-      <Ga4BiDashboard configured={status.configured} activeMode={status.activeMode} />
+      <Ga4BiDashboard configured={status.configured} activeMode={status.activeMode ?? undefined} />
       {status.hasEmbedUrl && status.embedUrl ? <Ga4EmbedCard url={status.embedUrl} /> : null}
       {configPanel}
     </div>
