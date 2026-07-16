@@ -65,21 +65,32 @@ export function RelatedPosts({
       data-related-position={cfg.position}
       aria-label={title}
     >
-      <h2 className="font-display text-2xl mb-5">{title}</h2>
+      <div className="flex items-center gap-2 mb-5">
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-brand-ink/10 text-brand-ink"
+          aria-hidden
+        >
+          <Sparkles className="h-4 w-4" />
+        </span>
+        <h2 className="font-display text-2xl">{title}</h2>
+      </div>
       {layout === "grid" && (
-        <RelatedGrid
-          posts={posts}
-          columns={columns}
-          cfg={cfg}
-          lang={lang}
-          sourcePostId={postId}
-        />
+        <RelatedGrid posts={posts} columns={columns} cfg={cfg} lang={lang} sourcePostId={postId} />
       )}
       {layout === "list" && (
         <RelatedList posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
       )}
       {layout === "slider" && (
         <RelatedSlider posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "cards" && (
+        <RelatedCards posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "magazine" && (
+        <RelatedMagazine posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "timeline" && (
+        <RelatedTimeline posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
       )}
     </section>
   );
