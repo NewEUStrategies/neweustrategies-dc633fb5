@@ -197,7 +197,7 @@ function MegaPanel({
                   <span
                     aria-hidden
                     className="inline-block h-5 w-1 rounded-sm"
-                    style={{ background: "hsl(var(--brand, var(--primary)))" }}
+                    style={{ background: "var(--brand, var(--primary))" }}
                   />
                   {title ? (
                     col.href ? (
@@ -226,7 +226,7 @@ function MegaPanel({
                           role="menuitem"
                         >
                           <span
-                            className="block text-[15px] font-bold leading-tight text-foreground transition-colors group-hover:text-[hsl(var(--brand,var(--primary)))]"
+                            className="block text-[15px] font-bold leading-tight text-foreground transition-colors group-hover:text-[var(--brand, var(--primary))]"
                           >
                             {label}
                           </span>
@@ -239,7 +239,7 @@ function MegaPanel({
                   <div className="mt-8 border-t border-border/60 pt-5">
                     <AppLink
                       href={safeUrl(col.href) || "#"}
-                      className="group inline-flex items-center gap-1.5 text-xs font-bold text-[hsl(var(--brand,var(--primary)))] hover:opacity-80"
+                      className="group inline-flex items-center gap-1.5 text-xs font-bold text-[var(--brand, var(--primary))] hover:opacity-80"
                     >
                       {browseAll}
                       <ArrowRight
@@ -262,7 +262,7 @@ function MegaPanel({
             style={{ gridColumn: "span 4 / span 4" }}
           >
             <div className="mb-4">
-              <span className="inline-block bg-[hsl(var(--brand,var(--primary)))] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-white">
+              <span className="inline-block bg-[var(--brand, var(--primary))] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-white">
                 {eyebrowFallback}
               </span>
             </div>
@@ -283,7 +283,7 @@ function MegaPanel({
                 </div>
               ) : null}
               {featuredTitle ? (
-                <h4 className="mb-3 text-[17px] font-black leading-tight text-foreground transition-colors group-hover:text-[hsl(var(--brand,var(--primary)))]">
+                <h4 className="mb-3 text-[17px] font-black leading-tight text-foreground transition-colors group-hover:text-[var(--brand, var(--primary))]">
                   {featuredTitle}
                 </h4>
               ) : null}
@@ -293,7 +293,7 @@ function MegaPanel({
                 </p>
               ) : null}
               <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em]">
-                <span className="text-[hsl(var(--brand,var(--primary)))]">{featuredEyebrow}</span>
+                <span className="text-[var(--brand, var(--primary))]">{featuredEyebrow}</span>
                 <span className="opacity-30">|</span>
                 <span className="text-muted-foreground">{readMore}</span>
                 <ArrowRight
@@ -307,7 +307,7 @@ function MegaPanel({
               <div className="mt-6 border-t border-border/60 pt-4">
                 <AppLink
                   href={itemHref(node)}
-                  className="group inline-flex items-center gap-1.5 text-xs font-bold text-[hsl(var(--brand,var(--primary)))] hover:opacity-80"
+                  className="group inline-flex items-center gap-1.5 text-xs font-bold text-[var(--brand, var(--primary))] hover:opacity-80"
                 >
                   {lang === "en" ? `All in ${parentLabel}` : `Wszystko w: ${parentLabel}`}
                   <ArrowRight
