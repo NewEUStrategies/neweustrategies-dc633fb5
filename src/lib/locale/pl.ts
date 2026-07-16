@@ -119,6 +119,53 @@ export const pl = {
       saveError: "Nie udało się zapisać kolorów",
       reset: "Przywróć rekomendowany",
     },
+    analyticsSettings: {
+      title: "Analityka",
+      subtitle:
+        "Konfiguracja Google Analytics 4, Google Search Console, Plausible oraz własnych skryptów. Skrypty uruchamiają się dopiero po zgodzie użytkownika na kategorię Analityczne.",
+      status: {
+        connected: "Połączono",
+        notConfigured: "Nie skonfigurowano",
+        partial: "Częściowo",
+        checking: "Sprawdzanie…",
+      },
+      ga4: {
+        title: "Google Analytics 4",
+        desc: "Pomiar ruchu, konwersji i zaangażowania. Wpisz Measurement ID lub podłącz konto serwisowe w sekretach.",
+        measurementId: "Measurement ID",
+        measurementIdHint: "Publiczny identyfikator ładowany do gtag.js na froncie.",
+        gtm: "Google Tag Manager (Container ID)",
+        gtmHint: "Opcjonalnie: jeśli używasz GTM zamiast bezpośredniego gtag.",
+        activeMode: "Aktywny tryb odczytu",
+        modes: {
+          service_account: "Konto serwisowe (Data API)",
+          oauth_refresh: "OAuth refresh token",
+          measurement_protocol: "Measurement Protocol",
+          embed: "Osadzony Looker Studio",
+          none: "Brak - tylko zbieranie danych",
+        },
+      },
+      gsc: {
+        title: "Google Search Console",
+        desc: "Weryfikacja domeny i raporty wyszukiwania (kliknięcia, impresje, CTR, pozycja).",
+        managed: "Połączenie zarządzane przez konektor - klucze API trzymane bezpiecznie w sekretach projektu.",
+        openDashboard: "Otwórz panel analityki",
+        needsConnector:
+          "Aby włączyć raporty GSC podłącz konektor Google Search Console w ustawieniach projektu.",
+      },
+      plausible: {
+        title: "Plausible Analytics",
+        desc: "Lekka, prywatna alternatywa dla GA4. Zostaw puste, żeby wyłączyć.",
+        domain: "Domena",
+        scriptUrl: "URL skryptu",
+      },
+      custom: {
+        title: "Własne skrypty",
+        desc: "Wstrzyknięcia HTML do <head> i <body>. Uruchamiane tylko po zgodzie na Analityczne.",
+        head: "Custom <head> HTML",
+        body: "Custom <body> HTML",
+      },
+    },
     popups: {
       title: "Popupy",
       subtitle:
