@@ -1347,11 +1347,13 @@ function GroupTabs({
   jusId,
   scrollContainerId,
   ariaLabel,
+  pickedByGroup,
 }: {
   groups: { key: string; title: string; items: readonly unknown[] }[];
   jusId: string;
   scrollContainerId: string;
   ariaLabel: string;
+  pickedByGroup?: Record<string, number>;
 }) {
   const barRef = useRef<HTMLDivElement | null>(null);
   const [activeKey, setActiveKey] = useState<string>(groups[0]?.key ?? "");
