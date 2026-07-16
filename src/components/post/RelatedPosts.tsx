@@ -165,7 +165,8 @@ function RelatedGrid({
       {posts.map((p) => (
         <article key={p.id} className="space-y-3">
           <CardThumb p={p} cfg={cfg} />
-          <CardBody p={p} cfg={cfg} lang={lang} />
+          <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
+
         </article>
       ))}
     </div>
