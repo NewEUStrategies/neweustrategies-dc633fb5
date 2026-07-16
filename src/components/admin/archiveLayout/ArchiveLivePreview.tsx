@@ -84,7 +84,7 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
         </span>
       </div>
       <div
-        className="rounded-xl border border-border overflow-hidden bg-background"
+        className="rounded-xl border border-border overflow-hidden shadow-sm bg-linear-to-br from-muted/40 via-background to-muted/20 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
         aria-label={
           lang === "en" ? "Archive layout live preview" : "Podgląd układu archiwum"
         }
