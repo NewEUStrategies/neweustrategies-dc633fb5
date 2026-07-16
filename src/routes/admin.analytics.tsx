@@ -600,6 +600,12 @@ function AnalyticsPage() {
             </a>
           </div>
         </TabsContent>
+
+        <TabsContent value="audience" className="mt-4">
+          <Suspense fallback={<DashboardFallback />}>
+            <AudienceSegmentsDashboard />
+          </Suspense>
+        </TabsContent>
       </Tabs>
     </div>
   );
