@@ -766,6 +766,7 @@ export const pl = {
       media: "Media",
       permalinks: "Bezpośrednie odnośniki",
       privacy: "Prywatność",
+      cookieBanner: "Cookie banner",
       seo: "SEO",
     },
     reading: {
