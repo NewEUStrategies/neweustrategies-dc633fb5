@@ -14,6 +14,7 @@ import {
   type CookieBannerColors,
 } from "@/lib/cookieBanner/config";
 import { ConsentBanner } from "@/components/ConsentBanner";
+import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/admin/settings/cookie-banner")({
   head: () => ({
