@@ -358,16 +358,19 @@ export function MenuManager({ menuKey }: Props) {
               })}
             </p>
           )}
-          {tree.map((node) => (
+          {tree.map((node, i) => (
             <MenuNode
               key={node.item.local_id}
               node={node}
               depth={0}
+              siblingIndex={i}
               expanded={expanded}
               onToggleExpanded={toggleExpanded}
               onUpdate={updateItem}
               onRemove={removeItem}
               onMove={moveItem}
+              onIndent={indentItem}
+              onOutdent={outdentItem}
             />
           ))}
         </div>
