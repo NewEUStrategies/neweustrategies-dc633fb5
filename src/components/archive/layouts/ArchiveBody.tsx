@@ -1,7 +1,9 @@
-// Shared body composition: grid + optional sidebar + load-more + extras.
-import { Button } from "@/components/ui/button";
+// Shared body composition: sort/pagination bar + grid + optional sidebar + extras.
+import { useTranslation } from "react-i18next";
 import { ArchivePosts } from "./ArchivePosts";
 import { ArchiveSidebar } from "./ArchiveSidebar";
+import { ArchiveToolbar } from "./ArchiveToolbar";
+import { ArchivePagination } from "./ArchivePagination";
 import type { ArchiveLayoutProps } from "./types";
 
 export function ArchiveBody(props: ArchiveLayoutProps) {
@@ -11,26 +13,46 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
     lang,
     taxonomy,
     kind,
-    canLoadMore,
+    page,
+    pageSize,
+    total,
+    sort,
+    onPageChange,
+    onSortChange,
     isPending,
-    onLoadMore,
     emptyText,
-    loadingText,
-    loadMoreText,
     extraBelow,
+    previewMode,
   } = props;
-
+  const { t } = useTranslation();
   const withSidebar = settings.show_sidebar;
   const sidebarLeft = settings.sidebar_position === "left";
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const grid = (
     <div className="min-w-0 flex-1">
+      <ArchiveToolbar
+        lang={lang}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        sort={sort}
+        onSortChange={onSortChange}
+        isPending={isPending}
+        disabled={!!previewMode}
+      />
       <ArchivePosts posts={posts} lang={lang} settings={settings} emptyText={emptyText} />
-      {canLoadMore && (
-        <div className="flex justify-center pt-6">
-          <Button variant="outline" disabled={isPending} onClick={onLoadMore}>
-            {isPending ? loadingText : loadMoreText}
-          </Button>
+      {totalPages > 1 && (
+        <div className="pt-8">
+          <ArchivePagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            isPending={isPending}
+            lang={lang}
+            disabled={!!previewMode}
+            t={t}
+          />
         </div>
       )}
       {extraBelow}
