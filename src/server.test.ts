@@ -18,7 +18,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { consumeLastCapturedError } from "./lib/error-capture";
+import { consumeLastCapturedError } from "./lib/ssr-error-capture";
 
 // The wrapper lazily imports this module. We swap it per-test with vi.doMock
 // so each scenario gets a fresh implementation without a cached handler
