@@ -17,23 +17,18 @@
  */
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { EChartsCoreOption } from "echarts/core";
 import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
 import { VitalsRecommendations } from "./VitalsRecommendations";
+import { TimeRangeFilter, buildPresetRange, type TimeRangeValue } from "./TimeRangeFilter";
+
 
 const METRIC_ORDER: VitalName[] = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 
