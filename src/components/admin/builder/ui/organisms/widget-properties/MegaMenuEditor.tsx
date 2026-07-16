@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
+import { PagePicker } from "./PagePicker";
 import { itemsOf, type Item } from "./shared";
 
 interface Props {
@@ -166,6 +167,20 @@ function ColumnEditor({
                 : "(empty = category name)"
               : ""
           }
+        />
+      </PropField>
+
+      <PropField label="Strona z platformy (link nagłówka)">
+        <PagePicker
+          value={str(col.href) || undefined}
+          onChange={(v) => set("href", v ?? "")}
+          lang={lang}
+        />
+        <Input
+          value={str(col.href)}
+          onChange={(e) => set("href", e.target.value)}
+          className="h-7 text-xs mt-1"
+          placeholder={lang === "pl" ? "lub własny URL (np. /o-nas)" : "or custom URL"}
         />
       </PropField>
 
