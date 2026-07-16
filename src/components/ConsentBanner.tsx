@@ -1,8 +1,8 @@
-// Usercentrics-style CMP with nes-quiz.com layout:
-// - compact bottom strip with "Szczegóły i podmioty" toggle
-// - expanded card lists per-category vendor tables (Nazwa/Podmiot/Cel/Wygasa)
-// - decision persisted in localStorage and (when signed-in) profiles.prefs.consent
-// Fully bilingual (PL/EN) and follows the app design tokens.
+// Cookie banner with unified typography, PL/EN switcher and admin-controlled
+// copy + color overrides. Reads runtime config from site_settings via
+// useCookieBannerConfig(). Consent state persists in localStorage + cookie and
+// (when signed-in) syncs to profiles.prefs.consent - refresh is automatic
+// because useConsent() re-reads on the consent-change event.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,14 +13,20 @@ import {
   Check,
   X,
   Settings2,
+  Languages,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/consent";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { setConsentOverlayVisible, setMarketingConsent } from "@/lib/overlayCoordinator";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { localizedPath } from "@/lib/i18n/localePath";
+import {
+  useCookieBannerConfig,
+  bannerStyleVars,
+  type CookieBannerCopy,
+} from "@/lib/cookieBanner/config";
+import { cn } from "@/lib/utils";
 
 type Cats = Record<ConsentCategory, boolean>;
 
@@ -39,162 +45,155 @@ type Vendor = {
   ttl_en: string;
 };
 
-type CategoryMeta = {
-  pl: string;
-  en: string;
-  desc_pl: string;
-  desc_en: string;
-  vendors: Vendor[];
-};
-
-const CATEGORIES: Record<ConsentCategory, CategoryMeta> = {
-  necessary: {
-    pl: "Niezbędne",
-    en: "Necessary",
-    desc_pl:
-      "Pliki cookie wymagane do prawidłowego działania platformy - uwierzytelnianie sesji, ochrona CSRF i podstawowe funkcje bezpieczeństwa. Nie można ich wyłączyć zgodnie z art. 5 ust. 3 dyrektywy ePrivacy.",
-    desc_en:
-      "Cookies required for the platform to function - session authentication, CSRF protection and core security features. Cannot be disabled under Article 5(3) of the ePrivacy Directive.",
-    vendors: [
-      {
-        name: "sb-access-token / sb-refresh-token",
-        party_pl: "Lovable Cloud (backend)",
-        party_en: "Lovable Cloud (backend)",
-        purpose_pl: "Token sesji uwierzytelniającej użytkownika",
-        purpose_en: "User authentication session token",
-        ttl_pl: "1 h / 7 dni",
-        ttl_en: "1 h / 7 days",
-      },
-      {
-        name: "PKCE code verifier",
-        party_pl: "Backend Auth",
-        party_en: "Backend Auth",
-        purpose_pl: "Zabezpieczenie przepływu autoryzacji OAuth (PKCE)",
-        purpose_en: "Securing the OAuth authorization flow (PKCE)",
-        ttl_pl: "Sesja",
-        ttl_en: "Session",
-      },
-      {
-        name: "consent:v2",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Zapis decyzji o zgodzie na pliki cookie",
-        purpose_en: "Storage of the cookie consent decision",
-        ttl_pl: "365 dni",
-        ttl_en: "365 days",
-      },
-      {
-        name: "lovable_lang",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Preferencja języka interfejsu (PL/EN)",
-        purpose_en: "UI language preference (PL/EN)",
-        ttl_pl: "365 dni",
-        ttl_en: "365 days",
-      },
-    ],
-  },
-  functional: {
-    pl: "Funkcjonalne",
-    en: "Functional",
-    desc_pl:
-      "Zapamiętują Twoje preferencje (motyw kolorystyczny, układ interfejsu). Dane przechowywane lokalnie w przeglądarce (localStorage), bez transmisji do podmiotów trzecich.",
-    desc_en:
-      "Remember your preferences (color theme, interface layout). Stored locally in the browser (localStorage), never sent to third parties.",
-    vendors: [
-      {
-        name: "theme",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Wybrany motyw (jasny/ciemny/systemowy)",
-        purpose_en: "Selected theme (light/dark/system)",
-        ttl_pl: "Bez limitu",
-        ttl_en: "Persistent",
-      },
-      {
-        name: "layout:*",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Preferencje układu list, gęstości widoku",
-        purpose_en: "List layout and view density preferences",
-        ttl_pl: "Bez limitu",
-        ttl_en: "Persistent",
-      },
-      {
-        name: "reading:prefs",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Rozmiar tekstu, TTS, tryb czytania",
-        purpose_en: "Text size, TTS, reading mode",
-        ttl_pl: "Bez limitu",
-        ttl_en: "Persistent",
-      },
-    ],
-  },
-  analytics: {
-    pl: "Analityczne",
-    en: "Analytics",
-    desc_pl:
-      "Zbierają zanonimizowane dane o sposobie korzystania z platformy (odwiedzane strony, czas sesji, źródła ruchu). Służą optymalizacji treści i funkcjonalności. Żadne dane analityczne nie są zbierane przed wyrażeniem zgody.",
-    desc_en:
-      "Collect anonymised information on how the platform is used (pages visited, session duration, traffic sources). Used to improve content and features. No analytics is collected before consent is granted.",
-    vendors: [
-      {
-        name: "web-vitals",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Pomiar wydajności strony (LCP, CLS, INP)",
-        purpose_en: "Page performance metrics (LCP, CLS, INP)",
-        ttl_pl: "Sesja",
-        ttl_en: "Session",
-      },
-      {
-        name: "session_id",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Zliczanie unikalnych sesji (zagregowane)",
-        purpose_en: "Aggregated unique-session counting",
-        ttl_pl: "30 min",
-        ttl_en: "30 min",
-      },
-    ],
-  },
-  marketing: {
-    pl: "Marketingowe",
-    en: "Marketing",
-    desc_pl:
-      "Umożliwiają prowadzenie kampanii e-mailowych, śledzenie konwersji i personalizację komunikacji marketingowej. Dane mogą być przekazywane do podmiotów trzecich wymienionych poniżej.",
-    desc_en:
-      "Enable email campaigns, conversion tracking and personalised marketing communication. Data may be shared with the third parties listed below.",
-    vendors: [
-      {
-        name: "nl_click / nl_open",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Pomiar otwarć i kliknięć newslettera",
-        purpose_en: "Newsletter opens and click-through measurement",
-        ttl_pl: "365 dni",
-        ttl_en: "365 days",
-      },
-      {
-        name: "ad_event",
-        party_pl: "Platforma (1st party)",
-        party_en: "Platform (1st party)",
-        purpose_pl: "Pomiar odsłon i kliknięć reklam własnych",
-        purpose_en: "Own-ad impression and click measurement",
-        ttl_pl: "180 dni",
-        ttl_en: "180 days",
-      },
-    ],
-  },
+const VENDORS: Record<ConsentCategory, Vendor[]> = {
+  necessary: [
+    {
+      name: "sb-access-token / sb-refresh-token",
+      party_pl: "Lovable Cloud (backend)",
+      party_en: "Lovable Cloud (backend)",
+      purpose_pl: "Token sesji uwierzytelniającej użytkownika",
+      purpose_en: "User authentication session token",
+      ttl_pl: "1 h / 7 dni",
+      ttl_en: "1 h / 7 days",
+    },
+    {
+      name: "PKCE code verifier",
+      party_pl: "Backend Auth",
+      party_en: "Backend Auth",
+      purpose_pl: "Zabezpieczenie przepływu autoryzacji OAuth (PKCE)",
+      purpose_en: "Securing the OAuth authorization flow (PKCE)",
+      ttl_pl: "Sesja",
+      ttl_en: "Session",
+    },
+    {
+      name: "consent:v2",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Zapis decyzji o zgodzie na pliki cookie",
+      purpose_en: "Storage of the cookie consent decision",
+      ttl_pl: "365 dni",
+      ttl_en: "365 days",
+    },
+    {
+      name: "lovable_lang",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Preferencja języka interfejsu (PL/EN)",
+      purpose_en: "UI language preference (PL/EN)",
+      ttl_pl: "365 dni",
+      ttl_en: "365 days",
+    },
+  ],
+  functional: [
+    {
+      name: "theme",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Wybrany motyw (jasny/ciemny/systemowy)",
+      purpose_en: "Selected theme (light/dark/system)",
+      ttl_pl: "Bez limitu",
+      ttl_en: "Persistent",
+    },
+    {
+      name: "layout:*",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Preferencje układu list, gęstości widoku",
+      purpose_en: "List layout and view density preferences",
+      ttl_pl: "Bez limitu",
+      ttl_en: "Persistent",
+    },
+    {
+      name: "reading:prefs",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Rozmiar tekstu, TTS, tryb czytania",
+      purpose_en: "Text size, TTS, reading mode",
+      ttl_pl: "Bez limitu",
+      ttl_en: "Persistent",
+    },
+  ],
+  analytics: [
+    {
+      name: "web-vitals",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Pomiar wydajności strony (LCP, CLS, INP)",
+      purpose_en: "Page performance metrics (LCP, CLS, INP)",
+      ttl_pl: "Sesja",
+      ttl_en: "Session",
+    },
+    {
+      name: "session_id",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Zliczanie unikalnych sesji (zagregowane)",
+      purpose_en: "Aggregated unique-session counting",
+      ttl_pl: "30 min",
+      ttl_en: "30 min",
+    },
+  ],
+  marketing: [
+    {
+      name: "nl_click / nl_open",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Pomiar otwarć i kliknięć newslettera",
+      purpose_en: "Newsletter opens and click-through measurement",
+      ttl_pl: "365 dni",
+      ttl_en: "365 days",
+    },
+    {
+      name: "ad_event",
+      party_pl: "Platforma (1st party)",
+      party_en: "Platform (1st party)",
+      purpose_pl: "Pomiar odsłon i kliknięć reklam własnych",
+      purpose_en: "Own-ad impression and click measurement",
+      ttl_pl: "180 dni",
+      ttl_en: "180 days",
+    },
+  ],
 };
 
 const CATEGORY_ORDER: ConsentCategory[] = ["necessary", "functional", "analytics", "marketing"];
+
+// Design tokens for the banner — one shared scale for compact and expanded
+// view, desktop and mobile. Change here to change everywhere.
+const TX = {
+  body: "text-[12px] leading-[1.5]",
+  meta: "text-[11px] leading-[1.4]",
+  heading: "text-[14px] font-semibold leading-snug",
+  title: "text-[15px] sm:text-[16px] font-semibold leading-snug",
+} as const;
+
+const BTN_BASE =
+  "inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium transition-colors whitespace-nowrap border";
+
+// Uses --cb-* CSS vars when set; otherwise falls back to theme tokens.
+const BTN_PRIMARY = cn(
+  BTN_BASE,
+  "border-transparent",
+  "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]",
+  "hover:bg-[color:var(--cb-accent,var(--primary))]/90",
+);
+const BTN_OUTLINE = cn(
+  BTN_BASE,
+  "border-[color:var(--cb-border,var(--border))] text-[color:var(--cb-fg,var(--foreground))]",
+  "bg-transparent hover:bg-[color:var(--cb-accent,var(--primary))]/15 hover:border-[color:var(--cb-accent,var(--primary))]/40",
+);
+const BTN_GHOST = cn(
+  BTN_BASE,
+  "border-transparent text-[color:var(--cb-fg,var(--foreground))]",
+  "bg-transparent hover:bg-[color:var(--cb-accent,var(--primary))]/12",
+);
 
 export function ConsentBanner() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
+  const banner = useCookieBannerConfig();
+  const t: CookieBannerCopy = isPl ? banner.copy.pl : banner.copy.en;
+
   const privacyHref = privacy.privacy_page_slug
     ? localizedPath(`/${privacy.privacy_page_slug.replace(/^\/+/, "")}`, isPl ? "pl" : "en")
     : null;
@@ -218,7 +217,6 @@ export function ConsentBanner() {
     marketing: state?.categories.marketing ?? false,
   }));
 
-  // Sync draft when state changes (e.g. hydrated from profile)
   useEffect(() => {
     setDraft({
       necessary: true,
@@ -228,7 +226,6 @@ export function ConsentBanner() {
     });
   }, [state]);
 
-  // External trigger from footer: opens the details panel.
   useEffect(() => {
     const open = () => setDetailsOpen(true);
     window.addEventListener(OPEN_PREFS_EVENT, open);
@@ -255,37 +252,75 @@ export function ConsentBanner() {
     setMarketingConsent(state ? state.categories.marketing : null);
   }, [mounted, state]);
 
-  const t = useMemo(
-    () => ({
-      title: isPl ? "Zarządzaj swoją prywatnością" : "Manage your privacy",
-      intro: isPl
-        ? "Nasza platforma wykorzystuje pliki cookie i podobne technologie w celu zapewnienia bezpieczeństwa, personalizacji oraz analizy ruchu. Poniżej znajdziesz szczegółowe informacje o każdej kategorii i podmiotach przetwarzających dane. Pełne informacje zawiera nasza"
-        : "Our platform uses cookies and similar technologies to ensure security, personalisation and traffic analysis. Below you will find detailed information about each category and the entities processing the data. Full information is available in our",
-      policy: isPl ? "Polityka Prywatności" : "Privacy Policy",
-      and: isPl ? "oraz" : "and",
-      dataProcessing: isPl ? "Zasady przetwarzania danych" : "Data Processing Terms",
-      showDetails: isPl ? "Szczegóły i podmioty" : "Details and vendors",
-      hideDetails: isPl ? "Ukryj szczegóły" : "Hide details",
-      showVendors: isPl ? "Pokaż podmioty" : "Show vendors",
-      hideVendors: isPl ? "Ukryj podmioty" : "Hide vendors",
-      required: isPl ? "Wymagane" : "Required",
-      acceptAll: isPl ? "Akceptuj wszystkie" : "Accept all",
-      rejectAll: isPl ? "Tylko niezbędne" : "Only necessary",
-      saveSelection: isPl ? "Zapisz wybrane" : "Save selection",
-      colName: isPl ? "Nazwa" : "Name",
-      colParty: isPl ? "Podmiot" : "Party",
-      colPurpose: isPl ? "Cel" : "Purpose",
-      colExpiry: isPl ? "Wygasa" : "Expires",
-    }),
-    [isPl],
-  );
-
+  const bannerEnabled = privacy.cookie_banner && banner.enabled;
   if (!mounted) return null;
   if (decided && !detailsOpen) return null;
-  if (!privacy.cookie_banner && !detailsOpen) return null;
+  if (!bannerEnabled && !detailsOpen) return null;
 
   const toggleVendors = (cat: ConsentCategory) =>
     setExpandedVendors((v) => ({ ...v, [cat]: !v[cat] }));
+
+  const setLang = (l: "pl" | "en") => {
+    if (l !== (isPl ? "pl" : "en")) void i18n.changeLanguage(l);
+  };
+
+  const categoryName = (cat: ConsentCategory): string => {
+    switch (cat) {
+      case "necessary":
+        return t.categoryNecessary;
+      case "functional":
+        return t.categoryFunctional;
+      case "analytics":
+        return t.categoryAnalytics;
+      case "marketing":
+        return t.categoryMarketing;
+    }
+  };
+  const categoryDesc = (cat: ConsentCategory): string => {
+    switch (cat) {
+      case "necessary":
+        return t.descNecessary;
+      case "functional":
+        return t.descFunctional;
+      case "analytics":
+        return t.descAnalytics;
+      case "marketing":
+        return t.descMarketing;
+    }
+  };
+
+  const styleVars = useMemo(() => bannerStyleVars(banner.colors), [banner.colors]);
+
+  const LangSwitcher = banner.languageSwitcher ? (
+    <div
+      role="group"
+      aria-label="PL / EN"
+      className={cn(
+        "inline-flex items-center rounded-full border p-0.5",
+        "border-[color:var(--cb-border,var(--border))] bg-[color:var(--cb-muted,var(--muted))]/40",
+      )}
+    >
+      {(["pl", "en"] as const).map((l) => {
+        const active = (isPl ? "pl" : "en") === l;
+        return (
+          <button
+            key={l}
+            type="button"
+            onClick={() => setLang(l)}
+            aria-pressed={active}
+            className={cn(
+              "min-w-[1.75rem] px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide transition-colors",
+              active
+                ? "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]"
+                : "text-[color:var(--cb-fg,var(--muted-foreground))]/70 hover:text-[color:var(--cb-fg,var(--foreground))]",
+            )}
+          >
+            {l.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
 
   // ---------- Compact strip (bottom, no details) ----------
   if (!detailsOpen) {
@@ -294,67 +329,66 @@ export function ConsentBanner() {
         role="dialog"
         aria-modal="false"
         aria-label={t.title}
-        className="fixed inset-x-2 bottom-2 z-[60] mx-auto max-w-xl sm:max-w-2xl rounded-lg border border-border/80 bg-card/95 backdrop-blur-md text-card-foreground shadow-lg p-2.5 sm:p-3"
+        style={styleVars}
+        className={cn(
+          "fixed inset-x-2 bottom-2 z-[60] mx-auto max-w-xl sm:max-w-2xl rounded-lg border shadow-lg backdrop-blur-md",
+          "bg-[color:var(--cb-surface,var(--card))]/95 text-[color:var(--cb-fg,var(--card-foreground))] border-[color:var(--cb-border,var(--border))]",
+          "p-3",
+        )}
       >
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="shrink-0 grid place-items-center h-7 w-7 rounded-full bg-primary/10 text-primary"
-          >
-            <Cookie className="h-3.5 w-3.5" />
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              {isPl
-                ? "Używamy plików cookie. Dowiedz się więcej w"
-                : "We use cookies. Learn more in our"}{" "}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+            <span
+              aria-hidden
+              className="shrink-0 grid place-items-center h-7 w-7 rounded-full bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]"
+            >
+              <Cookie className="h-3.5 w-3.5" />
+            </span>
+            <p className={cn(TX.body, "min-w-0 flex-1 text-[color:var(--cb-fg,var(--foreground))]/85")}>
+              {t.compactMessage}{" "}
               {privacyHref ? (
                 <a
                   href={privacyHref}
-                  className="text-primary underline underline-offset-2 hover:opacity-80"
+                  className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
                 >
-                  {t.policy}
+                  {t.policyLabel}
                 </a>
               ) : (
-                <span className="text-primary">{t.policy}</span>
+                <span className="text-[color:var(--cb-accent,var(--primary))]">{t.policyLabel}</span>
               )}
               .
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+          <div className="shrink-0 flex items-center gap-1.5 justify-end flex-wrap">
+            {LangSwitcher}
+            <button
+              type="button"
+              className={BTN_OUTLINE}
               aria-label={t.showDetails}
-              title={t.showDetails}
               onClick={() => setDetailsOpen(true)}
             >
               <Settings2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-[11px]"
-              aria-label={t.acceptAll}
-              title={t.acceptAll}
-              onClick={acceptAll}
-            >
-              <Check className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline ml-1.5">{t.acceptAll}</span>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 w-7 p-0 sm:h-7 sm:px-2 sm:w-auto text-[11px]"
+              <span className="hidden sm:inline">{t.showDetails}</span>
+            </button>
+            <button
+              type="button"
+              className={BTN_OUTLINE}
               aria-label={t.rejectAll}
-              title={t.rejectAll}
               onClick={rejectAll}
             >
               <X className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline ml-1.5">{t.rejectAll}</span>
-            </Button>
+              <span>{t.rejectAll}</span>
+            </button>
+            <button
+              type="button"
+              className={BTN_PRIMARY}
+              aria-label={t.acceptAll}
+              onClick={acceptAll}
+            >
+              <Check className="h-3.5 w-3.5" />
+              <span>{t.acceptAll}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -367,6 +401,7 @@ export function ConsentBanner() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="consent-title"
+      style={styleVars}
       className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 bg-foreground/60 backdrop-blur-sm animate-in fade-in"
       onClick={() => {
         if (decided) setDetailsOpen(false);
@@ -374,48 +409,52 @@ export function ConsentBanner() {
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-3xl max-h-[92vh] bg-card text-foreground rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden"
+        className={cn(
+          "w-full max-w-3xl max-h-[92vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden",
+          "bg-[color:var(--cb-surface,var(--card))] text-[color:var(--cb-fg,var(--foreground))] border-[color:var(--cb-border,var(--border))]",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-border">
+        <div className="p-4 sm:p-5 border-b border-[color:var(--cb-border,var(--border))]">
           <div className="flex items-start gap-3">
             <span
               aria-hidden
-              className="shrink-0 grid place-items-center h-10 w-10 rounded-full bg-primary/10 text-primary"
+              className="shrink-0 grid place-items-center h-9 w-9 rounded-full bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]"
             >
-              <Cookie className="h-5 w-5" />
+              <Cookie className="h-4 w-4" />
             </span>
-            <div className="min-w-0">
-              <h2 id="consent-title" className="text-lg font-semibold leading-snug">
-                {t.title}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <h2 id="consent-title" className={cn(TX.title, "min-w-0")}>
+                  {t.title}
+                </h2>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {LangSwitcher}
+                </div>
+              </div>
+              <p className={cn(TX.body, "mt-1.5 text-[color:var(--cb-fg,var(--muted-foreground))]/90")}>
                 {t.intro}{" "}
                 {privacyHref ? (
                   <a
                     href={privacyHref}
-                    className="text-primary underline underline-offset-2 hover:opacity-80"
+                    className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
                   >
-                    {t.policy}
+                    {t.policyLabel}
                   </a>
                 ) : (
-                  <span className="text-primary">{t.policy}</span>
+                  <span className="text-[color:var(--cb-accent,var(--primary))]">{t.policyLabel}</span>
                 )}{" "}
-                {t.and}{" "}
+                {isPl ? "oraz" : "and"}{" "}
                 <a
                   href={dataProcessingHref}
-                  className="text-primary underline underline-offset-2 hover:opacity-80"
+                  className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
                 >
-                  {t.dataProcessing}
+                  {isPl ? "Zasady przetwarzania danych" : "Data Processing Terms"}
                 </a>
                 .
               </p>
-              <button
-                type="button"
-                onClick={() => setDetailsOpen(false)}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-foreground hover:bg-primary/15 hover:text-foreground hover:border-primary/40 transition-colors"
-              >
+              <button type="button" onClick={() => setDetailsOpen(false)} className={cn(BTN_OUTLINE, "mt-3")}>
                 <Settings2 className="h-3.5 w-3.5" />
                 {t.hideDetails}
                 <ChevronUp className="h-3.5 w-3.5" />
@@ -425,37 +464,41 @@ export function ConsentBanner() {
         </div>
 
         {/* Categories */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
           {CATEGORY_ORDER.map((cat) => {
-            const meta = CATEGORIES[cat];
             const locked = cat === "necessary";
-            const count = meta.vendors.length;
+            const vendors = VENDORS[cat];
             const vendorsOpen = expandedVendors[cat];
             return (
               <section
                 key={cat}
-                className="rounded-xl border border-border bg-card/50 p-4 sm:p-5"
+                className={cn(
+                  "rounded-xl border p-3 sm:p-4",
+                  "bg-[color:var(--cb-surface,var(--card))]/60 border-[color:var(--cb-border,var(--border))]",
+                )}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex items-start gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex items-start gap-2.5">
                     <span
                       aria-hidden
-                      className="shrink-0 grid place-items-center h-7 w-7 rounded-md bg-muted text-muted-foreground"
+                      className="shrink-0 grid place-items-center h-7 w-7 rounded-md bg-[color:var(--cb-muted,var(--muted))] text-[color:var(--cb-fg,var(--muted-foreground))]"
                     >
-                      <ShieldCheck className="h-4 w-4" />
+                      <ShieldCheck className="h-3.5 w-3.5" />
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold">{isPl ? meta.pl : meta.en}</p>
+                        <p className={TX.heading}>{categoryName(cat)}</p>
                         {locked && (
-                          <span className="text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                            {t.required}
+                          <span className="text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]">
+                            {isPl ? "Wymagane" : "Required"}
                           </span>
                         )}
-                        <span className="text-[11px] font-mono text-muted-foreground">{count}</span>
+                        <span className={cn(TX.meta, "font-mono text-[color:var(--cb-fg,var(--muted-foreground))]/70")}>
+                          {vendors.length}
+                        </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        {isPl ? meta.desc_pl : meta.desc_en}
+                      <p className={cn(TX.body, "mt-1 text-[color:var(--cb-fg,var(--muted-foreground))]/85")}>
+                        {categoryDesc(cat)}
                       </p>
                     </div>
                   </div>
@@ -463,7 +506,7 @@ export function ConsentBanner() {
                     checked={locked ? true : draft[cat]}
                     disabled={locked}
                     onCheckedChange={(v) => setDraft((d) => ({ ...d, [cat]: !!v }))}
-                    aria-label={isPl ? meta.pl : meta.en}
+                    aria-label={categoryName(cat)}
                   />
                 </div>
 
@@ -471,42 +514,36 @@ export function ConsentBanner() {
                   type="button"
                   onClick={() => toggleVendors(cat)}
                   aria-expanded={vendorsOpen}
-                  className="mt-3 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-foreground hover:bg-primary/15 hover:text-foreground hover:border-primary/40 transition-colors"
+                  className={cn(BTN_OUTLINE, "mt-3")}
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {vendorsOpen ? t.hideVendors : t.showVendors}
-                  {vendorsOpen ? (
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  )}
+                  {vendorsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 </button>
 
                 {vendorsOpen && (
-                  <div className="mt-3 rounded-lg border border-border bg-background/40 overflow-hidden">
+                  <div className="mt-3 rounded-lg border border-[color:var(--cb-border,var(--border))] bg-[color:var(--cb-muted,var(--muted))]/25 overflow-hidden">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-[11px]">
                         <thead>
-                          <tr className="text-muted-foreground border-b border-border">
-                            <th className="text-left font-medium px-3 py-2">{t.colName}</th>
-                            <th className="text-left font-medium px-3 py-2">{t.colParty}</th>
-                            <th className="text-left font-medium px-3 py-2">{t.colPurpose}</th>
-                            <th className="text-left font-medium px-3 py-2">{t.colExpiry}</th>
+                          <tr className="text-[color:var(--cb-fg,var(--muted-foreground))]/80 border-b border-[color:var(--cb-border,var(--border))]">
+                            <th className="text-left font-medium px-3 py-2">{isPl ? "Nazwa" : "Name"}</th>
+                            <th className="text-left font-medium px-3 py-2">{isPl ? "Podmiot" : "Party"}</th>
+                            <th className="text-left font-medium px-3 py-2">{isPl ? "Cel" : "Purpose"}</th>
+                            <th className="text-left font-medium px-3 py-2">{isPl ? "Wygasa" : "Expires"}</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border">
-                          {meta.vendors.map((v) => (
+                        <tbody className="divide-y divide-[color:var(--cb-border,var(--border))]">
+                          {vendors.map((v) => (
                             <tr key={v.name} className="align-top">
-                              <td className="px-3 py-2 font-mono text-primary whitespace-normal break-words max-w-[10rem]">
+                              <td className="px-3 py-2 font-mono text-[color:var(--cb-accent,var(--primary))] whitespace-normal break-words max-w-[10rem]">
                                 {v.name}
                               </td>
-                              <td className="px-3 py-2 text-foreground/80">
-                                {isPl ? v.party_pl : v.party_en}
-                              </td>
-                              <td className="px-3 py-2 text-muted-foreground">
+                              <td className="px-3 py-2">{isPl ? v.party_pl : v.party_en}</td>
+                              <td className="px-3 py-2 text-[color:var(--cb-fg,var(--muted-foreground))]/90">
                                 {isPl ? v.purpose_pl : v.purpose_en}
                               </td>
-                              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                              <td className="px-3 py-2 text-[color:var(--cb-fg,var(--muted-foreground))]/90 whitespace-nowrap">
                                 {isPl ? v.ttl_pl : v.ttl_en}
                               </td>
                             </tr>
@@ -522,42 +559,40 @@ export function ConsentBanner() {
         </div>
 
         {/* Footer actions */}
-        <div className="flex flex-wrap items-center justify-end gap-2 p-4 sm:p-5 border-t border-border bg-muted/30">
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-[11px]"
-            onClick={() => {
-              save(draft);
-              setDetailsOpen(false);
-            }}
-          >
-            <Check className="h-4 w-4" />
-            {t.saveSelection}
-          </Button>
-          <Button
-            size="sm"
-            className="text-[11px]"
-            onClick={() => {
-              acceptAll();
-              setDetailsOpen(false);
-            }}
-          >
-            <Check className="h-4 w-4" />
-            {t.acceptAll}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-[11px]"
+        <div className="flex flex-wrap items-center justify-end gap-2 p-3 sm:p-4 border-t border-[color:var(--cb-border,var(--border))] bg-[color:var(--cb-muted,var(--muted))]/25">
+          <button
+            type="button"
+            className={BTN_GHOST}
             onClick={() => {
               rejectAll();
               setDetailsOpen(false);
             }}
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
             {t.rejectAll}
-          </Button>
+          </button>
+          <button
+            type="button"
+            className={BTN_OUTLINE}
+            onClick={() => {
+              save(draft);
+              setDetailsOpen(false);
+            }}
+          >
+            <Check className="h-3.5 w-3.5" />
+            {t.saveSelection}
+          </button>
+          <button
+            type="button"
+            className={BTN_PRIMARY}
+            onClick={() => {
+              acceptAll();
+              setDetailsOpen(false);
+            }}
+          >
+            <Check className="h-3.5 w-3.5" />
+            {t.acceptAll}
+          </button>
         </div>
       </div>
     </div>
