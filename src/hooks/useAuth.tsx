@@ -62,43 +62,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s);
-      const uid = s?.user?.id ?? null;
-      if (event === "INITIAL_SESSION") {
-        // Baseline only: anon SSR data is already correct, and entitled users
-        // reveal gated bodies via useUnlockedContent without a full refetch.
-        lastUidRef.current = uid;
-      } else {
-        // SIGNED_IN / SIGNED_OUT / USER_UPDATED -> re-gate cached content.
-        reauthorizeContent(uid);
-      }
-      if (s?.user) {
-        setTimeout(() => {
-          void loadContext(s.user.id);
-        }, 0);
-        // Merge anonimowej personalizacji (zainteresowania + zapisane
-        // artykuły gościa) na poziomie aplikacji - działa niezależnie od tego,
-        // które widżety są zamontowane. Best-effort: błąd nie blokuje logowania.
-        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && hasAnonPersonalization()) {
-          const mergeUid = s.user.id;
-          setTimeout(() => {
-            void mergeAnonPersonalization(mergeUid, queryClient).catch((err) => {
-              console.warn("[auth] anon personalization merge failed", err);
-            });
-          }, 0);
+    // The browser Supabase client throws at FIRST touch when its public config
+    // cannot be resolved (see lib/supabasePublicConfig.ts) - and a throw from
+    // this effect lands in the root error boundary, replacing a fully-rendered
+    // anonymous page with the error screen (production incident 2026-07-16).
+    // Auth is progressive enhancement on a public content site: degrade to
+    // signed-out, loudly, instead of taking the whole page down.
+    let sub: { subscription: { unsubscribe: () => void } } | undefined;
+    try {
+      ({ data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+        setSession(s);
+        const uid = s?.user?.id ?? null;
+        if (event === "INITIAL_SESSION") {
+          // Baseline only: anon SSR data is already correct, and entitled users
+          // reveal gated bodies via useUnlockedContent without a full refetch.
+          lastUidRef.current = uid;
+        } else {
+          // SIGNED_IN / SIGNED_OUT / USER_UPDATED -> re-gate cached content.
+          reauthorizeContent(uid);
         }
-      } else {
-        setRoles([]);
-        setTenantId(null);
-      }
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) void loadContext(data.session.user.id);
+        if (s?.user) {
+          setTimeout(() => {
+            void loadContext(s.user.id);
+          }, 0);
+          // Merge anonimowej personalizacji (zainteresowania + zapisane
+          // artykuły gościa) na poziomie aplikacji - działa niezależnie od tego,
+          // które widżety są zamontowane. Best-effort: błąd nie blokuje logowania.
+          if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && hasAnonPersonalization()) {
+            const mergeUid = s.user.id;
+            setTimeout(() => {
+              void mergeAnonPersonalization(mergeUid, queryClient).catch((err) => {
+                console.warn("[auth] anon personalization merge failed", err);
+              });
+            }, 0);
+          }
+        } else {
+          setRoles([]);
+          setTenantId(null);
+        }
+      }));
+      supabase.auth.getSession().then(({ data }) => {
+        setSession(data.session);
+        if (data.session?.user) void loadContext(data.session.user.id);
+        setLoading(false);
+      });
+    } catch (error) {
+      console.error("[auth] Supabase client unavailable - continuing signed-out", error);
       setLoading(false);
-    });
-    return () => sub.subscription.unsubscribe();
+    }
+    return () => sub?.subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {

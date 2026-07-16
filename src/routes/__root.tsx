@@ -20,6 +20,7 @@ import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
 import { getOrigin } from "../lib/seo/request";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
+import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
 import { currentLang } from "../lib/i18n/localeRuntime";
 import { errorCopy } from "../lib/errorCopy";
 import "../lib/i18n-profile";
@@ -243,10 +244,22 @@ const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var
 
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
+  // SSR -> browser handoff of the PUBLIC Supabase config (anon key + URL).
+  // The publish build does not inline VITE_SUPABASE_* into client assets, so
+  // without this script the browser Supabase client throws at first touch and
+  // the root error boundary replaces a fully-rendered page with the error
+  // screen (2026-07-16 incident). Emitted in <head>, before the app bundle
+  // executes; on hydration the same function re-serializes the value the
+  // script itself set, so both passes render identical markup. See
+  // lib/supabasePublicConfig.ts.
+  const supabaseConfigScript = supabasePublicConfigScript();
   return (
     <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
+        {supabaseConfigScript ? (
+          <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
+        ) : null}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
