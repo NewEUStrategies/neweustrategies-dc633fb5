@@ -1002,9 +1002,38 @@ function MegaColumnsEditor({
             </div>
           </div>
         ))}
-        <Button size="sm" variant="outline" onClick={addColumn}>
-          + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={addColumn}>
+            + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
+          </Button>
+          {derivedCols.length > 0 ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={importFromTree}
+              title={t("admin.menu.importFromTreeHint", {
+                defaultValue:
+                  "Skopiuj kolumny z aktualnej struktury drzewa (dzieci = kolumny, wnuki = linki).",
+              })}
+            >
+              {config.columns.length === 0
+                ? t("admin.menu.importFromTree", {
+                    defaultValue: "Wygeneruj kolumny z drzewa menu",
+                  })
+                : t("admin.menu.overwriteFromTree", {
+                    defaultValue: "Nadpisz kolumny z drzewa menu",
+                  })}
+            </Button>
+          ) : null}
+        </div>
+        {config.columns.length === 0 && derivedCols.length > 0 ? (
+          <p className="text-[11px] text-muted-foreground italic">
+            {t("admin.menu.autoDerivedHint", {
+              defaultValue:
+                "Brak konfiguracji kolumn - front automatycznie buduje mega menu z dzieci tej pozycji (poniżej podgląd 1:1).",
+            })}
+          </p>
+        ) : null}
       </div>
       <FeaturedPostPicker
         value={config.featured_post_id}
@@ -1016,6 +1045,7 @@ function MegaColumnsEditor({
         triggerEn={triggerEn}
         lang={previewLang}
         onLangChange={setPreviewLang}
+        derivedCols={derivedCols}
       />
     </div>
   );
