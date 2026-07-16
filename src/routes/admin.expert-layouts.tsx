@@ -40,7 +40,6 @@ function Page() {
   const save = useSaveExpertLayoutSettings();
   const [local, setLocal] = useState<ExpertLayoutSettings | null>(null);
   const [savedAt, setSavedAt] = useState(0);
-  
 
   useEffect(() => {
     if (data && !local) setLocal(data);
@@ -62,7 +61,7 @@ function Page() {
     try {
       await save.mutateAsync(rest);
       setSavedAt(Date.now());
-      
+
       toast.success("Zapisano - layout strony eksperta został zaktualizowany");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
@@ -103,9 +102,7 @@ function Page() {
     return map[key];
   };
 
-  const order = local.section_order?.length
-    ? local.section_order
-    : DEFAULT_EXPERT_SECTION_ORDER;
+  const order = local.section_order?.length ? local.section_order : DEFAULT_EXPERT_SECTION_ORDER;
 
   const moveSection = (idx: number, dir: -1 | 1) => {
     const next = [...order];
@@ -118,7 +115,6 @@ function Page() {
   return (
     <AdminShell hideSidebar>
       <div className="mx-auto max-w-[1200px] space-y-8 p-4 md:p-6">
-
         <header className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="font-display text-xl">Layouty stron ekspertów</h1>
@@ -141,7 +137,8 @@ function Page() {
           <div className="flex items-baseline justify-between gap-3 flex-wrap">
             <h2 className="font-display text-base">Domyślny preset</h2>
             <span className="text-[11px] text-muted-foreground">
-              Wybrany: <b>{EXPERT_LAYOUT_PRESETS.find((p) => p.id === local.default_preset)?.label_pl}</b>
+              Wybrany:{" "}
+              <b>{EXPERT_LAYOUT_PRESETS.find((p) => p.id === local.default_preset)?.label_pl}</b>
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -168,7 +165,6 @@ function Page() {
               );
             })}
           </div>
-
         </section>
 
         {/* Widoczność + kolejność sekcji */}
@@ -179,10 +175,7 @@ function Page() {
           </p>
           <ul className="divide-y divide-border/60 rounded-md border border-border">
             {order.map((key, idx) => (
-              <li
-                key={key}
-                className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-              >
+              <li key={key} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="tabular-nums text-muted-foreground w-5 shrink-0">
                     {idx + 1}.
@@ -352,7 +345,9 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className={`flex items-center gap-3 py-1 ${label ? "justify-between border-b border-border/60" : ""}`}>
+    <label
+      className={`flex items-center gap-3 py-1 ${label ? "justify-between border-b border-border/60" : ""}`}
+    >
       {label && <span className="text-xs">{label}</span>}
       <button
         type="button"
@@ -427,11 +422,11 @@ function ColorField({
   );
 }
 
-
 // Uproszczony piktogram wariantu - schemat blokowy, żeby administrator od razu
 // widział strukturę hero. Bez ikon zewnętrznych, tylko div-y z tokenami.
 function PresetThumb({ id }: { id: ExpertLayoutPresetId }) {
-  const base = "relative h-20 w-full rounded border border-border bg-muted/50 p-2 flex gap-1.5 overflow-hidden";
+  const base =
+    "relative h-20 w-full rounded border border-border bg-muted/50 p-2 flex gap-1.5 overflow-hidden";
   switch (id) {
     case "classic":
       return (

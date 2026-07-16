@@ -30,7 +30,10 @@ interface GatewayCtx {
   supabase: {
     from: (t: string) => {
       select: (c: string) => {
-        eq: (col: string, val: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+        eq: (
+          col: string,
+          val: string,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
       };
     };
   };
@@ -163,14 +166,15 @@ async function resolveAccessToken(): Promise<{ token: string; source: "sa" | "oa
   return null;
 }
 
-
-
 // ---------- Report ----------
 
 const reportInput = z.object({
   startDate: z.string().default("28daysAgo"),
   endDate: z.string().default("today"),
-  metrics: z.array(z.string().min(1)).min(1).default(["sessions", "activeUsers", "screenPageViews"]),
+  metrics: z
+    .array(z.string().min(1))
+    .min(1)
+    .default(["sessions", "activeUsers", "screenPageViews"]),
   dimensions: z.array(z.string().min(1)).max(3).default(["date"]),
   limit: z.number().int().min(1).max(1000).default(100),
 });
@@ -206,7 +210,8 @@ export const runGa4Report = createServerFn({ method: "POST" })
       rows: [],
       totals: [],
     };
-    if (stored.ga4_enabled === false) return { ...emptyReport, error: "GA4 wyłączone przez administratora" };
+    if (stored.ga4_enabled === false)
+      return { ...emptyReport, error: "GA4 wyłączone przez administratora" };
     if (!propertyId) return emptyReport;
     const auth = await resolveAccessToken();
     if (!auth) return emptyReport;
@@ -232,7 +237,12 @@ export const runGa4Report = createServerFn({ method: "POST" })
       );
       const text = await res.text();
       if (!res.ok) {
-        return { ...emptyReport, configured: true, propertyId, error: `GA4 ${res.status}: ${text.slice(0, 300)}` };
+        return {
+          ...emptyReport,
+          configured: true,
+          propertyId,
+          error: `GA4 ${res.status}: ${text.slice(0, 300)}`,
+        };
       }
       const parsed = JSON.parse(text) as {
         dimensionHeaders?: Array<{ name: string }>;
@@ -284,7 +294,6 @@ export interface Ga4MpResult {
   error?: string;
 }
 
-
 /**
  * Wysyła event GA4 przez Measurement Protocol.
  * Wymaga sekretów: GA4_MEASUREMENT_ID + GA4_API_SECRET.
@@ -298,12 +307,14 @@ export const sendGa4Event = createServerFn({ method: "POST" })
 
     const stored = await readStoredAnalytics(context as unknown as GatewayCtx);
     const measurementId =
-      process.env.GA4_MEASUREMENT_ID?.trim() ||
-      stored.ga4_measurement_id?.trim() ||
-      "";
+      process.env.GA4_MEASUREMENT_ID?.trim() || stored.ga4_measurement_id?.trim() || "";
     const apiSecret = process.env.GA4_API_SECRET;
     if (!measurementId || !apiSecret) {
-      return { ok: false, configured: false, error: "Brak Measurement ID (ustawienia analityki) lub GA4_API_SECRET (sekret)" };
+      return {
+        ok: false,
+        configured: false,
+        error: "Brak Measurement ID (ustawienia analityki) lub GA4_API_SECRET (sekret)",
+      };
     }
 
     const path = data.debug ? "/debug/mp/collect" : "/mp/collect";
@@ -336,4 +347,3 @@ export const sendGa4Event = createServerFn({ method: "POST" })
       };
     }
   });
-

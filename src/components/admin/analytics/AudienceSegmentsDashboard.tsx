@@ -6,10 +6,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { Users, UserCheck, UserX, Eye, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EChart } from "./EChart";
 import { InsightSection, type Insight } from "./InsightSection";
-import { getAudienceSegments, type AudienceSegmentsResult } from "@/lib/analytics/audience.functions";
+import {
+  getAudienceSegments,
+  type AudienceSegmentsResult,
+} from "@/lib/analytics/audience.functions";
 
 const RANGES: ReadonlyArray<{ v: number; l: string }> = [
   { v: 7, l: "7 dni" },
@@ -38,7 +47,9 @@ function KpiCard({ label, value, hint, Icon, tone }: KpiCardProps) {
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {label}
         </span>
-        <span className={`inline-flex h-8 w-8 items-center justify-center rounded-md border ${toneClass}`}>
+        <span
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-md border ${toneClass}`}
+        >
           <Icon className="h-4 w-4" />
         </span>
       </div>
@@ -141,9 +152,7 @@ export function AudienceSegmentsDashboard() {
         severity: "good",
         title: `Zalogowany czyta średnio ${(kpi.views_logged / kpi.unique_logged).toFixed(1)} wpisów`,
         detail: "Zaangażowanie w tym segmencie jest wysokie.",
-        fixes: [
-          "Zbuduj widok 'Ostatnio czytane' dla zalogowanych na stronie profilu.",
-        ],
+        fixes: ["Zbuduj widok 'Ostatnio czytane' dla zalogowanych na stronie profilu."],
       });
     }
     if (q.data.truncated) {
@@ -186,7 +195,12 @@ export function AudienceSegmentsDashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Odsłony razem" value={q.data?.kpi.views_total ?? 0} Icon={Eye} tone="brand" />
+        <KpiCard
+          label="Odsłony razem"
+          value={q.data?.kpi.views_total ?? 0}
+          Icon={Eye}
+          tone="brand"
+        />
         <KpiCard
           label="Zalogowani"
           value={q.data?.kpi.views_logged ?? 0}
@@ -213,7 +227,9 @@ export function AudienceSegmentsDashboard() {
         <div className="mb-2 flex items-center justify-between">
           <h4 className="font-display text-base">Odsłony dziennie (stacked)</h4>
           {q.data?.truncated && (
-            <Badge variant="outline" className="text-xs">próba przycięta</Badge>
+            <Badge variant="outline" className="text-xs">
+              próba przycięta
+            </Badge>
           )}
         </div>
         <EChart option={chartOption} height={280} />
@@ -235,7 +251,13 @@ function TopPosts({
   tone,
 }: {
   title: string;
-  rows: ReadonlyArray<{ post_id: string; title: string; slug: string | null; views: number; uniques: number }>;
+  rows: ReadonlyArray<{
+    post_id: string;
+    title: string;
+    slug: string | null;
+    views: number;
+    uniques: number;
+  }>;
   tone: "logged" | "anon";
 }) {
   const dot = tone === "logged" ? "bg-cat-finance" : "bg-cat-transport";
@@ -254,9 +276,7 @@ function TopPosts({
               <span className="w-5 text-xs font-mono text-muted-foreground">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{r.title}</div>
-                {r.slug && (
-                  <div className="truncate text-xs text-muted-foreground">/{r.slug}</div>
-                )}
+                {r.slug && <div className="truncate text-xs text-muted-foreground">/{r.slug}</div>}
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-medium">{r.views.toLocaleString("pl-PL")}</div>

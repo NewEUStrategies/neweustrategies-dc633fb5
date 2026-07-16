@@ -68,9 +68,7 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
         .order("title_pl")
         .limit(20);
       if (q.length >= 2) {
-        query = query.or(
-          `title_pl.ilike.%${q}%,title_en.ilike.%${q}%,slug.ilike.%${q}%`,
-        );
+        query = query.or(`title_pl.ilike.%${q}%,title_en.ilike.%${q}%,slug.ilike.%${q}%`);
       }
       const { data } = await query;
       return (data as PageHit[] | null) ?? [];

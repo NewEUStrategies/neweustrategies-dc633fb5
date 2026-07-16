@@ -432,7 +432,9 @@ const RenderSection = memo(function RenderSection({
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
   const firstTabId = tabsEnabled ? tabsCfg!.items[0].id : "";
   const initialTabId =
-    tabsEnabled && tabsCfg!.defaultTabId && tabsCfg!.items.some((t) => t.id === tabsCfg!.defaultTabId)
+    tabsEnabled &&
+    tabsCfg!.defaultTabId &&
+    tabsCfg!.items.some((t) => t.id === tabsCfg!.defaultTabId)
       ? tabsCfg!.defaultTabId
       : firstTabId;
   const [activeTabId, setActiveTabId] = useState<string>(initialTabId);
@@ -563,7 +565,10 @@ const RenderSection = memo(function RenderSection({
                 device === "mobile"
                   ? "minmax(0, 1fr)"
                   : columnsRowStyle(section, colsSum).gridTemplateColumns,
-              flex: tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical" ? 1 : undefined,
+              flex:
+                tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical"
+                  ? 1
+                  : undefined,
               ...(tabsEnabled && !prefersReducedMotion
                 ? {
                     transition: `opacity ${TAB_FADE_MS}ms ease, transform ${TAB_FADE_MS}ms ease`,
@@ -688,7 +693,8 @@ const RenderInner = memo(function RenderInner({
               data-column-slot
               className="min-w-0 max-w-full overflow-hidden"
               style={{
-                gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
+                gridColumn:
+                  device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
               }}
             >
               <RenderColumn column={c} lang={lang} device={device} />
@@ -870,11 +876,8 @@ const RenderColumn = memo(function RenderColumn({
                       lang={lang}
                       device={device}
                       editable={!!inlineEdit}
-                      onContentChange={
-                        inlineEdit ? (k, v) => inlineEdit(w.id, k, v) : undefined
-                      }
+                      onContentChange={inlineEdit ? (k, v) => inlineEdit(w.id, k, v) : undefined}
                     />
-
                   </div>
                 </div>
               </RenderErrorBoundary>

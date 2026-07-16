@@ -1,11 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
-import {
-  isLocalizablePath,
-  localizedPath,
-  normalizeLang,
-} from "@/lib/i18n/localePath";
+import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 
@@ -171,10 +167,7 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
     headers.set("X-Content-Type-Options", "nosniff");
     headers.set("X-Frame-Options", "SAMEORIGIN");
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    headers.set(
-      "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=(self)",
-    );
+    headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(self)");
   }
 
   return new Response(response.body, {

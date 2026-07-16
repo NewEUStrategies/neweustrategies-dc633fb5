@@ -73,7 +73,14 @@ function toNumber(s: string, fallback = 0): number {
 
 function normalizeStatus(raw: string): WxrPageStatus {
   const v = raw.toLowerCase();
-  if (v === "publish" || v === "draft" || v === "private" || v === "pending" || v === "future" || v === "trash") {
+  if (
+    v === "publish" ||
+    v === "draft" ||
+    v === "private" ||
+    v === "pending" ||
+    v === "future" ||
+    v === "trash"
+  ) {
     return v as WxrPageStatus;
   }
   return "draft";
@@ -124,7 +131,8 @@ export function parseWxr(xmlText: string): WxrParseResult {
     const status = normalizeStatus(tagText(item, "wp", "status"));
     const contentHtml = tagText(item, "content", "encoded");
     const excerptHtml = tagText(item, "excerpt", "encoded");
-    const modified = tagText(item, "wp", "post_modified_gmt") || tagText(item, "wp", "post_date_gmt");
+    const modified =
+      tagText(item, "wp", "post_modified_gmt") || tagText(item, "wp", "post_date_gmt");
     const parentWpId = toNumber(tagText(item, "wp", "post_parent"), 0) || null;
     const menuOrder = toNumber(tagText(item, "wp", "menu_order"), 0);
     const originalUrl = textOf(item, "link");
@@ -195,11 +203,18 @@ export function fallbackHtmlFromElementorJson(json: string): string {
     const parts: string[] = [];
     const walk = (node: unknown): void => {
       if (!node || typeof node !== "object") return;
-      const n = node as { elType?: string; widgetType?: string; settings?: Record<string, unknown>; elements?: unknown[] };
+      const n = node as {
+        elType?: string;
+        widgetType?: string;
+        settings?: Record<string, unknown>;
+        elements?: unknown[];
+      };
       const settings = n.settings ?? {};
       const type = (n.widgetType ?? n.elType ?? "").toString();
       if (type === "heading" && typeof settings.title === "string") {
-        const tag = (typeof settings.header_size === "string" ? settings.header_size : "h2").toLowerCase();
+        const tag = (
+          typeof settings.header_size === "string" ? settings.header_size : "h2"
+        ).toLowerCase();
         parts.push(`<${tag}>${settings.title}</${tag}>`);
       } else if (type === "text-editor" && typeof settings.editor === "string") {
         parts.push(settings.editor);

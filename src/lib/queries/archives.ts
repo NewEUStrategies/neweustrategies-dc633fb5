@@ -203,7 +203,6 @@ export const taxonomyArchiveQueryOptions = (
   });
 };
 
-
 // ---------- SEARCH ---------------------------------------------------------
 
 /** Kolejność wyników (mapuje się 1:1 na parametr _sort funkcji search_posts). */

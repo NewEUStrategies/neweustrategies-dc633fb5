@@ -64,11 +64,7 @@ export function ArchivePagination({
       </Button>
       {items.map((it, i) =>
         it === "ellipsis" ? (
-          <span
-            key={`e-${i}`}
-            className="px-2 text-muted-foreground select-none"
-            aria-hidden
-          >
+          <span key={`e-${i}`} className="px-2 text-muted-foreground select-none" aria-hidden>
             …
           </span>
         ) : (

@@ -44,10 +44,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const docRef = useRef(doc);
   docRef.current = doc;
   const update = useCallback(
-    (
-      mut: (d: BuilderDocument) => void,
-      opts?: { label?: string; coalesceKey?: string },
-    ) => {
+    (mut: (d: BuilderDocument) => void, opts?: { label?: string; coalesceKey?: string }) => {
       const next: BuilderDocument = safeParseBuilderDoc(JSON.parse(JSON.stringify(docRef.current)));
       mut(next);
       const normalized = safeParseBuilderDoc(next);
@@ -110,11 +107,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update((d) => ops.duplicateSection(d, id), { label: "Zduplikowano sekcję" });
   const insertSectionAt = (index: number, colsOrSpans: number | number[]) =>
     update((d) => ops.insertSectionAt(d, index, colsOrSpans), { label: "Wstawiono sekcję" });
-  const addSectionToTab = (
-    sectionId: string,
-    tabId: string,
-    colsOrSpans: number | number[],
-  ) =>
+  const addSectionToTab = (sectionId: string, tabId: string, colsOrSpans: number | number[]) =>
     update((d) => ops.addSectionToTab(d, sectionId, tabId, colsOrSpans), {
       label: "Dodano sekcję do zakładki",
     });
@@ -168,8 +161,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
 
   const addWidgetToFocused = (type: WidgetType) => {
     const w = makeWidget(type);
-    if (!focusedColumn)
-      update((d) => ops.addWidgetToNewSection(d, w), { label: "Dodano widget" });
+    if (!focusedColumn) update((d) => ops.addWidgetToNewSection(d, w), { label: "Dodano widget" });
     else update((d) => ops.addWidgetToColumn(d, focusedColumn.id, w), { label: "Dodano widget" });
     setSelection({ kind: "widget", id: w.id });
   };

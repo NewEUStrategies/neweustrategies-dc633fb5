@@ -56,10 +56,7 @@ describe("postFormatToKind", () => {
 describe("parseOrgFunctions", () => {
   it("keeps well-formed entries and coerces missing sides to empty string", () => {
     expect(
-      parseOrgFunctions([
-        { pl: "Dyrektorka", en: "Director" },
-        { pl: "Członkini zarządu" },
-      ]),
+      parseOrgFunctions([{ pl: "Dyrektorka", en: "Director" }, { pl: "Członkini zarządu" }]),
     ).toEqual([
       { pl: "Dyrektorka", en: "Director" },
       { pl: "Członkini zarządu", en: "" },
@@ -67,9 +64,12 @@ describe("parseOrgFunctions", () => {
   });
 
   it("drops entries with no text on either side", () => {
-    expect(parseOrgFunctions([{ pl: "", en: "" }, { pl: "X", en: "" }])).toEqual([
-      { pl: "X", en: "" },
-    ]);
+    expect(
+      parseOrgFunctions([
+        { pl: "", en: "" },
+        { pl: "X", en: "" },
+      ]),
+    ).toEqual([{ pl: "X", en: "" }]);
   });
 
   it("returns [] for non-array / junk input", () => {
@@ -125,9 +125,7 @@ describe("reduceFacets", () => {
       { id: "r1", slug: "eu", name_pl: "UE", name_en: "EU" },
       { id: "r2", slug: "us", name_pl: "USA", name_en: "US" },
     ],
-    categories: [
-      { id: "c1", slug: "sec", name_pl: "Bezp.", name_en: "Security" },
-    ],
+    categories: [{ id: "c1", slug: "sec", name_pl: "Bezp.", name_en: "Security" }],
     tags: [],
   };
 

@@ -40,9 +40,8 @@ export function SectionTabsBar({
   const iconPos = tabs.iconPosition ?? "left";
   const iconSize = Math.max(10, Math.min(32, tabs.iconSize ?? 16));
   const fontSize = Math.max(8, Math.min(48, tabs.fontSize ?? 14));
-  const globalAccent = tabs.accentColor && tabs.accentColor.trim()
-    ? tabs.accentColor
-    : "var(--brand, currentColor)";
+  const globalAccent =
+    tabs.accentColor && tabs.accentColor.trim() ? tabs.accentColor : "var(--brand, currentColor)";
 
   const wrapMode = tabs.mobileMode ?? "scroll";
   const isPillish = variant === "pills" || variant === "pills-solid" || variant === "ghost";
@@ -65,7 +64,10 @@ export function SectionTabsBar({
           justifyContent:
             align === "center" ? "center" : align === "end" ? "flex-end" : "flex-start",
           borderBottom:
-            variant === "underline" || variant === "underline-dot" || variant === "underline-thick" || variant === "underline-gradient"
+            variant === "underline" ||
+            variant === "underline-dot" ||
+            variant === "underline-thick" ||
+            variant === "underline-gradient"
               ? "1px solid var(--border, hsl(var(--border)))"
               : undefined,
           padding: variant === "segmented" ? 3 : undefined,
@@ -130,16 +132,13 @@ export function SectionTabsBar({
           background: "transparent",
           border: "none",
           padding:
-            iconPos === "top"
-              ? "10px 14px 8px"
-              : variant === "segmented"
-                ? "6px 12px"
-                : "8px 14px",
+            iconPos === "top" ? "10px 14px 8px" : variant === "segmented" ? "6px 12px" : "8px 14px",
           fontSize: `${fontSize}px`,
           fontWeight: active ? 600 : 500,
           cursor: "pointer",
           color: active ? "var(--foreground, inherit)" : "var(--muted-foreground, inherit)",
-          transition: "color .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease",
+          transition:
+            "color .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease",
           whiteSpace: "nowrap",
           display: "inline-flex",
           flexDirection: iconPos === "top" ? "column" : "row",
@@ -169,7 +168,9 @@ export function SectionTabsBar({
           case "pills-solid":
             variantStyle = {
               borderRadius: 5,
-              color: active ? "var(--primary-foreground, #fff)" : "var(--muted-foreground, inherit)",
+              color: active
+                ? "var(--primary-foreground, #fff)"
+                : "var(--muted-foreground, inherit)",
               background: active ? activeColor : "transparent",
               boxShadow: active
                 ? `0 4px 14px -6px color-mix(in oklab, ${activeColor} 60%, transparent)`
@@ -189,16 +190,18 @@ export function SectionTabsBar({
             variantStyle = {
               borderRadius: 8,
               background: active ? "var(--background, #fff)" : "transparent",
-              boxShadow: active
-                ? "0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)"
-                : "none",
+              boxShadow: active ? "0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)" : "none",
               color: active ? activeColor : "var(--muted-foreground, inherit)",
             };
             break;
           case "boxed-top":
             variantStyle = {
-              borderLeft: active ? "1px solid var(--border, hsl(var(--border)))" : "1px solid transparent",
-              borderRight: active ? "1px solid var(--border, hsl(var(--border)))" : "1px solid transparent",
+              borderLeft: active
+                ? "1px solid var(--border, hsl(var(--border)))"
+                : "1px solid transparent",
+              borderRight: active
+                ? "1px solid var(--border, hsl(var(--border)))"
+                : "1px solid transparent",
               borderBottom: "1px solid transparent",
               borderRadius: "8px 8px 0 0",
               background: active ? "var(--background, transparent)" : "transparent",
@@ -224,12 +227,16 @@ export function SectionTabsBar({
         }
 
         // Animated indicators (rendered for all variants, hidden via scale/opacity when inactive)
-        const isUnderline = variant === "underline" || variant === "underline-thick" || variant === "underline-gradient";
-        const barHeight = variant === "underline-thick" ? 4 : variant === "underline-gradient" ? 3 : 2;
-        const barBg = variant === "underline-gradient"
-          ? `linear-gradient(90deg, ${activeColor}, color-mix(in oklab, ${activeColor} 30%, transparent))`
-          : activeColor;
-
+        const isUnderline =
+          variant === "underline" ||
+          variant === "underline-thick" ||
+          variant === "underline-gradient";
+        const barHeight =
+          variant === "underline-thick" ? 4 : variant === "underline-gradient" ? 3 : 2;
+        const barBg =
+          variant === "underline-gradient"
+            ? `linear-gradient(90deg, ${activeColor}, color-mix(in oklab, ${activeColor} 30%, transparent))`
+            : activeColor;
 
         return (
           <button

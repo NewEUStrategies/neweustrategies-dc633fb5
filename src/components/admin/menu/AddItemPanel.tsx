@@ -18,13 +18,15 @@ interface Row {
 }
 
 interface Props {
-  onAdd: (payload: {
-    item_type: MenuItemType;
-    ref_id: string | null;
-    label_pl: string;
-    label_en: string;
-    href: string;
-  }[]) => void;
+  onAdd: (
+    payload: {
+      item_type: MenuItemType;
+      ref_id: string | null;
+      label_pl: string;
+      label_en: string;
+      href: string;
+    }[],
+  ) => void;
 }
 
 type Section = "pages" | "posts" | "custom" | "categories" | "tags";
@@ -161,7 +163,9 @@ function PickList({
   const { data: rows = [] } = useQuery({
     queryKey: ["menu-picker", table, statusFilter ?? "any", search],
     staleTime: 30_000,
-    queryFn: async (): Promise<Array<Row & { title_pl: string; title_en: string; slug: string }>> => {
+    queryFn: async (): Promise<
+      Array<Row & { title_pl: string; title_en: string; slug: string }>
+    > => {
       // Ręczne, wąskie typowanie - `table` jest unią stringów po stronie klienta,
       // a Supabase generuje różne kolumny per tabela; ujednolicony builder z eq/is/or/order.
       type Builder = {
@@ -172,16 +176,18 @@ function PickList({
         limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null }>;
       };
       let q = (
-        supabase.from(table).select(
-          `id, slug, ${titleField}, ${fallbackField}`,
-        ) as unknown as Builder
+        supabase
+          .from(table)
+          .select(`id, slug, ${titleField}, ${fallbackField}`) as unknown as Builder
       ).order(titleField);
       if (statusFilter && (table === "pages" || table === "posts")) {
         q = q.eq("status", statusFilter).is("deleted_at", null);
       }
       const term = search.trim();
       if (term.length >= 2) {
-        q = q.or(`${titleField}.ilike.%${term}%,${fallbackField}.ilike.%${term}%,slug.ilike.%${term}%`);
+        q = q.or(
+          `${titleField}.ilike.%${term}%,${fallbackField}.ilike.%${term}%,slug.ilike.%${term}%`,
+        );
       }
       const { data } = await q.limit(30);
       return (data ?? []).map((r) => {
@@ -274,19 +280,32 @@ function CustomLinkForm({ onAdd }: { onAdd: Props["onAdd"] }) {
     <div className="space-y-2">
       <div>
         <label className="text-[11px] font-medium text-muted-foreground">URL</label>
-        <Input value={href} onChange={(e) => setHref(e.target.value)} placeholder="https://... lub /sciezka" className="h-8 text-xs" />
+        <Input
+          value={href}
+          onChange={(e) => setHref(e.target.value)}
+          placeholder="https://... lub /sciezka"
+          className="h-8 text-xs"
+        />
       </div>
       <div>
         <label className="text-[11px] font-medium text-muted-foreground">
           {t("admin.menu.labelPl", { defaultValue: "Etykieta (PL)" })}
         </label>
-        <Input value={labelPl} onChange={(e) => setLabelPl(e.target.value)} className="h-8 text-xs" />
+        <Input
+          value={labelPl}
+          onChange={(e) => setLabelPl(e.target.value)}
+          className="h-8 text-xs"
+        />
       </div>
       <div>
         <label className="text-[11px] font-medium text-muted-foreground">
           {t("admin.menu.labelEn", { defaultValue: "Etykieta (EN)" })}
         </label>
-        <Input value={labelEn} onChange={(e) => setLabelEn(e.target.value)} className="h-8 text-xs" />
+        <Input
+          value={labelEn}
+          onChange={(e) => setLabelEn(e.target.value)}
+          className="h-8 text-xs"
+        />
       </div>
       <Button
         size="sm"

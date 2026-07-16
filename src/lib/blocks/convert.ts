@@ -131,7 +131,9 @@ export function convertHtmlToBuilder(html: string): ConversionResult {
       fallback: blocks.blocks.length,
       total: blocks.blocks.length,
     },
-    warnings: cleaned ? ["Treść nie została rozpoznana jako Elementor ani Gutenberg - użyto fallbacku HTML."] : [],
+    warnings: cleaned
+      ? ["Treść nie została rozpoznana jako Elementor ani Gutenberg - użyto fallbacku HTML."]
+      : [],
     mediaUrls,
     source: "html",
     cleanedHtml: cleaned,

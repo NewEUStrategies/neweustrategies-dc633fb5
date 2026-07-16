@@ -25,8 +25,7 @@ export interface AdminUserRow {
   roles: AdminRole[];
 }
 
-export const adminUsersQueryKey = (tenantId: string) =>
-  ["admin", "all-users", tenantId] as const;
+export const adminUsersQueryKey = (tenantId: string) => ["admin", "all-users", tenantId] as const;
 
 export const adminUsersQueryOptions = (tenantId: string) =>
   queryOptions({

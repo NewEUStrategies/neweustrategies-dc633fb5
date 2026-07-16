@@ -32,10 +32,10 @@ SQL w cronie nie może wysyłać HTTP z sekretami środowiska, więc pg_cron
 jedynie PUKA do aplikacji. Są dwa równoważne wejścia (oba idempotentne -
 claimy atomowe w Postgresie; mogą działać równolegle):
 
-| Endpoint | Sekret | Kto woła | Zakres |
-| --- | --- | --- | --- |
-| `POST /api/public/jobs-tick` | nagłówek `x-jobs-secret` = `job_runner_settings.secret` (tabela, admin: Newsletter → kampanie) | **pg_cron + pg_net co minutę** (migracja `20260713170000`) | newsletter + push + digesty (daily/weekly) + przypomnienia o wydarzeniach |
-| `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET` | dowolny zewnętrzny scheduler (GitHub Actions, cron-job.org, uptime robot) - **fallback/ręczne** | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders` |
+| Endpoint                          | Sekret                                                                                         | Kto woła                                                                                        | Zakres                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `POST /api/public/jobs-tick`      | nagłówek `x-jobs-secret` = `job_runner_settings.secret` (tabela, admin: Newsletter → kampanie) | **pg_cron + pg_net co minutę** (migracja `20260713170000`)                                      | newsletter + push + digesty (daily/weekly) + przypomnienia o wydarzeniach |
+| `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET`                               | dowolny zewnętrzny scheduler (GitHub Actions, cron-job.org, uptime robot) - **fallback/ręczne** | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders`            |
 
 **Stan pożądany:** działa ścieżka pg_cron→jobs-tick (zero zewnętrznych
 zależności). `community-cron` zostaje jako ręczny wyzwalacz i plan B dla
@@ -97,7 +97,7 @@ funkcji trzeba potwierdzić dostarczanie na żywych usługach push:
   odbiera dostęp.
 - **Przypomnienia o wydarzeniach**: `run_event_reminders()` wysyła raz
   (stempel `reminded_at`) dla RSVP `going` na <24 h przed startem; woła je
-  pg_cron (`event-reminders`, 5 * * * *) oraz oba endpointy ticku.
+  pg_cron (`event-reminders`, 5 \* \* \* \*) oraz oba endpointy ticku.
 - **Kręgi**: limit 50 osób, kandydaci filtrowani serwerowo (blokady,
   `allow_messages_from`); tryb cichy członka nie zatrzymuje wiadomości
   grupy (guard zawężony do 1:1 w `20260713200000`).

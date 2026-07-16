@@ -48,8 +48,6 @@ import {
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
 
-
-
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
 });
@@ -369,7 +367,6 @@ function UserDetail() {
   );
 }
 
-
 function BackLink({ label }: { label: string }) {
   return (
     <Link
@@ -517,8 +514,7 @@ function AvatarEditor({
     if (!tenantId) return;
     setBusy(true);
     try {
-      const path =
-        tenantId + "/users/" + userId + "/avatar-" + Date.now() + ".jpg";
+      const path = tenantId + "/users/" + userId + "/avatar-" + Date.now() + ".jpg";
       const { data: signed, error: signErr } = await supabase.storage
         .from("media")
         .createSignedUploadUrl(path);
@@ -662,7 +658,11 @@ type UserConsentResult = {
 function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
   const L = (pl: string, en: string) => (isPL ? pl : en);
   const locale = isPL ? "pl-PL" : "en-US";
-  const CATS: { key: "necessary" | "functional" | "analytics" | "marketing"; pl: string; en: string }[] = [
+  const CATS: {
+    key: "necessary" | "functional" | "analytics" | "marketing";
+    pl: string;
+    en: string;
+  }[] = [
     { key: "necessary", pl: "Niezbędne", en: "Necessary" },
     { key: "functional", pl: "Funkcjonalne", en: "Functional" },
     { key: "analytics", pl: "Analityczne", en: "Analytics" },
@@ -672,20 +672,19 @@ function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-user-consent", userId],
     queryFn: async (): Promise<UserConsentResult> => {
-      const { data, error } = await supabase.rpc("admin_get_user_consent" as never, {
-        _user_id: userId,
-      } as never);
+      const { data, error } = await supabase.rpc(
+        "admin_get_user_consent" as never,
+        {
+          _user_id: userId,
+        } as never,
+      );
       if (error) throw error;
       return (data ?? null) as UserConsentResult;
     },
   });
 
   if (isLoading) {
-    return (
-      <div className="text-sm text-muted-foreground">
-        {L("Ładowanie...", "Loading...")}
-      </div>
-    );
+    return <div className="text-sm text-muted-foreground">{L("Ładowanie...", "Loading...")}</div>;
   }
   if (error) {
     return (
@@ -717,9 +716,7 @@ function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
               <span>{isPL ? c.pl : c.en}</span>
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                  on
-                    ? "bg-emerald-500/15 text-emerald-700"
-                    : "bg-muted text-muted-foreground"
+                  on ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground"
                 }`}
               >
                 {on ? L("Zgoda", "Granted") : L("Brak", "Denied")}

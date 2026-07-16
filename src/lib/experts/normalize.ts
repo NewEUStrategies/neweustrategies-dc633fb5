@@ -51,10 +51,7 @@ export interface TaxonomyLists {
 
 /** Redukuje taksonomie do wartości faktycznie obecnych w materiałach - fasety
  *  pokazują tylko filtry, które coś zwrócą. */
-export function reduceFacets(
-  materials: ExpertMaterial[],
-  taxonomy: TaxonomyLists,
-): TaxonomyLists {
+export function reduceFacets(materials: ExpertMaterial[], taxonomy: TaxonomyLists): TaxonomyLists {
   const presentPrograms = new Set(materials.flatMap((m) => m.programIds));
   const presentRegions = new Set(materials.flatMap((m) => m.regionIds));
   const presentCategories = new Set(materials.flatMap((m) => m.categoryIds));
@@ -71,11 +68,7 @@ export function reduceFacets(
 
 /** Buduje rdzeń profilu eksperta z wiersza profiles + author_profiles + odznak.
  *  Kontakt/socjale mają fallback z profiles, gdy author_profiles ich nie ma. */
-export function buildExpertProfile(
-  prof: Row,
-  apRow: Row | null,
-  badges: string[],
-): ExpertProfile {
+export function buildExpertProfile(prof: Row, apRow: Row | null, badges: string[]): ExpertProfile {
   return {
     id: str(prof.id),
     tenant_id: strOrNull(prof.tenant_id),

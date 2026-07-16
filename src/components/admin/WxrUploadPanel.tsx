@@ -77,43 +77,48 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
     }
   }, [pages, rows]);
 
-  const parseFile = useCallback(async (f: File) => {
-    setParsing(true);
-    setPages([]);
-    setSelected(new Set());
-    setRows({});
-    try {
-      const text = await f.text();
-      const { pages: parsed, warnings } = parseWxr(text);
-      // Elementor fallback: gdy content:encoded pusty a mamy JSON, syntezujemy prostą treść.
-      const enriched = parsed.map((p) => {
-        if ((!p.contentHtml || p.contentHtml.length < 4) && p.elementorData) {
-          const fh = fallbackHtmlFromElementorJson(p.elementorData);
-          if (fh) return { ...p, contentHtml: fh };
+  const parseFile = useCallback(
+    async (f: File) => {
+      setParsing(true);
+      setPages([]);
+      setSelected(new Set());
+      setRows({});
+      try {
+        const text = await f.text();
+        const { pages: parsed, warnings } = parseWxr(text);
+        // Elementor fallback: gdy content:encoded pusty a mamy JSON, syntezujemy prostą treść.
+        const enriched = parsed.map((p) => {
+          if ((!p.contentHtml || p.contentHtml.length < 4) && p.elementorData) {
+            const fh = fallbackHtmlFromElementorJson(p.elementorData);
+            if (fh) return { ...p, contentHtml: fh };
+          }
+          return p;
+        });
+        setPages(enriched);
+        if (warnings.length > 0) {
+          toast.warning(
+            lang === "pl"
+              ? `${warnings.length} ostrzeżeń przy parsowaniu (pierwsze: ${warnings[0]})`
+              : `${warnings.length} parse warnings (first: ${warnings[0]})`,
+          );
         }
-        return p;
-      });
-      setPages(enriched);
-      if (warnings.length > 0) {
-        toast.warning(
-          lang === "pl"
-            ? `${warnings.length} ostrzeżeń przy parsowaniu (pierwsze: ${warnings[0]})`
-            : `${warnings.length} parse warnings (first: ${warnings[0]})`,
-        );
+        if (enriched.length === 0) {
+          toast.info(lang === "pl" ? "Brak stron w eksporcie." : "No pages in export.");
+        } else {
+          toast.success(
+            lang === "pl"
+              ? `Znaleziono ${enriched.length} stron.`
+              : `Found ${enriched.length} pages.`,
+          );
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : String(e));
+      } finally {
+        setParsing(false);
       }
-      if (enriched.length === 0) {
-        toast.info(lang === "pl" ? "Brak stron w eksporcie." : "No pages in export.");
-      } else {
-        toast.success(
-          lang === "pl" ? `Znaleziono ${enriched.length} stron.` : `Found ${enriched.length} pages.`,
-        );
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
-    } finally {
-      setParsing(false);
-    }
-  }, [lang]);
+    },
+    [lang],
+  );
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -221,7 +226,9 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
           includeExternalMedia: includeExternal,
         },
       });
-      const okCount = results.filter((r) => r.status === "imported" || r.status === "overwritten").length;
+      const okCount = results.filter(
+        (r) => r.status === "imported" || r.status === "overwritten",
+      ).length;
       const overCount = results.filter((r) => r.status === "overwritten").length;
       const skippedCount = results.filter((r) => r.status === "skipped").length;
       const errCount = results.filter((r) => r.status === "error").length;
@@ -274,7 +281,7 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
         </div>
         <p className="text-xs text-muted-foreground">
           {lang === "pl"
-            ? 'W wp-admin: Tools → Export → wybierz „Pages”, pobierz XML i wgraj tutaj. Media są ściągane automatycznie z URL-i w treści (jeżeli publicznie dostępne).'
+            ? "W wp-admin: Tools → Export → wybierz „Pages”, pobierz XML i wgraj tutaj. Media są ściągane automatycznie z URL-i w treści (jeżeli publicznie dostępne)."
             : 'In wp-admin: Tools → Export → select "Pages", download the XML and upload here. Media is fetched automatically from URLs in the content (if publicly reachable).'}
         </p>
       </div>
@@ -297,7 +304,9 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
               {lang === "pl" ? `Nowe: ${summary.create}` : `New: ${summary.create}`}
             </span>
             <span className="text-sky-700 dark:text-sky-300">
-              {lang === "pl" ? `Nadpisania: ${summary.overwrite}` : `Overwrites: ${summary.overwrite}`}
+              {lang === "pl"
+                ? `Nadpisania: ${summary.overwrite}`
+                : `Overwrites: ${summary.overwrite}`}
             </span>
             <span className="text-amber-700 dark:text-amber-300">
               {lang === "pl" ? `Pary PL/EN: ${summary.paired}` : `PL/EN pairs: ${summary.paired}`}
@@ -343,8 +352,12 @@ export function WxrUploadPanel({ existingPages, onImported, onClose }: Props) {
                   <th className="w-8 px-2 py-2"></th>
                   <th className="px-2 py-2 text-left">{lang === "pl" ? "Strona" : "Page"}</th>
                   <th className="w-20 px-2 py-2 text-left">{lang === "pl" ? "Język" : "Lang"}</th>
-                  <th className="px-2 py-2 text-left">{lang === "pl" ? "Sparuj z" : "Pair with"}</th>
-                  <th className="px-2 py-2 text-left">{lang === "pl" ? "Nadpisz stronę" : "Overwrite"}</th>
+                  <th className="px-2 py-2 text-left">
+                    {lang === "pl" ? "Sparuj z" : "Pair with"}
+                  </th>
+                  <th className="px-2 py-2 text-left">
+                    {lang === "pl" ? "Nadpisz stronę" : "Overwrite"}
+                  </th>
                   <th className="px-2 py-2 text-left">{lang === "pl" ? "Slug" : "Slug"}</th>
                 </tr>
               </thead>

@@ -11,7 +11,10 @@ interface SelectResultRow {
   error: { message: string } | null;
 }
 interface SelectBuilder {
-  eq: (col: string, val: string) => Promise<SelectResultRow> & {
+  eq: (
+    col: string,
+    val: string,
+  ) => Promise<SelectResultRow> & {
     maybeSingle?: () => Promise<SelectResultRow>;
   };
   maybeSingle?: () => Promise<SelectResultRow>;

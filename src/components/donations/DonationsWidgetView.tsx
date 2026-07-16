@@ -84,8 +84,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
   const href = props.href?.trim() || "/support";
   const cta = props.cta?.trim() || t("donationsWidget.cta", "Wesprzyj");
   const title =
-    props.title?.trim() ||
-    (lang === "pl" ? "Mecenat obywatelski" : "Citizen patronage");
+    props.title?.trim() || (lang === "pl" ? "Mecenat obywatelski" : "Citizen patronage");
   const subtitle = props.subtitle?.trim() ?? "";
   const goalCents = Math.max(0, Number(props.goalCents ?? 0) || 0);
   const showMonth = props.showMonth !== false;
@@ -197,10 +196,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
 
   if (variant === "stats-strip") {
     return (
-      <div
-        className="rounded-xl border border-border/60 bg-card p-6 shadow-sm"
-        style={accentStyle}
-      >
+      <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm" style={accentStyle}>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -248,10 +244,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
 
   if (variant === "progress") {
     return (
-      <div
-        className="rounded-xl border border-border/60 bg-card p-6 shadow-sm"
-        style={accentStyle}
-      >
+      <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm" style={accentStyle}>
         <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
           <Target className="h-4 w-4" aria-hidden="true" />
           {title}

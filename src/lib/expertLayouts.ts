@@ -220,10 +220,7 @@ export interface ExpertLayoutOverrides {
 }
 
 export function findExpertPreset(id: string | null | undefined): ExpertLayoutPreset {
-  return (
-    EXPERT_LAYOUT_PRESETS.find((p) => p.id === id) ??
-    EXPERT_LAYOUT_PRESETS[0]
-  );
+  return EXPERT_LAYOUT_PRESETS.find((p) => p.id === id) ?? EXPERT_LAYOUT_PRESETS[0];
 }
 
 export function mergeExpertLayout(

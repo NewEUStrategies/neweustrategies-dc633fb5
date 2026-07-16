@@ -50,13 +50,7 @@ export interface TagMeta {
   name: string;
 }
 
-
-export type MediaMentionKind =
-  | "quote"
-  | "interview"
-  | "appearance"
-  | "oped"
-  | "podcast_guest";
+export type MediaMentionKind = "quote" | "interview" | "appearance" | "oped" | "podcast_guest";
 
 export interface MediaMention {
   id: string;

@@ -220,7 +220,15 @@ export const listExistingPages = createServerFn({ method: "POST" })
   .handler(
     async ({
       context,
-    }): Promise<{ pages: Array<{ id: string; title_pl: string; title_en: string; slug: string; status: string }> }> => {
+    }): Promise<{
+      pages: Array<{
+        id: string;
+        title_pl: string;
+        title_en: string;
+        slug: string;
+        status: string;
+      }>;
+    }> => {
       const { supabase, userId } = context;
       const tenantId = await resolveTenant(supabase, userId);
       const { data, error } = await supabase
@@ -292,10 +300,14 @@ async function buildPageFromWp(
   let cover = wp.featured_image ?? null;
 
   if (mirror) {
-    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } = await import(
-      "@/lib/server/wp-media.server"
-    );
-    const { map, warnings: mw, mirroredCount, reusedCount } = await mirrorWpMedia({
+    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } =
+      await import("@/lib/server/wp-media.server");
+    const {
+      map,
+      warnings: mw,
+      mirroredCount,
+      reusedCount,
+    } = await mirrorWpMedia({
       html: conv.cleanedHtml,
       extraUrls: cover ? [cover] : [],
       tenantId,
@@ -312,9 +324,7 @@ async function buildPageFromWp(
   const title_pl = (wp.title ?? "").replace(/<[^>]+>/g, "").trim();
   const excerpt_pl = ((wp.excerpt ?? "").replace(/<[^>]+>/g, "").trim() || null) as string | null;
   const title_en = wpEn ? (wpEn.title ?? "").replace(/<[^>]+>/g, "").trim() : "";
-  const excerpt_en = wpEn
-    ? ((wpEn.excerpt ?? "").replace(/<[^>]+>/g, "").trim() || null)
-    : null;
+  const excerpt_en = wpEn ? (wpEn.excerpt ?? "").replace(/<[^>]+>/g, "").trim() || null : null;
 
   return {
     builderDoc,
@@ -545,13 +555,17 @@ async function buildFromHtmlPair(
   let mediaMirrored = 0;
 
   if (mirror) {
-    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } = await import(
-      "@/lib/server/wp-media.server"
-    );
+    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } =
+      await import("@/lib/server/wp-media.server");
     const combinedHtml = `${conv.cleanedHtml}\n${en?.contentHtml ?? ""}`;
     const extraUrls: string[] = [];
     if (cover) extraUrls.push(cover);
-    const { map, warnings: mw, mirroredCount, reusedCount } = await mirrorWpMedia({
+    const {
+      map,
+      warnings: mw,
+      mirroredCount,
+      reusedCount,
+    } = await mirrorWpMedia({
       html: combinedHtml,
       extraUrls,
       tenantId,

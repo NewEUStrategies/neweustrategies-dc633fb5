@@ -13,11 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ExpertMaterialCard } from "./ExpertMaterialCard";
-import {
-  applyMaterialFilters,
-  availableYears,
-  kindCounts,
-} from "@/lib/experts/filter";
+import { applyMaterialFilters, availableYears, kindCounts } from "@/lib/experts/filter";
 import {
   EMPTY_MATERIAL_FILTERS,
   type ExpertHubData,

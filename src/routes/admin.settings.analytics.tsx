@@ -33,7 +33,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { defaultAnalyticsConfig, type AnalyticsConfig } from "@/lib/analytics/config";
-import { getAnalyticsStatus, type AnalyticsStatus, type Ga4Mode } from "@/lib/analytics/status.functions";
+import {
+  getAnalyticsStatus,
+  type AnalyticsStatus,
+  type Ga4Mode,
+} from "@/lib/analytics/status.functions";
 import type { ReactNode } from "react";
 
 export const Route = createFileRoute("/admin/settings/analytics")({
@@ -124,7 +128,8 @@ function ga4Kind(
   if (!s) return "loading";
   if (!enabled) return "disabled";
   if (s.configured) return "connected";
-  if (measurementId.trim() || s.hasMeasurementId || s.hasEmbedUrl || s.hasPropertyId) return "partial";
+  if (measurementId.trim() || s.hasMeasurementId || s.hasEmbedUrl || s.hasPropertyId)
+    return "partial";
   return "off";
 }
 
@@ -168,9 +173,7 @@ function Ga4ConnectDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("admin.analyticsSettings.ga4.connectTitle")}</DialogTitle>
-          <DialogDescription>
-            {t("admin.analyticsSettings.ga4.connectDesc")}
-          </DialogDescription>
+          <DialogDescription>{t("admin.analyticsSettings.ga4.connectDesc")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <label className="block text-sm">
@@ -201,7 +204,9 @@ function Ga4ConnectDialog({
               </p>
               <ul className="text-xs font-mono space-y-1">
                 {missingSecrets.map((s) => (
-                  <li key={s} className="text-foreground">{s}</li>
+                  <li key={s} className="text-foreground">
+                    {s}
+                  </li>
                 ))}
               </ul>
               <p className="text-xs text-muted-foreground">
@@ -215,10 +220,16 @@ function Ga4ConnectDialog({
             {t("admin.analyticsSettings.ga4.cancel")}
           </Button>
           <Button
-            onClick={() => onSubmit({ propertyId: propertyId.trim(), measurementId: measurementId.trim() })}
+            onClick={() =>
+              onSubmit({ propertyId: propertyId.trim(), measurementId: measurementId.trim() })
+            }
             disabled={saving}
           >
-            {saving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <PlugZap className="w-4 h-4 mr-2" />}
+            {saving ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <PlugZap className="w-4 h-4 mr-2" />
+            )}
             {t("admin.analyticsSettings.ga4.save")}
           </Button>
         </DialogFooter>
@@ -316,7 +327,12 @@ function AnalyticsSettings() {
             {t("admin.analyticsSettings.subtitle")}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => statusQ.refetch()} disabled={statusQ.isFetching}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => statusQ.refetch()}
+          disabled={statusQ.isFetching}
+        >
           <RefreshCw className={`w-3.5 h-3.5 mr-2 ${statusQ.isFetching ? "animate-spin" : ""}`} />
           {tStatus.loading}
         </Button>

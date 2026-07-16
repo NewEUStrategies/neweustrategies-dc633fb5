@@ -79,9 +79,7 @@ export function TeamMemberWidget({
     backgroundImage: photo ? `url("${photo}")` : undefined,
     backgroundSize: "cover",
     backgroundPosition: "center",
-    ...(cardMaxWidth
-      ? { maxWidth: `${cardMaxWidth}px`, marginInline: "auto" }
-      : {}),
+    ...(cardMaxWidth ? { maxWidth: `${cardMaxWidth}px`, marginInline: "auto" } : {}),
   };
 
   const openModal = () => {
@@ -219,9 +217,7 @@ export function TeamMemberWidget({
             <div className="flex flex-col gap-4 p-6">
               <header>
                 <h2 className="cms-post-title text-2xl font-bold text-foreground">{name}</h2>
-                {position && (
-                  <p className="mt-1 text-sm text-muted-foreground">{position}</p>
-                )}
+                {position && <p className="mt-1 text-sm text-muted-foreground">{position}</p>}
               </header>
 
               {(phone || email) && (

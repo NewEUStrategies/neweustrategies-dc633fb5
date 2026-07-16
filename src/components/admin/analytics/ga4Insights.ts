@@ -89,7 +89,9 @@ export function buildGa4Insights(p: Params): Insight[] {
 
   // 3. Trend ruchu
   if (p.dateReport?.rows.length && p.dateReport.rows.length > 3) {
-    const rows = p.dateReport.rows.slice().sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
+    const rows = p.dateReport.rows
+      .slice()
+      .sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
     const idx = p.dateReport.metricHeaders.indexOf("sessions");
     const half = Math.floor(rows.length / 2);
     const early = rows.slice(0, half).reduce((s, r) => s + num(r.metrics[idx]), 0);
@@ -128,8 +130,7 @@ export function buildGa4Insights(p: Params): Insight[] {
       id: "sources",
       element: "Źródła ruchu",
       severity: directPct > 0.6 ? "warn" : organicPct < 0.2 ? "warn" : "info",
-      title:
-        `Direct ${(directPct * 100).toFixed(0)}%, Google ${(organicPct * 100).toFixed(0)}%`,
+      title: `Direct ${(directPct * 100).toFixed(0)}%, Google ${(organicPct * 100).toFixed(0)}%`,
       detail: `${rows.length} źródeł. TOP 3: ${rows
         .slice(0, 3)
         .map((r) => `${r.dims[0] ?? "?"} (${num(r.metrics[idx])})`)

@@ -158,14 +158,8 @@ export const Route = createFileRoute("/sitemap.xml")({
           // Category and tag archive pages are independently indexable and
           // carry their own localized metadata, breadcrumbs and CollectionPage schema.
           const [{ data: categories }, { data: tags }] = await Promise.all([
-            supabaseAdmin
-              .from("categories")
-              .select("slug, created_at")
-              .eq("tenant_id", tenantId),
-            supabaseAdmin
-              .from("tags")
-              .select("slug, created_at")
-              .eq("tenant_id", tenantId),
+            supabaseAdmin.from("categories").select("slug, created_at").eq("tenant_id", tenantId),
+            supabaseAdmin.from("tags").select("slug, created_at").eq("tenant_id", tenantId),
           ]);
           for (const row of categories ?? []) {
             const category = row as { slug: string; created_at: string | null };

@@ -110,7 +110,6 @@ export async function createOrganization(input: OrgInput): Promise<OrganizationR
   return data;
 }
 
-
 export async function updateOrganization(
   id: string,
   patch: Partial<Database["public"]["Tables"]["member_organizations"]["Update"]>,

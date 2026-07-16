@@ -319,7 +319,6 @@ export function JoinUsForm({
     return groups;
   }, [allItems, lang]);
 
-
   const togglePick = (id: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -458,7 +457,10 @@ export function JoinUsForm({
           byParent.set(pSlug, bucket);
         }
         for (const [slug, bucket] of byParent.entries()) {
-          const safeKey = `interests_${slug.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`.slice(0, 60);
+          const safeKey = `interests_${slug.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`.slice(
+            0,
+            60,
+          );
           custom[safeKey] = bucket.labels.join(", ").slice(0, 500);
         }
       }
@@ -886,9 +888,7 @@ export function JoinUsForm({
                             type="button"
                             role="tab"
                             onClick={() => {
-                              const el = document.getElementById(
-                                `${jusId}-drop-grp-${g.key}`,
-                              );
+                              const el = document.getElementById(`${jusId}-drop-grp-${g.key}`);
                               el?.scrollIntoView({ behavior: "smooth", block: "start" });
                             }}
                             className="whitespace-nowrap rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground transition"
@@ -899,10 +899,7 @@ export function JoinUsForm({
                         ))}
                       </div>
                     )}
-                    <div
-                      id={`${jusId}-drop-scroll`}
-                      className="max-h-[22rem] overflow-auto p-1"
-                    >
+                    <div id={`${jusId}-drop-scroll`} className="max-h-[22rem] overflow-auto p-1">
                       {groupedItems.map((g) => (
                         <div
                           key={`grp:${g.key}`}
@@ -987,7 +984,6 @@ export function JoinUsForm({
           )}
         </div>
       )}
-
 
       <button
         type="submit"

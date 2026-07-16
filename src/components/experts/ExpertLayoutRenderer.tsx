@@ -82,12 +82,33 @@ export const PLACEHOLDER = {
     mediaEmail: "media@przyklad.pl",
     phone: "+48 22 000 00 00",
     website: "przyklad.pl",
-    areas: ["Bezpieczeństwo europejskie", "Polityka UE", "Relacje transatlantyckie", "Strategia i geopolityka"],
+    areas: [
+      "Bezpieczeństwo europejskie",
+      "Polityka UE",
+      "Relacje transatlantyckie",
+      "Strategia i geopolityka",
+    ],
     mentions: [
-      { outlet: "Rzeczpospolita", title: "Komentarz eksperta w kontekście polityki bezpieczeństwa UE", date: "2026-06-12" },
-      { outlet: "Politico Europe", title: "Interview: Europe's strategic autonomy in 2026", date: "2026-05-30" },
-      { outlet: "TVN24", title: "Rozmowa o wojnie hybrydowej i odporności państw NATO", date: "2026-05-14" },
-      { outlet: "Financial Times", title: "Op-ed: How EU should respond to shifting alliances", date: "2026-04-28" },
+      {
+        outlet: "Rzeczpospolita",
+        title: "Komentarz eksperta w kontekście polityki bezpieczeństwa UE",
+        date: "2026-06-12",
+      },
+      {
+        outlet: "Politico Europe",
+        title: "Interview: Europe's strategic autonomy in 2026",
+        date: "2026-05-30",
+      },
+      {
+        outlet: "TVN24",
+        title: "Rozmowa o wojnie hybrydowej i odporności państw NATO",
+        date: "2026-05-14",
+      },
+      {
+        outlet: "Financial Times",
+        title: "Op-ed: How EU should respond to shifting alliances",
+        date: "2026-04-28",
+      },
     ],
     podcasts: [
       { title: "Rozmowy o Europie - odc. 12: Nowy porządek bezpieczeństwa", date: "2026-06-01" },
@@ -125,9 +146,21 @@ export const PLACEHOLDER = {
     areas: ["European security", "EU policy", "Transatlantic relations", "Strategy & geopolitics"],
     mentions: [
       { outlet: "The Times", title: "Expert commentary on EU security policy", date: "2026-06-12" },
-      { outlet: "Politico Europe", title: "Interview: Europe's strategic autonomy in 2026", date: "2026-05-30" },
-      { outlet: "Reuters", title: "Analysis: Hybrid warfare and NATO resilience", date: "2026-05-14" },
-      { outlet: "Financial Times", title: "Op-ed: How the EU should respond to shifting alliances", date: "2026-04-28" },
+      {
+        outlet: "Politico Europe",
+        title: "Interview: Europe's strategic autonomy in 2026",
+        date: "2026-05-30",
+      },
+      {
+        outlet: "Reuters",
+        title: "Analysis: Hybrid warfare and NATO resilience",
+        date: "2026-05-14",
+      },
+      {
+        outlet: "Financial Times",
+        title: "Op-ed: How the EU should respond to shifting alliances",
+        date: "2026-04-28",
+      },
     ],
     podcasts: [
       { title: "Europe Talks - ep. 12: A new security order", date: "2026-06-01" },
@@ -363,7 +396,13 @@ export function ExpertLayoutHero({
   };
 
   const social = (className: string) => (
-    <SocialRow expert={e} className={className} showPlaceholders={showPlaceholders} lang={lang} showMediaContact />
+    <SocialRow
+      expert={e}
+      className={className}
+      showPlaceholders={showPlaceholders}
+      lang={lang}
+      showMediaContact
+    />
   );
   const contact = (className: string) => (
     <ContactInline
@@ -382,7 +421,10 @@ export function ExpertLayoutHero({
           <div className="mx-auto inline-block">
             {avatar("h-24 w-24 mx-auto border-2", "rounded-full", "400×400 px")}
           </div>
-          <h1 className="mt-4 font-display leading-tight" style={{ fontSize: "var(--pv-name-size)" }}>
+          <h1
+            className="mt-4 font-display leading-tight"
+            style={{ fontSize: "var(--pv-name-size)" }}
+          >
             {name}
           </h1>
           <p className="mt-1" style={roleStyle}>
@@ -568,7 +610,9 @@ export function ExpertLayoutHero({
             centered ? "md:items-center md:justify-center md:text-center" : "items-start"
           }`}
         >
-          <div className="shrink-0">{avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]", "600×600 px")}</div>
+          <div className="shrink-0">
+            {avatar("h-36 w-36 md:h-44 md:w-44", "rounded-[6px]", "600×600 px")}
+          </div>
           <div className="flex-1 min-w-0">
             <p
               className="text-[11px] uppercase tracking-[0.18em] mb-1"
@@ -577,7 +621,10 @@ export function ExpertLayoutHero({
               {LABELS[lang].profileTagline}
             </p>
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-              <h1 className="font-display leading-[1.05]" style={{ fontSize: "var(--pv-name-size)" }}>
+              <h1
+                className="font-display leading-[1.05]"
+                style={{ fontSize: "var(--pv-name-size)" }}
+              >
                 {name}
               </h1>
               <ActionBar />
@@ -706,7 +753,7 @@ export function ExpertSectionRenderer({
       );
     }
     case "details": {
-      const rawBio = lang === "en" ? e.full_bio_en ?? e.bio_en : e.full_bio_pl ?? e.bio_pl;
+      const rawBio = lang === "en" ? (e.full_bio_en ?? e.bio_en) : (e.full_bio_pl ?? e.bio_pl);
       const bio = rawBio ? htmlToPlainText(rawBio) : "";
       const isPlaceholder = !bio;
       if (isPlaceholder && !showPlaceholders) return null;
@@ -722,7 +769,13 @@ export function ExpertSectionRenderer({
       );
     }
     case "social_row": {
-      const hasAny = e.website_url || e.linkedin_url || e.twitter_url || e.contact_email || e.media_contact_email || e.media_contact_phone;
+      const hasAny =
+        e.website_url ||
+        e.linkedin_url ||
+        e.twitter_url ||
+        e.contact_email ||
+        e.media_contact_email ||
+        e.media_contact_phone;
       if (!hasAny && !showPlaceholders) return null;
       return wrap(
         <>
@@ -749,7 +802,12 @@ export function ExpertSectionRenderer({
             {e.contact_email ?? (showPlaceholders ? ph.email : "")}
           </div>
           <div className="flex items-center gap-2">
-            <BrandIcon name="website" fallback={LucideGlobe} className="h-3.5 w-3.5 text-muted-foreground" alt="WWW" />
+            <BrandIcon
+              name="website"
+              fallback={LucideGlobe}
+              className="h-3.5 w-3.5 text-muted-foreground"
+              alt="WWW"
+            />
             {e.website_url
               ? e.website_url.replace(/^https?:\/\//, "")
               : showPlaceholders
@@ -762,7 +820,9 @@ export function ExpertSectionRenderer({
     case "media_mentions": {
       const items =
         hub.mediaMentions.length > 0
-          ? hub.mediaMentions.slice(0, 4).map((m) => ({ outlet: m.outlet, title: m.title, date: m.published_on }))
+          ? hub.mediaMentions
+              .slice(0, 4)
+              .map((m) => ({ outlet: m.outlet, title: m.title, date: m.published_on }))
           : ph.mentions;
       const isPlaceholder = hub.mediaMentions.length === 0;
       if (isPlaceholder && !showPlaceholders) return null;
@@ -793,7 +853,10 @@ export function ExpertSectionRenderer({
       if (isPlaceholder && !showPlaceholders) return null;
       const items = isPlaceholder
         ? ph.podcasts
-        : podcasts.map((p) => ({ title: (lang === "en" ? p.title_en : p.title_pl) ?? "", date: p.date ?? "" }));
+        : podcasts.map((p) => ({
+            title: (lang === "en" ? p.title_en : p.title_pl) ?? "",
+            date: p.date ?? "",
+          }));
       return wrap(
         <>
           {t.podcasts}
@@ -888,7 +951,8 @@ export function SocialRow({
 }) {
   const ph = PLACEHOLDER[lang];
   const website = expert.website_url || (showPlaceholders ? `https://${ph.website}` : "");
-  const linkedin = expert.linkedin_url || (showPlaceholders ? "https://linkedin.com/in/anna-kowalska" : "");
+  const linkedin =
+    expert.linkedin_url || (showPlaceholders ? "https://linkedin.com/in/anna-kowalska" : "");
   const x = expert.twitter_url || (showPlaceholders ? "https://x.com/anna_kowalska" : "");
   const mail = expert.contact_email || (showPlaceholders ? ph.email : "");
   const mediaMail = expert.media_contact_email || (showPlaceholders ? ph.mediaEmail : "");
@@ -904,7 +968,9 @@ export function SocialRow({
     items.push({
       href: linkedin,
       label: "linkedin",
-      node: <BrandIcon name="linkedin" fallback={LucideLinkedin} className="h-4 w-4" alt="LinkedIn" />,
+      node: (
+        <BrandIcon name="linkedin" fallback={LucideLinkedin} className="h-4 w-4" alt="LinkedIn" />
+      ),
     });
   if (x)
     items.push({
@@ -935,17 +1001,25 @@ export function SocialRow({
           {s.node}
         </a>
       ))}
-      {showContacts && items.length > 0 && <span className="hidden sm:inline-block h-4 w-px bg-border mx-1" />}
+      {showContacts && items.length > 0 && (
+        <span className="hidden sm:inline-block h-4 w-px bg-border mx-1" />
+      )}
       {showContacts && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           {mediaMail && (
-            <a href={`mailto:${mediaMail}`} className="inline-flex items-center gap-1.5 hover:underline">
+            <a
+              href={`mailto:${mediaMail}`}
+              className="inline-flex items-center gap-1.5 hover:underline"
+            >
               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
               <span>{mediaMail}</span>
             </a>
           )}
           {mediaPhone && (
-            <a href={`tel:${mediaPhone.replace(/\s+/g, "")}`} className="inline-flex items-center gap-1.5 hover:underline">
+            <a
+              href={`tel:${mediaPhone.replace(/\s+/g, "")}`}
+              className="inline-flex items-center gap-1.5 hover:underline"
+            >
               <Phone className="h-3.5 w-3.5 text-muted-foreground" />
               <span>{mediaPhone}</span>
             </a>
@@ -980,7 +1054,12 @@ export function ContactInline({
       text: email,
       href: `mailto:${email}`,
     });
-  if (phone) items.push({ icon: <Phone className="h-3.5 w-3.5" />, text: phone, href: `tel:${phone.replace(/\s+/g, "")}` });
+  if (phone)
+    items.push({
+      icon: <Phone className="h-3.5 w-3.5" />,
+      text: phone,
+      href: `tel:${phone.replace(/\s+/g, "")}`,
+    });
   if (site)
     items.push({
       icon: <BrandIcon name="website" fallback={LucideGlobe} className="h-3.5 w-3.5" alt="" />,
@@ -990,7 +1069,10 @@ export function ContactInline({
   if (items.length === 0) return null;
   const style: CSSProperties = { color: color ?? undefined, opacity: color ? 0.9 : undefined };
   return (
-    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${className}`} style={style}>
+    <div
+      className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${className}`}
+      style={style}
+    >
       {items.map((c, i) => (
         <a key={i} href={c.href} className="inline-flex items-center gap-1.5 hover:underline">
           {c.icon}
@@ -1057,4 +1139,3 @@ export function ExpertLayoutStyleScope({
   const css = `.dark [data-pv-scope="${scopeId}"]{${decls}}`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
-

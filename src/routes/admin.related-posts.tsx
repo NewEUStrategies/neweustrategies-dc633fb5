@@ -64,7 +64,8 @@ function AdminRelatedPostsPage() {
       <header className="space-y-1">
         <h1 className="font-display text-2xl">Powiązane wpisy</h1>
         <p className="text-sm text-muted-foreground">
-          Globalna konfiguracja silnika rekomendacji + analiza sygnałów behawioralnych. Wpisy mogą nadpisać ustawienia indywidualnie.
+          Globalna konfiguracja silnika rekomendacji + analiza sygnałów behawioralnych. Wpisy mogą
+          nadpisać ustawienia indywidualnie.
         </p>
       </header>
 
@@ -120,9 +121,7 @@ function AdminRelatedPostsPage() {
                   type="number"
                   min={1}
                   value={form.after_paragraph}
-                  onChange={(e) =>
-                    set("after_paragraph", Math.max(1, Number(e.target.value) || 1))
-                  }
+                  onChange={(e) => set("after_paragraph", Math.max(1, Number(e.target.value) || 1))}
                   disabled={form.position !== "after_paragraph"}
                 />
               </div>
@@ -164,9 +163,7 @@ function AdminRelatedPostsPage() {
                 <Label>Kolumny (grid)</Label>
                 <Select
                   value={String(form.columns)}
-                  onValueChange={(v) =>
-                    set("columns", Number(v) as RelatedPostsConfig["columns"])
-                  }
+                  onValueChange={(v) => set("columns", Number(v) as RelatedPostsConfig["columns"])}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -196,26 +193,25 @@ function AdminRelatedPostsPage() {
                     <SelectItem value="author">Ten sam autor</SelectItem>
                   </SelectContent>
                 </Select>
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <div className="flex items-baseline justify-between">
-                <Label className="text-sm font-semibold">Podgląd układu</Label>
-                <span className="text-xs text-muted-foreground">
-                  Kliknij miniaturę, aby wybrać układ
-                </span>
               </div>
-              <RelatedLayoutPreview
-                value={form.layout}
-                onChange={(v) => set("layout", v)}
-              />
-            </div>
 
-
+              <div className="space-y-2 pt-2">
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-sm font-semibold">Podgląd układu</Label>
+                  <span className="text-xs text-muted-foreground">
+                    Kliknij miniaturę, aby wybrać układ
+                  </span>
+                </div>
+                <RelatedLayoutPreview value={form.layout} onChange={(v) => set("layout", v)} />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <Toggle label="Pokaż miniaturę" v={form.show_cover} on={(v) => set("show_cover", v)} />
+              <Toggle
+                label="Pokaż miniaturę"
+                v={form.show_cover}
+                on={(v) => set("show_cover", v)}
+              />
               <Toggle
                 label="Pokaż zajawkę"
                 v={form.show_excerpt}
@@ -248,10 +244,7 @@ function AdminRelatedPostsPage() {
                     min={2000}
                     value={form.slider_interval_ms}
                     onChange={(e) =>
-                      set(
-                        "slider_interval_ms",
-                        Math.max(2000, Number(e.target.value) || 2000),
-                      )
+                      set("slider_interval_ms", Math.max(2000, Number(e.target.value) || 2000))
                     }
                     disabled={!form.slider_autoplay}
                   />
@@ -280,7 +273,9 @@ function AdminRelatedPostsPage() {
             <div className="space-y-1">
               <h2 className="font-display text-lg">Wagi silnika rekomendacji</h2>
               <p className="text-xs text-muted-foreground">
-                Skala 0-10. Silnik składa wyniki: shared categories × waga + shared tags × waga (opcjonalnie IDF) + autor + świeżość + popularność (post_views) + dwell (user_read_history) + personalizacja (profil zalogowanego użytkownika).
+                Skala 0-10. Silnik składa wyniki: shared categories × waga + shared tags × waga
+                (opcjonalnie IDF) + autor + świeżość + popularność (post_views) + dwell
+                (user_read_history) + personalizacja (profil zalogowanego użytkownika).
               </p>
             </div>
 

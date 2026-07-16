@@ -339,10 +339,7 @@ export function ConsentBanner() {
         )}
       >
         {/* Accent hairline top-edge for editorial feel */}
-        <div
-          aria-hidden
-          className="h-[2px] w-full bg-[color:var(--cb-accent,var(--primary))]"
-        />
+        <div aria-hidden className="h-[2px] w-full bg-[color:var(--cb-accent,var(--primary))]" />
         <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-5 md:gap-8">
           {/* Left: content */}
           <div className="flex-1 min-w-0 space-y-2.5">
@@ -430,7 +427,6 @@ export function ConsentBanner() {
     );
   }
 
-
   // ---------- Expanded modal with per-category vendor tables ----------
   return (
     <div
@@ -465,11 +461,14 @@ export function ConsentBanner() {
                 <h2 id="consent-title" className={cn(TX.title, "min-w-0")}>
                   {t.title}
                 </h2>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {LangSwitcher}
-                </div>
+                <div className="flex items-center gap-1.5 shrink-0">{LangSwitcher}</div>
               </div>
-              <p className={cn(TX.body, "mt-1.5 text-[color:var(--cb-fg,var(--muted-foreground))]/90")}>
+              <p
+                className={cn(
+                  TX.body,
+                  "mt-1.5 text-[color:var(--cb-fg,var(--muted-foreground))]/90",
+                )}
+              >
                 {t.intro}{" "}
                 {privacyHref ? (
                   <a
@@ -479,7 +478,9 @@ export function ConsentBanner() {
                     {t.policyLabel}
                   </a>
                 ) : (
-                  <span className="text-[color:var(--cb-accent,var(--primary))]">{t.policyLabel}</span>
+                  <span className="text-[color:var(--cb-accent,var(--primary))]">
+                    {t.policyLabel}
+                  </span>
                 )}{" "}
                 {isPl ? "oraz" : "and"}{" "}
                 <a
@@ -490,7 +491,11 @@ export function ConsentBanner() {
                 </a>
                 .
               </p>
-              <button type="button" onClick={() => setDetailsOpen(false)} className={cn(BTN_OUTLINE, "mt-3")}>
+              <button
+                type="button"
+                onClick={() => setDetailsOpen(false)}
+                className={cn(BTN_OUTLINE, "mt-3")}
+              >
                 <Settings2 className="h-3.5 w-3.5" />
                 {t.hideDetails}
                 <ChevronUp className="h-3.5 w-3.5" />
@@ -529,11 +534,21 @@ export function ConsentBanner() {
                             {isPl ? "Wymagane" : "Required"}
                           </span>
                         )}
-                        <span className={cn(TX.meta, "font-mono text-[color:var(--cb-fg,var(--muted-foreground))]/70")}>
+                        <span
+                          className={cn(
+                            TX.meta,
+                            "font-mono text-[color:var(--cb-fg,var(--muted-foreground))]/70",
+                          )}
+                        >
                           {vendors.length}
                         </span>
                       </div>
-                      <p className={cn(TX.body, "mt-1 text-[color:var(--cb-fg,var(--muted-foreground))]/85")}>
+                      <p
+                        className={cn(
+                          TX.body,
+                          "mt-1 text-[color:var(--cb-fg,var(--muted-foreground))]/85",
+                        )}
+                      >
                         {categoryDesc(cat)}
                       </p>
                     </div>
@@ -554,7 +569,11 @@ export function ConsentBanner() {
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {vendorsOpen ? t.hideVendors : t.showVendors}
-                  {vendorsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  {vendorsOpen ? (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
                 </button>
 
                 {vendorsOpen && (
@@ -563,10 +582,18 @@ export function ConsentBanner() {
                       <table className="w-full text-[11px]">
                         <thead>
                           <tr className="text-[color:var(--cb-fg,var(--muted-foreground))]/80 border-b border-[color:var(--cb-border,var(--border))]">
-                            <th className="text-left font-medium px-3 py-2">{isPl ? "Nazwa" : "Name"}</th>
-                            <th className="text-left font-medium px-3 py-2">{isPl ? "Podmiot" : "Party"}</th>
-                            <th className="text-left font-medium px-3 py-2">{isPl ? "Cel" : "Purpose"}</th>
-                            <th className="text-left font-medium px-3 py-2">{isPl ? "Wygasa" : "Expires"}</th>
+                            <th className="text-left font-medium px-3 py-2">
+                              {isPl ? "Nazwa" : "Name"}
+                            </th>
+                            <th className="text-left font-medium px-3 py-2">
+                              {isPl ? "Podmiot" : "Party"}
+                            </th>
+                            <th className="text-left font-medium px-3 py-2">
+                              {isPl ? "Cel" : "Purpose"}
+                            </th>
+                            <th className="text-left font-medium px-3 py-2">
+                              {isPl ? "Wygasa" : "Expires"}
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[color:var(--cb-border,var(--border))]">

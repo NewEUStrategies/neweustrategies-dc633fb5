@@ -64,9 +64,7 @@ export function ConsentPreviewPanel() {
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={() =>
-            setConsentPreview({ functional: true, analytics: true, marketing: true })
-          }
+          onClick={() => setConsentPreview({ functional: true, analytics: true, marketing: true })}
           className="flex-1 rounded-md bg-foreground px-2 py-1 text-xs text-background"
         >
           {t("consent.preview.acceptAll", { defaultValue: "Wszystko" })}

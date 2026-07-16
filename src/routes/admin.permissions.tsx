@@ -157,7 +157,17 @@ const CAPS: Capability[] = [
     groupEn: "Tenant & configuration",
     pl: "Konfiguracja tenanta, domeny, klucze",
     en: "Tenant config, domains, keys",
-    matrix: { super_admin: F, admin: N, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: N,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "billing",
@@ -165,7 +175,17 @@ const CAPS: Capability[] = [
     groupEn: "Tenant & configuration",
     pl: "Rozliczenia i faktury organizacji",
     en: "Organization billing & invoices",
-    matrix: { super_admin: F, admin: P, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: P },
+    matrix: {
+      super_admin: F,
+      admin: P,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: P,
+    },
   },
   {
     id: "login_settings",
@@ -173,7 +193,17 @@ const CAPS: Capability[] = [
     groupEn: "Tenant & configuration",
     pl: "Strona logowania i dostawcy SSO",
     en: "Login page & SSO providers",
-    matrix: { super_admin: F, admin: N, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: N,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   // === Użytkownicy i role ===
   {
@@ -182,7 +212,17 @@ const CAPS: Capability[] = [
     groupEn: "Users & roles",
     pl: "Zarządzanie użytkownikami (lista, edycja, blokada)",
     en: "Manage users (list, edit, block)",
-    matrix: { super_admin: F, admin: F, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "roles_assign",
@@ -190,7 +230,17 @@ const CAPS: Capability[] = [
     groupEn: "Users & roles",
     pl: "Nadawanie ról (admin, editor, author)",
     en: "Assign roles (admin, editor, author)",
-    matrix: { super_admin: F, admin: P, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: P,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "invitations",
@@ -198,7 +248,17 @@ const CAPS: Capability[] = [
     groupEn: "Users & roles",
     pl: "Zaproszenia i import zespołu",
     en: "Invitations & team import",
-    matrix: { super_admin: F, admin: F, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: P },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: P,
+    },
   },
   {
     id: "impersonate",
@@ -206,7 +266,17 @@ const CAPS: Capability[] = [
     groupEn: "Users & roles",
     pl: "Impersonacja użytkownika (audyt)",
     en: "User impersonation (audited)",
-    matrix: { super_admin: F, admin: N, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: N,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   // === Treści ===
   {
@@ -215,7 +285,17 @@ const CAPS: Capability[] = [
     groupEn: "Content",
     pl: "Tworzenie własnych wpisów i szkiców",
     en: "Create own posts & drafts",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "posts_publish",
@@ -223,7 +303,17 @@ const CAPS: Capability[] = [
     groupEn: "Content",
     pl: "Publikowanie treści (wszystkich)",
     en: "Publish content (all)",
-    matrix: { super_admin: F, admin: F, editor: F, author: P, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: P,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "posts_edit_all",
@@ -231,7 +321,17 @@ const CAPS: Capability[] = [
     groupEn: "Content",
     pl: "Edycja treści innych autorów",
     en: "Edit content of other authors",
-    matrix: { super_admin: F, admin: F, editor: F, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "media_library",
@@ -239,7 +339,17 @@ const CAPS: Capability[] = [
     groupEn: "Content",
     pl: "Biblioteka mediów",
     en: "Media library",
-    matrix: { super_admin: F, admin: F, editor: F, author: P, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: P,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "categories",
@@ -247,7 +357,17 @@ const CAPS: Capability[] = [
     groupEn: "Content",
     pl: "Kategorie, tagi, regiony",
     en: "Categories, tags, regions",
-    matrix: { super_admin: F, admin: F, editor: F, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "comments_moderate",
@@ -255,7 +375,17 @@ const CAPS: Capability[] = [
     groupEn: "Content",
     pl: "Moderacja komentarzy",
     en: "Moderate comments",
-    matrix: { super_admin: F, admin: F, editor: F, author: P, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: P,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   // === Wydarzenia i społeczność ===
   {
@@ -264,7 +394,17 @@ const CAPS: Capability[] = [
     groupEn: "Events & community",
     pl: "Prowadzenie wydarzeń (prelegent)",
     en: "Run events (speaker)",
-    matrix: { super_admin: F, admin: F, editor: P, author: F, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: P,
+      author: F,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "events_rsvp",
@@ -272,7 +412,17 @@ const CAPS: Capability[] = [
     groupEn: "Events & community",
     pl: "Zapisy na wydarzenia (RSVP)",
     en: "Event RSVPs",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: F, sub_free: F, sub_basic: F, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: F,
+      sub_free: F,
+      sub_basic: F,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
   {
     id: "qa_ask",
@@ -280,7 +430,17 @@ const CAPS: Capability[] = [
     groupEn: "Events & community",
     pl: "Zadawanie pytań w Q&A",
     en: "Ask questions in Q&A",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: F, sub_free: P, sub_basic: F, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: F,
+      sub_free: P,
+      sub_basic: F,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
   {
     id: "chat",
@@ -288,7 +448,17 @@ const CAPS: Capability[] = [
     groupEn: "Events & community",
     pl: "Czat społeczności",
     en: "Community chat",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: F, sub_free: N, sub_basic: F, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: F,
+      sub_free: N,
+      sub_basic: F,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
   // === Treści premium ===
   {
@@ -297,7 +467,17 @@ const CAPS: Capability[] = [
     groupEn: "Content access",
     pl: "Odczyt treści premium",
     en: "Read premium content",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: N, sub_free: N, sub_basic: P, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: N,
+      sub_free: N,
+      sub_basic: P,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
   {
     id: "resources",
@@ -305,7 +485,17 @@ const CAPS: Capability[] = [
     groupEn: "Content access",
     pl: "Zasoby dla członków (PDF, raporty)",
     en: "Member resources (PDFs, reports)",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: N, sub_free: N, sub_basic: P, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: N,
+      sub_free: N,
+      sub_basic: P,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
   {
     id: "newsletter",
@@ -313,7 +503,17 @@ const CAPS: Capability[] = [
     groupEn: "Content access",
     pl: "Newsletter (subskrypcja)",
     en: "Newsletter (subscription)",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: F, sub_free: F, sub_basic: F, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: F,
+      sub_free: F,
+      sub_basic: F,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
   // === Analityka ===
   {
@@ -322,7 +522,17 @@ const CAPS: Capability[] = [
     groupEn: "Analytics & SEO",
     pl: "Analityka pełna (tenant)",
     en: "Full analytics (tenant)",
-    matrix: { super_admin: F, admin: F, editor: P, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: P },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: P,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: P,
+    },
   },
   {
     id: "analytics_own",
@@ -330,7 +540,17 @@ const CAPS: Capability[] = [
     groupEn: "Analytics & SEO",
     pl: "Statystyki własnych wpisów",
     en: "Own posts stats",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "seo_redirects",
@@ -338,7 +558,17 @@ const CAPS: Capability[] = [
     groupEn: "Analytics & SEO",
     pl: "SEO, przekierowania, meta",
     en: "SEO, redirects, meta",
-    matrix: { super_admin: F, admin: F, editor: P, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: P,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   // === Reklama i monetyzacja ===
   {
@@ -347,7 +577,17 @@ const CAPS: Capability[] = [
     groupEn: "Advertising & monetization",
     pl: "Slots reklamowe i kampanie",
     en: "Ad slots & campaigns",
-    matrix: { super_admin: F, admin: F, editor: N, author: N, user: N, sub_free: N, sub_basic: N, sub_premium: N, sub_enterprise: N },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: N,
+      author: N,
+      user: N,
+      sub_free: N,
+      sub_basic: N,
+      sub_premium: N,
+      sub_enterprise: N,
+    },
   },
   {
     id: "ads_free",
@@ -355,7 +595,17 @@ const CAPS: Capability[] = [
     groupEn: "Advertising & monetization",
     pl: "Doświadczenie bez reklam",
     en: "Ad-free experience",
-    matrix: { super_admin: F, admin: F, editor: F, author: F, user: N, sub_free: N, sub_basic: P, sub_premium: F, sub_enterprise: F },
+    matrix: {
+      super_admin: F,
+      admin: F,
+      editor: F,
+      author: F,
+      user: N,
+      sub_free: N,
+      sub_basic: P,
+      sub_premium: F,
+      sub_enterprise: F,
+    },
   },
 ];
 
@@ -375,8 +625,7 @@ const LEVEL_BADGE: Record<Level, { pl: string; en: string; className: string }> 
   none: {
     pl: "Brak",
     en: "None",
-    className:
-      "bg-muted text-muted-foreground border-border",
+    className: "bg-muted text-muted-foreground border-border",
   },
 };
 
@@ -478,7 +727,10 @@ function PermissionsMatrix() {
             ))}
           </div>
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden />
+            <Search
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground"
+              aria-hidden
+            />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -496,19 +748,14 @@ function PermissionsMatrix() {
           return (
             <article
               key={r.id}
-              className={cn(
-                "border rounded-[5px] p-3 flex gap-3 items-start bg-card",
-                r.tone,
-              )}
+              className={cn("border rounded-[5px] p-3 flex gap-3 items-start bg-card", r.tone)}
             >
               <div className="w-9 h-9 rounded-[5px] bg-background/60 border border-border/60 flex items-center justify-center shrink-0">
                 <Icon className="w-4 h-4" aria-hidden />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-sm leading-tight">
-                    {t(r.pl, r.en)}
-                  </h3>
+                  <h3 className="font-semibold text-sm leading-tight">{t(r.pl, r.en)}</h3>
                   <Badge
                     variant="outline"
                     className="text-[10px] uppercase tracking-wide px-1.5 py-0"
@@ -559,18 +806,12 @@ function PermissionsMatrix() {
                     </td>
                   </tr>
                   {rows.map((c) => (
-                    <tr
-                      key={c.id}
-                      className="hover:bg-muted/20 transition-colors"
-                    >
+                    <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                       <td className="sticky left-0 z-[1] bg-card hover:bg-muted/20 px-3 py-2 border-b border-border/60 font-medium">
                         {t(c.pl, c.en)}
                       </td>
                       {visibleRoles.map((r) => (
-                        <td
-                          key={r.id}
-                          className="text-center px-2 py-2 border-b border-border/60"
-                        >
+                        <td key={r.id} className="text-center px-2 py-2 border-b border-border/60">
                           <LevelCell level={c.matrix[r.id] ?? N} lang={lang} />
                         </td>
                       ))}

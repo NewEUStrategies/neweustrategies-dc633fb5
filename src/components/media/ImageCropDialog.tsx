@@ -18,11 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import {
-  getCroppedBlob,
-  getImageDimensions,
-  readFileAsDataUrl,
-} from "@/lib/media/imageCrop";
+import { getCroppedBlob, getImageDimensions, readFileAsDataUrl } from "@/lib/media/imageCrop";
 
 export type CropKind = "avatar" | "cover";
 
@@ -54,7 +50,8 @@ interface Props {
 const L = {
   pl: {
     title: "Wykadruj zdjęcie",
-    descAvatar: "Wybierz obszar zdjęcia profilowego. Zdjęcie zostanie zapisane w wymaganych proporcjach.",
+    descAvatar:
+      "Wybierz obszar zdjęcia profilowego. Zdjęcie zostanie zapisane w wymaganych proporcjach.",
     descCover: "Wybierz obszar okładki. Zdjęcie zostanie zapisane w wymaganych proporcjach.",
     zoom: "Zoom",
     rotate: "Obrót",
@@ -63,13 +60,15 @@ const L = {
     reset: "Resetuj",
     cancel: "Anuluj",
     apply: "Zastosuj",
-    aspectMismatch: "Proporcje zdjęcia mocno odbiegają od zalecanych - efekt może być mocno przycięty. Popraw kadr poniżej lub wgraj inne zdjęcie.",
+    aspectMismatch:
+      "Proporcje zdjęcia mocno odbiegają od zalecanych - efekt może być mocno przycięty. Popraw kadr poniżej lub wgraj inne zdjęcie.",
     target: "Zapis: ",
     ratio: "Wymagany format: ",
   },
   en: {
     title: "Crop image",
-    descAvatar: "Choose the profile photo area. The image will be saved in the required aspect ratio.",
+    descAvatar:
+      "Choose the profile photo area. The image will be saved in the required aspect ratio.",
     descCover: "Choose the cover area. The image will be saved in the required aspect ratio.",
     zoom: "Zoom",
     rotate: "Rotation",
@@ -78,7 +77,8 @@ const L = {
     reset: "Reset",
     cancel: "Cancel",
     apply: "Apply",
-    aspectMismatch: "Source aspect ratio differs significantly from the recommended one - the result may be heavily cropped. Adjust the frame below or upload another image.",
+    aspectMismatch:
+      "Source aspect ratio differs significantly from the recommended one - the result may be heavily cropped. Adjust the frame below or upload another image.",
     target: "Saved as: ",
     ratio: "Required aspect: ",
   },
@@ -180,9 +180,7 @@ export function ImageCropDialog({
       <DialogContent className="sm:max-w-2xl rounded-[6px]">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
-          <DialogDescription>
-            {kind === "avatar" ? t.descAvatar : t.descCover}
-          </DialogDescription>
+          <DialogDescription>{kind === "avatar" ? t.descAvatar : t.descCover}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -236,9 +234,7 @@ export function ImageCropDialog({
               <ZoomOut className="h-3.5 w-3.5" aria-hidden />
               {t.zoom}
               <ZoomIn className="h-3.5 w-3.5" aria-hidden />
-              <span className="ml-auto tabular-nums text-muted-foreground">
-                {zoom.toFixed(2)}×
-              </span>
+              <span className="ml-auto tabular-nums text-muted-foreground">{zoom.toFixed(2)}×</span>
             </span>
             <Slider
               value={[zoom]}

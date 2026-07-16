@@ -285,7 +285,6 @@ function Index() {
           // rebuild the whole page client-side (visible SSR flash + refetch).
           // Rendering eagerly keeps SSR HTML and client hydration in lockstep.
           <BuilderRenderer doc={doc} lang={lang} />
-
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">

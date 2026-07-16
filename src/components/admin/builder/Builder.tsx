@@ -723,7 +723,6 @@ export function Builder({
                       })
                     }
                   />
-
                 </div>
 
                 {!hideChrome && scope === "page" && (

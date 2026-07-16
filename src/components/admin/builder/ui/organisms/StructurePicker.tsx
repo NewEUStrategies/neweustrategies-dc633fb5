@@ -77,4 +77,3 @@ export function StructurePicker({ onPick, compact = false, cols = 4 }: Props) {
     </div>
   );
 }
-

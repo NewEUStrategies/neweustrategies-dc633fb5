@@ -367,7 +367,7 @@ etykiety rozwiązane w bazie) przez `useLinkedItems` / `LinkedItemsCard`.
 
 - **Liczniki:** `user_pending_counters` (notifications_unread, chat_unread) i
   `tenant_pending_counters` (comments_pending, crm_leads_new) utrzymywane
-  triggerami; `useUnreadCount` czyta licznik zamiast COUNT(*). Dryf naprawia
+  triggerami; `useUnreadCount` czyta licznik zamiast COUNT(\*). Dryf naprawia
   `recompute_my_pending_counters()`.
 - **Presence:** `useEntityPresence(entityType, entityId)` uogólnia
   `useEditPresence` (posty/strony bez zmian - ta sama przestrzeń kanałów);

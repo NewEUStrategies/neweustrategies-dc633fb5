@@ -45,9 +45,7 @@ export const refreshAuthorOgImage = createServerFn({ method: "POST" })
 
     const version = row.updated_at ? Date.parse(row.updated_at) : Date.now();
     const reqUrl = getRequestUrl();
-    const origin = reqUrl
-      ? new URL(reqUrl).origin
-      : "https://neweustrategies.lovable.app";
+    const origin = reqUrl ? new URL(reqUrl).origin : "https://neweustrategies.lovable.app";
     const plUrl = `${origin}/author/${row.slug}`;
     const enUrl = `${origin}/en/author/${row.slug}`;
 

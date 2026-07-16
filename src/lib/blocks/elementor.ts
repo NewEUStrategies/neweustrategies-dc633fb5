@@ -9,7 +9,13 @@
 //
 // Pure, deterministic, no DOM. Testowalny.
 
-import type { BuilderDocument, SectionNode, ColumnNode, WidgetNode, WidgetType } from "@/lib/builder/types";
+import type {
+  BuilderDocument,
+  SectionNode,
+  ColumnNode,
+  WidgetNode,
+  WidgetType,
+} from "@/lib/builder/types";
 import { newId, toJson } from "@/lib/builder/types";
 import type { BlocksDoc } from "./types";
 import { htmlToBlocks } from "./migrate";
@@ -53,7 +59,11 @@ interface Range {
   open: string;
   inner: string;
 }
-function extractOutermost(html: string, tag: "div" | "section", matchOpen: (open: string) => boolean): Range[] {
+function extractOutermost(
+  html: string,
+  tag: "div" | "section",
+  matchOpen: (open: string) => boolean,
+): Range[] {
   const result: Range[] = [];
   const both = new RegExp(`<(\\/?)${tag}\\b([^>]*)>`, "gi");
   let depth = 0;
@@ -96,8 +106,9 @@ function extractOutermost(html: string, tag: "div" | "section", matchOpen: (open
 export function isElementorHtml(html: string): boolean {
   if (!html) return false;
   return (
-    /class="[^"]*\belementor(?:-section|-column|-container|-widget|-inner-section)?\b[^"]*"/i.test(html) ||
-    /\bdata-elementor-type=/i.test(html)
+    /class="[^"]*\belementor(?:-section|-column|-container|-widget|-inner-section)?\b[^"]*"/i.test(
+      html,
+    ) || /\bdata-elementor-type=/i.test(html)
   );
 }
 
@@ -113,7 +124,9 @@ interface WidgetParse {
 function widgetKind(openTag: string): string | null {
   const c = classesOf(openTag);
   if (!c.includes("elementor-widget")) return null;
-  const flavour = c.find((x) => x.startsWith("elementor-widget-") && x !== "elementor-widget-container");
+  const flavour = c.find(
+    (x) => x.startsWith("elementor-widget-") && x !== "elementor-widget-container",
+  );
   return flavour ? flavour.replace(/^elementor-widget-/, "") : null;
 }
 
@@ -185,8 +198,14 @@ function parseImageWidget(inner: string): WidgetNode {
 }
 
 function parseIconBoxAsCard(inner: string): WidgetNode {
-  const title = firstMatch(inner, /<(?:h[1-6]|div)\b[^>]*class="[^"]*elementor-icon-box-title[^"]*"[^>]*>([\s\S]*?)<\/(?:h[1-6]|div)>/i);
-  const text = firstMatch(inner, /<(?:p|div)\b[^>]*class="[^"]*elementor-icon-box-description[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i);
+  const title = firstMatch(
+    inner,
+    /<(?:h[1-6]|div)\b[^>]*class="[^"]*elementor-icon-box-title[^"]*"[^>]*>([\s\S]*?)<\/(?:h[1-6]|div)>/i,
+  );
+  const text = firstMatch(
+    inner,
+    /<(?:p|div)\b[^>]*class="[^"]*elementor-icon-box-description[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+  );
   const href = firstMatch(inner, /<a\b[^>]*href="([^"]*)"/i);
   const iconSvg = firstMatch(inner, /<(?:svg|i)\b[^>]*class="([^"]*)"/i);
   return {
@@ -219,8 +238,7 @@ function parseSpacerWidget(inner: string): WidgetNode {
 
 function parseVideoOrEmbedWidget(inner: string): WidgetNode {
   const iframeSrc =
-    firstMatch(inner, /<iframe\b[^>]*src="([^"]*)"/i) ||
-    firstMatch(inner, /data-src="([^"]*)"/i);
+    firstMatch(inner, /<iframe\b[^>]*src="([^"]*)"/i) || firstMatch(inner, /data-src="([^"]*)"/i);
   return {
     id: newId(),
     kind: "widget",
@@ -231,7 +249,9 @@ function parseVideoOrEmbedWidget(inner: string): WidgetNode {
 
 function parseTextEditorWidget(inner: string): WidgetNode {
   // Trim off the elementor-widget-container wrapper if present.
-  const stripped = inner.replace(/^\s*<div class="elementor-widget-container"[^>]*>([\s\S]*)<\/div>\s*$/i, "$1").trim();
+  const stripped = inner
+    .replace(/^\s*<div class="elementor-widget-container"[^>]*>([\s\S]*)<\/div>\s*$/i, "$1")
+    .trim();
   return {
     id: newId(),
     kind: "widget",
@@ -290,7 +310,9 @@ function parseWidget(open: string, inner: string): WidgetParse {
       return { mapped: true, node: parseIconBoxAsCard(inner) };
     case "icon-list":
     case "icon-list-menu": {
-      const items = Array.from(inner.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)).map((m) => stripTags(m[1]));
+      const items = Array.from(inner.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)).map((m) =>
+        stripTags(m[1]),
+      );
       const html = `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
       return {
         mapped: true,
@@ -368,7 +390,11 @@ function parseColumn(open: string, inner: string, cov: Coverage, warnings: strin
 }
 
 function parseSection(inner: string, cov: Coverage, warnings: string[]): SectionNode {
-  const cols = extractOutermost(inner, "div", (open) => hasClass(open, "elementor-column") || hasClass(open, "elementor-column-wrap"));
+  const cols = extractOutermost(
+    inner,
+    "div",
+    (open) => hasClass(open, "elementor-column") || hasClass(open, "elementor-column-wrap"),
+  );
   let children: ColumnNode[];
   if (cols.length > 0) {
     children = cols.map((c) => parseColumn(c.open, c.inner, cov, warnings));
@@ -404,13 +430,19 @@ export function elementorToBuilder(html: string): ElementorConversion | null {
   const cov: Coverage = { elementorMapped: 0, fallback: 0, total: 0 };
   const warnings: string[] = [];
 
-  const sections = extractOutermost(html, "section", (open) =>
-    hasClass(open, "elementor-section") || hasClass(open, "elementor-top-section"),
+  const sections = extractOutermost(
+    html,
+    "section",
+    (open) => hasClass(open, "elementor-section") || hasClass(open, "elementor-top-section"),
   );
-  const divSections = extractOutermost(html, "div", (open) =>
-    hasAnyClassStart(open, "elementor-top-section") !== null ||
-    (hasClass(open, "elementor-section") && !hasClass(open, "elementor-inner-section")) ||
-    hasClass(open, "e-con") || hasClass(open, "e-parent"),
+  const divSections = extractOutermost(
+    html,
+    "div",
+    (open) =>
+      hasAnyClassStart(open, "elementor-top-section") !== null ||
+      (hasClass(open, "elementor-section") && !hasClass(open, "elementor-inner-section")) ||
+      hasClass(open, "e-con") ||
+      hasClass(open, "e-parent"),
   );
   const all: Range[] = [...sections, ...divSections];
 
@@ -425,9 +457,7 @@ export function elementorToBuilder(html: string): ElementorConversion | null {
       {
         id: newId(),
         kind: "section",
-        children: [
-          { id: newId(), kind: "column", span: { desktop: 12 }, children: widgets },
-        ],
+        children: [{ id: newId(), kind: "column", span: { desktop: 12 }, children: widgets }],
       },
     ];
   }

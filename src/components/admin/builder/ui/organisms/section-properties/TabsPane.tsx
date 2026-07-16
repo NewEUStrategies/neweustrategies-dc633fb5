@@ -177,7 +177,10 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
             </Select>
           </Row>
 
-          <Row label="Kolor akcentu" hint="Kolor aktywnej zakładki (podkreślenia, tła pigułki). Zostaw puste, aby użyć koloru marki.">
+          <Row
+            label="Kolor akcentu"
+            hint="Kolor aktywnej zakładki (podkreślenia, tła pigułki). Zostaw puste, aby użyć koloru marki."
+          >
             <ColorPicker
               value={cfg.accentColor}
               onChange={(v) =>
@@ -270,7 +273,6 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
 
           <FontSizeLiveCheck sectionId={section.id} expectedPx={cfg.fontSize ?? 14} />
 
-
           <Row label="Wyrównanie">
             <Select
               value={cfg.align ?? "start"}
@@ -320,7 +322,10 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
               Lista zakładek
             </div>
             {items.map((t, i) => (
-              <div key={t.id} className="rounded border border-border bg-background p-2 space-y-1.5">
+              <div
+                key={t.id}
+                className="rounded border border-border bg-background p-2 space-y-1.5"
+              >
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] text-muted-foreground w-6">#{i + 1}</span>
                   <Input
@@ -418,9 +423,7 @@ export function TabsPane({ section, onChange }: { section: SectionNode; onChange
               Przypisanie dzieci
             </div>
             {(section.children ?? []).length === 0 && (
-              <p className="text-xs text-muted-foreground italic">
-                Sekcja nie ma jeszcze kolumn.
-              </p>
+              <p className="text-xs text-muted-foreground italic">Sekcja nie ma jeszcze kolumn.</p>
             )}
             {(section.children ?? []).map((c, i) => (
               <div key={c.id} className="flex items-center gap-2">
@@ -548,4 +551,3 @@ function FontSizeLiveCheck({ sectionId, expectedPx }: { sectionId: string; expec
     </div>
   );
 }
-

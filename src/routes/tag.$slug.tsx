@@ -4,10 +4,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import {
-  taxonomyArchiveQueryOptions,
-  type ArchiveSort,
-} from "@/lib/queries/archives";
+import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
@@ -30,9 +27,7 @@ export const Route = createFileRoute("/tag/$slug")({
   validateSearch: parseSearch,
   loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
-    const settings = await context.queryClient.ensureQueryData(
-      archiveLayoutQueryOptions("tag"),
-    );
+    const settings = await context.queryClient.ensureQueryData(archiveLayoutQueryOptions("tag"));
     const data = await context.queryClient.ensureQueryData(
       taxonomyArchiveQueryOptions("tag", params.slug, {
         page: deps.page,
@@ -51,9 +46,10 @@ export const Route = createFileRoute("/tag/$slug")({
     const request = new URL(requestedUrl, SITE_CANONICAL_ORIGIN);
     request.searchParams.delete("page");
     request.searchParams.delete("sort");
-    const url = request.origin === SITE_CANONICAL_ORIGIN && !requestedUrl.startsWith("http")
-      ? request.pathname
-      : request.toString();
+    const url =
+      request.origin === SITE_CANONICAL_ORIGIN && !requestedUrl.startsWith("http")
+        ? request.pathname
+        : request.toString();
     const lang = activeLang(url);
     const name = tax
       ? lang === "en"

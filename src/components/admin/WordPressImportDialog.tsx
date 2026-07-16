@@ -28,11 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Download, RefreshCw, Eye } from "lucide-react";
-import {
-  wpListPages,
-  wpImportPages,
-  listExistingPages,
-} from "@/lib/wp-import.functions";
+import { wpListPages, wpImportPages, listExistingPages } from "@/lib/wp-import.functions";
 import { WordPressPreviewDialog } from "./WordPressPreviewDialog";
 import { WxrUploadPanel } from "./WxrUploadPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -205,7 +201,9 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
           includeExternalMedia: includeExternal,
         },
       });
-      const okCount = results.filter((r) => r.status === "imported" || r.status === "overwritten").length;
+      const okCount = results.filter(
+        (r) => r.status === "imported" || r.status === "overwritten",
+      ).length;
       const overCount = results.filter((r) => r.status === "overwritten").length;
       const skippedCount = results.filter((r) => r.status === "skipped").length;
       const errCount = results.filter((r) => r.status === "error").length;
@@ -266,223 +264,268 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
               />
             </TabsContent>
             <TabsContent value="connector">
-          <div className="grid gap-3">
-
-            <div className="grid gap-1.5">
-              <Label>{lang === "pl" ? "Domena WordPress.com" : "WordPress.com domain"}</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="mysite.wordpress.com"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value.trim())}
-                  onKeyDown={(e) => e.key === "Enter" && fetchList()}
-                />
-                <Button onClick={fetchList} disabled={loading}>
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  <span className="ml-1">{lang === "pl" ? "Wczytaj" : "Load"}</span>
-                </Button>
-              </div>
-            </div>
-
-            {pages.length > 0 && (
-              <>
-                <div className="flex flex-wrap items-center gap-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
-                  <span>{lang === "pl" ? `Wybrane: ${selected.size} / ${selectableCount}` : `Selected: ${selected.size} / ${selectableCount}`}</span>
-                  <span className="text-emerald-700 dark:text-emerald-300">
-                    {lang === "pl" ? `Nowe: ${summary.create}` : `New: ${summary.create}`}
-                  </span>
-                  <span className="text-sky-700 dark:text-sky-300">
-                    {lang === "pl" ? `Nadpisania: ${summary.overwrite}` : `Overwrites: ${summary.overwrite}`}
-                  </span>
-                  <span className="text-amber-700 dark:text-amber-300">
-                    {lang === "pl" ? `Pary PL/EN: ${summary.paired}` : `PL/EN pairs: ${summary.paired}`}
-                  </span>
-                  <div className="ml-auto flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Switch checked={mirrorMedia} onCheckedChange={setMirrorMedia} id="mirror" />
-                      <Label htmlFor="mirror" className="cursor-pointer text-xs">
-                        {lang === "pl" ? "Ściągaj media" : "Mirror media"}
-                      </Label>
-                    </div>
-                    {mirrorMedia && (
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={includeExternal}
-                          onCheckedChange={setIncludeExternal}
-                          id="ext"
-                        />
-                        <Label htmlFor="ext" className="cursor-pointer text-xs">
-                          {lang === "pl" ? "Także zewnętrzne CDN" : "Also external CDNs"}
-                        </Label>
-                      </div>
-                    )}
-                    <Select
-                      value={targetStatus}
-                      onValueChange={(v) => setTargetStatus(v as "draft" | "published")}
-                    >
-                      <SelectTrigger className="h-8 w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">draft</SelectItem>
-                        <SelectItem value="published">published</SelectItem>
-                      </SelectContent>
-                    </Select>
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
+                  <Label>{lang === "pl" ? "Domena WordPress.com" : "WordPress.com domain"}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="mysite.wordpress.com"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value.trim())}
+                      onKeyDown={(e) => e.key === "Enter" && fetchList()}
+                    />
+                    <Button onClick={fetchList} disabled={loading}>
+                      {loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      <span className="ml-1">{lang === "pl" ? "Wczytaj" : "Load"}</span>
+                    </Button>
                   </div>
                 </div>
 
-                <div className="max-h-[52vh] overflow-auto rounded-md border border-border">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-muted/60 text-xs uppercase text-muted-foreground">
-                      <tr>
-                        <th className="w-8 px-2 py-2"></th>
-                        <th className="px-2 py-2 text-left">{lang === "pl" ? "Strona" : "Page"}</th>
-                        <th className="w-20 px-2 py-2 text-left">{lang === "pl" ? "Język" : "Lang"}</th>
-                        <th className="px-2 py-2 text-left">{lang === "pl" ? "Sparuj z" : "Pair with"}</th>
-                        <th className="px-2 py-2 text-left">{lang === "pl" ? "Nadpisz stronę" : "Overwrite"}</th>
-                        <th className="px-2 py-2 text-left">{lang === "pl" ? "Slug" : "Slug"}</th>
-                        <th className="w-16 px-2 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {pages.map((p) => {
-                        const isMain = p.slug === "main";
-                        const row = rows[p.ID] ?? { lang: "pl" as const };
-                        const otherLangPages = pages.filter(
-                          (x) => x.ID !== p.ID && x.slug !== "main" && (rows[x.ID]?.lang ?? inferLang(x.slug, x.title)) !== row.lang,
-                        );
-                        return (
-                          <tr key={p.ID} className={isMain ? "opacity-50" : "hover:bg-muted/20"}>
-                            <td className="px-2 py-1.5">
-                              <Checkbox
-                                checked={selected.has(p.ID)}
-                                disabled={isMain}
-                                onCheckedChange={() => toggle(p.ID)}
-                              />
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <div className="max-w-[220px] truncate font-medium" title={p.title}>
-                                {p.title || `#${p.ID}`}
-                              </div>
-                              <div className="truncate text-xs text-muted-foreground">/{p.slug}</div>
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Select
-                                value={row.lang}
-                                onValueChange={(v) => setRow(p.ID, { lang: v as "pl" | "en" })}
-                                disabled={isMain}
-                              >
-                                <SelectTrigger className="h-7 w-16 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pl">PL</SelectItem>
-                                  <SelectItem value="en">EN</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Select
-                                value={row.pairedWith ? String(row.pairedWith) : "__none__"}
-                                onValueChange={(v) =>
-                                  setRow(p.ID, {
-                                    pairedWith: v === "__none__" ? undefined : Number(v),
-                                  })
-                                }
-                                disabled={isMain || otherLangPages.length === 0}
-                              >
-                                <SelectTrigger className="h-7 w-full max-w-[200px] text-xs">
-                                  <SelectValue placeholder={lang === "pl" ? "— bez pary —" : "— unpaired —"} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__none__">
-                                    {lang === "pl" ? "— bez pary —" : "— unpaired —"}
-                                  </SelectItem>
-                                  {otherLangPages.map((op) => (
-                                    <SelectItem key={op.ID} value={String(op.ID)}>
-                                      {op.title || `#${op.ID}`}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Select
-                                value={row.targetPageId ?? "__new__"}
-                                onValueChange={(v) =>
-                                  setRow(p.ID, { targetPageId: v === "__new__" ? undefined : v })
-                                }
-                                disabled={isMain}
-                              >
-                                <SelectTrigger className="h-7 w-full max-w-[220px] text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__new__">
-                                    {lang === "pl" ? "+ Nowa strona" : "+ New page"}
-                                  </SelectItem>
-                                  {existingPages.map((ep) => (
-                                    <SelectItem key={ep.id} value={ep.id}>
-                                      {ep.title_pl || ep.title_en || ep.slug}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Input
-                                placeholder={p.slug}
-                                value={row.slugOverride ?? ""}
-                                onChange={(e) =>
-                                  setRow(p.ID, { slugOverride: e.target.value.trim() || undefined })
-                                }
-                                className="h-7 w-32 text-xs"
-                                disabled={isMain}
-                              />
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={isMain}
-                                onClick={() =>
-                                  setPreview({
-                                    wpId: p.ID,
-                                    wpIdEn: row.pairedWith && row.lang === "pl" ? row.pairedWith : undefined,
-                                  })
-                                }
-                                title={lang === "pl" ? "Podgląd konwersji" : "Preview conversion"}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
+                {pages.length > 0 && (
+                  <>
+                    <div className="flex flex-wrap items-center gap-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                      <span>
+                        {lang === "pl"
+                          ? `Wybrane: ${selected.size} / ${selectableCount}`
+                          : `Selected: ${selected.size} / ${selectableCount}`}
+                      </span>
+                      <span className="text-emerald-700 dark:text-emerald-300">
+                        {lang === "pl" ? `Nowe: ${summary.create}` : `New: ${summary.create}`}
+                      </span>
+                      <span className="text-sky-700 dark:text-sky-300">
+                        {lang === "pl"
+                          ? `Nadpisania: ${summary.overwrite}`
+                          : `Overwrites: ${summary.overwrite}`}
+                      </span>
+                      <span className="text-amber-700 dark:text-amber-300">
+                        {lang === "pl"
+                          ? `Pary PL/EN: ${summary.paired}`
+                          : `PL/EN pairs: ${summary.paired}`}
+                      </span>
+                      <div className="ml-auto flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={mirrorMedia}
+                            onCheckedChange={setMirrorMedia}
+                            id="mirror"
+                          />
+                          <Label htmlFor="mirror" className="cursor-pointer text-xs">
+                            {lang === "pl" ? "Ściągaj media" : "Mirror media"}
+                          </Label>
+                        </div>
+                        {mirrorMedia && (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={includeExternal}
+                              onCheckedChange={setIncludeExternal}
+                              id="ext"
+                            />
+                            <Label htmlFor="ext" className="cursor-pointer text-xs">
+                              {lang === "pl" ? "Także zewnętrzne CDN" : "Also external CDNs"}
+                            </Label>
+                          </div>
+                        )}
+                        <Select
+                          value={targetStatus}
+                          onValueChange={(v) => setTargetStatus(v as "draft" | "published")}
+                        >
+                          <SelectTrigger className="h-8 w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="draft">draft</SelectItem>
+                            <SelectItem value="published">published</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              {lang === "pl" ? "Anuluj" : "Cancel"}
-            </Button>
-            <Button onClick={runImport} disabled={selected.size === 0 || importing}>
-              {importing ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-1 h-4 w-4" />
-              )}
-              {lang === "pl" ? `Importuj (${selected.size})` : `Import (${selected.size})`}
-            </Button>
-          </DialogFooter>
+                    <div className="max-h-[52vh] overflow-auto rounded-md border border-border">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-muted/60 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className="w-8 px-2 py-2"></th>
+                            <th className="px-2 py-2 text-left">
+                              {lang === "pl" ? "Strona" : "Page"}
+                            </th>
+                            <th className="w-20 px-2 py-2 text-left">
+                              {lang === "pl" ? "Język" : "Lang"}
+                            </th>
+                            <th className="px-2 py-2 text-left">
+                              {lang === "pl" ? "Sparuj z" : "Pair with"}
+                            </th>
+                            <th className="px-2 py-2 text-left">
+                              {lang === "pl" ? "Nadpisz stronę" : "Overwrite"}
+                            </th>
+                            <th className="px-2 py-2 text-left">
+                              {lang === "pl" ? "Slug" : "Slug"}
+                            </th>
+                            <th className="w-16 px-2 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {pages.map((p) => {
+                            const isMain = p.slug === "main";
+                            const row = rows[p.ID] ?? { lang: "pl" as const };
+                            const otherLangPages = pages.filter(
+                              (x) =>
+                                x.ID !== p.ID &&
+                                x.slug !== "main" &&
+                                (rows[x.ID]?.lang ?? inferLang(x.slug, x.title)) !== row.lang,
+                            );
+                            return (
+                              <tr
+                                key={p.ID}
+                                className={isMain ? "opacity-50" : "hover:bg-muted/20"}
+                              >
+                                <td className="px-2 py-1.5">
+                                  <Checkbox
+                                    checked={selected.has(p.ID)}
+                                    disabled={isMain}
+                                    onCheckedChange={() => toggle(p.ID)}
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <div
+                                    className="max-w-[220px] truncate font-medium"
+                                    title={p.title}
+                                  >
+                                    {p.title || `#${p.ID}`}
+                                  </div>
+                                  <div className="truncate text-xs text-muted-foreground">
+                                    /{p.slug}
+                                  </div>
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <Select
+                                    value={row.lang}
+                                    onValueChange={(v) => setRow(p.ID, { lang: v as "pl" | "en" })}
+                                    disabled={isMain}
+                                  >
+                                    <SelectTrigger className="h-7 w-16 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pl">PL</SelectItem>
+                                      <SelectItem value="en">EN</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <Select
+                                    value={row.pairedWith ? String(row.pairedWith) : "__none__"}
+                                    onValueChange={(v) =>
+                                      setRow(p.ID, {
+                                        pairedWith: v === "__none__" ? undefined : Number(v),
+                                      })
+                                    }
+                                    disabled={isMain || otherLangPages.length === 0}
+                                  >
+                                    <SelectTrigger className="h-7 w-full max-w-[200px] text-xs">
+                                      <SelectValue
+                                        placeholder={
+                                          lang === "pl" ? "— bez pary —" : "— unpaired —"
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">
+                                        {lang === "pl" ? "— bez pary —" : "— unpaired —"}
+                                      </SelectItem>
+                                      {otherLangPages.map((op) => (
+                                        <SelectItem key={op.ID} value={String(op.ID)}>
+                                          {op.title || `#${op.ID}`}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <Select
+                                    value={row.targetPageId ?? "__new__"}
+                                    onValueChange={(v) =>
+                                      setRow(p.ID, {
+                                        targetPageId: v === "__new__" ? undefined : v,
+                                      })
+                                    }
+                                    disabled={isMain}
+                                  >
+                                    <SelectTrigger className="h-7 w-full max-w-[220px] text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__new__">
+                                        {lang === "pl" ? "+ Nowa strona" : "+ New page"}
+                                      </SelectItem>
+                                      {existingPages.map((ep) => (
+                                        <SelectItem key={ep.id} value={ep.id}>
+                                          {ep.title_pl || ep.title_en || ep.slug}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <Input
+                                    placeholder={p.slug}
+                                    value={row.slugOverride ?? ""}
+                                    onChange={(e) =>
+                                      setRow(p.ID, {
+                                        slugOverride: e.target.value.trim() || undefined,
+                                      })
+                                    }
+                                    className="h-7 w-32 text-xs"
+                                    disabled={isMain}
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={isMain}
+                                    onClick={() =>
+                                      setPreview({
+                                        wpId: p.ID,
+                                        wpIdEn:
+                                          row.pairedWith && row.lang === "pl"
+                                            ? row.pairedWith
+                                            : undefined,
+                                      })
+                                    }
+                                    title={
+                                      lang === "pl" ? "Podgląd konwersji" : "Preview conversion"
+                                    }
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setOpen(false)}>
+                  {lang === "pl" ? "Anuluj" : "Cancel"}
+                </Button>
+                <Button onClick={runImport} disabled={selected.size === 0 || importing}>
+                  {importing ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-1 h-4 w-4" />
+                  )}
+                  {lang === "pl" ? `Importuj (${selected.size})` : `Import (${selected.size})`}
+                </Button>
+              </DialogFooter>
             </TabsContent>
           </Tabs>
         </DialogContent>

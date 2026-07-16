@@ -380,9 +380,7 @@ function AdminResearchPrograms() {
                 <Textarea
                   rows={2}
                   value={form.tagline_pl ?? ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, tagline_pl: e.target.value || null }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, tagline_pl: e.target.value || null }))}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -390,9 +388,7 @@ function AdminResearchPrograms() {
                 <Textarea
                   rows={2}
                   value={form.tagline_en ?? ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, tagline_en: e.target.value || null }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, tagline_en: e.target.value || null }))}
                 />
               </div>
             </div>
@@ -509,7 +505,8 @@ function AdminResearchPrograms() {
                   <SelectItem value="none">{lang === "pl" ? "Brak" : "None"}</SelectItem>
                   {(categoriesQ.data ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {lang === "pl" ? c.name_pl : c.name_en} <span className="opacity-60">/{c.slug}</span>
+                      {lang === "pl" ? c.name_pl : c.name_en}{" "}
+                      <span className="opacity-60">/{c.slug}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -527,11 +524,7 @@ function AdminResearchPrograms() {
       </Dialog>
 
       {manageFor && (
-        <ManageContentDialog
-          program={manageFor}
-          onClose={() => setManageFor(null)}
-          lang={lang}
-        />
+        <ManageContentDialog program={manageFor} onClose={() => setManageFor(null)} lang={lang} />
       )}
     </div>
   );
@@ -755,9 +748,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
         <div className="grid gap-2 md:grid-cols-2">
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger>
-              <SelectValue
-                placeholder={lang === "pl" ? "Wybierz użytkownika" : "Select a user"}
-              />
+              <SelectValue placeholder={lang === "pl" ? "Wybierz użytkownika" : "Select a user"} />
             </SelectTrigger>
             <SelectContent className="max-h-72">
               {available.map((u) => (
@@ -803,10 +794,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
             )}
             <span className="flex-1" />
             <div className="flex items-center gap-2">
-              <Switch
-                checked={m.is_lead}
-                onCheckedChange={(v) => toggleLead(m.profile_id, v)}
-              />
+              <Switch checked={m.is_lead} onCheckedChange={(v) => toggleLead(m.profile_id, v)} />
               <span className="text-xs">{lang === "pl" ? "Lider" : "Lead"}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={() => removeMember(m.profile_id)}>
@@ -920,9 +908,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
         <div className="grid gap-2 md:grid-cols-2">
           <Select
             value={draft.project_status}
-            onValueChange={(v) =>
-              setDraft((d) => ({ ...d, project_status: v as ProjectStatus }))
-            }
+            onValueChange={(v) => setDraft((d) => ({ ...d, project_status: v as ProjectStatus }))}
           >
             <SelectTrigger>
               <SelectValue />

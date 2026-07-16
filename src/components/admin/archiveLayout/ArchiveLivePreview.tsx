@@ -99,7 +99,9 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("archiveLayout.livePreview", { defaultValue: lang === "en" ? "Live preview" : "Podgląd na żywo" })}
+          {t("archiveLayout.livePreview", {
+            defaultValue: lang === "en" ? "Live preview" : "Podgląd na żywo",
+          })}
         </h2>
         <span className="text-xs text-muted-foreground">
           {t("archiveLayout.livePreviewHint", {
@@ -112,9 +114,7 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
       </div>
       <div
         className="rounded-xl border border-border overflow-hidden shadow-sm bg-linear-to-br from-muted/40 via-background to-muted/20 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
-        aria-label={
-          lang === "en" ? "Archive layout live preview" : "Podgląd układu archiwum"
-        }
+        aria-label={lang === "en" ? "Archive layout live preview" : "Podgląd układu archiwum"}
       >
         <div
           className="pointer-events-none select-none max-h-[680px] overflow-auto"

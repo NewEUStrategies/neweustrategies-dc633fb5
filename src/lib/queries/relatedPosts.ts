@@ -30,7 +30,6 @@ export const relatedPostsConfigQueryOptions = () =>
     staleTime: RELATED_TTL,
   });
 
-
 export interface RelatedPostsInput {
   postId: string;
   limit: number;

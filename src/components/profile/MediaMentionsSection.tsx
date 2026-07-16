@@ -6,7 +6,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Save, Mic, Newspaper, Radio, MessageSquareQuote, FileText, ImageIcon } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ExternalLink,
+  Save,
+  Mic,
+  Newspaper,
+  Radio,
+  MessageSquareQuote,
+  FileText,
+  ImageIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,7 +101,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         outlet: (r.outlet as string) ?? "",
         title: (r.title as string) ?? "",
         url: (r.url as string | null) ?? null,
-        kind: ((r.kind as Kind) ?? "quote"),
+        kind: (r.kind as Kind) ?? "quote",
         language: (r.language as string | null) ?? null,
         published_on: (r.published_on as string) ?? today(),
         is_public: (r.is_public as boolean) ?? true,
@@ -107,9 +118,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
   }, [load]);
 
   const patch = (idx: number, changes: Partial<Row>) => {
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, ...changes, _dirty: true } : r)),
-    );
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...changes, _dirty: true } : r)));
   };
 
   const addRow = () => setRows((prev) => [emptyRow(), ...prev]);
@@ -123,9 +132,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         toast.error(error.message);
         return;
       }
-      toast.success(
-        t("profile.author.media.removed", { defaultValue: "Usunięto wpis medialny" }),
-      );
+      toast.success(t("profile.author.media.removed", { defaultValue: "Usunięto wpis medialny" }));
     }
     setRows((prev) => prev.filter((_, i) => i !== idx));
   };
@@ -141,9 +148,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
       );
       return;
     }
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, _saving: true } : r)),
-    );
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _saving: true } : r)));
     const payload = {
       user_id: userId,
       outlet: row.outlet.trim(),
@@ -156,15 +161,10 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
       cover_url: row.cover_url?.trim() ? row.cover_url.trim() : null,
     };
     if (row.id) {
-      const { error } = await supabase
-        .from("media_mentions")
-        .update(payload)
-        .eq("id", row.id);
+      const { error } = await supabase.from("media_mentions").update(payload).eq("id", row.id);
       if (error) {
         toast.error(error.message);
-        setRows((prev) =>
-          prev.map((r, i) => (i === idx ? { ...r, _saving: false } : r)),
-        );
+        setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _saving: false } : r)));
         return;
       }
       setRows((prev) =>
@@ -179,9 +179,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         .single();
       if (error || !data) {
         toast.error(error?.message ?? "Insert failed");
-        setRows((prev) =>
-          prev.map((r, i) => (i === idx ? { ...r, _saving: false } : r)),
-        );
+        setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _saving: false } : r)));
         return;
       }
       setRows((prev) =>
@@ -244,10 +242,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     <Label className="text-[11px] text-muted-foreground">
                       {t("profile.author.media.kind", { defaultValue: "Rodzaj" })}
                     </Label>
-                    <Select
-                      value={row.kind}
-                      onValueChange={(v) => patch(idx, { kind: v as Kind })}
-                    >
+                    <Select value={row.kind} onValueChange={(v) => patch(idx, { kind: v as Kind })}>
                       <SelectTrigger className="h-9">
                         <SelectValue />
                       </SelectTrigger>

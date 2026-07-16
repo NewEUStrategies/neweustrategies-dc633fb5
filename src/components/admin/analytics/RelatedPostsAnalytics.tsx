@@ -28,10 +28,7 @@ import {
   buildPresetRange,
   type TimeRangeValue,
 } from "@/components/admin/analytics/TimeRangeFilter";
-import {
-  InsightSection,
-  type Insight,
-} from "@/components/admin/analytics/InsightSection";
+import { InsightSection, type Insight } from "@/components/admin/analytics/InsightSection";
 
 function nice(n: number): string {
   if (!Number.isFinite(n)) return "-";
@@ -311,7 +308,8 @@ export function RelatedPostsAnalytics() {
         element: "Struktura - kategorie",
         severity: "warn",
         title: `${smallCats.length} kategorii z <3 wpisami`,
-        detail: "Kategorie o niskiej liczności generują ubogie rekomendacje. Silnik dopasuje 1-2 wpisy i skończy.",
+        detail:
+          "Kategorie o niskiej liczności generują ubogie rekomendacje. Silnik dopasuje 1-2 wpisy i skończy.",
         fixes: [
           "Scal małe kategorie w jedną (np. redirects + aktualizacja post_categories).",
           "Podnieś wagę `weight_tags` względem `weight_categories` - tagi pokryją większy graf.",
@@ -326,7 +324,8 @@ export function RelatedPostsAnalytics() {
         element: "Personalizacja - historia czytania",
         severity: "info",
         title: "Brak sygnałów z historii czytania zalogowanych użytkowników",
-        detail: "user_read_history jest puste w tym oknie - personalizacja nie ma na czym się oprzeć.",
+        detail:
+          "user_read_history jest puste w tym oknie - personalizacja nie ma na czym się oprzeć.",
         fixes: [
           "Wpięcie logowania czasu czytania (np. IntersectionObserver + timer) do user_read_history.",
           "Do czasu zebrania danych utrzymuj `weight_personalization` na 3 - nie zaszkodzi, a zacznie działać automatycznie.",
@@ -389,7 +388,8 @@ export function RelatedPostsAnalytics() {
           element: "Popularność vs rekomendacja",
           severity: "warn",
           title: `${popularButNotRec.length} popularnych wpisów spoza top-10 rekomendacji`,
-          detail: "Wpisy z dużym ruchem nie trafiają do rekomendacji - silnik nie promuje najsilniejszych treści.",
+          detail:
+            "Wpisy z dużym ruchem nie trafiają do rekomendacji - silnik nie promuje najsilniejszych treści.",
           fixes: [
             "Podnieś `weight_popularity` (np. 3-4) - popularność wzmocni ranking.",
             "Sprawdź otagowanie tych wpisów - być może są izolowane w grafie kategorii/tagów.",
@@ -415,7 +415,8 @@ export function RelatedPostsAnalytics() {
           <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Odśwież
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <TrendingUp className="w-3 h-3" /> Analiza per tenant, okno {report?.summary.window_days ?? range.days} dni
+          <TrendingUp className="w-3 h-3" /> Analiza per tenant, okno{" "}
+          {report?.summary.window_days ?? range.days} dni
         </div>
         {isLoading ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">

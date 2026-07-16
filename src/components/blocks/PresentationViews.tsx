@@ -401,7 +401,9 @@ export function PricingTableView({ plans, cls }: PricingProps) {
               {p.period ? <span className="text-sm text-muted-foreground">{p.period}</span> : null}
             </div>
             {p.description ? (
-              <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line">{htmlToPlainText(p.description)}</p>
+              <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line">
+                {htmlToPlainText(p.description)}
+              </p>
             ) : null}
             {p.features.length > 0 ? (
               <ul className="mt-4 space-y-2 text-sm text-foreground flex-1">
@@ -478,7 +480,9 @@ export function TimelineView({ items, cls }: TimelineProps) {
             <h3 className="text-base font-semibold text-foreground mt-0.5">{it.title}</h3>
           ) : null}
           {it.description ? (
-            <p className="text-sm text-muted-foreground mt-1 leading-relaxed whitespace-pre-line">{htmlToPlainText(it.description)}</p>
+            <p className="text-sm text-muted-foreground mt-1 leading-relaxed whitespace-pre-line">
+              {htmlToPlainText(it.description)}
+            </p>
           ) : null}
         </li>
       ))}

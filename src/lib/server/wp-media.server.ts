@@ -69,7 +69,9 @@ function filenameFromUrl(u: string): string {
   try {
     const url = new URL(u);
     const last = url.pathname.split("/").filter(Boolean).pop() ?? "asset";
-    return decodeURIComponent(last).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 128);
+    return decodeURIComponent(last)
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .slice(0, 128);
   } catch {
     return "asset";
   }

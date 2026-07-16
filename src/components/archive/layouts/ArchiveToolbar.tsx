@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-
 const SORT_LABEL_PL: Record<ArchiveSort, string> = {
   newest: "Najnowsze",
   oldest: "Najstarsze",
@@ -81,7 +80,6 @@ export function ArchiveToolbar({
           </SelectContent>
         </Select>
       </div>
-
     </div>
   );
 }

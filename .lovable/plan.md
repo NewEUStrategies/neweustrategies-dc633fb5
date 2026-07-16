@@ -17,6 +17,7 @@ Nowe pola w `RelatedPostsConfig` (zapisywane w `related_posts_config`, wszystkie
 - `min_score` (0-100, default 0) — próg widoczności rekomendacji
 
 `scoreRelated()` przyjmuje dodatkowo:
+
 - `signals: { popularityByPost: Map<id, number>, userProfile?: { catAffinity, tagAffinity }, idfCat, idfTag }`
 - zwraca `{ total, breakdown: { categories, tags, author, recency, popularity, personalization } }` (rozbicie potrzebne panelowi analitycznemu)
 
@@ -34,6 +35,7 @@ Nowe pola w `RelatedPostsConfig` (zapisywane w `related_posts_config`, wszystkie
 ## 3. Server function `getRelatedInsights` (per-tenant, admin-gated)
 
 `src/lib/relatedInsights.functions.ts`:
+
 - `.middleware([requireSupabaseAuth])`
 - Weryfikuje role admin, rozwiązuje `tenantId` z helpera.
 - Woła RPC + doczytuje słownik kategorii/tagów, pakuje DTO.
@@ -47,6 +49,7 @@ Nowe pola w `RelatedPostsConfig` (zapisywane w `related_posts_config`, wszystkie
 ## 5. Podpięcie silnika v2 do query
 
 `src/lib/queries/relatedPosts.ts`:
+
 - Doczytuje `post_views` (28d, per tenant post ids) → mapa popularności.
 - Dla zalogowanego usera: `user_read_history` (top 20) → profil zainteresowań (agreguje kategorie/tagi).
 - Liczy IDF na podstawie liczności tag/category (small in-memory).

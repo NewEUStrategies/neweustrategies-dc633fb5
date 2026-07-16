@@ -31,7 +31,12 @@ export interface KpiTileProps {
   absoluteDelta?: boolean;
 }
 
-function formatDelta(current: number, previous: number, absolute: boolean, suffix?: string): string {
+function formatDelta(
+  current: number,
+  previous: number,
+  absolute: boolean,
+  suffix?: string,
+): string {
   if (!Number.isFinite(current) || !Number.isFinite(previous)) return "-";
   if (absolute) {
     const d = current - previous;
@@ -56,11 +61,18 @@ export function KpiTile({
   absoluteDelta,
 }: KpiTileProps) {
   const hasDelta =
-    typeof current === "number" && typeof previous === "number" && Number.isFinite(current) && Number.isFinite(previous);
+    typeof current === "number" &&
+    typeof previous === "number" &&
+    Number.isFinite(current) &&
+    Number.isFinite(previous);
   const dir = hasDelta ? Math.sign((current ?? 0) - (previous ?? 0)) : 0;
   const good = higherIsBetter ? dir > 0 : dir < 0;
   const neutral = dir === 0;
-  const deltaColor = neutral ? "text-muted-foreground" : good ? "text-emerald-600" : "text-destructive";
+  const deltaColor = neutral
+    ? "text-muted-foreground"
+    : good
+      ? "text-emerald-600"
+      : "text-destructive";
   const DeltaIcon = neutral ? Minus : good ? ArrowUpRight : ArrowDownRight;
 
   const sparkOption = useMemo<EChartsCoreOption | null>(() => {

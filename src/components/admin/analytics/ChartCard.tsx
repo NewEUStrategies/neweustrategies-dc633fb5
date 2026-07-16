@@ -132,7 +132,11 @@ export function ChartCard({
           themeVersion={themeVersion}
         />
       </div>
-      {footer ? <div className="px-4 py-2 border-t border-border/60 text-xs text-muted-foreground">{footer}</div> : null}
+      {footer ? (
+        <div className="px-4 py-2 border-t border-border/60 text-xs text-muted-foreground">
+          {footer}
+        </div>
+      ) : null}
     </Card>
   );
 }

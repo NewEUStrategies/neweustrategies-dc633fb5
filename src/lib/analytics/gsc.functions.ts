@@ -14,7 +14,12 @@ const GATEWAY = "https://connector-gateway.lovable.dev/google_search_console";
 interface GatewayCtx {
   supabase: {
     from: (t: string) => {
-      select: (c: string) => { eq: (col: string, val: string) => Promise<{ data: unknown; error: { message: string } | null }> };
+      select: (c: string) => {
+        eq: (
+          col: string,
+          val: string,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
     };
   };
   userId: string;
@@ -84,7 +89,10 @@ const analyticsInput = z.object({
   siteUrl: z.string().min(1),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  dimensions: z.array(z.enum(["date", "query", "page", "country", "device"])).max(3).default(["date"]),
+  dimensions: z
+    .array(z.enum(["date", "query", "page", "country", "device"]))
+    .max(3)
+    .default(["date"]),
   rowLimit: z.number().int().min(1).max(1000).default(100),
 });
 

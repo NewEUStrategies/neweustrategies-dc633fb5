@@ -36,8 +36,7 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
 
   // Generic featured-top card, used by all layouts except Magazine (which renders its own).
   const featured = posts[0];
-  const showGenericFeatured =
-    settings.show_featured_top && !hasCustomFeaturedTop && !!featured;
+  const showGenericFeatured = settings.show_featured_top && !hasCustomFeaturedTop && !!featured;
   const gridPosts = showGenericFeatured ? posts.slice(1) : posts;
 
   const grid = (
@@ -121,7 +120,14 @@ function RelatedTaxonomiesBlock({
   lang: "pl" | "en";
   previewMode: boolean;
 }) {
-  const title = lang === "en" ? (kind === "category" ? "Related categories" : "Related tags") : (kind === "category" ? "Powiązane kategorie" : "Powiązane tagi");
+  const title =
+    lang === "en"
+      ? kind === "category"
+        ? "Related categories"
+        : "Related tags"
+      : kind === "category"
+        ? "Powiązane kategorie"
+        : "Powiązane tagi";
 
   // In preview mode we render deterministic mock chips so admins see the section.
   const mock = previewMode

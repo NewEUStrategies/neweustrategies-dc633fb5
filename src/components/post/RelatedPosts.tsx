@@ -19,7 +19,6 @@ import { trackRelatedClick } from "@/lib/relatedClickBeacon";
 import { accentFor } from "./relatedVisuals";
 import { ArrowUpRight, Clock, Sparkles } from "lucide-react";
 
-
 export interface RelatedPostsProps {
   postId: string;
   lang: "pl" | "en";
@@ -105,7 +104,6 @@ interface ViewProps {
   sourcePostId: string;
 }
 
-
 function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
   if (!cfg.show_cover || !p.cover_image_url) return null;
   return (
@@ -168,7 +166,6 @@ function RelatedGrid({
   lang,
   sourcePostId,
 }: ViewProps & { columns: RelatedPostsConfig["columns"] }) {
-
   const colClass =
     columns === 2
       ? "sm:grid-cols-2"
@@ -181,7 +178,6 @@ function RelatedGrid({
         <article key={p.id} className="space-y-3">
           <CardThumb p={p} cfg={cfg} />
           <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
-
         </article>
       ))}
     </div>
@@ -207,7 +203,6 @@ function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
           )}
           <div className="min-w-0 flex-1">
             <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
-
           </div>
         </li>
       ))}
@@ -310,7 +305,9 @@ function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
               <div className={`h-2 w-full ${a.bgClass}`} aria-hidden />
             )}
             <div className="flex flex-1 flex-col gap-2 p-4">
-              <div className={`inline-flex w-fit items-center gap-1.5 rounded-full ${a.bgClass} ${a.textClass} px-2 py-0.5 text-xs font-medium`}>
+              <div
+                className={`inline-flex w-fit items-center gap-1.5 rounded-full ${a.bgClass} ${a.textClass} px-2 py-0.5 text-xs font-medium`}
+              >
                 <a.Icon className="h-3 w-3" />
                 {lang === "en" ? "Recommended" : "Polecane"}
               </div>
@@ -323,10 +320,18 @@ function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
               <div className="mt-auto flex items-center justify-between pt-2">
                 {cfg.show_meta && p.published_at ? (
                   <time className="text-xs text-muted-foreground" dateTime={p.published_at}>
-                    {formatDate(p.published_at, lang, { year: "numeric", month: "short", day: "numeric" })}
+                    {formatDate(p.published_at, lang, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </time>
-                ) : <span />}
-                <span className={`inline-flex items-center gap-1 text-xs ${a.textClass} opacity-0 group-hover:opacity-100 transition-opacity`}>
+                ) : (
+                  <span />
+                )}
+                <span
+                  className={`inline-flex items-center gap-1 text-xs ${a.textClass} opacity-0 group-hover:opacity-100 transition-opacity`}
+                >
                   {lang === "en" ? "Read" : "Czytaj"}
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </span>
@@ -367,7 +372,9 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
           </div>
         )}
         <div className="absolute bottom-0 left-0 right-0 p-5 space-y-2">
-          <div className={`inline-flex w-fit items-center gap-1.5 rounded-full ${heroAccent.bgClass} ${heroAccent.textClass} px-2.5 py-1 text-xs font-medium ring-1 ${heroAccent.borderClass}`}>
+          <div
+            className={`inline-flex w-fit items-center gap-1.5 rounded-full ${heroAccent.bgClass} ${heroAccent.textClass} px-2.5 py-1 text-xs font-medium ring-1 ${heroAccent.borderClass}`}
+          >
             <heroAccent.Icon className="h-3.5 w-3.5" />
             {lang === "en" ? "Featured" : "Wyróżnione"}
           </div>
@@ -391,7 +398,10 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
                 onClick={() => trackRelatedClick(sourcePostId, p.id)}
                 className="group flex items-start gap-3 p-3 hover:bg-muted/50 transition-colors"
               >
-                <span className={`shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-md ${a.bgClass} ${a.textClass} ring-1 ${a.borderClass}`} aria-hidden>
+                <span
+                  className={`shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-md ${a.bgClass} ${a.textClass} ring-1 ${a.borderClass}`}
+                  aria-hidden
+                >
                   <a.Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -399,8 +409,15 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
                     {title}
                   </h4>
                   {cfg.show_meta && p.published_at && (
-                    <time className="mt-0.5 block text-xs text-muted-foreground" dateTime={p.published_at}>
-                      {formatDate(p.published_at, lang, { year: "numeric", month: "short", day: "numeric" })}
+                    <time
+                      className="mt-0.5 block text-xs text-muted-foreground"
+                      dateTime={p.published_at}
+                    >
+                      {formatDate(p.published_at, lang, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </time>
                   )}
                 </div>
@@ -440,7 +457,11 @@ function RelatedTimeline({ posts, cfg, lang, sourcePostId }: ViewProps) {
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   <Clock className="h-3 w-3" />
                   <time dateTime={p.published_at}>
-                    {formatDate(p.published_at, lang, { year: "numeric", month: "long", day: "numeric" })}
+                    {formatDate(p.published_at, lang, {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
                   </time>
                 </div>
               )}

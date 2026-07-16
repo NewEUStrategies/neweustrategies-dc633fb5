@@ -45,9 +45,7 @@ export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
     // Najpierw hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
-    const data = await context.queryClient.ensureQueryData(
-      expertHubQueryOptions(params.slug),
-    );
+    const data = await context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug));
     if (!data) throw notFound();
     await context.queryClient.ensureQueryData(
       expertLayoutSettingsQueryOptions(data.expert.tenant_id),
@@ -67,9 +65,9 @@ export const Route = createFileRoute("/author/$slug")({
     // Bio: full_bio (rozbudowany) > bio (krótki punktor). Sanityzujemy HTML,
     // znormalizowane whitespace i przycinamy do 160 znaków dla meta description.
     const bioRaw = expert
-      ? (isEn
+      ? ((isEn
           ? expert.full_bio_en || expert.bio_en || expert.full_bio_pl || expert.bio_pl
-          : expert.full_bio_pl || expert.bio_pl || expert.full_bio_en || expert.bio_en) ?? ""
+          : expert.full_bio_pl || expert.bio_pl || expert.full_bio_en || expert.bio_en) ?? "")
       : "";
     const bioClean = bioRaw
       .replace(/<[^>]+>/g, " ")
@@ -118,12 +116,8 @@ export const Route = createFileRoute("/author/$slug")({
       ...(firstName ? { givenName: firstName } : {}),
       ...(lastName ? { familyName: lastName } : {}),
       ...(expert?.job_title ? { jobTitle: expert.job_title } : {}),
-      ...(expert?.company
-        ? { worksFor: { "@type": "Organization", name: expert.company } }
-        : {}),
-      ...(versionedAvatar
-        ? { image: { "@type": "ImageObject", url: versionedAvatar } }
-        : {}),
+      ...(expert?.company ? { worksFor: { "@type": "Organization", name: expert.company } } : {}),
+      ...(versionedAvatar ? { image: { "@type": "ImageObject", url: versionedAvatar } } : {}),
       ...(sameAs.length ? { sameAs } : {}),
       ...(areasLoc.length ? { knowsAbout: areasLoc } : {}),
       description,
@@ -136,7 +130,12 @@ export const Route = createFileRoute("/author/$slug")({
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [
-        { "@type": "ListItem", position: 1, name: isEn ? "Home" : "Strona główna", item: origin || "/" },
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: isEn ? "Home" : "Strona główna",
+          item: origin || "/",
+        },
         {
           "@type": "ListItem",
           position: 2,
@@ -159,11 +158,7 @@ export const Route = createFileRoute("/author/$slug")({
       // `buildContentHead` bez tego pomija tag - dodajemy go świadomie na hubie
       // eksperta, bo strona ma zawsze być indeksowana.
       robots: "index, follow, max-image-preview:large, max-snippet:-1",
-      imageAlt: expert?.display_name
-        ? isEn
-          ? `Portrait of ${name}`
-          : `Portret: ${name}`
-        : null,
+      imageAlt: expert?.display_name ? (isEn ? `Portrait of ${name}` : `Portret: ${name}`) : null,
     });
 
     // OG type "profile" oraz profile:first_name / profile:last_name są w
@@ -173,8 +168,7 @@ export const Route = createFileRoute("/author/$slug")({
     );
     if (firstName) meta.push({ property: "profile:first_name", content: firstName });
     if (lastName) meta.push({ property: "profile:last_name", content: lastName });
-    if (expert?.slug)
-      meta.push({ property: "profile:username", content: expert.slug });
+    if (expert?.slug) meta.push({ property: "profile:username", content: expert.slug });
 
     return {
       meta,

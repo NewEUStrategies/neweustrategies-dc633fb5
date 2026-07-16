@@ -19,7 +19,10 @@ import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/admin/settings/cookie-banner")({
   head: () => ({
-    meta: [{ title: "Cookie banner - Ustawienia" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Cookie banner - Ustawienia" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
   component: CookieBannerSettings,
 });
@@ -86,38 +89,94 @@ function CopyEditor({
       </Field>
       <Field label="Przyciski">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <Text value={copy.acceptAll} onChange={(e) => set("acceptAll", e.target.value)} placeholder="Akceptuj wszystkie" />
-          <Text value={copy.rejectAll} onChange={(e) => set("rejectAll", e.target.value)} placeholder="Tylko niezbędne" />
-          <Text value={copy.saveSelection} onChange={(e) => set("saveSelection", e.target.value)} placeholder="Zapisz wybrane" />
-          <Text value={copy.showDetails} onChange={(e) => set("showDetails", e.target.value)} placeholder="Szczegóły" />
-          <Text value={copy.hideDetails} onChange={(e) => set("hideDetails", e.target.value)} placeholder="Ukryj szczegóły" />
-          <Text value={copy.showVendors} onChange={(e) => set("showVendors", e.target.value)} placeholder="Pokaż podmioty" />
-          <Text value={copy.hideVendors} onChange={(e) => set("hideVendors", e.target.value)} placeholder="Ukryj podmioty" />
+          <Text
+            value={copy.acceptAll}
+            onChange={(e) => set("acceptAll", e.target.value)}
+            placeholder="Akceptuj wszystkie"
+          />
+          <Text
+            value={copy.rejectAll}
+            onChange={(e) => set("rejectAll", e.target.value)}
+            placeholder="Tylko niezbędne"
+          />
+          <Text
+            value={copy.saveSelection}
+            onChange={(e) => set("saveSelection", e.target.value)}
+            placeholder="Zapisz wybrane"
+          />
+          <Text
+            value={copy.showDetails}
+            onChange={(e) => set("showDetails", e.target.value)}
+            placeholder="Szczegóły"
+          />
+          <Text
+            value={copy.hideDetails}
+            onChange={(e) => set("hideDetails", e.target.value)}
+            placeholder="Ukryj szczegóły"
+          />
+          <Text
+            value={copy.showVendors}
+            onChange={(e) => set("showVendors", e.target.value)}
+            placeholder="Pokaż podmioty"
+          />
+          <Text
+            value={copy.hideVendors}
+            onChange={(e) => set("hideVendors", e.target.value)}
+            placeholder="Ukryj podmioty"
+          />
         </div>
       </Field>
       <Field label="Kategorie - nazwy">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <Text value={copy.categoryNecessary} onChange={(e) => set("categoryNecessary", e.target.value)} />
-          <Text value={copy.categoryFunctional} onChange={(e) => set("categoryFunctional", e.target.value)} />
-          <Text value={copy.categoryAnalytics} onChange={(e) => set("categoryAnalytics", e.target.value)} />
-          <Text value={copy.categoryMarketing} onChange={(e) => set("categoryMarketing", e.target.value)} />
+          <Text
+            value={copy.categoryNecessary}
+            onChange={(e) => set("categoryNecessary", e.target.value)}
+          />
+          <Text
+            value={copy.categoryFunctional}
+            onChange={(e) => set("categoryFunctional", e.target.value)}
+          />
+          <Text
+            value={copy.categoryAnalytics}
+            onChange={(e) => set("categoryAnalytics", e.target.value)}
+          />
+          <Text
+            value={copy.categoryMarketing}
+            onChange={(e) => set("categoryMarketing", e.target.value)}
+          />
         </div>
       </Field>
       <Field label="Opis - niezbędne">
-        <textarea value={copy.descNecessary} onChange={(e) => set("descNecessary", e.target.value)} rows={2}
-          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+        <textarea
+          value={copy.descNecessary}
+          onChange={(e) => set("descNecessary", e.target.value)}
+          rows={2}
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+        />
       </Field>
       <Field label="Opis - funkcjonalne">
-        <textarea value={copy.descFunctional} onChange={(e) => set("descFunctional", e.target.value)} rows={2}
-          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+        <textarea
+          value={copy.descFunctional}
+          onChange={(e) => set("descFunctional", e.target.value)}
+          rows={2}
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+        />
       </Field>
       <Field label="Opis - analityczne">
-        <textarea value={copy.descAnalytics} onChange={(e) => set("descAnalytics", e.target.value)} rows={2}
-          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+        <textarea
+          value={copy.descAnalytics}
+          onChange={(e) => set("descAnalytics", e.target.value)}
+          rows={2}
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+        />
       </Field>
       <Field label="Opis - marketing">
-        <textarea value={copy.descMarketing} onChange={(e) => set("descMarketing", e.target.value)} rows={2}
-          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+        <textarea
+          value={copy.descMarketing}
+          onChange={(e) => set("descMarketing", e.target.value)}
+          rows={2}
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+        />
       </Field>
     </div>
   );
@@ -189,19 +248,52 @@ function CookieBannerSettings() {
       {/* Colors */}
       <section className="mb-6">
         <h3 className="text-sm font-semibold mb-2">Kolory (puste = motyw)</h3>
-        <ColorField label="Powierzchnia" value={draft.colors.surface} onChange={(v) => setColor("surface", v)} placeholder="#0b0b0b" />
-        <ColorField label="Tekst" value={draft.colors.foreground} onChange={(v) => setColor("foreground", v)} placeholder="#f5f5f5" />
-        <ColorField label="Tło wtórne" value={draft.colors.muted} onChange={(v) => setColor("muted", v)} placeholder="#1f1f1f" />
-        <ColorField label="Obramowanie" value={draft.colors.border} onChange={(v) => setColor("border", v)} placeholder="#2a2a2a" />
-        <ColorField label="Akcent (primary)" value={draft.colors.accent} onChange={(v) => setColor("accent", v)} placeholder="#ff8a00" />
-        <ColorField label="Akcent - tekst" value={draft.colors.accentForeground} onChange={(v) => setColor("accentForeground", v)} placeholder="#000000" />
+        <ColorField
+          label="Powierzchnia"
+          value={draft.colors.surface}
+          onChange={(v) => setColor("surface", v)}
+          placeholder="#0b0b0b"
+        />
+        <ColorField
+          label="Tekst"
+          value={draft.colors.foreground}
+          onChange={(v) => setColor("foreground", v)}
+          placeholder="#f5f5f5"
+        />
+        <ColorField
+          label="Tło wtórne"
+          value={draft.colors.muted}
+          onChange={(v) => setColor("muted", v)}
+          placeholder="#1f1f1f"
+        />
+        <ColorField
+          label="Obramowanie"
+          value={draft.colors.border}
+          onChange={(v) => setColor("border", v)}
+          placeholder="#2a2a2a"
+        />
+        <ColorField
+          label="Akcent (primary)"
+          value={draft.colors.accent}
+          onChange={(v) => setColor("accent", v)}
+          placeholder="#ff8a00"
+        />
+        <ColorField
+          label="Akcent - tekst"
+          value={draft.colors.accentForeground}
+          onChange={(v) => setColor("accentForeground", v)}
+          placeholder="#000000"
+        />
       </section>
 
       {/* Copy */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold">Treści</h3>
-          <div role="tablist" className="inline-flex rounded-md border border-border overflow-hidden">
+          <div
+            role="tablist"
+            className="inline-flex rounded-md border border-border overflow-hidden"
+          >
             {(["pl", "en"] as const).map((l) => (
               <button
                 key={l}
@@ -236,9 +328,7 @@ function CookieBannerSettings() {
         </button>
       </div>
 
-      {previewOpen && (
-        <PreviewOverlay onClose={() => setPreviewOpen(false)} />
-      )}
+      {previewOpen && <PreviewOverlay onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }
@@ -274,4 +364,3 @@ function useEffectOnce(fn: () => void) {
     fn();
   }, [fn]);
 }
-

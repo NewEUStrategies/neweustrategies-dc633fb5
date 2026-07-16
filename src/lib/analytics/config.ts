@@ -9,11 +9,7 @@ export const AnalyticsConfigSchema = z.object({
   ga4_enabled: z.boolean().default(true),
   gtm_container_id: z.string().trim().max(64).default(""),
   plausible_domain: z.string().trim().max(255).default(""),
-  plausible_script_url: z
-    .string()
-    .trim()
-    .max(500)
-    .default("https://plausible.io/js/script.js"),
+  plausible_script_url: z.string().trim().max(500).default("https://plausible.io/js/script.js"),
   custom_head_html: z.string().max(20_000).default(""),
   custom_body_html: z.string().max(20_000).default(""),
 });

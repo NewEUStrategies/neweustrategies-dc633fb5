@@ -68,9 +68,7 @@ export function buildGscInsights(p: Params): Insight[] {
               "Utrwal trend: dodaj wewnętrzne linki do stron, które ostatnio zyskały.",
               "Zbierz nowe frazy z Top zapytań i rozwiń content pod długi ogon.",
             ]
-          : [
-              "Utrzymaj rytm publikacji - stabilny trend jest dobrą bazą do skalowania.",
-            ],
+          : ["Utrzymaj rytm publikacji - stabilny trend jest dobrą bazą do skalowania."],
   });
 
   // ── 2. KPI: CTR ────────────────────────────────────────────────────
@@ -102,9 +100,7 @@ export function buildGscInsights(p: Params): Insight[] {
             "Wdroż FAQ / HowTo schema.org - często dają rich results w SERP.",
             "Sprawdź faktyczny snippet w SERP (site:) - czasem Google generuje własny opis; wtedy popraw H1/pierwszy akapit.",
           ]
-        : [
-            "Utrzymaj stylistykę tytułów - działa. Wprowadź ten sam wzorzec na słabszych stronach.",
-          ],
+        : ["Utrzymaj stylistykę tytułów - działa. Wprowadź ten sam wzorzec na słabszych stronach."],
   });
 
   // ── 3. KPI: pozycja ────────────────────────────────────────────────
@@ -127,14 +123,14 @@ export function buildGscInsights(p: Params): Insight[] {
             "Zaktualizuj najstarsze wpisy z najlepszymi frazami: refresh treści + data modyfikacji.",
             "Dodaj wewnętrzne linki z filarowych stron do artykułów tracących pozycje.",
           ]
-        : [
-            "Utrzymaj tempo linkowania wewnętrznego i publikacji.",
-          ],
+        : ["Utrzymaj tempo linkowania wewnętrznego i publikacji."],
   });
 
   // ── 4. Trend widoczności ───────────────────────────────────────────
   if (dateRows.length > 3) {
-    const sorted = dateRows.slice().sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    const sorted = dateRows
+      .slice()
+      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
     const half = Math.floor(sorted.length / 2);
     const early = sorted.slice(0, half).reduce((s, r) => s + r.clicks, 0);
     const late = sorted.slice(half).reduce((s, r) => s + r.clicks, 0);
@@ -270,9 +266,7 @@ export function buildGscInsights(p: Params): Insight[] {
               "Sprawdź LCP mobile w Web Vitals - wolne mobile = niższy CTR.",
               "Zweryfikuj sticky headery i cookie bar - blokują first paint na mobile.",
             ]
-          : [
-              "Utrzymuj responsywność. Warto przetestować AMP tylko jeśli publikujesz newsy.",
-            ],
+          : ["Utrzymuj responsywność. Warto przetestować AMP tylko jeśli publikujesz newsy."],
     });
   }
 
@@ -301,10 +295,7 @@ export function buildGscInsights(p: Params): Insight[] {
       .slice()
       .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
     const zeros = sorted.filter((r) => r.clicks === 0).length;
-    const spikeIdx = sorted.reduce(
-      (acc, r, i) => (r.clicks > sorted[acc].clicks ? i : acc),
-      0,
-    );
+    const spikeIdx = sorted.reduce((acc, r, i) => (r.clicks > sorted[acc].clicks ? i : acc), 0);
     const spike = sorted[spikeIdx];
     out.push({
       id: "calendar",
@@ -325,9 +316,7 @@ export function buildGscInsights(p: Params): Insight[] {
               "Uruchom URL Inspection dla zerowych dni w kluczowych URL.",
               "Rozważ syndication (LinkedIn / newsletter) - dywersyfikuje źródła ruchu.",
             ]
-          : [
-              "Zbadaj co spowodowało szczyt - powtórz format / temat / dystrybucję.",
-            ],
+          : ["Zbadaj co spowodowało szczyt - powtórz format / temat / dystrybucję."],
     });
   }
 

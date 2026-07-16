@@ -57,9 +57,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     // the `days` preset; falls back to 7d when nothing is supplied.
     const now = Date.now();
     const untilMs = data.untilIso ? Date.parse(data.untilIso) : now;
-    const sinceMs = data.sinceIso
-      ? Date.parse(data.sinceIso)
-      : now - (data.days ?? 7) * 86_400_000;
+    const sinceMs = data.sinceIso ? Date.parse(data.sinceIso) : now - (data.days ?? 7) * 86_400_000;
     const since = new Date(sinceMs).toISOString();
     const until = new Date(untilMs).toISOString();
     const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
@@ -73,7 +71,6 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       windowTotal: 0,
       capped: false,
     };
-
 
     // Degrade gracefully on any data-read failure (e.g. the web_vitals migration
     // hasn't been applied to this database yet): the dashboard shows "no data"
@@ -133,7 +130,6 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       }
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
-
     } catch (e) {
       console.warn(
         "[vitals] summary read failed; returning empty report:",

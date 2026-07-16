@@ -280,7 +280,6 @@ function EditPage() {
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
     history.set((f) => (f ? { ...f, [k]: v } : f), { coalesceKey: String(k) });
 
-
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
       toast.error(
