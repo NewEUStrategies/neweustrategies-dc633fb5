@@ -151,7 +151,7 @@ function DropdownPanel({
   return (
     <ul
       role="menu"
-      className="absolute left-0 top-full z-50 mt-1 min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+      className="min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
       onMouseLeave={onRequestClose}
     >
       {node.children.map((child) => (
