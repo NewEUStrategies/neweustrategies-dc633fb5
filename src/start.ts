@@ -7,6 +7,7 @@ import {
   normalizeLang,
 } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
+import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
@@ -102,6 +103,47 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
 });
 
 /**
+ * Redirect manager (front-half): match GET/HEAD requests against per-tenant
+ * rules from `public.redirects` BEFORE the router runs. A hit short-circuits
+ * with the configured 301/302/307/308/410 - preserving link equity through
+ * WP migrations and letting the admin at /admin/redirects actually do
+ * something. Failures are swallowed: the SSR chain must not depend on a DB
+ * lookup succeeding for every document.
+ */
+const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
+  try {
+    const hit = await resolveRedirectForRequest(request);
+    if (hit) {
+      if (hit.status === 410) {
+        return new Response("Gone", { status: 410 });
+      }
+      return new Response(null, {
+        status: hit.status,
+        headers: { Location: hit.target, "Cache-Control": "no-store" },
+      });
+    }
+  } catch (e) {
+    console.warn("[redirects] middleware error:", e);
+  }
+  return next();
+});
+
+/**
+ * Redirect manager (back-half): once the router responded, feed 404 HTML
+ * responses into the seo_404_hits monitor so /admin/redirects can surface
+ * broken links and the operator can create a rule with one click. Runs
+ * post-response and never awaits before returning - the log is best-effort.
+ */
+const seo404Middleware = createMiddleware().server(async ({ request, next }) => {
+  const response = await next();
+  if (response instanceof Response) {
+    // Fire-and-forget: don't hold the response open on the observability write.
+    void maybeLog404(request, response).catch(() => undefined);
+  }
+  return response;
+});
+
+/**
  * Add response headers without mutating a framework/fetch-owned Headers object.
  * Responses created by the Worker runtime (redirects and proxied fetches in
  * particular) can use the Web Platform `immutable` header guard. Calling
@@ -143,10 +185,25 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
 }
 
 export const startInstance = createStart(() => ({
-  // Keep the global request path deterministic and dependency-free. Database
-  // lookups, tenant discovery and observability writes do not belong in the
-  // SSR dispatch chain: a failed dynamic import there used to take down every
-  // document and asset request before the router could render an error boundary.
-  requestMiddleware: [securityHeadersMiddleware, legacyLangQueryMiddleware],
+  // Middleware order matters:
+  //   1. securityHeaders wraps everything so even 301/302/410 responses carry
+  //      HSTS on https.
+  //   2. seo404Middleware sits above the router so it observes the final
+  //      response after the redirect matcher had its chance (matched requests
+  //      never reach the router, so a redirected path is not double-counted
+  //      as a 404).
+  //   3. redirectMiddleware short-circuits WP-legacy paths.
+  //   4. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
+  //
+  // All DB-touching middleware wraps its work in try/catch and swallows
+  // failures - the SSR document path stays deterministic even if Supabase is
+  // briefly unavailable (the earlier comment about DB lookups in the SSR chain
+  // still holds; that risk is why these middleware never throw upward).
+  requestMiddleware: [
+    securityHeadersMiddleware,
+    seo404Middleware,
+    redirectMiddleware,
+    legacyLangQueryMiddleware,
+  ],
   functionMiddleware: [attachSupabaseAuth],
 }));

@@ -11,37 +11,44 @@
 // dynamic import resolves on the server, so the rendered HTML is identical -
 // only the *client* download is deferred.
 //
+// Runtime uses `React.lazy(() => import(...))`; types come from `import type`
+// so the compiler still sees widget prop shapes without dragging the widget
+// module into this file's static graph (the split boundary would otherwise
+// collapse - the earlier version imported the real implementations statically
+// which defeated the whole point of the file).
+//
 // Fallback contract: on PUBLIC pages it stays `null` (SSR fills the boundary,
 // so it is ~never shown and zero layout shift is guaranteed). Inside the
-// BUILDER canvas — a pure client render where the chunk genuinely loads on
-// first mount — `null` made the widget blink out of existence for a moment,
+// BUILDER canvas - a pure client render where the chunk genuinely loads on
+// first mount - `null` made the widget blink out of existence for a moment,
 // so the canvas shows a shimmer placeholder instead.
 //
 // What stays EAGER (deliberately): layout-critical, frequently above-the-fold
 // or navigation widgets - heading, text, button, nav-link, mega-menu,
 // post-list / carousel, categories, tags, cta, dark-featured-card. Splitting
 // those would risk a visible pop-in on first paint.
-import { Suspense, type ComponentProps } from "react";
+import { lazy, Suspense, type ComponentProps, type ComponentType, type ReactElement } from "react";
 import { useBuilderMode } from "@/lib/builder/modeContext";
-import { NewsletterForm as NewsletterFormImpl } from "@/components/NewsletterForm";
-import { JoinUsForm as JoinUsFormImpl } from "@/components/interests/JoinUsForm";
-import { InterestsCustomizer as InterestsCustomizerImpl } from "@/components/interests/InterestsCustomizer";
-import { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
-import { PodcastLatestView as PodcastLatestViewImpl } from "./PodcastLatestView";
-import { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./WebStoriesCarouselView";
-import { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
-import { RatedListView as RatedListViewImpl } from "./RatedListView";
-import { TabsBlock as TabsBlockImpl } from "./TabsBlock";
-import { AdSlotById as AdSlotByIdImpl } from "@/components/ads/AdSlotById";
-import { DonationsWidgetView as DonationsWidgetViewImpl } from "@/components/donations/DonationsWidgetView";
-import { RichTextView as RichTextViewImpl } from "./RichTextView";
-import { SliderRender as SliderRenderImpl } from "@/lib/builder/sliderVariants";
-import { AnimatedHeadingRender as AnimatedHeadingRenderImpl } from "@/lib/builder/animatedHeadingVariants";
-import {
+
+import type { NewsletterForm as NewsletterFormImpl } from "@/components/NewsletterForm";
+import type { JoinUsForm as JoinUsFormImpl } from "@/components/interests/JoinUsForm";
+import type { InterestsCustomizer as InterestsCustomizerImpl } from "@/components/interests/InterestsCustomizer";
+import type { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
+import type { PodcastLatestView as PodcastLatestViewImpl } from "./PodcastLatestView";
+import type { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./WebStoriesCarouselView";
+import type { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
+import type { RatedListView as RatedListViewImpl } from "./RatedListView";
+import type { TabsBlock as TabsBlockImpl } from "./TabsBlock";
+import type { AdSlotById as AdSlotByIdImpl } from "@/components/ads/AdSlotById";
+import type { DonationsWidgetView as DonationsWidgetViewImpl } from "@/components/donations/DonationsWidgetView";
+import type { RichTextView as RichTextViewImpl } from "./RichTextView";
+import type { SliderRender as SliderRenderImpl } from "@/lib/builder/sliderVariants";
+import type { AnimatedHeadingRender as AnimatedHeadingRenderImpl } from "@/lib/builder/animatedHeadingVariants";
+import type {
   ChartWidgetView as ChartWidgetViewImpl,
   DataMapWidgetView as DataMapWidgetViewImpl,
 } from "./DataVizWidgets";
-import {
+import type {
   TimelineWidgetView as TimelineWidgetViewImpl,
   SankeyWidgetView as SankeyWidgetViewImpl,
   CompareWidgetView as CompareWidgetViewImpl,
@@ -69,217 +76,154 @@ function LazyFallback() {
 
 const FALLBACK = <LazyFallback />;
 
-export function NewsletterForm(props: ComponentProps<typeof NewsletterFormImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <NewsletterFormImpl {...props} />
-    </Suspense>
-  );
+/** Wrap a `React.lazy` chunk in Suspense + typed prop forwarding. */
+function withSuspense<P>(Lazy: ComponentType<P>): (props: P) => ReactElement {
+  return function Suspended(props: P) {
+    return (
+      <Suspense fallback={FALLBACK}>
+        {/* @ts-expect-error - React.lazy component signature is compatible at runtime. */}
+        <Lazy {...props} />
+      </Suspense>
+    );
+  };
 }
 
-export function JoinUsForm(props: ComponentProps<typeof JoinUsFormImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <JoinUsFormImpl {...props} />
-    </Suspense>
-  );
-}
+// --- form / interaction widgets -------------------------------------------
+const NewsletterFormLazy = lazy(() =>
+  import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
+) as ComponentType<ComponentProps<typeof NewsletterFormImpl>>;
+export const NewsletterForm = withSuspense(NewsletterFormLazy);
 
-export function InterestsCustomizer(props: ComponentProps<typeof InterestsCustomizerImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <InterestsCustomizerImpl {...props} />
-    </Suspense>
-  );
-}
+const JoinUsFormLazy = lazy(() =>
+  import("@/components/interests/JoinUsForm").then((m) => ({ default: m.JoinUsForm })),
+) as ComponentType<ComponentProps<typeof JoinUsFormImpl>>;
+export const JoinUsForm = withSuspense(JoinUsFormLazy);
 
-export function TtsPlayerHost(props: ComponentProps<typeof TtsPlayerHostImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <TtsPlayerHostImpl {...props} />
-    </Suspense>
-  );
-}
+const InterestsCustomizerLazy = lazy(() =>
+  import("@/components/interests/InterestsCustomizer").then((m) => ({
+    default: m.InterestsCustomizer,
+  })),
+) as ComponentType<ComponentProps<typeof InterestsCustomizerImpl>>;
+export const InterestsCustomizer = withSuspense(InterestsCustomizerLazy);
 
-export function PodcastLatestView(props: ComponentProps<typeof PodcastLatestViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <PodcastLatestViewImpl {...props} />
-    </Suspense>
-  );
-}
+const TtsPlayerHostLazy = lazy(() =>
+  import("@/components/admin/builder/ui/molecules/TtsPlayerHost").then((m) => ({
+    default: m.TtsPlayerHost,
+  })),
+) as ComponentType<ComponentProps<typeof TtsPlayerHostImpl>>;
+export const TtsPlayerHost = withSuspense(TtsPlayerHostLazy);
 
-export function WebStoriesCarouselView(props: ComponentProps<typeof WebStoriesCarouselViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <WebStoriesCarouselViewImpl {...props} />
-    </Suspense>
-  );
-}
+// --- media / listing widgets ----------------------------------------------
+const PodcastLatestViewLazy = lazy(() =>
+  import("./PodcastLatestView").then((m) => ({ default: m.PodcastLatestView })),
+) as ComponentType<ComponentProps<typeof PodcastLatestViewImpl>>;
+export const PodcastLatestView = withSuspense(PodcastLatestViewLazy);
 
-export function NewsTickerView(props: ComponentProps<typeof NewsTickerViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <NewsTickerViewImpl {...props} />
-    </Suspense>
-  );
-}
+const WebStoriesCarouselViewLazy = lazy(() =>
+  import("./WebStoriesCarouselView").then((m) => ({ default: m.WebStoriesCarouselView })),
+) as ComponentType<ComponentProps<typeof WebStoriesCarouselViewImpl>>;
+export const WebStoriesCarouselView = withSuspense(WebStoriesCarouselViewLazy);
 
-export function RatedListView(props: ComponentProps<typeof RatedListViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <RatedListViewImpl {...props} />
-    </Suspense>
-  );
-}
+const NewsTickerViewLazy = lazy(() =>
+  import("./NewsTickerView").then((m) => ({ default: m.NewsTickerView })),
+) as ComponentType<ComponentProps<typeof NewsTickerViewImpl>>;
+export const NewsTickerView = withSuspense(NewsTickerViewLazy);
 
-export function TabsBlock(props: ComponentProps<typeof TabsBlockImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <TabsBlockImpl {...props} />
-    </Suspense>
-  );
-}
+const RatedListViewLazy = lazy(() =>
+  import("./RatedListView").then((m) => ({ default: m.RatedListView })),
+) as ComponentType<ComponentProps<typeof RatedListViewImpl>>;
+export const RatedListView = withSuspense(RatedListViewLazy);
 
-export function AdSlotById(props: ComponentProps<typeof AdSlotByIdImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <AdSlotByIdImpl {...props} />
-    </Suspense>
-  );
-}
+const TabsBlockLazy = lazy(() =>
+  import("./TabsBlock").then((m) => ({ default: m.TabsBlock })),
+) as ComponentType<ComponentProps<typeof TabsBlockImpl>>;
+export const TabsBlock = withSuspense(TabsBlockLazy);
 
-// Donations widget (public aggregate stats + CTA). Split off so pages that
-// don't render it never pay for the query client wrapper / server-fn hook path.
-export function DonationsWidgetView(props: ComponentProps<typeof DonationsWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <DonationsWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+// --- ads / donations ------------------------------------------------------
+const AdSlotByIdLazy = lazy(() =>
+  import("@/components/ads/AdSlotById").then((m) => ({ default: m.AdSlotById })),
+) as ComponentType<ComponentProps<typeof AdSlotByIdImpl>>;
+export const AdSlotById = withSuspense(AdSlotByIdLazy);
 
-// The rich-text widget pulls in the whole blocks renderer (DOMPurify + every
-// block view), so it is split out of the shared Header/Footer bundle and only
-// downloaded on pages that actually embed rich content.
-export function RichTextView(props: ComponentProps<typeof RichTextViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <RichTextViewImpl {...props} />
-    </Suspense>
-  );
-}
+const DonationsWidgetViewLazy = lazy(() =>
+  import("@/components/donations/DonationsWidgetView").then((m) => ({
+    default: m.DonationsWidgetView,
+  })),
+) as ComponentType<ComponentProps<typeof DonationsWidgetViewImpl>>;
+export const DonationsWidgetView = withSuspense(DonationsWidgetViewLazy);
 
-// The slider renderer is the single heaviest widget module (5 styled
-// variants, drag/autoplay machinery, ~53 KB source). Pages without a slider
-// never download it; SSR streaming keeps the hero HTML identical.
-export function SliderRender(props: ComponentProps<typeof SliderRenderImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <SliderRenderImpl {...props} />
-    </Suspense>
-  );
-}
+// --- rich text (pulls the blocks renderer + sanitizer) --------------------
+const RichTextViewLazy = lazy(() =>
+  import("./RichTextView").then((m) => ({ default: m.RichTextView })),
+) as ComponentType<ComponentProps<typeof RichTextViewImpl>>;
+export const RichTextView = withSuspense(RichTextViewLazy);
 
-// Animated headings carry a large per-variant animation catalog; they animate
-// in anyway, so the deferred chunk is imperceptible.
-export function AnimatedHeadingRender(props: ComponentProps<typeof AnimatedHeadingRenderImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <AnimatedHeadingRenderImpl {...props} />
-    </Suspense>
-  );
-}
+// --- heavy visual widgets --------------------------------------------------
+const SliderRenderLazy = lazy(() =>
+  import("@/lib/builder/sliderVariants").then((m) => ({ default: m.SliderRender })),
+) as ComponentType<ComponentProps<typeof SliderRenderImpl>>;
+export const SliderRender = withSuspense(SliderRenderLazy);
 
-// Data-viz widgets pull in the whole SVG chart engine (scales, tooltips,
-// choropleth) - split out so pages without charts never download it.
-export function ChartWidgetView(props: ComponentProps<typeof ChartWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <ChartWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const AnimatedHeadingRenderLazy = lazy(() =>
+  import("@/lib/builder/animatedHeadingVariants").then((m) => ({
+    default: m.AnimatedHeadingRender,
+  })),
+) as ComponentType<ComponentProps<typeof AnimatedHeadingRenderImpl>>;
+export const AnimatedHeadingRender = withSuspense(AnimatedHeadingRenderLazy);
 
-export function DataMapWidgetView(props: ComponentProps<typeof DataMapWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <DataMapWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+// --- data-viz (shared chart engine) ---------------------------------------
+const ChartWidgetViewLazy = lazy(() =>
+  import("./DataVizWidgets").then((m) => ({ default: m.ChartWidgetView })),
+) as ComponentType<ComponentProps<typeof ChartWidgetViewImpl>>;
+export const ChartWidgetView = withSuspense(ChartWidgetViewLazy);
 
-// NES Digital Features - wszystkie renderery żyją w jednym module (FeatureWidgets),
-// więc dzielą jeden chunk "features" dociągany tylko na stronach, które osadzają
-// któryś z tych widgetów. SSR streaming renderuje je serwerowo (HTML bez zmian).
-export function TimelineWidgetView(props: ComponentProps<typeof TimelineWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <TimelineWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const DataMapWidgetViewLazy = lazy(() =>
+  import("./DataVizWidgets").then((m) => ({ default: m.DataMapWidgetView })),
+) as ComponentType<ComponentProps<typeof DataMapWidgetViewImpl>>;
+export const DataMapWidgetView = withSuspense(DataMapWidgetViewLazy);
 
-export function SankeyWidgetView(props: ComponentProps<typeof SankeyWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <SankeyWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+// --- NES Digital Features (one shared "features" chunk) -------------------
+const TimelineWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.TimelineWidgetView })),
+) as ComponentType<ComponentProps<typeof TimelineWidgetViewImpl>>;
+export const TimelineWidgetView = withSuspense(TimelineWidgetViewLazy);
 
-export function CompareWidgetView(props: ComponentProps<typeof CompareWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <CompareWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const SankeyWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.SankeyWidgetView })),
+) as ComponentType<ComponentProps<typeof SankeyWidgetViewImpl>>;
+export const SankeyWidgetView = withSuspense(SankeyWidgetViewLazy);
 
-export function RiskMatrixWidgetView(props: ComponentProps<typeof RiskMatrixWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <RiskMatrixWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const CompareWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.CompareWidgetView })),
+) as ComponentType<ComponentProps<typeof CompareWidgetViewImpl>>;
+export const CompareWidgetView = withSuspense(CompareWidgetViewLazy);
 
-export function IndicatorWidgetView(props: ComponentProps<typeof IndicatorWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <IndicatorWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const RiskMatrixWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.RiskMatrixWidgetView })),
+) as ComponentType<ComponentProps<typeof RiskMatrixWidgetViewImpl>>;
+export const RiskMatrixWidgetView = withSuspense(RiskMatrixWidgetViewLazy);
 
-export function NetworkWidgetView(props: ComponentProps<typeof NetworkWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <NetworkWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const IndicatorWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.IndicatorWidgetView })),
+) as ComponentType<ComponentProps<typeof IndicatorWidgetViewImpl>>;
+export const IndicatorWidgetView = withSuspense(IndicatorWidgetViewLazy);
 
-export function CorridorMapWidgetView(props: ComponentProps<typeof CorridorMapWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <CorridorMapWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const NetworkWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.NetworkWidgetView })),
+) as ComponentType<ComponentProps<typeof NetworkWidgetViewImpl>>;
+export const NetworkWidgetView = withSuspense(NetworkWidgetViewLazy);
 
-export function SourcesWidgetView(props: ComponentProps<typeof SourcesWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <SourcesWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const CorridorMapWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.CorridorMapWidgetView })),
+) as ComponentType<ComponentProps<typeof CorridorMapWidgetViewImpl>>;
+export const CorridorMapWidgetView = withSuspense(CorridorMapWidgetViewLazy);
 
-export function MethodologyWidgetView(props: ComponentProps<typeof MethodologyWidgetViewImpl>) {
-  return (
-    <Suspense fallback={FALLBACK}>
-      <MethodologyWidgetViewImpl {...props} />
-    </Suspense>
-  );
-}
+const SourcesWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.SourcesWidgetView })),
+) as ComponentType<ComponentProps<typeof SourcesWidgetViewImpl>>;
+export const SourcesWidgetView = withSuspense(SourcesWidgetViewLazy);
+
+const MethodologyWidgetViewLazy = lazy(() =>
+  import("./FeatureWidgets").then((m) => ({ default: m.MethodologyWidgetView })),
+) as ComponentType<ComponentProps<typeof MethodologyWidgetViewImpl>>;
+export const MethodologyWidgetView = withSuspense(MethodologyWidgetViewLazy);
