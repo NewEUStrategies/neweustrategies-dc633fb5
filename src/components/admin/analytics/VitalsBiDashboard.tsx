@@ -55,6 +55,7 @@ export function VitalsBiDashboard() {
   });
   const report = curQ.data;
   const isLoading = curQ.isLoading;
+  const isFetching = curQ.isFetching;
 
 
   const metricsByName = useMemo(() => {
