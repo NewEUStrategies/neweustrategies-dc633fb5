@@ -501,11 +501,17 @@ function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="gsc" className="mt-4">
-          {statusQ.data ? <GscBiDashboard configured={statusQ.data.gsc.configured} /> : null}
+          {statusQ.data ? (
+            <Suspense fallback={<DashboardFallback />}>
+              <GscBiDashboard configured={statusQ.data.gsc.configured} />
+            </Suspense>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="vitals" className="mt-4">
-          <VitalsBiDashboard />
+          <Suspense fallback={<DashboardFallback />}>
+            <VitalsBiDashboard />
+          </Suspense>
           <div className="mt-3 text-sm text-muted-foreground">
             Pełny widok RUM z rozkładem per ścieżka:{" "}
             <a href="/admin/performance" className="text-primary hover:underline">
