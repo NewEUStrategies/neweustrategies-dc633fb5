@@ -13,6 +13,8 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitize";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
+import { MegaPanelView } from "@/components/menu/MegaPanelView";
+import type { MegaColumn } from "@/lib/menus/types";
 import type { MenuItemRow } from "@/lib/menus/types";
 
 export type SiteMenuLang = "pl" | "en";
@@ -95,27 +97,9 @@ function DropdownPanel({
 }
 
 /* ------------------------------- Mega panel ------------------------------ */
-// Redesigned editorial mega menu: wide white panel with 2 nav columns
-// (uppercase eyebrow + accent bar, bold links, description subtitle) plus a
-// featured/promoted column with the latest published post (cover, title,
-// excerpt, eyebrow). Data-driven: admin-configured columns remain the source
-// of truth; column count auto-adapts (2 nav cols + featured; ≥3 cols = full
-// grid without featured).
-
-interface MegaCol {
-  title_pl: string;
-  title_en: string;
-  href: string;
-  links: {
-    label_pl: string;
-    label_en: string;
-    href: string;
-  }[];
-}
-
-function pickLocalized(pl: string | null | undefined, en: string | null | undefined, lang: SiteMenuLang): string {
-  return ((lang === "en" ? en : pl) || pl || en || "").trim();
-}
+// Redesigned editorial mega menu (see MegaPanelView). Ten wrapper wybiera
+// źródło kolumn (admin lub auto-derived z drzewa dzieci), pobiera featured
+// wpis (per-config lub najnowszy) i przekazuje do wspólnego widoku.
 
 function MegaPanel({
   node,
@@ -128,13 +112,18 @@ function MegaPanel({
 }) {
   const cfg = node.mega_config;
   const configuredCols = cfg.columns ?? [];
-  const cols: MegaCol[] =
+  const cols: MegaColumn[] =
     configuredCols.length > 0
       ? configuredCols.map((col) => ({
           title_pl: col.title_pl,
           title_en: col.title_en,
           href: col.href,
-          links: col.links ?? [],
+          links: (col.links ?? []).map((l) => ({
+            label_pl: l.label_pl,
+            label_en: l.label_en,
+            href: l.href,
+            icon: l.icon ?? "",
+          })),
         }))
       : node.children.map((child) => ({
           title_pl: child.label_pl,
@@ -144,186 +133,29 @@ function MegaPanel({
             label_pl: gc.label_pl,
             label_en: gc.label_en,
             href: gc.href,
+            icon: "",
           })),
         }));
 
   const featuredQuery = useQuery(megaFeaturedPostQueryOptions(cfg.featured_post_id ?? null));
   const featured = featuredQuery.data ?? null;
 
-  const showFeatured = cols.length <= 2 && !!featured;
-  const gridCols = showFeatured ? 12 : Math.max(1, Math.min(cols.length, 4));
-
   if (cols.length === 0 && node.children.length === 0) return null;
 
-  const eyebrowFallback = lang === "en" ? "Latest report" : "Najnowszy wpis";
-  const readMore = lang === "en" ? "Read more" : "Czytaj więcej";
-  const browseAll = lang === "en" ? "Browse all" : "Przejdź do sekcji";
-  const parentLabel = pickLabel(node, lang);
-  const featuredTitle = featured ? pickLocalized(featured.title_pl, featured.title_en, lang) : "";
-  const featuredExcerpt = featured ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang) : "";
-  const featuredEyebrow = featured?.post_format
-    ? featured.post_format.toString()
-    : eyebrowFallback;
-
   return (
-    <div
-      role="menu"
-      className="overflow-hidden rounded-md bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5 border border-border/40"
-      style={{ width: "min(1120px, calc(100vw - 32px))" }}
+    <MegaPanelView
+      cols={cols}
+      lang={lang}
+      parentLabel={pickLabel(node, lang)}
+      parentHref={itemHref(node)}
+      featured={featured}
+      variant="live"
       onMouseLeave={onRequestClose}
-    >
-      <div
-        className="grid"
-        style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
-      >
-        {/* Nav columns */}
-        <div
-          className={
-            showFeatured
-              ? "col-span-8 p-8 sm:p-10 grid gap-10 sm:gap-12"
-              : "p-8 sm:p-10 grid gap-10 sm:gap-12"
-          }
-          style={
-            showFeatured
-              ? { gridTemplateColumns: `repeat(${Math.min(cols.length || 1, 2)}, minmax(0, 1fr))`, gridColumn: "span 8 / span 8" }
-              : { gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, gridColumn: `1 / -1` }
-          }
-        >
-          {cols.map((col, i) => {
-            const title = pickLocalized(col.title_pl, col.title_en, lang);
-            return (
-              <div key={i} className="flex min-w-0 flex-col">
-                <div className="mb-6 flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="inline-block h-5 w-1 rounded-sm"
-                    style={{ background: "var(--brand)" }}
-                  />
-                  {title ? (
-                    col.href ? (
-                      <AppLink
-                        href={safeUrl(col.href) || "#"}
-                        className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {title}
-                      </AppLink>
-                    ) : (
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                        {title}
-                      </span>
-                    )
-                  ) : null}
-                </div>
-                <ul className="flex flex-col gap-5">
-                  {(col.links ?? []).map((lnk, j) => {
-                    const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
-                    if (!label) return null;
-                    return (
-                      <li key={j}>
-                        <AppLink
-                          href={safeUrl(lnk.href) || "#"}
-                          className="group block"
-                          role="menuitem"
-                        >
-                          <span
-                            className="block text-[15px] font-bold leading-tight text-foreground transition-colors group-hover:text-brand"
-                          >
-                            {label}
-                          </span>
-                        </AppLink>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {col.href ? (
-                  <div className="mt-8 border-t border-border/60 pt-5">
-                    <AppLink
-                      href={safeUrl(col.href) || "#"}
-                      className="group inline-flex items-center gap-1.5 text-xs font-bold text-brand hover:opacity-80"
-                    >
-                      {browseAll}
-                      <ArrowRight
-                        size={14}
-                        className="transition-transform group-hover:translate-x-0.5"
-                        aria-hidden
-                      />
-                    </AppLink>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Featured column */}
-        {showFeatured && featured ? (
-          <div
-            className="col-span-4 border-l border-border/60 bg-muted/40 p-8 sm:p-10"
-            style={{ gridColumn: "span 4 / span 4" }}
-          >
-            <div className="mb-4">
-              <span className="inline-block bg-brand px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-white">
-                {eyebrowFallback}
-              </span>
-            </div>
-            <AppLink
-              href={safeUrl(`/${featured.slug}`) || "#"}
-              className="group block"
-              role="menuitem"
-            >
-              {featured.cover_image_url ? (
-                <div className="mb-5 aspect-[16/9] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
-                  <img
-                    src={featured.cover_image_url}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
-                </div>
-              ) : null}
-              {featuredTitle ? (
-                <h4 className="mb-3 text-[17px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
-                  {featuredTitle}
-                </h4>
-              ) : null}
-              {featuredExcerpt ? (
-                <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                  {featuredExcerpt}
-                </p>
-              ) : null}
-              <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em]">
-                <span className="text-brand">{featuredEyebrow}</span>
-                <span className="opacity-30">|</span>
-                <span className="text-muted-foreground">{readMore}</span>
-                <ArrowRight
-                  size={12}
-                  className="text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                  aria-hidden
-                />
-              </div>
-            </AppLink>
-            {parentLabel ? (
-              <div className="mt-6 border-t border-border/60 pt-4">
-                <AppLink
-                  href={itemHref(node)}
-                  className="group inline-flex items-center gap-1.5 text-xs font-bold text-brand hover:opacity-80"
-                >
-                  {lang === "en" ? `All in ${parentLabel}` : `Wszystko w: ${parentLabel}`}
-                  <ArrowRight
-                    size={14}
-                    className="transition-transform group-hover:translate-x-0.5"
-                    aria-hidden
-                  />
-                </AppLink>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
+    />
   );
 }
+
+
 
 
 function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
