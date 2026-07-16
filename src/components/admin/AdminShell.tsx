@@ -541,7 +541,9 @@ function AdminShellInner({
                         title={label}
                         data-sidebar="menu-button"
                         data-active={active ? "true" : "false"}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] leading-tight transition ${
+                        className={`flex items-center py-1 rounded-md text-[13px] leading-tight transition ${
+                          compact ? "justify-center px-0" : "gap-1.5 px-2"
+                        } ${
                           active
                             ? "bg-brand text-brand-foreground"
                             : "text-foreground hover:bg-muted"
