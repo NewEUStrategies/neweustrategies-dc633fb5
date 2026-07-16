@@ -175,7 +175,7 @@ function RelatedGrid({
   );
 }
 
-function RelatedList({ posts, cfg, lang }: ViewProps) {
+function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
   return (
     <ul className="divide-y divide-border">
       {posts.map((p) => (
