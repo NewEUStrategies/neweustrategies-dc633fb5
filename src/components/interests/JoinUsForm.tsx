@@ -873,31 +873,14 @@ export function JoinUsForm({
                     aria-multiselectable="true"
                     className="absolute z-20 mt-1 w-full rounded border border-border bg-popover shadow-lg overflow-hidden"
                   >
-                    {/* Zakładki – szybkie przejście do grupy */}
+                    {/* Zakładki – szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
                     {groupedItems.length > 1 && (
-                      <div
-                        role="tablist"
-                        aria-label={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
-                        className="flex gap-1 overflow-x-auto border-b border-border bg-popover/95 px-1 py-1"
-                      >
-                        {groupedItems.map((g) => (
-                          <button
-                            key={`tab:${g.key}`}
-                            type="button"
-                            role="tab"
-                            onClick={() => {
-                              const el = document.getElementById(
-                                `${jusId}-drop-grp-${g.key}`,
-                              );
-                              el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }}
-                            className="whitespace-nowrap rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground transition"
-                          >
-                            {g.title}
-                            <span className="ml-1 opacity-60">({g.items.length})</span>
-                          </button>
-                        ))}
-                      </div>
+                      <GroupTabs
+                        groups={groupedItems}
+                        jusId={jusId}
+                        scrollContainerId={`${jusId}-drop-scroll`}
+                        ariaLabel={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
+                      />
                     )}
                     <div
                       id={`${jusId}-drop-scroll`}
