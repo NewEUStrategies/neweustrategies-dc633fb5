@@ -316,71 +316,8 @@ function Ga4EmbedCard({ url }: { url: string }) {
 }
 
 
-function Ga4Totals({ report, loading }: { report: Ga4Report | undefined; loading: boolean }) {
-  if (loading || !report) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <KpiCard key={i} label="-" value="-" />
-        ))}
-      </div>
-    );
-  }
-  const labels: Record<string, string> = {
-    sessions: "Sesje",
-    activeUsers: "Aktywni użytkownicy",
-    screenPageViews: "Odsłony",
-    engagementRate: "Zaangażowanie",
-  };
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {report.metricHeaders.map((h, i) => {
-        const raw = report.totals[i] ?? "0";
-        const num = Number(raw);
-        const display = h === "engagementRate"
-          ? `${(num * 100).toFixed(1)}%`
-          : Number.isFinite(num) ? num.toLocaleString("pl-PL") : raw;
-        return <KpiCard key={h} label={labels[h] ?? h} value={display} />;
-      })}
-    </div>
-  );
-}
-
-function Ga4Table({ report }: { report: Ga4Report | undefined }) {
-  if (!report || !report.rows.length) {
-    return <div className="p-6 text-sm text-muted-foreground">Brak danych w tym oknie.</div>;
-  }
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            {report.dimensionHeaders.map((h) => (
-              <th key={h} className="text-left px-3 py-2">{h}</th>
-            ))}
-            {report.metricHeaders.map((h) => (
-              <th key={h} className="text-right px-3 py-2">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map((r, i) => (
-            <tr key={i} className="border-t border-border/60">
-              {r.dims.map((v, j) => (
-                <td key={j} className="px-3 py-2 truncate max-w-[280px]">{v}</td>
-              ))}
-              {r.metrics.map((v, j) => (
-                <td key={j} className="text-right px-3 py-2 tabular-nums">
-                  {Number.isFinite(Number(v)) ? Number(v).toLocaleString("pl-PL", { maximumFractionDigits: 2 }) : v}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+// Ga4Totals / Ga4Table zostały zastąpione przez `Ga4BiDashboard`
+// (KPI tiles z delta + trend area + donuty + radar + top strony).
 
 // --------- Vitals mini card ---------
 
