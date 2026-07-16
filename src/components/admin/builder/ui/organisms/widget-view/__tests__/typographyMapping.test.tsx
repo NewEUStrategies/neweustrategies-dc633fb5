@@ -31,6 +31,10 @@ vi.mock("react-i18next", () => ({
     t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k,
     i18n: { language: "pl" },
   }),
+  // lib/i18n.ts (reached via the widget import graph) calls
+  // `i18n.use(initReactI18next)` at module import - a full-module mock must
+  // export a functional 3rd-party plugin stub or importing the suite throws.
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 const POST_WIDGETS: WidgetType[] = ["slider", "post-list", "rated-list", "podcast-latest"];
@@ -50,7 +54,11 @@ function widgetCss(type: WidgetType, style?: CommonStyle): string {
     </QueryClientProvider>,
   );
   const wrap = container.querySelector(`[data-w-id="${node.id}"]`);
-  const style$ = wrap?.querySelector("style");
+  // The wrapper's own <style> (hover/typography/override CSS) is a DIRECT
+  // child of [data-w-id]; widgets may render their own nested <style> deeper
+  // in the tree (e.g. RatedListView's color CSS), which a descendant
+  // querySelector would match first in document order.
+  const style$ = Array.from(wrap?.children ?? []).find((el) => el.tagName === "STYLE");
   return style$?.innerHTML ?? "";
 }
 

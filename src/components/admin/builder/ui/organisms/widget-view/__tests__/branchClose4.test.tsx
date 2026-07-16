@@ -60,6 +60,10 @@ vi.mock("react-i18next", () => {
       t: (k: string, o?: { defaultValue?: string }) => dict[k] ?? o?.defaultValue ?? k,
       i18n: { language: "pl", changeLanguage: () => {} },
     }),
+    // lib/i18n.ts (reached via the widget import graph) calls
+    // `i18n.use(initReactI18next)` at module import - a full-module mock must
+    // export a functional 3rd-party plugin stub or importing the suite throws.
+    initReactI18next: { type: "3rdParty", init: () => {} },
   };
 });
 vi.mock("@tanstack/react-router", async (orig) => {

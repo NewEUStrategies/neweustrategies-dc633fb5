@@ -46,6 +46,10 @@ vi.mock("react-i18next", () => ({
     t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k,
     i18n: { language: i18nState.lang, changeLanguage: () => {} },
   }),
+  // lib/i18n.ts (reached via the widget import graph) calls
+  // `i18n.use(initReactI18next)` at module import - a full-module mock must
+  // export a functional 3rd-party plugin stub or importing the suite throws.
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 // Provide a configured site logo so the ImageWidget logo-fallback path resolves.
 vi.mock("@/lib/useSiteSetting", () => ({

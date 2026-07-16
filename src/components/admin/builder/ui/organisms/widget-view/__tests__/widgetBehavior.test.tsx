@@ -45,6 +45,10 @@ vi.mock("react-i18next", () => ({
     t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
     i18n: { language: "pl" },
   }),
+  // lib/i18n.ts (reached via the widget import graph) calls
+  // `i18n.use(initReactI18next)` at module import - a full-module mock must
+  // export a functional 3rd-party plugin stub or importing the suite throws.
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 let nextId = 0;
