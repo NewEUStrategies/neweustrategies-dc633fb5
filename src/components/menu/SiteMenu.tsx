@@ -369,8 +369,11 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
+        {node.icon ? (
+          <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+        ) : null}
         {label}
         <ChevronDown
           size={14}
