@@ -7,7 +7,7 @@
  * już pobrane przez dashboard, więc można ją zamontować obok wykresów bez
  * dodatkowych roundtripów.
  */
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Lightbulb, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
