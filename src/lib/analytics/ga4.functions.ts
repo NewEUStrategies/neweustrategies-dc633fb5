@@ -261,9 +261,10 @@ const mpInput = z.object({
 export interface Ga4MpResult {
   ok: boolean;
   configured: boolean;
-  debug?: unknown;
+  debug?: string;
   error?: string;
 }
+
 
 /**
  * Wysyła event GA4 przez Measurement Protocol.
