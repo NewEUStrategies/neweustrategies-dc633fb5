@@ -4039,6 +4039,7 @@ export type Database = {
           unsubscribed_at: string | null
           updated_at: string
           user_agent: string | null
+          user_id: string | null
         }
         Insert: {
           confirmation_expires_at?: string | null
@@ -4063,6 +4064,7 @@ export type Database = {
           unsubscribed_at?: string | null
           updated_at?: string
           user_agent?: string | null
+          user_id?: string | null
         }
         Update: {
           confirmation_expires_at?: string | null
@@ -4087,6 +4089,7 @@ export type Database = {
           unsubscribed_at?: string | null
           updated_at?: string
           user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -8746,6 +8749,21 @@ export type Database = {
       is_tenant_conversation_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
+      }
+      join_us_link_and_backfill: {
+        Args: {
+          _company: string
+          _country: string
+          _email: string
+          _first_name: string
+          _last_name: string
+          _linkedin: string
+          _phone: string
+          _position: string
+          _tenant_id: string
+          _user_id: string
+        }
+        Returns: undefined
       }
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }
