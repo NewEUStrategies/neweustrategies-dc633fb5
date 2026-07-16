@@ -81,7 +81,7 @@ export function VitalsBiDashboard() {
   }, [report]);
 
   const trendOption = (metric: VitalName): EChartsCoreOption => {
-    const thresholds = VITAL_THRESHOLDS[metric];
+    const [thGood, thPoor] = VITAL_THRESHOLDS[metric];
     const trend = (report?.trends ?? []).map((t) => [t.day, t.p75[metric] ?? null] as [string, number | null]);
     return {
       tooltip: {
