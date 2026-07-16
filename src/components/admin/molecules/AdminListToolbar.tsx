@@ -83,12 +83,12 @@ export function AdminListToolbar({
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
       <div className="relative flex-1 min-w-[200px] max-w-md">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <Input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder={searchPlaceholder ?? t("admin.list.search", { defaultValue: "Szukaj…" })}
-          className="pl-8 h-8 text-xs"
+          className="pl-10 h-8 text-xs"
         />
       </div>
 
