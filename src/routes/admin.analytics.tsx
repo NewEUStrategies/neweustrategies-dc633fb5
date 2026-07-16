@@ -320,7 +320,7 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
 
       <Card className="overflow-hidden">
         <div className="p-3 border-b border-border text-sm font-semibold flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" /> GA4 raport
+          <BarChart3 className="w-4 h-4" /> GA4 raport ({status.activeMode === "oauth_refresh" ? "OAuth" : "Service Account"})
         </div>
         {reportQ.isLoading ? (
           <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
@@ -332,9 +332,222 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
           <Ga4Table report={reportQ.data} />
         )}
       </Card>
+
+      {status.hasEmbedUrl && status.embedUrl ? <Ga4EmbedCard url={status.embedUrl} /> : null}
+      {configPanel}
     </div>
   );
 }
+
+// --------- GA4 config panel (4 modes) ---------
+
+interface ModeCardProps {
+  active: boolean;
+  ok: boolean;
+  title: string;
+  badge: string;
+  children: React.ReactNode;
+}
+
+function ModeCard({ active, ok, title, badge, children }: ModeCardProps) {
+  return (
+    <Card className={"p-4 " + (active ? "border-primary/60 ring-1 ring-primary/30" : "")}>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="flex items-center gap-2">
+          {active && <Badge className="text-[10px]">Aktywny</Badge>}
+          {ok ? (
+            <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/40">
+              {badge}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+              Nieaktywne
+            </Badge>
+          )}
+        </div>
+      </div>
+      <div className="text-xs text-muted-foreground space-y-2">{children}</div>
+    </Card>
+  );
+}
+
+function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
+  const send = useServerFn(sendGa4Event);
+  const [sending, setSending] = useState(false);
+
+  async function testEvent() {
+    setSending(true);
+    try {
+      const r = await send({
+        data: {
+          clientId: `admin-${Date.now()}`,
+          eventName: "admin_test_event",
+          params: { source: "admin_analytics_page" },
+          debug: true,
+        },
+      });
+      if (!r.configured) {
+        toast.error(r.error ?? "Brak konfiguracji Measurement Protocol");
+        return;
+      }
+      if (r.ok) toast.success("Event wysłany. GA4 przyjął payload (debug OK).");
+      else toast.error(r.error ?? "GA4 odrzucił event - sprawdź debug w konsoli.");
+      if (r.debug) console.info("[GA4 Debug]", r.debug);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Card className="p-4 space-y-4">
+      <div>
+        <div className="text-sm font-semibold">Sposoby podłączenia GA4</div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Wybierz dowolny tryb - sekrety dodaj przez Lovable Cloud → Secrets. Priorytet dla raportów Data API: Service Account → OAuth refresh token.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <ModeCard
+          active={status.activeMode === "service_account"}
+          ok={status.hasServiceAccount && status.hasPropertyId}
+          title="1. Service Account (JSON)"
+          badge="Gotowe"
+        >
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>Google Cloud Console → utwórz Service Account, wygeneruj klucz JSON.</li>
+            <li>GA4 → Admin → Property access management → dodaj e-mail SA jako Viewer.</li>
+            <li>
+              Sekrety: <code>GA4_SERVICE_ACCOUNT_JSON</code>, <code>GA4_PROPERTY_ID</code>.
+            </li>
+          </ol>
+          <div className="flex flex-wrap gap-1 pt-1">
+            <Badge variant="outline" className="text-[10px]">SA {status.hasServiceAccount ? "✓" : "×"}</Badge>
+            <Badge variant="outline" className="text-[10px]">Property {status.hasPropertyId ? "✓" : "×"}</Badge>
+            {status.serviceAccountEmail && (
+              <Badge variant="outline" className="text-[10px] truncate max-w-[220px]">
+                {status.serviceAccountEmail}
+              </Badge>
+            )}
+          </div>
+        </ModeCard>
+
+        <ModeCard
+          active={status.activeMode === "oauth_refresh"}
+          ok={status.hasOauthClient && status.hasOauthRefresh && status.hasPropertyId}
+          title="2. OAuth 2.0 (refresh token)"
+          badge="Gotowe"
+        >
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>
+              Google Cloud Console → OAuth consent screen + Credentials → utwórz OAuth Client ID typu <b>Desktop app</b>.
+            </li>
+            <li>
+              Wygeneruj refresh_token dla scope{" "}
+              <code>https://www.googleapis.com/auth/analytics.readonly</code> (np. OAuth Playground - Use your own OAuth credentials).
+            </li>
+            <li>
+              Sekrety: <code>GA4_OAUTH_CLIENT_ID</code>, <code>GA4_OAUTH_CLIENT_SECRET</code>, <code>GA4_OAUTH_REFRESH_TOKEN</code>, <code>GA4_PROPERTY_ID</code>.
+            </li>
+          </ol>
+          <div className="flex flex-wrap gap-1 pt-1">
+            <Badge variant="outline" className="text-[10px]">Client {status.hasOauthClient ? "✓" : "×"}</Badge>
+            <Badge variant="outline" className="text-[10px]">Refresh {status.hasOauthRefresh ? "✓" : "×"}</Badge>
+            <Badge variant="outline" className="text-[10px]">Property {status.hasPropertyId ? "✓" : "×"}</Badge>
+          </div>
+        </ModeCard>
+
+        <ModeCard
+          active={status.activeMode === "measurement_protocol"}
+          ok={status.hasMeasurementProtocol}
+          title="3. Measurement Protocol (server-side events)"
+          badge="Gotowe"
+        >
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>
+              GA4 → Admin → Data Streams → wybierz strumień web → <b>Measurement Protocol API secrets</b> → utwórz nowy sekret.
+            </li>
+            <li>
+              Sekrety: <code>GA4_MEASUREMENT_ID</code> (np. G-XXXXXXX), <code>GA4_API_SECRET</code>.
+            </li>
+            <li>Ten tryb służy do <b>wysyłania</b> eventów server-side, nie do czytania raportów.</li>
+          </ol>
+          <div className="flex flex-wrap gap-2 items-center pt-1">
+            <Badge variant="outline" className="text-[10px]">
+              Measurement ID {status.hasMeasurementId ? "✓" : "×"}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              API secret {status.hasMeasurementProtocol && status.hasMeasurementId ? "✓" : "×"}
+            </Badge>
+            {status.hasMeasurementProtocol && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs ml-auto"
+                onClick={testEvent}
+                disabled={sending}
+              >
+                {sending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                Wyślij testowy event
+              </Button>
+            )}
+          </div>
+        </ModeCard>
+
+        <ModeCard
+          active={status.activeMode === "embed"}
+          ok={status.hasEmbedUrl}
+          title="4. Embed (Looker Studio / iframe)"
+          badge="Gotowe"
+        >
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>
+              Zbuduj raport w <b>Looker Studio</b> na źródle GA4 i użyj File → Embed report → skopiuj URL.
+            </li>
+            <li>
+              Sekret: <code>GA4_EMBED_URL</code> (pełen URL iframe do raportu, np. z lookerstudio.google.com).
+            </li>
+            <li>Zero uwierzytelniania po naszej stronie - raport renderuje się jako iframe.</li>
+          </ol>
+          <div className="flex flex-wrap gap-1 pt-1">
+            <Badge variant="outline" className="text-[10px]">Embed URL {status.hasEmbedUrl ? "✓" : "×"}</Badge>
+          </div>
+        </ModeCard>
+      </div>
+    </Card>
+  );
+}
+
+function Ga4EmbedCard({ url }: { url: string }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="p-3 border-b border-border text-sm font-semibold flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" /> Raport osadzony (Looker Studio)
+        </span>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+        >
+          Otwórz w nowej karcie <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+      <iframe
+        title="GA4 Looker Studio embed"
+        src={url}
+        className="w-full"
+        style={{ height: 720, border: 0 }}
+        allowFullScreen
+      />
+    </Card>
+  );
+}
+
 
 function Ga4Totals({ report, loading }: { report: Ga4Report | undefined; loading: boolean }) {
   if (loading || !report) {
