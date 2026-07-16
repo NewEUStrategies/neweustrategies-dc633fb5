@@ -62,6 +62,12 @@ import {
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
@@ -115,7 +121,7 @@ export function SidebarRowButton({
     <button
       type="button"
       onClick={onClick}
-      title={title}
+      title={compact ? undefined : title}
       data-sidebar="menu-button"
       className={cn(
         "w-full flex items-center py-1 rounded-md text-[13px] text-left transition",
@@ -134,6 +140,26 @@ export function SidebarRowButton({
       </span>
       {tone === "accent" && active && <ChevronRight className="w-3 h-3" />}
     </button>
+  );
+}
+
+function SidebarTooltip({
+  label,
+  compact,
+  children,
+}: {
+  label: ReactNode;
+  compact: boolean;
+  children: React.ReactElement;
+}) {
+  if (!compact) return children;
+  return (
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -483,17 +509,20 @@ function AdminShellInner({
             "bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen sidebar-shell",
           )}
         >
+          <TooltipProvider delayDuration={0}>
           <div className="p-3 border-b border-border">
             <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
-              <Link
-                to="/admin"
-                data-sidebar-brand
-                className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
-                style={{ background: "transparent" }}
-                title="Kokpit"
-              >
-                <SidebarBrand compact={compact} />
-              </Link>
+              <SidebarTooltip label={t("admin.nav.dashboard", { defaultValue: "Kokpit" })} compact={compact}>
+                <Link
+                  to="/admin"
+                  data-sidebar-brand
+                  title={compact ? undefined : t("admin.nav.dashboard", { defaultValue: "Kokpit" })}
+                  className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
+                  style={{ background: "transparent" }}
+                >
+                  <SidebarBrand compact={compact} />
+                </Link>
+              </SidebarTooltip>
               {!compact && (
                 <button
                   onClick={() => setForceCompact((s) => !s)}
@@ -506,14 +535,15 @@ function AdminShellInner({
               )}
             </div>
             {compact && (
-              <button
-                onClick={() => setForceCompact((s) => !s)}
-                data-sidebar-toggle
-                className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent"
-                title={t("admin.sidebar.expand")}
-              >
-                <PanelLeft className="w-4 h-4" />
-              </button>
+              <SidebarTooltip label={t("admin.sidebar.expand")} compact={compact}>
+                <button
+                  onClick={() => setForceCompact((s) => !s)}
+                  data-sidebar-toggle
+                  className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent"
+                >
+                  <PanelLeft className="w-4 h-4" />
+                </button>
+              </SidebarTooltip>
             )}
           </div>
           <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
@@ -535,23 +565,24 @@ function AdminShellInner({
                         to !== "/admin/appearance" &&
                         path.startsWith(`${to}/`));
                     return (
-                      <Link
-                        key={to}
-                        to={to}
-                        title={label}
-                        data-sidebar="menu-button"
-                        data-active={active ? "true" : "false"}
-                        className={`flex items-center py-1 rounded-md text-[13px] leading-tight transition ${
-                          compact ? "justify-center px-0" : "gap-1.5 px-2"
-                        } ${
-                          active
-                            ? "bg-brand text-brand-foreground"
-                            : "text-foreground hover:bg-muted"
-                        }`}
-                      >
-                        <Icon className="w-3 h-3 shrink-0" />
-                        <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
-                      </Link>
+                      <SidebarTooltip key={to} label={label} compact={compact}>
+                        <Link
+                          to={to}
+                          title={compact ? undefined : label}
+                          data-sidebar="menu-button"
+                          data-active={active ? "true" : "false"}
+                          className={`flex items-center py-1 rounded-md text-[13px] leading-tight transition ${
+                            compact ? "justify-center px-0" : "gap-1.5 px-2"
+                          } ${
+                            active
+                              ? "bg-brand text-brand-foreground"
+                              : "text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          <Icon className="w-3 h-3 shrink-0" />
+                          <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
+                        </Link>
+                      </SidebarTooltip>
                     );
                   })}
                 </div>
@@ -584,38 +615,47 @@ function AdminShellInner({
           </nav>
 
           <div className="p-2 border-t border-border space-y-0.5">
-            <Link
-              to="/"
-              title={t("admin.viewSite")}
-              data-sidebar="menu-button"
-              className={`flex items-center py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted ${compact ? "justify-center px-0" : "gap-1.5 px-2"}`}
-            >
-              <Home className="w-3 h-3 shrink-0" />
-              <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
-            </Link>
-            <SidebarRowButton
-              icon={theme === "dark" ? Sun : Moon}
-              label={t("admin.theme")}
-              title={t("admin.theme")}
-              compact={compact}
-              onClick={toggle}
-            />
-            <SidebarRowButton
-              icon={Globe}
-              label={lang.startsWith("pl") ? "PL" : "EN"}
-              title={lang.startsWith("pl") ? "PL" : "EN"}
-              compact={compact}
-              onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
-            />
-            <SidebarRowButton
-              icon={LogOut}
-              label={t("admin.signout")}
-              title={t("admin.signout")}
-              compact={compact}
-              tone="destructive"
-              onClick={handleSignOut}
-            />
+            <SidebarTooltip label={t("admin.viewSite")} compact={compact}>
+              <Link
+                to="/"
+                title={compact ? undefined : t("admin.viewSite")}
+                data-sidebar="menu-button"
+                className={`flex items-center py-1 rounded-md text-[13px] text-muted-foreground hover:bg-muted ${compact ? "justify-center px-0" : "gap-1.5 px-2"}`}
+              >
+                <Home className="w-3 h-3 shrink-0" />
+                <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
+              </Link>
+            </SidebarTooltip>
+            <SidebarTooltip label={t("admin.theme")} compact={compact}>
+              <SidebarRowButton
+                icon={theme === "dark" ? Sun : Moon}
+                label={t("admin.theme")}
+                title={t("admin.theme")}
+                compact={compact}
+                onClick={toggle}
+              />
+            </SidebarTooltip>
+            <SidebarTooltip label={lang.startsWith("pl") ? "PL" : "EN"} compact={compact}>
+              <SidebarRowButton
+                icon={Globe}
+                label={lang.startsWith("pl") ? "PL" : "EN"}
+                title={lang.startsWith("pl") ? "PL" : "EN"}
+                compact={compact}
+                onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
+              />
+            </SidebarTooltip>
+            <SidebarTooltip label={t("admin.signout")} compact={compact}>
+              <SidebarRowButton
+                icon={LogOut}
+                label={t("admin.signout")}
+                title={t("admin.signout")}
+                compact={compact}
+                tone="destructive"
+                onClick={handleSignOut}
+              />
+            </SidebarTooltip>
           </div>
+          </TooltipProvider>
         </aside>
       )}
       <main

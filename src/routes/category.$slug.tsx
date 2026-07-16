@@ -27,17 +27,17 @@ import "@/lib/i18n-archive-layout";
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
-function parseSearch(search: Record<string, unknown>): { page: number; sort: ArchiveSort } {
+function parseSearch(search: Record<string, unknown>): { page?: number; sort?: ArchiveSort } {
   const raw = Number(search.page);
-  const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1;
+  const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : undefined;
   const sortRaw = String(search.sort ?? "newest") as ArchiveSort;
-  const sort: ArchiveSort = VALID_SORT.includes(sortRaw) ? sortRaw : "newest";
+  const sort: ArchiveSort | undefined = VALID_SORT.includes(sortRaw) ? sortRaw : undefined;
   return { page, sort };
 }
 
 export const Route = createFileRoute("/category/$slug")({
   validateSearch: parseSearch,
-  loaderDeps: ({ search: { page, sort } }) => ({ page, sort }),
+  loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
     const settings = await context.queryClient.ensureQueryData(
       archiveLayoutQueryOptions("category"),
@@ -139,8 +139,8 @@ export const Route = createFileRoute("/category/$slug")({
 
 function CategoryArchivePage() {
   const { slug } = Route.useParams();
-  const search = Route.useSearch();
-  return <TaxonomyPage kind="category" slug={slug} page={search.page} sort={search.sort} />;
+  const { page = 1, sort = "newest" } = Route.useSearch();
+  return <TaxonomyPage kind="category" slug={slug} page={page} sort={sort} />;
 }
 
 export function TaxonomyPage({
