@@ -873,31 +873,14 @@ export function JoinUsForm({
                     aria-multiselectable="true"
                     className="absolute z-20 mt-1 w-full rounded border border-border bg-popover shadow-lg overflow-hidden"
                   >
-                    {/* Zakładki – szybkie przejście do grupy */}
+                    {/* Zakładki – szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
                     {groupedItems.length > 1 && (
-                      <div
-                        role="tablist"
-                        aria-label={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
-                        className="flex gap-1 overflow-x-auto border-b border-border bg-popover/95 px-1 py-1"
-                      >
-                        {groupedItems.map((g) => (
-                          <button
-                            key={`tab:${g.key}`}
-                            type="button"
-                            role="tab"
-                            onClick={() => {
-                              const el = document.getElementById(
-                                `${jusId}-drop-grp-${g.key}`,
-                              );
-                              el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }}
-                            className="whitespace-nowrap rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground transition"
-                          >
-                            {g.title}
-                            <span className="ml-1 opacity-60">({g.items.length})</span>
-                          </button>
-                        ))}
-                      </div>
+                      <GroupTabs
+                        groups={groupedItems}
+                        jusId={jusId}
+                        scrollContainerId={`${jusId}-drop-scroll`}
+                        ariaLabel={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
+                      />
                     )}
                     <div
                       id={`${jusId}-drop-scroll`}
@@ -1222,5 +1205,193 @@ export function JoinUsForm({
       )}
       {form}
     </section>
+  );
+}
+
+/**
+ * Poziomy pasek zakładek grup w dropdownie zainteresowań.
+ * - drag-to-scroll (pointer events) – działa myszką i palcem
+ * - aktywna zakładka podświetlana wg pozycji scrolla listy (IntersectionObserver)
+ * - fade po bokach informuje o możliwości przewijania
+ * - strzałki < > pojawiają się gdy jest gdzie przewinąć
+ */
+function GroupTabs({
+  groups,
+  jusId,
+  scrollContainerId,
+  ariaLabel,
+}: {
+  groups: { key: string; title: string; items: readonly unknown[] }[];
+  jusId: string;
+  scrollContainerId: string;
+  ariaLabel: string;
+}) {
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [activeKey, setActiveKey] = useState<string>(groups[0]?.key ?? "");
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  // Śledzenie aktywnej grupy w liście (root = kontener przewijalny listy).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.getElementById(scrollContainerId);
+    if (!root) return;
+    const targets = groups
+      .map((g) => document.getElementById(`${jusId}-drop-grp-${g.key}`))
+      .filter((el): el is HTMLElement => !!el);
+    if (!targets.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          const id = visible.target.id.replace(`${jusId}-drop-grp-`, "");
+          setActiveKey(id);
+        }
+      },
+      { root, threshold: [0, 0.25, 0.6, 1], rootMargin: "0px 0px -60% 0px" },
+    );
+    targets.forEach((t) => io.observe(t));
+    return () => io.disconnect();
+  }, [groups, jusId, scrollContainerId]);
+
+  // Aktywna zakładka: przewiń do widoku w pasku.
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const btn = bar.querySelector<HTMLButtonElement>(`[data-tab-key="${activeKey}"]`);
+    btn?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [activeKey]);
+
+  // Fade + strzałki – aktualizuj przy scrollu i resize.
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const update = () => {
+      setCanLeft(bar.scrollLeft > 2);
+      setCanRight(bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
+    };
+    update();
+    bar.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(bar);
+    return () => {
+      bar.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [groups.length]);
+
+  // Drag-to-scroll (pointer).
+  const dragRef = useRef<{ startX: number; startLeft: number; moved: boolean } | null>(null);
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const bar = barRef.current;
+    if (!bar) return;
+    if ((e.target as HTMLElement).closest("button[data-tab-nudge]")) return;
+    dragRef.current = { startX: e.clientX, startLeft: bar.scrollLeft, moved: false };
+    bar.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    const bar = barRef.current;
+    if (!d || !bar) return;
+    const dx = e.clientX - d.startX;
+    if (Math.abs(dx) > 3) d.moved = true;
+    bar.scrollLeft = d.startLeft - dx;
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const bar = barRef.current;
+    bar?.releasePointerCapture?.(e.pointerId);
+    // Zablokuj kliknięcie po drag'u.
+    if (dragRef.current?.moved) {
+      const stop = (ev: Event) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        window.removeEventListener("click", stop, true);
+      };
+      window.addEventListener("click", stop, true);
+    }
+    dragRef.current = null;
+  };
+
+  const nudge = (dir: -1 | 1) => {
+    const bar = barRef.current;
+    if (!bar) return;
+    bar.scrollBy({ left: dir * Math.max(160, bar.clientWidth * 0.7), behavior: "smooth" });
+  };
+
+  const jumpTo = (key: string) => {
+    const el = document.getElementById(`${jusId}-drop-grp-${key}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActiveKey(key);
+  };
+
+  return (
+    <div className="relative border-b border-border bg-popover/95">
+      {/* Strzałka lewa */}
+      <button
+        type="button"
+        data-tab-nudge
+        aria-label="scroll left"
+        tabIndex={-1}
+        onClick={() => nudge(-1)}
+        className={cn(
+          "absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-r from-popover via-popover/80 to-transparent text-muted-foreground hover:text-foreground transition-opacity",
+          canLeft ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+      >
+        <ChevronDown className="h-3.5 w-3.5 rotate-90" />
+      </button>
+      <div
+        ref={barRef}
+        role="tablist"
+        aria-label={ariaLabel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className="flex gap-1.5 overflow-x-auto px-2 py-1.5 no-scrollbar cursor-grab active:cursor-grabbing select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        style={{ scrollBehavior: "smooth" }}
+      >
+        {groups.map((g) => {
+          const active = g.key === activeKey;
+          return (
+            <button
+              key={`tab:${g.key}`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              data-tab-key={g.key}
+              onClick={() => jumpTo(g.key)}
+              className={cn(
+                "whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all border",
+                active
+                  ? "bg-foreground text-background border-foreground shadow-sm"
+                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {g.title}
+              <span className={cn("ml-1", active ? "opacity-70" : "opacity-50")}>
+                ({g.items.length})
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {/* Strzałka prawa */}
+      <button
+        type="button"
+        data-tab-nudge
+        aria-label="scroll right"
+        tabIndex={-1}
+        onClick={() => nudge(1)}
+        className={cn(
+          "absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-l from-popover via-popover/80 to-transparent text-muted-foreground hover:text-foreground transition-opacity",
+          canRight ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+      >
+        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+      </button>
+    </div>
   );
 }
