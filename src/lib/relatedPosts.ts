@@ -226,10 +226,11 @@ export function scoreRelatedDetailed(
   if (publishedAt && cfg.recency_boost_days > 0) {
     const ageDays = (now - new Date(publishedAt).getTime()) / 86_400_000;
     if (ageDays >= 0 && ageDays < cfg.recency_boost_days) {
-      const fresh = 1 - ageDays / cfg.recency_boost_days; // 1 -> 0 liniowo
-      breakdown.recency = cfg.weight_recency * fresh;
+      // Płaski bonus w oknie (parametr `weight_recency` steruje siłą).
+      breakdown.recency = cfg.weight_recency;
     }
   }
+
 
   if (candidatePostId && signals?.popularityByPost) {
     const p = signals.popularityByPost.get(candidatePostId) ?? 0;
