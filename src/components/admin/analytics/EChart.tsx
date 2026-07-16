@@ -1,121 +1,55 @@
 /**
  * Client-only ECharts wrapper.
  *
- * - Registers only the components we actually use (bar / line / pie / heatmap /
- *   treemap / gauge / radar / sankey + tooltip/legend/grid/dataZoom) so the
- *   client bundle stays smaller than a wholesale `import "echarts"`.
- * - SSR-safe: `use()` calls happen at module scope but the DOM renderer runs
- *   only on the client via `<ClientOnly>`-style guard.
- * - Exposes an imperative ref (`onReady`) so parent components can `getDataURL`
- *   for PNG export without reaching into `echarts-for-react`'s internals.
+ * ECharts + echarts-for-react adds ~1 MB to whatever bundle imports it. The
+ * Cloudflare/Nitro SSR pass already bundles a very large route graph (router
+ * chunk >2.5 MB), and pulling ECharts into that graph pushed Rollup's chunk
+ * renderer into a V8 OOM at `build:dev`.
+ *
+ * The fix is structural: never let the SSR module graph reach ECharts.
+ * `EChart` here is a tiny hydration stub that renders a skeleton on the server
+ * and a `React.lazy` boundary on the client. Only after mount does the browser
+ * dynamically import the real chart module (`EChartClient`).
+ *
+ * Do NOT statically import `./EChartClient` from this file, and do NOT re-export
+ * anything that transitively pulls it in - that reintroduces the SSR bundle
+ * graph edge we're paying this indirection to break.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import ReactECharts from "echarts-for-react";
-import { use, init } from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
-import {
-  BarChart,
-  LineChart,
-  PieChart,
-  HeatmapChart,
-  TreemapChart,
-  GaugeChart,
-  RadarChart,
-  SankeyChart,
-  ScatterChart,
-} from "echarts/charts";
-import {
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-  DataZoomComponent,
-  MarkAreaComponent,
-  MarkLineComponent,
-  TitleComponent,
-  VisualMapComponent,
-  ToolboxComponent,
-  CalendarComponent,
-} from "echarts/components";
+import { Suspense, lazy, useEffect, useState } from "react";
 import type { EChartsCoreOption, ECharts } from "echarts/core";
-import { resolveChartTheme, baseOption, type ResolvedTheme } from "./chartTheme";
-
-use([
-  CanvasRenderer,
-  BarChart,
-  LineChart,
-  PieChart,
-  HeatmapChart,
-  TreemapChart,
-  GaugeChart,
-  RadarChart,
-  SankeyChart,
-  ScatterChart,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-  DataZoomComponent,
-  MarkAreaComponent,
-  MarkLineComponent,
-  TitleComponent,
-  VisualMapComponent,
-  ToolboxComponent,
-  CalendarComponent,
-]);
 
 export interface EChartProps {
   option: EChartsCoreOption;
   height?: number | string;
   onReady?: (instance: ECharts) => void;
   className?: string;
+  /** Bump to force a re-read of CSS chart tokens (e.g. after theme change). */
   themeVersion?: number;
 }
 
-function mergeWithTheme(option: EChartsCoreOption, theme: ResolvedTheme): EChartsCoreOption {
-  const base = baseOption(theme) as Record<string, unknown>;
-  return { ...base, ...(option as Record<string, unknown>) } as EChartsCoreOption;
-}
+const LazyClient = lazy(() =>
+  import("./EChartClient").then((m) => ({ default: m.EChartClient })),
+);
 
-/**
- * Renders an ECharts canvas only on the client. During SSR / first hydration
- * pass we render a fixed-height skeleton so the layout doesn't jump when the
- * chart mounts.
- */
-export function EChart({ option, height = 320, onReady, className, themeVersion = 0 }: EChartProps) {
+export function EChart(props: EChartProps) {
   const [mounted, setMounted] = useState(false);
-  const ref = useRef<ReactECharts | null>(null);
-  const theme = useMemo(() => resolveChartTheme(), [themeVersion, mounted]);
-  const merged = useMemo(() => mergeWithTheme(option, theme), [option, theme]);
-
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (!mounted || !ref.current) return;
-    const inst = ref.current.getEchartsInstance();
-    onReady?.(inst);
-  }, [mounted, onReady]);
+  const height = props.height ?? 320;
+  const skeleton = (
+    <div
+      aria-hidden
+      className={"animate-pulse rounded-md bg-muted/40 " + (props.className ?? "")}
+      style={{ height: typeof height === "number" ? `${height}px` : height }}
+    />
+  );
 
-  if (!mounted) {
-    return (
-      <div
-        aria-hidden
-        className={"animate-pulse rounded-md bg-muted/40 " + (className ?? "")}
-        style={{ height: typeof height === "number" ? `${height}px` : height }}
-      />
-    );
-  }
-
+  if (!mounted) return skeleton;
   return (
-    <div className={className} style={{ height: typeof height === "number" ? `${height}px` : height }}>
-      <ReactECharts
-        ref={ref}
-        echarts={{ use, init } as unknown as never}
-        option={merged}
-        style={{ width: "100%", height: "100%" }}
-        notMerge
-        lazyUpdate
-      />
-    </div>
+    <Suspense fallback={skeleton}>
+      <LazyClient {...props} />
+    </Suspense>
   );
 }
