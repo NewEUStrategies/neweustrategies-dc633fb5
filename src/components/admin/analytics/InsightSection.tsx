@@ -70,13 +70,16 @@ export function InsightSection({
     return (
       <Card className="p-4 border-emerald-500/30 bg-emerald-500/5">
         <div className="flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+          <span className="flex items-center h-5 shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+          </span>
           <div>
-            <div className="text-sm font-semibold">{title}</div>
+            <div className="text-sm font-semibold leading-5">{title}</div>
             <p className="text-xs text-muted-foreground mt-1">{emptyLabel}</p>
           </div>
         </div>
       </Card>
+
     );
   }
   const sorted = [...insights].sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
