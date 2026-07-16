@@ -828,3 +828,145 @@ function MegaColumnsEditor({
     </div>
   );
 }
+
+// Inline picker do powiązania kolumny/linku mega-menu z wewnętrzną treścią
+// (strony, wpisy, kategorie, tagi). Wypełnia label_pl/label_en/href.
+interface PickerResult {
+  label_pl: string;
+  label_en: string;
+  href: string;
+}
+
+type PickerTable = "pages" | "posts" | "categories" | "tags";
+
+interface PickerHit {
+  id: string;
+  slug: string;
+  label_pl: string;
+  label_en: string;
+  href: string;
+}
+
+function InternalContentPicker({
+  onPick,
+  title,
+}: {
+  onPick: (r: PickerResult) => void;
+  title: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [table, setTable] = useState<PickerTable>("pages");
+  const [search, setSearch] = useState("");
+
+  const { data: hits = [], isFetching } = useQuery({
+    queryKey: ["mega-picker", table, search],
+    enabled: open,
+    staleTime: 30_000,
+    queryFn: async (): Promise<PickerHit[]> => {
+      const cfg: Record<
+        PickerTable,
+        { title: string; fallback: string; withStatus: boolean; href: (slug: string) => string }
+      > = {
+        pages: { title: "title_pl", fallback: "title_en", withStatus: true, href: (s) => `/${s}` },
+        posts: { title: "title_pl", fallback: "title_en", withStatus: true, href: (s) => `/post/${s}` },
+        categories: { title: "name_pl", fallback: "name_en", withStatus: false, href: (s) => `/kategoria/${s}` },
+        tags: { title: "name_pl", fallback: "name_en", withStatus: false, href: (s) => `/tag/${s}` },
+      };
+      const c = cfg[table];
+      type Builder = {
+        eq: (col: string, val: string) => Builder;
+        is: (col: string, val: unknown) => Builder;
+        or: (expr: string) => Builder;
+        order: (col: string) => Builder;
+        limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null }>;
+      };
+      let q = (
+        supabase.from(table).select(`id, slug, ${c.title}, ${c.fallback}`) as unknown as Builder
+      ).order(c.title);
+      if (c.withStatus) q = q.eq("status", "published").is("deleted_at", null);
+      const term = search.trim();
+      if (term.length >= 2) {
+        q = q.or(`${c.title}.ilike.%${term}%,${c.fallback}.ilike.%${term}%,slug.ilike.%${term}%`);
+      }
+      const { data } = await q.limit(20);
+      return (data ?? []).map((r) => {
+        const slug = String(r.slug ?? "");
+        return {
+          id: String(r.id ?? ""),
+          slug,
+          label_pl: String(r[c.title] ?? r[c.fallback] ?? slug),
+          label_en: String(r[c.fallback] ?? r[c.title] ?? slug),
+          href: c.href(slug),
+        };
+      });
+    },
+  });
+
+  return (
+    <div className="relative">
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7"
+        onClick={() => setOpen((o) => !o)}
+        title={title}
+        aria-label={title}
+      >
+        <LinkIcon className="h-3 w-3" />
+      </Button>
+      {open && (
+        <div className="absolute z-50 right-0 mt-1 w-80 rounded-md border border-border bg-popover shadow-lg p-2 space-y-2">
+          <div className="flex gap-1">
+            {(["pages", "posts", "categories", "tags"] as const).map((tbl) => (
+              <button
+                key={tbl}
+                type="button"
+                onClick={() => setTable(tbl)}
+                className={`flex-1 h-6 px-1 rounded text-[10px] font-medium border ${
+                  table === tbl
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                {tbl === "pages" ? "Strony" : tbl === "posts" ? "Wpisy" : tbl === "categories" ? "Kategorie" : "Tagi"}
+              </button>
+            ))}
+          </div>
+          <Input
+            autoFocus
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Szukaj..."
+            className="h-7 text-xs"
+          />
+          <div className="max-h-56 overflow-y-auto rounded border border-border bg-background">
+            {isFetching && (
+              <div className="px-2 py-2 text-[11px] text-muted-foreground text-center">
+                <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                Wczytywanie...
+              </div>
+            )}
+            {!isFetching && hits.length === 0 && (
+              <div className="px-2 py-2 text-[11px] text-muted-foreground text-center">Brak wyników</div>
+            )}
+            {hits.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => {
+                  onPick({ label_pl: h.label_pl, label_en: h.label_en, href: h.href });
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="w-full text-left px-2 py-1 text-xs hover:bg-muted flex items-center gap-2 border-b border-border/60 last:border-b-0"
+              >
+                <span className="flex-1 truncate">{h.label_pl}</span>
+                <span className="text-[10px] text-muted-foreground truncate">{h.href}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
