@@ -74,6 +74,7 @@ export interface MenuItemRow {
   href: string;
   target: string;
   css_class: string;
+  icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
 }
