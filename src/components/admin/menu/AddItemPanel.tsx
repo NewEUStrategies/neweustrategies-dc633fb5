@@ -162,11 +162,20 @@ function PickList({
     queryKey: ["menu-picker", table, statusFilter ?? "any", search],
     staleTime: 30_000,
     queryFn: async (): Promise<Array<Row & { title_pl: string; title_en: string; slug: string }>> => {
-      let q = supabase
-        .from(table)
-        .select(`id, slug, ${titleField}, ${fallbackField}`)
-        .order(titleField)
-        .limit(30);
+      // Ręczne, wąskie typowanie - `table` jest unią stringów po stronie klienta,
+      // a Supabase generuje różne kolumny per tabela; ujednolicony builder z eq/is/or/order.
+      type Builder = {
+        eq: (col: string, val: string) => Builder;
+        is: (col: string, val: unknown) => Builder;
+        or: (expr: string) => Builder;
+        order: (col: string) => Builder;
+        limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null }>;
+      };
+      let q = (
+        supabase.from(table).select(
+          `id, slug, ${titleField}, ${fallbackField}`,
+        ) as unknown as Builder
+      ).order(titleField);
       if (statusFilter && (table === "pages" || table === "posts")) {
         q = q.eq("status", statusFilter).is("deleted_at", null);
       }
@@ -174,7 +183,7 @@ function PickList({
       if (term.length >= 2) {
         q = q.or(`${titleField}.ilike.%${term}%,${fallbackField}.ilike.%${term}%,slug.ilike.%${term}%`);
       }
-      const { data } = await q;
+      const { data } = await q.limit(30);
       return (data ?? []).map((r) => {
         const rec = r as unknown as Record<string, unknown>;
         const primary = String(rec[titleField] ?? "");
