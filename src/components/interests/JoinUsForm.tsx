@@ -242,7 +242,16 @@ export function JoinUsForm({
   useEffect(() => {
     if (!dropOpen) return;
     const onDoc = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false);
+      const t = e.target as Node;
+      // Popup renderowany jest przez portal (poza dropRef), więc sprawdzamy
+      // trigger i popup osobno.
+      if (
+        (dropRef.current && dropRef.current.contains(t)) ||
+        (popupRef.current && popupRef.current.contains(t))
+      ) {
+        return;
+      }
+      setDropOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDropOpen(false);
@@ -252,6 +261,41 @@ export function JoinUsForm({
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
+    };
+  }, [dropOpen]);
+
+  // Pozycjonowanie popupu przez portal - pozwala popupowi wyjść poza
+  // przycięte kontenery (overflow-hidden formy / builder canvas).
+  useLayoutEffect(() => {
+    if (!dropOpen) {
+      setPopupStyle(null);
+      return;
+    }
+    const compute = () => {
+      const btn = triggerRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const spaceBelow = vh - r.bottom;
+      const spaceAbove = r.top;
+      const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
+      const maxH = Math.max(180, Math.min(420, openUp ? spaceAbove - 12 : spaceBelow - 12));
+      setPopupStyle({
+        position: "fixed",
+        left: `${r.left}px`,
+        width: `${r.width}px`,
+        top: openUp ? undefined : `${r.bottom + 4}px`,
+        bottom: openUp ? `${vh - r.top + 4}px` : undefined,
+        maxHeight: `${maxH}px`,
+        zIndex: 1000,
+      });
+    };
+    compute();
+    window.addEventListener("scroll", compute, true);
+    window.addEventListener("resize", compute);
+    return () => {
+      window.removeEventListener("scroll", compute, true);
+      window.removeEventListener("resize", compute);
     };
   }, [dropOpen]);
   const cfList = customFields ?? [];
