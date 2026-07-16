@@ -502,7 +502,9 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
               // Mega panels are wide (~1120px). Clamp the panel horizontally so
               // it never overflows the viewport regardless of which top-level
               // item was hovered.
-              const isMega = node.mega_enabled;
+              const hasNested =
+                node.children.length > 0 && node.children.some((c) => c.children.length > 0);
+              const isMega = node.mega_enabled || hasNested;
               const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
               const panelWidth = isMega ? Math.min(1120, vw - 32) : 260;
               const rawLeft = anchor.left;
