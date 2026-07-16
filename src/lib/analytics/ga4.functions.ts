@@ -248,3 +248,71 @@ export const runGa4Report = createServerFn({ method: "POST" })
       };
     }
   });
+
+// ---------- Measurement Protocol ----------
+
+const mpInput = z.object({
+  clientId: z.string().min(1).default("admin-test"),
+  eventName: z.string().min(1).max(40).default("admin_test_event"),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+  debug: z.boolean().default(false),
+});
+
+export interface Ga4MpResult {
+  ok: boolean;
+  configured: boolean;
+  debug?: unknown;
+  error?: string;
+}
+
+/**
+ * Wysyła event GA4 przez Measurement Protocol.
+ * Wymaga sekretów: GA4_MEASUREMENT_ID + GA4_API_SECRET.
+ * Przy debug=true używa endpointu /debug/mp/collect i zwraca walidację od Google.
+ */
+export const sendGa4Event = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => mpInput.parse(i ?? {}))
+  .handler(async ({ data, context }): Promise<Ga4MpResult> => {
+    await requireAdmin(context as unknown as GatewayCtx);
+
+    const measurementId = process.env.GA4_MEASUREMENT_ID;
+    const apiSecret = process.env.GA4_API_SECRET;
+    if (!measurementId || !apiSecret) {
+      return { ok: false, configured: false, error: "Brak GA4_MEASUREMENT_ID lub GA4_API_SECRET" };
+    }
+
+    const path = data.debug ? "/debug/mp/collect" : "/mp/collect";
+    const url = `https://www.google-analytics.com${path}?measurement_id=${encodeURIComponent(measurementId)}&api_secret=${encodeURIComponent(apiSecret)}`;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: data.clientId,
+          events: [{ name: data.eventName, params: data.params }],
+        }),
+      });
+      if (data.debug) {
+        const body = await res.text();
+        try {
+          return { ok: res.ok, configured: true, debug: JSON.parse(body) };
+        } catch {
+          return { ok: res.ok, configured: true, debug: body };
+        }
+      }
+      // Produkcyjny /mp/collect zawsze zwraca 204 przy sukcesie.
+      if (!res.ok) {
+        const t = await res.text();
+        return { ok: false, configured: true, error: `MP ${res.status}: ${t.slice(0, 300)}` };
+      }
+      return { ok: true, configured: true };
+    } catch (e) {
+      return {
+        ok: false,
+        configured: true,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  });
+
