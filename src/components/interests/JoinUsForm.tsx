@@ -311,6 +311,33 @@ export function JoinUsForm({
     setPicked(new Set([...my.data.categoryIds, ...my.data.tagIds]));
   }, [my.data]);
 
+  // Prefill z profilu zalogowanego usera - wyłącznie do PUSTYCH pól, żeby
+  // nie nadpisać tego, co użytkownik już wpisał w tej sesji. Odpalamy raz na
+  // zalogowanie się (my.userId zmienia się z null → uuid).
+  useEffect(() => {
+    if (!my.userId) return;
+    let cancelled = false;
+    fetchPrefill()
+      .then((p) => {
+        if (cancelled || !p) return;
+        setExtra((prev) => ({
+          firstName: prev.firstName || p.firstName,
+          lastName: prev.lastName || p.lastName,
+          position: prev.position || p.position,
+          linkedin: prev.linkedin || p.linkedin,
+          phone: prev.phone || p.phone,
+          company: prev.company || p.company,
+          country: prev.country || p.country,
+        }));
+      })
+      .catch(() => {
+        /* non-fatal - formularz działa dalej z pustymi polami */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [my.userId, fetchPrefill]);
+
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
     const tags = catalog.data?.tags ?? [];
