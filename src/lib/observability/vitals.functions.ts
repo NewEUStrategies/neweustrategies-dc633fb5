@@ -34,7 +34,13 @@ export interface VitalsSummaryResult extends VitalsReport {
 export const getVitalsSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
-    z.object({ days: z.number().int().min(1).max(90).default(7) }).parse(i ?? {}),
+    z
+      .object({
+        days: z.number().int().min(1).max(365).optional(),
+        sinceIso: z.string().datetime().optional(),
+        untilIso: z.string().datetime().optional(),
+      })
+      .parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<VitalsSummaryResult> => {
     // Admin gate: a user can read their own roles under RLS (see useAuth), so we
@@ -47,9 +53,19 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     const isAdmin = (roles ?? []).some((r) => r.role === "admin");
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
-    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+    // Resolve the analytical window. Custom range (sinceIso/untilIso) wins over
+    // the `days` preset; falls back to 7d when nothing is supplied.
+    const now = Date.now();
+    const untilMs = data.untilIso ? Date.parse(data.untilIso) : now;
+    const sinceMs = data.sinceIso
+      ? Date.parse(data.sinceIso)
+      : now - (data.days ?? 7) * 86_400_000;
+    const since = new Date(sinceMs).toISOString();
+    const until = new Date(untilMs).toISOString();
+    const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
+    const hasCustomUntil = Boolean(data.untilIso);
     const empty: VitalsSummaryResult = {
-      windowDays: data.days,
+      windowDays,
       total: 0,
       metrics: [],
       paths: [],
@@ -57,6 +73,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       windowTotal: 0,
       capped: false,
     };
+
 
     // Degrade gracefully on any data-read failure (e.g. the web_vitals migration
     // hasn't been applied to this database yet): the dashboard shows "no data"
@@ -76,7 +93,8 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
         .from("web_vitals" as never)
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
-        .gte("created_at", since);
+        .gte("created_at", since)
+        .lte("created_at", until);
       if (countErr) throw new Error(countErr.message);
 
       const { data: rows, error } = await supabaseAdmin
@@ -84,33 +102,38 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
         .select("metric, value, rating, path, created_at")
         .eq("tenant_id", tenantId)
         .gte("created_at", since)
+        .lte("created_at", until)
         .order("created_at", { ascending: false })
         .limit(SAMPLE_CAP);
       if (error) throw new Error(error.message);
 
       const samples = (rows ?? []) as unknown as VitalSample[];
-      const report = aggregateVitals(samples, { windowDays: data.days });
+      const report = aggregateVitals(samples, { windowDays });
       const windowTotal = windowCount ?? samples.length;
 
       // The in-memory trend above is computed over only the capped newest rows,
       // so on a busy site it truncates to the most recent days. Recompute the
       // per-day p75 trend in Postgres over the FULL window via an RPC. If the
-      // function isn't present yet (older DB), fall back to the in-memory trend
-      // - same degrade-gracefully contract as the rest of this handler.
+      // function isn't present yet (older DB), fall back to the in-memory trend.
+      // For custom ranges with an explicit `until` in the past we skip the RPC
+      // (its signature only takes `p_since`) and rely on the in-memory trend.
       let trends = report.trends;
-      try {
-        const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
-          "web_vitals_daily_p75" as never,
-          { p_since: since, p_tenant: tenantId } as never,
-        );
-        if (!trendErr && Array.isArray(trendRows)) {
-          trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
+      if (!hasCustomUntil) {
+        try {
+          const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
+            "web_vitals_daily_p75" as never,
+            { p_since: since, p_tenant: tenantId } as never,
+          );
+          if (!trendErr && Array.isArray(trendRows)) {
+            trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
+          }
+        } catch {
+          // Keep the in-memory trend.
         }
-      } catch {
-        // Keep the in-memory trend.
       }
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
+
     } catch (e) {
       console.warn(
         "[vitals] summary read failed; returning empty report:",

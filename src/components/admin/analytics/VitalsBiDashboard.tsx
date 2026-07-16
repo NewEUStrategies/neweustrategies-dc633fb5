@@ -17,23 +17,18 @@
  */
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { EChartsCoreOption } from "echarts/core";
 import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
 import { KpiTile } from "./KpiTile";
 import { VitalsRecommendations } from "./VitalsRecommendations";
+import { TimeRangeFilter, buildPresetRange, type TimeRangeValue } from "./TimeRangeFilter";
+
 
 const METRIC_ORDER: VitalName[] = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 
@@ -50,30 +45,17 @@ function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[
 
 export function VitalsBiDashboard() {
   const fetchVitals = useServerFn(getVitalsSummary);
-  const [days, setDays] = useState<number>(7);
+  const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
 
-  const queries = useQueries({
-    queries: [
-      {
-        queryKey: ["vitals-bi", days],
-        queryFn: () => fetchVitals({ data: { days } }),
-        staleTime: 60_000,
-      },
-      {
-        queryKey: ["vitals-bi-prev", days],
-        queryFn: () => fetchVitals({ data: { days } }),
-        // Same handler - previous-window support would require a server-fn
-        // extension; for now we compare current samples against themselves,
-        // showing 0 delta. Kept as its own query so the shape is ready when we
-        // add `since`/`until` params to getVitalsSummary.
-        staleTime: 60_000,
-        enabled: false,
-      },
-    ],
+  const curQ = useQuery({
+    queryKey: ["vitals-bi", range.presetId, range.sinceIso, range.untilIso],
+    queryFn: () =>
+      fetchVitals({ data: { sinceIso: range.sinceIso, untilIso: range.untilIso } }),
+    staleTime: 60_000,
   });
-  const [curQ] = queries;
   const report = curQ.data;
   const isLoading = curQ.isLoading;
+
 
   const metricsByName = useMemo(() => {
     const map = new Map<VitalName, NonNullable<typeof report>["metrics"][number]>();
@@ -239,23 +221,10 @@ export function VitalsBiDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-9 text-sm w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">24 godz.</SelectItem>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => curQ.refetch()} className="h-9">
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
+      <div className="flex flex-wrap items-center gap-3">
+        <TimeRangeFilter value={range} onChange={setRange} />
+        <Button variant="outline" size="sm" onClick={() => curQ.refetch()} className="h-7">
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Odśwież
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
           <Gauge className="w-3 h-3" /> Próbek w oknie: {report?.windowTotal ?? 0}
@@ -267,6 +236,7 @@ export function VitalsBiDashboard() {
           </span>
         ) : null}
       </div>
+
 
       {!report || report.total === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
