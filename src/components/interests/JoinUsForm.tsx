@@ -887,7 +887,7 @@ export function JoinUsForm({
                             role="tab"
                             onClick={() => {
                               const el = document.getElementById(
-                                `${dropdownId}-grp-${g.key}`,
+                                `${jusId}-drop-grp-${g.key}`,
                               );
                               el?.scrollIntoView({ behavior: "smooth", block: "start" });
                             }}
@@ -900,13 +900,13 @@ export function JoinUsForm({
                       </div>
                     )}
                     <div
-                      id={`${dropdownId}-scroll`}
+                      id={`${jusId}-drop-scroll`}
                       className="max-h-[22rem] overflow-auto p-1"
                     >
                       {groupedItems.map((g) => (
                         <div
                           key={`grp:${g.key}`}
-                          id={`${dropdownId}-grp-${g.key}`}
+                          id={`${jusId}-drop-grp-${g.key}`}
                           className="pb-1 scroll-mt-1"
                         >
                           <div
