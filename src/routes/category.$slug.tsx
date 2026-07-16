@@ -27,11 +27,11 @@ import "@/lib/i18n-archive-layout";
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
-function parseSearch(search: Record<string, unknown>): { page: number; sort: ArchiveSort } {
+function parseSearch(search: Record<string, unknown>): { page?: number; sort?: ArchiveSort } {
   const raw = Number(search.page);
-  const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1;
+  const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : undefined;
   const sortRaw = String(search.sort ?? "newest") as ArchiveSort;
-  const sort: ArchiveSort = VALID_SORT.includes(sortRaw) ? sortRaw : "newest";
+  const sort: ArchiveSort | undefined = VALID_SORT.includes(sortRaw) ? sortRaw : undefined;
   return { page, sort };
 }
 
