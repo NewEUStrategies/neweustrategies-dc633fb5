@@ -919,17 +919,30 @@ function InternalContentPicker({
   });
 
   return (
-    <div className="relative">
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-7 w-7"
-        onClick={() => setOpen((o) => !o)}
-        title={title}
-        aria-label={title}
-      >
-        <LinkIcon className="h-3 w-3" />
-      </Button>
+    <div className="relative inline-block">
+      {variant === "icon" ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => setOpen((o) => !o)}
+          title={title}
+          aria-label={title}
+        >
+          <LinkIcon className="h-3 w-3" />
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => setOpen((o) => !o)}
+          title={title}
+        >
+          <LinkIcon className="h-3 w-3 mr-1" />
+          + Z treści
+        </Button>
+      )}
       {open && (
         <div className="absolute z-50 right-0 mt-1 w-80 rounded-md border border-border bg-popover shadow-lg p-2 space-y-2">
           <div className="flex gap-1">
