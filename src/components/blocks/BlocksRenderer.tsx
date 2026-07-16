@@ -362,6 +362,11 @@ function BlockView({
   allBlocks?: Block[];
 }) {
   const { t } = useTranslation();
+  // Recursive visibility gate: honoring `style.hidden` here (not only in the
+  // top-level map in BlocksRenderer) prevents hidden blocks nested inside
+  // columns / group / row / grid containers from leaking onto the published
+  // page. The admin canvas keeps rendering them via its own path.
+  if (block.style?.hidden) return null;
   const cls = alignClass(block);
 
   switch (block.type) {
