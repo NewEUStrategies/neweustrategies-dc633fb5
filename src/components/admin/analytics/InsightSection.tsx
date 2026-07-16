@@ -126,10 +126,10 @@ export function InsightSection({
           return (
             <li key={i.id} className={`rounded-md border ${style.ring} bg-card p-3`}>
               <div className="flex items-start gap-2.5">
-                <div className="mt-0.5">{style.icon}</div>
+                <span className="flex items-center h-5 shrink-0">{style.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold">{i.title}</span>
+                    <span className="text-sm font-semibold leading-5">{i.title}</span>
                     <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
                       {i.element}
                     </Badge>
@@ -139,8 +139,8 @@ export function InsightSection({
                     <ul className="mt-2 space-y-1 text-xs">
                       {i.fixes.map((fix, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <span className="text-primary mt-1">→</span>
-                          <span>{fix}</span>
+                          <span className="flex items-center h-4 text-primary leading-none shrink-0">→</span>
+                          <span className="leading-4">{fix}</span>
                         </li>
                       ))}
                     </ul>
@@ -148,6 +148,7 @@ export function InsightSection({
                 </div>
               </div>
             </li>
+
           );
         })}
       </ul>
