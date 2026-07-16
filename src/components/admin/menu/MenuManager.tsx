@@ -806,18 +806,32 @@ function MegaColumnsEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px]"
-                onClick={() =>
-                  updateColumn(idx, {
-                    links: [...col.links, { label_pl: "", label_en: "", href: "" }],
-                  })
-                }
-              >
-                + Link
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  onClick={() =>
+                    updateColumn(idx, {
+                      links: [...col.links, { label_pl: "", label_en: "", href: "" }],
+                    })
+                  }
+                >
+                  + Własny link
+                </Button>
+                <InternalContentPicker
+                  onPick={(p) =>
+                    updateColumn(idx, {
+                      links: [
+                        ...col.links,
+                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href },
+                      ],
+                    })
+                  }
+                  title="Dodaj link z wewnętrznej treści"
+                  variant="button"
+                />
+              </div>
             </div>
           </div>
         ))}
