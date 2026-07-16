@@ -72,8 +72,30 @@ function DropdownPanel({
 }) {
   if (node.mega_enabled) {
     const cfg = node.mega_config;
-    const cols = cfg.columns ?? [];
+    const configuredCols = cfg.columns ?? [];
+    // Fallback: gdy admin włączył mega ale nie skonfigurował kolumn,
+    // budujemy je z dzieci elementu (każde dziecko = kolumna, wnuki = linki).
+    const cols =
+      configuredCols.length > 0
+        ? configuredCols.map((col) => ({
+            title_pl: col.title_pl,
+            title_en: col.title_en,
+            href: col.href,
+            links: col.links ?? [],
+          }))
+        : node.children.map((child) => ({
+            title_pl: child.label_pl,
+            title_en: child.label_en,
+            href: child.href,
+            links: child.children.map((gc) => ({
+              label_pl: gc.label_pl,
+              label_en: gc.label_en,
+              href: gc.href,
+            })),
+          }));
+    if (cols.length === 0 && node.children.length === 0) return null;
     const width = cfg.width === "full" ? "100vw" : "min(1140px, calc(100vw - 32px))";
+    const cpr = Math.max(1, Math.min(cfg.columns_per_row ?? Math.min(cols.length || 1, 4), 6));
     return (
       <div
         role="menu"
@@ -83,9 +105,7 @@ function DropdownPanel({
       >
         <div
           className="grid gap-6"
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(1, Math.min(cfg.columns_per_row ?? 4, 6))}, minmax(0, 1fr))`,
-          }}
+          style={{ gridTemplateColumns: `repeat(${cpr}, minmax(0, 1fr))` }}
         >
           {cols.map((col, i) => {
             const title = (lang === "en" ? col.title_en : col.title_pl) || col.title_pl;
@@ -295,17 +315,18 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const label = pickLabel(node, lang);
   if (!label) return null;
   const hasChildren = node.children.length > 0;
-  const megaLinks = node.mega_enabled
-    ? (node.mega_config.columns ?? []).flatMap((col) =>
-        (col.links ?? []).map((lnk) => ({
-          label:
-            (lang === "en" ? lnk.label_en : lnk.label_pl) ||
-            lnk.label_pl ||
-            "",
-          href: safeUrl(lnk.href) || "#",
-        })),
-      )
-    : [];
+  const megaLinks =
+    node.mega_enabled && (node.mega_config.columns ?? []).length > 0
+      ? (node.mega_config.columns ?? []).flatMap((col) =>
+          (col.links ?? []).map((lnk) => ({
+            label:
+              (lang === "en" ? lnk.label_en : lnk.label_pl) ||
+              lnk.label_pl ||
+              "",
+            href: safeUrl(lnk.href) || "#",
+          })),
+        )
+      : [];
   const hasMega = megaLinks.length > 0;
 
   if (!hasChildren && !hasMega) {
