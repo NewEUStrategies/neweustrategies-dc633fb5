@@ -433,9 +433,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
         )}
 
         {data.showNewsletterOptIn !== false && (
-          <label className="widget-align-row flex w-full items-start gap-2 text-sm cursor-pointer leading-snug">
+          <label className="widget-align-row flex w-full items-center gap-2 text-sm cursor-pointer leading-snug">
             <Checkbox
-              className="mt-0.5 shrink-0"
+              className="shrink-0"
               checked={newsletter}
               onCheckedChange={(v) => setNewsletter(Boolean(v))}
             />
@@ -443,9 +443,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
           </label>
         )}
         {data.requireConsent !== false && (
-          <label className="widget-align-row flex w-full items-start gap-2 text-sm cursor-pointer leading-snug">
+          <label className="widget-align-row flex w-full items-center gap-2 text-sm cursor-pointer leading-snug">
             <Checkbox
-              className="mt-0.5 shrink-0"
+              className="shrink-0"
               checked={consent}
               onCheckedChange={(v) => setConsent(Boolean(v))}
               required
