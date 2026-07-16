@@ -11,9 +11,9 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import {
   taxonomyArchiveQueryOptions,
-  ARCHIVE_PAGE_SIZE,
   type ArchiveSort,
 } from "@/lib/queries/archives";
+
 import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
