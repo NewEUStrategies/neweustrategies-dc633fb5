@@ -378,6 +378,20 @@ export function JoinUsForm({
         if (v) custom[f.id] = v.slice(0, 500);
       }
 
+      // Interests picked in the widget go to CRM as grouped custom fields
+      // ("interests_areas" = categories, "interests_topics" = tags, plus a
+      // combined "interests" label list). Server persists them under
+      // aliases.custom.<key>, so CRM inherits the multiselect verbatim.
+      if (showInterests && picked.size > 0) {
+        const pickedItems = allItems.filter((it) => picked.has(it.id));
+        const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
+        const topics = pickedItems.filter((it) => it.type === "tag").map((it) => it.label);
+        const all = pickedItems.map((it) => it.label);
+        if (areas.length) custom.interests_areas = areas.join(", ").slice(0, 500);
+        if (topics.length) custom.interests_topics = topics.join(", ").slice(0, 500);
+        if (all.length) custom.interests = all.join(", ").slice(0, 500);
+      }
+
       const res = await subscribe({
         data: {
           email: trimmed,
