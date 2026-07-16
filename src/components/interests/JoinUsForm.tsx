@@ -23,6 +23,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { cn } from "@/lib/utils";
