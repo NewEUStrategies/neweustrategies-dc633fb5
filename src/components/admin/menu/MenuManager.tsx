@@ -43,6 +43,7 @@ interface ClientItem {
   href: string;
   target: "_self" | "_blank";
   css_class: string;
+  icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
 }
