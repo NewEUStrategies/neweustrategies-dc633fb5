@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, GripVertical, Save, Trash2, Loader2 } from "@/lib/lucide-shim";
+import { ChevronDown, ChevronRight, GripVertical, Save, Trash2, Loader2, ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { useServerFn } from "@tanstack/react-start";
 import { saveMenu as saveMenuFn } from "@/lib/menus/menu.functions";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
@@ -192,6 +192,89 @@ export function MenuManager({ menuKey }: Props) {
     });
   };
 
+  // Podpięcie w prawo: element staje się dzieckiem swojego poprzedniego rodzeństwa.
+  const indentItem = (local_id: string) => {
+    setItems((curr) => {
+      if (!curr) return curr;
+      const it = curr.find((i) => i.local_id === local_id);
+      if (!it) return curr;
+      const siblings = curr
+        .filter((i) => i.parent_local_id === it.parent_local_id)
+        .sort((a, b) => a.position - b.position);
+      const idx = siblings.findIndex((s) => s.local_id === local_id);
+      if (idx <= 0) return curr; // brak poprzedniego rodzeństwa
+      const newParent = siblings[idx - 1].local_id;
+      if (depthOf(curr, newParent) + 1 >= MAX_DEPTH) return curr;
+
+      const newParentChildren = curr
+        .filter((i) => i.parent_local_id === newParent)
+        .sort((a, b) => a.position - b.position);
+      const insertPos = newParentChildren.length;
+
+      const updatedItem: ClientItem = { ...it, parent_local_id: newParent, position: insertPos };
+      const remainingSiblings = siblings
+        .filter((s) => s.local_id !== local_id)
+        .map((s, i) => ({ ...s, position: i }));
+      const others = curr.filter(
+        (i) =>
+          i.parent_local_id !== it.parent_local_id &&
+          i.parent_local_id !== newParent &&
+          i.local_id !== local_id,
+      );
+      return [...others, ...remainingSiblings, ...newParentChildren, updatedItem];
+    });
+    setExpanded((s) => {
+      const it = (items ?? []).find((i) => i.local_id === local_id);
+      if (!it) return s;
+      const siblings = (items ?? [])
+        .filter((i) => i.parent_local_id === it.parent_local_id)
+        .sort((a, b) => a.position - b.position);
+      const idx = siblings.findIndex((sib) => sib.local_id === local_id);
+      if (idx <= 0) return s;
+      const n = new Set(s);
+      n.add(siblings[idx - 1].local_id);
+      return n;
+    });
+  };
+
+  // Cofnięcie w lewo: element wychodzi poziom wyżej, tuż za swoim rodzicem.
+  const outdentItem = (local_id: string) => {
+    setItems((curr) => {
+      if (!curr) return curr;
+      const it = curr.find((i) => i.local_id === local_id);
+      if (!it || !it.parent_local_id) return curr;
+      const parent = curr.find((i) => i.local_id === it.parent_local_id);
+      if (!parent) return curr;
+      const grandParent = parent.parent_local_id;
+
+      const grandSiblings = curr
+        .filter((i) => i.parent_local_id === grandParent)
+        .sort((a, b) => a.position - b.position);
+      const parentIdx = grandSiblings.findIndex((s) => s.local_id === parent.local_id);
+      const insertAt = parentIdx + 1;
+
+      const oldSiblings = curr
+        .filter((i) => i.parent_local_id === it.parent_local_id && i.local_id !== local_id)
+        .sort((a, b) => a.position - b.position)
+        .map((s, i) => ({ ...s, position: i }));
+
+      const updatedItem: ClientItem = { ...it, parent_local_id: grandParent };
+      const reorderedGrand = [
+        ...grandSiblings.slice(0, insertAt),
+        updatedItem,
+        ...grandSiblings.slice(insertAt),
+      ].map((s, i) => ({ ...s, position: i }));
+
+      const others = curr.filter(
+        (i) =>
+          i.parent_local_id !== it.parent_local_id &&
+          i.parent_local_id !== grandParent &&
+          i.local_id !== local_id,
+      );
+      return [...others, ...oldSiblings, ...reorderedGrand];
+    });
+  };
+
   const toggleExpanded = (id: string) => {
     setExpanded((s) => {
       const n = new Set(s);
@@ -275,16 +358,19 @@ export function MenuManager({ menuKey }: Props) {
               })}
             </p>
           )}
-          {tree.map((node) => (
+          {tree.map((node, i) => (
             <MenuNode
               key={node.item.local_id}
               node={node}
               depth={0}
+              siblingIndex={i}
               expanded={expanded}
               onToggleExpanded={toggleExpanded}
               onUpdate={updateItem}
               onRemove={removeItem}
               onMove={moveItem}
+              onIndent={indentItem}
+              onOutdent={outdentItem}
             />
           ))}
         </div>
@@ -328,14 +414,17 @@ function depthOf(items: ClientItem[], local_id: string): number {
 interface NodeProps {
   node: TreeNode;
   depth: number;
+  siblingIndex: number;
   expanded: Set<string>;
   onToggleExpanded: (id: string) => void;
   onUpdate: (id: string, patch: Partial<ClientItem>) => void;
   onRemove: (id: string) => void;
   onMove: (dragId: string, targetId: string | null, mode: "before" | "after" | "child") => void;
+  onIndent: (id: string) => void;
+  onOutdent: (id: string) => void;
 }
 
-function MenuNode({ node, depth, expanded, onToggleExpanded, onUpdate, onRemove, onMove }: NodeProps) {
+function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpdate, onRemove, onMove, onIndent, onOutdent }: NodeProps) {
   const { t } = useTranslation();
   const { item, children } = node;
   const isOpen = expanded.has(item.local_id);
@@ -413,6 +502,28 @@ function MenuNode({ node, depth, expanded, onToggleExpanded, onUpdate, onRemove,
               </span>
             )}
           </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => onOutdent(item.local_id)}
+            disabled={depth === 0}
+            aria-label={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo" })}
+            title={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo (poziom wyżej)" })}
+          >
+            <ArrowLeft className="h-3 w-3" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => onIndent(item.local_id)}
+            disabled={siblingIndex === 0 || depth + 1 >= MAX_DEPTH}
+            aria-label={t("admin.menu.indent", { defaultValue: "Podepnij w prawo" })}
+            title={t("admin.menu.indent", { defaultValue: "Podepnij w prawo (jako podstrona)" })}
+          >
+            <ArrowRight className="h-3 w-3" />
+          </Button>
           <Button
             size="icon"
             variant="ghost"
@@ -503,16 +614,19 @@ function MenuNode({ node, depth, expanded, onToggleExpanded, onUpdate, onRemove,
 
       {hasChildren && (
         <div className="ml-6 mt-1 space-y-1">
-          {children.map((child) => (
+          {children.map((child, i) => (
             <MenuNode
               key={child.item.local_id}
               node={child}
               depth={depth + 1}
+              siblingIndex={i}
               expanded={expanded}
               onToggleExpanded={onToggleExpanded}
               onUpdate={onUpdate}
               onRemove={onRemove}
               onMove={onMove}
+              onIndent={onIndent}
+              onOutdent={onOutdent}
             />
           ))}
         </div>
