@@ -266,27 +266,19 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
     enabled: status.configured,
   });
 
+  // Panel konfiguracji trybów - zawsze widoczny, żeby admin mógł włączyć
+  // dowolny sposób (Service Account, OAuth refresh, Measurement Protocol, Embed).
+  const configPanel = <Ga4ConfigPanel status={status} />;
+
   if (!status.configured) {
     return (
-      <Card className="p-6 space-y-3">
-        <div className="text-sm font-semibold">Podłącz Google Analytics 4</div>
-        <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-2">
-          <li>
-            W Google Cloud Console utwórz <b>Service Account</b> z rolą „Viewer" na projekcie i wygeneruj klucz JSON.
-          </li>
-          <li>
-            W Google Analytics 4 → <b>Admin</b> → <b>Property access management</b> dodaj adres e-mail service accounta jako „Viewer".
-          </li>
-          <li>
-            W Lovable dodaj sekrety: <code className="text-xs">GA4_SERVICE_ACCOUNT_JSON</code> (cała treść pliku JSON) oraz <code className="text-xs">GA4_PROPERTY_ID</code> (numeryczne ID właściwości).
-          </li>
-        </ol>
-        <div className="text-xs text-muted-foreground">
-          Stan: service account {status.hasServiceAccount ? <Badge>OK</Badge> : <Badge variant="outline">brak</Badge>} · property id {status.hasPropertyId ? <Badge>OK</Badge> : <Badge variant="outline">brak</Badge>}
-        </div>
-      </Card>
+      <div className="space-y-4">
+        {configPanel}
+        {status.hasEmbedUrl && status.embedUrl ? <Ga4EmbedCard url={status.embedUrl} /> : null}
+      </div>
     );
   }
+
 
   return (
     <div className="space-y-4">
