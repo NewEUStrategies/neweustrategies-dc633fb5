@@ -15,6 +15,8 @@ import {
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
 import { formatDate } from "@/lib/i18n/format";
+import { trackRelatedClick } from "@/lib/relatedClickBeacon";
+
 
 export interface RelatedPostsProps {
   postId: string;
@@ -62,9 +64,21 @@ export function RelatedPosts({
       aria-label={title}
     >
       <h2 className="font-display text-2xl mb-5">{title}</h2>
-      {layout === "grid" && <RelatedGrid posts={posts} columns={columns} cfg={cfg} lang={lang} />}
-      {layout === "list" && <RelatedList posts={posts} cfg={cfg} lang={lang} />}
-      {layout === "slider" && <RelatedSlider posts={posts} cfg={cfg} lang={lang} />}
+      {layout === "grid" && (
+        <RelatedGrid
+          posts={posts}
+          columns={columns}
+          cfg={cfg}
+          lang={lang}
+          sourcePostId={postId}
+        />
+      )}
+      {layout === "list" && (
+        <RelatedList posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
+      {layout === "slider" && (
+        <RelatedSlider posts={posts} cfg={cfg} lang={lang} sourcePostId={postId} />
+      )}
     </section>
   );
 }
@@ -75,7 +89,9 @@ interface ViewProps {
   posts: readonly BlogListItem[];
   cfg: RelatedPostsConfig;
   lang: "pl" | "en";
+  sourcePostId: string;
 }
+
 
 function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
   if (!cfg.show_cover || !p.cover_image_url) return null;
@@ -96,28 +112,30 @@ function CardBody({
   p,
   cfg,
   lang,
+  sourcePostId,
 }: {
   p: BlogListItem;
   cfg: RelatedPostsConfig;
   lang: "pl" | "en";
+  sourcePostId: string;
 }) {
   const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
   const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
   return (
     <div className="space-y-1">
       <h3 className="font-display text-base leading-snug">
-        {/* Viewport preload: by the time the reader reaches the end of the
-            article these cards are the most likely next navigation - warming
-            their loaders here makes the transition feel instant, and the page
-            is already idle when this section scrolls in. */}
+        {/* Viewport preload + beacon: klikając w rekomendację zapisujemy klik
+            do `related_post_clicks`, żeby panel BI mógł liczyć CTR i sankey. */}
         <Link
           to={p.href as "/"}
           preload="viewport"
           className="hover:text-brand-ink transition-colors"
+          onClick={() => trackRelatedClick(sourcePostId, p.id)}
         >
           {title}
         </Link>
       </h3>
+
       {cfg.show_excerpt && excerpt && (
         <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
       )}
@@ -135,7 +153,9 @@ function RelatedGrid({
   columns,
   cfg,
   lang,
+  sourcePostId,
 }: ViewProps & { columns: RelatedPostsConfig["columns"] }) {
+
   const colClass =
     columns === 2
       ? "sm:grid-cols-2"
@@ -147,14 +167,15 @@ function RelatedGrid({
       {posts.map((p) => (
         <article key={p.id} className="space-y-3">
           <CardThumb p={p} cfg={cfg} />
-          <CardBody p={p} cfg={cfg} lang={lang} />
+          <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
+
         </article>
       ))}
     </div>
   );
 }
 
-function RelatedList({ posts, cfg, lang }: ViewProps) {
+function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
   return (
     <ul className="divide-y divide-border">
       {posts.map((p) => (
@@ -172,7 +193,8 @@ function RelatedList({ posts, cfg, lang }: ViewProps) {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <CardBody p={p} cfg={cfg} lang={lang} />
+            <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
+
           </div>
         </li>
       ))}
@@ -180,7 +202,7 @@ function RelatedList({ posts, cfg, lang }: ViewProps) {
   );
 }
 
-function RelatedSlider({ posts, cfg, lang }: ViewProps) {
+function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
 
@@ -212,7 +234,7 @@ function RelatedSlider({ posts, cfg, lang }: ViewProps) {
             className="snap-start shrink-0 w-[85%] sm:w-[45%] lg:w-[31%] space-y-3"
           >
             <CardThumb p={p} cfg={cfg} />
-            <CardBody p={p} cfg={cfg} lang={lang} />
+            <CardBody p={p} cfg={cfg} lang={lang} sourcePostId={sourcePostId} />
           </article>
         ))}
       </div>

@@ -20,7 +20,7 @@ export const relatedPostsConfigQueryOptions = () =>
       const { data } = await supabase
         .from("related_posts_config")
         .select(
-          "enabled, position, after_paragraph, layout, columns, items_limit, source_strategy, show_excerpt, show_meta, show_cover, recency_boost_days, slider_autoplay, slider_interval_ms, title_pl, title_en",
+          "enabled, position, after_paragraph, layout, columns, items_limit, source_strategy, show_excerpt, show_meta, show_cover, recency_boost_days, slider_autoplay, slider_interval_ms, title_pl, title_en, weight_categories, weight_tags, weight_author, weight_recency, weight_popularity, weight_dwell, weight_personalization, use_idf, min_score",
         )
         .limit(1)
         .maybeSingle();
@@ -29,6 +29,7 @@ export const relatedPostsConfigQueryOptions = () =>
     },
     staleTime: RELATED_TTL,
   });
+
 
 export interface RelatedPostsInput {
   postId: string;
