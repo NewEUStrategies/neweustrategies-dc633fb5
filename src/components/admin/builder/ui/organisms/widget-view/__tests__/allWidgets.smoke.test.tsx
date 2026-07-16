@@ -41,10 +41,18 @@ vi.mock("@/integrations/supabase/client", () => {
   builder.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
   // Thenable: `await query` (or any chain tail) resolves to an empty dataset.
   builder.then = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
+  // Realtime no-op: the interests widgets (JoinUsForm / InterestsCustomizer via
+  // useInterests) subscribe to postgres_changes on mount and remove the channel
+  // on unmount - the mock only needs a self-chaining stub.
+  const channel: Record<string, unknown> = {};
+  channel.on = vi.fn(() => channel);
+  channel.subscribe = vi.fn(() => channel);
   return {
     supabase: {
       from: vi.fn(() => builder),
       rpc: vi.fn(async () => ({ data: [], error: null })),
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(async () => "ok"),
       auth: {
         getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
         getUser: vi.fn(async () => ({ data: { user: null }, error: null })),
@@ -66,6 +74,10 @@ vi.mock("react-i18next", () => ({
     t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
     i18n: { language: "pl", changeLanguage: () => Promise.resolve() },
   }),
+  // lib/i18n.ts (reached via the widget import graph) calls
+  // `i18n.use(initReactI18next)` at module import - a full-module mock must
+  // export a functional 3rd-party plugin stub or importing the suite throws.
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 // PodcastLatestView / WebStoriesCarouselView render TanStack <Link>, which needs
