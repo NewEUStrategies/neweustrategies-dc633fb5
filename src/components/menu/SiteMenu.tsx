@@ -83,16 +83,36 @@ function DropdownPanel({
   if (useMega) {
     return <MegaPanel node={node} lang={lang} onRequestClose={onRequestClose} />;
   }
+  const parentLabel = pickLabel(node, lang);
+  const eyebrow = lang === "en" ? "In section" : "W sekcji";
   return (
-    <ul
+    <div
       role="menu"
-      className="min-w-[240px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+      className="overflow-hidden rounded-lg border border-border/40 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5"
+      style={{ width: "min(360px, calc(100vw - 32px))" }}
       onMouseLeave={onRequestClose}
     >
-      {node.children.map((child) => (
-        <SubmenuItem key={child.id} node={child} lang={lang} />
-      ))}
-    </ul>
+      {parentLabel ? (
+        <div className="flex items-center gap-2 border-b border-border/50 bg-muted/40 px-5 py-3">
+          <span
+            aria-hidden
+            className="inline-block h-4 w-1 rounded-sm"
+            style={{ background: "var(--brand)" }}
+          />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+            {eyebrow}
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/80">
+            {parentLabel}
+          </span>
+        </div>
+      ) : null}
+      <ul className="flex flex-col p-2">
+        {node.children.map((child) => (
+          <SubmenuItem key={child.id} node={child} lang={lang} />
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -171,10 +191,16 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="block rounded px-3 py-2 text-sm hover:bg-muted"
+          className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70"
           role="menuitem"
         >
-          {label}
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
+          />
+          <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
+            {label}
+          </span>
         </AppLink>
       </li>
     );
@@ -186,24 +212,28 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <div className="flex items-center justify-between rounded px-3 py-2 text-sm hover:bg-muted">
+      <div className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70">
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
+        />
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="flex-1"
+          className="flex-1 text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand"
           role="menuitem"
           aria-haspopup="menu"
           aria-expanded={open}
         >
           {label}
         </AppLink>
-        <ChevronRight size={14} aria-hidden className="text-muted-foreground" />
+        <ChevronRight size={14} aria-hidden className="text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
       </div>
       {open ? (
         <ul
           role="menu"
-          className="absolute left-full top-0 z-50 ml-1 min-w-[220px] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+          className="absolute left-full top-0 z-50 ml-2 flex min-w-[240px] flex-col rounded-lg border border-border/40 bg-popover p-2 text-popover-foreground shadow-2xl ring-1 ring-black/5"
         >
           {node.children.map((child) => (
             <SubmenuItem key={child.id} node={child} lang={lang} />
@@ -335,7 +365,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
                 node.children.length > 0 && node.children.some((c) => c.children.length > 0);
               const isMega = node.mega_enabled || hasNested;
               const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
-              const panelWidth = isMega ? Math.min(1120, vw - 32) : 260;
+              const panelWidth = isMega ? Math.min(1120, vw - 32) : Math.min(360, vw - 32);
               const clampedLeft = isMega
                 ? Math.round((vw - panelWidth) / 2)
                 : Math.max(16, Math.min(anchor.left, vw - panelWidth - 16));
