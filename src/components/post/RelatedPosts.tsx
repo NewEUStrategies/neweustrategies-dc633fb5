@@ -124,30 +124,18 @@ function CardBody({
   return (
     <div className="space-y-1">
       <h3 className="font-display text-base leading-snug">
+        {/* Viewport preload + beacon: klikając w rekomendację zapisujemy klik
+            do `related_post_clicks`, żeby panel BI mógł liczyć CTR i sankey. */}
         <Link
           to={p.href as "/"}
           preload="viewport"
           className="hover:text-brand-ink transition-colors"
           onClick={() => trackRelatedClick(sourcePostId, p.id)}
         >
-
-  const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
-  const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
-  return (
-    <div className="space-y-1">
-      <h3 className="font-display text-base leading-snug">
-        {/* Viewport preload: by the time the reader reaches the end of the
-            article these cards are the most likely next navigation - warming
-            their loaders here makes the transition feel instant, and the page
-            is already idle when this section scrolls in. */}
-        <Link
-          to={p.href as "/"}
-          preload="viewport"
-          className="hover:text-brand-ink transition-colors"
-        >
           {title}
         </Link>
       </h3>
+
       {cfg.show_excerpt && excerpt && (
         <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
       )}
