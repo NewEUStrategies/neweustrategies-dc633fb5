@@ -387,6 +387,7 @@ export type WidgetType =
   // Navigation
   | "nav-link"
   | "mega-menu"
+  | "menu"
   // Site chrome (header/footer/menu)
   | "social-icons"
   | "lang-switcher"

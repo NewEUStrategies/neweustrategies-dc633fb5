@@ -1027,6 +1027,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   // Actual array is attached after WIDGET_SCHEMAS is constructed (see bottom of file).
   contact: [],
 
+  menu: [
+    {
+      key: "menu_key",
+      type: "text",
+      label: "Klucz menu",
+      placeholder: "main",
+      hint: "Klucz menu zdefiniowanego w Wygląd → Menu (domyślnie: main).",
+    },
+  ],
+
   "nav-link": [
     { key: "label", type: "i18nText", label: "Etykieta" },
     { key: "href", type: "url", label: "Docelowy URL", placeholder: "/about lub https://…" },

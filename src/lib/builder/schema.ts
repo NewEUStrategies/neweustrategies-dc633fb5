@@ -68,6 +68,7 @@ export const WIDGET_TYPES = [
   // Navigation
   "nav-link",
   "mega-menu",
+  "menu",
   // Site chrome
   "social-icons",
   "lang-switcher",

@@ -29,6 +29,7 @@ export const COMPACT_WIDGET_TYPES = new Set([
   "account-link",
   "nav-link",
   "mega-menu",
+  "menu",
   "newsletter",
 ]);
 

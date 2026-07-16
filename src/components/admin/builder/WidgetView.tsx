@@ -74,6 +74,7 @@ import { Editable } from "./ui/molecules/Editable";
 // Eager: layout-critical / above-the-fold / navigation widgets.
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
+import { SiteMenu } from "@/components/menu/SiteMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
@@ -653,6 +654,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           lang={lang}
           mobile={device === "mobile"}
         />,
+      );
+    }
+    case "menu": {
+      const menuKey = getStr(c, "menu_key") || "main";
+      return wrap(
+        <SiteMenu menuKey={menuKey} lang={lang} mobile={device === "mobile"} />,
       );
     }
     case "tts": {
