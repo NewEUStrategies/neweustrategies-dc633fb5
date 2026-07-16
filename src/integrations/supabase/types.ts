@@ -3213,6 +3213,110 @@ export type Database = {
           },
         ]
       }
+      menu_items: {
+        Row: {
+          created_at: string
+          css_class: string
+          href: string
+          id: string
+          item_type: Database["public"]["Enums"]["menu_item_type"]
+          label_en: string
+          label_pl: string
+          mega_config: Json
+          mega_enabled: boolean
+          menu_id: string
+          parent_id: string | null
+          position: number
+          ref_id: string | null
+          target: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          css_class?: string
+          href?: string
+          id?: string
+          item_type: Database["public"]["Enums"]["menu_item_type"]
+          label_en?: string
+          label_pl?: string
+          mega_config?: Json
+          mega_enabled?: boolean
+          menu_id: string
+          parent_id?: string | null
+          position?: number
+          ref_id?: string | null
+          target?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          css_class?: string
+          href?: string
+          id?: string
+          item_type?: Database["public"]["Enums"]["menu_item_type"]
+          label_en?: string
+          label_pl?: string
+          mega_config?: Json
+          mega_enabled?: boolean
+          menu_id?: string
+          parent_id?: string | null
+          position?: number
+          ref_id?: string | null
+          target?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "menus"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menus: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menus_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           conversation_id: string
@@ -8925,6 +9029,7 @@ export type Database = {
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
       invitation_mode: "magic_link" | "temp_password"
       invitation_status: "pending" | "sent" | "accepted" | "revoked" | "failed"
+      menu_item_type: "page" | "post" | "category" | "tag" | "custom"
       name_gender: "male" | "female" | "neutral"
       order_kind: "subscription" | "one_time"
       order_status:
@@ -9117,6 +9222,7 @@ export const Constants = {
       editor_type: ["richtext", "markdown", "builder", "blocks"],
       invitation_mode: ["magic_link", "temp_password"],
       invitation_status: ["pending", "sent", "accepted", "revoked", "failed"],
+      menu_item_type: ["page", "post", "category", "tag", "custom"],
       name_gender: ["male", "female", "neutral"],
       order_kind: ["subscription", "one_time"],
       order_status: [
