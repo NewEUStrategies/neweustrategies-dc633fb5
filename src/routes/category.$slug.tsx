@@ -139,8 +139,8 @@ export const Route = createFileRoute("/category/$slug")({
 
 function CategoryArchivePage() {
   const { slug } = Route.useParams();
-  const search = Route.useSearch();
-  return <TaxonomyPage kind="category" slug={slug} page={search.page} sort={search.sort} />;
+  const { page = 1, sort = "newest" } = Route.useSearch();
+  return <TaxonomyPage kind="category" slug={slug} page={page} sort={sort} />;
 }
 
 export function TaxonomyPage({
