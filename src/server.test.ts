@@ -169,19 +169,24 @@ describe("SSR wrapper - h3 swallowed HTTPError normalization", () => {
 
   it("clears a poisoned entry after an opaque response so the next request can reload it", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const wrapper = await loadWrapper(
-      () =>
-        new Response(H3_SWALLOWED, {
-          status: 500,
-          headers: { "content-type": "application/json" },
-        }),
-    );
-    const mod = (await import("./server")) as typeof import("./server");
+    // Verify the invariant through observable behavior: the mock loader must
+    // be re-invoked on the second request after the wrapper cleared its
+    // cached entry. No peeking at internal module state needed.
+    let calls = 0;
+    const wrapper = await loadWrapper(() => {
+      calls += 1;
+      return new Response(H3_SWALLOWED, {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    });
 
-    expect(mod.isServerEntryCached()).toBe(false);
     const first = await wrapper.fetch(new Request("http://localhost/"), {}, {});
     expect(first.status).toBe(500);
-    expect(mod.isServerEntryCached()).toBe(false);
+    const second = await wrapper.fetch(new Request("http://localhost/"), {}, {});
+    expect(second.status).toBe(500);
+    // If the poisoned entry had been reused, `calls` would stay at 1.
+    expect(calls).toBe(2);
   });
 });
 
