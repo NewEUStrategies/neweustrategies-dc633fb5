@@ -158,6 +158,7 @@ import { Route as AdminSettingsMarketingRouteImport } from './routes/admin.setti
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
+import { Route as AdminSettingsCookieBannerRouteImport } from './routes/admin.settings.cookie-banner'
 import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
@@ -939,6 +940,12 @@ const AdminSettingsDesignRoute = AdminSettingsDesignRouteImport.update({
   path: '/design',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsCookieBannerRoute =
+  AdminSettingsCookieBannerRouteImport.update({
+    id: '/cookie-banner',
+    path: '/cookie-banner',
+    getParentRoute: () => AdminSettingsRoute,
+  } as any)
 const AdminSettingsAnalyticsRoute = AdminSettingsAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -1268,6 +1275,7 @@ export interface FileRoutesByFullPath {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
+  '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -1445,6 +1453,7 @@ export interface FileRoutesByTo {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
+  '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -1630,6 +1639,7 @@ export interface FileRoutesById {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
+  '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -1816,6 +1826,7 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/analytics'
+    | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
@@ -1993,6 +2004,7 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/analytics'
+    | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
@@ -2177,6 +2189,7 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/analytics'
+    | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
@@ -3326,6 +3339,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsDesignRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/cookie-banner': {
+      id: '/admin/settings/cookie-banner'
+      path: '/cookie-banner'
+      fullPath: '/admin/settings/cookie-banner'
+      preLoaderRoute: typeof AdminSettingsCookieBannerRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/analytics': {
       id: '/admin/settings/analytics'
       path: '/analytics'
@@ -3701,6 +3721,7 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 
 interface AdminSettingsRouteChildren {
   AdminSettingsAnalyticsRoute: typeof AdminSettingsAnalyticsRoute
+  AdminSettingsCookieBannerRoute: typeof AdminSettingsCookieBannerRoute
   AdminSettingsDesignRoute: typeof AdminSettingsDesignRoute
   AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
@@ -3715,6 +3736,7 @@ interface AdminSettingsRouteChildren {
 
 const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsAnalyticsRoute: AdminSettingsAnalyticsRoute,
+  AdminSettingsCookieBannerRoute: AdminSettingsCookieBannerRoute,
   AdminSettingsDesignRoute: AdminSettingsDesignRoute,
   AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
