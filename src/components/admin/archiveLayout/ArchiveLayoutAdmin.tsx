@@ -66,7 +66,7 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
       };
       const { error } = await supabase
         .from("archive_layout_settings")
-        .upsert(payload, { onConflict: "archive_type" });
+        .upsert(payload, { onConflict: "tenant_id,archive_type" });
       if (error) throw error;
     },
     onSuccess: () => {
