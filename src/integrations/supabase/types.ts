@@ -3284,6 +3284,7 @@ export type Database = {
           created_at: string
           css_class: string
           href: string
+          icon: string
           id: string
           item_type: Database["public"]["Enums"]["menu_item_type"]
           label_en: string
@@ -3301,6 +3302,7 @@ export type Database = {
           created_at?: string
           css_class?: string
           href?: string
+          icon?: string
           id?: string
           item_type: Database["public"]["Enums"]["menu_item_type"]
           label_en?: string
@@ -3318,6 +3320,7 @@ export type Database = {
           created_at?: string
           css_class?: string
           href?: string
+          icon?: string
           id?: string
           item_type?: Database["public"]["Enums"]["menu_item_type"]
           label_en?: string

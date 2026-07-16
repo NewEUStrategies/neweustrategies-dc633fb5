@@ -43,6 +43,7 @@ interface ClientItem {
   href: string;
   target: "_self" | "_blank";
   css_class: string;
+  icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
 }
@@ -79,6 +80,7 @@ export function MenuManager({ menuKey }: Props) {
       href: it.href,
       target: (it.target === "_blank" ? "_blank" : "_self") as "_self" | "_blank",
       css_class: it.css_class,
+      icon: it.icon ?? "",
       mega_enabled: it.mega_enabled,
       mega_config: it.mega_config,
     }));
@@ -147,6 +149,7 @@ export function MenuManager({ menuKey }: Props) {
         href: p.href,
         target: "_self",
         css_class: "",
+        icon: "",
         mega_enabled: false,
         mega_config: DEFAULT_MEGA_CONFIG,
       }));
@@ -302,6 +305,7 @@ export function MenuManager({ menuKey }: Props) {
       href: it.href,
       target: it.target,
       css_class: it.css_class,
+      icon: it.icon,
       mega_enabled: it.mega_enabled,
       mega_config: it.mega_config,
     }));
@@ -703,6 +707,14 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
                   onChange={(e) => onUpdate(item.local_id, { css_class: e.target.value })}
                   className="h-8 text-xs"
                 />
+              </Field>
+              <Field label={t("admin.menu.icon", { defaultValue: "Ikona" })}>
+                <div className="h-8 flex items-center">
+                  <LucideIconPicker
+                    value={item.icon}
+                    onChange={(name) => onUpdate(item.local_id, { icon: name ?? "" })}
+                  />
+                </div>
               </Field>
               {depth === 0 && (
                 <Field label={t("admin.menu.megaToggle", { defaultValue: "Mega panel" })}>

@@ -50,6 +50,7 @@ export const menuItemInputSchema = z.object({
   href: z.string().trim().max(1000).default(""),
   target: z.enum(["_self", "_blank"]).default("_self"),
   css_class: z.string().trim().max(200).default(""),
+  icon: z.string().trim().max(64).default(""),
   mega_enabled: z.boolean().default(false),
   mega_config: megaConfigSchema.default(DEFAULT_MEGA_CONFIG),
 });
@@ -73,6 +74,7 @@ export interface MenuItemRow {
   href: string;
   target: string;
   css_class: string;
+  icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
 }

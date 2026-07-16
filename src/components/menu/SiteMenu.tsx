@@ -9,6 +9,7 @@ import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitize";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
@@ -194,10 +195,19 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70"
           role="menuitem"
         >
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
-          />
+          {node.icon ? (
+            <span
+              aria-hidden
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand"
+            >
+              <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} />
+            </span>
+          ) : (
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
+            />
+          )}
           <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
             {label}
           </span>
@@ -213,10 +223,19 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       onMouseLeave={() => setOpen(false)}
     >
       <div className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70">
-        <span
-          aria-hidden
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
-        />
+        {node.icon ? (
+          <span
+            aria-hidden
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand"
+          >
+            <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} />
+          </span>
+        ) : (
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
+          />
+        )}
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
@@ -323,8 +342,11 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
+          className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
         >
+          {node.icon ? (
+            <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+          ) : null}
           {label}
         </AppLink>
       </li>
@@ -347,8 +369,11 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
+        {node.icon ? (
+          <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+        ) : null}
         {label}
         <ChevronDown
           size={14}
@@ -425,8 +450,11 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
-          className="block px-3 py-2 text-sm font-medium"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium"
         >
+          {node.icon ? (
+            <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+          ) : null}
           {label}
         </AppLink>
       </li>
@@ -436,7 +464,12 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     <li>
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium">
-          {label}
+          <span className="flex items-center gap-2">
+            {node.icon ? (
+              <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+            ) : null}
+            {label}
+          </span>
           <ChevronDown
             size={14}
             className="transition-transform group-open:rotate-180"
