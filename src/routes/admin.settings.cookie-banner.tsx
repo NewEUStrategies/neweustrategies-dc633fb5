@@ -37,32 +37,15 @@ function ColorField({
   onChange: (v: string) => void;
   placeholder: string;
 }) {
-  const isHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
   return (
     <Field label={label}>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={isHex ? value.trim() : "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-12 rounded-md border border-border bg-background cursor-pointer"
-          aria-label={`${label} - color picker`}
-        />
-        <Text
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            reset
-          </button>
-        )}
-      </div>
+      <AdminColorPicker
+        value={value || undefined}
+        onChange={(v) => onChange(v ?? "")}
+        placeholder={placeholder}
+        allowTransparent={false}
+        ariaLabel={`${label} - wybierz kolor`}
+      />
     </Field>
   );
 }
