@@ -162,6 +162,11 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
         </div>
       </section>
 
+      {/* Live preview */}
+      <ArchiveLivePreview archiveType={archiveType} settings={draft} lang={previewLang} />
+
+
+
       {/* Display toggles */}
       <FieldsGrid title={t("archiveLayout.sections.display")}>
         <Toggle
