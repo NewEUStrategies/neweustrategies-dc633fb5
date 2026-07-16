@@ -77,7 +77,7 @@ function LazyFallback() {
 const FALLBACK = <LazyFallback />;
 
 /** Wrap a `React.lazy` chunk in Suspense + typed prop forwarding. */
-function withSuspense<P>(Lazy: ComponentType<P>): (props: P) => JSX.Element {
+function withSuspense<P>(Lazy: ComponentType<P>): (props: P) => ReactElement {
   return function Suspended(props: P) {
     return (
       <Suspense fallback={FALLBACK}>
