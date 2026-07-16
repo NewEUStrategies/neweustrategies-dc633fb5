@@ -66,7 +66,7 @@ export const getMenuWithItems = createServerFn({ method: "GET" })
     const { data: items, error: itemsErr } = await supabase
       .from("menu_items")
       .select(
-        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, mega_enabled, mega_config",
+        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config",
       )
       .eq("menu_id", menu.id)
       .order("position");
@@ -86,6 +86,7 @@ export const getMenuWithItems = createServerFn({ method: "GET" })
       href: (row.href as string) ?? "",
       target: (row.target as string) ?? "_self",
       css_class: (row.css_class as string) ?? "",
+      icon: ((row as { icon?: string | null }).icon as string | null) ?? "",
       mega_enabled: Boolean(row.mega_enabled),
       mega_config: parseMegaConfig(row.mega_config),
     }));
