@@ -526,6 +526,7 @@ export function ConsentBanner() {
           <Button
             size="sm"
             variant="outline"
+            className="text-[11px]"
             onClick={() => {
               save(draft);
               setDetailsOpen(false);
@@ -536,6 +537,7 @@ export function ConsentBanner() {
           </Button>
           <Button
             size="sm"
+            className="text-[11px]"
             onClick={() => {
               acceptAll();
               setDetailsOpen(false);
@@ -547,6 +549,7 @@ export function ConsentBanner() {
           <Button
             size="sm"
             variant="ghost"
+            className="text-[11px]"
             onClick={() => {
               rejectAll();
               setDetailsOpen(false);
