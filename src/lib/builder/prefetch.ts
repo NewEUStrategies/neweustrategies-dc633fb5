@@ -177,11 +177,30 @@ async function prefetchWidgets(
   widgets: WidgetNode[],
   lang: Lang,
 ): Promise<void> {
-  const tasks = widgets
-    .flatMap((widget) => widgetQueryOptionsList(widget, lang))
-    .map((options) => prefetchBuilderSectionQuery(queryClient, options));
+  // Guard against sync throws in query-options builders or the prefetch call
+  // itself: any escape here would bubble up through the SSR loader and
+  // corrupt the dehydrated $_TSR.router payload (client would then blank).
+  const tasks: Promise<unknown>[] = [];
+  for (const widget of widgets) {
+    let optionsList: ReturnType<typeof widgetQueryOptionsList> = [];
+    try {
+      optionsList = widgetQueryOptionsList(widget, lang);
+    } catch {
+      continue;
+    }
+    for (const options of optionsList) {
+      try {
+        tasks.push(
+          Promise.resolve(prefetchBuilderSectionQuery(queryClient, options)).catch(() => undefined),
+        );
+      } catch {
+        /* swallow — a broken single widget must never fail the whole prefetch */
+      }
+    }
+  }
   await Promise.allSettled(tasks);
 }
+
 
 export async function prefetchSectionQueries(
   queryClient: QueryClient,
