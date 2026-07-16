@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Checkbox, SaveBar } from "@/components/admin/settings/fields";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import {
   COOKIE_BANNER_DEFAULTS,
   COOKIE_BANNER_SETTINGS_KEY,
