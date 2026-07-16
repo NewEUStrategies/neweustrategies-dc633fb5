@@ -13,6 +13,7 @@ import {
   Loader2,
   ExternalLink,
   RefreshCw,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +38,11 @@ const Ga4BiDashboard = lazy(() =>
 );
 const VitalsBiDashboard = lazy(() =>
   import("@/components/admin/analytics/VitalsBiDashboard").then((m) => ({ default: m.VitalsBiDashboard })),
+);
+const AudienceSegmentsDashboard = lazy(() =>
+  import("@/components/admin/analytics/AudienceSegmentsDashboard").then((m) => ({
+    default: m.AudienceSegmentsDashboard,
+  })),
 );
 
 function DashboardFallback() {
@@ -556,6 +562,9 @@ function AnalyticsPage() {
           <TabsTrigger value="vitals">
             <Gauge className="w-3.5 h-3.5 mr-2" /> Web Vitals
           </TabsTrigger>
+          <TabsTrigger value="audience">
+            <Users className="w-3.5 h-3.5 mr-2" /> Audytorium
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -590,6 +599,12 @@ function AnalyticsPage() {
               /admin/performance
             </a>
           </div>
+        </TabsContent>
+
+        <TabsContent value="audience" className="mt-4">
+          <Suspense fallback={<DashboardFallback />}>
+            <AudienceSegmentsDashboard />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>
