@@ -88,7 +88,7 @@ export function AdminListToolbar({
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder={searchPlaceholder ?? t("admin.list.search", { defaultValue: "Szukaj…" })}
-          className="pl-7 h-8 text-xs"
+          className="pl-8 h-8 text-xs"
         />
       </div>
 

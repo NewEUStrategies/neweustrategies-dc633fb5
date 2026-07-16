@@ -940,7 +940,7 @@ export function MediaManager() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("admin.list.searchMedia", { defaultValue: "Szukaj plików…" })}
-            className="pl-7 h-8 text-xs w-[240px]"
+            className="pl-8 h-8 text-xs w-[240px]"
           />
         </div>
       </div>

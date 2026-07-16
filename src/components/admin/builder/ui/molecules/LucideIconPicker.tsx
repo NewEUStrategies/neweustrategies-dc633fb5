@@ -247,7 +247,7 @@ export function LucideIconPicker({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Szukaj (np. rocket, users)"
-                  className="h-8 text-xs pl-7"
+                  className="h-8 text-xs pl-8"
                 />
               </div>
               {current ? (

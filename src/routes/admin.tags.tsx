@@ -99,7 +99,7 @@ function Tags() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("admin.list.searchTags", { defaultValue: "Szukaj tagów…" })}
-            className="pl-7 h-8 text-xs"
+            className="pl-8 h-8 text-xs"
           />
         </div>
         {search && (

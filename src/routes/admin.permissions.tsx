@@ -483,7 +483,7 @@ function PermissionsMatrix() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t("Szukaj uprawnienia…", "Search capability…")}
-              className="pl-7 h-8 w-64 text-sm"
+              className="pl-8 h-8 w-64 text-sm"
             />
           </div>
         </div>

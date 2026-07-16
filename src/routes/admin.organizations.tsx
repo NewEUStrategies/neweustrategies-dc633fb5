@@ -347,7 +347,7 @@ function SeatManager({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={L("e-mail konta", "account email")}
-            className="h-8 pl-7 text-sm"
+            className="h-8 pl-8 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();

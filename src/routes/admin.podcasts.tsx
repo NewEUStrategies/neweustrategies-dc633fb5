@@ -408,7 +408,7 @@ function Page() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Szukaj odcinka…"
-                  className="pl-8"
+                  className="pl-9"
                 />
               </div>
               <div className="flex items-center gap-1 p-1 rounded-md bg-muted/60 border border-border">
