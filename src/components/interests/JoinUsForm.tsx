@@ -269,6 +269,57 @@ export function JoinUsForm({
     return all.filter((it) => set.has(it.slug.toLowerCase()));
   }, [catalog.data, interestSlugs]);
 
+  // Grupowanie po obszarach: kategorie dzieci trafiają pod etykietę rodzica
+  // (Region, Specjalizacja...), top-level kategorie (bez parenta) lądują pod
+  // "Obszary tematyczne", a tagi w osobnej grupie "Tematy". Kolejność grup
+  // jest deterministyczna: najpierw znane obszary z drzewa kategorii, potem
+  // pozostałe. Struktura używana przez droplist i chips zarazem.
+  interface InterestGroup {
+    key: string;
+    title: string;
+    items: typeof allItems;
+    parentSlug: string | null;
+  }
+  const groupedItems = useMemo<InterestGroup[]>(() => {
+    const topLevelAreaTitle = lang === "en" ? "Areas" : "Obszary";
+    const topicsTitle = lang === "en" ? "Topics" : "Tematy";
+    const byParent = new Map<string, InterestGroup>();
+    const topLevelCats: typeof allItems = [];
+    const tagItems: typeof allItems = [];
+    const orderedKeys: string[] = [];
+    for (const it of allItems) {
+      if (it.type === "tag") {
+        tagItems.push(it);
+        continue;
+      }
+      const parentLabel = it.parentLabel ?? null;
+      const parentSlug = it.parentSlug ?? null;
+      if (!parentLabel || !parentSlug) {
+        topLevelCats.push(it);
+        continue;
+      }
+      const key = `parent:${parentSlug}`;
+      if (!byParent.has(key)) {
+        byParent.set(key, { key, title: parentLabel, items: [], parentSlug });
+        orderedKeys.push(key);
+      }
+      byParent.get(key)!.items.push(it);
+    }
+    const groups: InterestGroup[] = [];
+    for (const key of orderedKeys) {
+      const g = byParent.get(key)!;
+      if (g.items.length > 0) groups.push(g);
+    }
+    if (topLevelCats.length > 0) {
+      groups.push({ key: "top", title: topLevelAreaTitle, items: topLevelCats, parentSlug: null });
+    }
+    if (tagItems.length > 0) {
+      groups.push({ key: "tags", title: topicsTitle, items: tagItems, parentSlug: null });
+    }
+    return groups;
+  }, [allItems, lang]);
+
+
   const togglePick = (id: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
