@@ -611,6 +611,30 @@ export function JoinUsForm({
       }
     }
 
+    // Zalogowany user: powiąż subskrypcję z auth.uid() i uzupełnij PUSTE pola profilu
+    // (RPC join_us_link_and_backfill po stronie SQL używa COALESCE - nie nadpisuje
+    // istniejących wartości). Niekrytyczne dla samego zapisu do newslettera.
+    if (my.userId) {
+      try {
+        await linkAndBackfill({
+          data: {
+            email: trimmed,
+            firstName,
+            lastName,
+            country: extra.country.trim(),
+            linkedin: extra.linkedin.trim(),
+            phone: extra.phone.trim(),
+            company: extra.company.trim(),
+            position: extra.position.trim(),
+          },
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
+
+
+
     setState("ok");
     setEmail("");
     setName("");
