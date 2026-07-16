@@ -1,27 +1,52 @@
 // Tag archive: /tag/$slug - shares TaxonomyPage from category route.
+// URL search state: ?page=N&sort=newest|oldest|popular
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
+import {
+  taxonomyArchiveQueryOptions,
+  type ArchiveSort,
+} from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
+import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { TaxonomyPage } from "./category.$slug";
 import "@/lib/i18n-archive-layout";
 
+const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
+
+function parseSearch(search: Record<string, unknown>): { page: number; sort: ArchiveSort } {
+  const raw = Number(search.page);
+  const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1;
+  const sortRaw = String(search.sort ?? "newest") as ArchiveSort;
+  const sort: ArchiveSort = VALID_SORT.includes(sortRaw) ? sortRaw : "newest";
+  return { page, sort };
+}
+
 export const Route = createFileRoute("/tag/$slug")({
-  loader: async ({ params, context }) => {
-    const [data] = await Promise.all([
-      context.queryClient.ensureQueryData(taxonomyArchiveQueryOptions("tag", params.slug)),
-      context.queryClient.ensureQueryData(archiveLayoutQueryOptions("tag")),
-    ]);
+  validateSearch: parseSearch,
+  loaderDeps: ({ search: { page, sort } }) => ({ page, sort }),
+  loader: async ({ params, context, deps }) => {
+    const settings = await context.queryClient.ensureQueryData(
+      archiveLayoutQueryOptions("tag"),
+    );
+    const data = await context.queryClient.ensureQueryData(
+      taxonomyArchiveQueryOptions("tag", params.slug, {
+        page: deps.page,
+        pageSize: settings.posts_per_page,
+        sort: deps.sort,
+      }),
+    );
     if (!data) throw notFound();
     return data;
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
+    const total = loaderData?.total ?? 0;
+    const page = loaderData?.page ?? 1;
     const url = getRequestUrl() || `/tag/${params.slug}`;
     const lang = activeLang(url);
     const name = tax
@@ -29,13 +54,52 @@ export const Route = createFileRoute("/tag/$slug")({
         ? tax.name_en || tax.name_pl
         : tax.name_pl || tax.name_en
       : "Tag";
-    return buildContentHead({
+    const description =
+      lang === "en"
+        ? `Posts tagged ${name} (${total}).`
+        : `Wpisy oznaczone tagiem ${name} (${total}).`;
+    const title =
+      page > 1
+        ? lang === "en"
+          ? `#${name} - tag (page ${page})`
+          : `#${name} - tag (strona ${page})`
+        : `#${name} - tag`;
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
-      title: lang === "en" ? `#${name} - tag` : `#${name} - tag`,
-      description: lang === "en" ? `Posts tagged ${name}.` : `Wpisy oznaczone tagiem ${name}.`,
+      title,
+      description,
+      robots: page > 1 ? "noindex, follow" : null,
     });
+    const { origin } = splitUrl(url);
+    const originAbs = origin || SITE_CANONICAL_ORIGIN;
+    const crumbsLabel = lang === "en" ? "Tags" : "Tagi";
+    const breadcrumbs = breadcrumbListJsonLd(
+      [{ label: crumbsLabel, href: "/blog" }, { label: `#${name}` }],
+      originAbs,
+      lang,
+    );
+    const collection = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: title,
+      description,
+      inLanguage: lang,
+      url: `${originAbs}${url.startsWith("/") ? url : `/${url}`}`,
+      isPartOf: { "@id": `${originAbs}/#website` },
+      breadcrumb: { "@id": `${originAbs}${url}#breadcrumbs` },
+    };
+    return {
+      ...head,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: safeJsonLd({ ...breadcrumbs, "@id": `${originAbs}${url}#breadcrumbs` }),
+        },
+        { type: "application/ld+json", children: safeJsonLd(collection) },
+      ],
+    };
   },
   component: () => <TaxonomyPage kind="tag" />,
   pendingComponent: () => <ArchiveSkeleton />,
