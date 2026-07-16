@@ -10,6 +10,14 @@ import {
   type TaxonomyItem,
 } from "@/lib/queries/blocks";
 import { AppLink } from "@/components/atoms/AppLink";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 type Kind = "categories" | "tags" | "archives";
 
