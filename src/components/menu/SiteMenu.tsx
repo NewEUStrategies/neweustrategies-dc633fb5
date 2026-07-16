@@ -5,7 +5,8 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
