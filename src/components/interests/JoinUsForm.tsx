@@ -914,13 +914,9 @@ export function JoinUsForm({
                           id={`${jusId}-drop-grp-${g.key}`}
                           className="pb-1 scroll-mt-1"
                         >
-                          <div
-                            role="presentation"
-                            className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
-                          >
-                            {g.title}
-                            <span className="ml-1 opacity-60">({g.items.length})</span>
-                          </div>
+                          {/* Nagłówki grup są w pasku zakładek powyżej -
+                              nie duplikujemy ich na liście. Sam anchor `id`
+                              na wrapperze wystarcza do scrollIntoView z tabs. */}
                           {g.items.map((it) => {
                             const active = picked.has(it.id);
                             return (
