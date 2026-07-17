@@ -14,9 +14,18 @@
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, SendHorizontal, X } from "lucide-react";
+import { ArrowLeft, Bot, Paperclip, SendHorizontal, X } from "lucide-react";
+import { toast } from "sonner";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentKindForMime,
+  validateAttachment,
+  formatBytes,
+  MAX_ATTACHMENT_BYTES,
+  type AttachmentKind,
+} from "@/lib/chat/attachments";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageList } from "./MessageList";
 
@@ -116,14 +125,29 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const [peerDeliveredAt, setPeerDeliveredAt] = useState<string | null>(null);
   const [peerReadAt, setPeerReadAt] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  // Staged local attachment - trzymamy `blob:` URL zamiast bucketu; podgląd
+  // demo nie dotyka Storage. `useAttachmentUrl` przepuszcza blob:/data: URL
+  // bez pytania Supabase, więc dymki renderują się identycznie jak realne.
+  const [staged, setStaged] = useState<{
+    file: File;
+    kind: AttachmentKind;
+    previewUrl: string;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const timersRef = useRef<number[]>([]);
+  const blobsRef = useRef<string[]>([]);
 
   useEffect(() => {
     const timers = timersRef.current;
+    const blobs = blobsRef.current;
     return () => {
       for (const id of timers) window.clearTimeout(id);
       timers.length = 0;
+      // Zwolnij wszystkie zarezerwowane URL-e - unikamy wycieku pamięci
+      // w długiej sesji z wieloma podglądami.
+      for (const u of blobs) URL.revokeObjectURL(u);
+      blobs.length = 0;
     };
   }, []);
   const later = useCallback((ms: number, fn: () => void) => {
@@ -170,20 +194,76 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const noop = useCallback(() => undefined, []);
   const never = useCallback(() => false, []);
 
+  // Pick + walidacja pliku (te same reguły co realny composer: MAX 30 MB,
+  // ta sama allowlista MIME). Podgląd trzymamy tylko lokalnie.
+  const handlePickFile = useCallback(
+    (file: File | null | undefined) => {
+      if (!file) return;
+      const invalid = validateAttachment(file);
+      if (invalid === "size") {
+        toast.error(
+          t("chat.attachmentTooLarge", {
+            defaultValue: `Plik jest za duży (max ${formatBytes(MAX_ATTACHMENT_BYTES, lang)}).`,
+          }),
+        );
+        return;
+      }
+      if (invalid === "type") {
+        toast.error(
+          t("chat.attachmentWrongType", {
+            defaultValue: "Ten typ pliku nie jest obsługiwany.",
+          }),
+        );
+        return;
+      }
+      const kind = attachmentKindForMime(file.type);
+      if (!kind) return;
+      // Zwolnij poprzedni podgląd, jeśli użytkownik podmienia załącznik.
+      if (staged?.previewUrl) URL.revokeObjectURL(staged.previewUrl);
+      const previewUrl = URL.createObjectURL(file);
+      blobsRef.current.push(previewUrl);
+      setStaged({ file, kind, previewUrl });
+      textareaRef.current?.focus();
+    },
+    [staged, t, lang],
+  );
+
+  const clearStaged = useCallback(() => {
+    setStaged((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
   const send = useCallback(() => {
     const body = input.trim();
-    if (body.length === 0 || botTyping) return;
+    const hasAttachment = !!staged;
+    if ((body.length === 0 && !hasAttachment) || botTyping) return;
     const myId = nextId();
     const replyToId = replyTo?.id ?? null;
+    const attachmentExtra: Partial<ChatMessage> = staged
+      ? {
+          kind: staged.kind,
+          attachment_path: staged.previewUrl,
+          attachment_name: staged.file.name,
+          attachment_mime: staged.file.type,
+          attachment_size: staged.file.size,
+        }
+      : {};
     setMessages((prev) => [
       ...prev,
-      demoMessage(myId, ME_ID, body, new Date().toISOString(), {
+      demoMessage(myId, ME_ID, body.length > 0 ? body : null, new Date().toISOString(), {
         pending: true,
         reply_to_id: replyToId,
+        ...attachmentExtra,
       }),
     ]);
     setInput("");
     setReplyTo(null);
+    // Nie zwalniamy blob URL - dymek nadal go używa; zwolnimy przy unmount.
+    setStaged(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     // Pełny cykl potwierdzeń na timestampach, jak w realnym czacie:
     // zegar (pending) -> tick wysłano -> podwójny dostarczono -> kolorowy
@@ -196,13 +276,24 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       setBotTyping(true);
     });
 
-    const reply = botReply(body, t);
+    const reply = hasAttachment
+      ? t(
+          staged.kind === "image"
+            ? "chat.demoBot.replies.image"
+            : "chat.demoBot.replies.file",
+          {
+            defaultValue:
+              staged.kind === "image"
+                ? "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)"
+                : `Otrzymałem plik: ${staged.file.name} (podgląd demo).`,
+            name: staged.file.name,
+          },
+        )
+      : botReply(body, t);
     const typingMs = Math.min(1400, 700 + reply.length * 12);
     later(650 + typingMs, () => {
       const now = new Date().toISOString();
       setPeerReadAt(now);
-      // Bot odbija cytat tylko, gdy użytkownik sam odpowiadał na dymek -
-      // pokazuje obie strony funkcji bez zaśmiecania każdego echa.
       setMessages((prev) => [
         ...prev,
         demoMessage(nextId(), BOT_USER_ID, reply, now, {
@@ -210,19 +301,19 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
         }),
       ]);
       setBotTyping(false);
-      // Dłuższa wiadomość dostaje od bota reakcję - widać chip na dymku.
-      if (body.length > 20) {
+      if (body.length > 20 || hasAttachment) {
         setReactions((prev) => {
           const next = new Map(prev);
           next.set(myId, [
             ...(next.get(myId) ?? []).filter((r) => r.user_id !== BOT_USER_ID),
-            demoReaction(myId, BOT_USER_ID, "👍"),
+            demoReaction(myId, BOT_USER_ID, hasAttachment ? "🎉" : "👍"),
           ]);
           return next;
         });
       }
     });
-  }, [input, botTyping, replyTo, nextId, later, t]);
+  }, [input, staged, botTyping, replyTo, nextId, later, t]);
+
 
   const replyAuthor = replyTo ? (replyTo.sender_id === ME_ID ? t("chat.you") : botName) : null;
 
@@ -291,8 +382,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
         canEdit={never}
       />
 
-      {/* Kompozytor: minimalny (bez załączników/emoji), ale z paskiem
-          odpowiedzi - to jest podgląd interakcji, nie pełny composer. */}
+      {/* Kompozytor: pasek odpowiedzi, staged załącznik i wejście z załącznikiem. */}
       <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
         {replyTo && (
           <div className="mb-1.5 flex items-start justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
@@ -315,8 +405,40 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             </button>
           </div>
         )}
-        {/* Te same klasy co realny ChatComposer: textarea na bg-muted/40 z
-            radiusem 6px i okrągły przycisk wysyłki w kolorze tokenu czatu. */}
+        {staged && (
+          <div className="mb-1.5 flex items-center gap-2 rounded-[6px] border border-border/60 bg-muted/40 px-2 py-1.5">
+            {staged.kind === "image" ? (
+              <img
+                src={staged.previewUrl}
+                alt={staged.file.name}
+                className="h-10 w-10 shrink-0 rounded-[4px] object-cover"
+              />
+            ) : (
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] bg-background text-muted-foreground"
+                aria-hidden
+              >
+                <Paperclip className="h-4 w-4" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1 text-[11px]">
+              <span className="block truncate font-medium text-foreground">
+                {staged.file.name}
+              </span>
+              <span className="block text-muted-foreground">
+                {formatBytes(staged.file.size, lang)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={clearStaged}
+              className="shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label={t("chat.close")}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -324,6 +446,25 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
           }}
           className="flex items-end gap-1"
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ATTACHMENT_ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              handlePickFile(e.target.files?.[0]);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={botTyping}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-35"
+            aria-label={t("chat.attach", { defaultValue: "Załącz plik" })}
+            title={`${t("chat.attach", { defaultValue: "Załącz plik" })} (max ${formatBytes(MAX_ATTACHMENT_BYTES, lang)})`}
+          >
+            <Paperclip className="h-4 w-4" aria-hidden />
+          </button>
           <textarea
             ref={textareaRef}
             value={input}
@@ -335,17 +476,26 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
               } else if (e.key === "Escape" && replyTo) {
                 e.preventDefault();
                 setReplyTo(null);
+              } else if (e.key === "Escape" && staged) {
+                e.preventDefault();
+                clearStaged();
               }
             }}
             rows={1}
-            placeholder={t("chat.inputPlaceholder")}
+            placeholder={
+              staged
+                ? t("chat.attachmentCaptionPlaceholder", {
+                    defaultValue: "Dodaj opis (opcjonalnie)...",
+                  })
+                : t("chat.inputPlaceholder")
+            }
             aria-label={t("chat.inputPlaceholder")}
             className="max-h-[120px] min-h-[36px] w-full min-w-0 flex-1 resize-none rounded-[6px] border border-input bg-muted/40 px-3 py-1.5 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             maxLength={500}
           />
           <button
             type="submit"
-            disabled={input.trim().length === 0 || botTyping}
+            disabled={(input.trim().length === 0 && !staged) || botTyping}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
             aria-label={t("chat.send")}
             title={t("chat.send")}
