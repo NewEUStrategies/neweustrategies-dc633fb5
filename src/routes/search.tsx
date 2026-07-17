@@ -109,6 +109,7 @@ function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFil
             selected={date}
             onSelect={onSelect}
             initialFocus
+            locale={locale}
             className="pointer-events-auto p-3"
           />
         </PopoverContent>
