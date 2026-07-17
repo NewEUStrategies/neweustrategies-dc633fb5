@@ -4,9 +4,21 @@
 // "odczytano" oraz echo bota po wskaźniku "pisze...".
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/lib/i18n-chat";
 import { chatPl } from "@/lib/i18n-chat";
 import { DemoBotChat } from "../DemoBotChat";
+
+// MessageList używa hooków React Query (usePeerProfiles), więc podgląd musi
+// być zamontowany pod providerem - jak w realnej aplikacji (__root.tsx).
+function renderDemo() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <DemoBotChat lang="pl" />
+    </QueryClientProvider>,
+  );
+}
 
 // happy-dom nie implementuje płynnego przewijania używanego przez MessageList.
 beforeEach(() => {
@@ -21,7 +33,7 @@ afterEach(() => {
 
 describe("DemoBotChat", () => {
   it("renders the welcome message inside a real inbound bubble with a day separator", () => {
-    render(<DemoBotChat lang="pl" />);
+    renderDemo();
 
     // Powitanie bota widoczne i opakowane w kartę dymka (nie goły tekst).
     const welcome = screen.getByText(chatPl.chat.demoBot.welcome);
@@ -34,7 +46,7 @@ describe("DemoBotChat", () => {
   });
 
   it("runs the full send cycle: bubble, clock time, receipts up to read, bot echo", () => {
-    render(<DemoBotChat lang="pl" />);
+    renderDemo();
 
     const textarea = screen.getByLabelText(chatPl.chat.inputPlaceholder);
     fireEvent.change(textarea, { target: { value: "Test dymka" } });
@@ -61,7 +73,7 @@ describe("DemoBotChat", () => {
   });
 
   it("separates today's messages from yesterday's welcome with a second day label", () => {
-    render(<DemoBotChat lang="pl" />);
+    renderDemo();
     const textarea = screen.getByLabelText(chatPl.chat.inputPlaceholder);
     fireEvent.change(textarea, { target: { value: "Dzisiejsza" } });
     fireEvent.submit(textarea.closest("form") as HTMLFormElement);
