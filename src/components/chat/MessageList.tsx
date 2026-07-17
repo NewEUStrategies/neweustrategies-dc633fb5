@@ -215,10 +215,18 @@ export function MessageList(props: MessageListProps) {
     );
     if (!row) return;
     stickToBottomRef.current = false;
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Scroll only the chat container, never the outer page. scrollIntoView
+    // walks up all scrollable ancestors and would jump the whole document.
+    const containerRect = container.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const offset = rowRect.top - containerRect.top - (container.clientHeight - row.clientHeight) / 2;
+    container.scrollTo({
+      top: container.scrollTop + offset,
+      behavior: reducedMotion ? "auto" : "smooth",
+    });
     row.classList.add("chat-jump-flash");
     window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
-  }, []);
+  }, [reducedMotion]);
 
   // Newest own message that the peer has already read -> "seen" receipt.
   const lastMine = useMemo(() => {
