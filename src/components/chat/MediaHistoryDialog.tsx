@@ -41,13 +41,14 @@ function ImageTile({
 }: {
   entry: Entry;
   lang: ChatLang;
-  onOpen: () => void;
+  onOpen: (image: LightboxImage) => void;
 }) {
   const { t } = useTranslation();
   const urlQuery = useAttachmentUrl(entry.message.attachment_path);
   const url = urlQuery.data;
   const label = entry.message.attachment_name ?? "";
   const time = clockTime(entry.message.created_at, lang);
+
   if (!url) {
     return (
       <div
