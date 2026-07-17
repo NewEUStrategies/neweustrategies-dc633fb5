@@ -909,7 +909,7 @@ export function ChatWindow(props: ChatWindowProps) {
         className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
         data-active-conversation={conversationId}
       >
-        <div className="flex items-center gap-2.5 border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/70">
+        <div className="flex items-center gap-1.5 border-b border-border/60 bg-card/80 px-2.5 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:gap-2.5 sm:px-4 sm:py-3">
           {onBack && (
             <button
               type="button"
