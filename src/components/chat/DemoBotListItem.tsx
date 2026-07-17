@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Bot, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatAvatar } from "./ChatAvatar";
+import botAvatarUrl from "@/assets/chat-bot-avatar.jpg";
 
 export interface DemoBotListItemProps {
   active: boolean;
@@ -26,7 +27,7 @@ export function DemoBotListItem({ active, onOpen }: DemoBotListItemProps) {
       aria-label={t("chat.demoBot.openAria")}
     >
       <span className="relative inline-block shrink-0">
-        <ChatAvatar name={name} online size="md" />
+        <ChatAvatar name={name} avatarUrl={botAvatarUrl} online size="md" />
         <span
           className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-md bg-[var(--brand)] text-white shadow-sm ring-2 ring-background"
           aria-hidden

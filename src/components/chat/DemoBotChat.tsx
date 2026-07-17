@@ -12,12 +12,13 @@
 //
 // Nie zapisujemy nic w Supabase i nie mieszamy się z realnymi wątkami -
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bot, Images, Paperclip, SendHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatLang } from "@/lib/chat/time";
-import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
+import type { ChatMessage, PeerProfile, ReactionRow } from "@/lib/chat/types";
 import {
   ATTACHMENT_ACCEPT,
   attachmentKindForMime,
@@ -26,9 +27,12 @@ import {
   MAX_ATTACHMENT_BYTES,
   type AttachmentKind,
 } from "@/lib/chat/attachments";
+import { usePeerProfiles } from "@/lib/chat/useConversations";
+import { useAuth } from "@/hooks/useAuth";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageList } from "./MessageList";
 import { MediaHistoryDialog } from "./MediaHistoryDialog";
+import botAvatarUrl from "@/assets/chat-bot-avatar.jpg";
 
 export const DEMO_BOT_ID = "__demo_bot__" as const;
 const BOT_NAME_KEY = "chat.demoBot.name" as const;
@@ -107,6 +111,36 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const { t } = useTranslation();
   const nextId = useNextId();
   const botName = t(BOT_NAME_KEY);
+  const { user } = useAuth();
+
+  // Pobierz własny awatar, żeby demo pokazywało realne zdjęcie nadawcy.
+  const peersQ = usePeerProfiles(user?.id ? [user.id] : []);
+  const myAvatarUrl = user ? (peersQ.data?.get(user.id)?.avatar_url ?? null) : null;
+
+  // Bot ma dedykowany awatar zamiast inicjału; własne demo-wiadomości
+  // dostają realne zdjęcie profilowe po prawej stronie dymka.
+  const senderProfiles = useMemo((): ReadonlyMap<string, PeerProfile> => {
+    const map = new Map<string, PeerProfile>();
+    map.set(BOT_USER_ID, {
+      id: BOT_USER_ID,
+      display_name: botName,
+      avatar_url: botAvatarUrl,
+      job_title: "",
+      current_company: "",
+      specialization: "",
+    });
+    if (user && myAvatarUrl) {
+      map.set(ME_ID, {
+        id: ME_ID,
+        display_name: t("chat.you"),
+        avatar_url: myAvatarUrl,
+        job_title: "",
+        current_company: "",
+        specialization: "",
+      });
+    }
+    return map;
+  }, [botName, myAvatarUrl, t, user]);
 
   // Powitanie datowane na wczoraj: od pierwszego otwarcia widać separatory
   // dni ("Wczoraj" nad powitaniem, "Dzisiaj" nad pierwszą nową wiadomością).
@@ -335,7 +369,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
           </button>
         )}
         <span className="relative inline-block shrink-0">
-          <ChatAvatar name={botName} online size="sm" />
+          <ChatAvatar name={botName} avatarUrl={botAvatarUrl} online size="sm" />
           <span
             className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-[6px] bg-[var(--brand)] text-white shadow-sm ring-2 ring-background"
             aria-hidden
@@ -383,9 +417,11 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
         messages={messages}
         reactions={reactions}
         peerName={botName}
-        peerAvatarUrl={null}
+        peerAvatarUrl={botAvatarUrl}
         typingNames={[botName]}
-        typingAvatarUrl={null}
+        typingAvatarUrl={botAvatarUrl}
+        myAvatarUrl={myAvatarUrl}
+        senderProfiles={senderProfiles}
         peerLastReadAt={peerReadAt}
         peerLastDeliveredAt={peerDeliveredAt}
         peerTyping={botTyping}
