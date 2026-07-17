@@ -1,11 +1,10 @@
 // Historia załączników w rozmowie: galeria zdjęć + lista plików.
-// Prosty widok bez paginacji - dla podglądu wątku i realnych konwersacji,
-// gdzie liczba załączników mieści się w oknie sesji. Otwarcie obrazka
-// w nowej karcie (blob: / signed URL działa tak samo, bo używamy
-// `useAttachmentUrl` per pozycja).
-import { useMemo } from "react";
+// Zdjęcia otwierają wspólny ImageLightbox z nawigacją Prev/Next po całej
+// galerii; pliki PDF mają dodatkowy przycisk "Podgląd" (PdfPreviewDialog).
+// Pozostałe pliki - jak wcześniej: pobranie / otwarcie w nowej karcie.
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, ImageIcon, Download } from "lucide-react";
+import { Download, Eye, FileText, ImageIcon } from "lucide-react";
 import type { ChatMessage } from "@/lib/chat/types";
 import type { ChatLang } from "@/lib/chat/time";
 import { formatBytes } from "@/lib/chat/attachments";
@@ -20,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ImageLightbox, PdfPreviewDialog, type LightboxImage } from "./AttachmentPreview";
+
 
 export interface MediaHistoryDialogProps {
   open: boolean;
@@ -33,12 +34,21 @@ interface Entry {
   kind: "image" | "file";
 }
 
-function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
+function ImageTile({
+  entry,
+  lang,
+  onOpen,
+}: {
+  entry: Entry;
+  lang: ChatLang;
+  onOpen: (image: LightboxImage) => void;
+}) {
   const { t } = useTranslation();
   const urlQuery = useAttachmentUrl(entry.message.attachment_path);
   const url = urlQuery.data;
   const label = entry.message.attachment_name ?? "";
   const time = clockTime(entry.message.created_at, lang);
+
   if (!url) {
     return (
       <div
@@ -48,12 +58,12 @@ function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
     );
   }
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
+      onClick={() => onOpen({ url, name: label || null })}
       className="group relative block aspect-square overflow-hidden rounded-[6px] border border-border/60 bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={`${label} - ${time}`}
+      aria-label={label || t("chat.photo")}
     >
       <img
         src={url}
@@ -64,16 +74,25 @@ function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
       <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
         {time}
       </span>
-    </a>
+    </button>
   );
 }
 
-function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
+function FileRow({
+  entry,
+  lang,
+  onPreview,
+}: {
+  entry: Entry;
+  lang: ChatLang;
+  onPreview: (url: string, name: string) => void;
+}) {
   const { t } = useTranslation();
   const urlQuery = useAttachmentUrl(entry.message.attachment_path);
   const url = urlQuery.data;
   const name = entry.message.attachment_name ?? "";
   const size = entry.message.attachment_size ?? 0;
+  const isPdf = entry.message.attachment_mime === "application/pdf";
   const dayWords = {
     today: t("chat.today", { defaultValue: "Dzisiaj" }),
     yesterday: t("chat.yesterday", { defaultValue: "Wczoraj" }),
@@ -93,13 +112,24 @@ function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
           {formatBytes(size, lang)} - {time}
         </span>
       </div>
+      {isPdf && url && (
+        <button
+          type="button"
+          onClick={() => onPreview(url, name)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+          title={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+        >
+          <Eye className="h-4 w-4" aria-hidden />
+        </button>
+      )}
       {url && (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
           download={name}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t("chat.mediaHistory.download", { defaultValue: "Pobierz plik" })}
           title={t("chat.mediaHistory.download", { defaultValue: "Pobierz plik" })}
         >
@@ -110,6 +140,7 @@ function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
   );
 }
 
+
 export function MediaHistoryDialog({
   open,
   onOpenChange,
@@ -117,6 +148,8 @@ export function MediaHistoryDialog({
   lang,
 }: MediaHistoryDialogProps) {
   const { t } = useTranslation();
+  const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; name: string } | null>(null);
 
   const { images, files } = useMemo(() => {
     const imgs: Entry[] = [];
@@ -135,6 +168,7 @@ export function MediaHistoryDialog({
   }, [messages]);
 
   const totalCount = images.length + files.length;
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -180,7 +214,7 @@ export function MediaHistoryDialog({
               <ScrollArea className="h-[52vh] pr-2">
                 <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                   {images.map((entry) => (
-                    <ImageTile key={entry.message.id} entry={entry} lang={lang} />
+                    <ImageTile key={entry.message.id} entry={entry} lang={lang} onOpen={setLightbox} />
                   ))}
                 </div>
               </ScrollArea>
@@ -198,7 +232,13 @@ export function MediaHistoryDialog({
               <ScrollArea className="h-[52vh] pr-2">
                 <div className="flex flex-col gap-1.5">
                   {files.map((entry) => (
-                    <FileRow key={entry.message.id} entry={entry} lang={lang} />
+                    <FileRow
+                      key={entry.message.id}
+                      entry={entry}
+                      lang={lang}
+                      onPreview={(url, name) => setPdfPreview({ url, name })}
+                    />
+
                   ))}
                 </div>
               </ScrollArea>
@@ -206,6 +246,19 @@ export function MediaHistoryDialog({
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <ImageLightbox
+        open={!!lightbox}
+        onOpenChange={(o) => !o && setLightbox(null)}
+        images={lightbox ? [lightbox] : []}
+        index={0}
+      />
+      <PdfPreviewDialog
+        open={!!pdfPreview}
+        onOpenChange={(o) => !o && setPdfPreview(null)}
+        url={pdfPreview?.url ?? null}
+        name={pdfPreview?.name ?? null}
+      />
     </Dialog>
   );
+
 }
