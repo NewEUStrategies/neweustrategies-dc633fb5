@@ -4368,48 +4368,54 @@ textarea::placeholder {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transform: translate3d(0, 0, 0);
-  transition: stroke 0.2s ease;
   overflow: visible;
 }
-.lov-check__svg path {
-  stroke-dasharray: 60;
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 0.3s linear;
-}
-.lov-check__svg polyline {
-  stroke-dasharray: 22;
-  stroke-dashoffset: 66;
+.lov-check__box {
+  fill: transparent;
   transition:
-    stroke-dashoffset 0.2s linear 0s;
+    fill 0.2s ease,
+    stroke 0.2s ease;
 }
-.lov-check:hover .lov-check__svg,
-.lov-check:focus-visible .lov-check__svg {
+.lov-check__tick {
+  fill: none;
+  stroke: var(--primary-foreground);
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 0.2s linear 0s;
+}
+.lov-check__dash {
+  stroke: var(--primary-foreground);
+  stroke-dasharray: 10;
+  stroke-dashoffset: 10;
+  transition: stroke-dashoffset 0.15s linear 0s;
+}
+.lov-check:hover .lov-check__box,
+.lov-check:focus-visible .lov-check__box {
   stroke: var(--primary);
 }
-.lov-check[data-state="checked"] .lov-check__svg,
-.lov-check[data-state="indeterminate"] .lov-check__svg {
+.lov-check[data-state="checked"] .lov-check__box,
+.lov-check[data-state="indeterminate"] .lov-check__box {
+  fill: var(--primary);
   stroke: var(--primary);
 }
-.lov-check[data-state="checked"] .lov-check__svg path {
-  stroke-dashoffset: 60;
-  transition: stroke-dashoffset 0.3s linear;
+.lov-check[data-state="checked"] .lov-check__tick {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.25s linear 0.05s;
 }
-.lov-check[data-state="checked"] .lov-check__svg polyline {
-  stroke-dashoffset: 42;
-  transition: stroke-dashoffset 0.2s linear 0.15s;
+.lov-check[data-state="indeterminate"] .lov-check__dash {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.2s linear 0.05s;
 }
-.lov-check[data-state="indeterminate"] .lov-check__svg polyline {
-  stroke-dashoffset: 52;
-}
+
 .dark .lov-check::before {
   background: color-mix(in oklab, var(--primary) 18%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .lov-check__svg,
-  .lov-check__svg path,
-  .lov-check__svg polyline {
+  .lov-check__box,
+  .lov-check__tick,
+  .lov-check__dash {
     transition: none !important;
   }
 }
+
 
