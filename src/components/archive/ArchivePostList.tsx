@@ -42,6 +42,7 @@ export function ArchivePostList({
           lang={lang}
           viewTransitionId={p.id}
           excerptOverride={getExcerptOverride?.(p)}
+          titleClassName={titleClassName}
         />
       ))}
     </div>
