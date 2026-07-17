@@ -70,10 +70,15 @@ function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
 
 function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
   const { t } = useTranslation();
-  const url = useAttachmentUrl(entry.message.attachment_path);
+  const urlQuery = useAttachmentUrl(entry.message.attachment_path);
+  const url = urlQuery.data;
   const name = entry.message.attachment_name ?? "";
   const size = entry.message.attachment_size ?? 0;
-  const time = `${dayLabel(entry.message.created_at, lang)} - ${clockTime(entry.message.created_at, lang)}`;
+  const dayWords = {
+    today: t("chat.today", { defaultValue: "Dzisiaj" }),
+    yesterday: t("chat.yesterday", { defaultValue: "Wczoraj" }),
+  };
+  const time = `${dayLabel(entry.message.created_at, lang, dayWords)} - ${clockTime(entry.message.created_at, lang)}`;
   return (
     <div className="flex items-center gap-2.5 rounded-[6px] border border-border/60 bg-muted/30 px-2.5 py-2">
       <span
