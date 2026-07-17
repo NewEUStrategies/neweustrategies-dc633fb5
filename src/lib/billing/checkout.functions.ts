@@ -2,10 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { stripeRecurringInterval, type StripeRecurringInterval } from "@/lib/billing/entitlement";
+import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 
 // Create a payment order (server-side, RLS as user).
 // Stripe wiring is intentionally pluggable: if STRIPE_SECRET_KEY is set we create a Checkout Session,
-// otherwise we return a mock URL so the UX can be tested end-to-end.
+// otherwise we return a mock URL so the UX can be tested end-to-end. Mock mode
+// is fail-closed on production (mockCheckoutAllowed) - a misconfigured env can
+// no longer hand out paid entitlements for free.
 
 const createOrderSchema = z.object({
   kind: z.enum(["subscription", "one_time"]),
@@ -82,6 +85,21 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     }
 
     if (amountCents <= 0) throw new Error("zero_amount");
+
+    // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
+    // konfiguracji Stripe (brak klucza LUB brak origin do success_url) odmawia
+    // checkoutu zamiast po cichu wpaść w tryb mock i rozdać dostęp za darmo.
+    const stripeConfigured =
+      !!process.env.STRIPE_SECRET_KEY &&
+      !!(process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL);
+    if (!stripeConfigured && !mockCheckoutAllowed()) {
+      console.error("[checkout] billing unconfigured: refusing mock checkout in production");
+      return {
+        ok: false as const,
+        mode: "unconfigured" as const,
+        error: "billing_unconfigured" as const,
+      };
+    }
 
     // Receipt e-mail comes from the verified auth claims - profiles.email is
     // no longer SELECT-able by the authenticated role (column grant excludes
@@ -184,6 +202,12 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (process.env.STRIPE_SECRET_KEY) {
       return { ok: false as const, reason: "stripe_mode" as const };
+    }
+    // Ten sam bezpiecznik co przy tworzeniu zamówienia: produkcja bez Stripe
+    // nie może finalizować zamówień mock (rozdanie uprawnień bez płatności).
+    if (!mockCheckoutAllowed()) {
+      console.error("[checkout] billing unconfigured: refusing mock finalize in production");
+      return { ok: false as const, reason: "mock_disabled" as const };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { grantEntitlement } = await import("@/lib/billing/grant.server");
