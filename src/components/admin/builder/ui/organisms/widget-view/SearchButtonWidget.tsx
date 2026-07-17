@@ -284,7 +284,7 @@ export function SearchButtonWidget({
           }}
           className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
         >
-          <LucideIcons.Search style={{ width: 22, height: 22 }} aria-hidden />
+          <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
         </button>
         <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
         <button
@@ -293,7 +293,7 @@ export function SearchButtonWidget({
           title={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
           className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
         >
-          <LucideIcons.Mic style={{ width: 20, height: 20 }} aria-hidden />
+          <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
         </button>
       </div>
 
