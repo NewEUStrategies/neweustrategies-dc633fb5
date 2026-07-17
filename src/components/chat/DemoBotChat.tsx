@@ -140,9 +140,14 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
   useEffect(() => {
     const timers = timersRef.current;
+    const blobs = blobsRef.current;
     return () => {
       for (const id of timers) window.clearTimeout(id);
       timers.length = 0;
+      // Zwolnij wszystkie zarezerwowane URL-e - unikamy wycieku pamięci
+      // w długiej sesji z wieloma podglądami.
+      for (const u of blobs) URL.revokeObjectURL(u);
+      blobs.length = 0;
     };
   }, []);
   const later = useCallback((ms: number, fn: () => void) => {
