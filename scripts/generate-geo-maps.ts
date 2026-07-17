@@ -20,7 +20,9 @@
 // (c) Mike Bostock) - see https://github.com/d3/d3-geo.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import countriesLib from "i18n-iso-countries";
+// Jawny wpis /index.js + jawna rejestracja języków (patrz no-restricted-imports
+// w eslint.config.js) - ten sam wzorzec co CountryCombobox.
+import countriesLib from "i18n-iso-countries/index.js";
 
 // ----------------------------------------------------------------------------
 // Minimal TopoJSON decoding (only what world-atlas needs: quantized topology,

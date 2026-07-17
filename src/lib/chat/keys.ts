@@ -15,6 +15,7 @@ export const chatKeys = {
     ["chat", "attachments", uid ?? "anon", conversationId] as const,
   stars: (uid: string | undefined, conversationId: string) =>
     ["chat", "stars", uid ?? "anon", conversationId] as const,
+  nicknames: (uid: string | undefined) => ["chat", "nicknames", uid ?? "anon"] as const,
   starredList: (uid: string | undefined, conversationId: string) =>
     ["chat", "starred-list", uid ?? "anon", conversationId] as const,
 };

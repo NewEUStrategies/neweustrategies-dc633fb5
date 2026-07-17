@@ -42,4 +42,3 @@ export default defineConfig({
     // Vite's client defaults still provide safe browser code splitting.
   },
 });
-

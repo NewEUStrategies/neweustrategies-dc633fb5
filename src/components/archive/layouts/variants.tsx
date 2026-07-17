@@ -7,7 +7,9 @@ import type { ArchiveLayoutProps } from "./types";
 
 function name(props: ArchiveLayoutProps) {
   const { taxonomy, lang } = props;
-  return lang === "en" ? taxonomy.name_en || taxonomy.name_pl : taxonomy.name_pl || taxonomy.name_en;
+  return lang === "en"
+    ? taxonomy.name_en || taxonomy.name_pl
+    : taxonomy.name_pl || taxonomy.name_en;
 }
 function desc(props: ArchiveLayoutProps) {
   const { taxonomy, lang } = props;
@@ -75,11 +77,22 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
         {showFeatured && (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] mb-10">
             <div className="rounded-2xl overflow-hidden border border-border bg-card">
-              <PostListCard post={featured} href={featured.href} lang={props.lang} viewTransitionId={featured.id} />
+              <PostListCard
+                post={featured}
+                href={featured.href}
+                lang={props.lang}
+                viewTransitionId={featured.id}
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {rest.slice(0, 4).map((p) => (
-                <PostListCard key={p.id} post={p} href={p.href} lang={props.lang} viewTransitionId={p.id} />
+                <PostListCard
+                  key={p.id}
+                  post={p}
+                  href={p.href}
+                  lang={props.lang}
+                  viewTransitionId={p.id}
+                />
               ))}
             </div>
           </div>
@@ -109,7 +122,8 @@ export function LayoutHero(props: ArchiveLayoutProps) {
       />
       <div className="max-w-[1200px] mx-auto px-4 lg:px-8 -mt-4">
         <div className="text-sm text-muted-foreground">
-          {props.lang === "en" ? "Posts" : "Wpisy"}: <span className="font-medium">{props.posts.length}</span>
+          {props.lang === "en" ? "Posts" : "Wpisy"}:{" "}
+          <span className="font-medium">{props.posts.length}</span>
         </div>
       </div>
       <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8">

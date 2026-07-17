@@ -87,7 +87,9 @@ function AdminPrograms() {
     queryFn: async (): Promise<ProgramRow[]> => {
       const { data, error } = await supabase
         .from("programs")
-        .select("id, slug, name_pl, name_en, kind, description_pl, description_en, is_active, sort_order")
+        .select(
+          "id, slug, name_pl, name_en, kind, description_pl, description_en, is_active, sort_order",
+        )
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as ProgramRow[];
@@ -332,9 +334,7 @@ function AdminPrograms() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               {lang === "pl" ? "Anuluj" : "Cancel"}
             </Button>
-            <Button onClick={() => void saveProgram()}>
-              {lang === "pl" ? "Zapisz" : "Save"}
-            </Button>
+            <Button onClick={() => void saveProgram()}>{lang === "pl" ? "Zapisz" : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

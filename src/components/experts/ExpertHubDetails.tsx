@@ -52,16 +52,9 @@ function ContactCard({
   );
 }
 
-export function ExpertHubDetails({
-  data,
-  lang,
-}: {
-  data: ExpertHubData;
-  lang: "pl" | "en";
-}) {
+export function ExpertHubDetails({ data, lang }: { data: ExpertHubData; lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const { expert, programs, areas } = data;
-
 
   const departments = programs.filter((p) => p.kind === "department");
   const realPrograms = programs.filter((p) => p.kind !== "department");
@@ -114,10 +107,7 @@ export function ExpertHubDetails({
                   const role = lang === "en" ? p.role_en : p.role_pl;
                   const desc = lang === "en" ? p.description_en : p.description_pl;
                   return (
-                    <li
-                      key={p.id}
-                      className="rounded-[10px] border border-border/60 bg-card p-4"
-                    >
+                    <li key={p.id} className="rounded-[10px] border border-border/60 bg-card p-4">
                       <p className="font-medium text-foreground">{name}</p>
                       {role && <p className="text-sm text-[var(--brand)]">{role}</p>}
                       {desc && (

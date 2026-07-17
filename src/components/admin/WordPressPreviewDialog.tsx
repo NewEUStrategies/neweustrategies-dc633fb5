@@ -56,8 +56,7 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
     return `<!doctype html><html><head><meta charset="utf-8"/><style>body{font-family:system-ui,sans-serif;padding:16px;color:#111;max-width:100%;} img{max-width:100%;height:auto;} .elementor-widget{margin:8px 0;padding:8px;border:1px dashed #ddd;} .elementor-section{margin:12px 0;padding:12px;border:1px solid #eee;background:#fafafa;}</style></head><body>${clean}</body></html>`;
   }, [data]);
 
-  const containerWidth =
-    device === "mobile" ? 390 : device === "tablet" ? 768 : "100%";
+  const containerWidth = device === "mobile" ? 390 : device === "tablet" ? 768 : "100%";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -136,7 +135,9 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
                 </summary>
                 <ul className="mt-2 space-y-1 pl-4 text-amber-900 dark:text-amber-100">
                   {data.warnings.slice(0, 20).map((w, i) => (
-                    <li key={i} className="list-disc">{w}</li>
+                    <li key={i} className="list-disc">
+                      {w}
+                    </li>
                   ))}
                 </ul>
               </details>
@@ -162,7 +163,10 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
                 <div className="min-h-0 flex-1 overflow-auto bg-background">
                   <div
                     className="mx-auto"
-                    style={{ maxWidth: typeof containerWidth === "number" ? `${containerWidth}px` : containerWidth }}
+                    style={{
+                      maxWidth:
+                        typeof containerWidth === "number" ? `${containerWidth}px` : containerWidth,
+                    }}
                   >
                     <BuilderRenderer doc={data.converted} lang={lang} device={device} />
                   </div>
@@ -172,8 +176,8 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
             <div className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {lang === "pl"
-                ? "Podgląd nie zapisuje niczego — kliknij „Importuj\", aby wdrożyć."
-                : "Preview does not save anything — click \"Import\" to persist."}
+                ? 'Podgląd nie zapisuje niczego — kliknij „Importuj", aby wdrożyć.'
+                : 'Preview does not save anything — click "Import" to persist.'}
             </div>
           </>
         )}

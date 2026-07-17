@@ -29,6 +29,8 @@ import {
   validateAttachment,
   type AttachmentKind,
 } from "@/lib/chat/attachments";
+import { clearDraft, getDraft, setDraft } from "@/lib/chat/drafts";
+import { DEFAULT_QUICK_EMOJI } from "@/lib/chat/themes";
 import { formatVoiceDuration, useVoiceRecorder, type RecordedVoice } from "@/lib/chat/voice";
 import type { SendMessageInput } from "@/lib/chat/useMessages";
 import type { ChatMessage } from "@/lib/chat/types";
@@ -47,6 +49,8 @@ export interface ChatComposerProps {
   replyToAuthor: string | null;
   /** Non-null while editing an own message (5-minute window). */
   editing: ChatMessage | null;
+  /** Conversation's one-tap emoji (personalized; sent when the box is empty). */
+  quickEmoji?: string;
   onClearReply: () => void;
   onSend: (input: SendMessageInput) => void;
   onSaveEdit: (messageId: string, body: string) => void;
@@ -64,6 +68,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     replyTo,
     replyToAuthor,
     editing,
+    quickEmoji = DEFAULT_QUICK_EMOJI,
     onClearReply,
     onSend,
     onSaveEdit,
@@ -73,7 +78,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   } = props;
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
-  const [text, setText] = useState("");
+  const uid = user?.id;
+  // Drafts survive thread switches and reloads (localStorage, user-scoped).
+  const [text, setTextState] = useState(() => (uid ? getDraft(uid, conversationId) : ""));
+  const setText = (value: string | ((prev: string) => string)) => {
+    const next = typeof value === "function" ? value(text) : value;
+    setTextState(next);
+    // The edit buffer is not a draft - only persist normal composition.
+    if (uid && !editing) setDraft(uid, conversationId, next);
+  };
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null);
   // A picked attachment waits here so the user can add a caption before it is
@@ -118,10 +131,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
   };
 
-  // Entering/leaving edit mode swaps the draft for the message body.
+  // Entering edit mode swaps the buffer for the message body; leaving it
+  // restores whatever draft was in progress (never persists the edit buffer).
   useEffect(() => {
     if (editing) {
-      setText(editing.body ?? "");
+      setTextState(editing.body ?? "");
       requestAnimationFrame(() => {
         resize();
         const el = textareaRef.current;
@@ -131,11 +145,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         }
       });
     } else {
-      setText("");
+      setTextState(uid ? getDraft(uid, conversationId) : "");
       requestAnimationFrame(resize);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing?.id]);
+
+  // Dock surfaces can swap the conversation without remounting - reload the
+  // target thread's draft (the previous thread's draft is already persisted).
+  useEffect(() => {
+    if (editing) return;
+    setTextState(uid ? getDraft(uid, conversationId) : "");
+    requestAnimationFrame(resize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, uid]);
 
   // Validate + stage a picked file (upload happens on send, with the caption).
   const stageFile = (file: File) => {
@@ -176,6 +199,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       const caption = body.slice(0, 2000) || undefined; // DB caps captions at 2000
       clearStaged();
       setText("");
+      if (uid) clearDraft(uid, conversationId);
       requestAnimationFrame(resize);
       setUploading({ name: file.name, percent: 0 });
       try {
@@ -214,11 +238,26 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       replyToId: replyTo?.id ?? null,
     });
     setText("");
+    if (uid) clearDraft(uid, conversationId);
     onClearReply();
     requestAnimationFrame(() => {
       resize();
       textareaRef.current?.focus();
     });
+  };
+
+  // One-tap quick emoji (personalized per conversation, Messenger-style):
+  // available whenever the box is empty; sent as a normal text message so it
+  // renders enlarged via the emoji-only path.
+  const sendQuickEmoji = () => {
+    onSend({
+      conversationId,
+      kind: "text",
+      body: quickEmoji,
+      replyToId: replyTo?.id ?? null,
+    });
+    onClearReply();
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   // --- Voice notes ---------------------------------------------------------
@@ -394,7 +433,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           <button
             type="button"
             onClick={() => void recorder.finish().then(sendVoice)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white transition-opacity hover:opacity-90"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--chat-user-to)] text-white transition-opacity hover:opacity-90"
             aria-label={t("chat.voice.send")}
             title={t("chat.voice.send")}
           >
@@ -491,6 +530,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             </Popover>
           </div>
 
+          {!editing && !text.trim() && !staged && (
+            <button
+              type="button"
+              onClick={sendQuickEmoji}
+              disabled={!!uploading}
+              className="chat-pop-in flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg leading-none transition-colors hover:bg-muted disabled:opacity-35 motion-safe:transition-transform motion-safe:hover:scale-110"
+              aria-label={t("chat.quickSend", { emoji: quickEmoji })}
+              title={t("chat.quickSend", { emoji: quickEmoji })}
+            >
+              <span aria-hidden>{quickEmoji}</span>
+            </button>
+          )}
           {!editing && !text.trim() && !staged && recorder.supported ? (
             // WhatsApp morph: empty input shows the mic, typing/staging swaps
             // it for send.
@@ -498,7 +549,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               type="button"
               onClick={() => void recorder.start()}
               disabled={!!uploading}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--brand)] transition-all hover:bg-muted disabled:opacity-35"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
               aria-label={t("chat.voice.record")}
               title={t("chat.voice.record")}
             >
@@ -509,7 +560,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               type="button"
               onClick={() => void submit()}
               disabled={!text.trim() && !staged}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--brand)] transition-all hover:bg-muted disabled:opacity-35"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
               aria-label={editing ? t("chat.saveEdit") : t("chat.send")}
               title={editing ? t("chat.saveEdit") : t("chat.send")}
             >

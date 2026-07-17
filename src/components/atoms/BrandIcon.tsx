@@ -82,7 +82,6 @@ const ALIASES: Record<string, string[]> = {
   "shield-alert": ["shield-alert", "shield-warning", "alert-shield"],
 };
 
-
 export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
   const { theme } = useTheme();
   const { resolve } = useBrandIcons();

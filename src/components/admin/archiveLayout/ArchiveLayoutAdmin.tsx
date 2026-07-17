@@ -30,8 +30,6 @@ import { LAYOUT_REGISTRY, type LayoutVariant } from "@/components/archive/layout
 import { ArchiveLivePreview } from "./ArchiveLivePreview";
 import "@/lib/i18n-archive-layout";
 
-
-
 interface Props {
   archiveType: ArchiveType;
   sampleSlug?: string;
@@ -116,7 +114,9 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
   };
 
   const title =
-    archiveType === "category" ? t("archiveLayout.pageTitleCategory") : t("archiveLayout.pageTitleTag");
+    archiveType === "category"
+      ? t("archiveLayout.pageTitleCategory")
+      : t("archiveLayout.pageTitleTag");
 
   return (
     <div className="space-y-8 pb-16">
@@ -159,7 +159,9 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
                   onClick={() => set("layout_variant", num)}
                   aria-pressed={active}
                   className={`text-left rounded-md border-2 p-2 transition ${
-                    active ? "border-brand ring-2 ring-brand/20" : "border-border hover:border-foreground/30"
+                    active
+                      ? "border-brand ring-2 ring-brand/20"
+                      : "border-border hover:border-foreground/30"
                   }`}
                 >
                   <Preview className="w-full h-auto rounded-md" />
@@ -178,8 +180,6 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
           <ArchiveLivePreview archiveType={archiveType} settings={draft} lang={previewLang} />
         </div>
       </div>
-
-
 
       {/* Display toggles */}
       <FieldsGrid title={t("archiveLayout.sections.display")}>
@@ -221,7 +221,10 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
           label={t("archiveLayout.fields.listStyle")}
           value={draft.list_style}
           onChange={(v) => set("list_style", v as ListStyle)}
-          options={LIST_STYLES.map((s) => ({ value: s, label: t(`archiveLayout.listStyles.${s}`) }))}
+          options={LIST_STYLES.map((s) => ({
+            value: s,
+            label: t(`archiveLayout.listStyles.${s}`),
+          }))}
         />
         <SelectField
           label={t("archiveLayout.fields.columns")}
@@ -329,9 +332,7 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
         <Button
           type="button"
           variant="ghost"
-          onClick={() =>
-            setDraft((d) => (d ? { ...d, ...DEFAULT_ARCHIVE_LAYOUT } : d))
-          }
+          onClick={() => setDraft((d) => (d ? { ...d, ...DEFAULT_ARCHIVE_LAYOUT } : d))}
         >
           Reset
         </Button>
@@ -343,7 +344,9 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
 function FieldsGrid({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{children}</div>
     </section>
   );

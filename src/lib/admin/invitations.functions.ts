@@ -191,7 +191,10 @@ export const previewTeamImport = createServerFn({ method: "POST" })
   });
 
 const InviteItemSchema = z.object({
-  email: z.string().email().transform((v) => v.trim().toLowerCase()),
+  email: z
+    .string()
+    .email()
+    .transform((v) => v.trim().toLowerCase()),
   display_name: z.string().min(1).max(200),
   role: z.enum(["admin", "editor", "author", "user"]),
   mode: z.enum(["magic_link", "temp_password"]),
@@ -204,30 +207,32 @@ export const createInvitations = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z.object({ items: z.array(InviteItemSchema).min(1).max(200) }).parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ created: number; skipped: number; ids: string[] }> => {
-    const { tenantId } = await assertAdmin(context.supabase, context.userId);
-    const rows = data.items.map((it) => ({
-      tenant_id: tenantId,
-      email: it.email,
-      display_name: it.display_name,
-      role: it.role as AppRole,
-      mode: it.mode as InviteMode,
-      status: "pending" as const,
-      source: it.source ?? null,
-      metadata: (it.metadata ?? {}) as never,
-      invited_by: context.userId,
-    }));
-    const { data: inserted, error } = await context.supabase
-      .from("user_invitations")
-      .insert(rows)
-      .select("id");
-    if (error) throw new Error(error.message);
-    return {
-      created: inserted?.length ?? 0,
-      skipped: 0,
-      ids: (inserted ?? []).map((r) => r.id),
-    };
-  });
+  .handler(
+    async ({ data, context }): Promise<{ created: number; skipped: number; ids: string[] }> => {
+      const { tenantId } = await assertAdmin(context.supabase, context.userId);
+      const rows = data.items.map((it) => ({
+        tenant_id: tenantId,
+        email: it.email,
+        display_name: it.display_name,
+        role: it.role as AppRole,
+        mode: it.mode as InviteMode,
+        status: "pending" as const,
+        source: it.source ?? null,
+        metadata: (it.metadata ?? {}) as never,
+        invited_by: context.userId,
+      }));
+      const { data: inserted, error } = await context.supabase
+        .from("user_invitations")
+        .insert(rows)
+        .select("id");
+      if (error) throw new Error(error.message);
+      return {
+        created: inserted?.length ?? 0,
+        skipped: 0,
+        ids: (inserted ?? []).map((r) => r.id),
+      };
+    },
+  );
 
 interface SendResult {
   ok: boolean;
@@ -274,7 +279,11 @@ async function performSend(
           email,
           password: tempPassword,
           email_confirm: true,
-          user_metadata: { display_name: displayName, tenant_id: inv.tenant_id, must_change_password: true },
+          user_metadata: {
+            display_name: displayName,
+            tenant_id: inv.tenant_id,
+            must_change_password: true,
+          },
         });
         if (error) throw error;
         authUserId = created.user?.id ?? null;
@@ -431,40 +440,40 @@ export const resendInvitationsForEmails = createServerFn({ method: "POST" })
     z
       .object({
         emails: z
-          .array(z.string().email().transform((v) => v.trim().toLowerCase()))
+          .array(
+            z
+              .string()
+              .email()
+              .transform((v) => v.trim().toLowerCase()),
+          )
           .min(1)
           .max(100),
       })
       .parse(input),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{ results: SendResult[]; missing: string[] }> => {
-      await assertAdmin(context.supabase, context.userId);
-      const uniq = Array.from(new Set(data.emails));
-      const { data: rows, error } = await context.supabase
-        .from("user_invitations")
-        .select("id, email, created_at")
-        .in("email", uniq)
-        .order("created_at", { ascending: false });
-      if (error) throw new Error(error.message);
+  .handler(async ({ data, context }): Promise<{ results: SendResult[]; missing: string[] }> => {
+    await assertAdmin(context.supabase, context.userId);
+    const uniq = Array.from(new Set(data.emails));
+    const { data: rows, error } = await context.supabase
+      .from("user_invitations")
+      .select("id, email, created_at")
+      .in("email", uniq)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
 
-      const byEmail = new Map<string, string>();
-      for (const r of rows ?? []) {
-        if (!byEmail.has(r.email)) byEmail.set(r.email, r.id);
-      }
-      const missing = uniq.filter((e) => !byEmail.has(e));
-      const results: SendResult[] = [];
-      for (const [, id] of byEmail) {
-        const r = await performSend(context.supabase, context.userId, id);
-        results.push(r);
-        await new Promise((res) => setTimeout(res, 250));
-      }
-      return { results, missing };
-    },
-  );
+    const byEmail = new Map<string, string>();
+    for (const r of rows ?? []) {
+      if (!byEmail.has(r.email)) byEmail.set(r.email, r.id);
+    }
+    const missing = uniq.filter((e) => !byEmail.has(e));
+    const results: SendResult[] = [];
+    for (const [, id] of byEmail) {
+      const r = await performSend(context.supabase, context.userId, id);
+      results.push(r);
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    return { results, missing };
+  });
 
 export const revokeInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -628,8 +637,8 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
 
         if (!authUserId) {
           const tempPassword = generateTempPassword();
-          const { data: createdUser, error: createErr } =
-            await supabaseAdmin.auth.admin.createUser({
+          const { data: createdUser, error: createErr } = await supabaseAdmin.auth.admin.createUser(
+            {
               email: d.email,
               password: tempPassword,
               email_confirm: true,
@@ -639,7 +648,8 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
                 must_change_password: true,
                 provisioned: true,
               },
-            });
+            },
+          );
           if (createErr) throw createErr;
           authUserId = createdUser.user?.id ?? null;
           if (!authUserId) throw new Error("no_auth_user_id");

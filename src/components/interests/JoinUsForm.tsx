@@ -420,7 +420,6 @@ export function JoinUsForm({
     return groups;
   }, [allItems, catalog.data, lang]);
 
-
   const togglePick = (id: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -559,7 +558,10 @@ export function JoinUsForm({
           byParent.set(pSlug, bucket);
         }
         for (const [slug, bucket] of byParent.entries()) {
-          const safeKey = `interests_${slug.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`.slice(0, 60);
+          const safeKey = `interests_${slug.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`.slice(
+            0,
+            60,
+          );
           custom[safeKey] = bucket.labels.join(", ").slice(0, 500);
         }
       }
@@ -1151,7 +1153,6 @@ export function JoinUsForm({
           )}
         </div>
       )}
-
 
       <button
         type="submit"

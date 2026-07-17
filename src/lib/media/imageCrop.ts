@@ -40,10 +40,8 @@ export async function getCroppedBlob(
   const rad = toRad(rotationDeg);
 
   // Bounding box that fits any rotation of the source image
-  const bBoxWidth =
-    Math.abs(Math.cos(rad) * image.width) + Math.abs(Math.sin(rad) * image.height);
-  const bBoxHeight =
-    Math.abs(Math.sin(rad) * image.width) + Math.abs(Math.cos(rad) * image.height);
+  const bBoxWidth = Math.abs(Math.cos(rad) * image.width) + Math.abs(Math.sin(rad) * image.height);
+  const bBoxHeight = Math.abs(Math.sin(rad) * image.width) + Math.abs(Math.cos(rad) * image.height);
 
   const rotCanvas = document.createElement("canvas");
   rotCanvas.width = bBoxWidth;
@@ -77,11 +75,7 @@ export async function getCroppedBlob(
   );
 
   return await new Promise<Blob>((resolve, reject) => {
-    out.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
-      mimeType,
-      quality,
-    );
+    out.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), mimeType, quality);
   });
 }
 
@@ -102,9 +96,7 @@ export function readFileAsDataUrl(file: File): Promise<string> {
  * Load an image and return its natural dimensions. Used to detect wildly
  * off-ratio uploads and warn the user before opening the cropper.
  */
-export async function getImageDimensions(
-  src: string,
-): Promise<{ width: number; height: number }> {
+export async function getImageDimensions(src: string): Promise<{ width: number; height: number }> {
   const img = await loadImage(src);
   return { width: img.naturalWidth, height: img.naturalHeight };
 }

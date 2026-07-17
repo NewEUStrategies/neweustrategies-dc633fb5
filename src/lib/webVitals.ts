@@ -180,10 +180,7 @@ export function initWebVitals(): void {
       | undefined;
     if (nav) {
       const ttfb = nav.responseStart;
-      report(
-        { name: "TTFB", value: ttfb, rating: rate("TTFB", ttfb), id: uid() },
-        currentPath,
-      );
+      report({ name: "TTFB", value: ttfb, rating: rate("TTFB", ttfb), id: uid() }, currentPath);
     }
   } catch {
     /* unsupported */

@@ -114,10 +114,7 @@ function statusVariant(s: SubStatus): "default" | "secondary" | "outline" | "des
 
 function roleLabel(t: (k: string, o?: Record<string, unknown>) => string, r: Role): string {
   return t(`admin.users.roles.${r}`, {
-    defaultValue:
-      r === "super_admin"
-        ? "Super admin"
-        : r.charAt(0).toUpperCase() + r.slice(1),
+    defaultValue: r === "super_admin" ? "Super admin" : r.charAt(0).toUpperCase() + r.slice(1),
   });
 }
 
@@ -157,7 +154,9 @@ function Users() {
     queryFn: async (): Promise<SubscriptionInfo[]> => {
       const { data: rows, error } = await supabase
         .from("user_subscriptions")
-        .select("user_id, status, current_period_end, canceled_at, access_plans!inner(name_pl, name_en)")
+        .select(
+          "user_id, status, current_period_end, canceled_at, access_plans!inner(name_pl, name_en)",
+        )
         .eq("tenant_id", tenantId)
         .order("started_at", { ascending: false });
       if (error) {
@@ -167,9 +166,11 @@ function Users() {
       }
       const lang = i18n.language === "pl" ? "pl" : "en";
       return (rows ?? []).map((r) => {
-        const plan = (r as unknown as {
-          access_plans: { name_pl: string; name_en: string } | null;
-        }).access_plans;
+        const plan = (
+          r as unknown as {
+            access_plans: { name_pl: string; name_en: string } | null;
+          }
+        ).access_plans;
         return {
           user_id: r.user_id,
           status: r.status as SubStatus,
@@ -197,9 +198,6 @@ function Users() {
     }
     return m;
   }, [subs]);
-
-
-
 
   const planOptions = useMemo(() => {
     const set = new Set<string>();
@@ -298,11 +296,7 @@ function Users() {
       return keys.map((k) => ({
         key: `plan:${k}`,
         label:
-          k === "__none__"
-            ? i18n.language === "pl"
-              ? "Bez subskrypcji"
-              : "No subscription"
-            : k,
+          k === "__none__" ? (i18n.language === "pl" ? "Bez subskrypcji" : "No subscription") : k,
         rows: buckets.get(k) ?? [],
       }));
     }
@@ -369,10 +363,7 @@ function Users() {
 
   // Bieżący użytkownik nie może zmienić własnej roli - traktujemy go jako
   // niezaznaczalnego, żeby akcje zbiorcze nie wywalały RPC z błędem.
-  const isSelectable = useCallback(
-    (id: string) => id !== user?.id,
-    [user?.id],
-  );
+  const isSelectable = useCallback((id: string) => id !== user?.id, [user?.id]);
 
   const toggleRow = useCallback(
     (id: string, shift: boolean) => {
@@ -410,8 +401,7 @@ function Users() {
     [orderedRows, isSelectable],
   );
   const allVisibleSelected =
-    selectableVisibleIds.length > 0 &&
-    selectableVisibleIds.every((id) => selected.has(id));
+    selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selected.has(id));
   const someVisibleSelected =
     !allVisibleSelected && selectableVisibleIds.some((id) => selected.has(id));
   const toggleAllVisible = () => {
@@ -478,8 +468,7 @@ function Users() {
       const res = await resendBulkFn({ data: { emails } });
       const okCount = res.results.filter((r) => r.ok).length;
       const failCount = res.results.length - okCount;
-      if (okCount > 0)
-        toast.success(`${okCount} ${i18n.language === "pl" ? "wysłane" : "sent"}`);
+      if (okCount > 0) toast.success(`${okCount} ${i18n.language === "pl" ? "wysłane" : "sent"}`);
       if (failCount > 0)
         toast.error(`${failCount} ${i18n.language === "pl" ? "błędów" : "failed"}`);
       if (res.missing.length > 0)
@@ -505,10 +494,7 @@ function Users() {
     setStatusFilter("all");
   };
   const filtersActive =
-    search !== "" ||
-    roleFilter !== "all" ||
-    subFilter !== "all" ||
-    statusFilter !== "all";
+    search !== "" || roleFilter !== "all" || subFilter !== "all" || statusFilter !== "all";
   const totalCount = users.length;
   const resultsCount = sorted.length;
 
@@ -575,9 +561,7 @@ function Users() {
                 {roleLabel(t, r)}
               </SelectItem>
             ))}
-            <SelectItem value="none">
-              {i18n.language === "pl" ? "Bez roli" : "No role"}
-            </SelectItem>
+            <SelectItem value="none">{i18n.language === "pl" ? "Bez roli" : "No role"}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -634,7 +618,9 @@ function Users() {
               {i18n.language === "pl" ? "Grupuj wg planu" : "Group by plan"}
             </SelectItem>
             <SelectItem value="sub_status">
-              {i18n.language === "pl" ? "Grupuj wg statusu subskrypcji" : "Group by subscription status"}
+              {i18n.language === "pl"
+                ? "Grupuj wg statusu subskrypcji"
+                : "Group by subscription status"}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -654,16 +640,13 @@ function Users() {
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs">
           <span className="font-medium tabular-nums">
-            {selected.size}{" "}
-            {i18n.language === "pl" ? "zaznaczonych" : "selected"}
+            {selected.size} {i18n.language === "pl" ? "zaznaczonych" : "selected"}
           </span>
           <span className="mx-1 h-4 w-px bg-border" />
 
           <Select value={bulkRole} onValueChange={(v) => setBulkRole(v as Role)}>
             <SelectTrigger className="h-8 w-[160px] text-xs">
-              <SelectValue
-                placeholder={i18n.language === "pl" ? "Zmień rolę…" : "Change role…"}
-              />
+              <SelectValue placeholder={i18n.language === "pl" ? "Zmień rolę…" : "Change role…"} />
             </SelectTrigger>
             <SelectContent>
               {isSuperAdmin && (
@@ -790,7 +773,10 @@ function Users() {
               <Fragment key={g.key}>
                 {groupBy !== "none" && (
                   <tr className="bg-muted/40 border-t border-border">
-                    <td colSpan={7} className="px-3 py-2 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+                    <td
+                      colSpan={7}
+                      className="px-3 py-2 text-xs uppercase tracking-wide font-semibold text-muted-foreground"
+                    >
                       {g.label}
                       <span className="ml-2 text-[10px] font-normal opacity-70 tabular-nums">
                         {g.rows.length}
@@ -809,10 +795,7 @@ function Users() {
                       }
                       onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
                     >
-                      <td
-                        className="p-3 w-10"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <td className="p-3 w-10" onClick={(e) => e.stopPropagation()}>
                         {isSelectable(u.id) ? (
                           <span
                             role="button"
@@ -882,7 +865,10 @@ function Users() {
                             <Badge variant="outline" className="font-normal">
                               {sub.plan_name}
                             </Badge>
-                            <Badge variant={statusVariant(sub.status as SubStatus)} className="text-[10px]">
+                            <Badge
+                              variant={statusVariant(sub.status as SubStatus)}
+                              className="text-[10px]"
+                            >
                               {statusLabel(i18n.language, sub.status as SubStatus)}
                             </Badge>
                           </div>
@@ -908,10 +894,7 @@ function Users() {
                             }
                             onClick={async () => {
                               try {
-                                await impersonateUser(
-                                  u.id,
-                                  u.display_name ?? u.email ?? u.id,
-                                );
+                                await impersonateUser(u.id, u.display_name ?? u.email ?? u.id);
                                 toast.success(
                                   i18n.language === "pl"
                                     ? "Tryb podglądu aktywny"
@@ -929,9 +912,7 @@ function Users() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() =>
-                            navigate({ to: "/admin/users/$id", params: { id: u.id } })
-                          }
+                          onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>

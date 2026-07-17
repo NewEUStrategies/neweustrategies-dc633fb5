@@ -8,7 +8,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactECharts from "echarts-for-react";
-import { use } from "echarts/core";
+// Alias: `use` z echarts/core to funkcja rejestracji modułów, nie hook Reacta -
+// pod oryginalną nazwą wpada pod react-hooks/rules-of-hooks.
+import { use as echartsUse } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import {
   BarChart,
@@ -36,7 +38,7 @@ import {
 import type { EChartsCoreOption, ECharts } from "echarts/core";
 import { resolveChartTheme, baseOption, type ResolvedTheme } from "./chartTheme";
 
-use([
+echartsUse([
   CanvasRenderer,
   BarChart,
   LineChart,

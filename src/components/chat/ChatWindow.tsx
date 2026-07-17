@@ -19,6 +19,7 @@ import {
   Images,
   Minus,
   MoreVertical,
+  Palette,
   Pin,
   PinOff,
   Timer,
@@ -49,10 +50,18 @@ import {
   useSetMessageTtl,
 } from "@/lib/chat/useConversations";
 import { aggregatePeerReadState, conversationDisplay, isGroupView } from "@/lib/chat/display";
+import { useNicknames } from "@/lib/chat/nicknames";
 import { isExpired, MESSAGE_TTL_OPTIONS } from "@/lib/chat/receipts";
 import { useStarredIds, useToggleStar } from "@/lib/chat/stars";
 import {
+  normalizeQuickEmoji,
+  normalizeTheme,
+  normalizeWallpaper,
+  themeClass,
+} from "@/lib/chat/themes";
+import {
   canEditMessage,
+  retrySendInput,
   useConversationChannel,
   useDeleteMessage,
   useDiscardFailedMessage,
@@ -71,6 +80,7 @@ import { usePrefetchAttachmentUrls } from "@/lib/chat/attachments";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
+import { ChatAppearanceDialog } from "./ChatAppearanceDialog";
 import { ChatAvatar } from "./ChatAvatar";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMediaPanel } from "./ChatMediaPanel";
@@ -120,13 +130,22 @@ export function ChatWindow(props: ChatWindowProps) {
   const view = conversationsQ.data?.find((v) => v.conversation.id === conversationId);
   const peerIds = useMemo(() => (view ? view.peers.map((p) => p.user_id) : []), [view]);
   const peersQ = usePeerProfiles(peerIds);
+  const nicknamesQ = useNicknames();
+  const conversationNicknames = nicknamesQ.data?.get(conversationId);
   const isGroup = !!view && isGroupView(view);
   const display = view
-    ? conversationDisplay(view, peersQ.data, t("chat.group.circle"))
+    ? conversationDisplay(view, peersQ.data, t("chat.group.circle"), conversationNicknames)
     : { isGroup: false, name: "...", avatarUrl: null, peerId: null };
   const peerId = display.peerId;
   const peerName = display.name;
   const peerAvatar = display.avatarUrl;
+
+  // Shared per-conversation personalization (Messenger semantics): the theme
+  // recolors every --chat-user-* token below this root, the wallpaper styles
+  // the thread scroller, the quick emoji powers the composer's one-tap send.
+  const theme = normalizeTheme(view?.conversation.theme);
+  const wallpaper = normalizeWallpaper(view?.conversation.wallpaper);
+  const quickEmoji = normalizeQuickEmoji(view?.conversation.quick_emoji);
   const peerOnline = !!peerId && online.has(peerId);
   const onlinePeers = useMemo(
     () => peerIds.reduce((sum, id) => sum + (online.has(id) ? 1 : 0), 0),
@@ -170,31 +189,54 @@ export function ChatWindow(props: ChatWindowProps) {
   const prefsQ = useNotificationPreferences();
   const typingEnabled = prefsQ.data?.typing_indicators_enabled ?? true;
 
-  // Who is typing (user id) - in groups the indicator must name the author,
-  // not "the peer". A newer typer takes over the slot; the explicit stop only
-  // clears the slot when it comes from the user currently occupying it.
-  const [typingUserId, setTypingUserId] = useState<string | null>(null);
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Who is typing - a SET of user ids, not a single slot: in groups several
+  // members can type at once and one member pausing must not clear another's
+  // indicator. Each typer gets an independent expiry timer; an explicit stop
+  // (typing:false, sent along with the message) removes only that typer.
+  const [typingUserIds, setTypingUserIds] = useState<ReadonlySet<string>>(new Set());
+  const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const removeTyper = useCallback((userId: string) => {
+    const timer = typingTimersRef.current.get(userId);
+    if (timer) clearTimeout(timer);
+    typingTimersRef.current.delete(userId);
+    setTypingUserIds((prev) => {
+      if (!prev.has(userId)) return prev;
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
   const { sendTyping } = useConversationChannel(conversationId, true, (event) => {
     if (event.typing === false) {
-      // Explicit stop (the peer just sent a message) - clear immediately
-      // instead of letting the 4s timeout linger under the fresh bubble.
-      setTypingUserId((current) => (current && current !== event.userId ? current : null));
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+      removeTyper(event.userId);
       return;
     }
-    setTypingUserId(event.userId);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => setTypingUserId(null), TYPING_VISIBLE_MS);
+    setTypingUserIds((prev) => {
+      if (prev.has(event.userId)) return prev;
+      const next = new Set(prev);
+      next.add(event.userId);
+      return next;
+    });
+    const existing = typingTimersRef.current.get(event.userId);
+    if (existing) clearTimeout(existing);
+    typingTimersRef.current.set(
+      event.userId,
+      setTimeout(() => removeTyper(event.userId), TYPING_VISIBLE_MS),
+    );
   });
-  const peerTyping = !!typingUserId;
-  useEffect(
-    () => () => {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    },
-    [],
-  );
+  const peerTyping = typingUserIds.size > 0;
+  // Conversation switch without remount (dock): the previous thread's typers
+  // must not leak into the new one - drop state and timers on both edges.
+  useEffect(() => {
+    setTypingUserIds((prev) => (prev.size === 0 ? prev : new Set()));
+    const timers = typingTimersRef.current;
+    const clearAll = () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+    clearAll();
+    return clearAll;
+  }, [conversationId]);
 
   // Minute tick: the 5-minute edit window must close visually even when
   // nothing else re-renders, and disappearing messages must vanish live
@@ -310,6 +352,7 @@ export function ChatWindow(props: ChatWindowProps) {
   const [mediaOpen, setMediaOpen] = useState(false);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
 
   useEffect(() => {
     setReplyTo(null);
@@ -318,6 +361,7 @@ export function ChatWindow(props: ChatWindowProps) {
     setForwardTarget(null);
     setBlockDialogOpen(false);
     setGroupInfoOpen(false);
+    setAppearanceOpen(false);
   }, [conversationId]);
 
   // Stable handlers: MessageBubble is memoized, so these references must not
@@ -342,6 +386,19 @@ export function ChatWindow(props: ChatWindowProps) {
   const handleDiscardFailed = useCallback(
     (message: ChatMessage) => discardFailed(message.id),
     [discardFailed],
+  );
+  // Retry = drop the failed optimistic row and re-send the same payload as a
+  // fresh mutation (the attachment object is already in storage, so a retry
+  // never re-uploads). World-class clients never make the user retype.
+  const { mutate: mutateSendForRetry } = sendMessage;
+  const handleRetryFailed = useCallback(
+    (message: ChatMessage) => {
+      const input = retrySendInput(message);
+      if (!input) return;
+      discardFailed(message.id);
+      mutateSendForRetry(input);
+    },
+    [discardFailed, mutateSendForRetry],
   );
   const canEdit = useCallback(
     (message: ChatMessage) => (uid ? canEditMessage(message, uid) : false),
@@ -457,9 +514,18 @@ export function ChatWindow(props: ChatWindowProps) {
   if (!user) return null;
 
   const peerTypingSafe = peerTyping && (isGroup || !!peerId);
-  const typingProfile = typingUserId ? peersQ.data?.get(typingUserId) : undefined;
-  const typingName = isGroup ? (typingProfile?.display_name ?? "...") : peerName;
-  const typingAvatarUrl = isGroup ? (typingProfile?.avatar_url ?? null) : peerAvatar;
+  const typingIds = [...typingUserIds];
+  const typingNames = isGroup
+    ? typingIds.map(
+        (id) => conversationNicknames?.get(id) ?? peersQ.data?.get(id)?.display_name ?? "...",
+      )
+    : [peerName];
+  const firstTypingId = typingIds[0];
+  const typingAvatarUrl = isGroup
+    ? firstTypingId
+      ? (peersQ.data?.get(firstTypingId)?.avatar_url ?? null)
+      : null
+    : peerAvatar;
   const headerSubtitle = isGroup
     ? `${t("chat.group.members", { count: peerIds.length + 1 })}${
         onlinePeers > 0 ? ` · ${t("chat.group.online", { count: onlinePeers })}` : ""
@@ -470,6 +536,8 @@ export function ChatWindow(props: ChatWindowProps) {
 
   const resolveAuthorName = (senderId: string): string => {
     if (senderId === user.id) return t("chat.you");
+    const nickname = conversationNicknames?.get(senderId);
+    if (nickname) return nickname;
     if (!isGroup) return peerName;
     return peersQ.data?.get(senderId)?.display_name ?? "...";
   };
@@ -547,6 +615,18 @@ export function ChatWindow(props: ChatWindowProps) {
               {t("chat.group.info")}
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              setAppearanceOpen(true);
+            }}
+            className={menuItemClass}
+          >
+            <Palette className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            {t("chat.appearance.open")}
+          </button>
           <button type="button" role="menuitem" onClick={handlePinToggle} className={menuItemClass}>
             {pinned ? (
               <PinOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
@@ -668,12 +748,14 @@ export function ChatWindow(props: ChatWindowProps) {
         peerAvatarUrl={peerAvatar}
         isGroup={isGroup}
         senderProfiles={isGroup ? peersQ.data : undefined}
-        typingName={typingName}
+        senderNicknames={conversationNicknames}
+        typingNames={typingNames}
         typingAvatarUrl={typingAvatarUrl}
         peerLastReadAt={peerLastReadAt}
         peerLastDeliveredAt={peerLastDeliveredAt}
         peerTyping={peerTypingSafe}
         ttlSeconds={ttlSeconds}
+        wallpaper={wallpaper}
         starredIds={starredIdsQ.data}
         firstUnreadId={firstUnreadId}
         unreadCount={unreadSnapshot?.count ?? 0}
@@ -685,6 +767,7 @@ export function ChatWindow(props: ChatWindowProps) {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onDiscardFailed={handleDiscardFailed}
+        onRetryFailed={handleRetryFailed}
         onToggleStar={handleToggleStar}
         onForward={handleForward}
         canEdit={canEdit}
@@ -708,6 +791,7 @@ export function ChatWindow(props: ChatWindowProps) {
           replyTo={replyTo}
           replyToAuthor={replyTo ? resolveAuthorName(replyTo.sender_id) : null}
           editing={editTarget}
+          quickEmoji={quickEmoji}
           onClearReply={handleClearReply}
           onSend={handleSend}
           onSaveEdit={handleSaveEdit}
@@ -800,13 +884,20 @@ export function ChatWindow(props: ChatWindowProps) {
           onLeft={onBack ?? onClose}
         />
       )}
+      {view && (
+        <ChatAppearanceDialog
+          view={view}
+          open={appearanceOpen}
+          onClose={() => setAppearanceOpen(false)}
+        />
+      )}
     </>
   );
 
   if (variant === "page") {
     return (
       <div
-        className={cn("flex h-full min-h-0 flex-col", className)}
+        className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
         data-active-conversation={conversationId}
       >
         <div className="flex items-center gap-2.5 border-b border-border/60 px-3 py-2">
@@ -887,6 +978,7 @@ export function ChatWindow(props: ChatWindowProps) {
         "pointer-events-auto flex w-[320px] max-w-[calc(100vw-16px)] flex-col overflow-hidden",
         "h-[430px] max-h-[min(70vh,430px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
         "motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in-0 motion-safe:duration-200",
+        themeClass(theme),
         className,
       )}
       role="dialog"

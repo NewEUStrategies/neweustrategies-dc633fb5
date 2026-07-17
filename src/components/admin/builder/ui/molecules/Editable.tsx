@@ -169,7 +169,6 @@ export function Editable({
     <span className="relative block w-full max-w-full">
       {editableEl}
       {focused && (
-
         <span
           role="toolbar"
           aria-label="Formatowanie tekstu"
@@ -181,7 +180,12 @@ export function Editable({
           }}
           className="absolute -top-9 left-0 z-40 flex items-center gap-0.5 rounded-md border border-border bg-background/95 px-1 py-0.5 text-xs shadow-md backdrop-blur"
         >
-          <FmtBtn label="B" title="Pogrubienie (⌘/Ctrl+B)" onClick={() => runCommand("bold")} bold />
+          <FmtBtn
+            label="B"
+            title="Pogrubienie (⌘/Ctrl+B)"
+            onClick={() => runCommand("bold")}
+            bold
+          />
           <FmtBtn
             label="I"
             title="Kursywa (⌘/Ctrl+I)"
@@ -195,8 +199,16 @@ export function Editable({
             underline
           />
           <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
-          <FmtBtn label="•" title="Lista punktowana" onClick={() => runCommand("insertUnorderedList")} />
-          <FmtBtn label="1." title="Lista numerowana" onClick={() => runCommand("insertOrderedList")} />
+          <FmtBtn
+            label="•"
+            title="Lista punktowana"
+            onClick={() => runCommand("insertUnorderedList")}
+          />
+          <FmtBtn
+            label="1."
+            title="Lista numerowana"
+            onClick={() => runCommand("insertOrderedList")}
+          />
           <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
           <FmtBtn label="🔗" title="Wstaw link (⌘/Ctrl+K)" onClick={promptLink} />
           <FmtBtn label="⌫" title="Usuń link" onClick={() => runCommand("unlink")} />

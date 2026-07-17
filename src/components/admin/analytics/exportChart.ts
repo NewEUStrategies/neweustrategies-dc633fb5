@@ -38,7 +38,11 @@ function triggerDownload(filename: string, blob: Blob): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function exportCsv(filename: string, headers: string[], rows: readonly (readonly unknown[])[]): void {
+export function exportCsv(
+  filename: string,
+  headers: string[],
+  rows: readonly (readonly unknown[])[],
+): void {
   const blob = new Blob([buildCsv(headers, rows)], { type: "text/csv;charset=utf-8" });
   triggerDownload(filename.endsWith(".csv") ? filename : `${filename}.csv`, blob);
 }
@@ -49,5 +53,8 @@ export function exportPng(filename: string, instance: ECharts | null | undefined
   const bin = atob(url.split(",")[1] ?? "");
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  triggerDownload(filename.endsWith(".png") ? filename : `${filename}.png`, new Blob([bytes], { type: "image/png" }));
+  triggerDownload(
+    filename.endsWith(".png") ? filename : `${filename}.png`,
+    new Blob([bytes], { type: "image/png" }),
+  );
 }

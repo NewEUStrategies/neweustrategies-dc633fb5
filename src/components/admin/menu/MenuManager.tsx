@@ -8,8 +8,30 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, GripVertical, Save, Trash2, Loader2, ArrowLeft, ArrowRight, Link as LinkIcon, FileText, BookOpen, Folder, Tags as TagIcon, Sparkles, Star } from "@/lib/lucide-shim";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  Save,
+  Trash2,
+  Loader2,
+  ArrowLeft,
+  ArrowRight,
+  Link as LinkIcon,
+  FileText,
+  BookOpen,
+  Folder,
+  Tags as TagIcon,
+  Sparkles,
+  Star,
+} from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { saveMenu as saveMenuFn } from "@/lib/menus/menu.functions";
@@ -103,14 +125,18 @@ export function MenuManager({ menuKey }: Props) {
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(t("admin.menu.saveError", { defaultValue: "Nie udało się zapisać menu" }) + `: ${msg}`);
+      toast.error(
+        t("admin.menu.saveError", { defaultValue: "Nie udało się zapisać menu" }) + `: ${msg}`,
+      );
     },
   });
 
   const tree = useMemo(() => buildTree(items ?? []), [items]);
 
   const updateItem = (local_id: string, patch: Partial<ClientItem>) => {
-    setItems((curr) => (curr ?? []).map((it) => (it.local_id === local_id ? { ...it, ...patch } : it)));
+    setItems((curr) =>
+      (curr ?? []).map((it) => (it.local_id === local_id ? { ...it, ...patch } : it)),
+    );
   };
 
   const removeItem = (local_id: string) => {
@@ -157,7 +183,11 @@ export function MenuManager({ menuKey }: Props) {
     });
   };
 
-  const moveItem = (dragId: string, targetId: string | null, mode: "before" | "after" | "child") => {
+  const moveItem = (
+    dragId: string,
+    targetId: string | null,
+    mode: "before" | "after" | "child",
+  ) => {
     setItems((curr) => {
       if (!curr) return curr;
       const dragged = curr.find((i) => i.local_id === dragId);
@@ -193,9 +223,11 @@ export function MenuManager({ menuKey }: Props) {
         if (targetIdx >= 0) insertIndex = mode === "before" ? targetIdx : targetIdx + 1;
       }
       const updated: ClientItem = { ...dragged, parent_local_id: newParent };
-      const reordered = [...siblings.slice(0, insertIndex), updated, ...siblings.slice(insertIndex)].map(
-        (it, idx) => ({ ...it, position: idx }),
-      );
+      const reordered = [
+        ...siblings.slice(0, insertIndex),
+        updated,
+        ...siblings.slice(insertIndex),
+      ].map((it, idx) => ({ ...it, position: idx }));
       return [...remaining, ...reordered];
     });
   };
@@ -338,7 +370,8 @@ export function MenuManager({ menuKey }: Props) {
             </h2>
             <p className="text-xs text-muted-foreground">
               {t("admin.menu.dragHint", {
-                defaultValue: "Przeciągnij elementy, aby zmienić kolejność i hierarchię (max 3 poziomy).",
+                defaultValue:
+                  "Przeciągnij elementy, aby zmienić kolejność i hierarchię (max 3 poziomy).",
               })}
             </p>
           </div>
@@ -363,7 +396,8 @@ export function MenuManager({ menuKey }: Props) {
           {tree.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-8">
               {t("admin.menu.emptyMenu", {
-                defaultValue: "Brak elementów. Dodaj strony, wpisy, kategorie lub własne odnośniki z panelu po lewej.",
+                defaultValue:
+                  "Brak elementów. Dodaj strony, wpisy, kategorie lub własne odnośniki z panelu po lewej.",
               })}
             </p>
           )}
@@ -375,7 +409,9 @@ export function MenuManager({ menuKey }: Props) {
                 style={{ background: "var(--brand)" }}
               />
               <span>Poziom 1 · pozycje główne</span>
-              <span className="ml-auto opacity-60">{tree.length} {tree.length === 1 ? "pozycja" : "pozycji"}</span>
+              <span className="ml-auto opacity-60">
+                {tree.length} {tree.length === 1 ? "pozycja" : "pozycji"}
+              </span>
             </div>
           )}
           {tree.map((node, i) => (
@@ -444,7 +480,18 @@ interface NodeProps {
   onOutdent: (id: string) => void;
 }
 
-function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpdate, onRemove, onMove, onIndent, onOutdent }: NodeProps) {
+function MenuNode({
+  node,
+  depth,
+  siblingIndex,
+  expanded,
+  onToggleExpanded,
+  onUpdate,
+  onRemove,
+  onMove,
+  onIndent,
+  onOutdent,
+}: NodeProps) {
   const { t } = useTranslation();
   const { item, children } = node;
   const isOpen = expanded.has(item.local_id);
@@ -535,9 +582,14 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
         onDragLeave={() => setDropZone(null)}
         onDrop={onDrop}
         className={
-          cardClass + " " +
-          (dropZone === "before" ? "!border-t-2 !border-t-brand shadow-[0_-2px_0_var(--brand)] " : "") +
-          (dropZone === "after" ? "!border-b-2 !border-b-brand shadow-[0_2px_0_var(--brand)] " : "") +
+          cardClass +
+          " " +
+          (dropZone === "before"
+            ? "!border-t-2 !border-t-brand shadow-[0_-2px_0_var(--brand)] "
+            : "") +
+          (dropZone === "after"
+            ? "!border-b-2 !border-b-brand shadow-[0_2px_0_var(--brand)] "
+            : "") +
           (dropZone === "child" ? "ring-2 ring-brand/60 bg-brand/5 " : "")
         }
       >
@@ -557,7 +609,11 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
             className="p-1 -m-1 hover:bg-muted rounded shrink-0 transition-colors"
             aria-label={isOpen ? "Zwiń" : "Rozwiń"}
           >
-            {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {isOpen ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
           </button>
           <span
             className={
@@ -589,13 +645,18 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
               {isMegaLike ? (
                 <span
                   className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                  style={{ background: "color-mix(in oklab, var(--brand) 14%, transparent)", color: "var(--brand)" }}
+                  style={{
+                    background: "color-mix(in oklab, var(--brand) 14%, transparent)",
+                    color: "var(--brand)",
+                  }}
                   title={`${displayColsCount} kolumn · ${displayLinksCount} linków${usingDerivedMega ? " · auto z drzewa" : ""}${megaHasFeatured ? " · Wyróżniony" : ""}`}
                 >
                   <Sparkles size={10} />
                   Mega
                   {usingDerivedMega ? (
-                    <span className="ml-1 rounded bg-amber-100 px-1 py-[1px] text-[8px] text-amber-800">auto</span>
+                    <span className="ml-1 rounded bg-amber-100 px-1 py-[1px] text-[8px] text-amber-800">
+                      auto
+                    </span>
                   ) : null}
                 </span>
               ) : null}
@@ -658,9 +719,7 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
             {usingDerivedMega ? (
               <>
                 <span className="opacity-30">·</span>
-                <span className="inline-flex items-center gap-1 text-amber-700">
-                  auto z drzewa
-                </span>
+                <span className="inline-flex items-center gap-1 text-amber-700">auto z drzewa</span>
               </>
             ) : null}
             {megaHasFeatured ? (
@@ -766,7 +825,9 @@ function MenuNode({ node, depth, siblingIndex, expanded, onToggleExpanded, onUpd
         <div
           className={
             "mt-2 space-y-1.5 relative " +
-            (depth === 0 ? "ml-6 pl-4 border-l-2 border-brand/30" : "ml-5 pl-3 border-l border-border/50")
+            (depth === 0
+              ? "ml-6 pl-4 border-l-2 border-brand/30"
+              : "ml-5 pl-3 border-l border-border/50")
           }
         >
           {children.map((child, i) => (
@@ -831,8 +892,7 @@ function MegaColumnsEditor({
       })),
     [treeChildren],
   );
-  const importFromTree = () =>
-    onChange({ ...config, columns: derivedCols });
+  const importFromTree = () => onChange({ ...config, columns: derivedCols });
   const addColumn = () =>
     onChange({
       ...config,
@@ -869,7 +929,10 @@ function MegaColumnsEditor({
               ))}
             </SelectContent>
           </Select>
-          <Select value={config.width} onValueChange={(v) => onChange({ ...config, width: v as "container" | "full" })}>
+          <Select
+            value={config.width}
+            onValueChange={(v) => onChange({ ...config, width: v as "container" | "full" })}
+          >
             <SelectTrigger className="h-7 text-xs w-28">
               <SelectValue />
             </SelectTrigger>
@@ -912,7 +975,12 @@ function MegaColumnsEditor({
                 }
                 title="Powiąż nagłówek kolumny z treścią"
               />
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeColumn(idx)}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-destructive"
+                onClick={() => removeColumn(idx)}
+              >
                 <Trash2 className="h-3 w-3" />
               </Button>
             </div>
@@ -923,9 +991,7 @@ function MegaColumnsEditor({
                     value={l.icon}
                     onChange={(name) =>
                       updateColumn(idx, {
-                        links: col.links.map((x, i) =>
-                          i === li ? { ...x, icon: name ?? "" } : x,
-                        ),
+                        links: col.links.map((x, i) => (i === li ? { ...x, icon: name ?? "" } : x)),
                       })
                     }
                     className="h-7"
@@ -935,7 +1001,9 @@ function MegaColumnsEditor({
                     value={l.label_pl}
                     onChange={(e) =>
                       updateColumn(idx, {
-                        links: col.links.map((x, i) => (i === li ? { ...x, label_pl: e.target.value } : x)),
+                        links: col.links.map((x, i) =>
+                          i === li ? { ...x, label_pl: e.target.value } : x,
+                        ),
                       })
                     }
                     placeholder="Etykieta PL"
@@ -945,7 +1013,9 @@ function MegaColumnsEditor({
                     value={l.label_en}
                     onChange={(e) =>
                       updateColumn(idx, {
-                        links: col.links.map((x, i) => (i === li ? { ...x, label_en: e.target.value } : x)),
+                        links: col.links.map((x, i) =>
+                          i === li ? { ...x, label_en: e.target.value } : x,
+                        ),
                       })
                     }
                     placeholder="EN"
@@ -955,7 +1025,9 @@ function MegaColumnsEditor({
                     value={l.href}
                     onChange={(e) =>
                       updateColumn(idx, {
-                        links: col.links.map((x, i) => (i === li ? { ...x, href: e.target.value } : x)),
+                        links: col.links.map((x, i) =>
+                          i === li ? { ...x, href: e.target.value } : x,
+                        ),
                       })
                     }
                     placeholder="href"
@@ -1093,23 +1165,20 @@ function MegaPreview({
   // z drzewa dzieci tej pozycji. Admin musi pokazać dokładnie ten sam widok.
   const configuredCols = config.columns;
   const usingDerived = configuredCols.length === 0;
-  const cols = useMemo(
-    () => {
-      const source = usingDerived ? derivedCols : configuredCols;
-      return source.map((c) => ({
-        title_pl: c.title_pl,
-        title_en: c.title_en,
-        href: c.href,
-        links: c.links.map((l) => ({
-          label_pl: l.label_pl,
-          label_en: l.label_en,
-          href: l.href,
-          icon: l.icon ?? "",
-        })),
-      }));
-    },
-    [usingDerived, configuredCols, derivedCols],
-  );
+  const cols = useMemo(() => {
+    const source = usingDerived ? derivedCols : configuredCols;
+    return source.map((c) => ({
+      title_pl: c.title_pl,
+      title_en: c.title_en,
+      href: c.href,
+      links: c.links.map((l) => ({
+        label_pl: l.label_pl,
+        label_en: l.label_en,
+        href: l.href,
+        icon: l.icon ?? "",
+      })),
+    }));
+  }, [usingDerived, configuredCols, derivedCols]);
 
   const parentLabel = lang === "en" ? triggerEn || triggerPl : triggerPl;
   const hasContent = cols.length > 0;
@@ -1132,7 +1201,9 @@ function MegaPreview({
               type="button"
               onClick={() => onLangChange(l)}
               className={`px-2 py-0.5 text-[10px] uppercase font-semibold transition-colors ${
-                lang === l ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                lang === l
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
               }`}
               aria-pressed={lang === l}
             >
@@ -1186,7 +1257,9 @@ function FeaturedPostPicker({
       if (!value) return null;
       const { data } = await supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format")
+        .select(
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format",
+        )
         .eq("id", value)
         .maybeSingle();
       return (data as MegaFeaturedPost | null) ?? null;
@@ -1217,9 +1290,7 @@ function FeaturedPostPicker({
     },
   });
 
-  const currentTitle = current
-    ? current.title_pl || current.title_en || current.slug || ""
-    : "";
+  const currentTitle = current ? current.title_pl || current.title_en || current.slug || "" : "";
 
   return (
     <div className="mt-3 border-t border-border pt-3 space-y-2">
@@ -1341,8 +1412,18 @@ function InternalContentPicker({
         { title: string; fallback: string; withStatus: boolean; href: (slug: string) => string }
       > = {
         pages: { title: "title_pl", fallback: "title_en", withStatus: true, href: (s) => `/${s}` },
-        posts: { title: "title_pl", fallback: "title_en", withStatus: true, href: (s) => `/post/${s}` },
-        categories: { title: "name_pl", fallback: "name_en", withStatus: false, href: (s) => `/category/${s}` },
+        posts: {
+          title: "title_pl",
+          fallback: "title_en",
+          withStatus: true,
+          href: (s) => `/post/${s}`,
+        },
+        categories: {
+          title: "name_pl",
+          fallback: "name_en",
+          withStatus: false,
+          href: (s) => `/category/${s}`,
+        },
         tags: { title: "name", fallback: "name", withStatus: false, href: (s) => `/tag/${s}` },
       };
       const c = cfg[table];
@@ -1396,8 +1477,7 @@ function InternalContentPicker({
           onClick={() => setOpen((o) => !o)}
           title={title}
         >
-          <LinkIcon className="h-3 w-3 mr-1" />
-          + Z treści
+          <LinkIcon className="h-3 w-3 mr-1" />+ Z treści
         </Button>
       )}
       {open && (
@@ -1414,7 +1494,13 @@ function InternalContentPicker({
                     : "bg-background text-muted-foreground border-border hover:bg-muted"
                 }`}
               >
-                {tbl === "pages" ? "Strony" : tbl === "posts" ? "Wpisy" : tbl === "categories" ? "Kategorie" : "Tagi"}
+                {tbl === "pages"
+                  ? "Strony"
+                  : tbl === "posts"
+                    ? "Wpisy"
+                    : tbl === "categories"
+                      ? "Kategorie"
+                      : "Tagi"}
               </button>
             ))}
           </div>
@@ -1433,7 +1519,9 @@ function InternalContentPicker({
               </div>
             )}
             {!isFetching && hits.length === 0 && (
-              <div className="px-2 py-2 text-[11px] text-muted-foreground text-center">Brak wyników</div>
+              <div className="px-2 py-2 text-[11px] text-muted-foreground text-center">
+                Brak wyników
+              </div>
             )}
             {hits.map((h) => (
               <button

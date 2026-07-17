@@ -176,9 +176,6 @@ function MegaPanel({
   );
 }
 
-
-
-
 function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const [open, setOpen] = useState(false);
   const hasChildren = node.children.length > 0;
@@ -217,11 +214,7 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   }
 
   return (
-    <li
-      className="relative"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
+    <li className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <div className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70">
         {node.icon ? (
           <span
@@ -247,7 +240,11 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         >
           {label}
         </AppLink>
-        <ChevronRight size={14} aria-hidden className="text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
+        <ChevronRight
+          size={14}
+          aria-hidden
+          className="text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand"
+        />
       </div>
       {open ? (
         <ul
@@ -434,10 +431,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     node.mega_enabled && (node.mega_config.columns ?? []).length > 0
       ? (node.mega_config.columns ?? []).flatMap((col) =>
           (col.links ?? []).map((lnk) => ({
-            label:
-              (lang === "en" ? lnk.label_en : lnk.label_pl) ||
-              lnk.label_pl ||
-              "",
+            label: (lang === "en" ? lnk.label_en : lnk.label_pl) || lnk.label_pl || "",
             href: safeUrl(lnk.href) || "#",
           })),
         )

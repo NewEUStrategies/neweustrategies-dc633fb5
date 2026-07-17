@@ -29,7 +29,6 @@ import { KpiTile } from "./KpiTile";
 import { VitalsRecommendations } from "./VitalsRecommendations";
 import { TimeRangeFilter, buildPresetRange, type TimeRangeValue } from "./TimeRangeFilter";
 
-
 const METRIC_ORDER: VitalName[] = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 
 function fmtValue(metric: VitalName, v: number): string {
@@ -49,14 +48,12 @@ export function VitalsBiDashboard() {
 
   const curQ = useQuery({
     queryKey: ["vitals-bi", range.presetId, range.sinceIso, range.untilIso],
-    queryFn: () =>
-      fetchVitals({ data: { sinceIso: range.sinceIso, untilIso: range.untilIso } }),
+    queryFn: () => fetchVitals({ data: { sinceIso: range.sinceIso, untilIso: range.untilIso } }),
     staleTime: 60_000,
   });
   const report = curQ.data;
   const isLoading = curQ.isLoading;
   const isFetching = curQ.isFetching;
-
 
   const metricsByName = useMemo(() => {
     const map = new Map<VitalName, NonNullable<typeof report>["metrics"][number]>();
@@ -66,7 +63,9 @@ export function VitalsBiDashboard() {
 
   const trendOption = (metric: VitalName): EChartsCoreOption => {
     const [thGood, thPoor] = VITAL_THRESHOLDS[metric];
-    const trend = (report?.trends ?? []).map((t) => [t.day, t.p75[metric] ?? null] as [string, number | null]);
+    const trend = (report?.trends ?? []).map(
+      (t) => [t.day, t.p75[metric] ?? null] as [string, number | null],
+    );
     return {
       tooltip: {
         trigger: "axis",
@@ -82,7 +81,8 @@ export function VitalsBiDashboard() {
         type: "value",
         scale: true,
         axisLabel: {
-          formatter: (v: number) => (metric === "CLS" ? v.toFixed(2) : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${v}ms`),
+          formatter: (v: number) =>
+            metric === "CLS" ? v.toFixed(2) : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${v}ms`,
           fontSize: 10,
         },
       },
@@ -109,8 +109,14 @@ export function VitalsBiDashboard() {
             symbol: "none",
             lineStyle: { color: "hsl(var(--muted-foreground))", type: "dashed", width: 1 },
             data: [
-              { yAxis: thGood, label: { formatter: `Good ${fmtValue(metric, thGood)}`, fontSize: 9 } },
-              { yAxis: thPoor, label: { formatter: `Poor ${fmtValue(metric, thPoor)}`, fontSize: 9 } },
+              {
+                yAxis: thGood,
+                label: { formatter: `Good ${fmtValue(metric, thGood)}`, fontSize: 9 },
+              },
+              {
+                yAxis: thPoor,
+                label: { formatter: `Poor ${fmtValue(metric, thPoor)}`, fontSize: 9 },
+              },
             ],
           },
         },
@@ -195,8 +201,6 @@ export function VitalsBiDashboard() {
     };
   }, [report]);
 
-
-
   const overallPieOption = useMemo<EChartsCoreOption>(() => {
     const good = (report?.metrics ?? []).reduce((acc, m) => acc + m.good, 0);
     const ni = (report?.metrics ?? []).reduce((acc, m) => acc + m.needsImprovement, 0);
@@ -255,10 +259,10 @@ export function VitalsBiDashboard() {
         ) : null}
       </div>
 
-
       {!report || report.total === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
-          Brak próbek RUM w wybranym oknie. Otwórz kilka podstron w prawdziwym trybie (nie w edytorze) - beacony trafią do tabeli i pojawią się tu automatycznie.
+          Brak próbek RUM w wybranym oknie. Otwórz kilka podstron w prawdziwym trybie (nie w
+          edytorze) - beacony trafią do tabeli i pojawią się tu automatycznie.
         </Card>
       ) : (
         <>
@@ -302,7 +306,12 @@ export function VitalsBiDashboard() {
               height={280}
               className="xl:col-span-2"
             />
-            <ChartCard title="Rating ogółem" subtitle="Cały panel próbek w oknie" option={overallPieOption} height={280} />
+            <ChartCard
+              title="Rating ogółem"
+              subtitle="Cały panel próbek w oknie"
+              option={overallPieOption}
+              height={280}
+            />
           </div>
 
           {/* Path treemap */}

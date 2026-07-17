@@ -10,11 +10,11 @@ metodologię i źródła w jeden eksplorowalny produkt.
 
 think-tank wydziela trzy kategorie; tak mapują się na architekturę NES:
 
-| Kategoria think-tank      | Co to jest                                                     | Realizacja w NES                                                                 |
-| ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Charts**          | Pojedyncze wykresy / mapy danych                               | Widgety `chart` + `data-map` (silnik `src/components/charts`) - **już istniały** |
-| **Digital Features**| Interaktywne raporty: narracja + dane + mapa + filtry + metoda | **Ten moduł** - widgety `feature-*` komponowane w builderze na jednej stronie    |
-| **Microsites**      | Trwałe, autonomiczne produkty z własną nawigacją i marką       | Strona buildera (`/admin/pages`) jako „hub" + podstrony; osobna nawigacja/menu   |
+| Kategoria think-tank | Co to jest                                                     | Realizacja w NES                                                                 |
+| -------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Charts**           | Pojedyncze wykresy / mapy danych                               | Widgety `chart` + `data-map` (silnik `src/components/charts`) - **już istniały** |
+| **Digital Features** | Interaktywne raporty: narracja + dane + mapa + filtry + metoda | **Ten moduł** - widgety `feature-*` komponowane w builderze na jednej stronie    |
+| **Microsites**       | Trwałe, autonomiczne produkty z własną nawigacją i marką       | Strona buildera (`/admin/pages`) jako „hub" + podstrony; osobna nawigacja/menu   |
 
 Digital Feature = **strona buildera** złożona z widgetów `feature-*` (plus
 `chart`, `data-map`, `heading`, `rich-text`). Microsite = zestaw takich stron
@@ -28,19 +28,19 @@ Wszystkie żyją w kategorii **„NES Digital Features"** w palecie buildera
 Silnik: `src/components/features/*`; adapter treść→config:
 `src/components/admin/builder/ui/organisms/widget-view/FeatureWidgets.tsx`.
 
-| Widget (`type`)         | Komponent          | Do czego                                                        |
-| ----------------------- | ------------------ | -------------------------------------------------------------- |
-| `feature-timeline`      | `Timeline`         | Oś czasu - kalendarium dossier, kroków legislacyjnych           |
-| `feature-sankey`        | `SankeyDiagram`    | Przepływy - handel, energia (LNG), migracje                     |
-| `feature-compare`       | `CountryCompare`   | Porównywarka państw - tabela wskaźników z paskami               |
-| `feature-risk-matrix`   | `RiskMatrix`       | Macierz ryzyka 5×5 (prawdopodobieństwo × wpływ)                 |
-| `feature-indicator`     | `IndicatorCard`    | Karta wskaźnika (KPI) - wartość, delta, sparkline               |
-| `feature-network`       | `RelationNetwork`  | Sieć powiązań - graf aktorów/instytucji (układ kołowy)          |
-| `feature-corridor-map`  | `CorridorMap`      | Mapa korytarzy - linie lon/lat na choroplecie + węzły           |
-| `feature-sources`       | `SourceLibrary`    | Biblioteka źródeł - filtr po typie + wyszukiwanie               |
-| `feature-methodology`   | `MethodologyNote`  | Nota metodologiczna - rozwijalny blok z wersją i datą           |
-| `chart` _(istniejący)_  | `Chart`            | Wykresy: liniowy, słupkowy, pole, kołowy, pierścień             |
-| `data-map` _(istniejący)_ | `ChoroplethMap`  | Mapa danych (choropleta) Europy / świata                        |
+| Widget (`type`)           | Komponent         | Do czego                                               |
+| ------------------------- | ----------------- | ------------------------------------------------------ |
+| `feature-timeline`        | `Timeline`        | Oś czasu - kalendarium dossier, kroków legislacyjnych  |
+| `feature-sankey`          | `SankeyDiagram`   | Przepływy - handel, energia (LNG), migracje            |
+| `feature-compare`         | `CountryCompare`  | Porównywarka państw - tabela wskaźników z paskami      |
+| `feature-risk-matrix`     | `RiskMatrix`      | Macierz ryzyka 5×5 (prawdopodobieństwo × wpływ)        |
+| `feature-indicator`       | `IndicatorCard`   | Karta wskaźnika (KPI) - wartość, delta, sparkline      |
+| `feature-network`         | `RelationNetwork` | Sieć powiązań - graf aktorów/instytucji (układ kołowy) |
+| `feature-corridor-map`    | `CorridorMap`     | Mapa korytarzy - linie lon/lat na choroplecie + węzły  |
+| `feature-sources`         | `SourceLibrary`   | Biblioteka źródeł - filtr po typie + wyszukiwanie      |
+| `feature-methodology`     | `MethodologyNote` | Nota metodologiczna - rozwijalny blok z wersją i datą  |
+| `chart` _(istniejący)_    | `Chart`           | Wykresy: liniowy, słupkowy, pole, kołowy, pierścień    |
+| `data-map` _(istniejący)_ | `ChoroplethMap`   | Mapa danych (choropleta) Europy / świata               |
 
 ## Zasady wspólne (spójność z silnikiem wykresów)
 

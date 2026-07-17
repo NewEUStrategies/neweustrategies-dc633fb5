@@ -44,7 +44,6 @@ const PRESETS: PresetSpec[] = [
   { id: "90d", label: "90 dni", hours: 24 * 90 },
 ];
 
-
 export function buildPresetRange(id: Exclude<TimeRangePresetId, "custom">): TimeRangeValue {
   const spec = PRESETS.find((p) => p.id === id) ?? PRESETS[1];
   const untilMs = Date.now();
@@ -59,8 +58,24 @@ export function buildPresetRange(id: Exclude<TimeRangePresetId, "custom">): Time
 
 function buildCustomRange(from: Date, to: Date): TimeRangeValue {
   // Normalize to start-of-day / end-of-day so a full day is included.
-  const sinceMs = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0, 0).getTime();
-  const untilMs = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999).getTime();
+  const sinceMs = new Date(
+    from.getFullYear(),
+    from.getMonth(),
+    from.getDate(),
+    0,
+    0,
+    0,
+    0,
+  ).getTime();
+  const untilMs = new Date(
+    to.getFullYear(),
+    to.getMonth(),
+    to.getDate(),
+    23,
+    59,
+    59,
+    999,
+  ).getTime();
   return {
     presetId: "custom",
     sinceIso: new Date(sinceMs).toISOString(),

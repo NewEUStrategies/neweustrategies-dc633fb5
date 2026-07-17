@@ -20,7 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
@@ -31,13 +37,19 @@ import { InsightSection, type Insight } from "@/components/admin/analytics/Insig
 // the SSR route chunk stays under V8's mark-compact ceiling during `build:dev`
 // and the browser only pays for the panel the user actually opens.
 const GscBiDashboard = lazy(() =>
-  import("@/components/admin/analytics/GscBiDashboard").then((m) => ({ default: m.GscBiDashboard })),
+  import("@/components/admin/analytics/GscBiDashboard").then((m) => ({
+    default: m.GscBiDashboard,
+  })),
 );
 const Ga4BiDashboard = lazy(() =>
-  import("@/components/admin/analytics/Ga4BiDashboard").then((m) => ({ default: m.Ga4BiDashboard })),
+  import("@/components/admin/analytics/Ga4BiDashboard").then((m) => ({
+    default: m.Ga4BiDashboard,
+  })),
 );
 const VitalsBiDashboard = lazy(() =>
-  import("@/components/admin/analytics/VitalsBiDashboard").then((m) => ({ default: m.VitalsBiDashboard })),
+  import("@/components/admin/analytics/VitalsBiDashboard").then((m) => ({
+    default: m.VitalsBiDashboard,
+  })),
 );
 const AudienceSegmentsDashboard = lazy(() =>
   import("@/components/admin/analytics/AudienceSegmentsDashboard").then((m) => ({
@@ -54,12 +66,14 @@ function DashboardFallback() {
   );
 }
 
-
 export const Route = createFileRoute("/admin/analytics")({
   head: () => ({
     meta: [
       { title: "Analityka i wydajność - Admin" },
-      { name: "description", content: "Google Analytics 4, Search Console i Web Vitals w jednym panelu." },
+      {
+        name: "description",
+        content: "Google Analytics 4, Search Console i Web Vitals w jednym panelu.",
+      },
     ],
   }),
   component: AnalyticsPage,
@@ -95,7 +109,7 @@ function StatusPill({ ok, label, detail }: PillProps) {
       <div className="min-w-0">
         <div className="text-sm font-semibold">{label}</div>
         <div className="text-xs text-muted-foreground truncate">
-          {ok ? detail ?? "Połączone" : detail ?? "Nie skonfigurowane"}
+          {ok ? (detail ?? "Połączone") : (detail ?? "Nie skonfigurowane")}
         </div>
       </div>
     </Card>
@@ -126,7 +140,10 @@ function Ga4Panel({ status }: { status: AnalyticsStatus["ga4"] }) {
   return (
     <div className="space-y-4">
       <Suspense fallback={<DashboardFallback />}>
-        <Ga4BiDashboard configured={status.configured} activeMode={status.activeMode ?? undefined} />
+        <Ga4BiDashboard
+          configured={status.configured}
+          activeMode={status.activeMode ?? undefined}
+        />
       </Suspense>
       {status.hasEmbedUrl && status.embedUrl ? <Ga4EmbedCard url={status.embedUrl} /> : null}
       {configPanel}
@@ -201,7 +218,8 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
       <div>
         <div className="text-sm font-semibold">Sposoby podłączenia GA4</div>
         <p className="text-xs text-muted-foreground mt-1">
-          Wybierz dowolny tryb - sekrety dodaj przez Lovable Cloud → Secrets. Priorytet dla raportów Data API: Service Account → OAuth refresh token.
+          Wybierz dowolny tryb - sekrety dodaj przez Lovable Cloud → Secrets. Priorytet dla raportów
+          Data API: Service Account → OAuth refresh token.
         </p>
       </div>
 
@@ -220,8 +238,12 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
             </li>
           </ol>
           <div className="flex flex-wrap gap-1 pt-1">
-            <Badge variant="outline" className="text-[10px]">SA {status.hasServiceAccount ? "✓" : "×"}</Badge>
-            <Badge variant="outline" className="text-[10px]">Property {status.hasPropertyId ? "✓" : "×"}</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              SA {status.hasServiceAccount ? "✓" : "×"}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Property {status.hasPropertyId ? "✓" : "×"}
+            </Badge>
             {status.serviceAccountEmail && (
               <Badge variant="outline" className="text-[10px] truncate max-w-[220px]">
                 {status.serviceAccountEmail}
@@ -238,20 +260,29 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         >
           <ol className="list-decimal pl-4 space-y-1">
             <li>
-              Google Cloud Console → OAuth consent screen + Credentials → utwórz OAuth Client ID typu <b>Desktop app</b>.
+              Google Cloud Console → OAuth consent screen + Credentials → utwórz OAuth Client ID
+              typu <b>Desktop app</b>.
             </li>
             <li>
               Wygeneruj refresh_token dla scope{" "}
-              <code>https://www.googleapis.com/auth/analytics.readonly</code> (np. OAuth Playground - Use your own OAuth credentials).
+              <code>https://www.googleapis.com/auth/analytics.readonly</code> (np. OAuth Playground
+              - Use your own OAuth credentials).
             </li>
             <li>
-              Sekrety: <code>GA4_OAUTH_CLIENT_ID</code>, <code>GA4_OAUTH_CLIENT_SECRET</code>, <code>GA4_OAUTH_REFRESH_TOKEN</code>, <code>GA4_PROPERTY_ID</code>.
+              Sekrety: <code>GA4_OAUTH_CLIENT_ID</code>, <code>GA4_OAUTH_CLIENT_SECRET</code>,{" "}
+              <code>GA4_OAUTH_REFRESH_TOKEN</code>, <code>GA4_PROPERTY_ID</code>.
             </li>
           </ol>
           <div className="flex flex-wrap gap-1 pt-1">
-            <Badge variant="outline" className="text-[10px]">Client {status.hasOauthClient ? "✓" : "×"}</Badge>
-            <Badge variant="outline" className="text-[10px]">Refresh {status.hasOauthRefresh ? "✓" : "×"}</Badge>
-            <Badge variant="outline" className="text-[10px]">Property {status.hasPropertyId ? "✓" : "×"}</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Client {status.hasOauthClient ? "✓" : "×"}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Refresh {status.hasOauthRefresh ? "✓" : "×"}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Property {status.hasPropertyId ? "✓" : "×"}
+            </Badge>
           </div>
         </ModeCard>
 
@@ -263,17 +294,22 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         >
           <ol className="list-decimal pl-4 space-y-1">
             <li>
-              GA4 → Admin → Data Streams → wybierz strumień web → <b>Measurement Protocol API secrets</b> → utwórz nowy sekret.
+              GA4 → Admin → Data Streams → wybierz strumień web →{" "}
+              <b>Measurement Protocol API secrets</b> → utwórz nowy sekret.
             </li>
             <li>
               <b>Measurement ID</b> ustaw w{" "}
-              <a href="/admin/settings/analytics" className="underline">Ustawienia → Analityka</a>{" "}
+              <a href="/admin/settings/analytics" className="underline">
+                Ustawienia → Analityka
+              </a>{" "}
               (pole <code>Measurement ID</code>, np. G-XXXXXXX) - jest współdzielony z tym panelem.
             </li>
             <li>
               Sekret projektu: <code>GA4_API_SECRET</code> (tylko klucz API - poufny).
             </li>
-            <li>Ten tryb służy do <b>wysyłania</b> eventów server-side, nie do czytania raportów.</li>
+            <li>
+              Ten tryb służy do <b>wysyłania</b> eventów server-side, nie do czytania raportów.
+            </li>
           </ol>
           <div className="flex flex-wrap gap-2 items-center pt-1">
             <Badge variant="outline" className="text-[10px]">
@@ -308,15 +344,19 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         >
           <ol className="list-decimal pl-4 space-y-1">
             <li>
-              Zbuduj raport w <b>Looker Studio</b> na źródle GA4 i użyj File → Embed report → skopiuj URL.
+              Zbuduj raport w <b>Looker Studio</b> na źródle GA4 i użyj File → Embed report →
+              skopiuj URL.
             </li>
             <li>
-              Sekret: <code>GA4_EMBED_URL</code> (pełen URL iframe do raportu, np. z lookerstudio.google.com).
+              Sekret: <code>GA4_EMBED_URL</code> (pełen URL iframe do raportu, np. z
+              lookerstudio.google.com).
             </li>
             <li>Zero uwierzytelniania po naszej stronie - raport renderuje się jako iframe.</li>
           </ol>
           <div className="flex flex-wrap gap-1 pt-1">
-            <Badge variant="outline" className="text-[10px]">Embed URL {status.hasEmbedUrl ? "✓" : "×"}</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Embed URL {status.hasEmbedUrl ? "✓" : "×"}
+            </Badge>
           </div>
         </ModeCard>
       </div>
@@ -351,7 +391,6 @@ function Ga4EmbedCard({ url }: { url: string }) {
   );
 }
 
-
 // Ga4Totals / Ga4Table zostały zastąpione przez `Ga4BiDashboard`
 // (KPI tiles z delta + trend area + donuty + radar + top strony).
 
@@ -384,9 +423,13 @@ function VitalsMiniPanel() {
         <div className="grid grid-cols-3 gap-3">
           {(q.data?.metrics ?? []).slice(0, 3).map((m) => (
             <div key={m.metric} className="text-center">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{m.metric}</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {m.metric}
+              </div>
               <div className="text-lg font-semibold tabular-nums">
-                {m.metric === "CLS" ? m.p75.toFixed(3) : `${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`}
+                {m.metric === "CLS"
+                  ? m.p75.toFixed(3)
+                  : `${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`}
               </div>
               <div className="text-[10px] text-muted-foreground">{m.count} próbek</div>
             </div>
@@ -487,7 +530,11 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
                 : "Brak service accounta"
           }
         />
-        <StatusPill ok={status.vitals.configured} label="Web Vitals" detail="Real user monitoring" />
+        <StatusPill
+          ok={status.vitals.configured}
+          label="Web Vitals"
+          detail="Real user monitoring"
+        />
       </div>
 
       <VitalsMiniPanel />
@@ -502,10 +549,12 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
         <div className="font-semibold">Jak podłączyć klucze Google?</div>
         <ul className="list-disc pl-5 text-muted-foreground space-y-1">
           <li>
-            <b>Search Console</b> — Lovable łączy przez OAuth. Otwórz Ustawienia projektu → Konektory → Google Search Console.
+            <b>Search Console</b> — Lovable łączy przez OAuth. Otwórz Ustawienia projektu →
+            Konektory → Google Search Console.
           </li>
           <li>
-            <b>Google Analytics 4</b> — dodaj sekrety <code>GA4_SERVICE_ACCOUNT_JSON</code> i <code>GA4_PROPERTY_ID</code>, a service account dodaj jako Viewer w GA4.
+            <b>Google Analytics 4</b> — dodaj sekrety <code>GA4_SERVICE_ACCOUNT_JSON</code> i{" "}
+            <code>GA4_PROPERTY_ID</code>, a service account dodaj jako Viewer w GA4.
           </li>
           <li>
             <b>Web Vitals</b> — dane RUM zbierane automatycznie z rzeczywistego ruchu.

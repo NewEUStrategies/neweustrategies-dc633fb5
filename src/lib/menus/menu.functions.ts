@@ -36,10 +36,7 @@ export interface MenuSummary {
 export const listMenus = createServerFn({ method: "GET" }).handler(
   async (): Promise<MenuSummary[]> => {
     const supabase = serverPublicClient();
-    const { data, error } = await supabase
-      .from("menus")
-      .select("id, key, name")
-      .order("key");
+    const { data, error } = await supabase.from("menus").select("id, key, name").order("key");
     if (error) {
       console.error("[listMenus]", error.message);
       return [];
@@ -115,10 +112,7 @@ export const saveMenu = createServerFn({ method: "POST" })
     if (!menu) throw new Error(`Menu '${data.menu_key}' nie istnieje`);
 
     // Wyczyść stare pozycje. RLS ograniczy do tenanta użytkownika.
-    const { error: delErr } = await supabase
-      .from("menu_items")
-      .delete()
-      .eq("menu_id", menu.id);
+    const { error: delErr } = await supabase.from("menu_items").delete().eq("menu_id", menu.id);
     if (delErr) throw new Error(`delete items: ${delErr.message}`);
 
     if (data.items.length === 0) return { ok: true };

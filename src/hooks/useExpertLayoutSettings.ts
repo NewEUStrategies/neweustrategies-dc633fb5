@@ -10,10 +10,7 @@
 //     innego tenanta lub udostępniony publicznie).
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  defaultExpertLayoutSettings,
-  type ExpertLayoutSettings,
-} from "@/lib/expertLayouts";
+import { defaultExpertLayoutSettings, type ExpertLayoutSettings } from "@/lib/expertLayouts";
 
 export const expertLayoutSettingsQueryOptions = (tenantId?: string | null) =>
   queryOptions({

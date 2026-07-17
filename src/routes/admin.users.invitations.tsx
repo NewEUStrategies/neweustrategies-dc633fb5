@@ -65,21 +65,29 @@ function InvitationsPage() {
               <tr key={inv.id} className="border-t border-border">
                 <td className="p-3">{inv.display_name}</td>
                 <td className="p-3 text-muted-foreground">{inv.email}</td>
-                <td className="p-3"><Badge variant="outline">{inv.role}</Badge></td>
+                <td className="p-3">
+                  <Badge variant="outline">{inv.role}</Badge>
+                </td>
                 <td className="p-3 text-xs">{inv.mode}</td>
                 <td className="p-3">
                   <Badge
                     variant={
-                      inv.status === "sent" ? "default"
-                      : inv.status === "accepted" ? "default"
-                      : inv.status === "failed" ? "destructive"
-                      : "secondary"
+                      inv.status === "sent"
+                        ? "default"
+                        : inv.status === "accepted"
+                          ? "default"
+                          : inv.status === "failed"
+                            ? "destructive"
+                            : "secondary"
                     }
                   >
                     {inv.status}
                   </Badge>
                   {inv.last_error && (
-                    <div className="text-[10px] text-destructive mt-1 max-w-[200px] truncate" title={inv.last_error}>
+                    <div
+                      className="text-[10px] text-destructive mt-1 max-w-[200px] truncate"
+                      title={inv.last_error}
+                    >
                       {inv.last_error}
                     </div>
                   )}
@@ -103,7 +111,11 @@ function InvitationsPage() {
               </tr>
             ))}
             {invitations.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-sm text-muted-foreground">Brak zaproszeń</td></tr>
+              <tr>
+                <td colSpan={8} className="p-6 text-center text-sm text-muted-foreground">
+                  Brak zaproszeń
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

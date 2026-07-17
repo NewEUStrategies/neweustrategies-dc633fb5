@@ -98,20 +98,21 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
   }
   const postIds = [...postById.keys()];
 
-  const [{ data: pcRows }, { data: ppRows }, { data: prRows }, { data: ptRows }] = await Promise.all([
-    postIds.length
-      ? supabase.from("post_categories").select("post_id, category_id").in("post_id", postIds)
-      : Promise.resolve({ data: [] as unknown[] }),
-    postIds.length
-      ? supabase.from("post_programs").select("post_id, program_id").in("post_id", postIds)
-      : Promise.resolve({ data: [] as unknown[] }),
-    postIds.length
-      ? supabase.from("post_regions").select("post_id, region_id").in("post_id", postIds)
-      : Promise.resolve({ data: [] as unknown[] }),
-    postIds.length
-      ? supabase.from("post_tags").select("post_id, tag_id").in("post_id", postIds)
-      : Promise.resolve({ data: [] as unknown[] }),
-  ]);
+  const [{ data: pcRows }, { data: ppRows }, { data: prRows }, { data: ptRows }] =
+    await Promise.all([
+      postIds.length
+        ? supabase.from("post_categories").select("post_id, category_id").in("post_id", postIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      postIds.length
+        ? supabase.from("post_programs").select("post_id, program_id").in("post_id", postIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      postIds.length
+        ? supabase.from("post_regions").select("post_id, region_id").in("post_id", postIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      postIds.length
+        ? supabase.from("post_tags").select("post_id, tag_id").in("post_id", postIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+    ]);
 
   const pivots: PostPivots = {
     categories: groupPivot((pcRows ?? []) as Record<string, unknown>[], "category_id"),

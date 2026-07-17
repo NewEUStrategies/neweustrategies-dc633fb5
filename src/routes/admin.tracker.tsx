@@ -186,8 +186,15 @@ function AdminTrackerPage() {
               {L("Jak to działa?", "How it works?")}
             </Link>
           </Button>
-          <Button variant="outline" onClick={() => runTickMut.mutate()} disabled={runTickMut.isPending}>
-            <RefreshCw className={`mr-1.5 h-4 w-4 ${runTickMut.isPending ? "animate-spin" : ""}`} aria-hidden="true" />
+          <Button
+            variant="outline"
+            onClick={() => runTickMut.mutate()}
+            disabled={runTickMut.isPending}
+          >
+            <RefreshCw
+              className={`mr-1.5 h-4 w-4 ${runTickMut.isPending ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
             {L("Uruchom tick teraz", "Run tick now")}
           </Button>
           <Button onClick={startNew}>
@@ -635,19 +642,17 @@ function LinksButton({
   const addLink = useMutation({
     mutationFn: async () => {
       if (!targetId) return;
-      const { error } = await supabase
-        .from("eu_policy_links")
-        .upsert(
-          // tenant_id nadpisuje trigger tg_eu_policy_link_pin (BEFORE INSERT/UPDATE)
-          // - typ wygenerowany wymaga stringa, więc podajemy placeholder zerowy.
-          {
-            item_id: itemId,
-            related_item_id: targetId,
-            relation,
-            tenant_id: "00000000-0000-0000-0000-000000000000",
-          },
-          { onConflict: "item_id,related_item_id" },
-        );
+      const { error } = await supabase.from("eu_policy_links").upsert(
+        // tenant_id nadpisuje trigger tg_eu_policy_link_pin (BEFORE INSERT/UPDATE)
+        // - typ wygenerowany wymaga stringa, więc podajemy placeholder zerowy.
+        {
+          item_id: itemId,
+          related_item_id: targetId,
+          relation,
+          tenant_id: "00000000-0000-0000-0000-000000000000",
+        },
+        { onConflict: "item_id,related_item_id" },
+      );
       if (error) throw error;
     },
     onSuccess: () => {

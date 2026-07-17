@@ -9,10 +9,7 @@ import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
-import {
-  taxonomyArchiveQueryOptions,
-  type ArchiveSort,
-} from "@/lib/queries/archives";
+import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
 
 import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
@@ -60,9 +57,10 @@ export const Route = createFileRoute("/category/$slug")({
     const request = new URL(requestedUrl, SITE_CANONICAL_ORIGIN);
     request.searchParams.delete("page");
     request.searchParams.delete("sort");
-    const url = request.origin === SITE_CANONICAL_ORIGIN && !requestedUrl.startsWith("http")
-      ? request.pathname
-      : request.toString();
+    const url =
+      request.origin === SITE_CANONICAL_ORIGIN && !requestedUrl.startsWith("http")
+        ? request.pathname
+        : request.toString();
     const lang = activeLang(url);
     const name = tax
       ? lang === "en"
@@ -214,9 +212,6 @@ export function TaxonomyPage({
         search: { page: nextPage, sort: currentSort },
       });
     });
-
-
-
 
   return (
     <>

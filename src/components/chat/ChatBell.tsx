@@ -11,6 +11,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { conversationDisplay } from "@/lib/chat/display";
+import { useNicknames } from "@/lib/chat/nicknames";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   useChatListRealtime,
@@ -54,14 +55,18 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
     [views],
   );
   const peersQ = usePeerProfiles(peerIds);
+  const nicknamesQ = useNicknames();
 
   if (!user) return null;
 
   const peers = peersQ.data;
+  const nicknames = nicknamesQ.data;
   const normalizedFilter = filter.trim().toLowerCase();
   const filtered = normalizedFilter
     ? views.filter((v) =>
-        conversationDisplay(v, peers).name.toLowerCase().includes(normalizedFilter),
+        conversationDisplay(v, peers, undefined, nicknames?.get(v.conversation.id))
+          .name.toLowerCase()
+          .includes(normalizedFilter),
       )
     : views;
 
@@ -197,9 +202,9 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                   <button
                     type="button"
                     onClick={() => setMode("new")}
-                    className="inline-flex h-[26px] items-center gap-1.5 rounded-[6px] bg-primary px-3 text-[7px] font-medium leading-none tracking-wide text-primary-foreground transition-opacity hover:opacity-90"
+                    className="inline-flex h-[26px] items-center gap-1.5 rounded-[6px] bg-primary px-3 text-[11px] font-medium leading-none tracking-wide text-primary-foreground transition-opacity hover:opacity-90"
                   >
-                    <SquarePen className="h-2.5 w-2.5" aria-hidden />
+                    <SquarePen className="h-3 w-3" aria-hidden />
                     {t("chat.newMessage")}
                   </button>
                 </div>
@@ -210,6 +215,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
                       <ConversationListItem
                         view={view}
                         profiles={peers}
+                        nicknames={nicknames?.get(view.conversation.id)}
                         onlineUsers={online}
                         myUserId={user.id}
                         lang={lang}

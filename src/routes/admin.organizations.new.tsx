@@ -100,7 +100,12 @@ function AdminOrganizationNewPage() {
             </p>
           </div>
         </div>
-        <Button size="sm" className="h-8" disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
+        <Button
+          size="sm"
+          className="h-8"
+          disabled={!canSubmit || create.isPending}
+          onClick={() => create.mutate()}
+        >
           <Save className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           {create.isPending ? L("Zapisywanie...", "Saving...") : L("Utwórz", "Create")}
         </Button>
@@ -119,10 +124,15 @@ function AdminOrganizationNewPage() {
                 />
               </Field>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label={L("Slug (URL)", "Slug (URL)")} hint={L("mała litera, myślniki", "lowercase, hyphens")}>
+                <Field
+                  label={L("Slug (URL)", "Slug (URL)")}
+                  hint={L("mała litera, myślniki", "lowercase, hyphens")}
+                >
                   <Input
                     value={slug}
-                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+                    onChange={(e) =>
+                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+                    }
                     placeholder="acme"
                     className="h-8 text-sm"
                   />
@@ -140,7 +150,10 @@ function AdminOrganizationNewPage() {
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder={L("Kilka zdań o organizacji...", "A few sentences about the organization...")}
+                  placeholder={L(
+                    "Kilka zdań o organizacji...",
+                    "A few sentences about the organization...",
+                  )}
                   className="min-h-20 text-sm"
                 />
               </Field>
@@ -168,10 +181,18 @@ function AdminOrganizationNewPage() {
                 />
               </Field>
               <Field label={L("Miasto", "City")}>
-                <Input value={city} onChange={(e) => setCity(e.target.value)} className="h-8 text-sm" />
+                <Input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="h-8 text-sm"
+                />
               </Field>
               <Field label={L("Kraj", "Country")}>
-                <Input value={country} onChange={(e) => setCountry(e.target.value)} className="h-8 text-sm" />
+                <Input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="h-8 text-sm"
+                />
               </Field>
             </div>
           </Card>
@@ -209,7 +230,9 @@ function AdminOrganizationNewPage() {
                   min={1}
                   max={500}
                   value={seatsLimit}
-                  onChange={(e) => setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+                  onChange={(e) =>
+                    setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
+                  }
                   className="h-8 text-sm"
                 />
               </Field>
@@ -231,13 +254,23 @@ function AdminOrganizationNewPage() {
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-border/60 bg-card/40 p-4">
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
+      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
       {children}
     </section>
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1">
       <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>

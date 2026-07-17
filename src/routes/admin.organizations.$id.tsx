@@ -90,7 +90,14 @@ function AdminOrganizationDetailPage() {
   const save = useMutation({
     mutationFn: async () => {
       if (!draft) return;
-      const { id: _id, tenant_id: _t, created_at: _c, updated_at: _u, created_by: _b, ...patch } = draft;
+      const {
+        id: _id,
+        tenant_id: _t,
+        created_at: _c,
+        updated_at: _u,
+        created_by: _b,
+        ...patch
+      } = draft;
       void _id;
       void _t;
       void _c;
@@ -120,10 +127,15 @@ function AdminOrganizationDetailPage() {
     return <p className="p-5 text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>;
   }
   if (!orgQ.data) {
-    return <p className="p-5 text-sm text-muted-foreground">{L("Nie znaleziono organizacji.", "Organization not found.")}</p>;
+    return (
+      <p className="p-5 text-sm text-muted-foreground">
+        {L("Nie znaleziono organizacji.", "Organization not found.")}
+      </p>
+    );
   }
 
-  const patch = (mut: (d: OrganizationRow) => OrganizationRow) => setDraft((d) => (d ? mut({ ...d }) : d));
+  const patch = (mut: (d: OrganizationRow) => OrganizationRow) =>
+    setDraft((d) => (d ? mut({ ...d }) : d));
   const isActive = draft.status === "active";
   const primary = draft.brand_primary ?? DEFAULT_PRIMARY;
   const accent = draft.brand_accent ?? DEFAULT_ACCENT;
@@ -145,7 +157,9 @@ function AdminOrganizationDetailPage() {
               {draft.name}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <Badge variant="secondary" className="text-[10px]">{draft.tier_key}</Badge>
+              <Badge variant="secondary" className="text-[10px]">
+                {draft.tier_key}
+              </Badge>
               <Badge variant="outline" className="text-[10px]">
                 {isActive ? L("aktywna", "active") : L("wstrzymana", "suspended")}
               </Badge>
@@ -186,7 +200,12 @@ function AdminOrganizationDetailPage() {
             <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
             {L("Usuń", "Delete")}
           </Button>
-          <Button size="sm" className="h-8" disabled={!isDirty || save.isPending} onClick={() => save.mutate()}>
+          <Button
+            size="sm"
+            className="h-8"
+            disabled={!isDirty || save.isPending}
+            onClick={() => save.mutate()}
+          >
             <Save className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
             {save.isPending ? L("Zapisywanie...", "Saving...") : L("Zapisz", "Save")}
           </Button>
@@ -214,12 +233,7 @@ function AdminOrganizationDetailPage() {
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
-          <GeneralPane
-            lang={lang}
-            draft={draft}
-            patch={patch}
-            tierOptions={tierOptions}
-          />
+          <GeneralPane lang={lang} draft={draft} patch={patch} tierOptions={tierOptions} />
         </TabsContent>
 
         <TabsContent value="branding" className="mt-4">
@@ -308,7 +322,14 @@ function GeneralPane({
 
         <Card title={L("Kontakt i adres", "Contact & location")}>
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label={<><Mail className="mr-1 inline h-3 w-3" aria-hidden="true" />{L("E-mail", "Email")}</>}>
+            <Field
+              label={
+                <>
+                  <Mail className="mr-1 inline h-3 w-3" aria-hidden="true" />
+                  {L("E-mail", "Email")}
+                </>
+              }
+            >
               <Input
                 type="email"
                 value={draft.contact_email ?? ""}
@@ -316,7 +337,14 @@ function GeneralPane({
                 className="h-8 text-sm"
               />
             </Field>
-            <Field label={<><Globe className="mr-1 inline h-3 w-3" aria-hidden="true" />{L("Strona www", "Website")}</>}>
+            <Field
+              label={
+                <>
+                  <Globe className="mr-1 inline h-3 w-3" aria-hidden="true" />
+                  {L("Strona www", "Website")}
+                </>
+              }
+            >
               <Input
                 type="url"
                 value={draft.website_url ?? ""}
@@ -324,7 +352,14 @@ function GeneralPane({
                 className="h-8 text-sm"
               />
             </Field>
-            <Field label={<><MapPin className="mr-1 inline h-3 w-3" aria-hidden="true" />{L("Miasto", "City")}</>}>
+            <Field
+              label={
+                <>
+                  <MapPin className="mr-1 inline h-3 w-3" aria-hidden="true" />
+                  {L("Miasto", "City")}
+                </>
+              }
+            >
               <Input
                 value={draft.city ?? ""}
                 onChange={(e) => patch((d) => ({ ...d, city: e.target.value || null }))}
@@ -516,12 +551,7 @@ function LogosPane({
   primary: string;
   accent: string;
   onChange: (
-    key:
-      | "logo_h_light"
-      | "logo_h_dark"
-      | "logo_v_light"
-      | "logo_v_dark"
-      | "logo_favicon",
+    key: "logo_h_light" | "logo_h_dark" | "logo_v_light" | "logo_v_dark" | "logo_favicon",
     v: string | null,
   ) => void;
 }) {
@@ -531,25 +561,37 @@ function LogosPane({
       <div className="grid gap-4 md:grid-cols-2">
         <LogoSlot
           label={L("Poziome - jasny motyw", "Horizontal - light theme")}
-          desc={L("Na jasnym tle; zwykle ciemne logo.", "For light backgrounds; usually dark logo.")}
+          desc={L(
+            "Na jasnym tle; zwykle ciemne logo.",
+            "For light backgrounds; usually dark logo.",
+          )}
           value={draft.logo_h_light ?? ""}
           onChange={(v) => onChange("logo_h_light", v || null)}
         />
         <LogoSlot
           label={L("Poziome - ciemny motyw", "Horizontal - dark theme")}
-          desc={L("Na ciemnym tle; zwykle jasne logo.", "For dark backgrounds; usually light logo.")}
+          desc={L(
+            "Na ciemnym tle; zwykle jasne logo.",
+            "For dark backgrounds; usually light logo.",
+          )}
           value={draft.logo_h_dark ?? ""}
           onChange={(v) => onChange("logo_h_dark", v || null)}
         />
         <LogoSlot
           label={L("Pionowe - jasny motyw", "Vertical - light theme")}
-          desc={L("Kwadratowe / stackowane logo na jasnym tle.", "Square / stacked logo on light bg.")}
+          desc={L(
+            "Kwadratowe / stackowane logo na jasnym tle.",
+            "Square / stacked logo on light bg.",
+          )}
           value={draft.logo_v_light ?? ""}
           onChange={(v) => onChange("logo_v_light", v || null)}
         />
         <LogoSlot
           label={L("Pionowe - ciemny motyw", "Vertical - dark theme")}
-          desc={L("Kwadratowe / stackowane logo na ciemnym tle.", "Square / stacked logo on dark bg.")}
+          desc={L(
+            "Kwadratowe / stackowane logo na ciemnym tle.",
+            "Square / stacked logo on dark bg.",
+          )}
           value={draft.logo_v_dark ?? ""}
           onChange={(v) => onChange("logo_v_dark", v || null)}
         />
@@ -682,9 +724,7 @@ function PreviewTile({
             style={{ objectFit: "contain" }}
           />
         ) : (
-          <span className="text-[10px] text-muted-foreground/70">
-            (brak / no logo)
-          </span>
+          <span className="text-[10px] text-muted-foreground/70">(brak / no logo)</span>
         )}
       </div>
       <p className="text-[10px] text-muted-foreground">{label}</p>
@@ -716,8 +756,10 @@ function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; sea
     onError: (err: Error) => {
       const msg = err.message.toLowerCase();
       if (msg.includes("limit")) toast.error(L("Osiągnięto limit miejsc", "Seat limit reached"));
-      else if (msg.includes("exists")) toast.error(L("Miejsce już istnieje", "Seat already exists"));
-      else if (msg.includes("invalid email")) toast.error(L("Nieprawidłowy e-mail", "Invalid email"));
+      else if (msg.includes("exists"))
+        toast.error(L("Miejsce już istnieje", "Seat already exists"));
+      else if (msg.includes("invalid email"))
+        toast.error(L("Nieprawidłowy e-mail", "Invalid email"));
       else toast.error(L("Nie udało się dodać miejsca", "Could not add seat"));
     },
   });
@@ -736,7 +778,9 @@ function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; sea
       title={
         <span className="flex items-center justify-between">
           <span>{L("Miejsca", "Seats")}</span>
-          <span className={`text-[10px] tabular-nums ${atLimit ? "font-semibold text-destructive" : "text-muted-foreground"}`}>
+          <span
+            className={`text-[10px] tabular-nums ${atLimit ? "font-semibold text-destructive" : "text-muted-foreground"}`}
+          >
             {used}/{seatsLimit}
           </span>
         </span>
@@ -758,7 +802,10 @@ function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; sea
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-xs font-medium">{seat.invited_email}</span>
                 <span className="flex items-center gap-1">
-                  <Badge variant={seat.role === "owner" ? "default" : "secondary"} className="text-[10px]">
+                  <Badge
+                    variant={seat.role === "owner" ? "default" : "secondary"}
+                    className="text-[10px]"
+                  >
                     {seat.role === "owner" ? L("właściciel", "owner") : L("członek", "member")}
                   </Badge>
                   <Badge variant="outline" className="text-[10px]">

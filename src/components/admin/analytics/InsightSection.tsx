@@ -79,7 +79,6 @@ export function InsightSection({
           </div>
         </div>
       </Card>
-
     );
   }
   const sorted = [...insights].sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
@@ -94,9 +93,7 @@ export function InsightSection({
           <Lightbulb className="w-4 h-4 text-primary" />
           <div>
             <h3 className="text-sm font-semibold leading-none">{title}</h3>
-            {subtitle ? (
-              <p className="text-[11px] text-muted-foreground mt-1">{subtitle}</p>
-            ) : null}
+            {subtitle ? <p className="text-[11px] text-muted-foreground mt-1">{subtitle}</p> : null}
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -142,7 +139,9 @@ export function InsightSection({
                     <ul className="mt-2 space-y-1 text-xs">
                       {i.fixes.map((fix, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <span className="flex items-center h-4 text-primary leading-none shrink-0">→</span>
+                          <span className="flex items-center h-4 text-primary leading-none shrink-0">
+                            →
+                          </span>
                           <span className="leading-4">{fix}</span>
                         </li>
                       ))}
@@ -151,7 +150,6 @@ export function InsightSection({
                 </div>
               </div>
             </li>
-
           );
         })}
       </ul>
@@ -166,10 +164,7 @@ export function pctDelta(cur: number, prev: number): number | null {
 }
 
 /** Klasyfikuje deltę względem znaku i tego, czy większa wartość jest lepsza. */
-export function classifyDelta(
-  delta: number | null,
-  higherIsBetter: boolean,
-): InsightSeverity {
+export function classifyDelta(delta: number | null, higherIsBetter: boolean): InsightSeverity {
   if (delta === null) return "info";
   const good = higherIsBetter ? delta >= 5 : delta <= -5;
   const bad = higherIsBetter ? delta <= -15 : delta >= 15;

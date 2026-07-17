@@ -97,7 +97,6 @@ export const listRevisions = createServerFn({ method: "POST" })
     });
   });
 
-
 /**
  * Restore a revision's content onto the live row. Non-destructive:
  * the current state is snapshotted first (note "pre_restore"), and the

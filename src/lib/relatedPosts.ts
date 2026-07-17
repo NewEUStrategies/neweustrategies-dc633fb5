@@ -153,8 +153,7 @@ type ScoringConfig = Pick<
 export function scoreRelated(
   current: CurrentPostMeta,
   cand: RelatedCandidateMeta,
-  cfg: Pick<RelatedPostsConfig, "source_strategy" | "recency_boost_days"> &
-    Partial<ScoringConfig>,
+  cfg: Pick<RelatedPostsConfig, "source_strategy" | "recency_boost_days"> & Partial<ScoringConfig>,
   publishedAt: string | null,
   now: number = Date.now(),
 ): number {
@@ -200,7 +199,7 @@ export function scoreRelatedDetailed(
     let sum = 0;
     cand.categoryIds.forEach((id) => {
       if (current.categoryIds.has(id)) {
-        const idf = cfg.use_idf ? signals?.idfCat?.get(id) ?? 1 : 1;
+        const idf = cfg.use_idf ? (signals?.idfCat?.get(id) ?? 1) : 1;
         sum += idf;
       }
     });
@@ -211,7 +210,7 @@ export function scoreRelatedDetailed(
     let sum = 0;
     cand.tagIds.forEach((id) => {
       if (current.tagIds.has(id)) {
-        const idf = cfg.use_idf ? signals?.idfTag?.get(id) ?? 1 : 1;
+        const idf = cfg.use_idf ? (signals?.idfTag?.get(id) ?? 1) : 1;
         sum += idf;
       }
     });
@@ -219,8 +218,7 @@ export function scoreRelatedDetailed(
   }
 
   if (cand.authorId && current.authorId && cand.authorId === current.authorId) {
-    breakdown.author =
-      cfg.source_strategy === "author" ? cfg.weight_author * 4 : cfg.weight_author;
+    breakdown.author = cfg.source_strategy === "author" ? cfg.weight_author * 4 : cfg.weight_author;
   }
 
   if (publishedAt && cfg.recency_boost_days > 0) {
@@ -230,7 +228,6 @@ export function scoreRelatedDetailed(
       breakdown.recency = cfg.weight_recency;
     }
   }
-
 
   if (candidatePostId && signals?.popularityByPost) {
     const p = signals.popularityByPost.get(candidatePostId) ?? 0;
@@ -295,10 +292,7 @@ export function rankRelated<T extends { post: BlogListItem; score: number }>(
  * Zwraca wartości w przedziale ~0.1..3.5, więc silnik lekko wzmacnia
  * rzadkie tagi i tłumi mainstreamowe.
  */
-export function buildIdf(
-  df: ReadonlyMap<string, number>,
-  totalDocs: number,
-): Map<string, number> {
+export function buildIdf(df: ReadonlyMap<string, number>, totalDocs: number): Map<string, number> {
   const out = new Map<string, number>();
   const N = Math.max(1, totalDocs);
   df.forEach((count, id) => {

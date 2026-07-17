@@ -25,9 +25,7 @@ interface Item {
 function itemsOf(c: WidgetContent): Item[] {
   const raw = (c as Record<string, unknown>).items;
   if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (x): x is Item => typeof x === "object" && x !== null && !Array.isArray(x),
-  );
+  return raw.filter((x): x is Item => typeof x === "object" && x !== null && !Array.isArray(x));
 }
 
 function loc(v: Record<string, unknown>, key: string, lang: Lang): string {
@@ -70,13 +68,7 @@ function computePositions(n: number, layout: "semi" | "full"): { x: number; y: n
   return positions;
 }
 
-export function InteractiveCircleWidget({
-  node,
-  lang,
-}: {
-  node: WidgetNode;
-  lang: Lang;
-}) {
+export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = (node.content ?? {}) as WidgetContent;
   const cRaw = c as unknown as Record<string, unknown>;
   const items = itemsOf(c).slice(0, 8);
@@ -98,10 +90,7 @@ export function InteractiveCircleWidget({
 
   const [active, setActive] = useState(0);
 
-  const positions = useMemo(
-    () => computePositions(items.length, layout),
-    [items.length, layout],
-  );
+  const positions = useMemo(() => computePositions(items.length, layout), [items.length, layout]);
 
   const iconReg = LucideIcons as unknown as Record<string, LucideCmp | undefined>;
   const Fallback = LucideIcons.Star as LucideCmp;
@@ -109,7 +98,9 @@ export function InteractiveCircleWidget({
   const containerHeight = layout === "semi" ? size * 0.62 : size;
 
   const activeItem = items[active] ?? items[0];
-  const activeTitle = activeItem ? loc(activeItem as Record<string, unknown>, "title", lang) : title;
+  const activeTitle = activeItem
+    ? loc(activeItem as Record<string, unknown>, "title", lang)
+    : title;
   const activeDesc = activeItem ? loc(activeItem as Record<string, unknown>, "desc", lang) : desc;
 
   return (
@@ -169,10 +160,7 @@ export function InteractiveCircleWidget({
           className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center px-6"
           style={{
             top: layout === "semi" ? "62%" : "50%",
-            transform:
-              layout === "semi"
-                ? "translate(-50%, -50%)"
-                : "translate(-50%, -50%)",
+            transform: layout === "semi" ? "translate(-50%, -50%)" : "translate(-50%, -50%)",
             width: "min(100%, 22rem)",
           }}
         >
@@ -197,12 +185,10 @@ export function InteractiveCircleWidget({
           const Icon: LucideCmp = (it.icon && iconReg[it.icon]) || Fallback;
           const label = loc(it as Record<string, unknown>, "label", lang) || `#${i + 1}`;
 
-          const bg = isActive
-            ? (activeBg || "hsl(var(--primary))")
-            : (itemBg || "hsl(var(--card))");
+          const bg = isActive ? activeBg || "hsl(var(--primary))" : itemBg || "hsl(var(--card))";
           const fg = isActive
-            ? (activeColor || "hsl(var(--primary-foreground))")
-            : (itemColor || "hsl(var(--primary))");
+            ? activeColor || "hsl(var(--primary-foreground))"
+            : itemColor || "hsl(var(--primary))";
 
           const btnStyle: CSSProperties = {
             position: "absolute",
@@ -218,9 +204,7 @@ export function InteractiveCircleWidget({
 
           const handleActivate = () => setActive(i);
           const hoverHandlers =
-            trigger === "hover"
-              ? { onMouseEnter: handleActivate, onFocus: handleActivate }
-              : {};
+            trigger === "hover" ? { onMouseEnter: handleActivate, onFocus: handleActivate } : {};
 
           const content = (
             <>

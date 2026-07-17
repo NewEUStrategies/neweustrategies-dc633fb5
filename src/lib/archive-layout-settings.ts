@@ -64,7 +64,10 @@ function coerce(archiveType: ArchiveType, row: Row | null): ArchiveLayoutSetting
           w === "popular" || w === "related" || w === "newsletter" || w === "ads",
       ) as SidebarWidgetKey[])
     : DEFAULT_ARCHIVE_LAYOUT.sidebar_widgets;
-  const variant = Math.max(1, Math.min(6, row.layout_variant)) as ArchiveLayoutSettings["layout_variant"];
+  const variant = Math.max(
+    1,
+    Math.min(6, row.layout_variant),
+  ) as ArchiveLayoutSettings["layout_variant"];
   const columns = Math.max(1, Math.min(4, row.columns)) as ArchiveLayoutSettings["columns"];
   return {
     id: row.id,

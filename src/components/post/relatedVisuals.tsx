@@ -29,12 +29,42 @@ export interface RelatedAccent {
 
 // Kolejność zsynchronizowana z presetami w :root — 6 slotów.
 const PALETTE: ReadonlyArray<Omit<RelatedAccent, "Icon">> = [
-  { token: "--cat-military", bgClass: "bg-cat-military/10", borderClass: "border-cat-military/40", textClass: "text-cat-military" },
-  { token: "--cat-finance", bgClass: "bg-cat-finance/10", borderClass: "border-cat-finance/40", textClass: "text-cat-finance" },
-  { token: "--cat-transport", bgClass: "bg-cat-transport/10", borderClass: "border-cat-transport/40", textClass: "text-cat-transport" },
-  { token: "--cat-diplomacy", bgClass: "bg-cat-diplomacy/10", borderClass: "border-cat-diplomacy/40", textClass: "text-cat-diplomacy" },
-  { token: "--cat-cyber", bgClass: "bg-cat-cyber/10", borderClass: "border-cat-cyber/40", textClass: "text-cat-cyber" },
-  { token: "--brand-ink", bgClass: "bg-brand-ink/10", borderClass: "border-brand-ink/40", textClass: "text-brand-ink" },
+  {
+    token: "--cat-military",
+    bgClass: "bg-cat-military/10",
+    borderClass: "border-cat-military/40",
+    textClass: "text-cat-military",
+  },
+  {
+    token: "--cat-finance",
+    bgClass: "bg-cat-finance/10",
+    borderClass: "border-cat-finance/40",
+    textClass: "text-cat-finance",
+  },
+  {
+    token: "--cat-transport",
+    bgClass: "bg-cat-transport/10",
+    borderClass: "border-cat-transport/40",
+    textClass: "text-cat-transport",
+  },
+  {
+    token: "--cat-diplomacy",
+    bgClass: "bg-cat-diplomacy/10",
+    borderClass: "border-cat-diplomacy/40",
+    textClass: "text-cat-diplomacy",
+  },
+  {
+    token: "--cat-cyber",
+    bgClass: "bg-cat-cyber/10",
+    borderClass: "border-cat-cyber/40",
+    textClass: "text-cat-cyber",
+  },
+  {
+    token: "--brand-ink",
+    bgClass: "bg-brand-ink/10",
+    borderClass: "border-brand-ink/40",
+    textClass: "text-brand-ink",
+  },
 ];
 
 const ICONS: ReadonlyArray<LucideIcon> = [

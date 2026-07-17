@@ -143,18 +143,13 @@ function bulletsToBio(bullets: string[]): string {
     .join("\n");
 }
 
-async function syncExpertiseAreas(
-  userId: string,
-  desired: Set<string>,
-): Promise<Error | null> {
+async function syncExpertiseAreas(userId: string, desired: Set<string>): Promise<Error | null> {
   const { data: current, error: readErr } = await supabase
     .from("expert_expertise_areas")
     .select("area_id")
     .eq("user_id", userId);
   if (readErr) return readErr;
-  const currentIds = new Set(
-    (current ?? []).map((r) => (r as { area_id: string }).area_id),
-  );
+  const currentIds = new Set((current ?? []).map((r) => (r as { area_id: string }).area_id));
   const toAdd = [...desired].filter((id) => !currentIds.has(id));
   const toRemove = [...currentIds].filter((id) => !desired.has(id));
 
@@ -241,8 +236,8 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
   useEffect(() => {
     if (!userId) return;
     void (async () => {
-      const [{ data: row }, { data: prof }, { data: areas }, { data: myAreas }] =
-        await Promise.all([
+      const [{ data: row }, { data: prof }, { data: areas }, { data: myAreas }] = await Promise.all(
+        [
           supabase
             .from("author_profiles")
             .select(
@@ -253,7 +248,8 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
           supabase.from("profiles").select("bio_pl, bio_en").eq("id", userId).maybeSingle(),
           supabase.from("expertise_areas").select("id, name_pl, name_en").order("sort_order"),
           supabase.from("expert_expertise_areas").select("area_id").eq("user_id", userId),
-        ]);
+        ],
+      );
       const canonicalBio = {
         bio_pl: preferCanonicalBio(prof?.bio_pl, row?.bio_pl ?? null),
         bio_en: preferCanonicalBio(prof?.bio_en, row?.bio_en ?? null),
@@ -277,9 +273,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         setExists(false);
       }
       setAreaOptions((areas ?? []) as ExpertiseAreaOption[]);
-      setSelectedAreaIds(
-        new Set((myAreas ?? []).map((a) => (a as { area_id: string }).area_id)),
-      );
+      setSelectedAreaIds(new Set((myAreas ?? []).map((a) => (a as { area_id: string }).area_id)));
       setBulletsPl(bioToBullets(canonicalBio.bio_pl));
       setBulletsEn(bioToBullets(canonicalBio.bio_en));
     })();
@@ -358,10 +352,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
       supabase
         .from("author_profiles")
         .upsert({ ...payload, bio_pl: bioPlOut, bio_en: bioEnOut }, { onConflict: "user_id" }),
-      supabase
-        .from("profiles")
-        .update({ bio_pl: bioPlOut, bio_en: bioEnOut })
-        .eq("id", userId),
+      supabase.from("profiles").update({ bio_pl: bioPlOut, bio_en: bioEnOut }).eq("id", userId),
     ]);
 
     const areaError = await syncExpertiseAreas(userId, selectedAreaIds);
@@ -431,10 +422,10 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         <div className="mb-4 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <BrandIcon name="info" fallback={Info} className="mt-0.5 h-3.5 w-3.5 shrink-0" alt="" />
           <span>
-            Layout, kolory hero, akcent i punktory BIO są dziedziczone z{" "}
-            <b>ustawień tenanta</b> (admin › Layouty ekspertów
-            {presetLabel ? <> - preset „{presetLabel}"</> : null}). Admin może nadpisać
-            pojedyncze pola z poziomu panelu.
+            Layout, kolory hero, akcent i punktory BIO są dziedziczone z <b>ustawień tenanta</b>{" "}
+            (admin › Layouty ekspertów
+            {presetLabel ? <> - preset „{presetLabel}"</> : null}). Admin może nadpisać pojedyncze
+            pola z poziomu panelu.
           </span>
         </div>
       )}
@@ -471,11 +462,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
           </div>
           <div className="flex items-center gap-4">
             {data.avatar_url ? (
-              <img
-                src={data.avatar_url}
-                alt=""
-                className="h-20 w-20 rounded-[7px] object-cover"
-              />
+              <img src={data.avatar_url} alt="" className="h-20 w-20 rounded-[7px] object-cover" />
             ) : (
               <div className="grid h-20 w-20 place-items-center rounded-[7px] bg-muted text-xs text-muted-foreground">
                 {t("profile.account.avatarPlaceholder")}
@@ -598,9 +585,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
               />
             </div>
             <div className="grid gap-2">
-              <FieldLabel htmlFor="ape-company">
-                {t("profile.account.currentCompany")}
-              </FieldLabel>
+              <FieldLabel htmlFor="ape-company">{t("profile.account.currentCompany")}</FieldLabel>
               <Input
                 id="ape-company"
                 value={data.company ?? ""}
@@ -631,9 +616,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
 
         {/* Hub eksperta */}
         <section className="grid gap-4">
-          <h3 className="text-sm font-semibold text-foreground/80">
-            {t("expert.editHubHeading")}
-          </h3>
+          <h3 className="text-sm font-semibold text-foreground/80">{t("expert.editHubHeading")}</h3>
           <div className="grid gap-2">
             <FieldLabel htmlFor="ape-full_bio_pl">{t("expert.fullBioPl")}</FieldLabel>
             <Textarea
@@ -727,8 +710,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         <section className="grid gap-4">
           <h3 className="text-sm font-semibold text-foreground/80">
             {t("profile.author.contactSection", {
-              defaultValue:
-                "Publiczne dane kontaktowe (mogą się różnić od profilu prywatnego)",
+              defaultValue: "Publiczne dane kontaktowe (mogą się różnić od profilu prywatnego)",
             })}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -872,8 +854,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
             {data.custom_socials.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 {t("profile.author.noCustomSocials", {
-                  defaultValue:
-                    "Brak własnych linków. Dodaj np. Threads, Bluesky, Mastodon...",
+                  defaultValue: "Brak własnych linków. Dodaj np. Threads, Bluesky, Mastodon...",
                 })}
               </p>
             )}

@@ -13,7 +13,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import type { VitalMetricSummary, VitalPathRow } from "@/lib/observability/aggregate";
-import { VITAL_THRESHOLDS, type VitalName, type VitalRating } from "@/lib/observability/vitalsThresholds";
+import {
+  VITAL_THRESHOLDS,
+  type VitalName,
+  type VitalRating,
+} from "@/lib/observability/vitalsThresholds";
 
 type Severity = "poor" | "needs-improvement" | "good";
 
@@ -37,21 +41,24 @@ function fmt(metric: VitalName, v: number): string {
 
 // Katalog interpretacji per metryka + rating. `detail` jest tłumaczeniem
 // wartości p75 na prosty język, `fixes` to konkretna lista działań.
-const PLAYBOOK: Record<VitalName, Record<Exclude<Severity, "good">, { title: string; fixes: string[] }>> = {
+const PLAYBOOK: Record<
+  VitalName,
+  Record<Exclude<Severity, "good">, { title: string; fixes: string[] }>
+> = {
   LCP: {
     "needs-improvement": {
       title: "LCP w strefie ostrzegawczej",
       fixes: [
-        "Preload obrazu bohatera (LCP) w head route'a: rel=\"preload\" as=\"image\" fetchpriority=\"high\".",
+        'Preload obrazu bohatera (LCP) w head route\'a: rel="preload" as="image" fetchpriority="high".',
         "Konwertuj obraz LCP do AVIF/WebP (vite-imagetools) i podawaj srcset dla 1x/2x.",
-        "Dodaj width/height + loading=\"eager\" dla LCP; loading=\"lazy\" reszcie.",
+        'Dodaj width/height + loading="eager" dla LCP; loading="lazy" reszcie.',
         "Skróć krytyczną ścieżkę CSS: załaduj fonty jako preload woff2 + font-display: swap.",
       ],
     },
     poor: {
       title: "LCP powyżej progu - widoczny lag ładowania",
       fixes: [
-        "Sprawdź czy LCP to obraz - jeśli tak, wymuś fetchpriority=\"high\" i preload w head().",
+        'Sprawdź czy LCP to obraz - jeśli tak, wymuś fetchpriority="high" i preload w head().',
         "Odłóż niekrytyczne skrypty innych firm (analytics, chat) - defer/async lub po requestIdleCallback.",
         "Zmniejsz payload SSR: przenieś ciężkie widgety do React.lazy + Suspense.",
         "Włącz cache CDN na obrazy i statyki (Cache-Control: public, max-age=31536000, immutable).",
@@ -175,7 +182,10 @@ function pathFindings(paths: VitalPathRow[]): Finding[] {
 
 const SEVERITY_ORDER: Record<Severity, number> = { poor: 0, "needs-improvement": 1, good: 2 };
 
-const SEVERITY_STYLE: Record<Exclude<Severity, "good">, { badge: string; ring: string; icon: ReactNode }> = {
+const SEVERITY_STYLE: Record<
+  Exclude<Severity, "good">,
+  { badge: string; ring: string; icon: ReactNode }
+> = {
   poor: {
     badge: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
     ring: "border-red-500/30",
@@ -275,8 +285,8 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
 
       {findings.length > 12 ? (
         <p className="text-[11px] text-muted-foreground">
-          Pokazano 12 z {findings.length} znalezisk. Napraw najpierw krytyczne - reszta zwykle
-          idzie za nimi.
+          Pokazano 12 z {findings.length} znalezisk. Napraw najpierw krytyczne - reszta zwykle idzie
+          za nimi.
         </p>
       ) : null}
     </Card>

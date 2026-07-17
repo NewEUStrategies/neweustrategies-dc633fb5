@@ -20,7 +20,14 @@ export function ArchiveSidebar({ widgets, lang, taxonomyId, kind, posts }: Props
   return (
     <aside className="space-y-6">
       {widgets.map((w) => (
-        <WidgetHost key={w} widget={w} lang={lang} taxonomyId={taxonomyId} kind={kind} posts={posts} />
+        <WidgetHost
+          key={w}
+          widget={w}
+          lang={lang}
+          taxonomyId={taxonomyId}
+          kind={kind}
+          posts={posts}
+        />
       ))}
     </aside>
   );
@@ -47,8 +54,12 @@ function WidgetHost({
         {title}
       </h2>
       {widget === "popular" && <PopularList posts={posts} lang={lang} />}
-      {widget === "related" && <RelatedTaxonomies kind={kind} taxonomyId={taxonomyId} lang={lang} />}
-      {widget === "newsletter" && <NewsletterForm lang={lang} source="archive-sidebar" variant="inline" />}
+      {widget === "related" && (
+        <RelatedTaxonomies kind={kind} taxonomyId={taxonomyId} lang={lang} />
+      )}
+      {widget === "newsletter" && (
+        <NewsletterForm lang={lang} source="archive-sidebar" variant="inline" />
+      )}
       {widget === "ads" && <AdZone position="sidebar" pageType={kind} pageId={taxonomyId} />}
     </section>
   );
@@ -57,7 +68,11 @@ function WidgetHost({
 function PopularList({ posts, lang }: { posts: readonly BlogListItem[]; lang: "pl" | "en" }) {
   const top = posts.slice(0, 5);
   if (top.length === 0)
-    return <p className="text-sm text-muted-foreground">{lang === "en" ? "No posts." : "Brak wpisów."}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {lang === "en" ? "No posts." : "Brak wpisów."}
+      </p>
+    );
   return (
     <ul className="space-y-3">
       {top.map((p) => (
@@ -91,14 +106,27 @@ function RelatedTaxonomies({
           .limit(10);
         return data ?? [];
       }
-      const { data } = await supabase.from("tags").select("id, slug, name").neq("id", taxonomyId).limit(10);
-      return (data ?? []).map((t) => ({ id: t.id, slug: t.slug, name_pl: t.name, name_en: t.name }));
+      const { data } = await supabase
+        .from("tags")
+        .select("id, slug, name")
+        .neq("id", taxonomyId)
+        .limit(10);
+      return (data ?? []).map((t) => ({
+        id: t.id,
+        slug: t.slug,
+        name_pl: t.name,
+        name_en: t.name,
+      }));
     },
     staleTime: 5 * 60_000,
   });
   const items = data ?? [];
   if (items.length === 0)
-    return <p className="text-sm text-muted-foreground">{lang === "en" ? "Nothing to show." : "Brak."}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {lang === "en" ? "Nothing to show." : "Brak."}
+      </p>
+    );
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((it) => (

@@ -47,6 +47,8 @@ export interface MessageBubbleProps {
   onEdit: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
   onDiscardFailed: (message: ChatMessage) => void;
+  /** Re-send a failed message as-is (attachment already uploaded). */
+  onRetryFailed?: (message: ChatMessage) => void;
   onToggleStar?: (message: ChatMessage, starred: boolean) => void;
   onForward?: (message: ChatMessage) => void;
   /** Scroll/jump to the quoted original message (if still in the loaded window). */
@@ -97,8 +99,7 @@ function ReactionChips({
             type="button"
             onClick={() => onReact(emoji, myReaction)}
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-[6px] border bg-background px-1.5 py-0.5 text-[11px] shadow-sm transition-colors",
-              "motion-safe:animate-in motion-safe:zoom-in-75 motion-safe:fade-in-0 motion-safe:duration-150",
+              "chat-reaction-pop inline-flex items-center gap-0.5 rounded-[6px] border bg-background px-1.5 py-0.5 text-[11px] shadow-sm transition-colors",
               isMine ? "border-primary/50" : "border-border/60 hover:border-border",
             )}
           >
@@ -131,6 +132,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     onEdit,
     onDelete,
     onDiscardFailed,
+    onRetryFailed,
     onToggleStar,
     onForward,
     onJumpToReply,
@@ -181,7 +183,8 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                   setReactOpen(false);
                 }}
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-transform hover:scale-125",
+                  "flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none",
+                  "motion-safe:transition-transform motion-safe:hover:scale-125",
                   myReaction === emoji && "bg-muted",
                 )}
                 aria-label={emoji}
@@ -456,6 +459,15 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
         {message.failed && (
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-destructive">
             {t("chat.sendFailed")}
+            {onRetryFailed && (
+              <button
+                type="button"
+                onClick={() => onRetryFailed(message)}
+                className="font-medium underline underline-offset-2"
+              >
+                {t("chat.retry")}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onDiscardFailed(message)}

@@ -95,7 +95,13 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const prevStart = daysAgoISO(days * 2);
   const prevEnd = daysAgoISO(days);
 
-  const dims: Array<"date" | "query" | "page" | "country" | "device"> = ["date", "query", "page", "country", "device"];
+  const dims: Array<"date" | "query" | "page" | "country" | "device"> = [
+    "date",
+    "query",
+    "page",
+    "country",
+    "device",
+  ];
 
   const queries = useQueries({
     queries: [
@@ -145,7 +151,9 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const prevTotals = useMemo(() => totalsOf(prevRows), [prevRows]);
 
   const trendOption = useMemo<EChartsCoreOption>(() => {
-    const sorted = dateRows.slice().sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    const sorted = dateRows
+      .slice()
+      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
     return {
       legend: { data: ["Kliknięcia", "Wyświetlenia", "CTR"], top: 4 },
       tooltip: { trigger: "axis" },
@@ -157,7 +165,12 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       },
       yAxis: [
         { type: "value", name: "Kliknięcia", nameTextStyle: { fontSize: 10 } },
-        { type: "value", name: "Wyświetlenia", nameTextStyle: { fontSize: 10 }, splitLine: { show: false } },
+        {
+          type: "value",
+          name: "Wyświetlenia",
+          nameTextStyle: { fontSize: 10 },
+          splitLine: { show: false },
+        },
         { type: "value", name: "CTR %", nameTextStyle: { fontSize: 10 }, show: false, max: 100 },
       ],
       dataZoom: [{ type: "inside", start: 0, end: 100 }],
@@ -195,7 +208,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   }, [dateRows]);
 
   const topQueriesOption = useMemo<EChartsCoreOption>(() => {
-    const top = queryRows.slice().sort((a, b) => b.clicks - a.clicks).slice(0, 15).reverse();
+    const top = queryRows
+      .slice()
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 15)
+      .reverse();
     return {
       grid: { left: 8, right: 20, top: 8, bottom: 24, containLabel: true },
       tooltip: {
@@ -255,7 +272,10 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   }, [queryRows]);
 
   const donutOption = (rows: GscRow[], title: string): EChartsCoreOption => {
-    const top = rows.slice().sort((a, b) => b.clicks - a.clicks).slice(0, 8);
+    const top = rows
+      .slice()
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 8);
     const otherClicks = rows.slice(8).reduce((acc, r) => acc + r.clicks, 0);
     const data = top.map((r) => ({ name: r.keys[0] ?? "?", value: r.clicks }));
     if (otherClicks > 0) data.push({ name: "Inne", value: otherClicks });
@@ -267,7 +287,13 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           return `${p.name}: <b>${p.value}</b> (${p.percent.toFixed(1)}%)`;
         },
       },
-      legend: { orient: "vertical", right: 4, top: "middle", type: "scroll", textStyle: { fontSize: 11 } },
+      legend: {
+        orient: "vertical",
+        right: 4,
+        top: "middle",
+        type: "scroll",
+        textStyle: { fontSize: 11 },
+      },
       series: [
         {
           name: title,
@@ -285,7 +311,10 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   };
 
   const treemapOption = useMemo<EChartsCoreOption>(() => {
-    const top = pageRows.slice().sort((a, b) => b.impressions - a.impressions).slice(0, 20);
+    const top = pageRows
+      .slice()
+      .sort((a, b) => b.impressions - a.impressions)
+      .slice(0, 20);
     return {
       tooltip: {
         formatter: (raw: unknown) => {
@@ -319,7 +348,9 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
 
   const calendarOption = useMemo<EChartsCoreOption>(() => {
     if (!dateRows.length) return { series: [] };
-    const sorted = dateRows.slice().sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    const sorted = dateRows
+      .slice()
+      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
     const data = sorted.map((r) => [r.keys[0] ?? "", r.clicks]);
     const max = Math.max(1, ...sorted.map((r) => r.clicks));
     const first = sorted[0]?.keys[0] ?? todayISO();
@@ -356,7 +387,8 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   if (!configured) {
     return (
       <Card className="p-6 text-sm text-muted-foreground">
-        Search Console nie jest jeszcze podłączony. Wróć do zakładki <b>Przegląd</b> i użyj przycisku „Połącz Search Console".
+        Search Console nie jest jeszcze podłączony. Wróć do zakładki <b>Przegląd</b> i użyj
+        przycisku „Połącz Search Console".
       </Card>
     );
   }
@@ -364,16 +396,34 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const trendCsv = {
     filename: "gsc-trend",
     headers: ["data", "kliknięcia", "wyświetlenia", "ctr", "pozycja"],
-    rows: dateRows.map((r) => [r.keys[0] ?? "", r.clicks, r.impressions, (r.ctr * 100).toFixed(2), r.position.toFixed(2)]),
+    rows: dateRows.map((r) => [
+      r.keys[0] ?? "",
+      r.clicks,
+      r.impressions,
+      (r.ctr * 100).toFixed(2),
+      r.position.toFixed(2),
+    ]),
   };
   const queriesCsv = {
     filename: "gsc-queries",
     headers: ["zapytanie", "kliknięcia", "wyświetlenia", "ctr", "pozycja"],
-    rows: queryRows.map((r) => [r.keys[0] ?? "", r.clicks, r.impressions, (r.ctr * 100).toFixed(2), r.position.toFixed(2)]),
+    rows: queryRows.map((r) => [
+      r.keys[0] ?? "",
+      r.clicks,
+      r.impressions,
+      (r.ctr * 100).toFixed(2),
+      r.position.toFixed(2),
+    ]),
   };
 
-  const sparkClicks = dateRows.slice().sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? "")).map((r) => r.clicks);
-  const sparkImpr = dateRows.slice().sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? "")).map((r) => r.impressions);
+  const sparkClicks = dateRows
+    .slice()
+    .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""))
+    .map((r) => r.clicks);
+  const sparkImpr = dateRows
+    .slice()
+    .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""))
+    .map((r) => r.impressions);
 
   return (
     <div className="space-y-4">
@@ -408,7 +458,12 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" size="sm" onClick={() => queries.forEach((q) => q.refetch())} className="h-9">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => queries.forEach((q) => q.refetch())}
+          className="h-9"
+        >
           <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
         </Button>
         {anyLoading ? (

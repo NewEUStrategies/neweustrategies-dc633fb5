@@ -658,9 +658,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "menu": {
       const menuKey = getStr(c, "menu_key") || "main";
-      return wrap(
-        <SiteMenu menuKey={menuKey} lang={lang} mobile={device === "mobile"} />,
-      );
+      return wrap(<SiteMenu menuKey={menuKey} lang={lang} mobile={device === "mobile"} />);
     }
     case "tts": {
       const source = getStr(c, "source") || "post";

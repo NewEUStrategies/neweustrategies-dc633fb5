@@ -121,7 +121,8 @@ const en = {
     noSocialFallback: "The expert has not shared any social channels yet.",
     cvPending: "The CV section will be added soon.",
     contentPending: "Content pending",
-    seoDescriptionAreas: "{{name}} — expert in {{areas}}. Publications, commentary and appearances.",
+    seoDescriptionAreas:
+      "{{name}} — expert in {{areas}}. Publications, commentary and appearances.",
     seoDescriptionFallback: "{{name}} — expert profile at New European Strategies.",
     contactHeading: "Direct contact",
     mediaContactHeading: "Media contact",

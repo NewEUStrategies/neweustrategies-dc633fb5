@@ -27,9 +27,7 @@ export interface EChartProps {
   themeVersion?: number;
 }
 
-const LazyClient = lazy(() =>
-  import("./EChartClient").then((m) => ({ default: m.EChartClient })),
-);
+const LazyClient = lazy(() => import("./EChartClient").then((m) => ({ default: m.EChartClient })));
 
 export function EChart(props: EChartProps) {
   const [mounted, setMounted] = useState(false);

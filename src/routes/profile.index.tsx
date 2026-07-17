@@ -840,7 +840,12 @@ function CenteredHero({
                   aria-label="LinkedIn"
                   className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
                 >
-                  <BrandIcon name="linkedin" fallback={Linkedin} className="h-3.5 w-3.5" alt="LinkedIn" />
+                  <BrandIcon
+                    name="linkedin"
+                    fallback={Linkedin}
+                    className="h-3.5 w-3.5"
+                    alt="LinkedIn"
+                  />
                 </a>
               )}
               {twitterUrl && (

@@ -28,13 +28,22 @@ export function singlePageData(message: ChatMessage): MessagesData {
   return { pages: [{ rows: [message], nextCursor: null }], pageParams: [null] };
 }
 
+/** Strict (created_at, id) order - true when `a` is chronologically older. */
+function isOlder(a: ChatMessage, b: ChatMessage): boolean {
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at;
+  return a.id < b.id;
+}
+
 /**
  * Upsert a message into the cached pages (newest first).
  *  - Replaces the row with the same id (and drops a matching `replaceId`
  *    optimistic twin so the realtime-echo-before-HTTP-response race can never
  *    leave a duplicate).
- *  - When the id is absent: prepends only if `insertIfMissing` - UPDATE-shaped
+ *  - When the id is absent: inserts only if `insertIfMissing` - UPDATE-shaped
  *    events for paginated-out rows must not teleport old messages to the top.
+ *    The insert lands at the chronologically correct slot of the newest page
+ *    (not blindly on top), so a delayed or out-of-order realtime INSERT can
+ *    never display above genuinely newer messages.
  */
 export function upsertMessageInCache(
   data: MessagesData | undefined,
@@ -74,10 +83,67 @@ export function upsertMessageInCache(
     if (pages.length === 0) pages.push({ rows: [message], nextCursor: null });
     else {
       const first = pages[0];
-      if (first) pages[0] = { ...first, rows: [message, ...first.rows] };
+      if (first) {
+        // Newest-first rows: insert before the first strictly-older row.
+        const rows = [...first.rows];
+        let at = rows.length;
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (row && isOlder(row, message)) {
+            at = i;
+            break;
+          }
+        }
+        rows.splice(at, 0, message);
+        pages[0] = { ...first, rows };
+      }
     }
   }
   return { ...data, pages };
+}
+
+/**
+ * Rebuild the send payload of a FAILED optimistic row so it can be retried
+ * as a fresh send (attachments were uploaded before the original attempt, so
+ * the storage path is reusable as-is). Null for rows that cannot be retried.
+ */
+export interface RetrySendInput {
+  conversationId: string;
+  kind: "text" | "image" | "file" | "audio";
+  body?: string;
+  attachment?: { path: string; name: string; mime: string; size: number; duration?: number };
+  replyToId?: string | null;
+  forwarded?: boolean;
+}
+
+export function retrySendInput(message: ChatMessage): RetrySendInput | null {
+  if (!message.failed || message.deleted_at) return null;
+  const kind = message.kind as RetrySendInput["kind"];
+  if (kind === "text") {
+    if (!message.body?.trim()) return null;
+    return {
+      conversationId: message.conversation_id,
+      kind,
+      body: message.body,
+      replyToId: message.reply_to_id,
+      forwarded: message.forwarded ?? false,
+    };
+  }
+  if (!message.attachment_path) return null;
+  return {
+    conversationId: message.conversation_id,
+    kind,
+    body: message.body ?? undefined,
+    attachment: {
+      path: message.attachment_path,
+      name: message.attachment_name ?? "",
+      mime: message.attachment_mime ?? "",
+      size: message.attachment_size ?? 0,
+      duration: message.attachment_duration ?? undefined,
+    },
+    replyToId: message.reply_to_id,
+    forwarded: message.forwarded ?? false,
+  };
 }
 
 export function removeMessageFromCache(

@@ -10,7 +10,11 @@ import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";
 
 export type MegaViewLang = "pl" | "en";
 
-function pickLocalized(pl: string | null | undefined, en: string | null | undefined, lang: MegaViewLang): string {
+function pickLocalized(
+  pl: string | null | undefined,
+  en: string | null | undefined,
+  lang: MegaViewLang,
+): string {
   return ((lang === "en" ? en : pl) || pl || en || "").trim();
 }
 
@@ -43,7 +47,9 @@ export function MegaPanelView({
   const readMore = lang === "en" ? "Read more" : "Czytaj więcej";
   const browseAll = lang === "en" ? "Browse all" : "Przejdź do sekcji";
   const featuredTitle = featured ? pickLocalized(featured.title_pl, featured.title_en, lang) : "";
-  const featuredExcerpt = featured ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang) : "";
+  const featuredExcerpt = featured
+    ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang)
+    : "";
   const featuredEyebrow = featured?.post_format ? featured.post_format.toString() : eyebrowFallback;
 
   const containerClass =

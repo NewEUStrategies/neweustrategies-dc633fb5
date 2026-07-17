@@ -9,7 +9,6 @@ import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
 
-
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
   id: string;
@@ -76,18 +75,13 @@ export function VisualCanvas({
   onMultiSelectionChange,
   onWidgetContentChange,
 }: {
-
   doc: BuilderDocument;
   lang: "pl" | "en";
   device: Device;
   selection: Selection;
   setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
-  onInsertSectionToTab?: (
-    sectionId: string,
-    tabId: string,
-    colsOrSpans: number | number[],
-  ) => void;
+  onInsertSectionToTab?: (sectionId: string, tabId: string, colsOrSpans: number | number[]) => void;
   onInsertSectionToContainer?: (sectionId: string, colsOrSpans: number | number[]) => void;
   onInsertContainer?: (index: number, withTabs: boolean) => void;
   onRemoveSection?: (id: string) => void;
@@ -117,7 +111,6 @@ export function VisualCanvas({
   /** Inline click-to-edit commit for widget content fields (text, HTML, labels…). */
   onWidgetContentChange?: (widgetId: string, key: string, value: string | number) => void;
 }) {
-
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ kind: "widget" | "section"; id: string } | null>(null);
@@ -342,10 +335,7 @@ export function VisualCanvas({
 
     widgets.forEach((w: HTMLElement) => {
       const id = w.dataset.widgetId;
-      w.classList.toggle(
-        "is-selected",
-        id === selection.id && selection.kind === "widget",
-      );
+      w.classList.toggle("is-selected", id === selection.id && selection.kind === "widget");
       w.classList.toggle("is-multi-selected", !!id && multi.has(id));
       w.setAttribute("draggable", "true");
     });
@@ -658,7 +648,6 @@ export function VisualCanvas({
         onInsertSection(index, structureSpans);
         return;
       }
-
 
       const globalPayload = readGlobalDragPayload(
         e.dataTransfer?.getData(GLOBAL_WIDGET_MIME) ?? "",
@@ -1078,13 +1067,14 @@ export function VisualCanvas({
               </>
             );
             return onWidgetContentChange ? (
-              <InlineEditProvider onContentChange={onWidgetContentChange}>{body}</InlineEditProvider>
+              <InlineEditProvider onContentChange={onWidgetContentChange}>
+                {body}
+              </InlineEditProvider>
             ) : (
               body
             );
           })()}
         </BuilderEmptyPickerProvider>
-
       </div>
       {marqueeRect && (
         <div

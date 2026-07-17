@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-
 type Kind = "categories" | "tags" | "archives";
 
 interface Props {
@@ -82,7 +81,6 @@ export function TaxonomyListView({ kind, lang, showCount, layout, limit }: Props
       </Select>
     );
   }
-
 
   return (
     <ul className="not-prose m-0 p-0 list-none space-y-1">

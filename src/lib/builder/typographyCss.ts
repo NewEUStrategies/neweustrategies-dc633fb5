@@ -8,7 +8,10 @@ type Specificity = 1 | 2 | 3;
 // terminate that quoted value. Keeping this implementation independent from the
 // browser-only `CSS.escape` guarantees byte-identical SSR and hydration output.
 function cssAttributeValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\n\r\f]/g, "\\a ");
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/[\n\r\f]/g, "\\a ");
 }
 
 function pickResponsiveValue<T>(

@@ -37,7 +37,7 @@ import { InsightSection } from "./InsightSection";
 import { buildGa4Insights } from "./ga4Insights";
 
 const CORE_METRICS = ["sessions", "activeUsers", "screenPageViews", "engagementRate"] as const;
-type CoreMetric = typeof CORE_METRICS[number];
+type CoreMetric = (typeof CORE_METRICS)[number];
 
 function parseNumber(v: string | undefined): number {
   if (v === undefined) return 0;
@@ -55,7 +55,13 @@ function totalsFromReport(report: Ga4Report | undefined): Record<CoreMetric, num
   return out;
 }
 
-export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean; activeMode?: string }) {
+export function Ga4BiDashboard({
+  configured,
+  activeMode,
+}: {
+  configured: boolean;
+  activeMode?: string;
+}) {
   const fetchReport = useServerFn(runGa4Report);
   const [days, setDays] = useState<number>(28);
 
@@ -63,13 +69,55 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
   const prevStart = `${days * 2}daysAgo`;
   const prevEnd = `${days}daysAgo`;
 
-  const requests: Array<{ key: string; dims: string[]; metrics: string[]; range: [string, string]; limit: number }> = [
-    { key: "date", dims: ["date"], metrics: [...CORE_METRICS], range: [start, "today"], limit: 400 },
-    { key: "date-prev", dims: ["date"], metrics: [...CORE_METRICS], range: [prevStart, prevEnd], limit: 400 },
-    { key: "source", dims: ["sessionSource"], metrics: ["sessions"], range: [start, "today"], limit: 20 },
-    { key: "country", dims: ["country"], metrics: ["sessions"], range: [start, "today"], limit: 30 },
-    { key: "device", dims: ["deviceCategory"], metrics: ["sessions"], range: [start, "today"], limit: 10 },
-    { key: "page", dims: ["pagePath"], metrics: ["screenPageViews", "engagementRate"], range: [start, "today"], limit: 20 },
+  const requests: Array<{
+    key: string;
+    dims: string[];
+    metrics: string[];
+    range: [string, string];
+    limit: number;
+  }> = [
+    {
+      key: "date",
+      dims: ["date"],
+      metrics: [...CORE_METRICS],
+      range: [start, "today"],
+      limit: 400,
+    },
+    {
+      key: "date-prev",
+      dims: ["date"],
+      metrics: [...CORE_METRICS],
+      range: [prevStart, prevEnd],
+      limit: 400,
+    },
+    {
+      key: "source",
+      dims: ["sessionSource"],
+      metrics: ["sessions"],
+      range: [start, "today"],
+      limit: 20,
+    },
+    {
+      key: "country",
+      dims: ["country"],
+      metrics: ["sessions"],
+      range: [start, "today"],
+      limit: 30,
+    },
+    {
+      key: "device",
+      dims: ["deviceCategory"],
+      metrics: ["sessions"],
+      range: [start, "today"],
+      limit: 10,
+    },
+    {
+      key: "page",
+      dims: ["pagePath"],
+      metrics: ["screenPageViews", "engagementRate"],
+      range: [start, "today"],
+      limit: 20,
+    },
     {
       key: "engagement",
       dims: [],
@@ -111,7 +159,9 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
   const prevTotals = useMemo(() => totalsFromReport(prevQ.data), [prevQ.data]);
 
   const trendOption = useMemo<EChartsCoreOption>(() => {
-    const rows = (dateQ.data?.rows ?? []).slice().sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
+    const rows = (dateQ.data?.rows ?? [])
+      .slice()
+      .sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
     const dates = rows.map((r) => {
       const d = r.dims[0] ?? "";
       return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d;
@@ -158,7 +208,10 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
     rows.sort((a, b) => parseNumber(b.metrics[idxSessions]) - parseNumber(a.metrics[idxSessions]));
     const head = rows.slice(0, top);
     const rest = rows.slice(top);
-    const data = head.map((r) => ({ name: r.dims[0] || "?", value: parseNumber(r.metrics[idxSessions]) }));
+    const data = head.map((r) => ({
+      name: r.dims[0] || "?",
+      value: parseNumber(r.metrics[idxSessions]),
+    }));
     const other = rest.reduce((acc, r) => acc + parseNumber(r.metrics[idxSessions]), 0);
     if (other > 0) data.push({ name: "Inne", value: other });
     return {
@@ -169,7 +222,13 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
           return `${p.name}: <b>${p.value}</b> (${p.percent.toFixed(1)}%)`;
         },
       },
-      legend: { orient: "vertical", right: 4, top: "middle", type: "scroll", textStyle: { fontSize: 11 } },
+      legend: {
+        orient: "vertical",
+        right: 4,
+        top: "middle",
+        type: "scroll",
+        textStyle: { fontSize: 11 },
+      },
       series: [
         {
           type: "pie",
@@ -185,7 +244,7 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
   };
 
   const radarOption = useMemo<EChartsCoreOption>(() => {
-    const totals = (engageQ.data?.totals ?? []);
+    const totals = engageQ.data?.totals ?? [];
     const headers = engageQ.data?.metricHeaders ?? [];
     const get = (m: string): number => {
       const i = headers.indexOf(m);
@@ -251,7 +310,8 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
   if (!configured) {
     return (
       <Card className="p-6 text-sm text-muted-foreground">
-        GA4 Data API nie jest jeszcze skonfigurowany. Wróć do zakładki <b>GA4</b> i podłącz Service Account lub OAuth refresh token.
+        GA4 Data API nie jest jeszcze skonfigurowany. Wróć do zakładki <b>GA4</b> i podłącz Service
+        Account lub OAuth refresh token.
       </Card>
     );
   }
@@ -281,11 +341,17 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" size="sm" onClick={() => queries.forEach((q) => q.refetch())} className="h-9">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => queries.forEach((q) => q.refetch())}
+          className="h-9"
+        >
           <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <BarChart3 className="w-3 h-3" /> Tryb: {activeMode === "oauth_refresh" ? "OAuth" : "Service Account"}
+          <BarChart3 className="w-3 h-3" /> Tryb:{" "}
+          {activeMode === "oauth_refresh" ? "OAuth" : "Service Account"}
         </div>
         {anyLoading ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
@@ -340,12 +406,32 @@ export function Ga4BiDashboard({ configured, activeMode }: { configured: boolean
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <ChartCard title="Źródła ruchu" subtitle="Sesje wg sessionSource" option={donutFrom(sourceQ.data)} height={280} />
-        <ChartCard title="Kraje" subtitle="Sesje wg kraju" option={donutFrom(countryQ.data)} height={280} />
-        <ChartCard title="Urządzenia" subtitle="Sesje wg typu urządzenia" option={donutFrom(deviceQ.data, 5)} height={280} />
+        <ChartCard
+          title="Źródła ruchu"
+          subtitle="Sesje wg sessionSource"
+          option={donutFrom(sourceQ.data)}
+          height={280}
+        />
+        <ChartCard
+          title="Kraje"
+          subtitle="Sesje wg kraju"
+          option={donutFrom(countryQ.data)}
+          height={280}
+        />
+        <ChartCard
+          title="Urządzenia"
+          subtitle="Sesje wg typu urządzenia"
+          option={donutFrom(deviceQ.data, 5)}
+          height={280}
+        />
       </div>
 
-      <ChartCard title="Top strony" subtitle="Rank wg odsłon" option={topPagesOption} height={340} />
+      <ChartCard
+        title="Top strony"
+        subtitle="Rank wg odsłon"
+        option={topPagesOption}
+        height={340}
+      />
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection

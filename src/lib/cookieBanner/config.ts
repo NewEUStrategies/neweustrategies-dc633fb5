@@ -118,10 +118,7 @@ export const COOKIE_BANNER_DEFAULTS: CookieBannerConfig = {
 export const COOKIE_BANNER_SETTINGS_KEY = "cookie_banner_config";
 
 export function useCookieBannerConfig(): CookieBannerConfig {
-  return useSiteSetting<CookieBannerConfig>(
-    COOKIE_BANNER_SETTINGS_KEY,
-    COOKIE_BANNER_DEFAULTS,
-  );
+  return useSiteSetting<CookieBannerConfig>(COOKIE_BANNER_SETTINGS_KEY, COOKIE_BANNER_DEFAULTS);
 }
 
 /** Inline CSS custom properties for banner overrides; empty strings skipped. */

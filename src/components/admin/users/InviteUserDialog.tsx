@@ -2,11 +2,23 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createInvitations, sendInvitation } from "@/lib/admin/invitations.functions";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -59,7 +71,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("admin.users.invite.title", { defaultValue: "Zaproś użytkownika" })}</DialogTitle>
+          <DialogTitle>
+            {t("admin.users.invite.title", { defaultValue: "Zaproś użytkownika" })}
+          </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1">
@@ -73,7 +87,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           <div className="grid gap-1">
             <Label>{t("admin.users.role", { defaultValue: "Rola" })}</Label>
             <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="editor">Editor</SelectItem>
@@ -85,7 +101,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
           <div className="grid gap-1">
             <Label>{t("admin.users.invite.mode", { defaultValue: "Tryb" })}</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="magic_link">Link aktywacyjny (user ustawia hasło)</SelectItem>
                 <SelectItem value="temp_password">Login + hasło tymczasowe (email)</SelectItem>

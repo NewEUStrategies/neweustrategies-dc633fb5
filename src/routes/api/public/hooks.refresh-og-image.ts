@@ -20,7 +20,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 const Body = z.object({
-  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/i),
+  slug: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9-]+$/i),
 });
 
 function safeEq(a: string, b: string): boolean {
@@ -35,10 +39,10 @@ export const Route = createFileRoute("/api/public/hooks/refresh-og-image")({
       POST: async ({ request }) => {
         const secret = process.env.OG_REFRESH_SECRET;
         if (!secret) {
-          return new Response(
-            JSON.stringify({ error: "OG_REFRESH_SECRET not configured" }),
-            { status: 501, headers: { "Content-Type": "application/json" } },
-          );
+          return new Response(JSON.stringify({ error: "OG_REFRESH_SECRET not configured" }), {
+            status: 501,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         const raw = await request.text();
         let parsed: z.infer<typeof Body>;

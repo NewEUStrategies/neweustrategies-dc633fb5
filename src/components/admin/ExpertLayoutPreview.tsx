@@ -9,10 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
-import {
-  findExpertPreset,
-  type ExpertLayoutSettings,
-} from "@/lib/expertLayouts";
+import { findExpertPreset, type ExpertLayoutSettings } from "@/lib/expertLayouts";
 import {
   ExpertLayoutHero,
   ExpertSectionsList,
@@ -109,10 +106,7 @@ export function ExpertLayoutPreview({
     };
   }, [settings, theme]);
 
-  const previewStyle = useMemo(
-    () => expertLayoutCssVars(settings, theme),
-    [settings, theme],
-  );
+  const previewStyle = useMemo(() => expertLayoutCssVars(settings, theme), [settings, theme]);
 
   const noSample =
     lang === "en"

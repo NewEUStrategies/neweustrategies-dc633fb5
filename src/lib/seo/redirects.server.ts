@@ -82,7 +82,11 @@ async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   const pending = inflight.get(tenantId);
   if (pending) return pending;
   const p = loadIndexForTenant(tenantId).then((index) => {
-    cache.set(tenantId, { at: Date.now(), index, count: index.exact.size + index.wildcards.length });
+    cache.set(tenantId, {
+      at: Date.now(),
+      index,
+      count: index.exact.size + index.wildcards.length,
+    });
     inflight.delete(tenantId);
     return index;
   });

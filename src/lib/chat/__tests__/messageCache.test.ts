@@ -3,6 +3,7 @@ import {
   singlePageData,
   upsertMessageInCache,
   removeMessageFromCache,
+  retrySendInput,
   canEditMessage,
   EDIT_WINDOW_MS,
   type MessagesData,
@@ -96,6 +97,90 @@ describe("upsertMessageInCache", () => {
     const rows = out!.pages[0].rows;
     expect(rows.map((r) => r.id)).toEqual(["s1"]);
     expect(rows.some((r) => r.pending)).toBe(false);
+  });
+
+  it("inserts a delayed realtime row at its chronological slot, not on top", () => {
+    // Rows are newest-first; a burst delivered out of order must not display
+    // the older message above the newer one.
+    const d = data([
+      msg({ id: "m3", created_at: "2026-01-01T10:03:00.000Z" }),
+      msg({ id: "m1", created_at: "2026-01-01T10:01:00.000Z" }),
+    ]);
+    const out = upsertMessageInCache(d, msg({ id: "m2", created_at: "2026-01-01T10:02:00.000Z" }));
+    expect(out!.pages[0].rows.map((r) => r.id)).toEqual(["m3", "m2", "m1"]);
+  });
+
+  it("inserts an older-than-everything row at the bottom of the newest page", () => {
+    const d = data([msg({ id: "m2", created_at: "2026-01-01T10:02:00.000Z" })]);
+    const out = upsertMessageInCache(d, msg({ id: "m0", created_at: "2026-01-01T09:00:00.000Z" }));
+    expect(out!.pages[0].rows.map((r) => r.id)).toEqual(["m2", "m0"]);
+  });
+
+  it("breaks equal timestamps by id (stable ordering)", () => {
+    const t = "2026-01-01T10:00:00.000Z";
+    const d = data([msg({ id: "b", created_at: t })]);
+    const out = upsertMessageInCache(d, msg({ id: "a", created_at: t }));
+    expect(out!.pages[0].rows.map((r) => r.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("retrySendInput", () => {
+  it("rebuilds the payload of a failed text message", () => {
+    const failed = msg({
+      id: "pending-1",
+      body: "spróbuj jeszcze raz",
+      reply_to_id: "m9",
+      forwarded: true,
+      failed: true,
+    });
+    expect(retrySendInput(failed)).toEqual({
+      conversationId: "conv-1",
+      kind: "text",
+      body: "spróbuj jeszcze raz",
+      replyToId: "m9",
+      forwarded: true,
+    });
+  });
+
+  it("reuses the already-uploaded attachment for media retries", () => {
+    // Helper coerces body:null to "hello" - spread past it (voice notes have
+    // no caption).
+    const failed = {
+      ...msg({
+        id: "pending-2",
+        kind: "audio",
+        attachment_path: "tenant/conv/voice.webm",
+        attachment_name: "voice.webm",
+        attachment_mime: "audio/webm",
+        attachment_size: 1234,
+        attachment_duration: 7,
+        failed: true,
+      }),
+      body: null,
+    };
+    expect(retrySendInput(failed)).toEqual({
+      conversationId: "conv-1",
+      kind: "audio",
+      body: undefined,
+      attachment: {
+        path: "tenant/conv/voice.webm",
+        name: "voice.webm",
+        mime: "audio/webm",
+        size: 1234,
+        duration: 7,
+      },
+      replyToId: null,
+      forwarded: false,
+    });
+  });
+
+  it("refuses rows that are not retryable", () => {
+    expect(retrySendInput(msg({ id: "ok", body: "sent fine" }))).toBeNull();
+    expect(retrySendInput(msg({ id: "del", failed: true, deleted_at: "2026-01-01" }))).toBeNull();
+    expect(retrySendInput(msg({ id: "blank", kind: "text", body: "  ", failed: true }))).toBeNull();
+    expect(
+      retrySendInput(msg({ id: "noatt", kind: "image", body: null, failed: true })),
+    ).toBeNull();
   });
 });
 

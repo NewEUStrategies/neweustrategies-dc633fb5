@@ -63,7 +63,11 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { PostSettingsMetabox, TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
-import { CategoriesCard, TagsCard, BilingualPickerCard } from "@/components/admin/post-editor/TaxonomyCards";
+import {
+  CategoriesCard,
+  TagsCard,
+  BilingualPickerCard,
+} from "@/components/admin/post-editor/TaxonomyCards";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { WorkflowStatusSection } from "@/components/admin/post-editor/WorkflowStatusSection";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
@@ -507,7 +511,13 @@ function EditPost() {
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
   const autoValue = useMemo(
-    () => ({ form, cats: selectedCats, tags: selectedTags, programs: selectedPrograms, regions: selectedRegions }),
+    () => ({
+      form,
+      cats: selectedCats,
+      tags: selectedTags,
+      programs: selectedPrograms,
+      regions: selectedRegions,
+    }),
     [form, selectedCats, selectedTags, selectedPrograms, selectedRegions],
   );
   const autosave = useAutosave({
@@ -840,7 +850,9 @@ function EditPost() {
       options={allPrograms ?? undefined}
       selectedIds={selectedPrograms}
       onSelectedChange={setSelectedPrograms}
-      emptyHint={t("admin.posts.noPrograms", { defaultValue: "Brak projektów - dodaj je w /admin/programs" })}
+      emptyHint={t("admin.posts.noPrograms", {
+        defaultValue: "Brak projektów - dodaj je w /admin/programs",
+      })}
     />
   );
 
@@ -850,11 +862,11 @@ function EditPost() {
       options={allRegions ?? undefined}
       selectedIds={selectedRegions}
       onSelectedChange={setSelectedRegions}
-      emptyHint={t("admin.posts.noRegions", { defaultValue: "Brak regionów - dodaj je w /admin/regions" })}
+      emptyHint={t("admin.posts.noRegions", {
+        defaultValue: "Brak regionów - dodaj je w /admin/regions",
+      })}
     />
   );
-
-
 
   return (
     <TooltipProvider delayDuration={200}>

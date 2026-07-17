@@ -46,7 +46,8 @@ export const Route = createFileRoute("/experts")({
       url,
       lang,
       type: "website",
-      title: lang === "en" ? "Experts - New European Strategies" : "Eksperci - New European Strategies",
+      title:
+        lang === "en" ? "Experts - New European Strategies" : "Eksperci - New European Strategies",
       description:
         lang === "en"
           ? "The New European Strategies analytical team: profiles, programs and areas of expertise."
@@ -102,7 +103,10 @@ function ExpertsDirectoryPage() {
               value={areaSlug ?? ALL}
               onValueChange={(next) =>
                 navigate({
-                  search: (prev: ExpertsSearch) => ({ ...prev, area: next === ALL ? undefined : next }),
+                  search: (prev: ExpertsSearch) => ({
+                    ...prev,
+                    area: next === ALL ? undefined : next,
+                  }),
                 })
               }
             >

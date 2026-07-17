@@ -201,7 +201,6 @@ async function prefetchWidgets(
   await Promise.allSettled(tasks);
 }
 
-
 export async function prefetchSectionQueries(
   queryClient: QueryClient,
   section: SectionNode,
@@ -400,4 +399,3 @@ export async function prefetchCachedRouteQueries(
     /* prefetch is best-effort; widgets fall back to their client fetch */
   }
 }
-

@@ -154,7 +154,8 @@ export const pl = {
         connectDesc:
           "Wpisz Property ID i Measurement ID. Klucze wrażliwe (Service Account JSON, OAuth) skonfiguruj w sekretach projektu - są wymagane do pobierania raportów.",
         secretsNeeded: "Wymagane sekrety projektu",
-        secretsHint: "Dodaj brakujące pozycje w Ustawieniach projektu → Sekrety, a następnie odśwież status.",
+        secretsHint:
+          "Dodaj brakujące pozycje w Ustawieniach projektu → Sekrety, a następnie odśwież status.",
         save: "Zapisz i połącz",
         cancel: "Anuluj",
         confirmDisconnect: "Na pewno chcesz odłączyć GA4? Raporty przestaną być pobierane.",
@@ -162,7 +163,8 @@ export const pl = {
       gsc: {
         title: "Google Search Console",
         desc: "Weryfikacja domeny i raporty wyszukiwania (kliknięcia, impresje, CTR, pozycja).",
-        managed: "Połączenie zarządzane przez konektor - klucze API trzymane bezpiecznie w sekretach projektu.",
+        managed:
+          "Połączenie zarządzane przez konektor - klucze API trzymane bezpiecznie w sekretach projektu.",
         openDashboard: "Otwórz panel analityki",
         needsConnector:
           "Aby włączyć raporty GSC podłącz konektor Google Search Console w ustawieniach projektu.",

@@ -72,7 +72,10 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
       ]);
       // Rozwiąż etykietę rodzica po `parent_id` żeby móc grupować kategorie
       // po obszarach (np. Region -> Afryka, Specjalizacja -> Dyplomacja).
-      const byId = new Map<string, { name_pl: string | null; name_en: string | null; slug: string }>();
+      const byId = new Map<
+        string,
+        { name_pl: string | null; name_en: string | null; slug: string }
+      >();
       for (const c of cats ?? []) {
         byId.set(c.id as string, {
           name_pl: (c.name_pl as string | null) ?? null,

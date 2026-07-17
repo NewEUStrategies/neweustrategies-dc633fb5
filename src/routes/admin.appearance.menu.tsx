@@ -7,7 +7,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { menusListQueryOptions } from "@/lib/menus/queries";
 import { MenuManager } from "@/components/admin/menu/MenuManager";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
 
 export const Route = createFileRoute("/admin/appearance/menu")({

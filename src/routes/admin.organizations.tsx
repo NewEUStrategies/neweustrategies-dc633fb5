@@ -36,7 +36,6 @@ export const Route = createFileRoute("/admin/organizations")({
   component: AdminOrganizationsPage,
 });
 
-
 type Lang = "pl" | "en";
 const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -46,8 +45,6 @@ function AdminOrganizationsPage() {
   const { i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const L = tr(lang);
-  
-
 
   const tiersQ = useMembershipTiers();
   const tiers = useMemo<MembershipTierRow[]>(() => tiersQ.data ?? [], [tiersQ.data]);
@@ -91,7 +88,6 @@ function AdminOrganizationsPage() {
           </Link>
         </Button>
       </header>
-
 
       {orgsQ.isLoading ? (
         <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
@@ -178,7 +174,9 @@ function OrgCard({
           </Button>
         </CardTitle>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <Badge variant="secondary" className="text-[10px]">{tierLabel}</Badge>
+          <Badge variant="secondary" className="text-[10px]">
+            {tierLabel}
+          </Badge>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             {L("limit miejsc", "seat limit")}: {org.seats_limit}
           </span>
@@ -379,4 +377,3 @@ function SeatManager({
     </div>
   );
 }
-
