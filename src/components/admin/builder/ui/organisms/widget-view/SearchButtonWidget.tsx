@@ -93,7 +93,7 @@ export function SearchButtonWidget({
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [items, setItems] = useState<AutosuggestItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -126,25 +126,26 @@ export function SearchButtonWidget({
   const runSearch = async (term: string) => {
     const t = term.trim();
     if (t.length < 2) {
-      setResults([]);
+      setItems([]);
       setSearched(false);
       return;
     }
     const reqId = ++reqIdRef.current;
     setLoading(true);
-    // Same ranked FTS RPC as /search and the mobile overlay.
-    const { data } = await supabase.rpc("search_posts", {
-      _q: t,
-      _limit: Math.max(1, Math.min(limit, 20)),
-    });
-    // Ignore out-of-order responses (a slower earlier request landing last).
+    // Shared autosuggest RPC - splits posts, authors and taxonomy terms in
+    // one round-trip; rendering groups them into 4 premium buckets below.
+    const capped = Math.max(4, Math.min(limit * 2, 24));
+    const { data } = await supabase.rpc("search_autosuggest", { _q: t, _limit: capped });
     if (reqId !== reqIdRef.current) return;
-    setResults(
+    setItems(
       (data ?? []).map((r) => ({
-        id: r.id,
-        slug: r.slug,
-        title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl || "",
-        excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || null,
+        kind: r.kind as AutosuggestItem["kind"],
+        id: (r.id as string | null) ?? null,
+        slug: (r.slug as string | null) ?? null,
+        label_pl: (r.label_pl as string | null) ?? "",
+        label_en: (r.label_en as string | null) ?? "",
+        parentPageId: (r.parent_page_id as string | null) ?? null,
+        score: Number(r.score ?? 0),
       })),
     );
     setActive(-1);
@@ -161,7 +162,26 @@ export function SearchButtonWidget({
 
   const placeholder = label || heading || (lang === "pl" ? "Szukaj" : "Search");
   const hasQuery = q.trim().length >= 2;
-  const showEmpty = hasQuery && !loading && searched && results.length === 0;
+
+  // Group + flatten while keeping a stable index used by keyboard navigation
+  // and aria-activedescendant. Empty buckets are skipped for a clean list.
+  const { grouped, flat } = useMemo(() => {
+    const g = new Map<SuggestBucket, BucketedItem[]>();
+    for (const bucket of BUCKET_ORDER) g.set(bucket, []);
+    for (const it of items) {
+      g.get(bucketOf(it.kind))!.push({ item: it, bucket: bucketOf(it.kind), index: 0 });
+    }
+    const flatList: BucketedItem[] = [];
+    for (const bucket of BUCKET_ORDER) {
+      for (const entry of g.get(bucket)!) {
+        entry.index = flatList.length;
+        flatList.push(entry);
+      }
+    }
+    return { grouped: g, flat: flatList };
+  }, [items]);
+
+  const showEmpty = hasQuery && !loading && searched && flat.length === 0;
   const showRecent = focused && !hasQuery && recent.length > 0;
   const showPopover = (focused && hasQuery) || showRecent;
   const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
@@ -176,27 +196,38 @@ export function SearchButtonWidget({
     setFocused(false);
   };
 
+  const bucketLabel = (b: SuggestBucket) =>
+    lang === "pl" ? BUCKET_LABEL_PL[b] : BUCKET_LABEL_EN[b];
+
+  const iconFor = (b: SuggestBucket) => {
+    if (b === "titles") return LucideIcons.FileText;
+    if (b === "contentTypes") return LucideIcons.LayoutGrid;
+    if (b === "topics") return LucideIcons.Tags;
+    return LucideIcons.Users;
+  };
+
+  const itemLabel = (it: AutosuggestItem) =>
+    (lang === "pl" ? it.label_pl || it.label_en : it.label_en || it.label_pl) || "";
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => Math.min(i + 1, results.length - 1));
+      setActive((i) => Math.min(i + 1, flat.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      // Search-on-submit mode (live results off): run the query inline and keep
-      // the popover open, rather than navigating away.
       if (!liveResults) {
         void runSearch(q);
         setFocused(true);
         return;
       }
-      const r = active >= 0 ? results[active] : undefined;
-      if (r) {
+      const chosen = active >= 0 ? flat[active] : undefined;
+      if (chosen) {
         addRecentSearch(q);
         setFocused(false);
-        void router.navigate({ href: `/post/${r.slug}` } as never);
+        void router.navigate({ href: hrefForItem(chosen.item) } as never);
       } else if (hasQuery) {
         addRecentSearch(q);
         setFocused(false);
