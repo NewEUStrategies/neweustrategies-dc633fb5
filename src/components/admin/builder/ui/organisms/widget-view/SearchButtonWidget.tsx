@@ -305,7 +305,7 @@ export function SearchButtonWidget({
             aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
             onClick={() => {
               setQ("");
-              setResults([]);
+              setItems([]);
               setSearched(false);
               setActive(-1);
               inputRef.current?.focus();
