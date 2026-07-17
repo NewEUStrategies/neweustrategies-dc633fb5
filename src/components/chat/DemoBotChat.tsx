@@ -125,8 +125,18 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const [peerDeliveredAt, setPeerDeliveredAt] = useState<string | null>(null);
   const [peerReadAt, setPeerReadAt] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  // Staged local attachment - trzymamy `blob:` URL zamiast bucketu; podgląd
+  // demo nie dotyka Storage. `useAttachmentUrl` przepuszcza blob:/data: URL
+  // bez pytania Supabase, więc dymki renderują się identycznie jak realne.
+  const [staged, setStaged] = useState<{
+    file: File;
+    kind: AttachmentKind;
+    previewUrl: string;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const timersRef = useRef<number[]>([]);
+  const blobsRef = useRef<string[]>([]);
 
   useEffect(() => {
     const timers = timersRef.current;
