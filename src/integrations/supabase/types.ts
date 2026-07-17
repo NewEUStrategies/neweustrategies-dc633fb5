@@ -1315,6 +1315,51 @@ export type Database = {
           },
         ]
       }
+      conversation_nicknames: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          nickname: string
+          set_by: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          nickname: string
+          set_by?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          nickname?: string
+          set_by?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_nicknames_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_nicknames_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           archived_at: string | null
@@ -1385,6 +1430,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          description: string | null
           direct_key: string | null
           id: string
           kind: string
@@ -1393,13 +1439,17 @@ export type Database = {
           last_message_preview: string | null
           last_message_sender: string | null
           message_ttl_seconds: number | null
+          quick_emoji: string | null
           tenant_id: string
+          theme: string | null
           title: string | null
           updated_at: string
+          wallpaper: string | null
         }
         Insert: {
           created_at?: string
           created_by: string
+          description?: string | null
           direct_key?: string | null
           id?: string
           kind?: string
@@ -1408,13 +1458,17 @@ export type Database = {
           last_message_preview?: string | null
           last_message_sender?: string | null
           message_ttl_seconds?: number | null
+          quick_emoji?: string | null
           tenant_id: string
+          theme?: string | null
           title?: string | null
           updated_at?: string
+          wallpaper?: string | null
         }
         Update: {
           created_at?: string
           created_by?: string
+          description?: string | null
           direct_key?: string | null
           id?: string
           kind?: string
@@ -1423,9 +1477,12 @@ export type Database = {
           last_message_preview?: string | null
           last_message_sender?: string | null
           message_ttl_seconds?: number | null
+          quick_emoji?: string | null
           tenant_id?: string
+          theme?: string | null
           title?: string | null
           updated_at?: string
+          wallpaper?: string | null
         }
         Relationships: [
           {
@@ -8203,8 +8260,21 @@ export type Database = {
       }
       chat_purge_expired_messages: { Args: never; Returns: number }
       chat_read_receipts_enabled: { Args: { _user: string }; Returns: boolean }
+      chat_set_appearance: {
+        Args: {
+          p_conversation_id: string
+          p_quick_emoji?: string
+          p_theme?: string
+          p_wallpaper?: string
+        }
+        Returns: undefined
+      }
       chat_set_archived: {
         Args: { p_archived: boolean; p_conversation_id: string }
+        Returns: undefined
+      }
+      chat_set_group_description: {
+        Args: { p_conversation_id: string; p_description: string }
         Returns: undefined
       }
       chat_set_message_ttl: {
@@ -8213,6 +8283,14 @@ export type Database = {
       }
       chat_set_muted: {
         Args: { p_conversation_id: string; p_seconds: number }
+        Returns: undefined
+      }
+      chat_set_nickname: {
+        Args: {
+          p_conversation_id: string
+          p_nickname: string
+          p_user_id: string
+        }
         Returns: undefined
       }
       chat_set_pinned: {
