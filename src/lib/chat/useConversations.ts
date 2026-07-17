@@ -358,9 +358,9 @@ export function useSetConversationAppearance() {
       const { error } = await supabase.rpc("chat_set_appearance", {
         p_conversation_id: input.conversationId,
         // 'keep' is the RPC sentinel for "leave this field unchanged".
-        p_theme: input.theme === undefined ? "keep" : input.theme,
-        p_wallpaper: input.wallpaper === undefined ? "keep" : input.wallpaper,
-        p_quick_emoji: input.quickEmoji === undefined ? "keep" : input.quickEmoji,
+        p_theme: (input.theme === undefined ? "keep" : input.theme) as string,
+        p_wallpaper: (input.wallpaper === undefined ? "keep" : input.wallpaper) as string,
+        p_quick_emoji: (input.quickEmoji === undefined ? "keep" : input.quickEmoji) as string,
       });
       if (error) throw error;
     },
