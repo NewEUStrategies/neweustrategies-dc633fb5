@@ -86,7 +86,8 @@ export function triggerWatchdogReload(options: WatchdogTriggerOptions): boolean 
         : null;
   const currentTime = now();
   const counter = readReloadCounter(storage);
-  const withinWindow = currentTime - counter.since < COOLDOWN_MS;
+  const hasActiveWindow = counter.count > 0;
+  const withinWindow = hasActiveWindow && currentTime - counter.since < COOLDOWN_MS;
   const nextCount = withinWindow ? counter.count + 1 : 1;
   const nextSince = withinWindow ? counter.since : currentTime;
 
