@@ -554,7 +554,7 @@ function SearchPage() {
 
         <form onSubmit={submit} className="flex gap-2 mb-2" role="search">
           <div className="relative flex-1">
-            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
               value={draft}
               onChange={(e) => {
@@ -566,7 +566,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="h-12 rounded-xl pl-14 text-base shadow-sm"
+              className="h-12 rounded-xl pl-16 text-base shadow-sm"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
