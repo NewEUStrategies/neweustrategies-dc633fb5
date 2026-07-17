@@ -121,7 +121,7 @@ export function MegaPanelView({
                               <DynamicIcon name={lnk.icon} size={16} strokeWidth={1.75} />
                             </span>
                           ) : null}
-                          <span className="block text-[15px] font-bold leading-tight text-foreground transition-colors group-hover:text-brand">
+                          <span className="block text-[15px] font-normal leading-tight text-foreground transition-colors group-hover:text-brand">
                             {label}
                           </span>
                         </AppLink>

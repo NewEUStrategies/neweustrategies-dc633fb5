@@ -2,7 +2,9 @@
 // - Lista krajów z i18n-iso-countries (PL + EN).
 // - Użytkownik może wybrać z listy albo wpisać własną nazwę (free text zapisywany 1:1).
 // - Dostępny z klawiatury (↑ ↓ Enter Esc), aria zgodne z combobox pattern.
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+// - Dropdown renderowany przez portal (fixed) - nie jest przycinany przez overflow-hidden.
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 // `/index.js` and NOT the bare package: the package's Node entry (`main:
 // entry-node`) registers every locale through a dynamic `require("./langs/" +
 // lang + ".json")` that Rollup cannot bundle, so the SSR Worker chunk throws at
@@ -58,8 +60,10 @@ export function CountryCombobox({
   const list = useCountryList(lang);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLUListElement>(null);
   const listId = useId();
 
   const filtered = useMemo(() => {
@@ -68,10 +72,46 @@ export function CountryCombobox({
     return list.filter((n) => normalize(n).includes(q)).slice(0, 200);
   }, [value, list]);
 
+  const updatePosition = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const rect = input.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+    const desired = 240;
+    const openUp = spaceBelow < desired && spaceAbove > spaceBelow;
+    const maxH = Math.max(160, Math.min(desired, openUp ? spaceAbove - 8 : spaceBelow - 8));
+    setPopupStyle({
+      position: "fixed",
+      left: rect.left,
+      width: rect.width,
+      top: openUp ? undefined : rect.bottom + 4,
+      bottom: openUp ? vh - rect.top + 4 : undefined,
+      maxHeight: maxH,
+      zIndex: 1000,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onScroll = () => updatePosition();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [open, updatePosition, filtered.length]);
+
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if (popupRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
@@ -110,6 +150,8 @@ export function CountryCombobox({
 
   const activeId = open && filtered[highlight] ? `${listId}-opt-${highlight}` : undefined;
 
+  const inputBase = "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
+
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       <input
@@ -122,7 +164,13 @@ export function CountryCombobox({
         aria-activedescendant={activeId}
         aria-label={ariaLabel}
         name={name}
-        autoComplete="country-name"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-form-type="other"
+        data-lpignore="true"
+        data-1p-ignore="true"
         value={value}
         placeholder={placeholder}
         required={required}
@@ -133,40 +181,44 @@ export function CountryCombobox({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className="h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full"
+        className={inputBase}
         style={style}
         data-edit-target="placeholderSize"
       />
-      {open && filtered.length > 0 && (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute z-50 left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md text-sm"
-        >
-          {filtered.map((name, i) => {
-            const active = i === highlight;
-            return (
-              <li
-                key={name}
-                id={`${listId}-opt-${i}`}
-                role="option"
-                aria-selected={active}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  commit(name);
-                }}
-                onMouseEnter={() => setHighlight(i)}
-                className={cn(
-                  "px-3 py-1.5 cursor-pointer",
-                  active ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
-                )}
-              >
-                {name}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {open && filtered.length > 0 && typeof document !== "undefined" &&
+        createPortal(
+          <ul
+            ref={popupRef}
+            id={listId}
+            role="listbox"
+            style={popupStyle}
+            className="overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl text-sm"
+          >
+            {filtered.map((countryName, i) => {
+              const active = i === highlight;
+              return (
+                <li
+                  key={countryName}
+                  id={`${listId}-opt-${i}`}
+                  role="option"
+                  aria-selected={active}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    commit(countryName);
+                  }}
+                  onMouseEnter={() => setHighlight(i)}
+                  className={cn(
+                    "px-3 py-1.5 cursor-pointer",
+                    active ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
+                  )}
+                >
+                  {countryName}
+                </li>
+              );
+            })}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -10,17 +10,20 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { cn } from "@/lib/utils";
@@ -212,6 +215,8 @@ export function JoinUsForm({
   const catalog = useInterestCatalog(lang);
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);
+  const fetchPrefill = useServerFn(getJoinUsPrefill);
+  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
   // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
   // builder the widget must NEVER unmount to null — otherwise disabling the
   // newsletter in settings makes it silently vanish from the canvas.
@@ -234,10 +239,22 @@ export function JoinUsForm({
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties | null>(null);
   useEffect(() => {
     if (!dropOpen) return;
     const onDoc = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false);
+      const t = e.target as Node;
+      // Popup renderowany jest przez portal (poza dropRef), więc sprawdzamy
+      // trigger i popup osobno.
+      if (
+        (dropRef.current && dropRef.current.contains(t)) ||
+        (popupRef.current && popupRef.current.contains(t))
+      ) {
+        return;
+      }
+      setDropOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDropOpen(false);
@@ -249,6 +266,41 @@ export function JoinUsForm({
       document.removeEventListener("keydown", onKey);
     };
   }, [dropOpen]);
+
+  // Pozycjonowanie popupu przez portal - pozwala popupowi wyjść poza
+  // przycięte kontenery (overflow-hidden formy / builder canvas).
+  useLayoutEffect(() => {
+    if (!dropOpen) {
+      setPopupStyle(null);
+      return;
+    }
+    const compute = () => {
+      const btn = triggerRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const spaceBelow = vh - r.bottom;
+      const spaceAbove = r.top;
+      const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
+      const maxH = Math.max(180, Math.min(420, openUp ? spaceAbove - 12 : spaceBelow - 12));
+      setPopupStyle({
+        position: "fixed",
+        left: `${r.left}px`,
+        width: `${r.width}px`,
+        top: openUp ? undefined : `${r.bottom + 4}px`,
+        bottom: openUp ? `${vh - r.top + 4}px` : undefined,
+        maxHeight: `${maxH}px`,
+        zIndex: 1000,
+      });
+    };
+    compute();
+    window.addEventListener("scroll", compute, true);
+    window.addEventListener("resize", compute);
+    return () => {
+      window.removeEventListener("scroll", compute, true);
+      window.removeEventListener("resize", compute);
+    };
+  }, [dropOpen]);
   const cfList = customFields ?? [];
   const setCustom = (id: string, v: string) => setCustomValues((prev) => ({ ...prev, [id]: v }));
 
@@ -258,6 +310,33 @@ export function JoinUsForm({
     if (!my.data) return;
     setPicked(new Set([...my.data.categoryIds, ...my.data.tagIds]));
   }, [my.data]);
+
+  // Prefill z profilu zalogowanego usera - wyłącznie do PUSTYCH pól, żeby
+  // nie nadpisać tego, co użytkownik już wpisał w tej sesji. Odpalamy raz na
+  // zalogowanie się (my.userId zmienia się z null → uuid).
+  useEffect(() => {
+    if (!my.userId) return;
+    let cancelled = false;
+    fetchPrefill()
+      .then((p) => {
+        if (cancelled || !p) return;
+        setExtra((prev) => ({
+          firstName: prev.firstName || p.firstName,
+          lastName: prev.lastName || p.lastName,
+          position: prev.position || p.position,
+          linkedin: prev.linkedin || p.linkedin,
+          phone: prev.phone || p.phone,
+          company: prev.company || p.company,
+          country: prev.country || p.country,
+        }));
+      })
+      .catch(() => {
+        /* non-fatal - formularz działa dalej z pustymi polami */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [my.userId, fetchPrefill]);
 
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
@@ -283,41 +362,63 @@ export function JoinUsForm({
   const groupedItems = useMemo<InterestGroup[]>(() => {
     const topLevelAreaTitle = lang === "en" ? "Areas" : "Obszary";
     const topicsTitle = lang === "en" ? "Topics" : "Tematy";
-    const byParent = new Map<string, InterestGroup>();
-    const topLevelCats: typeof allItems = [];
-    const tagItems: typeof allItems = [];
+
+    // Zbuduj mapę id -> kategoria z PEŁNEGO katalogu (nie z `allItems`, które
+    // może być odfiltrowane przez `interestSlugs`) - potrzebna do wspinaczki
+    // po parent_id aż do korzenia drzewa (Region, Specjalizacja, Recenzja...).
+    const allCats = catalog.data?.categories ?? [];
+    const catById = new Map<string, (typeof allCats)[number]>();
+    for (const c of allCats) catById.set(c.id, c);
+    const rootOf = (
+      id: string,
+    ): { id: string; slug: string; label: string } | null => {
+      let cur = catById.get(id);
+      if (!cur) return null;
+      // Wspinaj się do korzenia (parentId === null).
+      while (cur.parentId) {
+        const p = catById.get(cur.parentId);
+        if (!p) break;
+        cur = p;
+      }
+      return { id: cur.id, slug: cur.slug, label: cur.label };
+    };
+
+    const byRoot = new Map<string, InterestGroup>();
     const orderedKeys: string[] = [];
+    const tagItems: typeof allItems = [];
     for (const it of allItems) {
       if (it.type === "tag") {
         tagItems.push(it);
         continue;
       }
-      const parentLabel = it.parentLabel ?? null;
-      const parentSlug = it.parentSlug ?? null;
-      if (!parentLabel || !parentSlug) {
-        topLevelCats.push(it);
+      const root = rootOf(it.id);
+      // Element sam jest korzeniem - własna grupa "Obszary" (poniżej).
+      if (!root || root.id === it.id) {
+        const key = "top";
+        if (!byRoot.has(key)) {
+          byRoot.set(key, { key, title: topLevelAreaTitle, items: [], parentSlug: null });
+          orderedKeys.push(key);
+        }
+        byRoot.get(key)!.items.push(it);
         continue;
       }
-      const key = `parent:${parentSlug}`;
-      if (!byParent.has(key)) {
-        byParent.set(key, { key, title: parentLabel, items: [], parentSlug });
+      const key = `root:${root.slug}`;
+      if (!byRoot.has(key)) {
+        byRoot.set(key, { key, title: root.label, items: [], parentSlug: root.slug });
         orderedKeys.push(key);
       }
-      byParent.get(key)!.items.push(it);
+      byRoot.get(key)!.items.push(it);
     }
     const groups: InterestGroup[] = [];
     for (const key of orderedKeys) {
-      const g = byParent.get(key)!;
+      const g = byRoot.get(key)!;
       if (g.items.length > 0) groups.push(g);
-    }
-    if (topLevelCats.length > 0) {
-      groups.push({ key: "top", title: topLevelAreaTitle, items: topLevelCats, parentSlug: null });
     }
     if (tagItems.length > 0) {
       groups.push({ key: "tags", title: topicsTitle, items: tagItems, parentSlug: null });
     }
     return groups;
-  }, [allItems, lang]);
+  }, [allItems, catalog.data, lang]);
 
   const togglePick = (id: string) => {
     setPicked((prev) => {
@@ -511,6 +612,30 @@ export function JoinUsForm({
         /* non-fatal */
       }
     }
+
+    // Zalogowany user: powiąż subskrypcję z auth.uid() i uzupełnij PUSTE pola profilu
+    // (RPC join_us_link_and_backfill po stronie SQL używa COALESCE - nie nadpisuje
+    // istniejących wartości). Niekrytyczne dla samego zapisu do newslettera.
+    if (my.userId) {
+      try {
+        await linkAndBackfill({
+          data: {
+            email: trimmed,
+            firstName,
+            lastName,
+            country: extra.country.trim(),
+            linkedin: extra.linkedin.trim(),
+            phone: extra.phone.trim(),
+            company: extra.company.trim(),
+            position: extra.position.trim(),
+          },
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
+
+
 
     setState("ok");
     setEmail("");
@@ -844,6 +969,7 @@ export function JoinUsForm({
               {/* Dropdown trigger + menu */}
               <div ref={dropRef} className="relative">
                 <button
+                  ref={triggerRef}
                   type="button"
                   onClick={() => setDropOpen((v) => !v)}
                   aria-haspopup="listbox"
@@ -869,83 +995,126 @@ export function JoinUsForm({
                   />
                 </button>
 
-                {dropOpen && (
-                  <div
-                    role="listbox"
-                    aria-multiselectable="true"
-                    className="absolute z-20 mt-1 w-full rounded border border-border bg-popover shadow-lg overflow-hidden"
-                  >
-                    {/* Zakładki – szybkie przejście do grupy */}
-                    {groupedItems.length > 1 && (
+                {dropOpen && popupStyle && typeof document !== "undefined" &&
+                  createPortal(
+                    <div
+                      ref={popupRef}
+                      role="listbox"
+                      aria-multiselectable="true"
+                      style={popupStyle}
+                      className="flex flex-col rounded-lg border border-border bg-popover shadow-2xl overflow-hidden"
+                    >
+                      {/* Zakładki - szybkie przejście do grupy (drag-scroll + aktywna zakładka) */}
+                      {groupedItems.length > 1 && (
+                        <GroupTabs
+                          groups={groupedItems}
+                          jusId={jusId}
+                          scrollContainerId={`${jusId}-drop-scroll`}
+                          ariaLabel={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
+                          pickedByGroup={Object.fromEntries(
+                            groupedItems.map((g) => [
+                              g.key,
+                              g.items.reduce((n, it) => n + (picked.has(it.id) ? 1 : 0), 0),
+                            ]),
+                          )}
+                        />
+                      )}
                       <div
-                        role="tablist"
-                        aria-label={lang === "en" ? "Jump to group" : "Przejdź do grupy"}
-                        className="flex gap-1 overflow-x-auto border-b border-border bg-popover/95 px-1 py-1"
+                        id={`${jusId}-drop-scroll`}
+                        className="flex-1 overflow-auto"
                       >
-                        {groupedItems.map((g) => (
-                          <button
-                            key={`tab:${g.key}`}
-                            type="button"
-                            role="tab"
-                            onClick={() => {
-                              const el = document.getElementById(`${jusId}-drop-grp-${g.key}`);
-                              el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }}
-                            className="whitespace-nowrap rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground transition"
-                          >
-                            {g.title}
-                            <span className="ml-1 opacity-60">({g.items.length})</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div id={`${jusId}-drop-scroll`} className="max-h-[22rem] overflow-auto p-1">
-                      {groupedItems.map((g) => (
-                        <div
-                          key={`grp:${g.key}`}
-                          id={`${jusId}-drop-grp-${g.key}`}
-                          className="pb-1 scroll-mt-1"
-                        >
-                          <div
-                            role="presentation"
-                            className="sticky top-0 z-10 bg-popover px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
-                          >
-                            {g.title}
-                            <span className="ml-1 opacity-60">({g.items.length})</span>
-                          </div>
-                          {g.items.map((it) => {
-                            const active = picked.has(it.id);
-                            return (
-                              <button
-                                key={`opt:${it.type}:${it.id}`}
-                                type="button"
-                                role="option"
-                                aria-selected={active}
-                                onClick={() => togglePick(it.id)}
-                                className={cn(
-                                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-accent",
-                                  active && "text-brand",
-                                )}
-                              >
-                                <span
-                                  className={cn(
-                                    "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                                    active
-                                      ? "border-brand bg-brand text-brand-foreground"
-                                      : "border-input bg-background",
-                                  )}
-                                >
-                                  {active && <Check className="h-2.5 w-2.5" />}
+                        {groupedItems.map((g) => {
+                          const selectedInGroup = g.items.reduce(
+                            (n, it) => n + (picked.has(it.id) ? 1 : 0),
+                            0,
+                          );
+                          return (
+                            <section
+                              key={`grp:${g.key}`}
+                              id={`${jusId}-drop-grp-${g.key}`}
+                              className="scroll-mt-0"
+                            >
+                              {/* Sticky mini nagłówek grupy - widoczny przy scrollu wewnątrz listy. */}
+                              <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border/60 bg-popover/95 px-3 py-1.5 backdrop-blur">
+                                <span className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                  {g.title}
                                 </span>
-                                <span className="flex-1">{it.label}</span>
-                              </button>
-                            );
-                          })}
+                                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                                  {selectedInGroup > 0
+                                    ? `${selectedInGroup}/${g.items.length}`
+                                    : g.items.length}
+                                </span>
+                              </header>
+                              <div className="grid grid-cols-1 gap-0.5 p-1.5 sm:grid-cols-2">
+                                {g.items.map((it) => {
+                                  const active = picked.has(it.id);
+                                  return (
+                                    <button
+                                      key={`opt:${it.type}:${it.id}`}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={active}
+                                      onClick={() => togglePick(it.id)}
+                                      className={cn(
+                                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition min-w-0",
+                                        active
+                                          ? "bg-brand/10 text-brand"
+                                          : "hover:bg-accent",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition",
+                                          active
+                                            ? "border-brand bg-brand text-brand-foreground"
+                                            : "border-input bg-background",
+                                        )}
+                                      >
+                                        {active && <Check className="h-2.5 w-2.5" />}
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">{it.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                      {/* Stopka: licznik + wyczyść */}
+                      <footer className="flex items-center justify-between gap-2 border-t border-border bg-popover px-3 py-2">
+                        <span className="text-[11px] text-muted-foreground tabular-nums">
+                          {picked.size > 0
+                            ? lang === "en"
+                              ? `${picked.size} selected`
+                              : `Wybrano: ${picked.size}`
+                            : lang === "en"
+                              ? "Nothing selected"
+                              : "Brak wyboru"}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {picked.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setPicked(new Set())}
+                              className="rounded px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                            >
+                              {lang === "en" ? "Clear" : "Wyczyść"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDropOpen(false)}
+                            className="rounded bg-foreground px-2.5 py-1 text-[11px] font-medium text-background transition hover:opacity-90"
+                          >
+                            {lang === "en" ? "Done" : "Gotowe"}
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </footer>
+                    </div>,
+                    document.body,
+                  )}
+
               </div>
             </div>
           ) : (
@@ -1218,5 +1387,232 @@ export function JoinUsForm({
       )}
       {form}
     </section>
+  );
+}
+
+/**
+ * Poziomy pasek zakładek grup w dropdownie zainteresowań.
+ * - drag-to-scroll (pointer events) – działa myszką i palcem
+ * - aktywna zakładka podświetlana wg pozycji scrolla listy (IntersectionObserver)
+ * - fade po bokach informuje o możliwości przewijania
+ * - strzałki < > pojawiają się gdy jest gdzie przewinąć
+ */
+function GroupTabs({
+  groups,
+  jusId,
+  scrollContainerId,
+  ariaLabel,
+  pickedByGroup,
+}: {
+  groups: { key: string; title: string; items: readonly unknown[] }[];
+  jusId: string;
+  scrollContainerId: string;
+  ariaLabel: string;
+  pickedByGroup?: Record<string, number>;
+}) {
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [activeKey, setActiveKey] = useState<string>(groups[0]?.key ?? "");
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  // Śledzenie aktywnej grupy w liście (root = kontener przewijalny listy).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.getElementById(scrollContainerId);
+    if (!root) return;
+    const targets = groups
+      .map((g) => document.getElementById(`${jusId}-drop-grp-${g.key}`))
+      .filter((el): el is HTMLElement => !!el);
+    if (!targets.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          const id = visible.target.id.replace(`${jusId}-drop-grp-`, "");
+          setActiveKey(id);
+        }
+      },
+      { root, threshold: [0, 0.25, 0.6, 1], rootMargin: "0px 0px -60% 0px" },
+    );
+    targets.forEach((t) => io.observe(t));
+    return () => io.disconnect();
+  }, [groups, jusId, scrollContainerId]);
+
+  // Aktywna zakładka: przewiń do widoku w pasku.
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const btn = bar.querySelector<HTMLButtonElement>(`[data-tab-key="${activeKey}"]`);
+    btn?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [activeKey]);
+
+  // Fade + strzałki – aktualizuj przy scrollu i resize.
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const update = () => {
+      setCanLeft(bar.scrollLeft > 2);
+      setCanRight(bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
+    };
+    update();
+    bar.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(bar);
+    return () => {
+      bar.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [groups.length]);
+
+  // Drag-to-scroll (pointer). Capture uruchamiamy dopiero po przekroczeniu
+  // progu ruchu (5 px), inaczej pointer capture na kontenerze "zjadałby"
+  // click na dziecko-button i zakładki byłyby nieklikalne.
+  const dragRef = useRef<{
+    startX: number;
+    startLeft: number;
+    pointerId: number;
+    moved: boolean;
+  } | null>(null);
+  const DRAG_THRESHOLD = 5;
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const bar = barRef.current;
+    if (!bar) return;
+    if ((e.target as HTMLElement).closest("button[data-tab-nudge]")) return;
+    dragRef.current = {
+      startX: e.clientX,
+      startLeft: bar.scrollLeft,
+      pointerId: e.pointerId,
+      moved: false,
+    };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    const bar = barRef.current;
+    if (!d || !bar) return;
+    const dx = e.clientX - d.startX;
+    if (!d.moved && Math.abs(dx) > DRAG_THRESHOLD) {
+      d.moved = true;
+      try {
+        bar.setPointerCapture(d.pointerId);
+      } catch {
+        /* pointer already released */
+      }
+    }
+    if (d.moved) bar.scrollLeft = d.startLeft - dx;
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const bar = barRef.current;
+    try {
+      bar?.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* not captured */
+    }
+    // Zablokuj click TYLKO gdy faktycznie doszło do drag'u - inaczej pojedyncze
+    // kliknięcie zakładki nie dotarłoby do onClick i tab byłby nieklikalny.
+    if (dragRef.current?.moved) {
+      const stop = (ev: Event) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        window.removeEventListener("click", stop, true);
+      };
+      window.addEventListener("click", stop, true);
+    }
+    dragRef.current = null;
+  };
+
+  const nudge = (dir: -1 | 1) => {
+    const bar = barRef.current;
+    if (!bar) return;
+    bar.scrollBy({ left: dir * Math.max(160, bar.clientWidth * 0.7), behavior: "smooth" });
+  };
+
+  const jumpTo = (key: string) => {
+    const el = document.getElementById(`${jusId}-drop-grp-${key}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActiveKey(key);
+  };
+
+  return (
+    <div className="relative border-b border-border bg-popover/95">
+      {/* Strzałka lewa */}
+      <button
+        type="button"
+        data-tab-nudge
+        aria-label="scroll left"
+        tabIndex={-1}
+        onClick={() => nudge(-1)}
+        className={cn(
+          "absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-r from-popover via-popover/80 to-transparent text-muted-foreground hover:text-foreground transition-opacity",
+          canLeft ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+      >
+        <ChevronDown className="h-3.5 w-3.5 rotate-90" />
+      </button>
+      <div
+        ref={barRef}
+        role="tablist"
+        aria-label={ariaLabel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className="flex gap-1.5 overflow-x-auto px-2 py-1.5 no-scrollbar cursor-grab active:cursor-grabbing select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        style={{ scrollBehavior: "smooth" }}
+      >
+        {groups.map((g) => {
+          const active = g.key === activeKey;
+          const selected = pickedByGroup?.[g.key] ?? 0;
+          return (
+            <button
+              key={`tab:${g.key}`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              data-tab-key={g.key}
+              onClick={() => jumpTo(g.key)}
+              className={cn(
+                "group/tab inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all border",
+                active
+                  ? "bg-foreground text-background border-foreground shadow-sm"
+                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              <span>{g.title}</span>
+              <span
+                className={cn(
+                  "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] tabular-nums transition",
+                  selected > 0
+                    ? active
+                      ? "bg-background/20 text-background"
+                      : "bg-brand text-brand-foreground"
+                    : active
+                      ? "bg-background/15 text-background/80"
+                      : "bg-muted text-muted-foreground/80",
+                )}
+              >
+                {selected > 0 ? `${selected}/${g.items.length}` : g.items.length}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {/* Strzałka prawa */}
+      <button
+        type="button"
+        data-tab-nudge
+        aria-label="scroll right"
+        tabIndex={-1}
+        onClick={() => nudge(1)}
+        className={cn(
+          "absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-l from-popover via-popover/80 to-transparent text-muted-foreground hover:text-foreground transition-opacity",
+          canRight ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+      >
+        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+      </button>
+    </div>
   );
 }

@@ -4068,79 +4068,82 @@ export type Database = {
       };
       newsletter_subscribers: {
         Row: {
-          confirmation_expires_at: string | null;
-          confirmation_token: string | null;
-          confirmed_at: string | null;
-          consents: Json;
-          created_at: string;
-          display_name: string | null;
-          email: string;
-          first_name: string | null;
-          id: string;
-          ip: unknown;
-          language: string;
-          last_name: string | null;
-          meta: Json | null;
-          source: string | null;
-          source_form_id: string | null;
-          source_form_name: string | null;
-          status: string;
-          tenant_id: string;
-          unsubscribe_token: string;
-          unsubscribed_at: string | null;
-          updated_at: string;
-          user_agent: string | null;
-        };
+          confirmation_expires_at: string | null
+          confirmation_token: string | null
+          confirmed_at: string | null
+          consents: Json
+          created_at: string
+          display_name: string | null
+          email: string
+          first_name: string | null
+          id: string
+          ip: unknown
+          language: string
+          last_name: string | null
+          meta: Json | null
+          source: string | null
+          source_form_id: string | null
+          source_form_name: string | null
+          status: string
+          tenant_id: string
+          unsubscribe_token: string
+          unsubscribed_at: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string | null
+        }
         Insert: {
-          confirmation_expires_at?: string | null;
-          confirmation_token?: string | null;
-          confirmed_at?: string | null;
-          consents?: Json;
-          created_at?: string;
-          display_name?: string | null;
-          email: string;
-          first_name?: string | null;
-          id?: string;
-          ip?: unknown;
-          language?: string;
-          last_name?: string | null;
-          meta?: Json | null;
-          source?: string | null;
-          source_form_id?: string | null;
-          source_form_name?: string | null;
-          status?: string;
-          tenant_id?: string;
-          unsubscribe_token?: string;
-          unsubscribed_at?: string | null;
-          updated_at?: string;
-          user_agent?: string | null;
-        };
+          confirmation_expires_at?: string | null
+          confirmation_token?: string | null
+          confirmed_at?: string | null
+          consents?: Json
+          created_at?: string
+          display_name?: string | null
+          email: string
+          first_name?: string | null
+          id?: string
+          ip?: unknown
+          language?: string
+          last_name?: string | null
+          meta?: Json | null
+          source?: string | null
+          source_form_id?: string | null
+          source_form_name?: string | null
+          status?: string
+          tenant_id?: string
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
         Update: {
-          confirmation_expires_at?: string | null;
-          confirmation_token?: string | null;
-          confirmed_at?: string | null;
-          consents?: Json;
-          created_at?: string;
-          display_name?: string | null;
-          email?: string;
-          first_name?: string | null;
-          id?: string;
-          ip?: unknown;
-          language?: string;
-          last_name?: string | null;
-          meta?: Json | null;
-          source?: string | null;
-          source_form_id?: string | null;
-          source_form_name?: string | null;
-          status?: string;
-          tenant_id?: string;
-          unsubscribe_token?: string;
-          unsubscribed_at?: string | null;
-          updated_at?: string;
-          user_agent?: string | null;
-        };
-        Relationships: [];
-      };
+          confirmation_expires_at?: string | null
+          confirmation_token?: string | null
+          confirmed_at?: string | null
+          consents?: Json
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          first_name?: string | null
+          id?: string
+          ip?: unknown
+          language?: string
+          last_name?: string | null
+          meta?: Json | null
+          source?: string | null
+          source_form_id?: string | null
+          source_form_name?: string | null
+          status?: string
+          tenant_id?: string
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           allow_messages_from: string;
@@ -8816,9 +8819,24 @@ export type Database = {
       is_staff: { Args: never; Returns: boolean };
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean };
       is_tenant_conversation_member: {
-        Args: { _conv: string; _user: string };
-        Returns: boolean;
-      };
+        Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
+      join_us_link_and_backfill: {
+        Args: {
+          _company: string
+          _country: string
+          _email: string
+          _first_name: string
+          _last_name: string
+          _linkedin: string
+          _phone: string
+          _position: string
+          _tenant_id: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string };
         Returns: Json;
