@@ -35,7 +35,21 @@ vi.mock("@/integrations/supabase/client", () => {
     supabase: {
       from: (t: string) => makeBuilder(t),
       rpc: async (name: string) => ({
-        data: name === "search_posts" ? search.rows : [],
+        data:
+          name === "search_autosuggest"
+            ? (search.rows ?? []).map((p) => {
+                const row = p as Record<string, unknown>;
+                return {
+                  kind: "post",
+                  id: row.id,
+                  slug: row.slug,
+                  label_pl: row.title_pl,
+                  label_en: row.title_en ?? row.title_pl,
+                  parent_page_id: null,
+                  score: 1,
+                };
+              })
+            : [],
         error: null,
       }),
       auth: {

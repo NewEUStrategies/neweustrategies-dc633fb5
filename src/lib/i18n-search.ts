@@ -24,6 +24,8 @@ const pl = {
   search: {
     title: "Szukaj",
     description: "Wyszukiwarka wpisów",
+    hero_sub:
+      "Przeszukuj analizy, raporty i podcasty - według tytułów, rodzajów treści, tematyki oraz osób i organizacji.",
     placeholder: "Wpisz frazę...",
     submit: "Szukaj",
     min_chars: "Wpisz co najmniej 2 znaki lub wybierz filtr.",
@@ -48,11 +50,58 @@ const pl = {
       topic: "Temat",
       project: "Projekt",
       series: "Seria",
+      organization: "Organizacja",
       author: "Autor",
       format: "Format",
       lang: "Język",
       access: "Dostępność",
       year: "Rok",
+    },
+    // Sekcje wyników (zakładki wyszukiwarki premium)
+    tabs: {
+      all: "Wszystko",
+      titles: "Tytuły",
+      types: "Rodzaje treści",
+      topics: "Tematyka",
+      people: "Osoby i organizacje",
+    },
+    // Tryby zaawansowane
+    adv: {
+      toggle: "Wyszukiwanie zaawansowane",
+      match_label: "Dopasowanie",
+      match: {
+        all: "Wszystkie słowa",
+        any: "Dowolne słowo",
+        phrase: "Dokładna fraza",
+      },
+      scope_label: "Szukaj w",
+      scope: {
+        all: "Wszędzie",
+        title: "Tylko tytuły",
+      },
+      syntax_title: "Składnia zapytań",
+      syntax_phrase: "dokładna fraza",
+      syntax_exclude: "wyklucz słowo",
+      syntax_and: "spacja łączy warunki",
+      chip_match: "Dopasowanie",
+      chip_scope: "Zakres",
+    },
+    // Sekcja "Osoby i organizacje"
+    people: {
+      people_heading: "Osoby",
+      orgs_heading: "Organizacje",
+      publications: "Publikacje: {{count}}",
+      view_profile: "Zobacz profil",
+      view_publications: "Zobacz publikacje",
+      verified: "Zweryfikowany profil",
+      empty: "Brak osób i organizacji dla tej frazy.",
+      browse_hint: "Przeglądasz wszystkie osoby i organizacje.",
+    },
+    // Eksplorator termów (zakładki Rodzaje treści / Tematyka)
+    explore: {
+      results_in: "Wyniki w: {{label}}",
+      empty: "Brak pasujących kategorii dla tej frazy.",
+      show_results: "Pokaż publikacje",
     },
     // Formaty treści (post_format)
     format: {
@@ -80,11 +129,6 @@ const pl = {
     active_filters: "Aktywne filtry",
     remove_filter: "Usuń filtr",
     fuzzy_note: "Brak dokładnych trafień — pokazujemy przybliżone wyniki.",
-    suggest: {
-      authors: "Autorzy",
-      terms: "Filtry",
-      posts: "Publikacje",
-    },
     saved: {
       title: "Zapisane wyszukiwania",
       save: "Zapisz wyszukiwanie",
@@ -120,6 +164,8 @@ const en = {
   search: {
     title: "Search",
     description: "Article search",
+    hero_sub:
+      "Search analyses, reports and podcasts - by titles, content types, topics, and people & organizations.",
     placeholder: "Type a phrase...",
     submit: "Search",
     min_chars: "Type at least 2 characters or pick a filter.",
@@ -143,11 +189,54 @@ const en = {
       topic: "Topic",
       project: "Project",
       series: "Series",
+      organization: "Organization",
       author: "Author",
       format: "Format",
       lang: "Language",
       access: "Access",
       year: "Year",
+    },
+    tabs: {
+      all: "All",
+      titles: "Titles",
+      types: "Content types",
+      topics: "Topics",
+      people: "People & organizations",
+    },
+    adv: {
+      toggle: "Advanced search",
+      match_label: "Match",
+      match: {
+        all: "All words",
+        any: "Any word",
+        phrase: "Exact phrase",
+      },
+      scope_label: "Search in",
+      scope: {
+        all: "Everywhere",
+        title: "Titles only",
+      },
+      syntax_title: "Query syntax",
+      syntax_phrase: "exact phrase",
+      syntax_exclude: "exclude a word",
+      syntax_and: "space combines conditions",
+      chip_match: "Match",
+      chip_scope: "Scope",
+    },
+    people: {
+      people_heading: "People",
+      orgs_heading: "Organizations",
+      publications: "Publications: {{count}}",
+      view_profile: "View profile",
+      view_publications: "View publications",
+      verified: "Verified profile",
+      empty: "No people or organizations match this phrase.",
+      browse_hint: "Browsing all people and organizations.",
+    },
+    explore: {
+      results_in: "Results in: {{label}}",
+      empty: "No matching categories for this phrase.",
+      show_results: "Show publications",
     },
     format: {
       standard: "Article",
@@ -173,11 +262,6 @@ const en = {
     active_filters: "Active filters",
     remove_filter: "Remove filter",
     fuzzy_note: "No exact matches — showing approximate results.",
-    suggest: {
-      authors: "Authors",
-      terms: "Filters",
-      posts: "Articles",
-    },
     saved: {
       title: "Saved searches",
       save: "Save search",

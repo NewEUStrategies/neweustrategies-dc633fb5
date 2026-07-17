@@ -34,7 +34,14 @@ export const Route = createFileRoute("/admin/categories")({
   component: Categories,
 });
 
-type CategoryKind = "category" | "pub_type" | "region" | "topic" | "project" | "series";
+type CategoryKind =
+  | "category"
+  | "pub_type"
+  | "region"
+  | "topic"
+  | "project"
+  | "series"
+  | "organization";
 
 const KIND_ORDER: readonly CategoryKind[] = [
   "category",
@@ -43,6 +50,7 @@ const KIND_ORDER: readonly CategoryKind[] = [
   "topic",
   "project",
   "series",
+  "organization",
 ];
 
 const KIND_LABEL: Record<CategoryKind, string> = {
@@ -52,6 +60,7 @@ const KIND_LABEL: Record<CategoryKind, string> = {
   topic: "Temat",
   project: "Projekt",
   series: "Seria",
+  organization: "Organizacja",
 };
 
 interface CategoryRow {

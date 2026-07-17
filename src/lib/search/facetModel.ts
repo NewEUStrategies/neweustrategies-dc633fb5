@@ -8,10 +8,23 @@ import type {
   FacetDim,
   SearchFilters,
   SearchSort,
+  SearchMatchMode,
+  SearchScope,
   TaxonomyDim,
   AutosuggestItem,
 } from "@/lib/queries/archives";
 import { TAXONOMY_DIMS } from "@/lib/queries/archives";
+
+/** Sekcje wyników wyszukiwarki premium (zakładki na /search). */
+export type SearchTab = "all" | "titles" | "types" | "topics" | "people";
+
+export const SEARCH_TABS: readonly SearchTab[] = [
+  "all",
+  "titles",
+  "types",
+  "topics",
+  "people",
+] as const;
 
 /** Zserializowane parametry URL strony /search (źródło prawdy stanu wyszukiwarki). */
 export interface SearchUrl {
@@ -22,6 +35,7 @@ export interface SearchUrl {
   topic?: string; // kind=topic
   project?: string; // kind=project
   series?: string; // kind=series
+  org?: string; // kind=organization
   author?: string;
   format?: string;
   lang?: "pl" | "en";
@@ -30,6 +44,12 @@ export interface SearchUrl {
   to?: string;
   year?: string;
   sort?: SearchSort;
+  /** Zaawansowany tryb dopasowania (all domyślny - nieserializowany). */
+  match?: SearchMatchMode;
+  /** Zakres dopasowania (all domyślny - nieserializowany). */
+  scope?: SearchScope;
+  /** Aktywna sekcja wyników (all domyślna - nieserializowana). */
+  tab?: SearchTab;
 }
 
 /** Wymiar taksonomii → nazwa parametru URL (pojedynczy wybór na wymiar). */
@@ -40,6 +60,7 @@ export const DIM_PARAM: Record<TaxonomyDim, keyof SearchUrl> = {
   topic: "topic",
   project: "project",
   series: "series",
+  organization: "org",
 };
 
 /** Odwrotna mapa: parametr URL → wymiar taksonomii. */
@@ -56,6 +77,7 @@ export const FACET_ORDER: readonly FacetDim[] = [
   "project",
   "series",
   "author",
+  "organization",
   "format",
   "lang",
   "access",
@@ -63,7 +85,8 @@ export const FACET_ORDER: readonly FacetDim[] = [
 ] as const;
 
 /** Buduje SearchFilters (wejście RPC) z parametrów URL. Rok mapuje się na
- *  zakres dat; jawne from/to mają pierwszeństwo nad rokiem. */
+ *  zakres dat; jawne from/to mają pierwszeństwo nad rokiem. Zakładka "titles"
+ *  wymusza zakres tytułów niezależnie od parametru scope. */
 export function urlToFilters(u: SearchUrl): SearchFilters {
   const terms = TAXONOMY_DIMS.map((dim) => u[DIM_PARAM[dim]] as string | undefined).filter(
     (v): v is string => !!v,
@@ -74,6 +97,8 @@ export function urlToFilters(u: SearchUrl): SearchFilters {
     dateFrom = `${u.year}-01-01`;
     dateTo = `${u.year}-12-31`;
   }
+  const scope: SearchScope | undefined =
+    u.tab === "titles" ? "title" : u.scope === "title" ? "title" : undefined;
   return {
     q: u.q ?? "",
     authorId: u.author || undefined,
@@ -84,6 +109,8 @@ export function urlToFilters(u: SearchUrl): SearchFilters {
     lang: u.lang || undefined,
     access: u.access || undefined,
     sort: u.sort ?? "relevance",
+    match: u.match && u.match !== "all" ? u.match : undefined,
+    scope,
   };
 }
 
@@ -132,12 +159,14 @@ export function orderTree(values: FacetValue[]): Array<{ value: FacetValue; dept
 export interface ActiveSelection {
   /** Klucz(e) URL do wyczyszczenia po usunięciu chipa. */
   keys: (keyof SearchUrl)[];
-  dim: FacetDim | "date";
+  dim: FacetDim | "date" | "match" | "scope";
   /** Wartość identyfikująca (id termu / slug / kod), do dopasowania etykiety. */
   value: string;
 }
 
-/** Wyprowadza listę aktywnych filtrów z parametrów URL (kolejność jak w panelu). */
+/** Wyprowadza listę aktywnych filtrów z parametrów URL (kolejność jak w panelu).
+ *  Tryby zaawansowane (match/scope) też są usuwalnymi chipami - użytkownik
+ *  widzi, że działa np. dokładna fraza, i jednym kliknięciem wraca do domyślnych. */
 export function activeSelections(u: SearchUrl): ActiveSelection[] {
   const out: ActiveSelection[] = [];
   for (const dim of TAXONOMY_DIMS) {
@@ -154,6 +183,8 @@ export function activeSelections(u: SearchUrl): ActiveSelection[] {
   if (!u.year && (u.from || u.to)) {
     out.push({ keys: ["from", "to"], dim: "date", value: `${u.from ?? "…"} – ${u.to ?? "…"}` });
   }
+  if (u.match && u.match !== "all") out.push({ keys: ["match"], dim: "match", value: u.match });
+  if (u.scope && u.scope !== "all") out.push({ keys: ["scope"], dim: "scope", value: u.scope });
   return out;
 }
 
@@ -196,24 +227,77 @@ export function facetLabel(f: FacetValue, lang: "pl" | "en", t: TFunction): stri
 }
 
 // ---------- AUTOSUGGEST (model prezentacji) --------------------------------
+// Cztery premium sekcje podpowiedzi - wspólne dla widgetu nagłówka i strony
+// /search: Tytuły (publikacje), Rodzaje treści (typ/format/dostępność/język),
+// Tematyka (pozostałe termy taksonomii), Osoby i organizacje.
 
-type SuggestGroup = "posts" | "authors" | "terms";
+export type SuggestBucket = "titles" | "contentTypes" | "topics" | "peopleOrg";
 
-const suggestGroupOf = (it: AutosuggestItem): SuggestGroup =>
-  it.kind === "post" ? "posts" : it.kind === "author" ? "authors" : "terms";
+export const SUGGEST_BUCKET_ORDER: readonly SuggestBucket[] = [
+  "titles",
+  "contentTypes",
+  "topics",
+  "peopleOrg",
+] as const;
 
-export const SUGGEST_GROUP_ORDER: readonly SuggestGroup[] = ["posts", "authors", "terms"] as const;
+export function suggestBucketOf(kind: AutosuggestItem["kind"]): SuggestBucket {
+  if (kind === "post") return "titles";
+  if (kind === "author" || kind === "organization") return "peopleOrg";
+  if (kind === "format" || kind === "pub_type" || kind === "access" || kind === "lang") {
+    return "contentTypes";
+  }
+  return "topics";
+}
 
-/** Wspólne uporządkowanie sugestii (posty → autorzy → termy), spójne między
- *  renderem a nawigacją klawiaturą rodzica. */
+/** Etykiety sekcji podpowiedzi (widget buildera dostaje lang propem, strona
+ *  /search też - jedno źródło prawdy zamiast dwóch kopii tłumaczeń). */
+export const SUGGEST_BUCKET_LABELS: Record<"pl" | "en", Record<SuggestBucket, string>> = {
+  pl: {
+    titles: "Tytuły",
+    contentTypes: "Rodzaje treści",
+    topics: "Tematyka",
+    peopleOrg: "Osoby i organizacje",
+  },
+  en: {
+    titles: "Titles",
+    contentTypes: "Content types",
+    topics: "Topics",
+    peopleOrg: "People & organizations",
+  },
+};
+
+/** Wspólne uporządkowanie sugestii (tytuły → rodzaje treści → tematyka →
+ *  osoby i organizacje), spójne między renderem a nawigacją klawiaturą rodzica. */
 export function orderSuggestions(items: AutosuggestItem[]): AutosuggestItem[] {
   return [...items].sort((a, b) => {
-    const ga = SUGGEST_GROUP_ORDER.indexOf(suggestGroupOf(a));
-    const gb = SUGGEST_GROUP_ORDER.indexOf(suggestGroupOf(b));
+    const ga = SUGGEST_BUCKET_ORDER.indexOf(suggestBucketOf(a.kind));
+    const gb = SUGGEST_BUCKET_ORDER.indexOf(suggestBucketOf(b.kind));
     return ga - gb || b.score - a.score;
   });
 }
 
-export const suggestGroup = suggestGroupOf;
+/** Statyczny cel nawigacji podpowiedzi: publikacja → permalink /post/<slug>;
+ *  autor / term taksonomii / wymiar wyliczany → /search z właściwym filtrem.
+ *  Termy taksonomii identyfikuje ID (parametry spec/type/… trafiają do RPC
+ *  jako uuid[] - slug w URL wywracał zapytanie). */
+export function suggestionHref(it: AutosuggestItem): string {
+  const kind = it.kind as string;
+  if (kind === "post" && it.slug) return `/post/${it.slug}`;
+  const patch: Record<string, string> = {};
+  if (kind === "author") {
+    if (it.id) patch.author = it.id;
+  } else if (kind === "format" && it.slug) patch.format = it.slug;
+  else if (kind === "access" && it.slug) patch.access = it.slug;
+  else if (kind === "lang" && it.slug) patch.lang = it.slug;
+  else if (kind === "year" && it.slug) patch.year = it.slug;
+  else {
+    const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
+    const value = it.id ?? it.slug;
+    if (param && value) patch[param as string] = value;
+  }
+  const qs = new URLSearchParams(patch).toString();
+  return qs ? `/search?${qs}` : "/search";
+}
+
 export const AUTOSUGGEST_LISTBOX_ID = "search-autosuggest-listbox";
 export const autosuggestOptionId = (i: number) => `search-suggest-opt-${i}`;
