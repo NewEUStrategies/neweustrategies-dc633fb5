@@ -142,8 +142,7 @@ export type NotificationsCenterMode = "full" | "inbox" | "preferences" | "consen
 export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode } = {}) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const initialTab: TabValue =
-    mode === "preferences" || mode === "consents" ? "settings" : "all";
+  const initialTab: TabValue = mode === "preferences" || mode === "consents" ? "settings" : "all";
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");

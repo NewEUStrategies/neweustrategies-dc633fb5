@@ -106,8 +106,7 @@ export function triggerWatchdogReload(options: WatchdogTriggerOptions): boolean 
   });
 
   const reload =
-    options.reload ??
-    (typeof window !== "undefined" ? () => window.location.reload() : () => {});
+    options.reload ?? (typeof window !== "undefined" ? () => window.location.reload() : () => {});
   reload();
   return true;
 }

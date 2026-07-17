@@ -6,12 +6,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  SetConsentSchema,
-  ListEventsSchema,
-  readIp,
-  readUserAgent,
-} from "@/lib/consents.server";
+import { SetConsentSchema, ListEventsSchema, readIp, readUserAgent } from "@/lib/consents.server";
 
 export const listMyConsents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -19,9 +14,7 @@ export const listMyConsents = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("user_consents")
-      .select(
-        "consent_key, given, version, lang, given_at, withdrawn_at, updated_at",
-      )
+      .select("consent_key, given, version, lang, given_at, withdrawn_at, updated_at")
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
     return data ?? [];

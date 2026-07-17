@@ -243,7 +243,11 @@ export function VitalsBiDashboard() {
           disabled={isFetching}
           className="h-7"
           aria-label="Odśwież dane Web Vitals"
-          title={curQ.dataUpdatedAt ? `Ostatnie odświeżenie: ${new Date(curQ.dataUpdatedAt).toLocaleTimeString()}` : "Odśwież"}
+          title={
+            curQ.dataUpdatedAt
+              ? `Ostatnie odświeżenie: ${new Date(curQ.dataUpdatedAt).toLocaleTimeString()}`
+              : "Odśwież"
+          }
         >
           <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
           {isFetching ? "Odświeżanie…" : "Odśwież"}

@@ -22,7 +22,6 @@ import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 import { ImageLightbox, PdfPreviewDialog } from "./AttachmentPreview";
 
-
 export function AttachmentImage({
   path,
   name,
@@ -78,7 +77,6 @@ export function AttachmentImage({
     </>
   );
 }
-
 
 export function AttachmentAudio({
   path,
@@ -304,4 +302,3 @@ export function AttachmentFile({
     </>
   );
 }
-

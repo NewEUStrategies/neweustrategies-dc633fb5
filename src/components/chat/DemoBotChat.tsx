@@ -313,18 +313,13 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
     });
 
     const reply = hasAttachment
-      ? t(
-          staged.kind === "image"
-            ? "chat.demoBot.replies.image"
-            : "chat.demoBot.replies.file",
-          {
-            defaultValue:
-              staged.kind === "image"
-                ? "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)"
-                : `Otrzymałem plik: ${staged.file.name} (podgląd demo).`,
-            name: staged.file.name,
-          },
-        )
+      ? t(staged.kind === "image" ? "chat.demoBot.replies.image" : "chat.demoBot.replies.file", {
+          defaultValue:
+            staged.kind === "image"
+              ? "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)"
+              : `Otrzymałem plik: ${staged.file.name} (podgląd demo).`,
+          name: staged.file.name,
+        })
       : botReply(body, t);
     const typingMs = Math.min(1400, 700 + reply.length * 12);
     later(650 + typingMs, () => {
@@ -349,7 +344,6 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       }
     });
   }, [input, staged, botTyping, replyTo, nextId, later, t]);
-
 
   const replyAuthor = replyTo ? (replyTo.sender_id === ME_ID ? t("chat.you") : botName) : null;
 
@@ -476,9 +470,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
               </span>
             )}
             <div className="min-w-0 flex-1 text-[11px]">
-              <span className="block truncate font-medium text-foreground">
-                {staged.file.name}
-              </span>
+              <span className="block truncate font-medium text-foreground">{staged.file.name}</span>
               <span className="block text-muted-foreground">
                 {formatBytes(staged.file.size, lang)}
               </span>

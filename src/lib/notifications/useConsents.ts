@@ -6,15 +6,8 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  listMyConsents,
-  listMyConsentEvents,
-  setMyConsent,
-} from "@/lib/consents.functions";
-import {
-  CONSENT_CATALOG,
-  type ConsentDefinition,
-} from "@/lib/notifications/consentCatalog";
+import { listMyConsents, listMyConsentEvents, setMyConsent } from "@/lib/consents.functions";
+import { CONSENT_CATALOG, type ConsentDefinition } from "@/lib/notifications/consentCatalog";
 
 export interface ConsentStateRow {
   consent_key: string;
@@ -87,10 +80,7 @@ export function useSetMyConsent() {
     }) => fn({ data: input }),
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: ["user-consents", user?.id ?? "anon"] });
-      const prev = qc.getQueryData<ConsentStateRow[]>([
-        "user-consents",
-        user?.id ?? "anon",
-      ]);
+      const prev = qc.getQueryData<ConsentStateRow[]>(["user-consents", user?.id ?? "anon"]);
       const now = new Date().toISOString();
       const next: ConsentStateRow[] = (() => {
         const base = prev ?? [];
@@ -113,8 +103,7 @@ export function useSetMyConsent() {
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev)
-        qc.setQueryData(["user-consents", user?.id ?? "anon"], ctx.prev);
+      if (ctx?.prev) qc.setQueryData(["user-consents", user?.id ?? "anon"], ctx.prev);
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["user-consents", user?.id ?? "anon"] });
@@ -131,11 +120,7 @@ export function buildConsentViews(rows: ConsentStateRow[] | undefined): ConsentV
   return CONSENT_CATALOG.map((def) => {
     const state = byKey.get(def.key) ?? null;
     const isCurrent = !!state && state.version === def.version;
-    const effectiveGiven = def.required
-      ? true
-      : state
-        ? state.given
-        : (def.defaultGiven ?? false);
+    const effectiveGiven = def.required ? true : state ? state.given : (def.defaultGiven ?? false);
     return { definition: def, state, isCurrent, effectiveGiven };
   });
 }

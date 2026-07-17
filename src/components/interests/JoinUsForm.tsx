@@ -318,7 +318,6 @@ export function JoinUsForm({
   // po stronie serwera przy subskrypcji dla zalogowanego usera.
   void fetchPrefill;
 
-
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
     const tags = catalog.data?.tags ?? [];
@@ -350,9 +349,7 @@ export function JoinUsForm({
     const allCats = catalog.data?.categories ?? [];
     const catById = new Map<string, (typeof allCats)[number]>();
     for (const c of allCats) catById.set(c.id, c);
-    const rootOf = (
-      id: string,
-    ): { id: string; slug: string; label: string } | null => {
+    const rootOf = (id: string): { id: string; slug: string; label: string } | null => {
       let cur = catById.get(id);
       if (!cur) return null;
       // Wspinaj się do korzenia (parentId === null).
@@ -615,8 +612,6 @@ export function JoinUsForm({
         /* non-fatal */
       }
     }
-
-
 
     setState("ok");
     setEmail("");
@@ -976,7 +971,9 @@ export function JoinUsForm({
                   />
                 </button>
 
-                {dropOpen && popupStyle && typeof document !== "undefined" &&
+                {dropOpen &&
+                  popupStyle &&
+                  typeof document !== "undefined" &&
                   createPortal(
                     <div
                       ref={popupRef}
@@ -1000,10 +997,7 @@ export function JoinUsForm({
                           )}
                         />
                       )}
-                      <div
-                        id={`${jusId}-drop-scroll`}
-                        className="flex-1 overflow-auto"
-                      >
+                      <div id={`${jusId}-drop-scroll`} className="flex-1 overflow-auto">
                         {groupedItems.map((g) => {
                           const selectedInGroup = g.items.reduce(
                             (n, it) => n + (picked.has(it.id) ? 1 : 0),
@@ -1038,9 +1032,7 @@ export function JoinUsForm({
                                       onClick={() => togglePick(it.id)}
                                       className={cn(
                                         "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition min-w-0",
-                                        active
-                                          ? "bg-brand/10 text-brand"
-                                          : "hover:bg-accent",
+                                        active ? "bg-brand/10 text-brand" : "hover:bg-accent",
                                       )}
                                     >
                                       <span
@@ -1095,7 +1087,6 @@ export function JoinUsForm({
                     </div>,
                     document.body,
                   )}
-
               </div>
             </div>
           ) : (

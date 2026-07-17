@@ -461,9 +461,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
         {!deleted && !message.pending && !message.failed ? (
           <ContextMenu>
             <ContextMenuTrigger asChild>
-              <div className={cn("max-w-full", mine ? "self-end" : "self-start")}>
-                {content}
-              </div>
+              <div className={cn("max-w-full", mine ? "self-end" : "self-start")}>{content}</div>
             </ContextMenuTrigger>
             <ContextMenuContent className={cn(mine ? "" : "")}>
               <ContextMenuItem onSelect={() => onReply(message)}>
@@ -496,10 +494,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                 </ContextMenuItem>
               )}
               <ContextMenuSeparator />
-              <ContextMenuItem
-                onSelect={() => setReactOpen(true)}
-                aria-label={t("chat.react")}
-              >
+              <ContextMenuItem onSelect={() => setReactOpen(true)} aria-label={t("chat.react")}>
                 <SmilePlus className="h-3.5 w-3.5" aria-hidden />
                 {t("chat.react")}
               </ContextMenuItem>
@@ -513,10 +508,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                 </>
               )}
               {mine && (
-                <ContextMenuItem
-                  variant="destructive"
-                  onSelect={() => onDelete(message)}
-                >
+                <ContextMenuItem variant="destructive" onSelect={() => onDelete(message)}>
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   {t("chat.deleteMessage")}
                 </ContextMenuItem>

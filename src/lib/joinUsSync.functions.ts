@@ -36,9 +36,7 @@ export const getJoinUsPrefill = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("profiles")
-      .select(
-        "first_name, last_name, location, linkedin_url, phone, current_company, job_title",
-      )
+      .select("first_name, last_name, location, linkedin_url, phone, current_company, job_title")
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return EMPTY;

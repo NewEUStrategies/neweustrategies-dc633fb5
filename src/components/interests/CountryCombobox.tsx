@@ -3,7 +3,16 @@
 // - Użytkownik może wybrać z listy albo wpisać własną nazwę (free text zapisywany 1:1).
 // - Dostępny z klawiatury (↑ ↓ Enter Esc), aria zgodne z combobox pattern.
 // - Dropdown renderowany przez portal (fixed) - nie jest przycinany przez overflow-hidden.
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal } from "react-dom";
 // `/index.js` and NOT the bare package: the package's Node entry (`main:
 // entry-node`) registers every locale through a dynamic `require("./langs/" +
@@ -150,7 +159,8 @@ export function CountryCombobox({
 
   const activeId = open && filtered[highlight] ? `${listId}-opt-${highlight}` : undefined;
 
-  const inputBase = "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
+  const inputBase =
+    "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -185,7 +195,9 @@ export function CountryCombobox({
         style={style}
         data-edit-target="placeholderSize"
       />
-      {open && filtered.length > 0 && typeof document !== "undefined" &&
+      {open &&
+        filtered.length > 0 &&
+        typeof document !== "undefined" &&
         createPortal(
           <ul
             ref={popupRef}

@@ -207,26 +207,30 @@ export function MessageList(props: MessageListProps) {
   // Scroll a message into view and briefly highlight it. Called from the
   // reply-quote button on any bubble; noop if the target row has scrolled
   // out of the loaded window (older pages will fetch on their own).
-  const jumpToMessage = useCallback((messageId: string) => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const row = container.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(messageId)}"]`,
-    );
-    if (!row) return;
-    stickToBottomRef.current = false;
-    // Scroll only the chat container, never the outer page. scrollIntoView
-    // walks up all scrollable ancestors and would jump the whole document.
-    const containerRect = container.getBoundingClientRect();
-    const rowRect = row.getBoundingClientRect();
-    const offset = rowRect.top - containerRect.top - (container.clientHeight - row.clientHeight) / 2;
-    container.scrollTo({
-      top: container.scrollTop + offset,
-      behavior: reducedMotion ? "auto" : "smooth",
-    });
-    row.classList.add("chat-jump-flash");
-    window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
-  }, [reducedMotion]);
+  const jumpToMessage = useCallback(
+    (messageId: string) => {
+      const container = scrollRef.current;
+      if (!container) return;
+      const row = container.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(messageId)}"]`,
+      );
+      if (!row) return;
+      stickToBottomRef.current = false;
+      // Scroll only the chat container, never the outer page. scrollIntoView
+      // walks up all scrollable ancestors and would jump the whole document.
+      const containerRect = container.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const offset =
+        rowRect.top - containerRect.top - (container.clientHeight - row.clientHeight) / 2;
+      container.scrollTo({
+        top: container.scrollTop + offset,
+        behavior: reducedMotion ? "auto" : "smooth",
+      });
+      row.classList.add("chat-jump-flash");
+      window.setTimeout(() => row.classList.remove("chat-jump-flash"), 1600);
+    },
+    [reducedMotion],
+  );
 
   // Newest own message that the peer has already read -> "seen" receipt.
   const lastMine = useMemo(() => {

@@ -232,9 +232,7 @@ export function ConsentsPanel() {
                   {ev.given
                     ? t("notifications.consents.stateGiven", { defaultValue: "udzielono" })
                     : t("notifications.consents.stateWithdrawn", { defaultValue: "wycofano" })}{" "}
-                  <span className="text-muted-foreground/70">
-                    (v{ev.version})
-                  </span>
+                  <span className="text-muted-foreground/70">(v{ev.version})</span>
                 </span>
               </li>
             ))}
