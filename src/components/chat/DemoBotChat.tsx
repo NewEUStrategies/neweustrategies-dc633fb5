@@ -194,20 +194,76 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const noop = useCallback(() => undefined, []);
   const never = useCallback(() => false, []);
 
+  // Pick + walidacja pliku (te same reguły co realny composer: MAX 30 MB,
+  // ta sama allowlista MIME). Podgląd trzymamy tylko lokalnie.
+  const handlePickFile = useCallback(
+    (file: File | null | undefined) => {
+      if (!file) return;
+      const invalid = validateAttachment(file);
+      if (invalid === "size") {
+        toast.error(
+          t("chat.attachmentTooLarge", {
+            defaultValue: `Plik jest za duży (max ${formatBytes(MAX_ATTACHMENT_BYTES, lang)}).`,
+          }),
+        );
+        return;
+      }
+      if (invalid === "type") {
+        toast.error(
+          t("chat.attachmentWrongType", {
+            defaultValue: "Ten typ pliku nie jest obsługiwany.",
+          }),
+        );
+        return;
+      }
+      const kind = attachmentKindForMime(file.type);
+      if (!kind) return;
+      // Zwolnij poprzedni podgląd, jeśli użytkownik podmienia załącznik.
+      if (staged?.previewUrl) URL.revokeObjectURL(staged.previewUrl);
+      const previewUrl = URL.createObjectURL(file);
+      blobsRef.current.push(previewUrl);
+      setStaged({ file, kind, previewUrl });
+      textareaRef.current?.focus();
+    },
+    [staged, t, lang],
+  );
+
+  const clearStaged = useCallback(() => {
+    setStaged((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
   const send = useCallback(() => {
     const body = input.trim();
-    if (body.length === 0 || botTyping) return;
+    const hasAttachment = !!staged;
+    if ((body.length === 0 && !hasAttachment) || botTyping) return;
     const myId = nextId();
     const replyToId = replyTo?.id ?? null;
+    const attachmentExtra: Partial<ChatMessage> = staged
+      ? {
+          kind: staged.kind,
+          attachment_path: staged.previewUrl,
+          attachment_name: staged.file.name,
+          attachment_mime: staged.file.type,
+          attachment_size: staged.file.size,
+        }
+      : {};
     setMessages((prev) => [
       ...prev,
-      demoMessage(myId, ME_ID, body, new Date().toISOString(), {
+      demoMessage(myId, ME_ID, body.length > 0 ? body : null, new Date().toISOString(), {
         pending: true,
         reply_to_id: replyToId,
+        ...attachmentExtra,
       }),
     ]);
     setInput("");
     setReplyTo(null);
+    // Nie zwalniamy blob URL - dymek nadal go używa; zwolnimy przy unmount.
+    setStaged(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     // Pełny cykl potwierdzeń na timestampach, jak w realnym czacie:
     // zegar (pending) -> tick wysłano -> podwójny dostarczono -> kolorowy
@@ -220,13 +276,24 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       setBotTyping(true);
     });
 
-    const reply = botReply(body, t);
+    const reply = hasAttachment
+      ? t(
+          staged.kind === "image"
+            ? "chat.demoBot.replies.image"
+            : "chat.demoBot.replies.file",
+          {
+            defaultValue:
+              staged.kind === "image"
+                ? "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)"
+                : `Otrzymałem plik: ${staged.file.name} (podgląd demo).`,
+            name: staged.file.name,
+          },
+        )
+      : botReply(body, t);
     const typingMs = Math.min(1400, 700 + reply.length * 12);
     later(650 + typingMs, () => {
       const now = new Date().toISOString();
       setPeerReadAt(now);
-      // Bot odbija cytat tylko, gdy użytkownik sam odpowiadał na dymek -
-      // pokazuje obie strony funkcji bez zaśmiecania każdego echa.
       setMessages((prev) => [
         ...prev,
         demoMessage(nextId(), BOT_USER_ID, reply, now, {
@@ -234,19 +301,19 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
         }),
       ]);
       setBotTyping(false);
-      // Dłuższa wiadomość dostaje od bota reakcję - widać chip na dymku.
-      if (body.length > 20) {
+      if (body.length > 20 || hasAttachment) {
         setReactions((prev) => {
           const next = new Map(prev);
           next.set(myId, [
             ...(next.get(myId) ?? []).filter((r) => r.user_id !== BOT_USER_ID),
-            demoReaction(myId, BOT_USER_ID, "👍"),
+            demoReaction(myId, BOT_USER_ID, hasAttachment ? "🎉" : "👍"),
           ]);
           return next;
         });
       }
     });
-  }, [input, botTyping, replyTo, nextId, later, t]);
+  }, [input, staged, botTyping, replyTo, nextId, later, t]);
+
 
   const replyAuthor = replyTo ? (replyTo.sender_id === ME_ID ? t("chat.you") : botName) : null;
 
