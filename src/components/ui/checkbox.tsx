@@ -36,9 +36,9 @@ const Checkbox = React.forwardRef<
       focusable="false"
       className="lov-check__svg"
     >
-      <rect className="lov-check__box" x="1" y="1" width="16" height="16" rx="4" ry="4" />
-      <polyline className="lov-check__tick" points="4,9.5 8,13 14,5" />
-      <line className="lov-check__dash" x1="4.5" y1="9" x2="13.5" y2="9" />
+      <path d="M1,9 L1,3.5 C1,2 2,1 3.5,1 L14.5,1 C16,1 17,2 17,3.5 L17,14.5 C17,16 16,17 14.5,17 L3.5,17 C2,17 1,16 1,14.5 L1,9 Z" />
+      <polyline points="1,9 7,14 15,4" />
+
     </svg>
 
     {/* Radix Indicator kept for a11y semantics; visuals live on the SVG above. */}
