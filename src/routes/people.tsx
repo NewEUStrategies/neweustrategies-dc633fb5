@@ -26,6 +26,7 @@ import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { useStartConversation } from "@/lib/chat/useConversations";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useUserCounter } from "@/lib/counters/usePendingCounters";
 import { useConnectionStatuses, type ConnectionState } from "@/lib/network/useConnections";
 import {
@@ -176,6 +177,12 @@ function PersonCard({
           )}
         </p>
       )}
+      {/* Dowód społeczny: wspólne kontakty z batchowanego connection_statuses. */}
+      {(connection?.mutualCount ?? 0) > 0 && (
+        <p className="truncate text-[11px] font-medium text-[var(--brand)]">
+          {t("network.mutual", { count: connection?.mutualCount ?? 0 })}
+        </p>
+      )}
     </>
   );
 
@@ -253,7 +260,10 @@ function PeopleInner() {
   // Sygnały zaufania: odznaki dla całej widocznej partii jednym zapytaniem.
   const badgesQ = useBadgesForUsers(people.map((p) => p.id));
   // Statusy sieci kontaktów dla widocznych kart - jeden batchowany RPC.
-  const connectionsQ = useConnectionStatuses(people.map((p) => p.id));
+  const modules = useCommunityModules();
+  const connectionsQ = useConnectionStatuses(
+    modules.connections_enabled ? people.map((p) => p.id) : [],
+  );
   const pendingInvites = useUserCounter("connections_pending");
   const hasActiveFilters =
     filters.specialization !== null ||
@@ -271,20 +281,22 @@ function PeopleInner() {
           <h1 className="text-xl font-bold leading-tight">{t("people.title")}</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("people.subtitle")}</p>
         </div>
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
-          <Link to="/network">
-            <Users className="h-3.5 w-3.5" aria-hidden />
-            {t("network.networkLink")}
-            {pendingInvites > 0 && (
-              <span
-                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold text-white"
-                aria-label={t("network.pendingBadge", { count: pendingInvites })}
-              >
-                {pendingInvites}
-              </span>
-            )}
-          </Link>
-        </Button>
+        {modules.connections_enabled && (
+          <Button asChild variant="outline" size="sm" className="gap-1.5">
+            <Link to="/network">
+              <Users className="h-3.5 w-3.5" aria-hidden />
+              {t("network.networkLink")}
+              {pendingInvites > 0 && (
+                <span
+                  className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold text-white"
+                  aria-label={t("network.pendingBadge", { count: pendingInvites })}
+                >
+                  {pendingInvites}
+                </span>
+              )}
+            </Link>
+          </Button>
+        )}
       </header>
 
       <div className="mb-4">
@@ -412,7 +424,12 @@ function PeopleInner() {
                 badges={badgesQ.data?.get(person.id)}
                 connection={
                   connectionsQ.data
-                    ? (connectionsQ.data.get(person.id) ?? { status: "none", connectionId: null })
+                    ? (connectionsQ.data.get(person.id) ?? {
+                        status: "none",
+                        connectionId: null,
+                        mutualCount: 0,
+                        canInvite: true,
+                      })
                     : undefined
                 }
               />

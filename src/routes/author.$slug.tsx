@@ -18,6 +18,8 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
+import { ReportUserButton } from "@/components/network/ReportUserDialog";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
@@ -280,8 +282,10 @@ function ExpertHubPage() {
                 <FollowButton targetType="author" targetId={expert.id} lang={lang} />
               )}
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
-                  profilu (komponent sam zwraca null w pozostałych stanach). */}
+                  profilu (komponenty same zwracają null w pozostałych stanach). */}
               <ConnectButton userId={expert.id} displayName={name} />
+              <MutualConnectionsHint userId={expert.id} />
+              <ReportUserButton userId={expert.id} displayName={name} />
             </div>
           }
         />

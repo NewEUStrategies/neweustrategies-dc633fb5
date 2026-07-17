@@ -25,9 +25,11 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   useNotificationPreferences,
   useUpdateNotificationPreferences,
+  type AllowConnectionsFrom,
   type AllowMessagesFrom,
   type NotificationPreferences,
 } from "@/lib/notifications/useNotifications";
+import "@/lib/i18n-network";
 import { toast } from "sonner";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
@@ -104,6 +106,8 @@ function PrivacyVisibilitySection() {
   const on = discoverableQ.data ?? false;
   const allowFrom: AllowMessagesFrom =
     prefsQ.data?.allow_messages_from ?? DEFAULT_NOTIFICATION_PREFERENCES.allow_messages_from;
+  const allowConnections: AllowConnectionsFrom =
+    prefsQ.data?.allow_connections_from ?? DEFAULT_NOTIFICATION_PREFERENCES.allow_connections_from;
 
   return (
     <section
@@ -182,6 +186,40 @@ function PrivacyVisibilitySection() {
               <SelectItem value="everyone">{t("profilePrivacy.allowMessagesEveryone")}</SelectItem>
               <SelectItem value="existing">{t("profilePrivacy.allowMessagesExisting")}</SelectItem>
               <SelectItem value="nobody">{t("profilePrivacy.allowMessagesNobody")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Kto może wysłać zaproszenie do sieci kontaktów (egzekwowane w DB). */}
+      <div className="flex flex-wrap items-start gap-3 border-t border-border/40 pt-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">{t("network.allowConnectionsLabel")}</p>
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">
+            {t("network.allowConnectionsHint")}
+          </p>
+        </div>
+        <div className="w-full shrink-0 sm:w-56">
+          <Select
+            value={allowConnections}
+            disabled={prefsQ.isLoading || updatePrefs.isPending}
+            onValueChange={(next) =>
+              updatePrefs.mutate(
+                { allow_connections_from: next as AllowConnectionsFrom },
+                {
+                  onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                  onError: () => toast.error(t("profilePrivacy.saveError")),
+                },
+              )
+            }
+          >
+            <SelectTrigger aria-label={t("network.allowConnectionsLabel")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="everyone">{t("network.allowConnectionsEveryone")}</SelectItem>
+              <SelectItem value="mutual">{t("network.allowConnectionsMutual")}</SelectItem>
+              <SelectItem value="nobody">{t("network.allowConnectionsNobody")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

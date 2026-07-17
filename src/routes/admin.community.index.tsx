@@ -9,11 +9,13 @@ import { toast } from "sonner";
 import {
   Activity,
   Calendar,
+  Flag,
   HelpCircle,
   MessageCircle,
   Timer,
   RefreshCcw,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -34,6 +36,7 @@ import {
   updateCommunityModules,
   type CommunityModulesSettings,
 } from "@/lib/admin/community";
+import { fetchNetworkStats, fetchUserReports, resolveUserReport } from "@/lib/admin/network";
 
 export const Route = createFileRoute("/admin/community/")({
   head: () => ({ meta: [{ title: "Community · Admin" }] }),
@@ -163,6 +166,17 @@ function CommunityOverview() {
               onChange={(v) => saveModules.mutate({ chat_enabled: v })}
             />
             <ToggleRow
+              label={isPl ? "Sieć kontaktów" : "Network"}
+              hint={
+                isPl
+                  ? "Zaproszenia i połączenia między członkami"
+                  : "Invitations and member-to-member connections"
+              }
+              checked={modules?.connections_enabled ?? true}
+              disabled={saveModules.isPending || !modules}
+              onChange={(v) => saveModules.mutate({ connections_enabled: v })}
+            />
+            <ToggleRow
               label={isPl ? "Wydarzenia" : "Events"}
               hint={isPl ? "Kalendarz i RSVP" : "Calendar and RSVP"}
               checked={modules?.events_enabled ?? true}
@@ -264,7 +278,142 @@ function CommunityOverview() {
           </Button>
         </CardContent>
       </Card>
+
+      <NetworkPanel isPl={isPl} />
     </div>
+  );
+}
+
+// Sieć kontaktów: metryki tenanta ("społeczność, nie audytorium") + kolejka
+// zgłoszeń użytkowników. RPC egzekwują is_staff() po stronie DB.
+function NetworkPanel({ isPl }: { isPl: boolean }) {
+  const qc = useQueryClient();
+  const statsQ = useQuery({
+    queryKey: ["admin-network-stats"],
+    queryFn: fetchNetworkStats,
+    staleTime: 30_000,
+  });
+  const reportsQ = useQuery({
+    queryKey: ["admin-user-reports", "open"],
+    queryFn: () => fetchUserReports("open"),
+    staleTime: 15_000,
+  });
+  const resolveM = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "resolved" | "dismissed" }) =>
+      resolveUserReport(id, action),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-user-reports"] });
+      toast.success(isPl ? "Zgłoszenie rozstrzygnięte" : "Report resolved");
+    },
+    onError: () => toast.error(isPl ? "Nie udało się rozstrzygnąć" : "Failed to resolve"),
+  });
+
+  const stats = statsQ.data;
+  const reports = reportsQ.data ?? [];
+  const rate =
+    stats && Number(stats.responded_30d) > 0
+      ? Math.round((Number(stats.accepted_30d) / Number(stats.responded_30d)) * 100)
+      : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <UsersRound className="w-4 h-4" />
+          {isPl ? "Sieć kontaktów" : "Network"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <StatCard
+            icon={UsersRound}
+            label={isPl ? "Połączenia" : "Connections"}
+            value={stats ? Number(stats.connections_total) : undefined}
+          />
+          <StatCard
+            icon={Activity}
+            label={isPl ? "Oczekujące" : "Pending"}
+            value={stats ? Number(stats.pending_total) : undefined}
+          />
+          <StatCard
+            icon={Users}
+            label={isPl ? "Zaproszenia / 30 dni" : "Invites / 30d"}
+            value={stats ? Number(stats.invites_30d) : undefined}
+          />
+          <StatCard
+            icon={Users}
+            label={isPl ? "Akceptacje / 30 dni" : "Accepted / 30d"}
+            value={stats ? Number(stats.accepted_30d) : undefined}
+          />
+          <StatCard
+            icon={Activity}
+            label={isPl ? "Skuteczność (%)" : "Acceptance (%)"}
+            value={rate ?? undefined}
+          />
+          <StatCard
+            icon={Users}
+            label={isPl ? "Członkowie z siecią" : "Connected members"}
+            value={stats ? Number(stats.members_with_connection) : undefined}
+          />
+        </div>
+
+        <div>
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <Flag className="w-4 h-4" />
+            {isPl ? "Zgłoszenia użytkowników" : "User reports"}
+            {reports.length > 0 && (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
+                {reports.length}
+              </span>
+            )}
+          </h3>
+          {reports.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {isPl ? "Brak otwartych zgłoszeń." : "No open reports."}
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {reports.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {r.reporter_name} → {r.reported_name}
+                      <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {r.reason}
+                      </span>
+                    </p>
+                    {r.details && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">{r.details}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resolveM.isPending}
+                      onClick={() => resolveM.mutate({ id: r.id, action: "resolved" })}
+                    >
+                      {isPl ? "Rozstrzygnij" : "Resolve"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={resolveM.isPending}
+                      onClick={() => resolveM.mutate({ id: r.id, action: "dismissed" })}
+                    >
+                      {isPl ? "Oddal" : "Dismiss"}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

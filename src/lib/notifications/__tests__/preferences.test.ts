@@ -18,6 +18,7 @@ const prefs: NotificationPreferences = {
   typing_indicators_enabled: true,
   show_online_status: true,
   allow_messages_from: "everyone",
+  allow_connections_from: "everyone",
   push_enabled: false,
   email_digest: "off",
   chat_bell_enabled: true,

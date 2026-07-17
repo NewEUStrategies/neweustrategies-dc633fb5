@@ -8,7 +8,7 @@
 // pending_out (decyzja projektowa, egzekwowana w DB).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Clock, MessageCircle, UserCheck, UserMinus, UserPlus, X } from "lucide-react";
+import { Check, Clock, Flag, MessageCircle, UserCheck, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useStartConversation } from "@/lib/chat/useConversations";
 import {
@@ -35,6 +36,7 @@ import {
   useSendConnectionRequest,
   type ConnectionState,
 } from "@/lib/network/useConnections";
+import { ReportUserDialog } from "@/components/network/ReportUserDialog";
 import { toastError } from "@/lib/toastError";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-network";
@@ -64,6 +66,7 @@ export function ConnectButton({
 }: ConnectButtonProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const modules = useCommunityModules();
   const selfFetch = state === undefined;
   const statusesQ = useConnectionStatuses(selfFetch && user && user.id !== userId ? [userId] : []);
   const resolved: ConnectionState = state ?? statusesQ.data?.get(userId) ?? NO_CONNECTION;
@@ -78,10 +81,16 @@ export function ConnectButton({
   const [note, setNote] = useState("");
   const [confirm, setConfirm] = useState<"withdraw" | "decline" | "remove" | null>(null);
   const [connectedOpen, setConnectedOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
-  // Sieć kontaktów dotyczy wyłącznie zalogowanych i cudzych profili.
+  // Sieć kontaktów dotyczy wyłącznie zalogowanych i cudzych profili,
+  // z włączonym modułem (toggle admina w community_modules).
+  if (!modules.connections_enabled) return null;
   if (!user || user.id === userId) return null;
   if (selfFetch && statusesQ.isLoading) return null;
+  // DB i tak odrzuci (polityka adresata / tenant / blokada) - nie serwujemy
+  // przycisku, który może tylko pokazać odmowę.
+  if (resolved.status === "none" && !resolved.canInvite) return null;
 
   const busy = send.isPending || respond.isPending || cancel.isPending || remove.isPending;
   const size = compact ? "sm" : "default";
@@ -95,7 +104,20 @@ export function ConnectButton({
           setNote("");
           toast.success(t("network.invitedToast"));
         },
-        onError: (e) => toastError(e, "save"),
+        onError: (e) => {
+          // Dedykowane komunikaty dla reguł DB, których generyczny mapper nie
+          // rozróżni (oba przychodzą jako wyjątek P0001 z RPC).
+          const msg = (e as { message?: string })?.message ?? "";
+          if (msg.includes("rate limited")) {
+            setNoteOpen(false);
+            toast.error(t("network.rateLimited"));
+          } else if (msg.includes("blocked") || msg.includes("peer not available")) {
+            setNoteOpen(false);
+            toast.error(t("network.inviteBlocked"));
+          } else {
+            toastError(e, "save");
+          }
+        },
       },
     );
   };
@@ -272,6 +294,17 @@ export function ConnectButton({
           </button>
           <button
             type="button"
+            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-2 text-sm hover:bg-muted"
+            onClick={() => {
+              setConnectedOpen(false);
+              setReportOpen(true);
+            }}
+          >
+            <Flag className="h-4 w-4 text-muted-foreground" aria-hidden />
+            {t("network.report")}
+          </button>
+          <button
+            type="button"
             className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10"
             onClick={() => {
               setConnectedOpen(false);
@@ -283,6 +316,12 @@ export function ConnectButton({
           </button>
         </PopoverContent>
       </Popover>
+      <ReportUserDialog
+        userId={userId}
+        displayName={displayName}
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+      />
       <ConfirmDialog
         open={confirm === "remove"}
         onOpenChange={(open) => setConfirm(open ? "remove" : null)}

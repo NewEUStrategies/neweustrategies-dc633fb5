@@ -261,10 +261,12 @@ SELECT lives_ok(
   'adresat odrzuca zaproszenie'
 );
 
-SELECT is(
-  (SELECT count(*)::int FROM public.connection_statuses(
-     ARRAY['ca000000-0000-0000-0000-0000000000aa'::uuid])),
-  0,
+-- Od v2 (20260717170000) statuses zwraca wiersz 'none' zamiast braku wiersza -
+-- cicha odmowa ma byc nieodroznialna od braku relacji, wlacznie z brakiem id.
+SELECT ok(
+  (SELECT cs.status = 'none' AND cs.connection_id IS NULL
+     FROM public.connection_statuses(
+       ARRAY['ca000000-0000-0000-0000-0000000000aa'::uuid]) cs),
   'odmawiajacy nie widzi po odmowie zadnej relacji'
 );
 

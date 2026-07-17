@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import {
@@ -58,6 +60,8 @@ export const Route = createFileRoute("/network")({
 
 function NetworkPage() {
   const { t } = useTranslation();
+  const modules = useCommunityModules();
+  if (!modules.connections_enabled) return <CommunityDisabled />;
   return (
     <AuthGate
       fallbackTitle={t("network.membersOnlyTitle")}
@@ -79,6 +83,13 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
+/** Przewiń do wiersza wskazanego deep-linkiem ?c= z powiadomienia. */
+function highlightRef(active: boolean) {
+  return (el: HTMLLIElement | null) => {
+    if (el && active) el.scrollIntoView({ block: "center" });
+  };
+}
+
 /** Wspólny wiersz osoby: awatar, nazwisko, rola/instytucja, akcje po prawej. */
 function PersonRow({
   userId,
@@ -91,6 +102,7 @@ function PersonRow({
   verified,
   online,
   meta,
+  highlighted,
   children,
 }: {
   userId: string;
@@ -103,6 +115,7 @@ function PersonRow({
   verified: boolean;
   online: boolean;
   meta?: string;
+  highlighted?: boolean;
   children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -137,7 +150,11 @@ function PersonRow({
   );
   return (
     <li
-      className="flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border"
+      ref={highlightRef(!!highlighted)}
+      className={cn(
+        "flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+        highlighted && "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
+      )}
       data-user-id={userId}
     >
       <ChatAvatar name={displayName} avatarUrl={avatarUrl} online={online} size="md" />
@@ -186,7 +203,7 @@ function LoadingList({ rows = 4 }: { rows?: number }) {
   );
 }
 
-function ConnectionsTab() {
+function ConnectionsTab({ highlightId }: { highlightId?: string }) {
   const { t } = useTranslation();
   const online = useOnlineUsers();
   const [input, setInput] = useState("");
@@ -228,10 +245,20 @@ function ConnectionsTab() {
       ) : connectionsQ.isLoading ? (
         <LoadingList />
       ) : connections.length === 0 ? (
-        <EmptyState
-          text={query ? t("network.emptyConnectionsFiltered") : t("network.emptyConnections")}
-          cta={!query}
-        />
+        <div className="space-y-6">
+          <EmptyState
+            text={query ? t("network.emptyConnectionsFiltered") : t("network.emptyConnections")}
+            cta={!query}
+          />
+          {/* Zimny start: zamiast pustego pokoju od razu podpowiadamy pierwsze
+              zaproszenia (sugestie wspolnych kontaktow/dossier/wydarzen). */}
+          {!query && (
+            <section aria-label={t("network.coldStartTitle")}>
+              <h2 className="mb-3 text-sm font-semibold">{t("network.coldStartTitle")}</h2>
+              <SuggestionsTab />
+            </section>
+          )}
+        </div>
       ) : (
         <>
           <ul className="grid gap-3 sm:grid-cols-2">
@@ -252,11 +279,17 @@ function ConnectionsTab() {
                     ? t("network.connectedAt", { date: formatDate(c.connected_at) })
                     : undefined
                 }
+                highlighted={highlightId === c.connection_id}
               >
                 <ConnectButton
                   userId={c.user_id}
                   displayName={c.display_name}
-                  state={{ status: "connected", connectionId: c.connection_id }}
+                  state={{
+                    status: "connected",
+                    connectionId: c.connection_id,
+                    mutualCount: 0,
+                    canInvite: false,
+                  }}
                   compact
                 />
               </PersonRow>
@@ -281,7 +314,13 @@ function ConnectionsTab() {
   );
 }
 
-function RequestsTab({ direction }: { direction: "in" | "out" }) {
+function RequestsTab({
+  direction,
+  highlightId,
+}: {
+  direction: "in" | "out";
+  highlightId?: string;
+}) {
   const { t } = useTranslation();
   const online = useOnlineUsers();
   const requestsQ = useConnectionRequests(direction);
@@ -303,7 +342,12 @@ function RequestsTab({ direction }: { direction: "in" | "out" }) {
       {rows.map((r: ConnectionRequestRow) => (
         <li
           key={r.connection_id}
-          className="rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border"
+          ref={highlightRef(highlightId === r.connection_id)}
+          className={cn(
+            "rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+            highlightId === r.connection_id &&
+              "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
+          )}
         >
           <div className="flex items-center gap-3">
             <ChatAvatar
@@ -346,14 +390,24 @@ function RequestsTab({ direction }: { direction: "in" | "out" }) {
                 <ConnectButton
                   userId={r.user_id}
                   displayName={r.display_name}
-                  state={{ status: "pending_in", connectionId: r.connection_id }}
+                  state={{
+                    status: "pending_in",
+                    connectionId: r.connection_id,
+                    mutualCount: 0,
+                    canInvite: false,
+                  }}
                   compact
                 />
               ) : (
                 <ConnectButton
                   userId={r.user_id}
                   displayName={r.display_name}
-                  state={{ status: "pending_out", connectionId: r.connection_id }}
+                  state={{
+                    status: "pending_out",
+                    connectionId: r.connection_id,
+                    mutualCount: 0,
+                    canInvite: false,
+                  }}
                   compact
                 />
               )}
@@ -396,7 +450,17 @@ function SuggestionsTab() {
             slug={s.slug}
             verified={s.verified}
             online={online.has(s.user_id)}
-            meta={s.mutual_count > 0 ? t("network.mutual", { count: s.mutual_count }) : undefined}
+            meta={
+              [
+                s.mutual_count > 0 ? t("network.mutual", { count: s.mutual_count }) : null,
+                s.shared_follows > 0
+                  ? t("network.sharedDossiers", { count: s.shared_follows })
+                  : null,
+                s.shared_events > 0 ? t("network.sharedEvents", { count: s.shared_events }) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || undefined
+            }
           >
             <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
           </PersonRow>
@@ -422,7 +486,7 @@ function NetworkInner() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate({ from: "/network" });
-  const { tab } = Route.useSearch();
+  const { tab, c } = Route.useSearch();
   const active: NetworkTab = tab ?? "connections";
   const countsQ = useNetworkCounts();
   useNetworkRealtime();
@@ -492,9 +556,9 @@ function NetworkInner() {
         </TabsList>
       </Tabs>
 
-      {active === "connections" && <ConnectionsTab />}
-      {active === "received" && <RequestsTab direction="in" />}
-      {active === "sent" && <RequestsTab direction="out" />}
+      {active === "connections" && <ConnectionsTab highlightId={c} />}
+      {active === "received" && <RequestsTab direction="in" highlightId={c} />}
+      {active === "sent" && <RequestsTab direction="out" highlightId={c} />}
       {active === "suggestions" && <SuggestionsTab />}
     </div>
   );

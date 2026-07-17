@@ -2296,6 +2296,7 @@ export type Database = {
       events: {
         Row: {
           capacity: number | null;
+          conversation_id: string | null;
           chatham_house: boolean;
           cover_url: string | null;
           created_at: string;
@@ -2326,6 +2327,7 @@ export type Database = {
         };
         Insert: {
           capacity?: number | null;
+          conversation_id?: string | null;
           chatham_house?: boolean;
           cover_url?: string | null;
           created_at?: string;
@@ -2356,6 +2358,7 @@ export type Database = {
         };
         Update: {
           capacity?: number | null;
+          conversation_id?: string | null;
           chatham_house?: boolean;
           cover_url?: string | null;
           created_at?: string;
@@ -4146,6 +4149,7 @@ export type Database = {
       };
       notification_preferences: {
         Row: {
+          allow_connections_from: string;
           allow_messages_from: string;
           auto_mark_on_open: boolean;
           chat_bell_enabled: boolean;
@@ -4171,6 +4175,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          allow_connections_from?: string;
           allow_messages_from?: string;
           auto_mark_on_open?: boolean;
           chat_bell_enabled?: boolean;
@@ -4196,6 +4201,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          allow_connections_from?: string;
           allow_messages_from?: string;
           auto_mark_on_open?: boolean;
           chat_bell_enabled?: boolean;
@@ -7764,6 +7770,56 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_reports: {
+        Row: {
+          created_at: string;
+          details: string | null;
+          id: string;
+          reason: string;
+          reported_id: string;
+          reporter_id: string;
+          resolution_note: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          status: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          details?: string | null;
+          id?: string;
+          reason: string;
+          reported_id: string;
+          reporter_id: string;
+          resolution_note?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          status?: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          details?: string | null;
+          id?: string;
+          reason?: string;
+          reported_id?: string;
+          reporter_id?: string;
+          resolution_note?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          status?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_reports_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       user_roles: {
         Row: {
           created_at: string;
@@ -8483,6 +8539,39 @@ export type Database = {
         Args: { p_key: string; p_result?: Json; p_succeeded: boolean };
         Returns: undefined;
       };
+      admin_list_user_reports: {
+        Args: { p_limit?: number; p_offset?: number; p_status?: string };
+        Returns: {
+          created_at: string;
+          details: string | null;
+          id: string;
+          reason: string;
+          reported_id: string;
+          reported_name: string;
+          reporter_id: string;
+          reporter_name: string;
+          resolution_note: string | null;
+          resolved_at: string | null;
+          status: string;
+          total_count: number;
+        }[];
+      };
+      admin_network_stats: {
+        Args: never;
+        Returns: {
+          accepted_30d: number;
+          avg_hours_to_accept_30d: number | null;
+          connections_total: number;
+          invites_30d: number;
+          members_with_connection: number;
+          pending_total: number;
+          responded_30d: number;
+        }[];
+      };
+      admin_resolve_user_report: {
+        Args: { p_action: string; p_note?: string; p_report_id: string };
+        Returns: undefined;
+      };
       connection_cancel: { Args: { p_connection_id: string }; Returns: undefined };
       connection_remove: { Args: { p_user_id: string }; Returns: undefined };
       connection_request: {
@@ -8496,7 +8585,9 @@ export type Database = {
       connection_statuses: {
         Args: { p_user_ids: string[] };
         Returns: {
-          connection_id: string;
+          can_invite: boolean;
+          connection_id: string | null;
+          mutual_count: number;
           status: string;
           user_id: string;
         }[];
@@ -8510,6 +8601,8 @@ export type Database = {
           job_title: string;
           location: string;
           mutual_count: number;
+          shared_events: number;
+          shared_follows: number;
           slug: string;
           specialization: string;
           user_id: string;
@@ -8523,6 +8616,7 @@ export type Database = {
         };
         Returns: boolean;
       };
+      create_event_group: { Args: { p_event_id: string }; Returns: string };
       create_group_conversation: {
         Args: { p_member_ids: string[]; p_title: string };
         Returns: string;
@@ -9179,6 +9273,19 @@ export type Database = {
         }[];
       };
       page_full_path: { Args: { _page_id: string }; Returns: string };
+      policy_item_followers: {
+        Args: { p_item_id: string; p_limit?: number };
+        Returns: {
+          avatar_url: string;
+          current_company: string;
+          display_name: string;
+          job_title: string;
+          slug: string;
+          total_count: number;
+          user_id: string;
+          verified: boolean;
+        }[];
+      };
       people_filter_options: {
         Args: never;
         Returns: {
@@ -9218,6 +9325,10 @@ export type Database = {
       prune_push_queue: { Args: { p_keep?: string }; Returns: number };
       public_tenant_id: { Args: never; Returns: string };
       publish_due_posts: { Args: never; Returns: number };
+      report_user: {
+        Args: { p_details?: string; p_reason: string; p_user_id: string };
+        Returns: string;
+      };
       recompute_my_pending_counters: { Args: never; Returns: undefined };
       recompute_tenant_pending_counters: {
         Args: { p_tenant_id: string };

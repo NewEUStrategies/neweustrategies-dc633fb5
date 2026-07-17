@@ -31,16 +31,25 @@ export type ConnectionRequestRow = Fns["my_connection_requests"]["Returns"][numb
 export type ConnectionSuggestionRow = Fns["connection_suggestions"]["Returns"][number];
 export type NetworkCounts = Fns["my_network_counts"]["Returns"][number];
 
-/** Relacja wołającego z drugą osobą; brak wiersza w DB = "none". */
+/** Relacja wołającego z drugą osobą. Od v2 RPC zwraca wiersz także dla "none". */
 export type ConnectionStatus = "none" | "pending_out" | "pending_in" | "connected";
 
 export interface ConnectionState {
   status: ConnectionStatus;
   /** id wiersza user_connections (null przy statusie "none"). */
   connectionId: string | null;
+  /** Wspólne kontakty (dowód społeczny na kartach). */
+  mutualCount: number;
+  /** Czy świeże zaproszenie ma sens (widoczność, tenant, blokady, polityka). */
+  canInvite: boolean;
 }
 
-export const NO_CONNECTION: ConnectionState = { status: "none", connectionId: null };
+export const NO_CONNECTION: ConnectionState = {
+  status: "none",
+  connectionId: null,
+  mutualCount: 0,
+  canInvite: true,
+};
 
 const PAGE_SIZE = 24;
 
@@ -64,11 +73,17 @@ export function useConnectionStatuses(
       const map = new Map<string, ConnectionState>();
       for (const row of data ?? []) {
         if (
+          row.status === "none" ||
           row.status === "pending_out" ||
           row.status === "pending_in" ||
           row.status === "connected"
         ) {
-          map.set(row.user_id, { status: row.status, connectionId: row.connection_id });
+          map.set(row.user_id, {
+            status: row.status,
+            connectionId: row.connection_id,
+            mutualCount: row.mutual_count,
+            canInvite: row.can_invite,
+          });
         }
       }
       return map;
@@ -233,6 +248,71 @@ export function useRemoveConnection(): UseMutationResult<void, Error, string> {
       if (error) throw error;
     },
     onSuccess: () => invalidateNetwork(qc, user?.id),
+  });
+}
+
+export type PolicyItemFollowerRow = Fns["policy_item_followers"]["Returns"][number];
+
+/**
+ * "Kto jeszcze śledzi ten plik": widoczni obserwujący dossier trackera
+ * w tenancie wołającego (RPC odrzuca anonimów i nieopublikowane dossier).
+ */
+export function usePolicyItemFollowers(
+  itemId: string | null | undefined,
+  limit = 12,
+): UseQueryResult<PolicyItemFollowerRow[]> {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["network", "policy-followers", user?.id ?? "anon", itemId ?? "none", limit],
+    enabled: !!user && !!itemId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<PolicyItemFollowerRow[]> => {
+      const { data, error } = await supabase.rpc("policy_item_followers", {
+        p_item_id: itemId as string,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Grupa czatu wydarzenia (host/staff): idempotentne RPC tworzy krąg
+ * z uczestników RSVP 'going' i zwraca id konwersacji.
+ */
+export function useCreateEventGroup(): UseMutationResult<string, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (eventId) => {
+      const { data, error } = await supabase.rpc("create_event_group", {
+        p_event_id: eventId,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["chat"] });
+    },
+  });
+}
+
+/** Zgłoszenie użytkownika do moderacji (dedup i rate limit po stronie DB). */
+export function useReportUser(): UseMutationResult<
+  string,
+  Error,
+  { userId: string; reason: string; details?: string }
+> {
+  return useMutation({
+    mutationFn: async ({ userId, reason, details }) => {
+      const { data, error } = await supabase.rpc("report_user", {
+        p_user_id: userId,
+        p_reason: reason,
+        p_details: details?.trim() ? details.trim() : undefined,
+      });
+      if (error) throw error;
+      return data as string;
+    },
   });
 }
 

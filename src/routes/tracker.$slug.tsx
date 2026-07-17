@@ -20,6 +20,7 @@ import {
   useToggleFollowItem,
 } from "@/lib/tracker/queries";
 import { PolicyPositionsMap } from "@/components/tracker/PolicyPositionsMap";
+import { DossierFollowers } from "@/components/network/DossierFollowers";
 import { POLICY_STAGES, areaLabel, isTerminal, stageIndex, stageLabel } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -305,6 +306,10 @@ function TrackerDetail() {
         </Button>
         <span className="text-xs text-muted-foreground">{t("tracker.followHint")}</span>
       </div>
+
+      {/* Sygnal spolecznosci: kto jeszcze sledzi to dossier (tylko zalogowani,
+          tylko widoczne profile) + szybkie nawiazanie kontaktu. */}
+      <DossierFollowers itemId={item.id} />
 
       {(positionsQ.data?.length ?? 0) > 0 && (
         <section className="mt-10" aria-label={t("tracker.positions.title")}>
