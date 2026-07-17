@@ -35,7 +35,8 @@ interface Entry {
 
 function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
   const { t } = useTranslation();
-  const url = useAttachmentUrl(entry.message.attachment_path);
+  const urlQuery = useAttachmentUrl(entry.message.attachment_path);
+  const url = urlQuery.data;
   const label = entry.message.attachment_name ?? "";
   const time = clockTime(entry.message.created_at, lang);
   if (!url) {
