@@ -157,12 +157,14 @@ GRANT EXECUTE ON FUNCTION public.chat_set_group_description(uuid, text) TO authe
 -- ----------------------------------------------------------------------------
 -- 4) PSEUDONIMY
 -- ----------------------------------------------------------------------------
+-- set_by z SET NULL, nie CASCADE: pseudonim należy do rozmowy i jej CELU -
+-- usunięcie konta NADAJĄCEGO nie może kasować pseudonimów innych osób.
 CREATE TABLE IF NOT EXISTS public.conversation_nicknames (
   conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   nickname text NOT NULL CHECK (char_length(nickname) BETWEEN 1 AND 60),
-  set_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  set_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (conversation_id, user_id)
@@ -184,9 +186,11 @@ CREATE POLICY conversation_nicknames_member_select ON public.conversation_nickna
     AND conversation_id IN (SELECT public.member_conversation_ids())
   );
 
--- DELETE w realtime musi nieść pełny wiersz (filtr po conversation_id po
--- stronie subskrybenta) - domyślna replica identity zostawiłaby tylko PK.
-ALTER TABLE public.conversation_nicknames REPLICA IDENTITY FULL;
+-- DOMYŚLNA replica identity (payload DELETE = wyłącznie PK): eventy DELETE w
+-- Realtime nie przechodzą przez RLS, więc pełny wiersz (z treścią pseudonimu)
+-- wyciekałby subskrybentom spoza rozmowy. PK zawiera conversation_id, a klient
+-- na eventach tylko invaliduje swój cache - nic więcej nie potrzebuje.
+ALTER TABLE public.conversation_nicknames REPLICA IDENTITY DEFAULT;
 DO $$ BEGIN
   BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_nicknames;
@@ -195,8 +199,9 @@ DO $$ BEGIN
 END $$;
 
 -- Pseudonim może nadać każdy uczestnik każdemu uczestnikowi (także sobie);
--- pusty/NULL pseudonim usuwa wpis. Obaj muszą być członkami TEJ rozmowy,
--- a wołający działa w swoim tenancie.
+-- pusty/NULL pseudonim usuwa wpis. NADANIE wymaga, by cel był członkiem TEJ
+-- rozmowy; CZYSZCZENIE wymaga tylko członkostwa wołającego - inaczej pseudonim
+-- osoby, która opuściła krąg, byłby nieusuwalny.
 CREATE OR REPLACE FUNCTION public.chat_set_nickname(
   p_conversation_id uuid,
   p_user_id uuid,
@@ -217,6 +222,13 @@ BEGIN
   IF NOT public.is_tenant_conversation_member(p_conversation_id, v_uid) THEN
     RAISE EXCEPTION 'chat: not a member';
   END IF;
+
+  IF v_nick IS NULL THEN
+    DELETE FROM public.conversation_nicknames
+     WHERE conversation_id = p_conversation_id AND user_id = p_user_id;
+    RETURN;
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM public.conversation_participants
      WHERE conversation_id = p_conversation_id
@@ -224,12 +236,6 @@ BEGIN
        AND tenant_id = v_tenant
   ) THEN
     RAISE EXCEPTION 'chat: target not a member';
-  END IF;
-
-  IF v_nick IS NULL THEN
-    DELETE FROM public.conversation_nicknames
-     WHERE conversation_id = p_conversation_id AND user_id = p_user_id;
-    RETURN;
   END IF;
 
   INSERT INTO public.conversation_nicknames

@@ -1314,7 +1314,7 @@ export type Database = {
           conversation_id: string;
           created_at: string;
           nickname: string;
-          set_by: string;
+          set_by: string | null;
           tenant_id: string;
           updated_at: string;
           user_id: string;
@@ -1323,7 +1323,7 @@ export type Database = {
           conversation_id: string;
           created_at?: string;
           nickname: string;
-          set_by: string;
+          set_by?: string | null;
           tenant_id: string;
           updated_at?: string;
           user_id: string;
@@ -1332,7 +1332,7 @@ export type Database = {
           conversation_id?: string;
           created_at?: string;
           nickname?: string;
-          set_by?: string;
+          set_by?: string | null;
           tenant_id?: string;
           updated_at?: string;
           user_id?: string;

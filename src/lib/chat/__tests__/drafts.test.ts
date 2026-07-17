@@ -40,6 +40,21 @@ describe("chat drafts", () => {
     expect(getDraft("u1", "c1")).toBe("");
   });
 
+  it("clearing flushes to storage immediately (sent text must not resurrect)", () => {
+    setDraft("u1", "c1", "wysłane zaraz");
+    vi.advanceTimersByTime(500);
+    clearDraft("u1", "c1");
+    // NO timer advance: a reload right after send must not restore the text.
+    expect(localStorage.getItem("nes.chat.drafts.u1") ?? "{}").not.toContain("wysłane zaraz");
+  });
+
+  it("account switch flushes the previous user's pending edits", () => {
+    setDraft("u1", "c1", "niedokończony");
+    // Debounce still pending - switching users must flush, not drop it.
+    getDraft("u2", "c1");
+    expect(localStorage.getItem("nes.chat.drafts.u1")).toContain("niedokończony");
+  });
+
   it("persists to localStorage (debounced) and survives a reset", () => {
     setDraft("u1", "c1", "trwały szkic");
     vi.advanceTimersByTime(500);

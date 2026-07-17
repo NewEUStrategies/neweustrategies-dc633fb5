@@ -66,19 +66,42 @@ function loadFromStorage(uid: string): DraftMap {
   }
 }
 
-function persist(): void {
-  if (writeTimer) clearTimeout(writeTimer);
-  writeTimer = setTimeout(() => {
+function writeNow(): void {
+  if (writeTimer) {
+    clearTimeout(writeTimer);
     writeTimer = null;
-    if (!currentUid) return;
-    try {
-      const pruned = pruneDrafts([...drafts], Date.now());
-      drafts = new Map(pruned);
-      localStorage.setItem(storageKey(currentUid), JSON.stringify(Object.fromEntries(pruned)));
-    } catch {
-      // Quota/privacy mode: keep the in-memory copy, skip persistence.
-    }
-  }, WRITE_DEBOUNCE_MS);
+  }
+  if (!currentUid) return;
+  try {
+    const pruned = pruneDrafts([...drafts], Date.now());
+    drafts = new Map(pruned);
+    localStorage.setItem(storageKey(currentUid), JSON.stringify(Object.fromEntries(pruned)));
+  } catch {
+    // Quota/privacy mode: keep the in-memory copy, skip persistence.
+  }
+}
+
+/**
+ * Debounced write for the hot typing path; `immediate` flushes synchronously.
+ * Deletions always flush: a draft cleared on SEND must never resurrect from
+ * storage after a reload that beats the debounce window.
+ */
+function persist(immediate = false): void {
+  if (immediate) {
+    writeNow();
+    return;
+  }
+  if (writeTimer) clearTimeout(writeTimer);
+  writeTimer = setTimeout(writeNow, WRITE_DEBOUNCE_MS);
+}
+
+// A tab closed mid-debounce must not lose the last keystrokes; pagehide also
+// covers bfcache navigations (fires where beforeunload does not).
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => writeNow());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") writeNow();
+  });
 }
 
 function notify(): void {
@@ -88,10 +111,8 @@ function notify(): void {
 /** Lazily binds the store to a user; an account switch swaps the whole map. */
 function ensureUser(uid: string): void {
   if (currentUid === uid) return;
-  if (writeTimer) {
-    clearTimeout(writeTimer);
-    writeTimer = null;
-  }
+  // Flush the outgoing user's pending edits before swapping the map.
+  writeNow();
   currentUid = uid;
   drafts = typeof localStorage === "undefined" ? new Map() : loadFromStorage(uid);
   notify();
@@ -111,14 +132,16 @@ export function setDraft(uid: string, conversationId: string, text: string): voi
   ensureUser(uid);
   const trimmed = text.slice(0, MAX_DRAFT_LENGTH);
   const existing = drafts.get(conversationId)?.text ?? "";
+  let removed = false;
   if (trimmed.trim().length === 0) {
     if (!drafts.has(conversationId)) return;
     drafts.delete(conversationId);
+    removed = true;
   } else {
     if (existing === trimmed) return;
     drafts.set(conversationId, { text: trimmed, updatedAt: Date.now() });
   }
-  persist();
+  persist(removed);
   notify();
 }
 
