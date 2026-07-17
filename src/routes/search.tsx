@@ -627,7 +627,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="h-full w-full min-w-0 flex-1 border-0 bg-transparent pl-5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:outline-none"
+              className="h-full w-full min-w-0 flex-1 !border-0 !bg-transparent !pl-5 text-sm text-foreground !outline-none placeholder:text-muted-foreground focus:!outline-none !ring-0 !shadow-none"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
