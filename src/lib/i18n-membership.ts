@@ -29,7 +29,7 @@ export const membershipPl = {
       heading: "Twoje wsparcie",
       none: "Nie masz jeszcze zarejestrowanych darowizn.",
       supporterActive: "Status wspierającego aktywny do {{date}}.",
-      cta: "Wesprzyj instytut",
+      cta: "Wesprzyj fundację",
       refunded: "zwrócono",
     },
     // Organizacja członkowska
