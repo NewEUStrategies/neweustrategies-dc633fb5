@@ -566,7 +566,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="h-12 rounded-xl pl-16 text-base shadow-sm"
+              className="h-12 rounded-xl !pl-20 text-base shadow-sm"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
