@@ -266,21 +266,6 @@ export function MegaPanelView({
                 />
               </div>
             </AppLink>
-                <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                  {featuredExcerpt}
-                </p>
-              ) : null}
-              <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em]">
-                <span className="text-brand">{featuredEyebrow}</span>
-                <span className="opacity-30">|</span>
-                <span className="text-muted-foreground">{readMore}</span>
-                <ArrowRight
-                  size={12}
-                  className="text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                  aria-hidden
-                />
-              </div>
-            </AppLink>
             {parentLabel && parentHref ? (
               <div className="mt-6 border-t border-border/60 pt-4">
                 <AppLink
