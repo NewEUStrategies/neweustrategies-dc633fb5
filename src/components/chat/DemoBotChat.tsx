@@ -382,8 +382,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
         canEdit={never}
       />
 
-      {/* Kompozytor: minimalny (bez załączników/emoji), ale z paskiem
-          odpowiedzi - to jest podgląd interakcji, nie pełny composer. */}
+      {/* Kompozytor: pasek odpowiedzi, staged załącznik i wejście z załącznikiem. */}
       <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
         {replyTo && (
           <div className="mb-1.5 flex items-start justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
@@ -406,8 +405,40 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             </button>
           </div>
         )}
-        {/* Te same klasy co realny ChatComposer: textarea na bg-muted/40 z
-            radiusem 6px i okrągły przycisk wysyłki w kolorze tokenu czatu. */}
+        {staged && (
+          <div className="mb-1.5 flex items-center gap-2 rounded-[6px] border border-border/60 bg-muted/40 px-2 py-1.5">
+            {staged.kind === "image" ? (
+              <img
+                src={staged.previewUrl}
+                alt={staged.file.name}
+                className="h-10 w-10 shrink-0 rounded-[4px] object-cover"
+              />
+            ) : (
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] bg-background text-muted-foreground"
+                aria-hidden
+              >
+                <Paperclip className="h-4 w-4" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1 text-[11px]">
+              <span className="block truncate font-medium text-foreground">
+                {staged.file.name}
+              </span>
+              <span className="block text-muted-foreground">
+                {formatBytes(staged.file.size, lang)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={clearStaged}
+              className="shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label={t("chat.close")}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -415,6 +446,25 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
           }}
           className="flex items-end gap-1"
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ATTACHMENT_ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              handlePickFile(e.target.files?.[0]);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={botTyping}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-35"
+            aria-label={t("chat.attach", { defaultValue: "Załącz plik" })}
+            title={`${t("chat.attach", { defaultValue: "Załącz plik" })} (max ${formatBytes(MAX_ATTACHMENT_BYTES, lang)})`}
+          >
+            <Paperclip className="h-4 w-4" aria-hidden />
+          </button>
           <textarea
             ref={textareaRef}
             value={input}
@@ -426,17 +476,26 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
               } else if (e.key === "Escape" && replyTo) {
                 e.preventDefault();
                 setReplyTo(null);
+              } else if (e.key === "Escape" && staged) {
+                e.preventDefault();
+                clearStaged();
               }
             }}
             rows={1}
-            placeholder={t("chat.inputPlaceholder")}
+            placeholder={
+              staged
+                ? t("chat.attachmentCaptionPlaceholder", {
+                    defaultValue: "Dodaj opis (opcjonalnie)...",
+                  })
+                : t("chat.inputPlaceholder")
+            }
             aria-label={t("chat.inputPlaceholder")}
             className="max-h-[120px] min-h-[36px] w-full min-w-0 flex-1 resize-none rounded-[6px] border border-input bg-muted/40 px-3 py-1.5 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             maxLength={500}
           />
           <button
             type="submit"
-            disabled={input.trim().length === 0 || botTyping}
+            disabled={(input.trim().length === 0 && !staged) || botTyping}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
             aria-label={t("chat.send")}
             title={t("chat.send")}
