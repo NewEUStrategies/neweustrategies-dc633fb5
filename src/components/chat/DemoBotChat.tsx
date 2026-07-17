@@ -323,7 +323,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
     <div className="flex h-full min-h-0 w-full flex-col bg-background">
       {/* Header: 1:1 z nagłówkiem realnego ChatWindow (paddingi, rozmiary,
           typografia), plus jasny "Demo" badge przy nazwie. */}
-      <header className="flex items-center gap-2.5 border-b border-border/60 px-3 py-2">
+      <header className="flex items-center gap-2.5 border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/70">
         {onBack && (
           <button
             type="button"
