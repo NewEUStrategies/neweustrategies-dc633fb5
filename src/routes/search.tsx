@@ -12,9 +12,20 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search as SearchIcon, X, SlidersHorizontal, ChevronDown } from "lucide-react";
+import {
+  Search as SearchIcon,
+  X,
+  SlidersHorizontal,
+  ChevronDown,
+  CalendarIcon,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, parseISO } from "date-fns";
+import { pl, enUS } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { SearchSnippet } from "@/components/search/SearchSnippet";
 import { SearchFacetPanel } from "@/components/search/SearchFacetPanel";
@@ -58,6 +69,54 @@ import { buildContentHead } from "@/lib/seo/meta";
 import "@/lib/i18n-search";
 
 const SORTS = ["relevance", "newest", "popular"] as const;
+
+interface DateFilterPickerProps {
+  label: string;
+  value: string | undefined;
+  placeholder: string;
+  onSelect: (date: Date | undefined) => void;
+  lang: string;
+}
+
+function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFilterPickerProps) {
+  const date = value ? parseISO(value) : undefined;
+  const locale = lang === "pl" ? pl : enUS;
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
+        {label}
+      </span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors",
+              "hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              !date && "text-muted-foreground"
+            )}
+          >
+            <span className="truncate">
+              {date ? format(date, "d MMM yyyy", { locale }) : placeholder}
+            </span>
+            <CalendarIcon className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={onSelect}
+            initialFocus
+            locale={locale}
+            className="pointer-events-auto p-3"
+          />
+        </PopoverContent>
+      </Popover>
+    </label>
+  );
+}
 
 // Wymiary eksplorowane w zakładkach "Rodzaje treści" i "Tematyka".
 const TYPES_DIMS: readonly FacetDim[] = ["pub_type", "format", "access", "lang"] as const;
@@ -341,30 +400,31 @@ function SearchPage() {
             {t("search.date")}
           </h3>
           <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
-                {t("search.date_from")}
-              </span>
-              <Input
-                type="date"
-                className="h-9 text-xs"
-                value={search.from ?? ""}
-                onChange={(e) => applyPatch({ from: e.target.value || undefined, year: undefined })}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
-                {t("search.date_to")}
-              </span>
-              <Input
-                type="date"
-                className="h-9 text-xs"
-                value={search.to ?? ""}
-                onChange={(e) => applyPatch({ to: e.target.value || undefined, year: undefined })}
-              />
-            </label>
+            <DateFilterPicker
+              label={t("search.date_from")}
+              value={search.from}
+              placeholder={t("search.date_from_placeholder")}
+              onSelect={(date) =>
+                applyPatch({
+                  from: date ? format(date, "yyyy-MM-dd") : undefined,
+                  year: undefined,
+                })
+              }
+              lang={i18n.language}
+            />
+            <DateFilterPicker
+              label={t("search.date_to")}
+              value={search.to}
+              placeholder={t("search.date_to_placeholder")}
+              onSelect={(date) =>
+                applyPatch({
+                  to: date ? format(date, "yyyy-MM-dd") : undefined,
+                  year: undefined,
+                })
+              }
+              lang={i18n.language}
+            />
           </div>
-
         </div>
 
         <SearchFacetPanel facets={facets} url={url} lang={lang} onChange={applyPatch} />
