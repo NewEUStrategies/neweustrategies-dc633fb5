@@ -28,6 +28,7 @@ import {
 } from "@/lib/chat/attachments";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageList } from "./MessageList";
+import { MediaHistoryDialog } from "./MediaHistoryDialog";
 
 export const DEMO_BOT_ID = "__demo_bot__" as const;
 const BOT_NAME_KEY = "chat.demoBot.name" as const;
