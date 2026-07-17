@@ -60,7 +60,7 @@ function ImageTile({
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={() => onOpen({ url, name: label || null })}
       className="group relative block aspect-square overflow-hidden rounded-[6px] border border-border/60 bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={`${label} - ${time}`}
       aria-label={label || t("chat.photo")}
