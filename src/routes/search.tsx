@@ -352,30 +352,31 @@ function SearchPage() {
             {t("search.date")}
           </h3>
           <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
-                {t("search.date_from")}
-              </span>
-              <Input
-                type="date"
-                className="h-9 text-xs"
-                value={search.from ?? ""}
-                onChange={(e) => applyPatch({ from: e.target.value || undefined, year: undefined })}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
-                {t("search.date_to")}
-              </span>
-              <Input
-                type="date"
-                className="h-9 text-xs"
-                value={search.to ?? ""}
-                onChange={(e) => applyPatch({ to: e.target.value || undefined, year: undefined })}
-              />
-            </label>
+            <DateFilterPicker
+              label={t("search.date_from")}
+              value={search.from}
+              placeholder={t("search.date_from_placeholder")}
+              onSelect={(date) =>
+                applyPatch({
+                  from: date ? format(date, "yyyy-MM-dd") : undefined,
+                  year: undefined,
+                })
+              }
+              lang={i18n.language}
+            />
+            <DateFilterPicker
+              label={t("search.date_to")}
+              value={search.to}
+              placeholder={t("search.date_to_placeholder")}
+              onSelect={(date) =>
+                applyPatch({
+                  to: date ? format(date, "yyyy-MM-dd") : undefined,
+                  year: undefined,
+                })
+              }
+              lang={i18n.language}
+            />
           </div>
-
         </div>
 
         <SearchFacetPanel facets={facets} url={url} lang={lang} onChange={applyPatch} />
