@@ -1,11 +1,13 @@
 // Molecules: attachment rendering inside message bubbles.
 // Images resolve short-lived signed URLs (private bucket) and open in a
-// lightbox dialog; files render as a download chip; voice notes render as a
-// WhatsApp-style inline player (play/pause + progress + timer).
+// rich lightbox (zoom / rotate / pan). Files render as a download chip; PDFs
+// gain a dedicated "Podgląd" action that opens an in-app iframe viewer.
+// Voice notes render as a WhatsApp-style inline player.
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Download,
+  Eye,
   FileText,
   FileSpreadsheet,
   Mic,
@@ -14,11 +16,12 @@ import {
   Presentation,
   File as FileIcon,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useAttachmentUrl, formatBytes } from "@/lib/chat/attachments";
 import { formatVoiceDuration } from "@/lib/chat/voice";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
+import { ImageLightbox, PdfPreviewDialog } from "./AttachmentPreview";
+
 
 export function AttachmentImage({
   path,
