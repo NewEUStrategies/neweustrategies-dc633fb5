@@ -86,28 +86,19 @@ async function fetchLatestRaw(): Promise<RawMegaFeaturedPost | null> {
 
 async function fetchAuthor(
   authorId: string,
-): Promise<
-  Pick<
-    MegaFeaturedPost,
-    "author_display_name" | "author_first_name" | "author_last_name" | "author_slug" | "author_avatar_url"
-  >
-> {
+): Promise<Pick<MegaFeaturedPost, "author_display_name" | "author_slug" | "author_avatar_url">> {
   const { data } = await supabase
     .from("profiles")
-    .select("display_name, first_name, last_name, slug, avatar_url")
+    .select("display_name, slug, avatar_url")
     .eq("id", authorId)
     .maybeSingle();
   const p = data as {
     display_name: string | null;
-    first_name: string | null;
-    last_name: string | null;
     slug: string | null;
     avatar_url: string | null;
   } | null;
   return {
     author_display_name: p?.display_name ?? null,
-    author_first_name: p?.first_name ?? null,
-    author_last_name: p?.last_name ?? null,
     author_slug: p?.slug ?? null,
     author_avatar_url: p?.avatar_url ?? null,
   };
