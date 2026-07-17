@@ -21,6 +21,7 @@ export function ArchivePostList({
   emptyText,
   emptyAction,
   getExcerptOverride,
+  titleClassName = "text-xl",
 }: Props) {
   if (posts.length === 0) {
     return (
