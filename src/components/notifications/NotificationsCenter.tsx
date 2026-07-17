@@ -723,6 +723,27 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                 <div className="mt-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
                     <div className="min-w-0">
+                      <Label htmlFor="pref-chat-bell" className="text-sm font-normal">
+                        {t("notifications.settings.chatBell", {
+                          defaultValue: "Ikona czatu (dzwonek) w nagłówku",
+                        })}
+                      </Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t("notifications.settings.chatBellHint", {
+                          defaultValue:
+                            "Wyłącz, żeby ukryć skrót do czatu w topbarze. Rozmowy nadal działają w /messages i doku.",
+                        })}
+                      </p>
+                    </div>
+                    <Switch
+                      id="pref-chat-bell"
+                      checked={prefs.chat_bell_enabled}
+                      disabled={updatePrefs.isPending}
+                      onCheckedChange={(v) => patch({ chat_bell_enabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+                    <div className="min-w-0">
                       <Label htmlFor="pref-auto-mark" className="text-sm font-normal">
                         {t("notifications.settings.autoMarkOnOpen", {
                           defaultValue:
