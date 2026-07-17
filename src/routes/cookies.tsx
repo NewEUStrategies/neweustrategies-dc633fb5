@@ -152,7 +152,6 @@ const COPY = {
 export const Route = createFileRoute("/cookies")({
   component: CookiesPage,
   loader: async ({ context }) => {
-    const { staticPageSeoQueryOptions } = await import("@/lib/queries/staticPageSeo");
     const seo = await context.queryClient
       .ensureQueryData(staticPageSeoQueryOptions("cookies"))
       .catch(() => null);
@@ -162,10 +161,8 @@ export const Route = createFileRoute("/cookies")({
     const url = getRequestUrl() || "/cookies";
     const lang = activeLang(url);
     const c = COPY[lang];
-    // Lazy require avoids adding a top-level import twice in this file.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { pickStaticSeo } = require("@/lib/queries/staticPageSeo") as typeof import("@/lib/queries/staticPageSeo");
     const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
+
       title:
         lang === "en"
           ? "Cookie policy - New European Strategies"
