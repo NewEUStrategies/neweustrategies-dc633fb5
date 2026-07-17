@@ -232,7 +232,13 @@ export function MediaHistoryDialog({
               <ScrollArea className="h-[52vh] pr-2">
                 <div className="flex flex-col gap-1.5">
                   {files.map((entry) => (
-                    <FileRow key={entry.message.id} entry={entry} lang={lang} />
+                    <FileRow
+                      key={entry.message.id}
+                      entry={entry}
+                      lang={lang}
+                      onPreview={(url, name) => setPdfPreview({ url, name })}
+                    />
+
                   ))}
                 </div>
               </ScrollArea>
