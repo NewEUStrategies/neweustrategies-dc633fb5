@@ -148,6 +148,8 @@ export function MediaHistoryDialog({
   lang,
 }: MediaHistoryDialogProps) {
   const { t } = useTranslation();
+  const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; name: string } | null>(null);
 
   const { images, files } = useMemo(() => {
     const imgs: Entry[] = [];
@@ -166,6 +168,7 @@ export function MediaHistoryDialog({
   }, [messages]);
 
   const totalCount = images.length + files.length;
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
