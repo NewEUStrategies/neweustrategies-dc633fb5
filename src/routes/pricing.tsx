@@ -5,6 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, Minus, ShieldCheck, RefreshCcw, Zap, HandHeart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
 import { planFeatures, planName, type AccessPlan } from "@/lib/billing/types";
 import {
@@ -261,14 +267,25 @@ function PricingPage() {
         <h2 className="mb-6 text-center text-2xl font-bold tracking-tight">
           {t("pricing.faqTitle")}
         </h2>
-        <dl className="divide-y divide-border rounded-xl border border-border">
+        <Accordion
+          type="single"
+          collapsible
+          className="rounded-xl border border-border"
+          defaultValue={faq[0] ? `faq-0` : undefined}
+        >
           {faq.map((item, i) => (
-            <div key={i} className="p-5">
-              <dt className="font-medium">{item.q}</dt>
-              <dd className="mt-1.5 text-sm text-muted-foreground">{item.a}</dd>
-            </div>
+            <AccordionItem
+              key={i}
+              value={`faq-${i}`}
+              className="px-5 last:border-b-0"
+            >
+              <AccordionTrigger className="text-base font-medium">
+                {item.q}
+              </AccordionTrigger>
+              <AccordionContent>{item.a}</AccordionContent>
+            </AccordionItem>
           ))}
-        </dl>
+        </Accordion>
       </section>
     </div>
   );
