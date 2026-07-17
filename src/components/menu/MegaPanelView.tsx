@@ -52,10 +52,7 @@ export function MegaPanelView({
     : "";
   const featuredEyebrow = featured?.post_format ? featured.post_format.toString() : eyebrowFallback;
 
-  const authorName = (f: MegaFeaturedPost): string =>
-    f.author_display_name ||
-    [f.author_first_name, f.author_last_name].filter(Boolean).join(" ") ||
-    "";
+  const authorName = (f: MegaFeaturedPost): string => f.author_display_name || "";
 
   const containerClass =
     variant === "live"
