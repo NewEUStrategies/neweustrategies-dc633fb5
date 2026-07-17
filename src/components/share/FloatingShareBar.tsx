@@ -519,19 +519,32 @@ export function FloatingShareBar({
               onClick={onToggleSave}
               aria-pressed={isSaved}
               aria-label={isSaved ? t.saved : t.saveLater}
+              data-saved={isSaved ? "true" : "false"}
               className={[
-                "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
-                isSaved
-                  ? "bg-brand/10 text-brand border border-brand/40"
-                  : "border border-border bg-background text-foreground hover:bg-muted",
+                "group relative mb-1.5 flex w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-full",
+                "border border-foreground/80 fill-none p-2 px-3",
+                "text-[11px] font-extrabold tracking-tight uppercase text-foreground",
+                "transition-all active:scale-90",
+                "data-[saved=true]:fill-foreground data-[saved=true]:hover:text-background",
               ].join(" ")}
             >
-              {isSaved ? (
-                <BookmarkCheck className="w-[14px] h-[14px]" />
-              ) : (
-                <Bookmark className="w-[14px] h-[14px]" />
-              )}
-              {isSaved ? t.saved : t.saveLater}
+              <span className="z-10 transition-transform duration-300 group-hover:translate-x-4">
+                {isSaved ? t.saved : t.saveLater}
+              </span>
+              <svg
+                className="size-5 shrink-0 transition duration-500 group-hover:-translate-x-6 group-hover:-translate-y-3 group-hover:scale-[750%] motion-reduce:transform-none motion-reduce:duration-0"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"
+                />
+              </svg>
             </button>
           )}
           {(cfg.showPdf || cfg.showPrint) && (
