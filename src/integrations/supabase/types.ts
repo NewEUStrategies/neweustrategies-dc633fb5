@@ -9424,9 +9424,7 @@ export type Database = {
           _date_from?: string
           _date_to?: string
           _format?: string
-          _in?: string
           _lang?: string
-          _match?: string
           _q?: string
           _terms?: string[]
         }
@@ -9461,22 +9459,6 @@ export type Database = {
           total_count: number
         }[]
       }
-      search_people_orgs: {
-        Args: { _limit?: number; _q?: string }
-        Returns: {
-          avatar_url: string
-          id: string
-          kind: string
-          label_en: string
-          label_pl: string
-          post_count: number
-          score: number
-          slug: string
-          sublabel_en: string
-          sublabel_pl: string
-          verified: boolean
-        }[]
-      }
       search_posts: {
         Args: {
           _access?: string
@@ -9485,10 +9467,8 @@ export type Database = {
           _date_from?: string
           _date_to?: string
           _format?: string
-          _in?: string
           _lang?: string
           _limit?: number
-          _match?: string
           _q?: string
           _sort?: string
           _terms?: string[]
