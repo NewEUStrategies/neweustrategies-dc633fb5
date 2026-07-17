@@ -160,6 +160,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, uid]);
 
+  // Initial focus without scrolling the outer page (native autoFocus does).
+  useEffect(() => {
+    if (!autoFocus) return;
+    textareaRef.current?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Validate + stage a picked file (upload happens on send, with the caption).
   const stageFile = (file: File) => {
     const invalid = validateAttachment(file);
