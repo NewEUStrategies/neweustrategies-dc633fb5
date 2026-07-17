@@ -246,6 +246,19 @@ export function MediaHistoryDialog({
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <ImageLightbox
+        open={!!lightbox}
+        onOpenChange={(o) => !o && setLightbox(null)}
+        images={lightbox ? [lightbox] : []}
+        index={0}
+      />
+      <PdfPreviewDialog
+        open={!!pdfPreview}
+        onOpenChange={(o) => !o && setPdfPreview(null)}
+        url={pdfPreview?.url ?? null}
+        name={pdfPreview?.name ?? null}
+      />
     </Dialog>
   );
+
 }
