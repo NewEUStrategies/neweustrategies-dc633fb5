@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { pendingCounterKeys } from "./keys";
 
-export type UserCounterKey = "notifications_unread" | "chat_unread";
+export type UserCounterKey = "notifications_unread" | "chat_unread" | "connections_pending";
 export type TenantCounterKey = "comments_pending" | "crm_leads_new";
 
 export type CounterMap = Readonly<Record<string, number>>;

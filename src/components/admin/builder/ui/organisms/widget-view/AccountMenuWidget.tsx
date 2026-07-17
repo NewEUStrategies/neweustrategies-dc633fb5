@@ -130,6 +130,13 @@ export const ACCOUNT_PRESETS: Array<{
     icon: "Users",
   },
   {
+    key: "network",
+    href: "/network",
+    label_pl: "Moja sieć",
+    label_en: "My network",
+    icon: "UserPlus",
+  },
+  {
     key: "interests",
     href: "/profile/interests",
     label_pl: "Zainteresowania",

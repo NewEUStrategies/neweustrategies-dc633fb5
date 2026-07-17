@@ -17,10 +17,14 @@ export type NotificationKind =
   | "content"
   | "security"
   | "message"
-  | "tracker";
+  | "tracker"
+  | "connection";
 
 /** Who may START a new conversation with the user (existing threads live on). */
 export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
+
+/** Who may send the user a connection invitation (existing connections remain). */
+export type AllowConnectionsFrom = "everyone" | "mutual" | "nobody";
 
 export interface NotificationPreferences {
   enabled_message: boolean;
@@ -31,6 +35,7 @@ export interface NotificationPreferences {
   enabled_system: boolean;
   enabled_security: boolean;
   enabled_tracker: boolean;
+  enabled_connection: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -46,6 +51,11 @@ export interface NotificationPreferences {
   typing_indicators_enabled: boolean;
   show_online_status: boolean;
   allow_messages_from: AllowMessagesFrom;
+  /**
+   * Sieć kontaktów: kto może wysłać zaproszenie (egzekwowane w DB przez
+   * connection_request; 'mutual' wymaga co najmniej jednego wspólnego kontaktu).
+   */
+  allow_connections_from: AllowConnectionsFrom;
   /**
    * Kanały doręczeń (poza in-app):
    * - push_enabled: web push na tym i innych urządzeniach użytkownika
@@ -73,12 +83,14 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_system: true,
   enabled_security: true,
   enabled_tracker: true,
+  enabled_connection: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
   typing_indicators_enabled: true,
   show_online_status: true,
   allow_messages_from: "everyone",
+  allow_connections_from: "everyone",
   push_enabled: false,
   email_digest: "off",
   chat_bell_enabled: true,
@@ -284,7 +296,7 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest, chat_bell_enabled",
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, enabled_connection, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, allow_connections_from, push_enabled, email_digest, chat_bell_enabled",
         )
         .eq("user_id", user!.id)
         .maybeSingle();

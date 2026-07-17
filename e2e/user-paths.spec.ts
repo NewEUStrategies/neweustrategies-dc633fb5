@@ -69,6 +69,29 @@ test.describe("user paths (seeded)", () => {
     expect(page.url()).toContain("/admin");
   });
 
+  test("signed-in reader can open My Network with tabs and the people directory link", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.locator('input[type="email"]').fill("reader@nes.local");
+    await page.locator('input[type="password"]').fill("nes-dev-1234");
+    await page.locator('button[type="submit"]').first().click();
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+
+    await page.goto("/network");
+    // Zakładki sieci widoczne = AuthGate przepuścił, moduł włączony.
+    await expect(page.getByRole("tab", { name: /Połączenia|Connections/ }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("tab", { name: /Otrzymane|Received/ }).first()).toBeVisible();
+
+    // Katalog osób linkuje z powrotem do sieci (lejek people -> network).
+    await page.goto("/people");
+    await expect(page.getByRole("link", { name: /Moja sieć|My network/ }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
   test("crawler surfaces advertise the seeded article", async ({ request }) => {
     const sitemap = await (await request.get("/sitemap.xml")).text();
     expect(sitemap).toContain(POST.path);

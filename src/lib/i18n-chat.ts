@@ -250,11 +250,13 @@ export const chatPl = {
       preview: "Zobacz jak wyglądają wiadomości i interakcja",
       subtitle: "Lokalny podgląd - dane nie są zapisywane",
       notice: "To lokalny podgląd wątku. Wiadomości nie są zapisywane w bazie.",
-      welcome: "Cześć! Jestem podglądowym botem. Napisz coś, a odpowiem echem - zobacz jak wyglądają dymki, timestampy i status wiadomości.",
+      welcome:
+        "Cześć! Jestem podglądowym botem. Napisz coś, a odpowiem echem - zobacz jak wyglądają dymki, timestampy i status wiadomości.",
       replies: {
         empty: "Napisz cokolwiek - odpowiem echem.",
         greeting: "Cześć! Sprawdź jak wygląda wątek: dymki, tick-i, timestampy.",
-        question: "Dobre pytanie. W trybie demo odpowiadam echem - zwróć uwagę na wyrównanie dymka i status.",
+        question:
+          "Dobre pytanie. W trybie demo odpowiadam echem - zwróć uwagę na wyrównanie dymka i status.",
         echo: "Echo: {{msg}}",
       },
     },
@@ -657,11 +659,13 @@ export const chatEn = {
       preview: "See how messages and interactions look",
       subtitle: "Local preview - nothing is stored",
       notice: "This is a local thread preview. Messages are not saved to the database.",
-      welcome: "Hi! I'm a preview bot. Send anything and I'll echo it - so you can see how bubbles, timestamps and message status look.",
+      welcome:
+        "Hi! I'm a preview bot. Send anything and I'll echo it - so you can see how bubbles, timestamps and message status look.",
       replies: {
         empty: "Type anything - I'll echo it back.",
         greeting: "Hey! Check out the thread: bubbles, ticks, timestamps.",
-        question: "Good question. In demo mode I echo replies - notice bubble alignment and status.",
+        question:
+          "Good question. In demo mode I echo replies - notice bubble alignment and status.",
         echo: "Echo: {{msg}}",
       },
     },

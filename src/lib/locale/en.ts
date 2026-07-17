@@ -1767,6 +1767,7 @@ export const en = {
         subscription: "Subscription updates",
         content: "New content",
         tracker: "Legislative tracker updates",
+        connection: "Network invitations",
         system: "System announcements",
         security: "Security alerts (always on)",
       },
@@ -1810,8 +1811,7 @@ export const en = {
         },
         newsletter_digest: {
           title: "Newsletter and digests",
-          description:
-            "A weekly editorial roundup of new content, events and analysis.",
+          description: "A weekly editorial roundup of new content, events and analysis.",
         },
         push_marketing: {
           title: "Marketing push notifications",
@@ -1830,8 +1830,7 @@ export const en = {
         },
         analytics: {
           title: "Usage analytics",
-          description:
-            "Anonymous usage data helps us improve stability and user experience.",
+          description: "Anonymous usage data helps us improve stability and user experience.",
         },
       },
     },
@@ -1885,6 +1884,7 @@ export const en = {
       follow: "Followers",
       content: "New content",
       tracker: "Legislative tracker",
+      connection: "Network",
       subscription: "Subscription",
     },
   },

@@ -23,6 +23,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
+import { Route as NetworkRouteImport } from './routes/network'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
@@ -266,6 +267,11 @@ const PeopleRoute = PeopleRouteImport.update({
 const NewsSitemapDotxmlRoute = NewsSitemapDotxmlRouteImport.update({
   id: '/news-sitemap.xml',
   path: '/news-sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetworkRoute = NetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -1172,6 +1178,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
+  '/network': typeof NetworkRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
@@ -1361,6 +1368,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
+  '/network': typeof NetworkRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
@@ -1546,6 +1554,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
+  '/network': typeof NetworkRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
@@ -1738,6 +1747,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mcp'
     | '/messages'
+    | '/network'
     | '/news-sitemap.xml'
     | '/people'
     | '/polls'
@@ -1927,6 +1937,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mcp'
     | '/messages'
+    | '/network'
     | '/news-sitemap.xml'
     | '/people'
     | '/polls'
@@ -2111,6 +2122,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mcp'
     | '/messages'
+    | '/network'
     | '/news-sitemap.xml'
     | '/people'
     | '/polls'
@@ -2302,6 +2314,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
   MessagesRoute: typeof MessagesRoute
+  NetworkRoute: typeof NetworkRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
   PollsRoute: typeof PollsRoute
@@ -2456,6 +2469,13 @@ declare module '@tanstack/react-router' {
       path: '/news-sitemap.xml'
       fullPath: '/news-sitemap.xml'
       preLoaderRoute: typeof NewsSitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/network': {
+      id: '/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof NetworkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -4089,6 +4109,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
   MessagesRoute: MessagesRoute,
+  NetworkRoute: NetworkRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
   PollsRoute: PollsRoute,

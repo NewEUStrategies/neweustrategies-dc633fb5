@@ -302,7 +302,6 @@ function RootComponent() {
     };
   }, [router]);
 
-
   // Per-request i18next instance on the server (isolates the render language
   // from concurrent requests); the shared singleton on the client. Rendered
   // once per request on the server, so a mount-stable memo is correct.

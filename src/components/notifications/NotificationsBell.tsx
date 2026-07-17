@@ -75,6 +75,7 @@ const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   subscription: LucideIcons.Crown,
   comment: LucideIcons.MessageCircle,
   security: LucideIcons.ShieldAlert,
+  connection: LucideIcons.UserCheck,
 };
 
 // Internal hrefs render a real <a href> for semantics, but plain left-clicks

@@ -12,6 +12,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 
 export interface CommunityModulesSettings {
   chat_enabled: boolean;
+  connections_enabled: boolean;
   events_enabled: boolean;
   qa_enabled: boolean;
   polls_enabled: boolean;
@@ -23,6 +24,7 @@ export interface CommunityModulesSettings {
 
 export const COMMUNITY_MODULES_DEFAULTS: CommunityModulesSettings = {
   chat_enabled: true,
+  connections_enabled: true,
   events_enabled: true,
   qa_enabled: true,
   polls_enabled: true,
@@ -68,6 +70,7 @@ export async function fetchCommunityModules(): Promise<CommunityModulesSettings>
   const raw = (data?.value ?? {}) as Record<string, unknown>;
   return {
     chat_enabled: raw.chat_enabled !== false,
+    connections_enabled: raw.connections_enabled !== false,
     events_enabled: raw.events_enabled !== false,
     qa_enabled: raw.qa_enabled !== false,
     polls_enabled: raw.polls_enabled !== false,

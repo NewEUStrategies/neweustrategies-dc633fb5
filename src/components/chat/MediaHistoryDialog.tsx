@@ -21,7 +21,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageLightbox, PdfPreviewDialog, type LightboxImage } from "./AttachmentPreview";
 
-
 export interface MediaHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -140,7 +139,6 @@ function FileRow({
   );
 }
 
-
 export function MediaHistoryDialog({
   open,
   onOpenChange,
@@ -168,7 +166,6 @@ export function MediaHistoryDialog({
   }, [messages]);
 
   const totalCount = images.length + files.length;
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -214,7 +211,12 @@ export function MediaHistoryDialog({
               <ScrollArea className="h-[52vh] pr-2">
                 <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                   {images.map((entry) => (
-                    <ImageTile key={entry.message.id} entry={entry} lang={lang} onOpen={setLightbox} />
+                    <ImageTile
+                      key={entry.message.id}
+                      entry={entry}
+                      lang={lang}
+                      onOpen={setLightbox}
+                    />
                   ))}
                 </div>
               </ScrollArea>
@@ -238,7 +240,6 @@ export function MediaHistoryDialog({
                       lang={lang}
                       onPreview={(url, name) => setPdfPreview({ url, name })}
                     />
-
                   ))}
                 </div>
               </ScrollArea>
@@ -260,5 +261,4 @@ export function MediaHistoryDialog({
       />
     </Dialog>
   );
-
 }

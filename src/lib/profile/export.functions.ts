@@ -20,6 +20,24 @@ export const exportMyData = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabase, userId, claims } = context;
 
+    // Sieć kontaktów jest RPC-only (user_connections nie ma grantów SELECT),
+    // więc eksport idzie przez te same SECURITY DEFINER RPC co UI. RPC stronicuje
+    // po 50 - eksport skleja strony do rozsądnego sufitu, jawnie mapując pola
+    // (stabilny kontrakt jak niżej).
+    const fetchNetworkPages = async <Row>(
+      fetchPage: (offset: number) => PromiseLike<{ data: Row[] | null; error: unknown }>,
+      mapRow: (row: Row) => JsonValue,
+    ): Promise<{ data: JsonValue; error: { message: string } | null }> => {
+      const rows: JsonValue[] = [];
+      for (let offset = 0; offset < 2000; offset += 50) {
+        const { data, error } = await fetchPage(offset);
+        if (error) return { data: null, error: { message: String(error) } };
+        rows.push(...(data ?? []).map(mapRow));
+        if (!data || data.length < 50) break;
+      }
+      return { data: rows, error: null };
+    };
+
     // Kolumny jawnie, bez "*": eksport ma być stabilnym kontraktem, nie
     // przypadkowym zrzutem schematu (i nie może się wywrócić na kolumnie
     // odciętej grantem).
@@ -89,6 +107,42 @@ export const exportMyData = createServerFn({ method: "POST" })
         .from("profile_badges")
         .select("badge, note, created_at")
         .eq("user_id", userId),
+      network_connections: fetchNetworkPages(
+        (offset) => supabase.rpc("my_connections", { p_query: "", p_limit: 50, p_offset: offset }),
+        (row) => ({
+          user_id: row.user_id,
+          display_name: row.display_name,
+          connected_at: row.connected_at,
+        }),
+      ),
+      network_invitations_sent: fetchNetworkPages(
+        (offset) =>
+          supabase.rpc("my_connection_requests", {
+            p_direction: "out",
+            p_limit: 50,
+            p_offset: offset,
+          }),
+        (row) => ({
+          user_id: row.user_id,
+          display_name: row.display_name,
+          message: row.message,
+          requested_at: row.requested_at,
+        }),
+      ),
+      network_invitations_received: fetchNetworkPages(
+        (offset) =>
+          supabase.rpc("my_connection_requests", {
+            p_direction: "in",
+            p_limit: 50,
+            p_offset: offset,
+          }),
+        (row) => ({
+          user_id: row.user_id,
+          display_name: row.display_name,
+          message: row.message,
+          requested_at: row.requested_at,
+        }),
+      ),
     };
 
     const keys = Object.keys(sections);

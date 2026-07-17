@@ -1,8 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  triggerWatchdogReload,
-  __watchdogInternals,
-} from "./previewWatchdog";
+import { triggerWatchdogReload, __watchdogInternals } from "./previewWatchdog";
 
 function makeStorage(): Storage {
   const map = new Map<string, string>();

@@ -32,6 +32,7 @@ import {
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useMembershipTiers, tierName, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
+import { EventGroupButton } from "@/components/network/EventGroupButton";
 import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
@@ -369,6 +370,10 @@ function EventDetail() {
             : t("community.events.rsvpStatusInterested")}
         </p>
       )}
+
+      {/* Wydarzenie jako iskra: host/staff zakłada trwały krąg czatu dla
+          uczestników 'going' (komponent sam znika dla pozostałych). */}
+      <EventGroupButton eventId={ev.id} hostUserId={ev.host_user_id} eventStatus={ev.status} />
     </article>
   );
 }

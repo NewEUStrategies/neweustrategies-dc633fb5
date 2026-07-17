@@ -22,11 +22,7 @@ export function readIp(req: Request | null): string | null {
   if (!req) return null;
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0]?.trim() || null;
-  return (
-    req.headers.get("cf-connecting-ip") ||
-    req.headers.get("x-real-ip") ||
-    null
-  );
+  return req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || null;
 }
 
 export function readUserAgent(req: Request | null): string | null {

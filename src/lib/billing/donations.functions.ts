@@ -123,6 +123,13 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
     }
 
     // Tryb mock (dev bez Stripe): zapis od razu, żeby lejek dało się testować.
+    // Fail-closed na produkcji (ten sam bezpiecznik co checkout) - darowizna
+    // "mock" w realnym serwisie fałszowałaby statystyki i księgowość.
+    const { mockCheckoutAllowed } = await import("@/lib/billing/mockMode.server");
+    if (!mockCheckoutAllowed()) {
+      console.error("[donations] billing unconfigured: refusing mock donation in production");
+      return { ok: false as const, error: "billing_unconfigured" as const };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("donations").insert({
       tenant_id: hostTenantId,

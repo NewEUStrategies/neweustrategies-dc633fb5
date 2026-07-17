@@ -37,3 +37,12 @@ test("client-side navigation resolves a deep route", async ({ page }) => {
   // Title remains set after client navigation/render.
   await expect(page).toHaveTitle(/.+/);
 });
+
+test("network route is gated for anonymous visitors (AuthGate)", async ({ page }) => {
+  // Sieć kontaktów jest wyłącznie dla zarejestrowanych: anonim widzi bramkę
+  // logowania zamiast treści, a trasa pozostaje noindex.
+  await page.goto("/network");
+  await expect(page.getByText("Sieć kontaktów jest dostępna po zalogowaniu")).toBeVisible();
+  const robots = page.locator('meta[name="robots"]');
+  await expect(robots).toHaveAttribute("content", /noindex/);
+});
