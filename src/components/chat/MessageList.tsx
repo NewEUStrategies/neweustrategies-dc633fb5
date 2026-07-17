@@ -35,6 +35,8 @@ export interface MessageListProps {
   /** Everyone currently typing (groups may have several at once). */
   typingNames?: string[];
   typingAvatarUrl?: string | null;
+  /** Optional own avatar shown on the right side of own messages (demo / custom layouts). */
+  myAvatarUrl?: string | null;
   peerLastReadAt: string | null;
   peerLastDeliveredAt?: string | null;
   peerTyping: boolean;
@@ -131,6 +133,7 @@ export function MessageList(props: MessageListProps) {
     senderNicknames,
     typingNames,
     typingAvatarUrl,
+    myAvatarUrl,
     peerLastReadAt,
     peerLastDeliveredAt,
     peerTyping,
@@ -482,6 +485,16 @@ export function MessageList(props: MessageListProps) {
                       ) : (
                         <span className="w-5 shrink-0" aria-hidden />
                       )}
+                      <div className="min-w-0 flex-1">{bubble}</div>
+                    </div>
+                  ) : mine && myAvatarUrl && groupEnd ? (
+                    <div className="flex flex-row-reverse items-end gap-1.5">
+                      <ChatAvatar
+                        name={t("chat.you")}
+                        avatarUrl={myAvatarUrl}
+                        size="xs"
+                        className="mb-0.5"
+                      />
                       <div className="min-w-0 flex-1">{bubble}</div>
                     </div>
                   ) : (
