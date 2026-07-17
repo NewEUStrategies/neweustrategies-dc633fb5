@@ -11,6 +11,8 @@ interface Props {
   emptyAction?: React.ReactNode;
   /** Optional per-post excerpt override (e.g. search-hit snippet with <mark>). */
   getExcerptOverride?: (post: BlogListItem) => React.ReactNode | undefined;
+  /** Smaller title font for denser lists like search results. */
+  titleClassName?: string;
 }
 
 export function ArchivePostList({
