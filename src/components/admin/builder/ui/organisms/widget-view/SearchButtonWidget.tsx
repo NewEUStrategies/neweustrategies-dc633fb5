@@ -1,19 +1,75 @@
-// Live search widget (desktop header + builder header), extracted from
-// SimpleWidgets. Uses the SAME ranked full-text engine as /search and the
-// mobile overlay (search_posts RPC: unaccent, prefix matching, indexes
-// blocks/builder content) - previously it ran a plain title-only ILIKE, so the
-// primary desktop entry point returned different results from every other
-// search surface. Exposes the WAI-ARIA combobox/listbox pattern with arrow-key
-// navigation, recent searches, and a "view all results" link into /search.
-import { useEffect, useId, useRef, useState } from "react";
+// Live search widget (desktop header + builder header). Uses the shared
+// `search_autosuggest` RPC (same engine as /search) and groups results into
+// four premium categories: Titles, Content types, Topics, People & orgs.
+// Exposes the WAI-ARIA combobox/listbox pattern with arrow-key navigation,
+// recent searches, and a "view all results" link into /search.
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
+import { DIM_PARAM, type SearchUrl } from "@/lib/search/facetModel";
+import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
 
-type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
+type SuggestBucket = "titles" | "contentTypes" | "topics" | "peopleOrg";
+
+const BUCKET_ORDER: readonly SuggestBucket[] = [
+  "titles",
+  "contentTypes",
+  "topics",
+  "peopleOrg",
+] as const;
+
+const bucketOf = (kind: AutosuggestItem["kind"]): SuggestBucket => {
+  if (kind === "post") return "titles";
+  if (kind === "author") return "peopleOrg";
+  if (kind === "format" || kind === "pub_type" || kind === "access" || kind === "lang") {
+    return "contentTypes";
+  }
+  return "topics";
+};
+
+const BUCKET_LABEL_PL: Record<SuggestBucket, string> = {
+  titles: "Tytuły",
+  contentTypes: "Rodzaje treści",
+  topics: "Tematyka",
+  peopleOrg: "Osoby i organizacje",
+};
+const BUCKET_LABEL_EN: Record<SuggestBucket, string> = {
+  titles: "Titles",
+  contentTypes: "Content types",
+  topics: "Topics",
+  peopleOrg: "People & organizations",
+};
+
+/** Build target href for an autosuggest item. Posts go to their permalink;
+ *  taxonomy/author picks land on /search with the matching filter applied. */
+function hrefForItem(it: AutosuggestItem): string {
+  const kind = it.kind as string;
+  if (kind === "post" && it.slug) return `/post/${it.slug}`;
+  const patch: Record<string, string> = {};
+  if (kind === "author") {
+    if (it.id) patch.author = it.id;
+  } else if (kind === "format" && it.slug) patch.format = it.slug;
+  else if (kind === "access" && it.slug) patch.access = it.slug;
+  else if (kind === "lang" && it.slug) patch.lang = it.slug;
+  else if (kind === "year" && it.slug) patch.year = it.slug;
+  else {
+    const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
+    const value = it.slug ?? it.id;
+    if (param && value) patch[param as string] = value;
+  }
+  const qs = new URLSearchParams(patch).toString();
+  return qs ? `/search?${qs}` : "/search";
+}
+
+interface BucketedItem {
+  item: AutosuggestItem;
+  bucket: SuggestBucket;
+  index: number;
+}
 
 export function SearchButtonWidget({
   label,
@@ -37,7 +93,7 @@ export function SearchButtonWidget({
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [items, setItems] = useState<AutosuggestItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -70,25 +126,26 @@ export function SearchButtonWidget({
   const runSearch = async (term: string) => {
     const t = term.trim();
     if (t.length < 2) {
-      setResults([]);
+      setItems([]);
       setSearched(false);
       return;
     }
     const reqId = ++reqIdRef.current;
     setLoading(true);
-    // Same ranked FTS RPC as /search and the mobile overlay.
-    const { data } = await supabase.rpc("search_posts", {
-      _q: t,
-      _limit: Math.max(1, Math.min(limit, 20)),
-    });
-    // Ignore out-of-order responses (a slower earlier request landing last).
+    // Shared autosuggest RPC - splits posts, authors and taxonomy terms in
+    // one round-trip; rendering groups them into 4 premium buckets below.
+    const capped = Math.max(4, Math.min(limit * 2, 24));
+    const { data } = await supabase.rpc("search_autosuggest", { _q: t, _limit: capped });
     if (reqId !== reqIdRef.current) return;
-    setResults(
+    setItems(
       (data ?? []).map((r) => ({
-        id: r.id,
-        slug: r.slug,
-        title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl || "",
-        excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || null,
+        kind: r.kind as AutosuggestItem["kind"],
+        id: (r.id as string | null) ?? null,
+        slug: (r.slug as string | null) ?? null,
+        label_pl: (r.label_pl as string | null) ?? "",
+        label_en: (r.label_en as string | null) ?? "",
+        parentPageId: (r.parent_page_id as string | null) ?? null,
+        score: Number(r.score ?? 0),
       })),
     );
     setActive(-1);
@@ -105,7 +162,26 @@ export function SearchButtonWidget({
 
   const placeholder = label || heading || (lang === "pl" ? "Szukaj" : "Search");
   const hasQuery = q.trim().length >= 2;
-  const showEmpty = hasQuery && !loading && searched && results.length === 0;
+
+  // Group + flatten while keeping a stable index used by keyboard navigation
+  // and aria-activedescendant. Empty buckets are skipped for a clean list.
+  const { grouped, flat } = useMemo(() => {
+    const g = new Map<SuggestBucket, BucketedItem[]>();
+    for (const bucket of BUCKET_ORDER) g.set(bucket, []);
+    for (const it of items) {
+      g.get(bucketOf(it.kind))!.push({ item: it, bucket: bucketOf(it.kind), index: 0 });
+    }
+    const flatList: BucketedItem[] = [];
+    for (const bucket of BUCKET_ORDER) {
+      for (const entry of g.get(bucket)!) {
+        entry.index = flatList.length;
+        flatList.push(entry);
+      }
+    }
+    return { grouped: g, flat: flatList };
+  }, [items]);
+
+  const showEmpty = hasQuery && !loading && searched && flat.length === 0;
   const showRecent = focused && !hasQuery && recent.length > 0;
   const showPopover = (focused && hasQuery) || showRecent;
   const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
@@ -120,27 +196,38 @@ export function SearchButtonWidget({
     setFocused(false);
   };
 
+  const bucketLabel = (b: SuggestBucket) =>
+    lang === "pl" ? BUCKET_LABEL_PL[b] : BUCKET_LABEL_EN[b];
+
+  const iconFor = (b: SuggestBucket) => {
+    if (b === "titles") return LucideIcons.FileText;
+    if (b === "contentTypes") return LucideIcons.LayoutGrid;
+    if (b === "topics") return LucideIcons.Tags;
+    return LucideIcons.Users;
+  };
+
+  const itemLabel = (it: AutosuggestItem) =>
+    (lang === "pl" ? it.label_pl || it.label_en : it.label_en || it.label_pl) || "";
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => Math.min(i + 1, results.length - 1));
+      setActive((i) => Math.min(i + 1, flat.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      // Search-on-submit mode (live results off): run the query inline and keep
-      // the popover open, rather than navigating away.
       if (!liveResults) {
         void runSearch(q);
         setFocused(true);
         return;
       }
-      const r = active >= 0 ? results[active] : undefined;
-      if (r) {
+      const chosen = active >= 0 ? flat[active] : undefined;
+      if (chosen) {
         addRecentSearch(q);
         setFocused(false);
-        void router.navigate({ href: `/post/${r.slug}` } as never);
+        void router.navigate({ href: hrefForItem(chosen.item) } as never);
       } else if (hasQuery) {
         addRecentSearch(q);
         setFocused(false);
@@ -218,7 +305,7 @@ export function SearchButtonWidget({
             aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
             onClick={() => {
               setQ("");
-              setResults([]);
+              setItems([]);
               setSearched(false);
               setActive(-1);
               inputRef.current?.focus();
@@ -270,44 +357,61 @@ export function SearchButtonWidget({
               </div>
             )}
 
-            {focused && hasQuery && !loading && results.length > 0 && (
-              <ul
+            {focused && hasQuery && !loading && flat.length > 0 && (
+              <div
                 id={listboxId}
                 role="listbox"
                 aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
-                className="divide-y divide-border/70"
               >
-                {results.map((r, i) => (
-                  // option na samym linku (tabIndex=-1) - patrz SearchOverlay;
-                  // zagnieżdżony fokusowalny element w option łamie ARIA
-                  // (axe: nested-interactive).
-                  <li key={r.id} role="presentation">
-                    <AppLink
-                      href={`/post/${r.slug}`}
-                      id={optionId(i)}
-                      role="option"
-                      aria-selected={i === active}
-                      tabIndex={-1}
-                      onClick={goToResult}
-                      onMouseEnter={() => setActive(i)}
-                      className={`block px-4 py-3 transition-colors ${
-                        i === active ? "bg-muted/70" : "hover:bg-muted/50"
-                      }`}
-                    >
-                      <div className="text-sm font-medium text-foreground truncate">{r.title}</div>
-                      {r.excerpt && (
-                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                          {r.excerpt}
-                        </div>
-                      )}
-                    </AppLink>
-                  </li>
-                ))}
-              </ul>
+                {BUCKET_ORDER.map((bucket) => {
+                  const entries = grouped.get(bucket) ?? [];
+                  if (entries.length === 0) return null;
+                  const Icon = iconFor(bucket);
+                  return (
+                    <div key={bucket} className="border-t border-border/60 first:border-t-0">
+                      <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <Icon className="w-3 h-3" aria-hidden />
+                        {bucketLabel(bucket)}
+                        <span className="ml-auto tabular-nums text-muted-foreground/70">
+                          {entries.length}
+                        </span>
+                      </div>
+                      <ul role="presentation" className="pb-1">
+                        {entries.map((entry) => {
+                          const it = entry.item;
+                          const i = entry.index;
+                          return (
+                            <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
+                              <AppLink
+                                href={hrefForItem(it)}
+                                id={optionId(i)}
+                                role="option"
+                                aria-selected={i === active}
+                                tabIndex={-1}
+                                onClick={goToResult}
+                                onMouseEnter={() => setActive(i)}
+                                className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                                  i === active ? "bg-muted/70" : "hover:bg-muted/50"
+                                }`}
+                              >
+                                <Icon
+                                  className="w-3.5 h-3.5 shrink-0 text-muted-foreground"
+                                  aria-hidden
+                                />
+                                <span className="truncate text-foreground">{itemLabel(it)}</span>
+                              </AppLink>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {/* "View all results" link into the full /search page */}
-            {focused && hasQuery && !loading && (results.length > 0 || showEmpty) && (
+            {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
               <AppLink
                 href={searchAllHref}
                 onClick={() => {
