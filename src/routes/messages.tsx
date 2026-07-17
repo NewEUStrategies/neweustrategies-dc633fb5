@@ -186,7 +186,7 @@ function MessagesInner() {
       <div
         role="tablist"
         aria-label={t("chat.messages")}
-        className="mb-3 inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-border/60 bg-muted/40 p-1 text-sm"
+        className="mb-3 inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border/60 bg-muted/40 p-1 text-sm"
       >
         {viewTabs.map(({ id, label, icon: Icon, badge }) => (
           <button
@@ -196,7 +196,7 @@ function MessagesInner() {
             aria-selected={activeView === id}
             onClick={() => setActiveView(id)}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-medium transition-all",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all",
               activeView === id
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
@@ -206,7 +206,7 @@ function MessagesInner() {
             {label}
             {!!badge && badge > 0 && (
               <span
-                className="ml-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
+                className="ml-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-md bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
                 aria-label={t("chat.unread", { count: badge })}
               >
                 {badge > 99 ? "99+" : badge}
@@ -215,7 +215,7 @@ function MessagesInner() {
           </button>
         ))}
       </div>
-      <div className="flex h-[calc(100dvh-230px)] max-h-[920px] min-h-[520px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-md">
+      <div className="flex h-[calc(100dvh-230px)] max-h-[920px] min-h-[520px] overflow-hidden rounded-md border border-border/60 bg-card shadow-md">
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
             <NotificationsCenter mode="inbox" />
@@ -238,7 +238,7 @@ function MessagesInner() {
                   {t("chat.messages")}
                   {unreadTotal > 0 && (
                     <span
-                      className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--brand)] px-1.5 text-[11px] font-semibold leading-none text-white"
+                      className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-md bg-[var(--brand)] px-1.5 text-[11px] font-semibold leading-none text-white"
                       aria-label={t("chat.unread", { count: unreadTotal })}
                     >
                       {unreadTotal > 99 ? "99+" : unreadTotal}
@@ -249,7 +249,7 @@ function MessagesInner() {
                   <button
                     type="button"
                     onClick={() => setGroupCreateOpen(true)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground motion-safe:transition-transform motion-safe:hover:scale-105"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground motion-safe:transition-transform motion-safe:hover:scale-105"
                     aria-haspopup="dialog"
                     aria-label={t("chat.group.new")}
                     title={t("chat.group.new")}
@@ -260,7 +260,7 @@ function MessagesInner() {
                     type="button"
                     onClick={() => setMode(mode === "new" ? "list" : "new")}
                     className={cn(
-                      "inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors motion-safe:transition-transform motion-safe:hover:scale-105",
+                      "inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors motion-safe:transition-transform motion-safe:hover:scale-105",
                       mode === "new"
                         ? "bg-[var(--brand)] text-white hover:opacity-90"
                         : "bg-background text-foreground shadow-sm hover:bg-muted",
@@ -293,7 +293,7 @@ function MessagesInner() {
                         onChange={(e) => setFilter(e.target.value)}
                         placeholder={t("chat.searchConversations")}
                         aria-label={t("chat.searchConversations")}
-                        className="h-10 w-full rounded-full border border-input bg-background !pl-[42px] pr-4 text-sm shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="h-10 w-full rounded-md border border-input bg-background !pl-[42px] pr-4 text-sm shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
                     </label>
                   </div>
@@ -317,7 +317,7 @@ function MessagesInner() {
                         aria-checked={listFilter === id}
                         onClick={() => setListFilter(id)}
                         className={cn(
-                          "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                          "rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
                           listFilter === id
                             ? "bg-[var(--brand)]/15 text-brand-ink"
                             : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -357,8 +357,8 @@ function MessagesInner() {
                           <li key={i} className="flex items-center gap-2.5 px-2 py-2">
                             <span className="skeleton-shimmer h-10 w-10 shrink-0 rounded-[6px]" />
                             <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                              <span className="skeleton-shimmer h-3 w-2/5 rounded-full" />
-                              <span className="skeleton-shimmer h-2.5 w-4/5 rounded-full" />
+                              <span className="skeleton-shimmer h-3 w-2/5 rounded-md" />
+                              <span className="skeleton-shimmer h-2.5 w-4/5 rounded-md" />
                             </span>
                           </li>
                         ))}
@@ -375,7 +375,7 @@ function MessagesInner() {
                           <button
                             type="button"
                             onClick={() => setMode("new")}
-                            className="mt-1 rounded-full bg-[var(--brand)] px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90"
+                            className="mt-1 rounded-md bg-[var(--brand)] px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90"
                           >
                             {t("chat.newMessage")}
                           </button>
@@ -462,7 +462,7 @@ function MessagesInner() {
                     <button
                       type="button"
                       onClick={() => setMode("new")}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-4 py-2 text-[13px] font-medium text-white shadow-sm transition-opacity hover:opacity-90 motion-safe:transition-transform motion-safe:hover:scale-[1.03]"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-4 py-2 text-[13px] font-medium text-white shadow-sm transition-opacity hover:opacity-90 motion-safe:transition-transform motion-safe:hover:scale-[1.03]"
                     >
                       <SquarePen className="h-3.5 w-3.5" aria-hidden />
                       {t("chat.emptyHero.cta")}
@@ -470,7 +470,7 @@ function MessagesInner() {
                     <button
                       type="button"
                       onClick={() => setGroupCreateOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background px-4 py-2 text-[13px] font-medium shadow-sm transition-colors hover:bg-muted"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-4 py-2 text-[13px] font-medium shadow-sm transition-colors hover:bg-muted"
                       aria-haspopup="dialog"
                     >
                       <UsersRound className="h-3.5 w-3.5" aria-hidden />
