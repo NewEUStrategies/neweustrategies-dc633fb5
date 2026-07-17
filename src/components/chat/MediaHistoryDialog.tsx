@@ -1,11 +1,10 @@
 // Historia załączników w rozmowie: galeria zdjęć + lista plików.
-// Prosty widok bez paginacji - dla podglądu wątku i realnych konwersacji,
-// gdzie liczba załączników mieści się w oknie sesji. Otwarcie obrazka
-// w nowej karcie (blob: / signed URL działa tak samo, bo używamy
-// `useAttachmentUrl` per pozycja).
-import { useMemo } from "react";
+// Zdjęcia otwierają wspólny ImageLightbox z nawigacją Prev/Next po całej
+// galerii; pliki PDF mają dodatkowy przycisk "Podgląd" (PdfPreviewDialog).
+// Pozostałe pliki - jak wcześniej: pobranie / otwarcie w nowej karcie.
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, ImageIcon, Download } from "lucide-react";
+import { Download, Eye, FileText, ImageIcon } from "lucide-react";
 import type { ChatMessage } from "@/lib/chat/types";
 import type { ChatLang } from "@/lib/chat/time";
 import { formatBytes } from "@/lib/chat/attachments";
@@ -20,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ImageLightbox, PdfPreviewDialog, type LightboxImage } from "./AttachmentPreview";
+
 
 export interface MediaHistoryDialogProps {
   open: boolean;
