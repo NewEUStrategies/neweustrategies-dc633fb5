@@ -287,7 +287,7 @@ function TierCta({ tierKey, plans, lang }: { tierKey: string; plans: AccessPlan[
         <Link to="/support" search={{ status: undefined }}>
           <HandHeart className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("pricing.tiers.supporterCta", {
-            defaultValue: lang === "en" ? "Support the institute" : "Wesprzyj instytut",
+            defaultValue: lang === "en" ? "Support the foundation" : "Wesprzyj fundację",
           })}
         </Link>
       </Button>
