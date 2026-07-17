@@ -35,32 +35,32 @@ ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 -- Osobne UUID (sufix "p5"), żeby test nie kolidował z chat_personalization_test.
 INSERT INTO public.tenants (id, slug, name) VALUES
-  ('a1111111-1111-1111-1111-11111111p5aa', 'perms-tenant-a', 'Perms Tenant A'),
-  ('b2222222-2222-2222-2222-22222222p5bb', 'perms-tenant-b', 'Perms Tenant B');
+  ('a1111111-1111-1111-1111-11111111f5aa', 'perms-tenant-a', 'Perms Tenant A'),
+  ('b2222222-2222-2222-2222-22222222f5bb', 'perms-tenant-b', 'Perms Tenant B');
 
 INSERT INTO auth.users (id, email) VALUES
-  ('a0000000-0000-0000-0000-00000000p5a1', 'perms-a1@chat.test'),
-  ('a0000000-0000-0000-0000-00000000p5a2', 'perms-a2@chat.test'),
-  ('b0000000-0000-0000-0000-00000000p5b1', 'perms-b1@chat.test');
+  ('a0000000-0000-0000-0000-00000000f5a1', 'perms-a1@chat.test'),
+  ('a0000000-0000-0000-0000-00000000f5a2', 'perms-a2@chat.test'),
+  ('b0000000-0000-0000-0000-00000000f5b1', 'perms-b1@chat.test');
 
 INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) VALUES
-  ('a0000000-0000-0000-0000-00000000p5a1', 'perms-a1@chat.test', 'Perms A1', 'a1111111-1111-1111-1111-11111111p5aa', false),
-  ('a0000000-0000-0000-0000-00000000p5a2', 'perms-a2@chat.test', 'Perms A2', 'a1111111-1111-1111-1111-11111111p5aa', true),
-  ('b0000000-0000-0000-0000-00000000p5b1', 'perms-b1@chat.test', 'Perms B1', 'b2222222-2222-2222-2222-22222222p5bb', true);
+  ('a0000000-0000-0000-0000-00000000f5a1', 'perms-a1@chat.test', 'Perms A1', 'a1111111-1111-1111-1111-11111111f5aa', false),
+  ('a0000000-0000-0000-0000-00000000f5a2', 'perms-a2@chat.test', 'Perms A2', 'a1111111-1111-1111-1111-11111111f5aa', true),
+  ('b0000000-0000-0000-0000-00000000f5b1', 'perms-b1@chat.test', 'Perms B1', 'b2222222-2222-2222-2222-22222222f5bb', true);
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
-SELECT public.get_or_create_direct_conversation('a0000000-0000-0000-0000-00000000p5a2');
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
+SELECT public.get_or_create_direct_conversation('a0000000-0000-0000-0000-00000000f5a2');
 SELECT public.create_group_conversation('Krąg uprawnień',
-  ARRAY['a0000000-0000-0000-0000-00000000p5a2']::uuid[]);
+  ARRAY['a0000000-0000-0000-0000-00000000f5a2']::uuid[]);
 
 RESET ROLE;
 CREATE TEMP TABLE permsconv AS
 SELECT id FROM public.conversations
-WHERE direct_key = 'a1111111-1111-1111-1111-11111111p5aa'
-  || ':a0000000-0000-0000-0000-00000000p5a1'
-  || ':a0000000-0000-0000-0000-00000000p5a2';
+WHERE direct_key = 'a1111111-1111-1111-1111-11111111f5aa'
+  || ':a0000000-0000-0000-0000-00000000f5a1'
+  || ':a0000000-0000-0000-0000-00000000f5a2';
 CREATE TEMP TABLE permsgroup AS
 SELECT id FROM public.conversations
 WHERE kind = 'group' AND title = 'Krąg uprawnień';
@@ -115,7 +115,7 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$SELECT public.chat_set_nickname((SELECT id FROM permsconv),
-      'a0000000-0000-0000-0000-00000000p5a2', 'X')$$,
+      'a0000000-0000-0000-0000-00000000f5a2', 'X')$$,
   '42501',
   NULL,
   'anon: chat_set_nickname odrzucony (permission denied)'
@@ -125,9 +125,9 @@ SELECT throws_ok(
 -- Najpierw uczestnik zapisze pseudonim, żeby wiersz istniał.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
 SELECT public.chat_set_nickname((SELECT id FROM permsconv),
-  'a0000000-0000-0000-0000-00000000p5a2', 'Kolega z Brukseli');
+  'a0000000-0000-0000-0000-00000000f5a2', 'Kolega z Brukseli');
 
 RESET ROLE;
 SELECT is(
@@ -146,7 +146,7 @@ SELECT is(
 -- ── 3) Bezpośredni UPDATE / DELETE na conversation_nicknames przez członka ─
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
 SELECT throws_ok(
   $$UPDATE public.conversation_nicknames
       SET nickname = 'Przejęcie'
@@ -184,13 +184,13 @@ SELECT throws_ok(
 -- ── 6) Walidacje długości ──────────────────────────────────────────────────
 SELECT throws_ok(
   $$SELECT public.chat_set_nickname((SELECT id FROM permsconv),
-      'a0000000-0000-0000-0000-00000000p5a2', repeat('x', 61))$$,
+      'a0000000-0000-0000-0000-00000000f5a2', repeat('x', 61))$$,
   NULL,
   'chat: nickname too long',
   'pseudonim > 60 znaków odrzucony'
 );
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
 SELECT throws_ok(
   $$SELECT public.chat_set_group_description((SELECT id FROM permsgroup),
       repeat('x', 501))$$,
@@ -209,7 +209,7 @@ SELECT throws_ok(
 -- ── 7) Rozsiew realtime: RPC podbijają updated_at uczestników ──────────────
 -- appearance
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
 RESET ROLE;
 UPDATE public.conversation_participants
    SET updated_at = now() - interval '1 hour'
@@ -217,7 +217,7 @@ UPDATE public.conversation_participants
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
 SELECT public.chat_set_appearance((SELECT id FROM permsconv), 'sunset');
 
 RESET ROLE;
@@ -235,7 +235,7 @@ UPDATE public.conversation_participants
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-00000000p5a1","role":"authenticated"}', true);
+  '{"sub":"a0000000-0000-0000-0000-00000000f5a1","role":"authenticated"}', true);
 SELECT public.chat_set_group_description((SELECT id FROM permsgroup),
   'Nowy opis kręgu strategii');
 
@@ -262,7 +262,7 @@ SELECT ok(
 -- Właściciel jednej rozmowy nie zmieni opisu grupy innego tenanta.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"b0000000-0000-0000-0000-00000000p5b1","role":"authenticated"}', true);
+  '{"sub":"b0000000-0000-0000-0000-00000000f5b1","role":"authenticated"}', true);
 SELECT throws_ok(
   $$SELECT public.chat_set_group_description((SELECT id FROM permsgroup), 'Obcy')$$,
   NULL,
@@ -271,7 +271,7 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$SELECT public.chat_set_nickname((SELECT id FROM permsconv),
-      'a0000000-0000-0000-0000-00000000p5a2', 'Obcy')$$,
+      'a0000000-0000-0000-0000-00000000f5a2', 'Obcy')$$,
   NULL,
   'chat: not a member',
   'user z innego tenanta nie nada pseudonimu w cudzej rozmowie'
