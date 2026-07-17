@@ -1258,11 +1258,53 @@ function FeaturedPostPicker({
       const { data } = await supabase
         .from("posts")
         .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format",
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id",
         )
         .eq("id", value)
         .maybeSingle();
-      return (data as MegaFeaturedPost | null) ?? null;
+      const raw = data as {
+        id: string;
+        slug: string;
+        title_pl: string | null;
+        title_en: string | null;
+        excerpt_pl: string | null;
+        excerpt_en: string | null;
+        cover_image_url: string | null;
+        published_at: string | null;
+        post_format: string | null;
+        author_id: string | null;
+      } | null;
+      if (!raw) return null;
+      if (!raw.author_id) {
+        return {
+          ...raw,
+          author_display_name: null,
+          author_first_name: null,
+          author_last_name: null,
+          author_slug: null,
+          author_avatar_url: null,
+        };
+      }
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("display_name, first_name, last_name, slug, avatar_url")
+        .eq("id", raw.author_id)
+        .maybeSingle();
+      const p = prof as {
+        display_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        slug: string | null;
+        avatar_url: string | null;
+      } | null;
+      return {
+        ...raw,
+        author_display_name: p?.display_name ?? null,
+        author_first_name: p?.first_name ?? null,
+        author_last_name: p?.last_name ?? null,
+        author_slug: p?.slug ?? null,
+        author_avatar_url: p?.avatar_url ?? null,
+      };
     },
   });
 
