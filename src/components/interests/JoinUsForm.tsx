@@ -311,32 +311,13 @@ export function JoinUsForm({
     setPicked(new Set([...my.data.categoryIds, ...my.data.tagIds]));
   }, [my.data]);
 
-  // Prefill z profilu zalogowanego usera - wyłącznie do PUSTYCH pól, żeby
-  // nie nadpisać tego, co użytkownik już wpisał w tej sesji. Odpalamy raz na
-  // zalogowanie się (my.userId zmienia się z null → uuid).
-  useEffect(() => {
-    if (!my.userId) return;
-    let cancelled = false;
-    fetchPrefill()
-      .then((p) => {
-        if (cancelled || !p) return;
-        setExtra((prev) => ({
-          firstName: prev.firstName || p.firstName,
-          lastName: prev.lastName || p.lastName,
-          position: prev.position || p.position,
-          linkedin: prev.linkedin || p.linkedin,
-          phone: prev.phone || p.phone,
-          company: prev.company || p.company,
-          country: prev.country || p.country,
-        }));
-      })
-      .catch(() => {
-        /* non-fatal - formularz działa dalej z pustymi polami */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [my.userId, fetchPrefill]);
+  // Świadomie NIE prefillujemy pól z profilu zalogowanego użytkownika -
+  // formularz newslettera ma pokazywać placeholdery i18n (Imię, Nazwisko,
+  // Twój e-mail, LinkedIn, telefon, firma, kraj), a nie zmuszać usera do
+  // czyszczenia autouzupełnionych danych. Wartości i tak zostaną doczytane
+  // po stronie serwera przy subskrypcji dla zalogowanego usera.
+  void fetchPrefill;
+
 
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
