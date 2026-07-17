@@ -15,8 +15,16 @@ import {
   SmilePlus,
   Star,
   Trash2,
+  Copy,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
 import { computeReceipt, type ReceiptState } from "@/lib/chat/receipts";
 import { clockTime, type ChatLang } from "@/lib/chat/time";
@@ -450,7 +458,74 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
             </span>
           </button>
         )}
-        {content}
+        {!deleted && !message.pending && !message.failed ? (
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div className={cn("max-w-full", mine ? "self-end" : "self-start")}>
+                {content}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className={cn(mine ? "" : "")}>
+              <ContextMenuItem onSelect={() => onReply(message)}>
+                <Reply className="h-3.5 w-3.5" aria-hidden />
+                {t("chat.reply")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                onSelect={() => {
+                  const text = message.body ?? "";
+                  if (text) void navigator.clipboard?.writeText(text);
+                }}
+                disabled={!message.body}
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                {t("chat.copyMessage", { defaultValue: "Kopiuj tekst" })}
+              </ContextMenuItem>
+              {onToggleStar && (
+                <ContextMenuItem onSelect={() => onToggleStar(message, starred)}>
+                  <Star
+                    className={cn("h-3.5 w-3.5", starred && "fill-current text-amber-500")}
+                    aria-hidden
+                  />
+                  {starred ? t("chat.star.remove") : t("chat.star.add")}
+                </ContextMenuItem>
+              )}
+              {onForward && message.kind === "text" && (
+                <ContextMenuItem onSelect={() => onForward(message)}>
+                  <Forward className="h-3.5 w-3.5" aria-hidden />
+                  {t("chat.forward.action")}
+                </ContextMenuItem>
+              )}
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => setReactOpen(true)}
+                aria-label={t("chat.react")}
+              >
+                <SmilePlus className="h-3.5 w-3.5" aria-hidden />
+                {t("chat.react")}
+              </ContextMenuItem>
+              {editable && (
+                <>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onSelect={() => onEdit(message)}>
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    {t("chat.editMessage")}
+                  </ContextMenuItem>
+                </>
+              )}
+              {mine && (
+                <ContextMenuItem
+                  variant="destructive"
+                  onSelect={() => onDelete(message)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  {t("chat.deleteMessage")}
+                </ContextMenuItem>
+              )}
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : (
+          content
+        )}
         <ReactionChips
           reactions={reactions}
           myUserId={myUserId}
