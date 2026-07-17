@@ -1787,6 +1787,68 @@ export const pl = {
       saved: "Zapisano preferencje",
       saveError: "Nie udało się zapisać preferencji",
     },
+    consents: {
+      tab: "Zgody",
+      title: "Zgody komunikacji",
+      subtitle:
+        "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO (data, wersja, adres IP, przeglądarka).",
+      version: "Wersja {{version}}",
+      versionOutdated: "Nowa wersja tej zgody - potwierdź ponownie",
+      requiredBadge: "Wymagana",
+      given: "Udzielono {{date}}",
+      withdrawn: "Wycofano {{date}}",
+      notDecided: "Nie podjęto decyzji",
+      saved: "Zapisano zgodę",
+      saveError: "Nie udało się zapisać zgody",
+      history: "Historia zmian",
+      historyEmpty: "Brak zapisanych zmian.",
+      historyItem: "{{date}} - {{state}} (wersja {{version}})",
+      stateGiven: "udzielono",
+      stateWithdrawn: "wycofano",
+      categories: {
+        legal: "Podstawa prawna",
+        communications: "Komunikacja marketingowa",
+        product: "Produkt i personalizacja",
+        analytics: "Analityka",
+      },
+      items: {
+        transactional: {
+          title: "Wiadomości transakcyjne i serwisowe",
+          description:
+            "Powiadomienia niezbędne do korzystania z konta: potwierdzenia, bezpieczeństwo, ważne zmiany usługi. Wymagane - nie można wyłączyć.",
+        },
+        marketing_email: {
+          title: "E-maile marketingowe",
+          description:
+            "Promocje, oferty i informacje handlowe wysyłane e-mailem. Możesz wycofać zgodę w każdej chwili.",
+        },
+        newsletter_digest: {
+          title: "Newsletter i podsumowania",
+          description:
+            "Cotygodniowy przegląd nowych treści, wydarzeń i analiz przygotowany przez redakcję.",
+        },
+        push_marketing: {
+          title: "Powiadomienia push o promocjach",
+          description:
+            "Krótkie alerty w przeglądarce o nowościach i limitowanych akcjach. Wymaga włączonych powiadomień push urządzenia.",
+        },
+        product_updates: {
+          title: "Nowości i aktualizacje produktu",
+          description:
+            "Informacje o nowych funkcjach, ulepszeniach oraz zmianach istotnych dla użytkowników platformy.",
+        },
+        personalization: {
+          title: "Personalizacja treści",
+          description:
+            "Dostosowywanie rekomendacji i kolejności treści na podstawie Twojej aktywności w serwisie.",
+        },
+        analytics: {
+          title: "Statystyki i analiza użycia",
+          description:
+            "Anonimowe dane o korzystaniu z platformy pomagają nam poprawiać stabilność i wygodę użytkowania.",
+        },
+      },
+    },
   },
   comments: {
     title_zero: "Komentarze",

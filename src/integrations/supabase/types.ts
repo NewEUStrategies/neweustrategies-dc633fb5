@@ -7452,6 +7452,87 @@ export type Database = {
         }
         Relationships: []
       }
+      user_consent_events: {
+        Row: {
+          consent_key: string
+          created_at: string
+          given: boolean
+          id: string
+          ip: string | null
+          lang: string | null
+          source: string | null
+          user_agent: string | null
+          user_id: string
+          version: string
+        }
+        Insert: {
+          consent_key: string
+          created_at?: string
+          given: boolean
+          id?: string
+          ip?: string | null
+          lang?: string | null
+          source?: string | null
+          user_agent?: string | null
+          user_id: string
+          version: string
+        }
+        Update: {
+          consent_key?: string
+          created_at?: string
+          given?: boolean
+          id?: string
+          ip?: string | null
+          lang?: string | null
+          source?: string | null
+          user_agent?: string | null
+          user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      user_consents: {
+        Row: {
+          consent_key: string
+          created_at: string
+          given: boolean
+          given_at: string | null
+          ip: string | null
+          lang: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+          version: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          consent_key: string
+          created_at?: string
+          given: boolean
+          given_at?: string | null
+          ip?: string | null
+          lang?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+          version: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          consent_key?: string
+          created_at?: string
+          given?: boolean
+          given_at?: string | null
+          ip?: string | null
+          lang?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+          version?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: []
+      }
       user_follows: {
         Row: {
           created_at: string
@@ -9182,6 +9263,36 @@ export type Database = {
         }[]
       }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
+      set_user_consent: {
+        Args: {
+          p_given: boolean
+          p_ip?: string
+          p_key: string
+          p_lang?: string
+          p_source?: string
+          p_user_agent?: string
+          p_version: string
+        }
+        Returns: {
+          consent_key: string
+          created_at: string
+          given: boolean
+          given_at: string | null
+          ip: string | null
+          lang: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+          version: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_consents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
