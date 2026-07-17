@@ -1,33 +1,32 @@
 // Lokalny demo-podgląd czatu (bez DB, bez realtime, bez Supabase).
 //
-// Cel: pokazać jak wyglądają wiadomości, dymki, typing indicator, seen i
-// meta-linia z zegarem/tickami - dokładnie w tym samym języku wizualnym co
-// realny `ChatWindow` (gradient nadawcy, muted dla peera, 6px radius,
-// grupowanie rogów). Wszystko trzymamy w pamięci komponentu; interakcja jest
-// ograniczona do echo-bota z krótkim "pisze..." przed odpowiedzią.
+// Zamiast własnej, uproszczonej listy renderujemy PRAWDZIWY `MessageList` -
+// ten sam organizm co realny ChatWindow. Dzięki temu podgląd pokazuje 1:1:
+// dymki obu stron (gradient nadawcy / muted rozmówcy), separatory dni,
+// godziny wysłania, pełny cykl potwierdzeń (zegar -> pojedynczy tick ->
+// podwójny -> podwójny kolorowy po odczycie, z opisem w podpowiedzi),
+// reakcje emoji na dymkach, odpowiadanie na konkretny dymek z cytatem i
+// skokiem do oryginału, tombstone usunięcia, wskaźnik "pisze..." i animacje
+// wejścia. Stan żyje wyłącznie w pamięci komponentu; bot odpowiada echem po
+// krótkim "pisze...".
 //
 // Nie zapisujemy nic w Supabase i nie mieszamy się z realnymi wątkami -
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, Check, CheckCheck, Send } from "lucide-react";
-import { clockTime, type ChatLang } from "@/lib/chat/time";
-import { cn } from "@/lib/utils";
+import { ArrowLeft, Bot, Send, X } from "lucide-react";
+import type { ChatLang } from "@/lib/chat/time";
+import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { ChatAvatar } from "./ChatAvatar";
+import { MessageList } from "./MessageList";
 
 export const DEMO_BOT_ID = "__demo_bot__" as const;
 const BOT_NAME_KEY = "chat.demoBot.name" as const;
 
-type Role = "me" | "bot";
-type Status = "sending" | "sent" | "delivered" | "read";
-
-interface DemoMessage {
-  id: string;
-  role: Role;
-  body: string;
-  createdAt: string;
-  status: Status; // dotyczy tylko `role === "me"`; dla bota traktujemy jak "read"
-}
+/** Lokalne tożsamości wątku demo (nigdy nie trafiają do bazy). */
+const ME_ID = "__demo_me__";
+const BOT_USER_ID = "__demo_bot_user__";
+const DEMO_TENANT = "__demo_tenant__";
 
 export interface DemoBotChatProps {
   lang: ChatLang;
@@ -42,12 +41,46 @@ function useNextId() {
   }, []);
 }
 
-function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): string {
-  const base = "rounded-[6px]";
-  if (mine) {
-    return cn(base, !groupStart && "rounded-tr-[3px]", !groupEnd && "rounded-br-[3px]");
-  }
-  return cn(base, !groupStart && "rounded-tl-[3px]", !groupEnd && "rounded-bl-[3px]");
+/** Pełny wiersz wiadomości w kształcie realnego MessageRow. */
+function demoMessage(
+  id: string,
+  senderId: string,
+  body: string | null,
+  createdAt: string,
+  extra: Partial<ChatMessage> = {},
+): ChatMessage {
+  return {
+    id,
+    conversation_id: DEMO_BOT_ID,
+    tenant_id: DEMO_TENANT,
+    sender_id: senderId,
+    kind: "text",
+    body,
+    attachment_path: null,
+    attachment_name: null,
+    attachment_mime: null,
+    attachment_size: null,
+    attachment_duration: null,
+    reply_to_id: null,
+    forwarded: false,
+    edited_at: null,
+    deleted_at: null,
+    expires_at: null,
+    created_at: createdAt,
+    ...extra,
+  };
+}
+
+function demoReaction(messageId: string, userId: string, emoji: string): ReactionRow {
+  return {
+    id: `demo-react-${messageId}-${userId}`,
+    message_id: messageId,
+    conversation_id: DEMO_BOT_ID,
+    tenant_id: DEMO_TENANT,
+    user_id: userId,
+    emoji,
+    created_at: new Date().toISOString(),
+  };
 }
 
 // Ograniczona interakcja: proste, zdeterminowane echo z niewielkim wariantem.
@@ -65,82 +98,133 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const nextId = useNextId();
   const botName = t(BOT_NAME_KEY);
 
-  const [messages, setMessages] = useState<DemoMessage[]>(() => [
-    {
-      id: "demo-welcome",
-      role: "bot",
-      body: t("chat.demoBot.welcome"),
-      createdAt: new Date().toISOString(),
-      status: "read",
-    },
+  // Powitanie datowane na wczoraj: od pierwszego otwarcia widać separatory
+  // dni ("Wczoraj" nad powitaniem, "Dzisiaj" nad pierwszą nową wiadomością).
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    demoMessage(
+      "demo-welcome",
+      BOT_USER_ID,
+      t("chat.demoBot.welcome"),
+      new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
+    ),
   ]);
-  const [input, setInput] = useState("");
+  const [reactions, setReactions] = useState<ReadonlyMap<string, ReactionRow[]>>(new Map());
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [botTyping, setBotTyping] = useState(false);
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  // Znaczniki "drugiej strony" - dokładnie te, z których realny czat liczy
+  // ticki: dostarczenie i odczyt jako timestampy, nie flagi.
+  const [peerDeliveredAt, setPeerDeliveredAt] = useState<string | null>(null);
+  const [peerReadAt, setPeerReadAt] = useState<string | null>(null);
+  const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const timersRef = useRef<number[]>([]);
 
-  // Auto-scroll do dołu jak w realnym oknie.
   useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, botTyping]);
+    const timers = timersRef.current;
+    return () => {
+      for (const id of timers) window.clearTimeout(id);
+      timers.length = 0;
+    };
+  }, []);
+  const later = useCallback((ms: number, fn: () => void) => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
 
   // Focus po zamontowaniu (parity z ChatWindow.autoFocus).
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
 
+  // Reakcje: semantyka Messengera - ten sam emoji zdejmuje, inny podmienia.
+  const handleReact = useCallback((message: ChatMessage, emoji: string, current: string | null) => {
+    setReactions((prev) => {
+      const next = new Map(prev);
+      const list = (next.get(message.id) ?? []).filter((r) => r.user_id !== ME_ID);
+      if (current !== emoji) list.push(demoReaction(message.id, ME_ID, emoji));
+      if (list.length === 0) next.delete(message.id);
+      else next.set(message.id, list);
+      return next;
+    });
+  }, []);
+
+  const handleReply = useCallback((message: ChatMessage) => {
+    setReplyTo(message);
+    textareaRef.current?.focus();
+  }, []);
+
+  // Usunięcie własnej wiadomości: tombstone jak w realnym wątku.
+  const handleDelete = useCallback((message: ChatMessage) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === message.id ? { ...m, deleted_at: new Date().toISOString(), body: null } : m,
+      ),
+    );
+    setReactions((prev) => {
+      if (!prev.has(message.id)) return prev;
+      const next = new Map(prev);
+      next.delete(message.id);
+      return next;
+    });
+  }, []);
+
+  const noop = useCallback(() => undefined, []);
+  const never = useCallback(() => false, []);
+
   const send = useCallback(() => {
     const body = input.trim();
     if (body.length === 0 || botTyping) return;
     const myId = nextId();
-    const nowIso = new Date().toISOString();
+    const replyToId = replyTo?.id ?? null;
     setMessages((prev) => [
       ...prev,
-      { id: myId, role: "me", body, createdAt: nowIso, status: "sending" },
+      demoMessage(myId, ME_ID, body, new Date().toISOString(), {
+        pending: true,
+        reply_to_id: replyToId,
+      }),
     ]);
     setInput("");
+    setReplyTo(null);
 
-    // Symulacja cyklu: sending → sent → delivered → read + bot typing → reply.
-    window.setTimeout(() => {
-      setMessages((prev) => prev.map((m) => (m.id === myId ? { ...m, status: "sent" } : m)));
-    }, 180);
-    window.setTimeout(() => {
-      setMessages((prev) => prev.map((m) => (m.id === myId ? { ...m, status: "delivered" } : m)));
+    // Pełny cykl potwierdzeń na timestampach, jak w realnym czacie:
+    // zegar (pending) -> tick wysłano -> podwójny dostarczono -> kolorowy
+    // podwójny po odczycie.
+    later(250, () => {
+      setMessages((prev) => prev.map((m) => (m.id === myId ? { ...m, pending: false } : m)));
+    });
+    later(650, () => {
+      setPeerDeliveredAt(new Date().toISOString());
       setBotTyping(true);
-    }, 480);
+    });
 
     const reply = botReply(body, t);
-    // Typing 800-1400 ms w zależności od długości odpowiedzi.
     const typingMs = Math.min(1400, 700 + reply.length * 12);
-    window.setTimeout(() => {
+    later(650 + typingMs, () => {
+      const now = new Date().toISOString();
+      setPeerReadAt(now);
+      // Bot odbija cytat tylko, gdy użytkownik sam odpowiadał na dymek -
+      // pokazuje obie strony funkcji bez zaśmiecania każdego echa.
       setMessages((prev) => [
-        ...prev.map((m) => (m.id === myId ? { ...m, status: "read" as const } : m)),
-        {
-          id: nextId(),
-          role: "bot",
-          body: reply,
-          createdAt: new Date().toISOString(),
-          status: "read",
-        },
+        ...prev,
+        demoMessage(nextId(), BOT_USER_ID, reply, now, {
+          reply_to_id: replyToId ? myId : null,
+        }),
       ]);
       setBotTyping(false);
-    }, 480 + typingMs);
-  }, [input, botTyping, nextId, t]);
-
-  const grouped = useMemo(() => {
-    // Grupowanie sąsiednich wiadomości tego samego autora (rogi 3px).
-    return messages.map((m, i) => {
-      const prev = messages[i - 1];
-      const next = messages[i + 1];
-      return {
-        ...m,
-        groupStart: !prev || prev.role !== m.role,
-        groupEnd: !next || next.role !== m.role,
-      };
+      // Dłuższa wiadomość dostaje od bota reakcję - widać chip na dymku.
+      if (body.length > 20) {
+        setReactions((prev) => {
+          const next = new Map(prev);
+          next.set(myId, [
+            ...(next.get(myId) ?? []).filter((r) => r.user_id !== BOT_USER_ID),
+            demoReaction(myId, BOT_USER_ID, "👍"),
+          ]);
+          return next;
+        });
+      }
     });
-  }, [messages]);
+  }, [input, botTyping, replyTo, nextId, later, t]);
+
+  const replyAuthor = replyTo ? (replyTo.sender_id === ME_ID ? t("chat.you") : botName) : null;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-background">
@@ -181,130 +265,92 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
         </div>
       </header>
 
-      {/* Lista wiadomości: własna wersja, tokenami spójna z MessageBubble. */}
-      <div
-        ref={scrollerRef}
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3"
-        aria-live="polite"
-      >
-        <div className="mx-auto mb-3 max-w-[260px] rounded-md border border-dashed border-border/60 bg-muted/40 px-3 py-1.5 text-center text-[11px] text-muted-foreground">
-          {t("chat.demoBot.notice")}
-        </div>
+      {/* Realny MessageList: separatory dni, godziny, ticki, reakcje,
+          odpowiedzi z cytatem, tombstone, typing - wszystko jak na żywo. */}
+      <MessageList
+        lang={lang}
+        myUserId={ME_ID}
+        messages={messages}
+        reactions={reactions}
+        peerName={botName}
+        peerAvatarUrl={null}
+        typingNames={[botName]}
+        typingAvatarUrl={null}
+        peerLastReadAt={peerReadAt}
+        peerLastDeliveredAt={peerDeliveredAt}
+        peerTyping={botTyping}
+        hasOlder={false}
+        loadingOlder={false}
+        onLoadOlder={noop}
+        onReact={handleReact}
+        onReply={handleReply}
+        onEdit={noop}
+        onDelete={handleDelete}
+        onDiscardFailed={noop}
+        canEdit={never}
+      />
 
-        {grouped.map((m) => {
-          const mine = m.role === "me";
-          const bubbleStyle: CSSProperties = mine
-            ? {
-                background: "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
-                color: "var(--chat-user-foreground)",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-              }
-            : {};
-          const receipt: Status = m.status;
-          return (
-            <div
-              key={m.id}
-              className={cn(
-                "flex w-full items-end gap-1.5",
-                mine ? "flex-row-reverse" : "flex-row",
-                m.status === "sending" && "opacity-60",
-              )}
-            >
-              <div className={cn("flex max-w-[78%] flex-col", mine ? "items-end" : "items-start")}>
-                <div
-                  className={cn(
-                    "max-w-full whitespace-pre-wrap break-words px-3 py-1.5 text-[13px] leading-snug",
-                    bubbleRadius(mine, m.groupStart, m.groupEnd),
-                    !mine && "bg-muted text-foreground",
-                  )}
-                  style={bubbleStyle}
-                >
-                  <p style={mine ? { color: "var(--chat-user-foreground)" } : undefined}>
-                    {m.body}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-0.5 flex items-center gap-1 text-[10px] tabular-nums leading-snug",
-                      mine ? "justify-end opacity-90" : "text-muted-foreground/70",
-                    )}
-                  >
-                    <span>{clockTime(m.createdAt, lang)}</span>
-                    {mine && (
-                      <span className="ml-0.5 inline-flex items-center">
-                        {receipt === "sending" || receipt === "sent" ? (
-                          <Check className="h-3 w-3" aria-hidden />
-                        ) : receipt === "delivered" ? (
-                          <CheckCheck className="h-3 w-3" aria-hidden />
-                        ) : (
-                          <CheckCheck
-                            className="h-3 w-3"
-                            style={{ color: "var(--chat-user-tick-read)" }}
-                            aria-hidden
-                          />
-                        )}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
+      {/* Kompozytor: minimalny (bez załączników/emoji), ale z paskiem
+          odpowiedzi - to jest podgląd interakcji, nie pełny composer. */}
+      <div className="border-t border-border/60 bg-card px-3 py-2.5">
+        {replyTo && (
+          <div className="mb-1.5 flex items-start justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
+            <div className="min-w-0 text-[11px]">
+              <span className="block font-medium text-foreground">
+                {t("chat.replyingTo")}
+                {replyAuthor ? ` - ${replyAuthor}` : ""}
+              </span>
+              <span className="block truncate text-muted-foreground">
+                {replyTo.deleted_at ? t("chat.deletedMessage") : replyTo.body}
+              </span>
             </div>
-          );
-        })}
-
-        {botTyping && (
-          <div className="flex w-full items-end gap-1.5">
-            <div
-              className="inline-flex items-center gap-1 rounded-[6px] bg-muted px-3 py-2 text-muted-foreground"
-              aria-label={t("chat.typing")}
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label={t("chat.close")}
             >
-              <span className="chat-typing-dot h-1.5 w-1.5 rounded-full bg-current" />
-              <span
-                className="chat-typing-dot h-1.5 w-1.5 rounded-full bg-current"
-                style={{ animationDelay: "0.15s" } as CSSProperties}
-              />
-              <span
-                className="chat-typing-dot h-1.5 w-1.5 rounded-full bg-current"
-                style={{ animationDelay: "0.3s" } as CSSProperties}
-              />
-            </div>
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
           </div>
         )}
-      </div>
-
-      {/* Kompozytor: minimalny (bez załączników/emoji) - to jest podgląd. */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-        className="flex items-end gap-2 border-t border-border/60 bg-card px-3 py-2.5"
-      >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
           }}
-          rows={1}
-          placeholder={t("chat.inputPlaceholder")}
-          aria-label={t("chat.inputPlaceholder")}
-          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          maxLength={500}
-        />
-        <button
-          type="submit"
-          disabled={input.trim().length === 0 || botTyping}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--brand)] text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label={t("chat.send")}
-          title={t("chat.send")}
+          className="flex items-end gap-2"
         >
-          <Send className="h-4 w-4" aria-hidden />
-        </button>
-      </form>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              } else if (e.key === "Escape" && replyTo) {
+                e.preventDefault();
+                setReplyTo(null);
+              }
+            }}
+            rows={1}
+            placeholder={t("chat.inputPlaceholder")}
+            aria-label={t("chat.inputPlaceholder")}
+            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            maxLength={500}
+          />
+          <button
+            type="submit"
+            disabled={input.trim().length === 0 || botTyping}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--brand)] text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label={t("chat.send")}
+            title={t("chat.send")}
+          >
+            <Send className="h-4 w-4" aria-hidden />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
