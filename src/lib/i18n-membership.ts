@@ -99,7 +99,7 @@ export const membershipEn: typeof membershipPl = {
       heading: "Your support",
       none: "No donations recorded yet.",
       supporterActive: "Supporter status active until {{date}}.",
-      cta: "Support the institute",
+      cta: "Support the foundation",
       refunded: "refunded",
     },
     organization: {
