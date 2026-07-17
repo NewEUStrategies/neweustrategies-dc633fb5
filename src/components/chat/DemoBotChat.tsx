@@ -12,11 +12,20 @@
 //
 // Nie zapisujemy nic w Supabase i nie mieszamy się z realnymi wątkami -
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, SendHorizontal, X } from "lucide-react";
+import { ArrowLeft, Bot, Paperclip, SendHorizontal, X } from "lucide-react";
+import { toast } from "sonner";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentKindForMime,
+  validateAttachment,
+  formatBytes,
+  MAX_ATTACHMENT_BYTES,
+  type AttachmentKind,
+} from "@/lib/chat/attachments";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageList } from "./MessageList";
 
