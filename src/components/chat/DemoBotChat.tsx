@@ -12,7 +12,7 @@
 //
 // Nie zapisujemy nic w Supabase i nie mieszamy się z realnymi wątkami -
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Bot, Paperclip, SendHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
