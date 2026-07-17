@@ -430,7 +430,17 @@ function MessagesInner() {
 
             {/* Right pane: active thread (animated swap) or the hero state. */}
             <div className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
-              {selected ? (
+              {selected === DEMO_BOT_ID ? (
+                <div key={DEMO_BOT_ID} className="chat-pane-in h-full min-h-0">
+                  <DemoBotChat
+                    lang={lang}
+                    onBack={() => {
+                      setSelected(null);
+                      void navigate({ search: {}, replace: true });
+                    }}
+                  />
+                </div>
+              ) : selected ? (
                 <div key={selected} className="chat-pane-in h-full min-h-0">
                   <ChatWindow
                     conversationId={selected}
