@@ -268,6 +268,7 @@ export const chatPl = {
       emptyFiles: "Brak plików w tej rozmowie",
       download: "Pobierz plik",
       loading: "Ładowanie...",
+    },
     retry: "Wyślij ponownie",
     typingTwo: "{{a}} i {{b}} piszą...",
     typingMany: "Kilka osób pisze...",
