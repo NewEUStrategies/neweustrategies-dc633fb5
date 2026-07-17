@@ -192,12 +192,80 @@ export function MegaPanelView({
                   {featuredTitle}
                 </h4>
               ) : null}
-              {featured && featured.author_id && authorName(featured) ? (
-                <p className="mb-3 text-[12px] font-semibold text-brand">
-                  {authorName(featured)}
+            </AppLink>
+            {featured.author_id ? (
+              (() => {
+                const name = authorName(featured);
+                const href = featured.author_slug
+                  ? safeUrl(`/author/${featured.author_slug}`)
+                  : null;
+                const avatarNode = featured.author_avatar_url ? (
+                  <img
+                    src={featured.author_avatar_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-7 w-7 rounded-full object-cover ring-1 ring-border/60"
+                  />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] font-black uppercase tracking-wider text-muted-foreground ring-1 ring-border/60"
+                  >
+                    {authorInitials(name)}
+                  </span>
+                );
+                const textNode = (
+                  <span className="flex min-w-0 flex-col leading-tight">
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+                      {authorLabel}
+                    </span>
+                    <span className="truncate text-[13px] font-bold text-foreground">
+                      {name}
+                    </span>
+                  </span>
+                );
+                return href ? (
+                  <AppLink
+                    href={href}
+                    className="mt-3 flex items-center gap-2.5 group/author"
+                    role="menuitem"
+                  >
+                    {avatarNode}
+                    <span className="flex min-w-0 flex-col leading-tight">
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+                        {authorLabel}
+                      </span>
+                      <span className="truncate text-[13px] font-bold text-foreground transition-colors group-hover/author:text-brand">
+                        {name}
+                      </span>
+                    </span>
+                  </AppLink>
+                ) : (
+                  <div className="mt-3 flex items-center gap-2.5">
+                    {avatarNode}
+                    {textNode}
+                  </div>
+                );
+              })()
+            ) : null}
+            <AppLink href={safeUrl(`/${featured.slug}`) || "#"} className="group block">
+              {featuredExcerpt ? (
+                <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                  {featuredExcerpt}
                 </p>
               ) : null}
-              {featuredExcerpt ? (
+              <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em]">
+                <span className="text-brand">{featuredEyebrow}</span>
+                <span className="opacity-30">|</span>
+                <span className="text-muted-foreground">{readMore}</span>
+                <ArrowRight
+                  size={12}
+                  className="text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </div>
+            </AppLink>
                 <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
                   {featuredExcerpt}
                 </p>
