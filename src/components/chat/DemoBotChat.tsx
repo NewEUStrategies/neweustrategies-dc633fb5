@@ -126,6 +126,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const [peerDeliveredAt, setPeerDeliveredAt] = useState<string | null>(null);
   const [peerReadAt, setPeerReadAt] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [mediaHistoryOpen, setMediaHistoryOpen] = useState(false);
   // Staged local attachment - trzymamy `blob:` URL zamiast bucketu; podgląd
   // demo nie dotyka Storage. `useAttachmentUrl` przepuszcza blob:/data: URL
   // bez pytania Supabase, więc dymki renderują się identycznie jak realne.
