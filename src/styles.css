@@ -4130,3 +4130,206 @@ textarea::placeholder {
     opacity: 1;
   }
 }
+
+/* =========================================================================
+   DownloadButton (animated) — atomic component
+   Adapted from provided reference to design tokens + dark/light + reduced motion.
+   Uses --primary as accent, --brand for "installed" ring, --card as inner dot.
+   ========================================================================= */
+.dlb-root {
+  --dlb-accent: var(--primary);
+  --dlb-accent-strong: color-mix(in oklab, var(--primary) 78%, black);
+  --dlb-on-accent: var(--primary-foreground);
+  --dlb-done: oklch(0.68 0.17 145);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.dark .dlb-root {
+  --dlb-done: oklch(0.72 0.18 150);
+}
+
+.dlb-label {
+  background-color: transparent;
+  border: 2px solid var(--dlb-accent);
+  display: flex;
+  align-items: center;
+  border-radius: 9999px;
+  width: 160px;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  padding: 5px;
+  position: relative;
+  color: var(--dlb-on-accent);
+  font-family: inherit;
+}
+.dlb-label::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--card);
+  width: 8px;
+  height: 8px;
+  transition: all 0.4s ease;
+  border-radius: 9999px;
+  margin: auto;
+  opacity: 0;
+  visibility: hidden;
+}
+.dlb-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+.dlb-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dlb-accent);
+  transition: all 0.4s ease;
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  text-align: center;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.dlb-title-done {
+  opacity: 0;
+  visibility: hidden;
+  color: var(--dlb-done);
+}
+.dlb-circle {
+  height: 45px;
+  width: 45px;
+  border-radius: 9999px;
+  background-color: var(--dlb-accent);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.4s ease;
+  position: relative;
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--dlb-on-accent) 70%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.dlb-icon {
+  color: var(--dlb-on-accent);
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.4s ease;
+}
+.dlb-square {
+  aspect-ratio: 1;
+  width: 15px;
+  border-radius: 2px;
+  background-color: var(--dlb-on-accent);
+  opacity: 0;
+  visibility: hidden;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.4s ease;
+}
+.dlb-circle::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-color: var(--dlb-accent-strong);
+  width: 100%;
+  height: 0;
+  transition: all 0.4s ease;
+}
+
+.dlb-label:has(.dlb-input:checked) {
+  width: 57px;
+  animation: dlb-installed 0.4s ease 3.5s forwards;
+}
+.dlb-label:has(.dlb-input:checked)::before {
+  animation: dlb-rotate 3s ease-in-out 0.4s forwards;
+}
+.dlb-input:checked + .dlb-circle {
+  animation:
+    dlb-pulse 1s forwards,
+    dlb-circle-delete 0.2s ease 3.5s forwards;
+  rotate: 180deg;
+}
+.dlb-input:checked + .dlb-circle::before {
+  animation: dlb-installing 3s ease-in-out forwards;
+}
+.dlb-input:checked + .dlb-circle .dlb-icon {
+  opacity: 0;
+  visibility: hidden;
+}
+.dlb-input:checked ~ .dlb-circle .dlb-square {
+  opacity: 1;
+  visibility: visible;
+}
+.dlb-input:checked ~ .dlb-title-idle {
+  opacity: 0;
+  visibility: hidden;
+}
+.dlb-input:checked ~ .dlb-title-done {
+  animation: dlb-show-done 0.4s ease 3.5s forwards;
+}
+
+@keyframes dlb-pulse {
+  0% { scale: 0.95; box-shadow: 0 0 0 0 color-mix(in oklab, var(--dlb-on-accent) 60%, transparent); }
+  70% { scale: 1; box-shadow: 0 0 0 16px color-mix(in oklab, var(--dlb-on-accent) 0%, transparent); }
+  100% { scale: 0.95; box-shadow: 0 0 0 0 color-mix(in oklab, var(--dlb-on-accent) 0%, transparent); }
+}
+@keyframes dlb-installing {
+  from { height: 0; }
+  to { height: 100%; }
+}
+@keyframes dlb-rotate {
+  0% { transform: rotate(-90deg) translate(27px) rotate(0); opacity: 1; visibility: visible; }
+  99% { transform: rotate(270deg) translate(27px) rotate(270deg); opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+@keyframes dlb-installed {
+  100% { width: 150px; border-color: var(--dlb-done); }
+}
+@keyframes dlb-circle-delete {
+  100% { opacity: 0; visibility: hidden; }
+}
+@keyframes dlb-show-done {
+  100% { opacity: 1; visibility: visible; right: 56px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dlb-label,
+  .dlb-label::before,
+  .dlb-circle,
+  .dlb-circle::before,
+  .dlb-icon,
+  .dlb-square,
+  .dlb-title,
+  .dlb-input:checked + .dlb-circle,
+  .dlb-input:checked ~ .dlb-title-done,
+  .dlb-label:has(.dlb-input:checked),
+  .dlb-label:has(.dlb-input:checked)::before,
+  .dlb-input:checked + .dlb-circle::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.dlb-label:focus-visible,
+.dlb-root:focus-visible .dlb-label {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
