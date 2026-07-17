@@ -53,7 +53,7 @@ function ThemePreview({ theme, wallpaper }: { theme: ChatThemeId; wallpaper: Cha
         className={cn("flex flex-col gap-1.5 rounded-[6px] px-3 py-3", wallpaperClass(wallpaper))}
         aria-hidden
       >
-        <div className="max-w-[75%] self-start rounded-[6px] bg-muted px-3 py-1.5 text-[12px] text-foreground shadow-sm">
+        <div className="max-w-[75%] self-start rounded-[6px] border border-border/60 bg-card text-foreground shadow-sm dark:bg-secondary px-3 py-1.5 text-[12px]">
           {t("chat.appearance.previewIncoming")}
         </div>
         <div
