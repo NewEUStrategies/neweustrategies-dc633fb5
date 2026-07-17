@@ -20,6 +20,7 @@ import {
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
 import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
+import { useNotificationPreferences } from "@/lib/notifications/useNotifications";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "./ConversationListItem";
@@ -43,6 +44,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const unread = useChatUnreadTotal();
+  const prefsQ = useNotificationPreferences();
 
   // The bell droplist mirrors WhatsApp: archived conversations stay out of
   // sight (they live under the /messages archive section).
@@ -58,6 +60,9 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
   const nicknamesQ = useNicknames();
 
   if (!user) return null;
+  // Preferencja per tenant: użytkownik może ukryć ikonę czatu w nagłówku.
+  // Dopóki preferencje się ładują, domyślnie true - nie migamy dzwonkiem.
+  if (prefsQ.data && prefsQ.data.chat_bell_enabled === false) return null;
 
   const peers = peersQ.data;
   const nicknames = nicknamesQ.data;

@@ -54,6 +54,12 @@ export interface NotificationPreferences {
    */
   push_enabled: boolean;
   email_digest: EmailDigestFrequency;
+  /**
+   * Toggle dla ikony czatu (bell) w nagłówku - per tenant (preferencje są
+   * powiązane z tenantem użytkownika przez `tenant_id`). Wyłączenie ukrywa
+   * dzwonek, ale rozmowy nadal działają w /messages i ChatDock.
+   */
+  chat_bell_enabled: boolean;
 }
 
 export type EmailDigestFrequency = "off" | "daily" | "weekly";
@@ -75,6 +81,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   allow_messages_from: "everyone",
   push_enabled: false,
   email_digest: "off",
+  chat_bell_enabled: true,
 };
 
 const prefsKey = (uid: string | undefined) =>
@@ -277,7 +284,7 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest",
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest, chat_bell_enabled",
         )
         .eq("user_id", user!.id)
         .maybeSingle();

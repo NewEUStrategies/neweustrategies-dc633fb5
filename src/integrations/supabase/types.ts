@@ -4154,6 +4154,7 @@ export type Database = {
         Row: {
           allow_messages_from: string
           auto_mark_on_open: boolean
+          chat_bell_enabled: boolean
           created_at: string
           digest_last_sent_at: string | null
           email_digest: string
@@ -4177,6 +4178,7 @@ export type Database = {
         Insert: {
           allow_messages_from?: string
           auto_mark_on_open?: boolean
+          chat_bell_enabled?: boolean
           created_at?: string
           digest_last_sent_at?: string | null
           email_digest?: string
@@ -4200,6 +4202,7 @@ export type Database = {
         Update: {
           allow_messages_from?: string
           auto_mark_on_open?: boolean
+          chat_bell_enabled?: boolean
           created_at?: string
           digest_last_sent_at?: string | null
           email_digest?: string

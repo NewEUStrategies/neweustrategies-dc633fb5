@@ -335,15 +335,19 @@ export function ChatWindow(props: ChatWindowProps) {
   const lastMessage = messages[messages.length - 1];
   const unread = view?.me.unread_count ?? 0;
   const lastMarkedRef = useRef<string | null>(null);
+  const autoMarkOnOpen = prefsQ.data?.auto_mark_on_open ?? true;
   useEffect(() => {
     if (!user || !lastMessage || !visible) return;
+    // Preferencja per tenant: gdy użytkownik wyłączy auto-mark, zostawiamy
+    // licznik nieprzeczytanych do jawnego oznaczenia (np. przez menu rozmowy).
+    if (!autoMarkOnOpen) return;
     if (lastMessage.sender_id !== user.id && unread > 0) {
       if (lastMarkedRef.current === lastMessage.id) return;
       lastMarkedRef.current = lastMessage.id;
       markRead.mutate(conversationId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage?.id, unread, conversationId, user?.id, visible]);
+  }, [lastMessage?.id, unread, conversationId, user?.id, visible, autoMarkOnOpen]);
 
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editTarget, setEditTarget] = useState<ChatMessage | null>(null);
