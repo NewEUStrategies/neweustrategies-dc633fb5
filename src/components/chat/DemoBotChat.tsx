@@ -14,7 +14,7 @@
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, Paperclip, SendHorizontal, X } from "lucide-react";
+import { ArrowLeft, Bot, Images, Paperclip, SendHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
@@ -28,6 +28,7 @@ import {
 } from "@/lib/chat/attachments";
 import { ChatAvatar } from "./ChatAvatar";
 import { MessageList } from "./MessageList";
+import { MediaHistoryDialog } from "./MediaHistoryDialog";
 
 export const DEMO_BOT_ID = "__demo_bot__" as const;
 const BOT_NAME_KEY = "chat.demoBot.name" as const;
@@ -125,6 +126,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
   const [peerDeliveredAt, setPeerDeliveredAt] = useState<string | null>(null);
   const [peerReadAt, setPeerReadAt] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [mediaHistoryOpen, setMediaHistoryOpen] = useState(false);
   // Staged local attachment - trzymamy `blob:` URL zamiast bucketu; podgląd
   // demo nie dotyka Storage. `useAttachmentUrl` przepuszcza blob:/data: URL
   // bez pytania Supabase, więc dymki renderują się identycznie jak realne.
@@ -355,7 +357,23 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             {botTyping ? t("chat.typing") : t("chat.demoBot.subtitle")}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setMediaHistoryOpen(true)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={t("chat.mediaHistory.open", { defaultValue: "Multimedia i pliki" })}
+          title={t("chat.mediaHistory.open", { defaultValue: "Multimedia i pliki" })}
+        >
+          <Images className="h-4 w-4" aria-hidden />
+        </button>
       </header>
+
+      <MediaHistoryDialog
+        open={mediaHistoryOpen}
+        onOpenChange={setMediaHistoryOpen}
+        messages={messages}
+        lang={lang}
+      />
 
       {/* Realny MessageList: separatory dni, godziny, ticki, reakcje,
           odpowiedzi z cytatem, tombstone, typing - wszystko jak na żywo. */}
