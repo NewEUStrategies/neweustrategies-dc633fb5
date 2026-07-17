@@ -2,7 +2,7 @@
 // content is gated by AuthGate and the route is noindex + robots-disallowed,
 // so nothing here is visible to anonymous visitors or crawlers.
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
@@ -23,12 +23,13 @@ import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
 import { useAuth } from "@/hooks/useAuth";
-import { conversationDisplay } from "@/lib/chat/display";
+import { conversationDisplay, isGroupView } from "@/lib/chat/display";
 import { useNicknames } from "@/lib/chat/nicknames";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import {
   splitArchived,
   useChatListRealtime,
+  useChatUnreadTotal,
   useConversations,
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
@@ -37,6 +38,7 @@ import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 
 type MessagesView = "chats" | "notifications" | "consents";
+type ListFilter = "all" | "unread" | "circles";
 
 interface MessagesSearch {
   c?: string;
@@ -112,7 +114,9 @@ function MessagesInner() {
   const [mode, setMode] = useState<"list" | "new">("list");
   const [groupCreateOpen, setGroupCreateOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
   const [showArchived, setShowArchived] = useState(false);
+  const unreadTotal = useChatUnreadTotal();
 
   const { active: activeViews, archived: archivedViews } = useMemo(
     () => splitArchived(views),
@@ -138,78 +142,80 @@ function MessagesInner() {
 
   const normalizedFilter = filter.trim().toLowerCase();
   const sourceViews = showArchived ? archivedViews : activeViews;
-  const filtered = normalizedFilter
+  const searched = normalizedFilter
     ? sourceViews.filter((v) =>
         conversationDisplay(v, peersQ.data, undefined, nicknamesQ.data?.get(v.conversation.id))
           .name.toLowerCase()
           .includes(normalizedFilter),
       )
     : sourceViews;
+  // WhatsApp-style quick filters layered on top of the text search.
+  const filtered = searched.filter((v) =>
+    listFilter === "unread"
+      ? v.me.unread_count > 0
+      : listFilter === "circles"
+        ? isGroupView(v)
+        : true,
+  );
 
   if (!user) return null;
 
+  const viewTabs: Array<{
+    id: MessagesView;
+    label: string;
+    icon: typeof MessagesSquare;
+    badge?: number;
+  }> = [
+    { id: "chats", label: t("chat.messages"), icon: MessagesSquare, badge: unreadTotal },
+    {
+      id: "notifications",
+      label: t("notifications.title", { defaultValue: "Powiadomienia" }),
+      icon: Bell,
+      badge: unreadNotif,
+    },
+    {
+      id: "consents",
+      label: t("notifications.consents.tab", { defaultValue: "Zgody" }),
+      icon: ShieldCheck,
+    },
+  ];
+
   return (
     <div className="container mx-auto max-w-6xl px-2 py-4 sm:px-4 sm:py-6">
+      {/* Segmentowane taby widoków: pigułka z aktywnym tłem i licznikami. */}
       <div
         role="tablist"
         aria-label={t("chat.messages")}
-        className="mb-3 inline-flex items-center gap-1 rounded-[6px] border border-border/60 bg-muted/40 p-1 text-sm"
+        className="mb-3 inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-border/60 bg-muted/40 p-1 text-sm"
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeView === "chats"}
-          onClick={() => setActiveView("chats")}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
-            activeView === "chats"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <MessagesSquare className="h-3.5 w-3.5" aria-hidden />
-          {t("chat.messages")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeView === "notifications"}
-          onClick={() => setActiveView("notifications")}
-          className={cn(
-            "relative inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
-            activeView === "notifications"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Bell className="h-3.5 w-3.5" aria-hidden />
-          {t("notifications.title", { defaultValue: "Powiadomienia" })}
-          {unreadNotif > 0 && (
-            <span
-              className="ml-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-[6px] bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-              aria-label={t("notifications.unread", { count: unreadNotif })}
-            >
-              {unreadNotif > 99 ? "99+" : unreadNotif}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeView === "consents"}
-          onClick={() => setActiveView("consents")}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 font-medium transition-colors",
-            activeView === "consents"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-          {t("notifications.consents.tab", { defaultValue: "Zgody" })}
-        </button>
+        {viewTabs.map(({ id, label, icon: Icon, badge }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeView === id}
+            onClick={() => setActiveView(id)}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-medium transition-all",
+              activeView === id
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+            {label}
+            {!!badge && badge > 0 && (
+              <span
+                className="ml-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
+                aria-label={t("chat.unread", { count: badge })}
+              >
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
-      <div className="flex h-[calc(100dvh-260px)] min-h-[480px] max-h-[860px] overflow-hidden rounded-[6px] border border-border/60 bg-card shadow-sm">
+      <div className="flex h-[calc(100dvh-230px)] max-h-[920px] min-h-[520px] overflow-hidden rounded-xl border border-border/60 bg-card shadow-md">
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
             <NotificationsCenter mode="inbox" />
@@ -220,20 +226,30 @@ function MessagesInner() {
           </div>
         ) : (
           <>
-            {/* Left pane: conversation list */}
+            {/* Left pane: conversation list on its own surface (modern split). */}
             <aside
               className={cn(
-                "flex w-full min-w-0 flex-col border-border/60 md:w-[320px] md:shrink-0 md:border-r",
+                "flex w-full min-w-0 flex-col border-border/60 bg-muted/20 md:w-[340px] md:shrink-0 md:border-r",
                 selected && "hidden md:flex",
               )}
             >
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <h1 className="text-base font-bold">{t("chat.messages")}</h1>
+              <div className="flex items-center justify-between px-3.5 pb-1 pt-3">
+                <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+                  {t("chat.messages")}
+                  {unreadTotal > 0 && (
+                    <span
+                      className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--brand)] px-1.5 text-[11px] font-semibold leading-none text-white"
+                      aria-label={t("chat.unread", { count: unreadTotal })}
+                    >
+                      {unreadTotal > 99 ? "99+" : unreadTotal}
+                    </span>
+                  )}
+                </h1>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setGroupCreateOpen(true)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground motion-safe:transition-transform motion-safe:hover:scale-105"
                     aria-haspopup="dialog"
                     aria-label={t("chat.group.new")}
                     title={t("chat.group.new")}
@@ -244,8 +260,10 @@ function MessagesInner() {
                     type="button"
                     onClick={() => setMode(mode === "new" ? "list" : "new")}
                     className={cn(
-                      "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                      mode === "new" && "bg-muted text-foreground",
+                      "inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors motion-safe:transition-transform motion-safe:hover:scale-105",
+                      mode === "new"
+                        ? "bg-[var(--brand)] text-white hover:opacity-90"
+                        : "bg-background text-foreground shadow-sm hover:bg-muted",
                     )}
                     aria-label={t("chat.newMessage")}
                     title={t("chat.newMessage")}
@@ -263,10 +281,10 @@ function MessagesInner() {
                 <NewChatSearch onOpened={openConversation} />
               ) : (
                 <>
-                  <div className="px-2 pb-2">
+                  <div className="px-2.5 pb-1.5 pt-2">
                     <label className="relative block">
                       <Search
-                        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                         aria-hidden
                       />
                       <input
@@ -275,9 +293,39 @@ function MessagesInner() {
                         onChange={(e) => setFilter(e.target.value)}
                         placeholder={t("chat.searchConversations")}
                         aria-label={t("chat.searchConversations")}
-                        className="h-10 w-full rounded-[6px] border border-input bg-muted/40 !pl-[42px] pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="h-10 w-full rounded-full border border-input bg-background !pl-[42px] pr-4 text-sm shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
                     </label>
+                  </div>
+                  {/* Szybkie filtry listy (WhatsApp): wszystkie / nieprzeczytane / kręgi. */}
+                  <div
+                    role="radiogroup"
+                    aria-label={t("chat.filters.label")}
+                    className="flex items-center gap-1 px-2.5 pb-2"
+                  >
+                    {(
+                      [
+                        { id: "all", label: t("chat.filters.all") },
+                        { id: "unread", label: t("chat.filters.unread") },
+                        { id: "circles", label: t("chat.filters.circles") },
+                      ] as Array<{ id: ListFilter; label: string }>
+                    ).map(({ id, label }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="radio"
+                        aria-checked={listFilter === id}
+                        onClick={() => setListFilter(id)}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                          listFilter === id
+                            ? "bg-[var(--brand)]/15 text-brand-ink"
+                            : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
                     {archivedViews.length > 0 && (
@@ -303,25 +351,49 @@ function MessagesInner() {
                       </button>
                     )}
                     {conversationsQ.isLoading ? (
-                      <p className="p-6 text-center text-sm text-muted-foreground">
-                        {t("common.loading", { defaultValue: "..." })}
-                      </p>
+                      // Skeleton listy zamiast "..." - bez skoku layoutu.
+                      <ul className="flex flex-col gap-0.5" aria-hidden>
+                        {[0, 1, 2, 3, 4].map((i) => (
+                          <li key={i} className="flex items-center gap-2.5 px-2 py-2">
+                            <span className="skeleton-shimmer h-10 w-10 shrink-0 rounded-[6px]" />
+                            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                              <span className="skeleton-shimmer h-3 w-2/5 rounded-full" />
+                              <span className="skeleton-shimmer h-2.5 w-4/5 rounded-full" />
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     ) : filtered.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 p-6 text-center">
                         <MessagesSquare className="h-6 w-6 text-muted-foreground/50" aria-hidden />
-                        <p className="text-sm text-muted-foreground">{t("chat.noConversations")}</p>
-                        <button
-                          type="button"
-                          onClick={() => setMode("new")}
-                          className="mt-1 rounded-[6px] bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                        >
-                          {t("chat.newMessage")}
-                        </button>
+                        <p className="text-sm text-muted-foreground">
+                          {searched.length > 0
+                            ? t("chat.filters.empty")
+                            : t("chat.noConversations")}
+                        </p>
+                        {searched.length === 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setMode("new")}
+                            className="mt-1 rounded-full bg-[var(--brand)] px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90"
+                          >
+                            {t("chat.newMessage")}
+                          </button>
+                        )}
                       </div>
                     ) : (
-                      <ul className="flex flex-col gap-0.5">
-                        {filtered.map((view) => (
-                          <li key={view.conversation.id}>
+                      // key po filtrze: przełączenie chipa odtwarza wejścia
+                      // wierszy (stagger przez --row-i, wyłączany reduced motion).
+                      <ul
+                        key={`${listFilter}:${showArchived ? "arch" : "act"}`}
+                        className="flex flex-col gap-0.5"
+                      >
+                        {filtered.map((view, index) => (
+                          <li
+                            key={view.conversation.id}
+                            className="chat-row-enter"
+                            style={{ "--row-i": index } as CSSProperties}
+                          >
                             <ConversationListItem
                               view={view}
                               profiles={peersQ.data}
@@ -341,27 +413,70 @@ function MessagesInner() {
               )}
             </aside>
 
-            {/* Right pane: active thread */}
+            {/* Right pane: active thread (animated swap) or the hero state. */}
             <div className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
               {selected ? (
-                <ChatWindow
-                  key={selected}
-                  conversationId={selected}
-                  variant="page"
-                  autoFocus={false}
-                  onBack={() => {
-                    setSelected(null);
-                    void navigate({ search: {}, replace: true });
-                  }}
-                />
+                <div key={selected} className="chat-pane-in h-full min-h-0">
+                  <ChatWindow
+                    conversationId={selected}
+                    variant="page"
+                    autoFocus={false}
+                    onBack={() => {
+                      setSelected(null);
+                      void navigate({ search: {}, replace: true });
+                    }}
+                  />
+                </div>
               ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-[6px] bg-muted">
-                    <MessagesSquare className="h-6 w-6 text-muted-foreground" aria-hidden />
-                  </span>
-                  <p className="max-w-[260px] text-sm text-muted-foreground">
-                    {t("chat.noConversations")}
-                  </p>
+                <div className="chat-hero-surface flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                  <div className="relative h-24 w-32" aria-hidden>
+                    <span
+                      className="chat-hero-bubble absolute left-0 top-6 h-10 w-16 rounded-[10px] rounded-bl-[3px] bg-muted shadow-sm"
+                      style={{ "--hero-rot": "-4deg" } as CSSProperties}
+                    />
+                    <span
+                      className="chat-hero-bubble absolute right-0 top-0 h-10 w-20 rounded-[10px] rounded-br-[3px] shadow-sm"
+                      style={
+                        {
+                          "--hero-rot": "3deg",
+                          "--hero-delay": "0.6s",
+                          background:
+                            "linear-gradient(135deg, var(--chat-user-from), var(--chat-user-to))",
+                        } as CSSProperties
+                      }
+                    />
+                    <span
+                      className="chat-hero-bubble absolute bottom-0 left-8 h-8 w-14 rounded-[10px] rounded-bl-[3px] bg-background shadow-sm ring-1 ring-border/60"
+                      style={{ "--hero-rot": "-2deg", "--hero-delay": "1.1s" } as CSSProperties}
+                    />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold tracking-tight">
+                      {t("chat.emptyHero.title")}
+                    </h2>
+                    <p className="mx-auto mt-1 max-w-[320px] text-sm text-muted-foreground">
+                      {t("chat.emptyHero.subtitle")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMode("new")}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-4 py-2 text-[13px] font-medium text-white shadow-sm transition-opacity hover:opacity-90 motion-safe:transition-transform motion-safe:hover:scale-[1.03]"
+                    >
+                      <SquarePen className="h-3.5 w-3.5" aria-hidden />
+                      {t("chat.emptyHero.cta")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGroupCreateOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background px-4 py-2 text-[13px] font-medium shadow-sm transition-colors hover:bg-muted"
+                      aria-haspopup="dialog"
+                    >
+                      <UsersRound className="h-3.5 w-3.5" aria-hidden />
+                      {t("chat.emptyHero.ctaGroup")}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

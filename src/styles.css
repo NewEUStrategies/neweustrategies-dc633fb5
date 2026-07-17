@@ -4029,12 +4029,82 @@ textarea::placeholder {
   animation: chat-pop-in-kf 160ms ease-out;
 }
 
+/* ---- Layout strony /messages ------------------------------------------------
+   Wejścia listy rozmów (stagger per wiersz przez --row-i), przejście prawego
+   panelu przy zmianie rozmowy oraz pływające dymki hero pustego stanu.
+   Wiersze startują z opacity 0 i KOŃCZĄ na forwards, więc bez animacji
+   (reduced motion) reguła jest wyłączana w całości niżej. */
+@keyframes chat-row-in-kf {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.chat-row-enter {
+  opacity: 0;
+  animation: chat-row-in-kf 300ms cubic-bezier(0.21, 1.02, 0.55, 1) forwards;
+  animation-delay: calc(min(var(--row-i, 0), 14) * 26ms);
+}
+
+@keyframes chat-pane-in-kf {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.chat-pane-in {
+  animation: chat-pane-in-kf 240ms cubic-bezier(0.21, 1.02, 0.55, 1);
+}
+
+/* Hero pustego stanu: delikatna poświata w tonacji czatu + trzy pływające
+   dymki (czysty CSS, brak obrazów). */
+.chat-hero-surface {
+  background:
+    radial-gradient(
+      90% 70% at 85% 10%,
+      color-mix(in oklab, var(--chat-user-to, #ed6d1f) 8%, transparent) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      100% 80% at 10% 95%,
+      color-mix(in oklab, var(--chat-user-from, #fbaa6d) 10%, transparent) 0%,
+      transparent 55%
+    );
+}
+@keyframes chat-hero-float-kf {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--hero-rot, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--hero-rot, 0deg));
+  }
+}
+.chat-hero-bubble {
+  animation: chat-hero-float-kf 5.2s ease-in-out infinite;
+  animation-delay: var(--hero-delay, 0s);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-msg-enter-mine,
   .chat-msg-enter-theirs,
   .chat-reaction-pop,
   .chat-typing-dot,
-  .chat-pop-in {
+  .chat-pop-in,
+  .chat-pane-in,
+  .chat-hero-bubble {
     animation: none;
+  }
+  .chat-row-enter {
+    animation: none;
+    opacity: 1;
   }
 }
