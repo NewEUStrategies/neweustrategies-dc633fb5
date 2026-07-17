@@ -199,21 +199,15 @@ export function SearchButtonWidget({
   return (
     <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0">
       <div
-        className="flex w-full items-center gap-2 border border-input bg-card text-foreground shadow-sm transition-colors"
+        className="flex w-full items-center gap-2 overflow-hidden border border-input bg-card text-foreground shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40"
         style={{
           direction: "ltr",
           height: `${h}px`,
           minHeight: `${h}px`,
           borderRadius: `${radius}px`,
-          paddingLeft: `${pad}px`,
           paddingRight: `${pad}px`,
         }}
       >
-        <LucideIcons.Search
-          className="text-muted-foreground shrink-0"
-          style={{ width: Math.round(h * 0.4), height: Math.round(h * 0.4) }}
-          aria-hidden
-        />
         <input
           ref={inputRef}
           type="text"
@@ -243,7 +237,10 @@ export function SearchButtonWidget({
             border: 0,
             outline: "none",
             borderRadius: 0,
-            padding: 0,
+            paddingLeft: `${Math.max(16, pad + 4)}px`,
+            paddingRight: 0,
+            paddingTop: 0,
+            paddingBottom: 0,
             margin: 0,
             appearance: "none",
             WebkitAppearance: "none",
@@ -272,6 +269,32 @@ export function SearchButtonWidget({
             <LucideIcons.X className="w-3.5 h-3.5" />
           </button>
         )}
+        <button
+          type="button"
+          aria-label={lang === "pl" ? "Szukaj" : "Search"}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (hasQuery) {
+              addRecentSearch(q);
+              setFocused(false);
+              void router.navigate({ href: searchAllHref } as never);
+            } else {
+              inputRef.current?.focus();
+            }
+          }}
+          className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+        >
+          <LucideIcons.Search style={{ width: 22, height: 22 }} aria-hidden />
+        </button>
+        <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+        <button
+          type="button"
+          aria-label={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
+          title={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
+          className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+        >
+          <LucideIcons.Mic style={{ width: 20, height: 20 }} aria-hidden />
+        </button>
       </div>
 
       {showPopover && (
