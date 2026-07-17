@@ -4416,3 +4416,27 @@ textarea::placeholder {
 
 
 
+
+/* ===== Animated Play/Pause toggle (SidebarListenCard) ===== */
+.listen-play-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.listen-play-toggle .lpt-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lpt-keyframes-fill 0.3s ease;
+}
+.listen-play-toggle[data-playing="false"] .lpt-pause,
+.listen-play-toggle[data-playing="true"] .lpt-play {
+  display: none;
+}
+@keyframes lpt-keyframes-fill {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
