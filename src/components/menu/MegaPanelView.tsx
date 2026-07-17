@@ -52,7 +52,16 @@ export function MegaPanelView({
     : "";
   const featuredEyebrow = featured?.post_format ? featured.post_format.toString() : eyebrowFallback;
 
-  const authorName = (f: MegaFeaturedPost): string => f.author_display_name || "";
+  const authorLabel = lang === "en" ? "By" : "Autor";
+  const unknownAuthor = lang === "en" ? "Unknown author" : "Nieznany autor";
+  const authorName = (f: MegaFeaturedPost): string =>
+    (f.author_display_name || "").trim() || unknownAuthor;
+  const authorInitials = (name: string): string => {
+    const parts = name.split(/\s+/).filter(Boolean);
+    const first = parts[0]?.[0] ?? "";
+    const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+    return (first + last).toUpperCase() || "?";
+  };
 
   const containerClass =
     variant === "live"
