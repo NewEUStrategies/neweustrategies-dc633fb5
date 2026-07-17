@@ -330,6 +330,19 @@ function MessagesInner() {
                     ))}
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+                    {/* Wirtualny wątek "demo bot" - lokalny podgląd UI, bez DB.
+                        Widoczny tylko dla filtra "wszystkie" i braku szukanej
+                        frazy, żeby nie kolidował z filtrowaniem realnej listy. */}
+                    {!showArchived && listFilter === "all" && normalizedFilter === "" && (
+                      <DemoBotListItem
+                        active={selected === DEMO_BOT_ID}
+                        onOpen={() => {
+                          setSelected(DEMO_BOT_ID);
+                          setMode("list");
+                          void navigate({ search: { c: DEMO_BOT_ID }, replace: true });
+                        }}
+                      />
+                    )}
                     {archivedViews.length > 0 && (
                       <button
                         type="button"
