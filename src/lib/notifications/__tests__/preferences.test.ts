@@ -19,6 +19,7 @@ const prefs: NotificationPreferences = {
   allow_messages_from: "everyone",
   push_enabled: false,
   email_digest: "off",
+  chat_bell_enabled: true,
 };
 
 describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
