@@ -1,19 +1,70 @@
-// Live search widget (desktop header + builder header), extracted from
-// SimpleWidgets. Uses the SAME ranked full-text engine as /search and the
-// mobile overlay (search_posts RPC: unaccent, prefix matching, indexes
-// blocks/builder content) - previously it ran a plain title-only ILIKE, so the
-// primary desktop entry point returned different results from every other
-// search surface. Exposes the WAI-ARIA combobox/listbox pattern with arrow-key
-// navigation, recent searches, and a "view all results" link into /search.
-import { useEffect, useId, useRef, useState } from "react";
+// Live search widget (desktop header + builder header). Uses the shared
+// `search_autosuggest` RPC (same engine as /search) and groups results into
+// four premium categories: Titles, Content types, Topics, People & orgs.
+// Exposes the WAI-ARIA combobox/listbox pattern with arrow-key navigation,
+// recent searches, and a "view all results" link into /search.
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
+import { DIM_PARAM, type SearchUrl } from "@/lib/search/facetModel";
+import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
 
-type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
+type SuggestBucket = "titles" | "contentTypes" | "topics" | "peopleOrg";
+
+const BUCKET_ORDER: readonly SuggestBucket[] = [
+  "titles",
+  "contentTypes",
+  "topics",
+  "peopleOrg",
+] as const;
+
+const bucketOf = (kind: AutosuggestItem["kind"]): SuggestBucket => {
+  if (kind === "post") return "titles";
+  if (kind === "author") return "peopleOrg";
+  if (kind === "format" || kind === "pub_type" || kind === "access" || kind === "lang") {
+    return "contentTypes";
+  }
+  return "topics";
+};
+
+const BUCKET_LABEL_PL: Record<SuggestBucket, string> = {
+  titles: "Tytuły",
+  contentTypes: "Rodzaje treści",
+  topics: "Tematyka",
+  peopleOrg: "Osoby i organizacje",
+};
+const BUCKET_LABEL_EN: Record<SuggestBucket, string> = {
+  titles: "Titles",
+  contentTypes: "Content types",
+  topics: "Topics",
+  peopleOrg: "People & organizations",
+};
+
+/** Build target href for an autosuggest item. Posts go to their permalink;
+ *  taxonomy/author picks land on /search with the matching filter applied. */
+function hrefForItem(it: AutosuggestItem): string {
+  if (it.kind === "post" && it.slug) return `/post/${it.slug}`;
+  const patch: Record<string, string> = {};
+  if (it.kind === "author") {
+    if (it.id) patch.author = it.id;
+  } else if (it.kind === "format" && it.slug) patch.format = it.slug;
+  else if (it.kind === "access" && it.slug) patch.access = it.slug;
+  else if (it.kind === "lang" && it.slug) patch.lang = it.slug;
+  else if (it.kind === "year" && it.slug) patch.year = it.slug;
+  else if (it.kind !== "post" && it.kind !== "author") {
+    const param = DIM_PARAM[it.kind] as keyof SearchUrl | undefined;
+    const value = it.slug ?? it.id;
+    if (param && value) patch[param as string] = value;
+  }
+  const qs = new URLSearchParams(patch).toString();
+  return qs ? `/search?${qs}` : "/search";
+}
+
+type BucketedItem = { item: AutosuggestItem; bucket: SuggestBucket; index: number };
 
 export function SearchButtonWidget({
   label,
