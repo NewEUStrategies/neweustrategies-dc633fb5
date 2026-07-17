@@ -14,7 +14,7 @@
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, Send, X } from "lucide-react";
+import { ArrowLeft, Bot, SendHorizontal, X } from "lucide-react";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { ChatAvatar } from "./ChatAvatar";
@@ -228,40 +228,41 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-background">
-      {/* Header: parity z realnym ChatWindow, tylko z jasnym "Demo" badge. */}
-      <header className="flex items-center gap-2.5 border-b border-border/60 bg-card px-3.5 py-2.5">
+      {/* Header: 1:1 z nagłówkiem realnego ChatWindow (paddingi, rozmiary,
+          typografia), plus jasny "Demo" badge przy nazwie. */}
+      <header className="flex items-center gap-2.5 border-b border-border/60 px-3 py-2">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
             aria-label={t("chat.back", { defaultValue: "Wróć" })}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
           </button>
         )}
         <span className="relative inline-block shrink-0">
-          <ChatAvatar name={botName} online size="md" />
+          <ChatAvatar name={botName} online size="sm" />
           <span
-            className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-md bg-[var(--brand)] text-white shadow-sm ring-2 ring-card"
+            className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-[6px] bg-[var(--brand)] text-white shadow-sm ring-2 ring-background"
             aria-hidden
           >
             <Bot className="h-2.5 w-2.5" />
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-1.5 truncate text-sm font-semibold">
-            {botName}
+          <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
+            <span className="truncate">{botName}</span>
             <span
-              className="inline-flex items-center rounded-md border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+              className="inline-flex shrink-0 items-center rounded-[6px] border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
               aria-label={t("chat.demoBot.badge")}
             >
               {t("chat.demoBot.badge")}
             </span>
-          </h2>
-          <p className="truncate text-[11px] text-muted-foreground">
+          </div>
+          <div className="truncate text-[11px] text-muted-foreground">
             {botTyping ? t("chat.typing") : t("chat.demoBot.subtitle")}
-          </p>
+          </div>
         </div>
       </header>
 
@@ -292,7 +293,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
       {/* Kompozytor: minimalny (bez załączników/emoji), ale z paskiem
           odpowiedzi - to jest podgląd interakcji, nie pełny composer. */}
-      <div className="border-t border-border/60 bg-card px-3 py-2.5">
+      <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
         {replyTo && (
           <div className="mb-1.5 flex items-start justify-between gap-2 rounded-[6px] bg-muted/60 px-2.5 py-1.5">
             <div className="min-w-0 text-[11px]">
@@ -314,12 +315,14 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             </button>
           </div>
         )}
+        {/* Te same klasy co realny ChatComposer: textarea na bg-muted/40 z
+            radiusem 6px i okrągły przycisk wysyłki w kolorze tokenu czatu. */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send();
           }}
-          className="flex items-end gap-2"
+          className="flex items-end gap-1"
         >
           <textarea
             ref={textareaRef}
@@ -337,17 +340,17 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             rows={1}
             placeholder={t("chat.inputPlaceholder")}
             aria-label={t("chat.inputPlaceholder")}
-            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="max-h-[120px] min-h-[36px] w-full min-w-0 flex-1 resize-none rounded-[6px] border border-input bg-muted/40 px-3 py-1.5 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={input.trim().length === 0 || botTyping}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--brand)] text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
             aria-label={t("chat.send")}
             title={t("chat.send")}
           >
-            <Send className="h-4 w-4" aria-hidden />
+            <SendHorizontal className="h-4.5 w-4.5" aria-hidden />
           </button>
         </form>
       </div>
