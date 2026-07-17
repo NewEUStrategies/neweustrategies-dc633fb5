@@ -191,6 +191,11 @@ export function useAttachmentUrl(path: string | null): UseQueryResult<string> {
     gcTime: SIGNED_URL_TTL_SECONDS * 1000,
     queryFn: async (): Promise<string> => {
       if (!path) throw new Error("chat-attachment:path");
+      // Escape hatch for local previews (demo bot, offline drafts): a path
+      // that is already a resolvable URL is returned verbatim. Storage RLS
+      // still gates real chat attachments because those never carry these
+      // prefixes.
+      if (/^(blob:|data:|https?:)/i.test(path)) return path;
       const { data, error } = await supabase.storage
         .from("chat-attachments")
         .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
