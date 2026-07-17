@@ -340,24 +340,31 @@ function SearchPage() {
           <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
             {t("search.date")}
           </h3>
-          <div className="space-y-2">
-            <label className="block text-xs">
-              {t("search.date_from")}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                {t("search.date_from")}
+              </span>
               <Input
                 type="date"
+                className="h-9 text-xs"
                 value={search.from ?? ""}
                 onChange={(e) => applyPatch({ from: e.target.value || undefined, year: undefined })}
               />
             </label>
-            <label className="block text-xs">
-              {t("search.date_to")}
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                {t("search.date_to")}
+              </span>
               <Input
                 type="date"
+                className="h-9 text-xs"
                 value={search.to ?? ""}
                 onChange={(e) => applyPatch({ to: e.target.value || undefined, year: undefined })}
               />
             </label>
           </div>
+
         </div>
 
         <SearchFacetPanel facets={facets} url={url} lang={lang} onChange={applyPatch} />
