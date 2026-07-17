@@ -357,7 +357,23 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             {botTyping ? t("chat.typing") : t("chat.demoBot.subtitle")}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setMediaHistoryOpen(true)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={t("chat.mediaHistory.open", { defaultValue: "Multimedia i pliki" })}
+          title={t("chat.mediaHistory.open", { defaultValue: "Multimedia i pliki" })}
+        >
+          <Images className="h-4 w-4" aria-hidden />
+        </button>
       </header>
+
+      <MediaHistoryDialog
+        open={mediaHistoryOpen}
+        onOpenChange={setMediaHistoryOpen}
+        messages={messages}
+        lang={lang}
+      />
 
       {/* Realny MessageList: separatory dni, godziny, ticki, reakcje,
           odpowiedzi z cytatem, tombstone, typing - wszystko jak na żywo. */}
