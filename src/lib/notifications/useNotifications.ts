@@ -284,7 +284,7 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest",
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest, chat_bell_enabled",
         )
         .eq("user_id", user!.id)
         .maybeSingle();
