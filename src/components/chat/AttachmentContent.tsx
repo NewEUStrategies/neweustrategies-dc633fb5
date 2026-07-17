@@ -220,45 +220,90 @@ export function AttachmentFile({
   const { t } = useTranslation();
   const urlQ = useAttachmentUrl(path);
   const Icon = fileIconFor(mime);
+  const isPdf = mime === "application/pdf";
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const label = name ?? t("chat.file");
+
   return (
-    <a
-      href={urlQ.data ?? "#"}
-      download={name ?? undefined}
-      target="_blank"
-      rel="noreferrer noopener"
-      aria-disabled={!urlQ.data}
-      onClick={(e) => {
-        if (!urlQ.data) e.preventDefault();
-      }}
-      className={cn(
-        "group/file flex max-w-[240px] items-center gap-2.5 rounded-[6px] border px-3 py-2.5 transition-colors",
-        mine
-          ? "border-primary/20 bg-primary text-primary-foreground hover:bg-primary/90"
-          : "border-border/60 bg-muted text-foreground hover:bg-muted/70",
-      )}
-      title={t("chat.download")}
-    >
-      <span
+    <>
+      <div
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px]",
-          mine ? "bg-primary-foreground/15" : "bg-background",
+          "flex max-w-[260px] items-center gap-2.5 rounded-[6px] border px-3 py-2.5 transition-colors",
+          mine
+            ? "border-primary/20 bg-primary text-primary-foreground"
+            : "border-border/60 bg-muted text-foreground",
         )}
-        aria-hidden
       >
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium">{name ?? t("chat.file")}</span>
-        {typeof size === "number" && size > 0 && (
-          <span className={cn("block text-[10px]", mine ? "opacity-75" : "text-muted-foreground")}>
-            {formatBytes(size, lang)}
-          </span>
-        )}
-      </span>
-      <Download
-        className="h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover/file:opacity-70"
-        aria-hidden
-      />
-    </a>
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px]",
+            mine ? "bg-primary-foreground/15" : "bg-background",
+          )}
+          aria-hidden
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-medium">{label}</span>
+          {typeof size === "number" && size > 0 && (
+            <span
+              className={cn("block text-[10px]", mine ? "opacity-75" : "text-muted-foreground")}
+            >
+              {formatBytes(size, lang)}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-0.5">
+          {isPdf && (
+            <button
+              type="button"
+              onClick={() => setPdfOpen(true)}
+              disabled={!urlQ.data}
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
+                mine
+                  ? "hover:bg-primary-foreground/20"
+                  : "text-muted-foreground hover:bg-background hover:text-foreground",
+              )}
+              aria-label={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+              title={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+          <a
+            href={urlQ.data ?? "#"}
+            download={name ?? undefined}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-disabled={!urlQ.data}
+            onClick={(e) => {
+              if (!urlQ.data) e.preventDefault();
+            }}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              mine
+                ? "hover:bg-primary-foreground/20"
+                : "text-muted-foreground hover:bg-background hover:text-foreground",
+            )}
+            aria-label={t("chat.download")}
+            title={t("chat.download")}
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        </span>
+      </div>
+      {isPdf && (
+        <PdfPreviewDialog
+          open={pdfOpen}
+          onOpenChange={setPdfOpen}
+          url={urlQ.data ?? null}
+          name={name}
+        />
+      )}
+    </>
+  );
+}
+
   );
 }
