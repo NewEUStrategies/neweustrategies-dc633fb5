@@ -4333,3 +4333,83 @@ textarea::placeholder {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
+
+/* ============================================================
+   Animated checkbox (shadcn <Checkbox />)
+   Platform-wide visual: rounded square outline + animated tick.
+   Uses design tokens so it works in dark + light modes.
+   ============================================================ */
+.lov-check {
+  -webkit-tap-highlight-color: transparent;
+  transform: translate3d(0, 0, 0);
+  cursor: pointer;
+}
+.lov-check::before {
+  content: "";
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.lov-check:hover::before {
+  opacity: 1;
+}
+.lov-check__svg {
+  position: relative;
+  z-index: 1;
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: translate3d(0, 0, 0);
+  transition: stroke 0.2s ease;
+  overflow: visible;
+}
+.lov-check__svg path {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.3s linear;
+}
+.lov-check__svg polyline {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 66;
+  transition:
+    stroke-dashoffset 0.2s linear 0s;
+}
+.lov-check:hover .lov-check__svg,
+.lov-check:focus-visible .lov-check__svg {
+  stroke: var(--primary);
+}
+.lov-check[data-state="checked"] .lov-check__svg,
+.lov-check[data-state="indeterminate"] .lov-check__svg {
+  stroke: var(--primary);
+}
+.lov-check[data-state="checked"] .lov-check__svg path {
+  stroke-dashoffset: 60;
+  transition: stroke-dashoffset 0.3s linear;
+}
+.lov-check[data-state="checked"] .lov-check__svg polyline {
+  stroke-dashoffset: 42;
+  transition: stroke-dashoffset 0.2s linear 0.15s;
+}
+.lov-check[data-state="indeterminate"] .lov-check__svg polyline {
+  stroke-dashoffset: 52;
+}
+.dark .lov-check::before {
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lov-check__svg,
+  .lov-check__svg path,
+  .lov-check__svg polyline {
+    transition: none !important;
+  }
+}
+
