@@ -255,8 +255,9 @@ export function SidebarListenCard({
           disabled={loading}
           aria-label={playing ? t.pause : t.play}
           aria-pressed={playing}
+          data-playing={playing ? "true" : "false"}
           className={[
-            "relative shrink-0 flex h-9 w-9 items-center justify-center rounded-[6px]",
+            "listen-play-toggle shrink-0 h-9 w-9 rounded-[6px]",
             "bg-brand text-brand-foreground transition-all",
             "hover:brightness-110 active:scale-95 disabled:opacity-70",
             FOCUS_RING,
@@ -264,10 +265,15 @@ export function SidebarListenCard({
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : playing ? (
-            <Pause className="h-4 w-4" aria-hidden />
           ) : (
-            <Play className="h-4 w-4 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
+            <>
+              <span key={`play-${playing}`} className="lpt-icon lpt-play">
+                <Play className="h-4 w-4 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
+              </span>
+              <span key={`pause-${playing}`} className="lpt-icon lpt-pause">
+                <Pause className="h-4 w-4" aria-hidden />
+              </span>
+            </>
           )}
         </button>
 
