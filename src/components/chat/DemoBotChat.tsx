@@ -192,7 +192,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
   // Focus po zamontowaniu (parity z ChatWindow.autoFocus).
   useEffect(() => {
-    textareaRef.current?.focus();
+    textareaRef.current?.focus({ preventScroll: true });
   }, []);
 
   // Reakcje: semantyka Messengera - ten sam emoji zdejmuje, inny podmienia.
@@ -209,7 +209,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
   const handleReply = useCallback((message: ChatMessage) => {
     setReplyTo(message);
-    textareaRef.current?.focus();
+    textareaRef.current?.focus({ preventScroll: true });
   }, []);
 
   // Usunięcie własnej wiadomości: tombstone jak w realnym wątku.
@@ -259,7 +259,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       const previewUrl = URL.createObjectURL(file);
       blobsRef.current.push(previewUrl);
       setStaged({ file, kind, previewUrl });
-      textareaRef.current?.focus();
+      textareaRef.current?.focus({ preventScroll: true });
     },
     [staged, t, lang],
   );

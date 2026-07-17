@@ -140,7 +140,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         resize();
         const el = textareaRef.current;
         if (el) {
-          el.focus();
+          el.focus({ preventScroll: true });
           el.setSelectionRange(el.value.length, el.value.length);
         }
       });
@@ -179,7 +179,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       kind,
       previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
     });
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
   };
 
   // Unified submit: edit save, or staged attachment + caption, or plain text.
@@ -242,7 +242,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onClearReply();
     requestAnimationFrame(() => {
       resize();
-      textareaRef.current?.focus();
+      textareaRef.current?.focus({ preventScroll: true });
     });
   };
 
@@ -257,7 +257,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       replyToId: replyTo?.id ?? null,
     });
     onClearReply();
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
   };
 
   // --- Voice notes ---------------------------------------------------------
@@ -308,7 +308,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     const next = text.slice(0, start) + emoji + text.slice(end);
     setText(next);
     requestAnimationFrame(() => {
-      el.focus();
+      el.focus({ preventScroll: true });
       const caret = start + emoji.length;
       el.setSelectionRange(caret, caret);
       resize();
