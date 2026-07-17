@@ -490,7 +490,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             e.preventDefault();
             send();
           }}
-          className="flex items-end gap-1"
+          className="flex min-h-10 w-full items-center gap-2 rounded-[10px] border border-input bg-muted/60 px-3 py-1.5 transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40"
         >
           <input
             ref={fileInputRef}
@@ -505,11 +505,13 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={botTyping}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-35"
+            className="group relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
             aria-label={t("chat.attach", { defaultValue: "Załącz plik" })}
-            title={`${t("chat.attach", { defaultValue: "Załącz plik" })} (max ${formatBytes(MAX_ATTACHMENT_BYTES, lang)})`}
           >
-            <Paperclip className="h-4 w-4" aria-hidden />
+            <Paperclip className="h-[18px] w-[18px]" aria-hidden />
+            <span className="pointer-events-none absolute -top-9 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] text-popover-foreground shadow-md group-hover:block">
+              {t("chat.attach", { defaultValue: "Załącz plik" })}
+            </span>
           </button>
           <textarea
             ref={textareaRef}
@@ -536,17 +538,17 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
                 : t("chat.inputPlaceholder")
             }
             aria-label={t("chat.inputPlaceholder")}
-            className="max-h-[120px] min-h-[36px] w-full min-w-0 flex-1 resize-none rounded-[6px] border border-input bg-muted/40 px-3 py-1.5 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="max-h-[120px] min-h-[24px] w-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={(input.trim().length === 0 && !staged) || botTyping}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
             aria-label={t("chat.send")}
             title={t("chat.send")}
           >
-            <SendHorizontal className="h-4.5 w-4.5" aria-hidden />
+            <SendHorizontal className="h-[18px] w-[18px]" aria-hidden />
           </button>
         </form>
       </div>
