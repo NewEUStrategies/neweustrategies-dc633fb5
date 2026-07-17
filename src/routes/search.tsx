@@ -585,7 +585,7 @@ function SearchPage() {
               />
             )}
           </div>
-          <Button type="submit" className="h-12 rounded-xl px-6">
+          <Button type="submit" size="lg" className="h-12 rounded-xl px-6">
             {t("search.submit")}
           </Button>
         </form>
