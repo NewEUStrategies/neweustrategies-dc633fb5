@@ -276,6 +276,13 @@ function RootComponent() {
     // Consolidated client observability: Core Web Vitals (RUM) + global error
     // capture, beaconed to the configurable observability endpoint.
     void import("../lib/observability").then((m) => m.initObservability());
+    // Preview iframe watchdog: reload when the editor preview hangs on boot
+    // or the main thread freezes for too long. No-op outside iframes.
+    let stopWatchdog: (() => void) | undefined;
+    void import("../lib/watchdog/previewWatchdog").then((m) => {
+      m.markPreviewAppReady();
+      stopWatchdog = m.startPreviewWatchdog();
+    });
     // Attribute Web Vitals to the correct subpage on soft navigations
     // (kategorie, wpisy, strony statyczne). Flush the previous path's
     // accumulators before switching so LCP/CLS/INP land per URL.
@@ -291,8 +298,10 @@ function RootComponent() {
     });
     return () => {
       unsub();
+      stopWatchdog?.();
     };
   }, [router]);
+
 
   // Per-request i18next instance on the server (isolates the render language
   // from concurrent requests); the shared singleton on the client. Rendered
