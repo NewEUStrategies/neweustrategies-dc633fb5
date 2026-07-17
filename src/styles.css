@@ -4411,10 +4411,11 @@ textarea::placeholder {
   background: color-mix(in oklab, var(--primary) 18%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .lov-check__svg,
-  .lov-check__svg path,
-  .lov-check__svg polyline {
+  .lov-check__box,
+  .lov-check__tick,
+  .lov-check__dash {
     transition: none !important;
   }
 }
+
 
