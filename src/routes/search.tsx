@@ -516,6 +516,7 @@ function SearchPage() {
                 lang={lang}
                 emptyText={t("search.empty")}
                 getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
+                titleClassName="text-base"
               />
             )}
 

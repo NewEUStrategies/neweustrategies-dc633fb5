@@ -11,6 +11,8 @@ interface Props {
   emptyAction?: React.ReactNode;
   /** Optional per-post excerpt override (e.g. search-hit snippet with <mark>). */
   getExcerptOverride?: (post: BlogListItem) => React.ReactNode | undefined;
+  /** Smaller title font for denser lists like search results. */
+  titleClassName?: string;
 }
 
 export function ArchivePostList({
@@ -19,6 +21,7 @@ export function ArchivePostList({
   emptyText,
   emptyAction,
   getExcerptOverride,
+  titleClassName = "text-xl",
 }: Props) {
   if (posts.length === 0) {
     return (
@@ -39,6 +42,7 @@ export function ArchivePostList({
           lang={lang}
           viewTransitionId={p.id}
           excerptOverride={getExcerptOverride?.(p)}
+          titleClassName={titleClassName}
         />
       ))}
     </div>
