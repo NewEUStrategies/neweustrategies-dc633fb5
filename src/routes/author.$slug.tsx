@@ -17,6 +17,7 @@ import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { FollowButton } from "@/components/FollowButton";
+import { ConnectButton } from "@/components/network/ConnectButton";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
@@ -274,9 +275,14 @@ function ExpertHubPage() {
           lang={lang}
           showPlaceholders={false}
           action={
-            personalized.followInAuthorHeader ? (
-              <FollowButton targetType="author" targetId={expert.id} lang={lang} />
-            ) : null
+            <div className="flex flex-wrap items-center gap-2">
+              {personalized.followInAuthorHeader && (
+                <FollowButton targetType="author" targetId={expert.id} lang={lang} />
+              )}
+              {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
+                  profilu (komponent sam zwraca null w pozostałych stanach). */}
+              <ConnectButton userId={expert.id} displayName={name} />
+            </div>
           }
         />
 

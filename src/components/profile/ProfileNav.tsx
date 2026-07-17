@@ -13,6 +13,7 @@ type NavKey =
   | "bookmarks"
   | "notifications"
   | "follows"
+  | "network"
   | "membership"
   | "billing"
   | "subscription"
@@ -36,7 +37,8 @@ const CONTENT: NavItem[] = [
   { to: "/profile/personality", key: "personality" },
   { to: "/profile/bookmarks", key: "bookmarks" },
   { to: "/profile/follows", key: "follows" },
-  // Świadomie linkuje POZA profil (centrum wiadomości) - stąd na końcu grupy.
+  // Świadomie linkują POZA profil (sieć kontaktów i centrum wiadomości).
+  { to: "/network", key: "network" },
   { to: "/messages", search: { view: "notifications" }, key: "notifications" },
 ];
 

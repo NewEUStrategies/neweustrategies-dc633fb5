@@ -20,11 +20,14 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { ConnectButton } from "@/components/network/ConnectButton";
 import { useAuth } from "@/hooks/useAuth";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { useStartConversation } from "@/lib/chat/useConversations";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
+import { useUserCounter } from "@/lib/counters/usePendingCounters";
+import { useConnectionStatuses, type ConnectionState } from "@/lib/network/useConnections";
 import {
   EMPTY_PEOPLE_FILTERS,
   usePeopleDirectory,
@@ -36,6 +39,7 @@ import { useBadgesForUsers, type ProfileBadgeKind } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-chat";
+import "@/lib/i18n-network";
 
 export const Route = createFileRoute("/people")({
   component: PeoplePage,
@@ -140,10 +144,12 @@ function PersonCard({
   person,
   online,
   badges,
+  connection,
 }: {
   person: PersonHit;
   online: boolean;
   badges?: ProfileBadgeKind[];
+  connection?: ConnectionState;
 }) {
   const { t } = useTranslation();
   const start = useStartConversation();
@@ -193,21 +199,33 @@ function PersonCard({
       ) : (
         <div className="min-w-0 flex-1">{details}</div>
       )}
-      <button
-        type="button"
-        disabled={start.isPending}
-        onClick={() =>
-          start.mutate(person.id, {
-            onSuccess: (conversationId) => openChatWindow({ conversationId }),
-            onError: () => toast.error(t("chat.startError")),
-          })
-        }
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        aria-label={`${t("people.message")}: ${person.display_name}`}
-      >
-        <MessageCircle className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">{t("people.message")}</span>
-      </button>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {/* Status z batchowanego RPC - bez mapy nie renderujemy przycisku,
+            żeby każda karta nie odpytywała o status osobno. */}
+        {connection && (
+          <ConnectButton
+            userId={person.id}
+            displayName={person.display_name}
+            state={connection}
+            compact
+          />
+        )}
+        <button
+          type="button"
+          disabled={start.isPending}
+          onClick={() =>
+            start.mutate(person.id, {
+              onSuccess: (conversationId) => openChatWindow({ conversationId }),
+              onError: () => toast.error(t("chat.startError")),
+            })
+          }
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+          aria-label={`${t("people.message")}: ${person.display_name}`}
+        >
+          <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+          <span className="hidden sm:inline">{t("people.message")}</span>
+        </button>
+      </div>
     </li>
   );
 }
@@ -234,6 +252,9 @@ function PeopleInner() {
   const total = peopleQ.data?.pages[0]?.[0]?.total_count ?? people.length;
   // Sygnały zaufania: odznaki dla całej widocznej partii jednym zapytaniem.
   const badgesQ = useBadgesForUsers(people.map((p) => p.id));
+  // Statusy sieci kontaktów dla widocznych kart - jeden batchowany RPC.
+  const connectionsQ = useConnectionStatuses(people.map((p) => p.id));
+  const pendingInvites = useUserCounter("connections_pending");
   const hasActiveFilters =
     filters.specialization !== null ||
     filters.company !== null ||
@@ -245,9 +266,25 @@ function PeopleInner() {
 
   return (
     <div className="container mx-auto max-w-5xl px-3 py-5 sm:px-4 sm:py-6">
-      <header className="mb-4">
-        <h1 className="text-xl font-bold leading-tight">{t("people.title")}</h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t("people.subtitle")}</p>
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold leading-tight">{t("people.title")}</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("people.subtitle")}</p>
+        </div>
+        <Button asChild variant="outline" size="sm" className="gap-1.5">
+          <Link to="/network">
+            <Users className="h-3.5 w-3.5" aria-hidden />
+            {t("network.networkLink")}
+            {pendingInvites > 0 && (
+              <span
+                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold text-white"
+                aria-label={t("network.pendingBadge", { count: pendingInvites })}
+              >
+                {pendingInvites}
+              </span>
+            )}
+          </Link>
+        </Button>
       </header>
 
       <div className="mb-4">
@@ -373,6 +410,11 @@ function PeopleInner() {
                 person={person}
                 online={online.has(person.id)}
                 badges={badgesQ.data?.get(person.id)}
+                connection={
+                  connectionsQ.data
+                    ? (connectionsQ.data.get(person.id) ?? { status: "none", connectionId: null })
+                    : undefined
+                }
               />
             ))}
           </ul>

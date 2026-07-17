@@ -17,7 +17,8 @@ export type NotificationKind =
   | "content"
   | "security"
   | "message"
-  | "tracker";
+  | "tracker"
+  | "connection";
 
 /** Who may START a new conversation with the user (existing threads live on). */
 export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
@@ -31,6 +32,7 @@ export interface NotificationPreferences {
   enabled_system: boolean;
   enabled_security: boolean;
   enabled_tracker: boolean;
+  enabled_connection: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -73,6 +75,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_system: true,
   enabled_security: true,
   enabled_tracker: true,
+  enabled_connection: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -284,7 +287,7 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
       const { data, error } = await supabase
         .from("notification_preferences")
         .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest, chat_bell_enabled",
+          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, enabled_connection, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, push_enabled, email_digest, chat_bell_enabled",
         )
         .eq("user_id", user!.id)
         .maybeSingle();

@@ -11,6 +11,7 @@ export const TOGGLEABLE_NOTIFICATION_KINDS = [
   "message",
   "comment",
   "follow",
+  "connection",
   "subscription",
   "content",
   "tracker",
