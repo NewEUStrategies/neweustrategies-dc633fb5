@@ -1,4 +1,6 @@
 import { XIcon } from "@/components/atoms/XIcon";
+import { BrandIcon } from "@/components/icons/BrandIcon";
+
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -287,32 +289,37 @@ function UserDetail() {
 
           <Card title={L("Media społecznościowe", "Social media")}>
             <SocialRow
-              icon={<Globe className="w-4 h-4" />}
+              icon={<BrandIcon name="website" fallback={<Globe className="w-4 h-4" />} />}
               label="Website"
               value={data.website_url}
             />
-            <SocialRow icon={<XIcon className="w-4 h-4" />} label="X" value={data.twitter_url} />
             <SocialRow
-              icon={<Linkedin className="w-4 h-4" />}
+              icon={<BrandIcon name="x" fallback={<XIcon className="w-4 h-4" />} />}
+              label="X"
+              value={data.twitter_url}
+            />
+            <SocialRow
+              icon={<BrandIcon name="linkedin" fallback={<Linkedin className="w-4 h-4" />} />}
               label="LinkedIn"
               value={data.linkedin_url}
             />
             <SocialRow
-              icon={<Facebook className="w-4 h-4" />}
+              icon={<BrandIcon name="facebook" fallback={<Facebook className="w-4 h-4" />} />}
               label="Facebook"
               value={data.facebook_url}
             />
             <SocialRow
-              icon={<Instagram className="w-4 h-4" />}
+              icon={<BrandIcon name="instagram" fallback={<Instagram className="w-4 h-4" />} />}
               label="Instagram"
               value={data.instagram_url}
             />
             <SocialRow
-              icon={<Music2 className="w-4 h-4" />}
+              icon={<BrandIcon name="spotify" fallback={<Music2 className="w-4 h-4" />} />}
               label="Spotify"
               value={data.spotify_url}
             />
           </Card>
+
         </section>
 
         {/* Right: meta */}
