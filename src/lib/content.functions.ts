@@ -1089,7 +1089,9 @@ const CategoryCore = z.object({
     .nullable()
     .optional(),
   // Wymiar fasetowy (categories.kind) i hierarchia (region → państwo).
-  kind: z.enum(["category", "pub_type", "region", "topic", "project", "series"]).optional(),
+  kind: z
+    .enum(["category", "pub_type", "region", "topic", "project", "series", "organization"])
+    .optional(),
   parent_id: UUID.nullable().optional(),
 });
 

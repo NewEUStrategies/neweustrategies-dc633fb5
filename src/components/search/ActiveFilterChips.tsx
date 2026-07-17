@@ -35,6 +35,8 @@ export function ActiveFilterChips({ url, facets, labelCache, lang, onChange }: P
 
   const labelFor = (sel: ActiveSelection): string => {
     if (sel.dim === "date") return sel.value;
+    if (sel.dim === "match") return t(`search.adv.match.${sel.value}`, { defaultValue: sel.value });
+    if (sel.dim === "scope") return t(`search.adv.scope.${sel.value}`, { defaultValue: sel.value });
     if (sel.dim === "format" || sel.dim === "lang" || sel.dim === "access") {
       return t(`search.${sel.dim}.${sel.value}`, { defaultValue: sel.value });
     }
@@ -43,6 +45,13 @@ export function ActiveFilterChips({ url, facets, labelCache, lang, onChange }: P
     const f = byId.get(sel.value);
     if (f) return facetLabel(f, lang, t);
     return labelCache[sel.value] ?? sel.value;
+  };
+
+  const prefixFor = (sel: ActiveSelection): string => {
+    if (sel.dim === "date") return t("search.date");
+    if (sel.dim === "match") return t("search.adv.chip_match");
+    if (sel.dim === "scope") return t("search.adv.chip_scope");
+    return t(`search.dim.${sel.dim}`, { defaultValue: "" });
   };
 
   const clear = (sel: ActiveSelection) => {
@@ -62,14 +71,9 @@ export function ActiveFilterChips({ url, facets, labelCache, lang, onChange }: P
           type="button"
           onClick={() => clear(sel)}
           className="group inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 pl-3 pr-2 py-1 text-xs text-foreground transition hover:bg-muted"
-          aria-label={`${t("search.remove_filter")}: ${t(`search.dim.${sel.dim === "date" ? "year" : sel.dim}`, { defaultValue: "" })} ${labelFor(sel)}`.trim()}
+          aria-label={`${t("search.remove_filter")}: ${prefixFor(sel)} ${labelFor(sel)}`.trim()}
         >
-          <span className="text-muted-foreground">
-            {sel.dim === "date"
-              ? t("search.date")
-              : t(`search.dim.${sel.dim}`, { defaultValue: "" })}
-            :
-          </span>
+          <span className="text-muted-foreground">{prefixFor(sel)}:</span>
           <span className="font-medium">{labelFor(sel)}</span>
           <X className="w-3 h-3 text-muted-foreground group-hover:text-foreground" />
         </button>

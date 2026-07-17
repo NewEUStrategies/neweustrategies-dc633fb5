@@ -9,61 +9,15 @@ import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
-import { DIM_PARAM, type SearchUrl } from "@/lib/search/facetModel";
+import {
+  suggestBucketOf,
+  suggestionHref,
+  SUGGEST_BUCKET_ORDER,
+  SUGGEST_BUCKET_LABELS,
+  type SuggestBucket,
+} from "@/lib/search/facetModel";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
-
-type SuggestBucket = "titles" | "contentTypes" | "topics" | "peopleOrg";
-
-const BUCKET_ORDER: readonly SuggestBucket[] = [
-  "titles",
-  "contentTypes",
-  "topics",
-  "peopleOrg",
-] as const;
-
-const bucketOf = (kind: AutosuggestItem["kind"]): SuggestBucket => {
-  if (kind === "post") return "titles";
-  if (kind === "author") return "peopleOrg";
-  if (kind === "format" || kind === "pub_type" || kind === "access" || kind === "lang") {
-    return "contentTypes";
-  }
-  return "topics";
-};
-
-const BUCKET_LABEL_PL: Record<SuggestBucket, string> = {
-  titles: "Tytuły",
-  contentTypes: "Rodzaje treści",
-  topics: "Tematyka",
-  peopleOrg: "Osoby i organizacje",
-};
-const BUCKET_LABEL_EN: Record<SuggestBucket, string> = {
-  titles: "Titles",
-  contentTypes: "Content types",
-  topics: "Topics",
-  peopleOrg: "People & organizations",
-};
-
-/** Build target href for an autosuggest item. Posts go to their permalink;
- *  taxonomy/author picks land on /search with the matching filter applied. */
-function hrefForItem(it: AutosuggestItem): string {
-  const kind = it.kind as string;
-  if (kind === "post" && it.slug) return `/post/${it.slug}`;
-  const patch: Record<string, string> = {};
-  if (kind === "author") {
-    if (it.id) patch.author = it.id;
-  } else if (kind === "format" && it.slug) patch.format = it.slug;
-  else if (kind === "access" && it.slug) patch.access = it.slug;
-  else if (kind === "lang" && it.slug) patch.lang = it.slug;
-  else if (kind === "year" && it.slug) patch.year = it.slug;
-  else {
-    const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
-    const value = it.slug ?? it.id;
-    if (param && value) patch[param as string] = value;
-  }
-  const qs = new URLSearchParams(patch).toString();
-  return qs ? `/search?${qs}` : "/search";
-}
 
 interface BucketedItem {
   item: AutosuggestItem;
@@ -167,12 +121,16 @@ export function SearchButtonWidget({
   // and aria-activedescendant. Empty buckets are skipped for a clean list.
   const { grouped, flat } = useMemo(() => {
     const g = new Map<SuggestBucket, BucketedItem[]>();
-    for (const bucket of BUCKET_ORDER) g.set(bucket, []);
+    for (const bucket of SUGGEST_BUCKET_ORDER) g.set(bucket, []);
     for (const it of items) {
-      g.get(bucketOf(it.kind))!.push({ item: it, bucket: bucketOf(it.kind), index: 0 });
+      g.get(suggestBucketOf(it.kind))!.push({
+        item: it,
+        bucket: suggestBucketOf(it.kind),
+        index: 0,
+      });
     }
     const flatList: BucketedItem[] = [];
-    for (const bucket of BUCKET_ORDER) {
+    for (const bucket of SUGGEST_BUCKET_ORDER) {
       for (const entry of g.get(bucket)!) {
         entry.index = flatList.length;
         flatList.push(entry);
@@ -196,8 +154,7 @@ export function SearchButtonWidget({
     setFocused(false);
   };
 
-  const bucketLabel = (b: SuggestBucket) =>
-    lang === "pl" ? BUCKET_LABEL_PL[b] : BUCKET_LABEL_EN[b];
+  const bucketLabel = (b: SuggestBucket) => SUGGEST_BUCKET_LABELS[lang][b];
 
   const iconFor = (b: SuggestBucket) => {
     if (b === "titles") return LucideIcons.FileText;
@@ -227,7 +184,7 @@ export function SearchButtonWidget({
       if (chosen) {
         addRecentSearch(q);
         setFocused(false);
-        void router.navigate({ href: hrefForItem(chosen.item) } as never);
+        void router.navigate({ href: suggestionHref(chosen.item) } as never);
       } else if (hasQuery) {
         addRecentSearch(q);
         setFocused(false);
@@ -363,7 +320,7 @@ export function SearchButtonWidget({
                 role="listbox"
                 aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
               >
-                {BUCKET_ORDER.map((bucket) => {
+                {SUGGEST_BUCKET_ORDER.map((bucket) => {
                   const entries = grouped.get(bucket) ?? [];
                   if (entries.length === 0) return null;
                   const Icon = iconFor(bucket);
@@ -383,7 +340,7 @@ export function SearchButtonWidget({
                           return (
                             <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
                               <AppLink
-                                href={hrefForItem(it)}
+                                href={suggestionHref(it)}
                                 id={optionId(i)}
                                 role="option"
                                 aria-selected={i === active}
@@ -427,6 +384,32 @@ export function SearchButtonWidget({
                 <LucideIcons.ArrowRight className="w-3.5 h-3.5 shrink-0" />
               </AppLink>
             )}
+
+            {/* Premium footer: query-syntax hints + advanced search modes */}
+            {focused &&
+              (showRecent || (hasQuery && !loading && (flat.length > 0 || showEmpty))) && (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
+                  <span className="flex flex-wrap items-center gap-2" aria-hidden>
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                      {lang === "pl" ? '"fraza"' : '"phrase"'}
+                    </code>
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                      {lang === "pl" ? "-wyklucz" : "-exclude"}
+                    </code>
+                  </span>
+                  <AppLink
+                    href={hasQuery ? `${searchAllHref}&adv=1` : "/search?adv=1"}
+                    onClick={() => {
+                      if (hasQuery) addRecentSearch(q);
+                      setFocused(false);
+                    }}
+                    className="inline-flex items-center gap-1 font-medium text-brand-ink hover:underline"
+                  >
+                    <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
+                    {lang === "pl" ? "Wyszukiwanie zaawansowane" : "Advanced search"}
+                  </AppLink>
+                </div>
+              )}
           </div>
         </div>
       )}

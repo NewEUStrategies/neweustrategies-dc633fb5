@@ -208,6 +208,13 @@ export const taxonomyArchiveQueryOptions = (
 /** Kolejność wyników (mapuje się 1:1 na parametr _sort funkcji search_posts). */
 export type SearchSort = "relevance" | "newest" | "popular";
 
+/** Tryb dopasowania frazy (parametr _match RPC): wszystkie słowa / dowolne
+ *  słowo / dokładna fraza. Składnia "fraza" i -wykluczenie działa w all/any. */
+export type SearchMatchMode = "all" | "any" | "phrase";
+
+/** Zakres dopasowania (parametr _in RPC): całość treści albo tylko tytuły. */
+export type SearchScope = "all" | "title";
+
 /** Wymiary fasetowe. Wymiary taksonomii = categories.kind; pozostałe są
  *  wyliczane z pól posta (autor / format / język / dostępność / rok). */
 export type FacetDim =
@@ -217,6 +224,7 @@ export type FacetDim =
   | "topic" // temat
   | "project" // projekt
   | "series" // seria
+  | "organization" // organizacja / instytucja (NATO, UE…)
   | "author"
   | "format"
   | "lang"
@@ -231,6 +239,7 @@ export const TAXONOMY_DIMS = [
   "topic",
   "project",
   "series",
+  "organization",
 ] as const;
 
 /** Podzbiór wymiarów opartych na kontrolowanej taksonomii (categories.kind). */
@@ -252,6 +261,10 @@ export interface SearchFilters {
   /** content_access.mode: public / members / paid. */
   access?: string;
   sort?: SearchSort;
+  /** Tryb dopasowania (zaawansowane tryby wyszukiwania). */
+  match?: SearchMatchMode;
+  /** Zakres dopasowania: wszędzie / tylko tytuły. */
+  scope?: SearchScope;
 }
 
 /** Pojedyncza wartość fasety z licznikiem (płaska lista; UI grupuje po `dim`). */
@@ -306,7 +319,9 @@ export function searchEnabled(f: SearchFilters): boolean {
   return f.q.trim().length >= 2 || hasActiveFilter(f);
 }
 
-/** Wspólny zestaw argumentów RPC (search_posts i search_facets dzielą filtry). */
+/** Wspólny zestaw argumentów RPC (search_posts i search_facets dzielą filtry).
+ *  _match/_in wysyłamy tylko przy wartościach nie-domyślnych - starszy backend
+ *  (przed migracją premium_search) nadal rozwiąże wywołanie po nazwach. */
 function rpcFilterArgs(filters: SearchFilters) {
   const q = filters.q.trim();
   return {
@@ -319,6 +334,8 @@ function rpcFilterArgs(filters: SearchFilters) {
     _format: filters.format ?? undefined,
     _lang: filters.lang ?? undefined,
     _access: filters.access ?? undefined,
+    _match: filters.match && filters.match !== "all" ? filters.match : undefined,
+    _in: filters.scope && filters.scope !== "all" ? filters.scope : undefined,
   };
 }
 
@@ -423,6 +440,52 @@ export const searchAutosuggestQueryOptions = (q: string, limit: number = 8) =>
         }));
       } catch {
         // Odporność przed wdrożeniem migracji: brak funkcji → brak podpowiedzi.
+        return [];
+      }
+    },
+  });
+
+// ---------- OSOBY I ORGANIZACJE --------------------------------------------
+
+/** Pozycja sekcji "Osoby i organizacje": autor/ekspert z publicznym dorobkiem
+ *  albo term organizacji, z metadanymi do premium kart wyników. */
+export interface PeopleOrgItem {
+  kind: "person" | "organization";
+  id: string;
+  slug: string | null;
+  label_pl: string;
+  label_en: string;
+  sublabel_pl: string | null;
+  sublabel_en: string | null;
+  avatarUrl: string | null;
+  verified: boolean;
+  postCount: number;
+}
+
+export const searchPeopleOrgsQueryOptions = (q: string, limit: number = 40) =>
+  queryOptions({
+    queryKey: ["public", "search-people-orgs", q.trim(), { limit }] as const,
+    staleTime: 60_000,
+    queryFn: async (): Promise<PeopleOrgItem[]> => {
+      try {
+        const { data } = await supabase.rpc("search_people_orgs", {
+          _q: q.trim() || undefined,
+          _limit: limit,
+        });
+        return (data ?? []).map((r) => ({
+          kind: (r.kind as PeopleOrgItem["kind"]) ?? "person",
+          id: r.id as string,
+          slug: (r.slug as string | null) ?? null,
+          label_pl: (r.label_pl as string | null) ?? "",
+          label_en: (r.label_en as string | null) ?? "",
+          sublabel_pl: (r.sublabel_pl as string | null) ?? null,
+          sublabel_en: (r.sublabel_en as string | null) ?? null,
+          avatarUrl: (r.avatar_url as string | null) ?? null,
+          verified: Boolean(r.verified),
+          postCount: Number(r.post_count ?? 0),
+        }));
+      } catch {
+        // Odporność przed wdrożeniem migracji: brak funkcji → pusta sekcja.
         return [];
       }
     },

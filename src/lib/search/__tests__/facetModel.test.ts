@@ -65,6 +65,24 @@ describe("urlToFilters", () => {
       sort: "relevance",
     });
   });
+
+  it("organizacja (org) trafia do terms jak pozostałe wymiary taksonomii", () => {
+    const f = urlToFilters({ q: "", org: "o1", topic: "t1" });
+    expect(f.terms?.sort()).toEqual(["o1", "t1"].sort());
+  });
+
+  it("tryby zaawansowane: match przepisany, wartość domyślna pomijana", () => {
+    expect(urlToFilters({ q: "x", match: "phrase" }).match).toBe("phrase");
+    expect(urlToFilters({ q: "x", match: "all" }).match).toBeUndefined();
+    expect(urlToFilters({ q: "x" }).match).toBeUndefined();
+  });
+
+  it("zakres: scope=title przepisany, zakładka titles wymusza zakres tytułów", () => {
+    expect(urlToFilters({ q: "x", scope: "title" }).scope).toBe("title");
+    expect(urlToFilters({ q: "x", scope: "all" }).scope).toBeUndefined();
+    expect(urlToFilters({ q: "x", tab: "titles" }).scope).toBe("title");
+    expect(urlToFilters({ q: "x", tab: "people" }).scope).toBeUndefined();
+  });
 });
 
 describe("groupFacets", () => {
@@ -125,6 +143,18 @@ describe("activeSelections / hasAnyFilter", () => {
 
   it("sama fraza nie jest filtrem", () => {
     expect(hasAnyFilter({ q: "energia" })).toBe(false);
+  });
+
+  it("tryby zaawansowane są usuwalnymi chipami (match/scope), domyślne nie", () => {
+    const sels = activeSelections({ q: "x", match: "phrase", scope: "title" });
+    expect(sels.find((s) => s.dim === "match")?.keys).toEqual(["match"]);
+    expect(sels.find((s) => s.dim === "scope")?.value).toBe("title");
+    expect(activeSelections({ q: "x", match: "all", scope: "all" })).toHaveLength(0);
+  });
+
+  it("filtr organizacji jest chipem czyszczącym parametr org", () => {
+    const sels = activeSelections({ q: "", org: "o1" });
+    expect(sels.find((s) => s.dim === "organization")?.keys).toEqual(["org"]);
   });
 });
 

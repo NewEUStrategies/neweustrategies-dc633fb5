@@ -1,7 +1,10 @@
-// Public faceted archive search: /search?q=...&type=&region=&topic=&author=&...
-// Fasety, sortowanie, chipy aktywnych filtrów, autosuggest, tolerancja
-// literówek (fuzzy w RPC), polska fleksja i zapisane wyszukiwania. Cały stan
-// mieszka w URL (zapisywalny / do udostępnienia).
+// Publiczna wyszukiwarka premium: /search?q=...&tab=&match=&scope=&type=&org=...
+// Sekcje wyników (Wszystko / Tytuły / Rodzaje treści / Tematyka / Osoby
+// i organizacje), tryby zaawansowane (dopasowanie all/any/phrase, zakres
+// wszędzie/tytuły, składnia "fraza" i -wykluczenie), fasety, chipy aktywnych
+// filtrów, autosuggest w czterech premium kubełkach, tolerancja literówek
+// (fuzzy w RPC), polska fleksja i zapisane wyszukiwania. Cały stan mieszka
+// w URL (zapisywalny / do udostępnienia).
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -9,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search as SearchIcon, X, SlidersHorizontal } from "lucide-react";
+import { Search as SearchIcon, X, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
@@ -18,14 +21,21 @@ import { SearchFacetPanel } from "@/components/search/SearchFacetPanel";
 import { ActiveFilterChips } from "@/components/search/ActiveFilterChips";
 import { SearchAutosuggest } from "@/components/search/SearchAutosuggest";
 import { SavedSearchesPanel } from "@/components/search/SavedSearchesPanel";
+import { AdvancedSearchPanel } from "@/components/search/AdvancedSearchPanel";
+import { SearchSectionTabs } from "@/components/search/SearchSectionTabs";
+import { PeopleOrgResults, PeopleOrgStrip } from "@/components/search/PeopleOrgResults";
+import { TermExplorer } from "@/components/search/TermExplorer";
 import { AppLink } from "@/components/atoms/AppLink";
 import { supabase } from "@/integrations/supabase/client";
 import {
   searchQueryOptions,
   searchAutosuggestQueryOptions,
+  searchPeopleOrgsQueryOptions,
   searchEnabled,
   SEARCH_LIMIT_MAX,
   SEARCH_PAGE_SIZE,
+  TAXONOMY_DIMS,
+  type FacetDim,
   type SearchFilters,
   type SearchResultItem,
   type SearchSort,
@@ -39,15 +49,25 @@ import {
   AUTOSUGGEST_LISTBOX_ID,
   autosuggestOptionId,
   DIM_PARAM,
+  type SearchTab,
   type SearchUrl,
 } from "@/lib/search/facetModel";
-import { TAXONOMY_DIMS } from "@/lib/queries/archives";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import "@/lib/i18n-search";
 
 const SORTS = ["relevance", "newest", "popular"] as const;
+
+// Wymiary eksplorowane w zakładkach "Rodzaje treści" i "Tematyka".
+const TYPES_DIMS: readonly FacetDim[] = ["pub_type", "format", "access", "lang"] as const;
+const TOPICS_DIMS: readonly FacetDim[] = [
+  "topic",
+  "region",
+  "category",
+  "project",
+  "series",
+] as const;
 
 const SearchParams = z.object({
   q: z.string().optional().default(""),
@@ -57,6 +77,7 @@ const SearchParams = z.object({
   topic: z.string().optional(),
   project: z.string().optional(),
   series: z.string().optional(),
+  org: z.string().optional(),
   author: z.string().optional(),
   format: z.string().optional(),
   lang: z.enum(["pl", "en"]).optional(),
@@ -65,6 +86,11 @@ const SearchParams = z.object({
   to: z.string().optional(),
   year: z.string().optional(),
   sort: z.enum(SORTS).optional(),
+  match: z.enum(["all", "any", "phrase"]).optional(),
+  scope: z.enum(["all", "title"]).optional(),
+  tab: z.enum(["all", "titles", "types", "topics", "people"]).optional(),
+  /** adv=1 otwiera panel trybów zaawansowanych (deep-link z widgetu nagłówka). */
+  adv: z.string().optional(),
 });
 
 type SearchInput = z.infer<typeof SearchParams>;
@@ -100,7 +126,12 @@ function SearchPage() {
   }, [search.q]);
 
   const url = search as SearchUrl;
+  const tab: SearchTab = search.tab ?? "all";
   const filters: SearchFilters = useMemo(() => urlToFilters(url), [url]);
+
+  // Panel trybów zaawansowanych: otwarty, gdy dowolny tryb jest aktywny
+  // albo przyszliśmy deep-linkiem adv=1 (stopka widgetu w nagłówku).
+  const [advOpen, setAdvOpen] = useState(!!(url.match || url.scope) || search.adv === "1");
 
   // "load more" rośnie przez _limit (search_posts nie ma offsetu). Okno jest
   // kluczowane pełnym zestawem filtrów: każda zmiana wraca na pierwszą stronę.
@@ -109,17 +140,46 @@ function SearchPage() {
   const limit = paging.key === filterKey ? paging.limit : SEARCH_PAGE_SIZE;
 
   const enabled = searchEnabled(filters);
+  const qTrimmed = filters.q.trim();
 
   const { data, isFetching, isError } = useQuery({
     ...searchQueryOptions(filters, limit),
     placeholderData: (prev) => prev,
   });
 
+  // Osoby i organizacje: pełna sekcja w zakładce "people" (także tryb
+  // przeglądania bez frazy) + kompaktowy pasek nad wynikami "Wszystko".
+  const peopleLimit = tab === "people" ? 60 : 6;
+  const peopleQuery = useQuery({
+    ...searchPeopleOrgsQueryOptions(qTrimmed, peopleLimit),
+    enabled: tab === "people" || (tab === "all" && qTrimmed.length >= 2),
+    placeholderData: (prev) => prev,
+  });
+  const peopleItems = peopleQuery.data ?? [];
+
   const posts = data?.posts ?? [];
   const facets = data?.facets ?? [];
   const total = data?.total ?? 0;
   const fuzzy = data?.fuzzy ?? false;
   const canLoadMore = posts.length < total && limit < SEARCH_LIMIT_MAX;
+
+  // Liczniki zakładek: tanie i uczciwe - wyniki na aktywnej zakładce wpisów,
+  // liczności termów z faset, osoby/organizacje po załadowaniu sekcji.
+  const tabCounts = useMemo(() => {
+    const counts: Partial<Record<SearchTab, number>> = {};
+    if (data) {
+      if (tab === "all") counts.all = total;
+      if (tab === "titles") counts.titles = total;
+      counts.types = data.facets.filter((f) =>
+        (TYPES_DIMS as readonly string[]).includes(f.dim),
+      ).length;
+      counts.topics = data.facets.filter((f) =>
+        (TOPICS_DIMS as readonly string[]).includes(f.dim),
+      ).length;
+    }
+    if (peopleQuery.data) counts.people = peopleQuery.data.length;
+    return counts;
+  }, [data, peopleQuery.data, tab, total]);
 
   // Cache etykiet id→nazwa (dla chipów odpornych na zerową liczność). Merge w
   // trakcie renderu jest idempotentny, więc ref jest tu bezpieczny.
@@ -143,6 +203,10 @@ function SearchPage() {
 
   const applyPatch = (patch: Partial<SearchUrl>) => {
     navigate({ search: (s: SearchInput) => ({ ...s, ...patch }) as SearchInput });
+  };
+
+  const setTab = (next: SearchTab) => {
+    applyPatch({ tab: next === "all" ? undefined : next });
   };
 
   const submitPhrase = (phrase: string) => {
@@ -246,19 +310,244 @@ function SearchPage() {
     submitPhrase(draft);
   };
 
-  const clearAll = () => navigate({ search: (s: SearchInput) => ({ q: s.q }) as SearchInput });
+  const clearAll = () =>
+    navigate({ search: (s: SearchInput) => ({ q: s.q, tab: s.tab }) as SearchInput });
 
   const anyFilter = hasAnyFilter(url);
+  const showPostTabs = tab === "all" || tab === "titles";
+
+  // Sekcja wpisów (Wszystko / Tytuły): fasety + lista wyników.
+  const postResults = (
+    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
+      <aside className="space-y-5">
+        <header className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+            <SlidersHorizontal className="w-4 h-4" />
+            {t("search.filters")}
+          </h2>
+          {anyFilter && (
+            <button
+              onClick={clearAll}
+              className="text-xs text-brand-ink inline-flex items-center gap-1 hover:underline"
+            >
+              <X className="w-3 h-3" />
+              {t("search.clear_all")}
+            </button>
+          )}
+        </header>
+
+        <div>
+          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+            {t("search.date")}
+          </h3>
+          <div className="space-y-2">
+            <label className="block text-xs">
+              {t("search.date_from")}
+              <Input
+                type="date"
+                value={search.from ?? ""}
+                onChange={(e) => applyPatch({ from: e.target.value || undefined, year: undefined })}
+              />
+            </label>
+            <label className="block text-xs">
+              {t("search.date_to")}
+              <Input
+                type="date"
+                value={search.to ?? ""}
+                onChange={(e) => applyPatch({ to: e.target.value || undefined, year: undefined })}
+              />
+            </label>
+          </div>
+        </div>
+
+        <SearchFacetPanel facets={facets} url={url} lang={lang} onChange={applyPatch} />
+
+        <div className="pt-4 border-t border-border">
+          <SavedSearchesPanel
+            current={url}
+            canSave={enabled}
+            onApply={(params) =>
+              navigate({ search: () => ({ ...params, q: params.q ?? "" }) as SearchInput })
+            }
+          />
+        </div>
+      </aside>
+
+      <section>
+        {isError ? (
+          <p className="text-sm text-destructive mb-4">
+            {t("search.error", {
+              defaultValue:
+                lang === "en"
+                  ? "Search failed. Please try again."
+                  : "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+            })}
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <p className="text-sm text-muted-foreground" aria-live="polite">
+                {isFetching ? t("search.searching") : t("search.results_count", { count: total })}
+              </p>
+              <div
+                className="inline-flex rounded-lg border border-border p-0.5 text-xs"
+                role="group"
+                aria-label={t("search.sort.label")}
+              >
+                {SORTS.map((s) => {
+                  const active = (search.sort ?? "relevance") === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() =>
+                        applyPatch({
+                          sort: s === "relevance" ? undefined : (s as SearchSort),
+                        })
+                      }
+                      className={`px-2.5 py-1 rounded-md transition ${
+                        active
+                          ? "bg-brand text-brand-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {t(`search.sort.${s}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {anyFilter && (
+              <div className="mb-4">
+                <ActiveFilterChips
+                  url={url}
+                  facets={facets}
+                  labelCache={labelCacheRef.current}
+                  lang={lang}
+                  onChange={applyPatch}
+                />
+              </div>
+            )}
+
+            {fuzzy && (
+              <p className="mb-4 text-xs text-muted-foreground rounded-md bg-muted/40 border border-border px-3 py-2">
+                {t("search.fuzzy_note")}
+              </p>
+            )}
+
+            {tab === "all" && peopleItems.length > 0 && (
+              <div className="mb-6">
+                <PeopleOrgStrip items={peopleItems} lang={lang} onSeeAll={() => setTab("people")} />
+              </div>
+            )}
+
+            {data && (
+              <ArchivePostList
+                posts={posts}
+                lang={lang}
+                emptyText={t("search.empty")}
+                getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
+              />
+            )}
+
+            {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
+              <div className="mt-6">
+                <p className="text-sm font-medium mb-2">
+                  {t("search.didYouMean", {
+                    defaultValue: lang === "en" ? "Did you mean:" : "Czy chodziło Ci o:",
+                  })}
+                </p>
+                <ul className="space-y-1.5">
+                  {(suggest.data ?? []).map((s) => (
+                    <li key={s.id}>
+                      <AppLink
+                        href={`/search?q=${encodeURIComponent(
+                          (lang === "en" ? s.title_en || s.title_pl : s.title_pl) ?? "",
+                        )}`}
+                        className="text-sm text-brand-ink hover:underline"
+                      >
+                        {lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en}
+                      </AppLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {canLoadMore && (
+              <div className="flex justify-center pt-6">
+                <Button
+                  variant="outline"
+                  disabled={isFetching}
+                  onClick={() =>
+                    setPaging({
+                      key: filterKey,
+                      limit: Math.min(limit + SEARCH_PAGE_SIZE, SEARCH_LIMIT_MAX),
+                    })
+                  }
+                >
+                  {isFetching
+                    ? t("common.loading", {
+                        defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
+                      })
+                    : t("common.loadMore", {
+                        defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
+                      })}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  );
+
+  // Zakładki eksploracyjne: Rodzaje treści / Tematyka.
+  const explorerResults = (dims: readonly FacetDim[]) => (
+    <TermExplorer facets={facets} dims={dims} lang={lang} onChange={applyPatch} />
+  );
+
+  // Sekcja "Osoby i organizacje": działa też bez frazy (tryb przeglądania).
+  const peopleResults = (
+    <div className="space-y-4">
+      {qTrimmed.length < 2 && (
+        <p className="text-sm text-muted-foreground">{t("search.people.browse_hint")}</p>
+      )}
+      {peopleQuery.isFetching && peopleItems.length === 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-24 rounded-xl border border-border/60 bg-muted/40 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : peopleItems.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          {t("search.people.empty")}
+        </p>
+      ) : (
+        <PeopleOrgResults items={peopleItems} lang={lang} />
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <Breadcrumbs items={[{ label: t("search.title") }]} />
-        <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title")}</h1>
+        <header className="mb-6">
+          <h1 className="font-display text-3xl lg:text-5xl tracking-tight mb-2">
+            {t("search.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground max-w-2xl">{t("search.hero_sub")}</p>
+        </header>
 
-        <form onSubmit={submit} className="flex gap-2 mb-4" role="search">
+        <form onSubmit={submit} className="flex gap-2 mb-2" role="search">
           <div className="relative flex-1">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
               value={draft}
               onChange={(e) => {
@@ -270,7 +559,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="icon-input"
+              className="h-12 rounded-xl pl-11 text-base shadow-sm"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
@@ -289,10 +578,39 @@ function SearchPage() {
               />
             )}
           </div>
-          <Button type="submit">{t("search.submit")}</Button>
+          <Button type="submit" className="h-12 rounded-xl px-6">
+            {t("search.submit")}
+          </Button>
         </form>
 
-        {!enabled ? (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setAdvOpen((o) => !o)}
+            aria-expanded={advOpen}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-ink hover:underline"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden />
+            {t("search.adv.toggle")}
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${advOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+          {advOpen && (
+            <div className="mt-3">
+              <AdvancedSearchPanel url={url} onChange={applyPatch} />
+            </div>
+          )}
+        </div>
+
+        <div className="mb-6">
+          <SearchSectionTabs active={tab} counts={tabCounts} onPick={setTab} />
+        </div>
+
+        {tab === "people" ? (
+          peopleResults
+        ) : !enabled ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t("search.min_chars")}</p>
             {(popular.data?.length ?? 0) > 0 && (
@@ -320,191 +638,12 @@ function SearchPage() {
               </div>
             )}
           </div>
+        ) : showPostTabs ? (
+          postResults
+        ) : tab === "types" ? (
+          explorerResults(TYPES_DIMS)
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
-            <aside className="space-y-5">
-              <header className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold flex items-center gap-1.5">
-                  <SlidersHorizontal className="w-4 h-4" />
-                  {t("search.filters")}
-                </h2>
-                {anyFilter && (
-                  <button
-                    onClick={clearAll}
-                    className="text-xs text-brand-ink inline-flex items-center gap-1 hover:underline"
-                  >
-                    <X className="w-3 h-3" />
-                    {t("search.clear_all")}
-                  </button>
-                )}
-              </header>
-
-              <div>
-                <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                  {t("search.date")}
-                </h3>
-                <div className="space-y-2">
-                  <label className="block text-xs">
-                    {t("search.date_from")}
-                    <Input
-                      type="date"
-                      value={search.from ?? ""}
-                      onChange={(e) =>
-                        applyPatch({ from: e.target.value || undefined, year: undefined })
-                      }
-                    />
-                  </label>
-                  <label className="block text-xs">
-                    {t("search.date_to")}
-                    <Input
-                      type="date"
-                      value={search.to ?? ""}
-                      onChange={(e) =>
-                        applyPatch({ to: e.target.value || undefined, year: undefined })
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <SearchFacetPanel facets={facets} url={url} lang={lang} onChange={applyPatch} />
-
-              <div className="pt-4 border-t border-border">
-                <SavedSearchesPanel
-                  current={url}
-                  canSave={enabled}
-                  onApply={(params) =>
-                    navigate({ search: () => ({ ...params, q: params.q ?? "" }) as SearchInput })
-                  }
-                />
-              </div>
-            </aside>
-
-            <section>
-              {isError ? (
-                <p className="text-sm text-destructive mb-4">
-                  {t("search.error", {
-                    defaultValue:
-                      lang === "en"
-                        ? "Search failed. Please try again."
-                        : "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
-                  })}
-                </p>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <p className="text-sm text-muted-foreground" aria-live="polite">
-                      {isFetching
-                        ? t("search.searching")
-                        : t("search.results_count", { count: total })}
-                    </p>
-                    <div
-                      className="inline-flex rounded-lg border border-border p-0.5 text-xs"
-                      role="group"
-                      aria-label={t("search.sort.label")}
-                    >
-                      {SORTS.map((s) => {
-                        const active = (search.sort ?? "relevance") === s;
-                        return (
-                          <button
-                            key={s}
-                            type="button"
-                            aria-pressed={active}
-                            onClick={() =>
-                              applyPatch({
-                                sort: s === "relevance" ? undefined : (s as SearchSort),
-                              })
-                            }
-                            className={`px-2.5 py-1 rounded-md transition ${
-                              active
-                                ? "bg-brand text-brand-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {t(`search.sort.${s}`)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {anyFilter && (
-                    <div className="mb-4">
-                      <ActiveFilterChips
-                        url={url}
-                        facets={facets}
-                        labelCache={labelCacheRef.current}
-                        lang={lang}
-                        onChange={applyPatch}
-                      />
-                    </div>
-                  )}
-
-                  {fuzzy && (
-                    <p className="mb-4 text-xs text-muted-foreground rounded-md bg-muted/40 border border-border px-3 py-2">
-                      {t("search.fuzzy_note")}
-                    </p>
-                  )}
-
-                  {data && (
-                    <ArchivePostList
-                      posts={posts}
-                      lang={lang}
-                      emptyText={t("search.empty")}
-                      getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
-                    />
-                  )}
-
-                  {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
-                    <div className="mt-6">
-                      <p className="text-sm font-medium mb-2">
-                        {t("search.didYouMean", {
-                          defaultValue: lang === "en" ? "Did you mean:" : "Czy chodziło Ci o:",
-                        })}
-                      </p>
-                      <ul className="space-y-1.5">
-                        {(suggest.data ?? []).map((s) => (
-                          <li key={s.id}>
-                            <AppLink
-                              href={`/search?q=${encodeURIComponent(
-                                (lang === "en" ? s.title_en || s.title_pl : s.title_pl) ?? "",
-                              )}`}
-                              className="text-sm text-brand-ink hover:underline"
-                            >
-                              {lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en}
-                            </AppLink>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {canLoadMore && (
-                    <div className="flex justify-center pt-6">
-                      <Button
-                        variant="outline"
-                        disabled={isFetching}
-                        onClick={() =>
-                          setPaging({
-                            key: filterKey,
-                            limit: Math.min(limit + SEARCH_PAGE_SIZE, SEARCH_LIMIT_MAX),
-                          })
-                        }
-                      >
-                        {isFetching
-                          ? t("common.loading", {
-                              defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
-                            })
-                          : t("common.loadMore", {
-                              defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
-                            })}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-          </div>
+          explorerResults(TOPICS_DIMS)
         )}
       </div>
     </div>
