@@ -34,7 +34,15 @@ interface Entry {
   kind: "image" | "file";
 }
 
-function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
+function ImageTile({
+  entry,
+  lang,
+  onOpen,
+}: {
+  entry: Entry;
+  lang: ChatLang;
+  onOpen: () => void;
+}) {
   const { t } = useTranslation();
   const urlQuery = useAttachmentUrl(entry.message.attachment_path);
   const url = urlQuery.data;
@@ -49,12 +57,12 @@ function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
     );
   }
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
+      onClick={onOpen}
       className="group relative block aspect-square overflow-hidden rounded-[6px] border border-border/60 bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={`${label} - ${time}`}
+      aria-label={label || t("chat.photo")}
     >
       <img
         src={url}
@@ -65,16 +73,25 @@ function ImageTile({ entry, lang }: { entry: Entry; lang: ChatLang }) {
       <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
         {time}
       </span>
-    </a>
+    </button>
   );
 }
 
-function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
+function FileRow({
+  entry,
+  lang,
+  onPreview,
+}: {
+  entry: Entry;
+  lang: ChatLang;
+  onPreview: (url: string, name: string) => void;
+}) {
   const { t } = useTranslation();
   const urlQuery = useAttachmentUrl(entry.message.attachment_path);
   const url = urlQuery.data;
   const name = entry.message.attachment_name ?? "";
   const size = entry.message.attachment_size ?? 0;
+  const isPdf = entry.message.attachment_mime === "application/pdf";
   const dayWords = {
     today: t("chat.today", { defaultValue: "Dzisiaj" }),
     yesterday: t("chat.yesterday", { defaultValue: "Wczoraj" }),
@@ -94,13 +111,24 @@ function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
           {formatBytes(size, lang)} - {time}
         </span>
       </div>
+      {isPdf && url && (
+        <button
+          type="button"
+          onClick={() => onPreview(url, name)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+          title={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+        >
+          <Eye className="h-4 w-4" aria-hidden />
+        </button>
+      )}
       {url && (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
           download={name}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t("chat.mediaHistory.download", { defaultValue: "Pobierz plik" })}
           title={t("chat.mediaHistory.download", { defaultValue: "Pobierz plik" })}
         >
@@ -110,6 +138,7 @@ function FileRow({ entry, lang }: { entry: Entry; lang: ChatLang }) {
     </div>
   );
 }
+
 
 export function MediaHistoryDialog({
   open,
