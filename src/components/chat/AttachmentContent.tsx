@@ -69,19 +69,16 @@ export function AttachmentImage({
           className="max-h-60 w-auto max-w-[240px] object-cover"
         />
       </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl border-none bg-transparent p-0 shadow-none">
-          <DialogTitle className="sr-only">{name ?? t("chat.photo")}</DialogTitle>
-          <img
-            src={urlQ.data}
-            alt={name ?? t("chat.photo")}
-            className="max-h-[80vh] w-full rounded-[6px] object-contain"
-          />
-        </DialogContent>
-      </Dialog>
+      <ImageLightbox
+        open={open}
+        onOpenChange={setOpen}
+        images={[{ url: urlQ.data, name }]}
+        index={0}
+      />
     </>
   );
 }
+
 
 export function AttachmentAudio({
   path,
