@@ -52,6 +52,8 @@ export function MegaPanelView({
     : "";
   const featuredEyebrow = featured?.post_format ? featured.post_format.toString() : eyebrowFallback;
 
+  const authorName = (f: MegaFeaturedPost): string => f.author_display_name || "";
+
   const containerClass =
     variant === "live"
       ? "overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5 border border-border/40 mx-auto"
@@ -177,9 +179,14 @@ export function MegaPanelView({
                 </div>
               ) : null}
               {featuredTitle ? (
-                <h4 className="mb-3 text-[17px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
+                <h4 className="mb-1 text-[17px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
                   {featuredTitle}
                 </h4>
+              ) : null}
+              {featured && featured.author_id && authorName(featured) ? (
+                <p className="mb-3 text-[12px] font-semibold text-brand">
+                  {authorName(featured)}
+                </p>
               ) : null}
               {featuredExcerpt ? (
                 <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">

@@ -14,12 +14,45 @@ export interface MegaFeaturedPost {
   cover_image_url: string | null;
   published_at: string | null;
   post_format: string | null;
+  author_id: string | null;
+  author_display_name: string | null;
+  author_slug: string | null;
+  author_avatar_url: string | null;
 }
 
 const COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format";
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id";
+
+interface RawMegaFeaturedPost {
+  id: string;
+  slug: string;
+  title_pl: string | null;
+  title_en: string | null;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
+  cover_image_url: string | null;
+  published_at: string | null;
+  post_format: string | null;
+  author_id: string | null;
+}
+
+const EMPTY_AUTHOR: Pick<
+  MegaFeaturedPost,
+  "author_display_name" | "author_slug" | "author_avatar_url"
+> = {
+  author_display_name: null,
+  author_slug: null,
+  author_avatar_url: null,
+};
 
 async function fetchMegaFeatured(postId: string | null): Promise<MegaFeaturedPost | null> {
+  const raw = await fetchRawMegaFeatured(postId);
+  if (!raw) return null;
+  const author = raw.author_id ? await fetchAuthor(raw.author_id) : EMPTY_AUTHOR;
+  return { ...raw, ...author };
+}
+
+async function fetchRawMegaFeatured(postId: string | null): Promise<RawMegaFeaturedPost | null> {
   if (postId) {
     const { data, error } = await supabase
       .from("posts")
@@ -30,14 +63,14 @@ async function fetchMegaFeatured(postId: string | null): Promise<MegaFeaturedPos
       .maybeSingle();
     if (error || !data) {
       // fallback do najnowszego
-      return fetchLatest();
+      return fetchLatestRaw();
     }
-    return data as MegaFeaturedPost;
+    return data as RawMegaFeaturedPost;
   }
-  return fetchLatest();
+  return fetchLatestRaw();
 }
 
-async function fetchLatest(): Promise<MegaFeaturedPost | null> {
+async function fetchLatestRaw(): Promise<RawMegaFeaturedPost | null> {
   const { data, error } = await supabase
     .from("posts")
     .select(COLS)
@@ -48,7 +81,27 @@ async function fetchLatest(): Promise<MegaFeaturedPost | null> {
     .limit(1)
     .maybeSingle();
   if (error) return null;
-  return (data as MegaFeaturedPost | null) ?? null;
+  return (data as RawMegaFeaturedPost | null) ?? null;
+}
+
+async function fetchAuthor(
+  authorId: string,
+): Promise<Pick<MegaFeaturedPost, "author_display_name" | "author_slug" | "author_avatar_url">> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name, slug, avatar_url")
+    .eq("id", authorId)
+    .maybeSingle();
+  const p = data as {
+    display_name: string | null;
+    slug: string | null;
+    avatar_url: string | null;
+  } | null;
+  return {
+    author_display_name: p?.display_name ?? null,
+    author_slug: p?.slug ?? null,
+    author_avatar_url: p?.avatar_url ?? null,
+  };
 }
 
 export const megaFeaturedPostQueryOptions = (postId: string | null = null) =>
