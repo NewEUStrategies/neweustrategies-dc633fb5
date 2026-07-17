@@ -227,10 +227,10 @@ export const Header = memo(function Header() {
   return (
     <header
       data-site-header
-      // z-40 lifts the header's stacking context (forced by
-      // view-transition-name) above <main>'s, so the sticky mobile bar and
-      // the desktop mega-menu dropdown paint over page content.
-      className="relative z-40 bg-background border-b border-border"
+      // Sticky: header podąża za scrollem (top: 0). z-40 lifts the stacking
+      // context (forced by view-transition-name) above <main>, so the sticky
+      // mobile bar and desktop mega-menu dropdown paint over page content.
+      className="sticky top-0 z-40 bg-background border-b border-border"
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
