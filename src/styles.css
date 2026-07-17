@@ -4034,6 +4034,28 @@ textarea::placeholder {
    panelu przy zmianie rozmowy oraz pływające dymki hero pustego stanu.
    Wiersze startują z opacity 0 i KOŃCZĄ na forwards, więc bez animacji
    (reduced motion) reguła jest wyłączana w całości niżej. */
+
+/* Główna powłoka okna rozmów: większa widoczność, nowoczesny cień,
+   subtelny blask w tonacji marki i gradientowe akcenty. */
+.chat-inbox-shell {
+  position: relative;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--border) 85%, var(--brand) 15%),
+    0 28px 80px -24px color-mix(in oklab, var(--foreground) 16%, transparent),
+    0 12px 32px -16px color-mix(in oklab, var(--foreground) 10%, transparent);
+  background-image:
+    radial-gradient(
+      130% 70% at 50% 0%,
+      color-mix(in oklab, var(--brand) 10%, transparent) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      90% 60% at 0% 100%,
+      color-mix(in oklab, var(--chat-user-from, var(--brand)) 7%, transparent) 0%,
+      transparent 50%
+    );
+}
+
 @keyframes chat-row-in-kf {
   from {
     opacity: 0;

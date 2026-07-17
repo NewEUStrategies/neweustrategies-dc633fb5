@@ -217,7 +217,7 @@ function MessagesInner() {
           </button>
         ))}
       </div>
-      <div className="flex h-[calc(100dvh-230px)] max-h-[920px] min-h-[520px] overflow-hidden rounded-md border border-border/60 bg-card shadow-md">
+      <div className="chat-inbox-shell flex h-[calc(100dvh-172px)] max-h-[960px] min-h-[560px] overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl">
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
             <NotificationsCenter mode="inbox" />
