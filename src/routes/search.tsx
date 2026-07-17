@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   CalendarIcon,
+  Mic,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -613,10 +614,9 @@ function SearchPage() {
           <p className="text-sm text-muted-foreground max-w-2xl">{t("search.hero_sub")}</p>
         </header>
 
-        <form onSubmit={submit} className="flex gap-2 mb-2" role="search">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <Input
+        <form onSubmit={submit} className="mb-2" role="search">
+          <div className="relative flex h-[46px] w-full items-center gap-2 overflow-hidden rounded-[5px] border border-border bg-background pr-3 shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
+            <input
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
@@ -627,7 +627,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="h-12 rounded-xl !pl-20 text-base shadow-sm"
+              className="h-full w-full min-w-0 flex-1 border-0 bg-transparent pl-5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:outline-none"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
@@ -637,6 +637,23 @@ function SearchPage() {
                 showSuggest && sugIndex >= 0 ? autosuggestOptionId(sugIndex) : undefined
               }
             />
+            <button
+              type="submit"
+              aria-label={t("search.submit")}
+              title={t("search.submit")}
+              className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <SearchIcon className="h-[22px] w-[22px]" aria-hidden />
+            </button>
+            <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+            <button
+              type="button"
+              aria-label={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
+              title={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
+              className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Mic className="h-5 w-5" aria-hidden />
+            </button>
             {showSuggest && (
               <SearchAutosuggest
                 items={suggestions}
@@ -646,9 +663,6 @@ function SearchPage() {
               />
             )}
           </div>
-          <Button type="submit" size="lg" className="h-12 rounded-xl px-6">
-            {t("search.submit")}
-          </Button>
         </form>
 
         <div className="mb-4">
