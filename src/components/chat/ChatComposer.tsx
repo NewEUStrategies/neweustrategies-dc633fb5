@@ -471,7 +471,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               ref={textareaRef}
               value={text}
               rows={1}
-              autoFocus={autoFocus}
               maxLength={MAX_BODY_LENGTH}
               onChange={(e) => {
                 setText(e.target.value);
