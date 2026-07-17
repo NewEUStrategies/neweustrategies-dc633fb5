@@ -20,6 +20,7 @@ import {
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
 import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
+import { useNotificationPreferences } from "@/lib/notifications/useNotifications";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "./ConversationListItem";
