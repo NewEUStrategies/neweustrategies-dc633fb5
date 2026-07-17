@@ -4380,6 +4380,10 @@ textarea::placeholder {
   stroke-dasharray: 22;
   stroke-dashoffset: 66;
 }
+.lov-check__svg .lov-check__dash {
+  stroke-dasharray: 12;
+  stroke-dashoffset: 12;
+}
 .lov-check:hover .lov-check__svg,
 .lov-check:focus-visible .lov-check__svg {
   stroke: var(--primary);
@@ -4397,11 +4401,13 @@ textarea::placeholder {
   transition: all 0.2s linear;
   transition-delay: 0.15s;
 }
-.lov-check[data-state="indeterminate"] .lov-check__svg polyline {
-  stroke-dashoffset: 52;
+/* Indeterminate: outline stays visible, horizontal dash draws in */
+.lov-check[data-state="indeterminate"] .lov-check__svg .lov-check__dash {
+  stroke-dashoffset: 0;
   transition: all 0.2s linear;
   transition-delay: 0.1s;
 }
+
 
 .dark .lov-check::before {
   background: color-mix(in oklab, var(--primary) 18%, transparent);
