@@ -534,7 +534,7 @@ function NetworkInner() {
         value={active}
         onValueChange={(next) =>
           void navigate({
-            search: (prev) => ({ ...prev, tab: next as NetworkTab }),
+            search: (prev: Record<string, unknown>) => ({ ...prev, tab: next as NetworkTab }),
             replace: true,
           })
         }
