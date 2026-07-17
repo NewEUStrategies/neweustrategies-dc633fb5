@@ -70,6 +70,47 @@ import "@/lib/i18n-search";
 
 const SORTS = ["relevance", "newest", "popular"] as const;
 
+interface DateFilterPickerProps {
+  label: string;
+  value: string | undefined;
+  placeholder: string;
+  onSelect: (date: Date | undefined) => void;
+  lang: string;
+}
+
+function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFilterPickerProps) {
+  const date = value ? parseISO(value) : undefined;
+  const locale = lang === "pl" ? pl : enUS;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors",
+            "hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            !date && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{date ? format(date, "d MMM yyyy", { locale }) : placeholder}</span>
+          <CalendarIcon className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <label className="sr-only">{label}</label>
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={onSelect}
+          initialFocus
+          className="pointer-events-auto p-3"
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // Wymiary eksplorowane w zakładkach "Rodzaje treści" i "Tematyka".
 const TYPES_DIMS: readonly FacetDim[] = ["pub_type", "format", "access", "lang"] as const;
 const TOPICS_DIMS: readonly FacetDim[] = [
