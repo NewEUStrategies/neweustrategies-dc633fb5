@@ -35,6 +35,8 @@ const pl = {
     date: "Data",
     date_from: "Od",
     date_to: "Do",
+    date_from_placeholder: "Wybierz datę",
+    date_to_placeholder: "Wybierz datę",
     categories: "Kategorie",
     authors: "Autorzy",
     searching: "Szukam...",
