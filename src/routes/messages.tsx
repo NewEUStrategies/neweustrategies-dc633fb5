@@ -19,6 +19,8 @@ import {
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
+import { DEMO_BOT_ID, DemoBotChat } from "@/components/chat/DemoBotChat";
+import { DemoBotListItem } from "@/components/chat/DemoBotListItem";
 import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
@@ -328,6 +330,19 @@ function MessagesInner() {
                     ))}
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+                    {/* Wirtualny wątek "demo bot" - lokalny podgląd UI, bez DB.
+                        Widoczny tylko dla filtra "wszystkie" i braku szukanej
+                        frazy, żeby nie kolidował z filtrowaniem realnej listy. */}
+                    {!showArchived && listFilter === "all" && normalizedFilter === "" && (
+                      <DemoBotListItem
+                        active={selected === DEMO_BOT_ID}
+                        onOpen={() => {
+                          setSelected(DEMO_BOT_ID);
+                          setMode("list");
+                          void navigate({ search: { c: DEMO_BOT_ID }, replace: true });
+                        }}
+                      />
+                    )}
                     {archivedViews.length > 0 && (
                       <button
                         type="button"
@@ -415,7 +430,17 @@ function MessagesInner() {
 
             {/* Right pane: active thread (animated swap) or the hero state. */}
             <div className={cn("min-w-0 flex-1", !selected && "hidden md:block")}>
-              {selected ? (
+              {selected === DEMO_BOT_ID ? (
+                <div key={DEMO_BOT_ID} className="chat-pane-in h-full min-h-0">
+                  <DemoBotChat
+                    lang={lang}
+                    onBack={() => {
+                      setSelected(null);
+                      void navigate({ search: {}, replace: true });
+                    }}
+                  />
+                </div>
+              ) : selected ? (
                 <div key={selected} className="chat-pane-in h-full min-h-0">
                   <ChatWindow
                     conversationId={selected}
