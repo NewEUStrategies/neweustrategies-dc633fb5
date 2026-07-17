@@ -14,7 +14,7 @@
 // wątek "bot" istnieje tylko po stronie klienta (id: DEMO_BOT_ID).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Bot, Paperclip, SendHorizontal, X } from "lucide-react";
+import { ArrowLeft, Bot, Images, Paperclip, SendHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
