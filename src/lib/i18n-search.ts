@@ -177,6 +177,8 @@ const en = {
     date: "Date",
     date_from: "From",
     date_to: "To",
+    date_from_placeholder: "Pick a date",
+    date_to_placeholder: "Pick a date",
     categories: "Categories",
     authors: "Authors",
     searching: "Searching...",
