@@ -9275,6 +9275,10 @@ export type Database = {
         Returns: unknown
       }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
+      nes_search_tsquery_adv: {
+        Args: { _match?: string; _q: string }
+        Returns: unknown
+      }
       newsletter_min_tier_emails: {
         Args: { p_min: number; p_tenant: string }
         Returns: {
