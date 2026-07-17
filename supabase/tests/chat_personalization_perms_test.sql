@@ -33,7 +33,7 @@ SELECT plan(24);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
--- Osobne UUID (sufix "p5"), żeby test nie kolidował z chat_personalization_test.
+-- Osobne UUID (sufix "f5"), żeby test nie kolidował z chat_personalization_test.
 INSERT INTO public.tenants (id, slug, name) VALUES
   ('a1111111-1111-1111-1111-11111111f5aa', 'perms-tenant-a', 'Perms Tenant A'),
   ('b2222222-2222-2222-2222-22222222f5bb', 'perms-tenant-b', 'Perms Tenant B');
