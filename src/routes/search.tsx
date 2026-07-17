@@ -12,9 +12,20 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search as SearchIcon, X, SlidersHorizontal, ChevronDown } from "lucide-react";
+import {
+  Search as SearchIcon,
+  X,
+  SlidersHorizontal,
+  ChevronDown,
+  CalendarIcon,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, parseISO } from "date-fns";
+import { pl, enUS } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { SearchSnippet } from "@/components/search/SearchSnippet";
 import { SearchFacetPanel } from "@/components/search/SearchFacetPanel";
