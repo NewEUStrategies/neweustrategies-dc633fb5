@@ -48,6 +48,7 @@ import {
 } from "@/lib/notifications/push";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { ConsentsPanel } from "./ConsentsPanel";
 
 type Lang = "pl" | "en";
 type TabValue = "all" | "unread" | "settings";
@@ -136,12 +137,13 @@ function listKeyIsOnlyUnread(key: readonly unknown[]): boolean {
 
 type NotificationListSnapshot = Array<[QueryKey, NotificationRow[] | undefined]>;
 
-export type NotificationsCenterMode = "full" | "inbox" | "preferences";
+export type NotificationsCenterMode = "full" | "inbox" | "preferences" | "consents";
 
 export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode } = {}) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const initialTab: TabValue = mode === "preferences" ? "settings" : "all";
+  const initialTab: TabValue =
+    mode === "preferences" || mode === "consents" ? "settings" : "all";
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
@@ -312,17 +314,32 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     }
   };
 
-  const showInboxTabs = mode !== "preferences";
-  const showSettingsTab = mode !== "inbox";
+  const showInboxTabs = mode !== "preferences" && mode !== "consents";
+  const showSettingsTab = mode !== "inbox" && mode !== "consents";
   const headerTitleKey =
-    mode === "preferences" ? "notifications.settings.title" : "notifications.title";
-  const headerTitleDefault = mode === "preferences" ? "Zgody i powiadomienia" : "Powiadomienia";
+    mode === "consents"
+      ? "notifications.consents.title"
+      : mode === "preferences"
+        ? "notifications.settings.title"
+        : "notifications.title";
+  const headerTitleDefault =
+    mode === "consents"
+      ? "Zgody komunikacji"
+      : mode === "preferences"
+        ? "Ustawienia powiadomień"
+        : "Powiadomienia";
   const headerSubtitleKey =
-    mode === "preferences" ? "notifications.settings.subtitleLead" : "notifications.inboxSubtitle";
+    mode === "consents"
+      ? "notifications.consents.subtitle"
+      : mode === "preferences"
+        ? "notifications.settings.subtitleLead"
+        : "notifications.inboxSubtitle";
   const headerSubtitleDefault =
-    mode === "preferences"
-      ? "Zdecyduj, o czym chcesz być informowany. Zmiany zapisują się natychmiast."
-      : "Twoja prywatna skrzynka - widzisz tylko własne powiadomienia.";
+    mode === "consents"
+      ? "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO."
+      : mode === "preferences"
+        ? "Zdecyduj, o czym chcesz być informowany. Zmiany zapisują się natychmiast."
+        : "Twoja prywatna skrzynka - widzisz tylko własne powiadomienia.";
 
   return (
     <Card className="border-0 rounded-none shadow-none h-full flex flex-col bg-transparent">
@@ -639,6 +656,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   </div>
                 )}
               </div>
+            </TabsContent>
+          ) : mode === "consents" ? (
+            <TabsContent
+              value="settings"
+              className="mt-3 flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 pb-4"
+            >
+              <ConsentsPanel />
             </TabsContent>
           ) : (
             <TabsContent

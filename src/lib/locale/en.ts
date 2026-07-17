@@ -1773,6 +1773,68 @@ export const en = {
       saved: "Preferences saved",
       saveError: "Could not save preferences",
     },
+    consents: {
+      tab: "Consents",
+      title: "Communication consents",
+      subtitle:
+        "Decide which messages we may send you. Every change is stored in an immutable GDPR audit log (date, version, IP address, browser).",
+      version: "Version {{version}}",
+      versionOutdated: "New version of this consent - please re-confirm",
+      requiredBadge: "Required",
+      given: "Given on {{date}}",
+      withdrawn: "Withdrawn on {{date}}",
+      notDecided: "No decision yet",
+      saved: "Consent saved",
+      saveError: "Could not save consent",
+      history: "Change history",
+      historyEmpty: "No recorded changes.",
+      historyItem: "{{date}} - {{state}} (version {{version}})",
+      stateGiven: "given",
+      stateWithdrawn: "withdrawn",
+      categories: {
+        legal: "Legal basis",
+        communications: "Marketing communications",
+        product: "Product and personalization",
+        analytics: "Analytics",
+      },
+      items: {
+        transactional: {
+          title: "Transactional and service messages",
+          description:
+            "Essential notifications tied to your account: confirmations, security, important service changes. Required - cannot be disabled.",
+        },
+        marketing_email: {
+          title: "Marketing emails",
+          description:
+            "Promotions, offers and commercial information sent by email. You may withdraw this consent at any time.",
+        },
+        newsletter_digest: {
+          title: "Newsletter and digests",
+          description:
+            "A weekly editorial roundup of new content, events and analysis.",
+        },
+        push_marketing: {
+          title: "Marketing push notifications",
+          description:
+            "Short browser alerts about news and limited-time actions. Requires device push notifications to be enabled.",
+        },
+        product_updates: {
+          title: "Product news and updates",
+          description:
+            "Information about new features, improvements and platform changes relevant to users.",
+        },
+        personalization: {
+          title: "Content personalization",
+          description:
+            "Tailoring recommendations and content order based on your activity in the service.",
+        },
+        analytics: {
+          title: "Usage analytics",
+          description:
+            "Anonymous usage data helps us improve stability and user experience.",
+        },
+      },
+    },
   },
   comments: {
     title_zero: "Comments",

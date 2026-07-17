@@ -222,7 +222,7 @@ function MessagesInner() {
           </div>
         ) : activeView === "consents" ? (
           <div className="w-full min-w-0">
-            <NotificationsCenter mode="preferences" />
+            <NotificationsCenter mode="consents" />
           </div>
         ) : (
           <>
