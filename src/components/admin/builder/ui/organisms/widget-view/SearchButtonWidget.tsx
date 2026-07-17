@@ -47,16 +47,17 @@ const BUCKET_LABEL_EN: Record<SuggestBucket, string> = {
 /** Build target href for an autosuggest item. Posts go to their permalink;
  *  taxonomy/author picks land on /search with the matching filter applied. */
 function hrefForItem(it: AutosuggestItem): string {
-  if (it.kind === "post" && it.slug) return `/post/${it.slug}`;
+  const kind = it.kind as string;
+  if (kind === "post" && it.slug) return `/post/${it.slug}`;
   const patch: Record<string, string> = {};
-  if (it.kind === "author") {
+  if (kind === "author") {
     if (it.id) patch.author = it.id;
-  } else if (it.kind === "format" && it.slug) patch.format = it.slug;
-  else if (it.kind === "access" && it.slug) patch.access = it.slug;
-  else if (it.kind === "lang" && it.slug) patch.lang = it.slug;
-  else if (it.kind === "year" && it.slug) patch.year = it.slug;
-  else if (it.kind !== "post" && it.kind !== "author") {
-    const param = DIM_PARAM[it.kind] as keyof SearchUrl | undefined;
+  } else if (kind === "format" && it.slug) patch.format = it.slug;
+  else if (kind === "access" && it.slug) patch.access = it.slug;
+  else if (kind === "lang" && it.slug) patch.lang = it.slug;
+  else if (kind === "year" && it.slug) patch.year = it.slug;
+  else {
+    const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
     const value = it.slug ?? it.id;
     if (param && value) patch[param as string] = value;
   }
@@ -64,7 +65,11 @@ function hrefForItem(it: AutosuggestItem): string {
   return qs ? `/search?${qs}` : "/search";
 }
 
-type BucketedItem = { item: AutosuggestItem; bucket: SuggestBucket; index: number };
+interface BucketedItem {
+  item: AutosuggestItem;
+  bucket: SuggestBucket;
+  index: number;
+}
 
 export function SearchButtonWidget({
   label,
