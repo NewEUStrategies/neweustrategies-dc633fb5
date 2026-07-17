@@ -490,7 +490,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             e.preventDefault();
             send();
           }}
-          className="flex min-h-10 w-full items-center gap-2 rounded-[10px] border border-input bg-muted/60 px-3 py-1.5 transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40"
+          className="group/composer relative flex min-h-12 w-full items-end gap-1.5 rounded-2xl border border-input/70 bg-background/80 px-2 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] backdrop-blur-sm transition-all focus-within:border-ring focus-within:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_28px_-12px_color-mix(in_oklab,var(--ring)_45%,transparent)]"
         >
           <input
             ref={fileInputRef}
@@ -505,11 +505,11 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={botTyping}
-            className="group relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
+            className="group/attach relative mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
             aria-label={t("chat.attach", { defaultValue: "Załącz plik" })}
           >
             <Paperclip className="h-[18px] w-[18px]" aria-hidden />
-            <span className="pointer-events-none absolute -top-9 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] text-popover-foreground shadow-md group-hover:block">
+            <span className="pointer-events-none absolute -top-9 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-md group-hover/attach:block">
               {t("chat.attach", { defaultValue: "Załącz plik" })}
             </span>
           </button>
@@ -538,19 +538,20 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
                 : t("chat.inputPlaceholder")
             }
             aria-label={t("chat.inputPlaceholder")}
-            className="max-h-[120px] min-h-[24px] w-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+            className="max-h-[140px] min-h-[36px] w-full min-w-0 flex-1 resize-none self-center border-0 bg-transparent px-1 py-1.5 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={(input.trim().length === 0 && !staged) || botTyping}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-all hover:brightness-110 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
             aria-label={t("chat.send")}
             title={t("chat.send")}
           >
             <SendHorizontal className="h-[18px] w-[18px]" aria-hidden />
           </button>
         </form>
+
       </div>
     </div>
   );
