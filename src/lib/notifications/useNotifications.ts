@@ -54,6 +54,12 @@ export interface NotificationPreferences {
    */
   push_enabled: boolean;
   email_digest: EmailDigestFrequency;
+  /**
+   * Toggle dla ikony czatu (bell) w nagłówku - per tenant (preferencje są
+   * powiązane z tenantem użytkownika przez `tenant_id`). Wyłączenie ukrywa
+   * dzwonek, ale rozmowy nadal działają w /messages i ChatDock.
+   */
+  chat_bell_enabled: boolean;
 }
 
 export type EmailDigestFrequency = "off" | "daily" | "weekly";
