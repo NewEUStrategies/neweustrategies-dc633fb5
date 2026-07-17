@@ -24,17 +24,21 @@ import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
+import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
 import "@/lib/i18n-community";
 
 export const Route = createFileRoute("/contribute")({
   component: ContributePage,
-  head: () => {
+  loader: async ({ context }) => {
+    const seo = await context.queryClient
+      .ensureQueryData(staticPageSeoQueryOptions("contribute"))
+      .catch(() => null);
+    return { seo };
+  },
+  head: ({ loaderData }) => {
     const url = getRequestUrl() || "/contribute";
     const lang = activeLang(url);
-    return buildContentHead({
-      url,
-      lang,
-      type: "website",
+    const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
       title:
         lang === "en"
           ? "Become a contributor - New European Strategies"
@@ -44,8 +48,20 @@ export const Route = createFileRoute("/contribute")({
           ? "Pitch a story on European affairs - we reply within 5 working days."
           : "Wyślij propozycję tekstu o polityce europejskiej - odpowiadamy w 5 dni roboczych.",
     });
+    const head = buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: seo.title,
+      description: seo.description,
+      image: seo.image ?? undefined,
+      robots: seo.noindex ? "noindex,nofollow" : undefined,
+      canonicalOverride: seo.canonical ?? undefined,
+    });
+    return head;
   },
 });
+
 
 function ContributePage() {
   const { t, i18n } = useTranslation();

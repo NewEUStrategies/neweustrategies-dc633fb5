@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
+import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
 import { OPEN_PREFS_EVENT, useConsent, type ConsentCategory } from "@/lib/ads/consent";
+
 
 interface CategoryCopy {
   key: ConsentCategory;
@@ -149,22 +151,37 @@ const COPY = {
 
 export const Route = createFileRoute("/cookies")({
   component: CookiesPage,
-  head: () => {
+  loader: async ({ context }) => {
+    const seo = await context.queryClient
+      .ensureQueryData(staticPageSeoQueryOptions("cookies"))
+      .catch(() => null);
+    return { seo };
+  },
+  head: ({ loaderData }) => {
     const url = getRequestUrl() || "/cookies";
     const lang = activeLang(url);
     const c = COPY[lang];
-    return buildContentHead({
-      url,
-      lang,
-      type: "website",
+    const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
+
       title:
         lang === "en"
           ? "Cookie policy - New European Strategies"
           : "Polityka plików cookies - New European Strategies",
       description: c.description,
     });
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: seo.title,
+      description: seo.description,
+      image: seo.image ?? undefined,
+      robots: seo.noindex ? "noindex,nofollow" : undefined,
+      canonicalOverride: seo.canonical ?? undefined,
+    });
   },
 });
+
 
 function CookiesPage() {
   const url = typeof window !== "undefined" ? window.location.pathname : "/cookies";

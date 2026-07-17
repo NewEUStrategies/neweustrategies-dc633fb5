@@ -22,28 +22,41 @@ import {
 import { PlanCard } from "@/components/billing/PlanCard";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
+import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
 import "@/lib/i18n-profile";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
-  head: () => {
+  loader: async ({ context }) => {
+    const seo = await context.queryClient
+      .ensureQueryData(staticPageSeoQueryOptions("pricing"))
+      .catch(() => null);
+    return { seo };
+  },
+  head: ({ loaderData }) => {
     const lang = activeLang(getRequestUrl() || "/pricing");
+    const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
+      title: lang === "en" ? "Pricing - Subscription plans" : "Cennik - Plany subskrypcji",
+      description:
+        lang === "en"
+          ? "Choose the plan that fits your needs. Monthly and yearly subscriptions."
+          : "Wybierz plan dopasowany do Twoich potrzeb. Subskrypcje miesięczne i roczne.",
+    });
+    const meta: Array<Record<string, string>> = [
+      { title: seo.title },
+      { name: "description", content: seo.description },
+      { property: "og:title", content: seo.title },
+      { property: "og:description", content: seo.description },
+    ];
+    if (seo.image) meta.push({ property: "og:image", content: seo.image });
+    if (seo.noindex) meta.push({ name: "robots", content: "noindex,nofollow" });
     return {
-      meta: [
-        {
-          title: lang === "en" ? "Pricing - Subscription plans" : "Cennik - Plany subskrypcji",
-        },
-        {
-          name: "description",
-          content:
-            lang === "en"
-              ? "Choose the plan that fits your needs. Monthly and yearly subscriptions."
-              : "Wybierz plan dopasowany do Twoich potrzeb. Subskrypcje miesięczne i roczne.",
-        },
-      ],
+      meta,
+      links: seo.canonical ? [{ rel: "canonical", href: seo.canonical }] : [],
     };
   },
 });
+
 
 function PricingPage() {
   const { t, i18n } = useTranslation();
