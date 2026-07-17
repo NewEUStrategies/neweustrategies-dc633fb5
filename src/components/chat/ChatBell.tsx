@@ -44,6 +44,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
   const online = useOnlineUsers();
   const conversationsQ = useConversations();
   const unread = useChatUnreadTotal();
+  const prefsQ = useNotificationPreferences();
 
   // The bell droplist mirrors WhatsApp: archived conversations stay out of
   // sight (they live under the /messages archive section).
