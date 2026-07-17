@@ -19,6 +19,8 @@ import {
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ConversationListItem } from "@/components/chat/ConversationListItem";
+import { DEMO_BOT_ID, DemoBotChat } from "@/components/chat/DemoBotChat";
+import { DemoBotListItem } from "@/components/chat/DemoBotListItem";
 import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
