@@ -81,6 +81,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   allow_messages_from: "everyone",
   push_enabled: false,
   email_digest: "off",
+  chat_bell_enabled: true,
 };
 
 const prefsKey = (uid: string | undefined) =>
