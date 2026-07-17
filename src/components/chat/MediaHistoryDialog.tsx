@@ -214,7 +214,7 @@ export function MediaHistoryDialog({
               <ScrollArea className="h-[52vh] pr-2">
                 <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                   {images.map((entry) => (
-                    <ImageTile key={entry.message.id} entry={entry} lang={lang} />
+                    <ImageTile key={entry.message.id} entry={entry} lang={lang} onOpen={setLightbox} />
                   ))}
                 </div>
               </ScrollArea>
