@@ -73,6 +73,14 @@ function ProfileInline() {
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
   const [tab, setTab] = useState<TabKey>("about");
 
+  // Propaguj tryb podglądu gościa do layoutu /profile (ukrywa sidebar) i
+  // sprzątaj przy odmontowaniu, żeby powrót na /profile/* nie zostawiał
+  // fantomowego stanu "guest".
+  useEffect(() => {
+    setGuestPreview(previewAsGuest);
+    return () => setGuestPreview(false);
+  }, [previewAsGuest]);
+
   const fullName =
     [data.first_name, data.last_name].filter(Boolean).join(" ") ||
     data.display_name ||
