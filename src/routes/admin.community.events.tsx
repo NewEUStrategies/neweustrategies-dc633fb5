@@ -429,67 +429,73 @@ function EditEventDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Tytuł PL" : "Title PL"}</Label>
-              <Input value={titlePl} onChange={(e) => setTitlePl(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Tytuł EN" : "Title EN"}</Label>
-              <Input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
-            </div>
+            <FloatingInput
+              label={isPl ? "Tytuł PL" : "Title PL"}
+              value={titlePl}
+              onChange={(e) => setTitlePl(e.target.value)}
+            />
+            <FloatingInput
+              label={isPl ? "Tytuł EN" : "Title EN"}
+              value={titleEn}
+              onChange={(e) => setTitleEn(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Opis PL" : "Description PL"}</Label>
-              <Textarea rows={4} value={descPl} onChange={(e) => setDescPl(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Opis EN" : "Description EN"}</Label>
-              <Textarea rows={4} value={descEn} onChange={(e) => setDescEn(e.target.value)} />
-            </div>
+            <FloatingTextarea
+              label={isPl ? "Opis PL" : "Description PL"}
+              rows={4}
+              value={descPl}
+              onChange={(e) => setDescPl(e.target.value)}
+            />
+            <FloatingTextarea
+              label={isPl ? "Opis EN" : "Description EN"}
+              rows={4}
+              value={descEn}
+              onChange={(e) => setDescEn(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Start" : "Starts at"}</Label>
-              <Input
-                type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Pojemność" : "Capacity"}</Label>
-              <Input type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Join URL</Label>
-              <Input value={joinUrl} onChange={(e) => setJoinUrl(e.target.value)} />
-            </div>
+            <FloatingInput
+              label={isPl ? "Start" : "Starts at"}
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+            />
+            <FloatingInput
+              label={isPl ? "Pojemność" : "Capacity"}
+              type="number"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+            />
+            <FloatingInput
+              label="Join URL"
+              value={joinUrl}
+              onChange={(e) => setJoinUrl(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Otwarcie rejestracji" : "Registration opens"}</Label>
-              <Input
+            <div className="space-y-1.5">
+              <FloatingInput
+                label={isPl ? "Otwarcie rejestracji" : "Registration opens"}
                 type="datetime-local"
                 value={rsvpOpensAt}
                 onChange={(e) => setRsvpOpensAt(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="pl-1 text-[11px] text-muted-foreground">
                 {isPl
                   ? "Pusto = rejestracja od publikacji."
                   : "Empty = registration open from publish."}
               </p>
             </div>
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Ranga wcześniejszego dostępu" : "Early-access tier rank"}</Label>
-              <Input
+            <div className="space-y-1.5">
+              <FloatingInput
+                label={isPl ? "Ranga wcześniejszego dostępu (np. 10 = członek)" : "Early-access tier rank (e.g. 10 = member)"}
                 type="number"
                 min={0}
                 value={earlyRsvpRank}
                 onChange={(e) => setEarlyRsvpRank(e.target.value)}
-                placeholder={isPl ? "np. 10 (członek)" : "e.g. 10 (member)"}
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="pl-1 text-[11px] text-muted-foreground">
                 {isPl
                   ? "Warstwy o tej randze i wyższej rejestrują się przed otwarciem."
                   : "Tiers at this rank and above can register before opening."}
