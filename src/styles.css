@@ -4480,7 +4480,7 @@ textarea::placeholder {
   display: block;
   width: 100%;
   border: 1.5px solid var(--border);
-  border-radius: 6px;
+  border-radius: 6px !important;
   background: transparent;
   padding: 1rem 0.9rem;
   font-size: 0.95rem;
@@ -4620,7 +4620,7 @@ textarea::placeholder {
 .input {
   width: 100%;
   border: 1.5px solid var(--border);
-  border-radius: 6px;
+  border-radius: 6px !important;
   background: transparent;
   padding: 0.55rem 0.75rem;
   font-size: 0.875rem;
