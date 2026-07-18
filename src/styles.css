@@ -4551,6 +4551,8 @@ textarea::placeholder {
 .input-group > .input:focus ~ .user-label,
 .input-group > .input:not(:placeholder-shown) ~ .user-label {
   top: 0;
+  display: block;
+  height: auto;
   transform: translateY(-50%) scale(0.8);
   transform-origin: left center;
   background-color: var(--background);
