@@ -4487,6 +4487,9 @@ textarea::placeholder {
     box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
 }
+.input-group > .input:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
+}
 .input-group > textarea.input {
   min-height: 6.5rem;
   resize: vertical;
