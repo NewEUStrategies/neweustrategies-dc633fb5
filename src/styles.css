@@ -4573,12 +4573,14 @@ textarea::placeholder {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
+  text-align: left !important;
 }
 .input-group--on-dark > .input:hover:not(:disabled) {
   border-color: rgba(255, 255, 255, 0.24);
 }
 .input-group--on-dark > .user-label {
   color: rgba(255, 255, 255, 0.6);
+  text-align: left !important;
 }
 .input-group--on-dark > .input:focus,
 .input-group--on-dark > .input:not(:placeholder-shown) {
