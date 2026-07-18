@@ -11,6 +11,7 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
 
 import {
@@ -370,8 +371,11 @@ function EditPage() {
         </div>
       </div>
       <div>
-        <Label>Slug</Label>
-        <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
+        <FloatingInput
+          label="Slug"
+          value={form.slug}
+          onChange={(e) => set("slug", e.target.value)}
+        />
         <p className="text-[11px] text-muted-foreground mt-1">
           Zmiana slug zmieni adres URL tej strony (zarówno w panelu, jak i publicznie).
         </p>
@@ -382,14 +386,12 @@ function EditPage() {
         onChange={(v) => set("parent_id", v)}
         excludeId={form.id}
       />
-      <div>
-        <Label>Kolejność w menu</Label>
-        <Input
-          type="number"
-          value={form.menu_order}
-          onChange={(e) => set("menu_order", Number(e.target.value) || 0)}
-        />
-      </div>
+      <FloatingInput
+        label="Kolejność w menu"
+        type="number"
+        value={form.menu_order}
+        onChange={(e) => set("menu_order", Number(e.target.value) || 0)}
+      />
       <div>
         <Label>Template strony</Label>
         <Select
@@ -577,30 +579,18 @@ function EditPage() {
                 </p>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label>
-                    {t("admin.posts.titleCol")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(PL)</span>
-                  </Label>
-                  <Input
-                    value={form.title_pl}
-                    onChange={(e) => set("title_pl", e.target.value)}
-                    className="text-lg font-display"
-                    placeholder="Tytuł po polsku"
-                  />
-                </div>
-                <div>
-                  <Label>
-                    {t("admin.posts.titleCol")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(EN)</span>
-                  </Label>
-                  <Input
-                    value={form.title_en}
-                    onChange={(e) => set("title_en", e.target.value)}
-                    className="text-lg font-display"
-                    placeholder="Title in English"
-                  />
-                </div>
+                <FloatingInput
+                  label={`${t("admin.posts.titleCol")} (PL)`}
+                  value={form.title_pl}
+                  onChange={(e) => set("title_pl", e.target.value)}
+                  className="text-lg font-display"
+                />
+                <FloatingInput
+                  label={`${t("admin.posts.titleCol")} (EN)`}
+                  value={form.title_en}
+                  onChange={(e) => set("title_en", e.target.value)}
+                  className="text-lg font-display"
+                />
               </div>
 
               <SeoDescriptionField
