@@ -399,27 +399,36 @@ export function NewsletterForm({
 function FieldWrap({
   label,
   required,
-  showMark,
+  showMark: _showMark,
   error,
   children,
 }: {
   label: string;
   required?: boolean;
-  /** Show the visible "*" marker. Only true inside the CMS builder — public
-   *  visitors never see which fields are required until they try to submit. */
+  /** Legacy - floating label sygnalizuje required przez „*" obok labela. */
   showMark?: boolean;
   error?: string;
-  children: React.ReactNode;
+  children: React.ReactElement<{ className?: string; placeholder?: string }>;
 }) {
+  // Floating-label wrapper: injects `.input` + neutralny placeholder do dziecka,
+  // dzięki czemu label unosi się na obramowanie po focus / gdy pole ma wartość.
+  // Semantyczne tokeny (border/ring/destructive/background) => light+dark OK.
+  const injectedClass = ["input", children.props.className].filter(Boolean).join(" ");
+  const cloned = React.cloneElement(children, {
+    className: injectedClass,
+    placeholder: " ",
+  });
   return (
-    <label className="block space-y-1">
-      <span className="text-xs font-semibold tracking-wide opacity-95">
+    <div className="input-group" data-invalid={error ? "true" : undefined}>
+      {cloned}
+      <label className="user-label">
         {label}
-        {null}
-      </span>
-      {children}
-      {error && <span className="block text-[11px] text-destructive">{error}</span>}
-    </label>
+        {required ? <span aria-hidden> *</span> : null}
+      </label>
+      {error && (
+        <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
+      )}
+    </div>
   );
 }
 
