@@ -4592,7 +4592,7 @@ textarea::placeholder {
   width: 100%;
   border: 1.5px solid var(--border);
   border-radius: 0.625rem;
-  background: var(--background);
+  background: transparent;
   padding: 0.55rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
