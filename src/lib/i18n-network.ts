@@ -320,6 +320,52 @@ export const networkEn = {
       modePrivate: "Private mode",
       loadMore: "View all",
     },
+    introductions: {
+      title: "Introductions",
+      subtitle:
+        "Ask someone in your network for an introduction - or respond to requests from others.",
+      requestCta: "Request introduction",
+      requestTitle: "Request an introduction to {{name}}",
+      requestSubtitle:
+        "Pick a mutual contact who knows {{name}} and write a short note - the bridge decides whether to pass the request along.",
+      bridgeLabel: "Who should introduce you?",
+      bridgeUsed: "active",
+      noBridges: "You have no connections yet - add some before requesting introductions.",
+      messageLabel: "Note for the bridge and the recipient",
+      messagePlaceholder:
+        "Briefly: how do you know me and why do you want to meet {{name}}...",
+      messageHint: "Between 20 and 600 characters. Visible to the bridge and to the recipient once accepted.",
+      send: "Send request",
+      sending: "Sending...",
+      cancel: "Cancel",
+      requestedToast: "Request sent - the bridge will be notified",
+      requestError: "Could not send the introduction request",
+      tabBridge: "To me",
+      tabRequester: "Sent",
+      tabTarget: "About me",
+      emptyBridge: "No one is asking you for an introduction.",
+      emptyRequester: "You have no sent introduction requests.",
+      emptyTarget: "No one has been introduced to you yet.",
+      wantsIntroTo: "wants an introduction to {{name}}",
+      viaBridge: "via {{name}}",
+      introducedBy: "introduced by {{name}}",
+      accept: "Pass along",
+      decline: "Decline",
+      withdraw: "Withdraw",
+      acceptedToast: "Introduction passed along",
+      declinedToast: "Request declined",
+      withdrawnToast: "Request withdrawn",
+      bridgeHint:
+        "Declining is silent - the requester will not see your decision.",
+      targetHint:
+        "You only see introductions accepted by your mutual contact.",
+      status: {
+        pending: "Pending",
+        accepted: "Passed",
+        declined: "Declined",
+        withdrawn: "Withdrawn",
+      },
+    },
   },
 };
 
