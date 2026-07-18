@@ -707,7 +707,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
 function Field({
   label,
-  required,
   error,
   className,
   children,
@@ -733,10 +732,7 @@ function Field({
       data-invalid={error ? "true" : undefined}
     >
       {injected}
-      <label className="user-label">
-        {label}
-        {required ? <span aria-hidden> *</span> : null}
-      </label>
+      <label className="user-label">{label}</label>
       {error && (
         <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
       )}
