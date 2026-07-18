@@ -286,28 +286,22 @@ function Categories() {
                   </Select>
                 </div>
               </div>
-              <div>
-                <Label>Slug</Label>
-                <Input
-                  value={form.slug}
-                  onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                  placeholder="auto"
-                />
-              </div>
-              <div>
-                <Label>Opis (PL)</Label>
-                <Input
-                  value={form.description_pl}
-                  onChange={(e) => setForm({ ...form, description_pl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Description (EN)</Label>
-                <Input
-                  value={form.description_en}
-                  onChange={(e) => setForm({ ...form, description_en: e.target.value })}
-                />
-              </div>
+              <FloatingInput
+                label="Slug"
+                value={form.slug}
+                onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                placeholder="auto"
+              />
+              <FloatingInput
+                label="Opis (PL)"
+                value={form.description_pl}
+                onChange={(e) => setForm({ ...form, description_pl: e.target.value })}
+              />
+              <FloatingInput
+                label="Description (EN)"
+                value={form.description_en}
+                onChange={(e) => setForm({ ...form, description_en: e.target.value })}
+              />
             </div>
             <DialogFooter>
               <Button onClick={save}>{t("admin.save")}</Button>
