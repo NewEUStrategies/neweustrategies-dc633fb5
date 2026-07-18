@@ -33,6 +33,7 @@ import {
   type CustomFieldDef,
 } from "@/lib/builder/formFieldConfig";
 import { CountryCombobox } from "@/components/interests/CountryCombobox";
+import { FloatingInput } from "@/components/ui/floating-input";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
@@ -710,16 +711,15 @@ export function JoinUsForm({
   const extraFields: ReactNode[] = [];
   if (useSplitName) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="email"
         type="email"
         required={requireEmail}
         aria-required={requireEmail || undefined}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder={withMark(phEmail, requireEmail)}
+        label={withMark(phEmail, requireEmail)}
         maxLength={254}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="email"
@@ -728,16 +728,15 @@ export function JoinUsForm({
   }
   if (showPosition) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="position"
         type="text"
         value={extra.position}
         onChange={(e) => updateExtra("position", e.target.value)}
-        placeholder={withMark(phPosition, requirePosition)}
+        label={withMark(phPosition, requirePosition)}
         aria-required={requirePosition || undefined}
         required={requirePosition}
         maxLength={200}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="organization-title"
@@ -746,16 +745,15 @@ export function JoinUsForm({
   }
   if (showLinkedin) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="linkedin"
         type="url"
         value={extra.linkedin}
         onChange={(e) => updateExtra("linkedin", e.target.value)}
-        placeholder={withMark(phLinkedin, requireLinkedin)}
+        label={withMark(phLinkedin, requireLinkedin)}
         aria-required={requireLinkedin || undefined}
         required={requireLinkedin}
         maxLength={300}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="url"
@@ -764,16 +762,15 @@ export function JoinUsForm({
   }
   if (showPhone) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="phone"
         type="tel"
         value={extra.phone}
         onChange={(e) => updateExtra("phone", e.target.value)}
-        placeholder={withMark(phPhone, requirePhone)}
+        label={withMark(phPhone, requirePhone)}
         aria-required={requirePhone || undefined}
         required={requirePhone}
         maxLength={40}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="tel"
@@ -782,16 +779,15 @@ export function JoinUsForm({
   }
   if (showCompany) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="company"
         type="text"
         value={extra.company}
         onChange={(e) => updateExtra("company", e.target.value)}
-        placeholder={withMark(phCompany, requireCompany)}
+        label={withMark(phCompany, requireCompany)}
         aria-required={requireCompany || undefined}
         required={requireCompany}
         maxLength={200}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="organization"
@@ -819,30 +815,28 @@ export function JoinUsForm({
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
-            <input
+            <FloatingInput
               type="text"
               value={extra.firstName}
               onChange={(e) => updateExtra("firstName", e.target.value)}
-              placeholder={withMark(phFirst, requireFirstName)}
+              label={withMark(phFirst, requireFirstName)}
               aria-required={requireFirstName || undefined}
               required={requireFirstName}
               maxLength={100}
-              className={inputCls}
               style={inputStyle}
               data-edit-target="placeholderSize"
               autoComplete="given-name"
             />
           )}
           {showLastName && (
-            <input
+            <FloatingInput
               type="text"
               value={extra.lastName}
               onChange={(e) => updateExtra("lastName", e.target.value)}
-              placeholder={withMark(phLast, requireLastName)}
+              label={withMark(phLast, requireLastName)}
               aria-required={requireLastName || undefined}
               required={requireLastName}
               maxLength={100}
-              className={inputCls}
               style={inputStyle}
               data-edit-target="placeholderSize"
               autoComplete="family-name"
@@ -851,26 +845,24 @@ export function JoinUsForm({
         </div>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          <input
+          <FloatingInput
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={phName}
+            label={phName}
             maxLength={120}
-            className={inputCls}
             style={inputStyle}
             data-edit-target="placeholderSize"
             autoComplete="name"
           />
-          <input
+          <FloatingInput
             type="email"
             required={requireEmail}
             aria-required={requireEmail || undefined}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={withMark(phEmail, requireEmail)}
+            label={withMark(phEmail, requireEmail)}
             maxLength={254}
-            className={inputCls}
             style={inputStyle}
             data-edit-target="placeholderSize"
             autoComplete="email"
