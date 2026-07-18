@@ -360,14 +360,12 @@ function CampaignEditor() {
                   <TabsTrigger value="en">English</TabsTrigger>
                 </TabsList>
                 <TabsContent value="pl" className="space-y-3">
-                  <div>
-                    <Label>{isPl ? "Temat" : "Subject"} (PL)</Label>
-                    <Input
-                      value={form.subject_pl}
-                      onChange={(e) => setForm({ ...form, subject_pl: e.target.value })}
-                      disabled={readonly}
-                    />
-                  </div>
+                  <FloatingInput
+                    label={`${isPl ? "Temat" : "Subject"} (PL)`}
+                    value={form.subject_pl}
+                    onChange={(e) => setForm({ ...form, subject_pl: e.target.value })}
+                    disabled={readonly}
+                  />
                   <div>
                     <Label>HTML (PL)</Label>
                     <Textarea
@@ -381,14 +379,12 @@ function CampaignEditor() {
                   </div>
                 </TabsContent>
                 <TabsContent value="en" className="space-y-3">
-                  <div>
-                    <Label>Subject (EN)</Label>
-                    <Input
-                      value={form.subject_en}
-                      onChange={(e) => setForm({ ...form, subject_en: e.target.value })}
-                      disabled={readonly}
-                    />
-                  </div>
+                  <FloatingInput
+                    label="Subject (EN)"
+                    value={form.subject_en}
+                    onChange={(e) => setForm({ ...form, subject_en: e.target.value })}
+                    disabled={readonly}
+                  />
                   <div>
                     <Label>HTML (EN)</Label>
                     <Textarea
@@ -401,6 +397,7 @@ function CampaignEditor() {
                     />
                   </div>
                 </TabsContent>
+
               </Tabs>
               <p className="text-xs text-muted-foreground mt-2">
                 {isPl
