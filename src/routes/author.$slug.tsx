@@ -302,6 +302,7 @@ function ExpertHubPage() {
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
               <ConnectButton userId={expert.id} displayName={name} />
+              <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />
               <ReportUserButton userId={expert.id} displayName={name} />
             </div>
