@@ -1104,7 +1104,7 @@ function GuestPreviewActionBar() {
       </button>
       <button type="button" disabled aria-disabled title={previewHint}
         className={`${pillBase} ${shine} border-transparent bg-primary/90 text-primary-foreground hover:bg-primary`}>
-        <UserPlus className="h-3.5 w-3.5" aria-hidden />
+        <UserPlus className="h-3.5 w-3.5 text-white" aria-hidden />
         {t("network.connect", { defaultValue: isPl ? "Dodaj do sieci" : "Connect" })}
       </button>
       <button type="button" disabled aria-disabled title={previewHint}
