@@ -5,6 +5,7 @@ import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useGuestPreview } from "@/lib/profile/guestPreviewStore";
 import "@/lib/i18n-profile";
 
 export const Route = createFileRoute("/profile")({
