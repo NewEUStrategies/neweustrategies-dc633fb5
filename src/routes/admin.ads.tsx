@@ -329,14 +329,11 @@ function SlotsPanel() {
       <section className="border border-border rounded-lg bg-card p-5">
         <h2 className="font-semibold mb-4">{draft.id ? "Edytuj slot" : "Nowy slot"}</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <Label>Nazwa</Label>
-            <Input
-              value={draft.name ?? ""}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="np. AdSense 728x90 góra"
-            />
-          </div>
+          <FloatingInput
+            label="Nazwa"
+            value={draft.name ?? ""}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
           <div>
             <Label>Typ</Label>
             <Select
@@ -357,77 +354,62 @@ function SlotsPanel() {
           </div>
 
           {draft.kind === "html" && (
-            <div className="sm:col-span-2">
-              <Label>Kod HTML</Label>
-              <Textarea
-                rows={4}
-                value={draft.html ?? ""}
-                onChange={(e) => setDraft({ ...draft, html: e.target.value })}
-                placeholder="<div>…</div>"
-                className="font-mono text-xs"
-              />
-            </div>
+            <FloatingTextarea
+              containerClassName="sm:col-span-2"
+              label="Kod HTML"
+              rows={4}
+              value={draft.html ?? ""}
+              onChange={(e) => setDraft({ ...draft, html: e.target.value })}
+              className="font-mono text-xs"
+            />
           )}
           {draft.kind === "script" && (
-            <div className="sm:col-span-2">
-              <Label>Skrypt (np. AdSense)</Label>
-              <Textarea
-                rows={5}
-                value={draft.script ?? ""}
-                onChange={(e) => setDraft({ ...draft, script: e.target.value })}
-                placeholder='<script async src="…"></script>'
-                className="font-mono text-xs"
-              />
-            </div>
+            <FloatingTextarea
+              containerClassName="sm:col-span-2"
+              label="Skrypt (np. AdSense)"
+              rows={5}
+              value={draft.script ?? ""}
+              onChange={(e) => setDraft({ ...draft, script: e.target.value })}
+              className="font-mono text-xs"
+            />
           )}
           {draft.kind === "image" && (
             <>
-              <div className="sm:col-span-2">
-                <Label>URL grafiki</Label>
-                <Input
-                  value={draft.image_url ?? ""}
-                  onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
-                  placeholder="https://…"
-                />
-              </div>
-              <div>
-                <Label>Link kliknięcia</Label>
-                <Input
-                  value={draft.image_link ?? ""}
-                  onChange={(e) => setDraft({ ...draft, image_link: e.target.value })}
-                  placeholder="https://…"
-                />
-              </div>
-              <div>
-                <Label>Alt (dla dostępności)</Label>
-                <Input
-                  value={draft.image_alt ?? ""}
-                  onChange={(e) => setDraft({ ...draft, image_alt: e.target.value })}
-                />
-              </div>
+              <FloatingInput
+                containerClassName="sm:col-span-2"
+                label="URL grafiki"
+                value={draft.image_url ?? ""}
+                onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
+              />
+              <FloatingInput
+                label="Link kliknięcia"
+                value={draft.image_link ?? ""}
+                onChange={(e) => setDraft({ ...draft, image_link: e.target.value })}
+              />
+              <FloatingInput
+                label="Alt (dla dostępności)"
+                value={draft.image_alt ?? ""}
+                onChange={(e) => setDraft({ ...draft, image_alt: e.target.value })}
+              />
             </>
           )}
 
-          <div>
-            <Label>Szerokość (px)</Label>
-            <Input
-              type="number"
-              value={draft.width ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, width: e.target.value ? Number(e.target.value) : null })
-              }
-            />
-          </div>
-          <div>
-            <Label>Wysokość (px)</Label>
-            <Input
-              type="number"
-              value={draft.height ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, height: e.target.value ? Number(e.target.value) : null })
-              }
-            />
-          </div>
+          <FloatingInput
+            label="Szerokość (px)"
+            type="number"
+            value={draft.width ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, width: e.target.value ? Number(e.target.value) : null })
+            }
+          />
+          <FloatingInput
+            label="Wysokość (px)"
+            type="number"
+            value={draft.height ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, height: e.target.value ? Number(e.target.value) : null })
+            }
+          />
 
           <div className="flex items-center gap-2">
             <Switch
@@ -449,14 +431,13 @@ function SlotsPanel() {
             onChange={(next) => setDraft({ ...draft, targeting: adTargetingToJson(next) })}
           />
 
-          <div className="sm:col-span-2">
-            <Label>Notatki wewnętrzne</Label>
-            <Textarea
-              rows={2}
-              value={draft.notes ?? ""}
-              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-            />
-          </div>
+          <FloatingTextarea
+            containerClassName="sm:col-span-2"
+            label="Notatki wewnętrzne"
+            rows={2}
+            value={draft.notes ?? ""}
+            onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+          />
         </div>
         <div className="flex gap-2 mt-5">
           <Button onClick={save} disabled={busy}>
