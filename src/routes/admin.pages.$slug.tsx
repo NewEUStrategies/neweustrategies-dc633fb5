@@ -11,6 +11,7 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
 
 import {
