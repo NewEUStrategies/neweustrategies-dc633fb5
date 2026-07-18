@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FloatingInput } from "@/components/ui/floating-input";
 import {
   Select,
   SelectContent,
@@ -115,36 +116,24 @@ function AdminOrganizationNewPage() {
         <div className="lg:col-span-2 space-y-4">
           <Card title={L("Podstawowe dane", "Basic details")}>
             <div className="grid gap-3">
-              <Field label={L("Nazwa organizacji", "Organization name")}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={L("np. Acme Sp. z o.o.", "e.g. Acme Ltd.")}
-                  className="h-8 text-sm"
-                />
-              </Field>
+              <FloatingInput
+                label={L("Nazwa organizacji", "Organization name")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
               <div className="grid gap-3 md:grid-cols-2">
-                <Field
-                  label={L("Slug (URL)", "Slug (URL)")}
-                  hint={L("mała litera, myślniki", "lowercase, hyphens")}
-                >
-                  <Input
-                    value={slug}
-                    onChange={(e) =>
-                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
-                    }
-                    placeholder="acme"
-                    className="h-8 text-sm"
-                  />
-                </Field>
-                <Field label={L("Sektor / branża", "Sector / industry")}>
-                  <Input
-                    value={sector}
-                    onChange={(e) => setSector(e.target.value)}
-                    placeholder={L("np. Finanse, Energetyka", "e.g. Finance, Energy")}
-                    className="h-8 text-sm"
-                  />
-                </Field>
+                <FloatingInput
+                  label={L("Slug (URL) - mała litera, myślniki", "Slug (URL) - lowercase, hyphens")}
+                  value={slug}
+                  onChange={(e) =>
+                    setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+                  }
+                />
+                <FloatingInput
+                  label={L("Sektor / branża", "Sector / industry")}
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                />
               </div>
               <Field label={L("Krótki opis", "Short description")}>
                 <Textarea
@@ -162,38 +151,28 @@ function AdminOrganizationNewPage() {
 
           <Card title={L("Kontakt i adres", "Contact & location")}>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label={L("E-mail kontaktowy", "Contact email")}>
-                <Input
-                  type="email"
-                  value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
-                  placeholder="office@acme.com"
-                  className="h-8 text-sm"
-                />
-              </Field>
-              <Field label={L("Strona www", "Website")}>
-                <Input
-                  type="url"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="https://acme.com"
-                  className="h-8 text-sm"
-                />
-              </Field>
-              <Field label={L("Miasto", "City")}>
-                <Input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </Field>
-              <Field label={L("Kraj", "Country")}>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </Field>
+              <FloatingInput
+                label={L("E-mail kontaktowy", "Contact email")}
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+              />
+              <FloatingInput
+                label={L("Strona www", "Website")}
+                type="url"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+              />
+              <FloatingInput
+                label={L("Miasto", "City")}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+              <FloatingInput
+                label={L("Kraj", "Country")}
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+              />
             </div>
           </Card>
 
@@ -224,18 +203,16 @@ function AdminOrganizationNewPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={L("Limit miejsc", "Seat limit")}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={seatsLimit}
-                  onChange={(e) =>
-                    setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
-                  }
-                  className="h-8 text-sm"
-                />
-              </Field>
+              <FloatingInput
+                label={L("Limit miejsc", "Seat limit")}
+                type="number"
+                min={1}
+                max={500}
+                value={seatsLimit}
+                onChange={(e) =>
+                  setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
+                }
+              />
               <div className="rounded-md border border-dashed border-border/70 bg-muted/30 p-3 text-[11px] text-muted-foreground">
                 <Building2 className="mb-1 h-3.5 w-3.5" aria-hidden="true" />
                 {L(
