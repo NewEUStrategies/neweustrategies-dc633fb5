@@ -114,7 +114,7 @@ export function ProfileViewsCard() {
           >
             <div className="text-lg font-bold text-foreground tabular-nums">
               {statsQ.isPending ? (
-                <Skeleton className="mx-auto h-5 w-10" />
+                <span className="mx-auto inline-block h-5 w-10 animate-pulse rounded bg-muted" />
               ) : (
                 (stats?.[c.key] ?? 0)
               )}
@@ -163,7 +163,7 @@ export function ProfileViewsCard() {
         {viewersQ.isPending ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-14 w-full rounded-md" />
+              <div key={i} className="h-14 w-full animate-pulse rounded-md bg-muted" />
             ))}
           </div>
         ) : viewers.length === 0 ? (
