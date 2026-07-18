@@ -815,30 +815,28 @@ export function JoinUsForm({
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
-            <input
+            <FloatingInput
               type="text"
               value={extra.firstName}
               onChange={(e) => updateExtra("firstName", e.target.value)}
-              placeholder={withMark(phFirst, requireFirstName)}
+              label={withMark(phFirst, requireFirstName)}
               aria-required={requireFirstName || undefined}
               required={requireFirstName}
               maxLength={100}
-              className={inputCls}
               style={inputStyle}
               data-edit-target="placeholderSize"
               autoComplete="given-name"
             />
           )}
           {showLastName && (
-            <input
+            <FloatingInput
               type="text"
               value={extra.lastName}
               onChange={(e) => updateExtra("lastName", e.target.value)}
-              placeholder={withMark(phLast, requireLastName)}
+              label={withMark(phLast, requireLastName)}
               aria-required={requireLastName || undefined}
               required={requireLastName}
               maxLength={100}
-              className={inputCls}
               style={inputStyle}
               data-edit-target="placeholderSize"
               autoComplete="family-name"
@@ -847,26 +845,24 @@ export function JoinUsForm({
         </div>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          <input
+          <FloatingInput
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={phName}
+            label={phName}
             maxLength={120}
-            className={inputCls}
             style={inputStyle}
             data-edit-target="placeholderSize"
             autoComplete="name"
           />
-          <input
+          <FloatingInput
             type="email"
             required={requireEmail}
             aria-required={requireEmail || undefined}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={withMark(phEmail, requireEmail)}
+            label={withMark(phEmail, requireEmail)}
             maxLength={254}
-            className={inputCls}
             style={inputStyle}
             data-edit-target="placeholderSize"
             autoComplete="email"
