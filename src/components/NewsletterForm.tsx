@@ -5,6 +5,7 @@
 // Opcjonalny `widgetConfig` pozwala nadpisywać etykiety / placeholdery per-pole,
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
 // custom fields zdefiniowane w builderze — całość leci do CRM przez server.
+import * as React from "react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
