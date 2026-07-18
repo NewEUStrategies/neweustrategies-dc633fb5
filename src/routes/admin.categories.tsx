@@ -287,10 +287,9 @@ function Categories() {
                 </div>
               </div>
               <FloatingInput
-                label="Slug"
+                label="Slug (auto)"
                 value={form.slug}
                 onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                placeholder="auto"
               />
               <FloatingInput
                 label="Opis (PL)"
