@@ -380,166 +380,143 @@ function ProfileInline() {
                 )}
               </Card>
 
-              {/* Editorial contact card: hero email + 2-col grid (phone / location)
-                  + social pills. Guest view uses styled anchors, edit mode
-                  swaps values for InlineText inputs. */}
-              <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_8px_30px_-12px_color-mix(in_oklab,var(--foreground)_10%,transparent)]">
-                <header className="flex items-center gap-4 px-6 pt-6 pb-4 sm:px-7 sm:pt-7">
-                  <h2 className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5 text-primary" aria-hidden />
-                    {t("profile.inline.contactSection")}
-                  </h2>
-                  <div className="h-px flex-1 bg-border/70" aria-hidden />
-                </header>
+              <Card
+                icon={<Mail className="h-3.5 w-3.5" />}
+                title={t("profile.inline.contactSection")}
+              >
+                <ul className="divide-y divide-border/60">
+                  {/* Email - read-only from auth */}
+                  <ContactRow
+                    icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
+                    ariaLabel={t("profile.account.email")}
+                  >
+                    <a
+                      href={`mailto:${user?.email ?? ""}`}
+                      className="truncate text-sm text-foreground/90 hover:text-primary"
+                    >
+                      {user?.email}
+                    </a>
+                  </ContactRow>
 
-                <div className="space-y-7 px-6 pb-7 sm:px-7">
-                  {/* Primary contact: email (read-only from auth) */}
-                  <div>
-                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {t("profile.account.email")}
-                    </span>
-                    {user?.email ? (
+                  {/* Phone */}
+                  <ContactRow
+                    icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
+                    ariaLabel={t("profile.account.phone")}
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.phone}
+                        onSave={(v) => saveField("phone", v || null)}
+                        ariaLabel={t("profile.account.phone")}
+                        placeholder={t("profile.account.phonePh")}
+                        emptyLabel={t("profile.inline.addPhone")}
+                        maxLength={32}
+                        className="w-full"
+                      />
+                    ) : data.phone ? (
                       <a
-                        href={`mailto:${user.email}`}
-                        className="group inline-flex max-w-full items-center gap-2 text-base font-bold text-foreground transition-transform duration-300 hover:translate-x-1 hover:text-primary sm:text-lg"
+                        href={`tel:${data.phone}`}
+                        className="truncate text-sm text-foreground/90 hover:text-primary"
                       >
-                        <span className="truncate">{user.email}</span>
-                        <ExternalLink
-                          className="h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-60"
-                          aria-hidden
-                        />
+                        {data.phone}
                       </a>
                     ) : (
                       <span className="text-sm italic text-muted-foreground/70">-</span>
                     )}
-                  </div>
+                  </ContactRow>
 
-                  {/* Secondary grid: phone + location */}
-                  <div className="grid grid-cols-1 gap-6 border-t border-border/60 pt-6 sm:grid-cols-2 sm:gap-8">
-                    <div>
-                      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {t("profile.account.phone")}
+                  {/* Location */}
+                  <ContactRow
+                    icon={
+                      <BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />
+                    }
+                    ariaLabel={t("profile.account.location")}
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.location}
+                        onSave={(v) => saveField("location", v || null)}
+                        ariaLabel={t("profile.account.location")}
+                        placeholder={t("profile.account.locationPh")}
+                        emptyLabel={t("profile.inline.addLocation")}
+                        maxLength={160}
+                        className="w-full"
+                      />
+                    ) : (
+                      <span className="truncate text-sm text-foreground/90">
+                        {data.location || "-"}
                       </span>
-                      {editable ? (
-                        <InlineText
-                          value={data.phone}
-                          onSave={(v) => saveField("phone", v || null)}
-                          ariaLabel={t("profile.account.phone")}
-                          placeholder={t("profile.account.phonePh")}
-                          emptyLabel={t("profile.inline.addPhone")}
-                          maxLength={32}
-                          className="w-full"
-                        />
-                      ) : data.phone ? (
-                        <a
-                          href={`tel:${data.phone}`}
-                          className="inline-block truncate text-sm font-bold text-foreground transition-transform duration-300 hover:translate-x-1 hover:text-primary"
-                        >
-                          {data.phone}
-                        </a>
-                      ) : (
-                        <span className="text-sm italic text-muted-foreground/70">-</span>
-                      )}
-                    </div>
+                    )}
+                  </ContactRow>
 
-                    <div>
-                      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {t("profile.account.location")}
-                      </span>
-                      {editable ? (
-                        <InlineText
-                          value={data.location}
-                          onSave={(v) => saveField("location", v || null)}
-                          ariaLabel={t("profile.account.location")}
-                          placeholder={t("profile.account.locationPh")}
-                          emptyLabel={t("profile.inline.addLocation")}
-                          maxLength={160}
-                          className="w-full"
-                        />
-                      ) : (
-                        <span className="block truncate text-sm font-bold text-foreground">
-                          {data.location || "-"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {/* LinkedIn */}
+                  <ContactRow
+                    icon={
+                      <BrandIcon
+                        name="linkedin"
+                        fallback={Linkedin}
+                        className="h-4 w-4"
+                        alt="LinkedIn"
+                      />
+                    }
+                    ariaLabel="LinkedIn"
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.linkedin_url}
+                        onSave={(v) => saveField("linkedin_url", v || null)}
+                        ariaLabel="LinkedIn"
+                        placeholder="https://linkedin.com/in/..."
+                        emptyLabel={t("profile.inline.addLinkedin")}
+                        maxLength={240}
+                        className="w-full"
+                      />
+                    ) : data.linkedin_url ? (
+                      <a
+                        href={data.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary"
+                      >
+                        {prettyUrl(data.linkedin_url)}
+                        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                      </a>
+                    ) : (
+                      <span className="text-sm italic text-muted-foreground/70">-</span>
+                    )}
+                  </ContactRow>
 
-                  {/* Tertiary: social pills. Edit mode expands to stacked inputs. */}
-                  {editable ? (
-                    <div className="space-y-3 border-t border-border/60 pt-5">
-                      <div>
-                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          LinkedIn
-                        </span>
-                        <InlineText
-                          value={data.linkedin_url}
-                          onSave={(v) => saveField("linkedin_url", v || null)}
-                          ariaLabel="LinkedIn"
-                          placeholder="https://linkedin.com/in/..."
-                          emptyLabel={t("profile.inline.addLinkedin")}
-                          maxLength={240}
-                          className="w-full"
-                        />
-                      </div>
-                      <div>
-                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          X
-                        </span>
-                        <InlineText
-                          value={data.twitter_url}
-                          onSave={(v) => saveField("twitter_url", v || null)}
-                          ariaLabel="X"
-                          placeholder="https://x.com/..."
-                          emptyLabel={t("profile.inline.addTwitter")}
-                          maxLength={240}
-                          className="w-full"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    (data.linkedin_url || data.twitter_url) && (
-                      <div className="flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row">
-                        {data.linkedin_url && (
-                          <a
-                            href={data.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex flex-1 items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs font-bold text-foreground transition-all duration-300 hover:border-foreground hover:bg-foreground hover:text-background"
-                          >
-                            <span>LinkedIn</span>
-                            <BrandIcon
-                              name="linkedin"
-                              fallback={Linkedin}
-                              className="h-4 w-4 opacity-40 transition-opacity group-hover:opacity-100"
-                              alt=""
-                            />
-                          </a>
-                        )}
-                        {data.twitter_url && (
-                          <a
-                            href={data.twitter_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex flex-1 items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs font-bold text-foreground transition-all duration-300 hover:border-foreground hover:bg-foreground hover:text-background"
-                          >
-                            <span>X</span>
-                            <BrandIcon
-                              name="x"
-                              fallback={XIcon}
-                              className="h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100"
-                              alt="X"
-                            />
-                          </a>
-                        )}
-                      </div>
-                    )
-                  )}
-                </div>
-
-                {/* Decorative bottom bar - editorial nameplate cue */}
-                <div className="h-1.5 w-full bg-foreground" aria-hidden />
-              </section>
-
+                  {/* X */}
+                  <ContactRow
+                    icon={<BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />}
+                    ariaLabel="X"
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.twitter_url}
+                        onSave={(v) => saveField("twitter_url", v || null)}
+                        ariaLabel="X"
+                        placeholder="https://x.com/..."
+                        emptyLabel={t("profile.inline.addTwitter")}
+                        maxLength={240}
+                        className="w-full"
+                      />
+                    ) : data.twitter_url ? (
+                      <a
+                        href={data.twitter_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary"
+                      >
+                        {prettyUrl(data.twitter_url)}
+                        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                      </a>
+                    ) : (
+                      <span className="text-sm italic text-muted-foreground/70">-</span>
+                    )}
+                  </ContactRow>
+                </ul>
+              </Card>
 
               {user?.id && data.tenant_id ? (
                 <CvSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
