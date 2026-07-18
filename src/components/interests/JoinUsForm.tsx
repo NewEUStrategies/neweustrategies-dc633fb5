@@ -711,16 +711,15 @@ export function JoinUsForm({
   const extraFields: ReactNode[] = [];
   if (useSplitName) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="email"
         type="email"
         required={requireEmail}
         aria-required={requireEmail || undefined}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder={withMark(phEmail, requireEmail)}
+        label={withMark(phEmail, requireEmail)}
         maxLength={254}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="email"
@@ -729,16 +728,15 @@ export function JoinUsForm({
   }
   if (showPosition) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="position"
         type="text"
         value={extra.position}
         onChange={(e) => updateExtra("position", e.target.value)}
-        placeholder={withMark(phPosition, requirePosition)}
+        label={withMark(phPosition, requirePosition)}
         aria-required={requirePosition || undefined}
         required={requirePosition}
         maxLength={200}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="organization-title"
@@ -747,16 +745,15 @@ export function JoinUsForm({
   }
   if (showLinkedin) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="linkedin"
         type="url"
         value={extra.linkedin}
         onChange={(e) => updateExtra("linkedin", e.target.value)}
-        placeholder={withMark(phLinkedin, requireLinkedin)}
+        label={withMark(phLinkedin, requireLinkedin)}
         aria-required={requireLinkedin || undefined}
         required={requireLinkedin}
         maxLength={300}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="url"
@@ -765,16 +762,15 @@ export function JoinUsForm({
   }
   if (showPhone) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="phone"
         type="tel"
         value={extra.phone}
         onChange={(e) => updateExtra("phone", e.target.value)}
-        placeholder={withMark(phPhone, requirePhone)}
+        label={withMark(phPhone, requirePhone)}
         aria-required={requirePhone || undefined}
         required={requirePhone}
         maxLength={40}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="tel"
@@ -783,16 +779,15 @@ export function JoinUsForm({
   }
   if (showCompany) {
     extraFields.push(
-      <input
+      <FloatingInput
         key="company"
         type="text"
         value={extra.company}
         onChange={(e) => updateExtra("company", e.target.value)}
-        placeholder={withMark(phCompany, requireCompany)}
+        label={withMark(phCompany, requireCompany)}
         aria-required={requireCompany || undefined}
         required={requireCompany}
         maxLength={200}
-        className={inputCls}
         style={inputStyle}
         data-edit-target="placeholderSize"
         autoComplete="organization"
