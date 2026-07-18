@@ -358,27 +358,27 @@ export function NewsletterForm({
             </>
           ) : (
             <>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={P.name}
-                className="px-3 py-2 rounded border border-input bg-background text-sm"
-                maxLength={120}
-              />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={P.email}
-                className="px-3 py-2 rounded border border-input bg-background text-sm"
-                maxLength={254}
-              />
+              <FieldWrap label={P.name}>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                />
+              </FieldWrap>
+              <FieldWrap label={L.email} required error={errors.email}>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  maxLength={254}
+                />
+              </FieldWrap>
               <button
                 type="submit"
                 disabled={state === "loading"}
-                className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-60"
+                className="bg-brand text-brand-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-60 h-[3.25rem]"
               >
                 {state === "loading" ? "…" : t("newsletterForm.subscribe")}
               </button>
