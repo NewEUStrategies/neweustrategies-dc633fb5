@@ -443,25 +443,21 @@ function CampaignEditor() {
                   {isPl ? "Puste = wszystkie" : "Empty = all"}
                 </p>
               </div>
-              <div>
-                <Label className="text-xs uppercase text-muted-foreground">
-                  {isPl ? "Źródło (opcjonalne)" : "Source (optional)"}
-                </Label>
-                <Input
-                  value={form.audience_filter.source ?? ""}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      audience_filter: {
-                        ...form.audience_filter,
-                        source: e.target.value || undefined,
-                      },
-                    })
-                  }
-                  disabled={readonly}
-                  placeholder="popup, footer-form…"
-                />
-              </div>
+              <FloatingInput
+                label={isPl ? "Źródło (opcjonalne)" : "Source (optional)"}
+                value={form.audience_filter.source ?? ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    audience_filter: {
+                      ...form.audience_filter,
+                      source: e.target.value || undefined,
+                    },
+                  })
+                }
+                disabled={readonly}
+              />
+
               <div>
                 <Label className="text-xs uppercase text-muted-foreground">
                   {isPl ? "Poziom członkostwa" : "Membership level"}
