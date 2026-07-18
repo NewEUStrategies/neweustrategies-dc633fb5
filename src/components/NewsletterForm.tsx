@@ -406,7 +406,7 @@ function FieldWrap({
 }: {
   label: string;
   required?: boolean;
-  /** Legacy - floating label sygnalizuje required przez „*" obok labela. */
+  /** Legacy builder option retained for schema compatibility. */
   showMark?: boolean;
   error?: string;
   children: React.ReactElement<{ className?: string; placeholder?: string }>;
@@ -422,10 +422,7 @@ function FieldWrap({
   return (
     <div className="input-group" data-invalid={error ? "true" : undefined}>
       {cloned}
-      <label className="user-label">
-        {label}
-        {required ? <span aria-hidden> *</span> : null}
-      </label>
+      <label className="user-label">{label}</label>
       {error && (
         <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
       )}

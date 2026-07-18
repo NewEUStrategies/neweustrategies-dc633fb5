@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 /**
  * Floating-label input / textarea atom.
  *
- * Design (see `.input-group` in src/styles.css): 1.5px border, rounded 14px,
+ * Design (see `.input-group` in src/styles.css): 1.5px border, rounded 6px,
  * label parked inside the field and lifted to the border on focus or when the
  * field has a value. Uses semantic tokens (border / ring / destructive /
  * background / foreground / muted-foreground) so it themes in light + dark
