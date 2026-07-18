@@ -358,19 +358,16 @@ function SettingsTab({ L }: { L: typeof PL }) {
           label={L.field.recipient}
           value={f.default_recipient ?? ""}
           onChange={(e) => set("default_recipient", e.target.value)}
-          placeholder="kontakt@firma.pl"
         />
         <FloatingInput
           label={L.field.fromName}
           value={f.from_name ?? ""}
           onChange={(e) => set("from_name", e.target.value)}
-          placeholder="New European Strategies"
         />
         <FloatingInput
           label={L.field.fromAddress}
           value={f.from_address ?? ""}
           onChange={(e) => set("from_address", e.target.value)}
-          placeholder="noreply@firma.pl"
         />
         <Row label={L.field.notifyAdmin}>
           <Switch
