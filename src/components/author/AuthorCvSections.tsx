@@ -13,9 +13,14 @@ import {
   Heart,
   MapPin,
   ExternalLink,
+  ThumbsUp,
 } from "lucide-react";
+import { toast } from "sonner";
 import { authorCvQueryOptions, type AuthorCv } from "@/lib/queries/authorCv";
 import { formatDate } from "@/lib/i18n/format";
+import { useAuth } from "@/hooks/useAuth";
+import { useConnectionStatuses } from "@/lib/network/useConnections";
+import { useSkillEndorsements, useToggleEndorsement } from "@/lib/network/useEndorsements";
 
 interface Props {
   userId: string | null | undefined;
