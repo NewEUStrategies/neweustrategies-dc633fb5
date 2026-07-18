@@ -4487,6 +4487,9 @@ textarea::placeholder {
     box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
 }
+.input-group > .input:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
+}
 .input-group > textarea.input {
   min-height: 6.5rem;
   resize: vertical;
@@ -4589,7 +4592,7 @@ textarea::placeholder {
   width: 100%;
   border: 1.5px solid var(--border);
   border-radius: 0.625rem;
-  background: var(--background);
+  background: transparent;
   padding: 0.55rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -4610,6 +4613,34 @@ textarea::placeholder {
   opacity: 0.6;
   cursor: not-allowed;
 }
+.input::placeholder {
+  color: var(--muted-foreground);
+}
+textarea.input {
+  min-height: 3.75rem;
+  padding: 0.55rem 0.75rem;
+  line-height: 1.35rem;
+  resize: vertical;
+}
+.input[aria-invalid="true"],
+.input[data-invalid="true"] {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
+}
+.input[type="file"] {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+.input[type="file"]::file-selector-button {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 500;
+  font-size: 0.875rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
 
 
 
