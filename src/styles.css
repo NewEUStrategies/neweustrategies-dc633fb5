@@ -4526,7 +4526,7 @@ textarea::placeholder {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: left;
+  text-align: left !important;
 }
 .dark .input-group > .user-label {
   color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
