@@ -4571,4 +4571,37 @@ textarea::placeholder {
   color: transparent;
 }
 
+/* Standalone variant of the platform input, for admin/settings surfaces where
+   the label sits OUTSIDE the field (two-column layout) and floating labels
+   don't fit. Uses the same tokens as `.input-group > .input` so admin forms
+   match the public forms visually. Tighter padding/font because admin
+   layouts are denser. Inside `.input-group` the floating rules take
+   precedence via the more-specific `.input-group > .input` selector. */
+.input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--background);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+.input:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
+}
+.input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+}
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
 
