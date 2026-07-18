@@ -4536,3 +4536,39 @@ textarea::placeholder {
   cursor: not-allowed;
 }
 
+/* On-dark modifier: for use inside dark popup/marketing surfaces
+   (LoginPopup dark hero, NewsletterPopupForm split). The label chip needs a
+   solid backdrop matching the dark surface (bg-white/5 over a near-black
+   panel), not `var(--background)` - otherwise the floating label sits on a
+   translucent slice and looks fuzzy. Consumers set the chip background via
+   `--input-group-chip-bg` (defaults to #0b0b0f). Borders/text switch to
+   white/alpha; ring still uses `--ring` so the focus glow stays branded. */
+.input-group--on-dark {
+  --input-group-chip-bg: #0b0b0f;
+}
+.input-group--on-dark > .input {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+.input-group--on-dark > .input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.input-group--on-dark > .user-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+.input-group--on-dark > .input:focus,
+.input-group--on-dark > .input:not(:placeholder-shown) {
+  border-color: var(--ring);
+  background: rgba(255, 255, 255, 0.06);
+}
+.input-group--on-dark > .input:focus ~ .user-label,
+.input-group--on-dark > .input:not(:placeholder-shown) ~ .user-label {
+  background-color: var(--input-group-chip-bg);
+  color: var(--ring);
+}
+.input-group--on-dark > .input::placeholder {
+  color: transparent;
+}
+
+

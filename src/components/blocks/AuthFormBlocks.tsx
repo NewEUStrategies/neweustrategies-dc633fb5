@@ -7,10 +7,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import "@/lib/i18n-public";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Loader2, Mail, Lock, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
+import { Eye, EyeOff, Loader2, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
+
 import { toast } from "sonner";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
@@ -158,52 +158,38 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
     <>
       <Header title={title} subtitle={subtitle} Icon={LogIn} />
       <form onSubmit={submit} className="space-y-4" noValidate>
-        <div className="space-y-1.5">
-          <Label htmlFor="auth-email" className="text-sm">
-            {emailLabel}
-          </Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="auth-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={emailPlaceholder}
-              className="auth-icon-input"
-            />
-          </div>
+        <FloatingInput
+          id="auth-email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          label={emailLabel}
+        />
+        <div className="relative">
+          <FloatingInput
+            id="auth-password"
+            type={showPw ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            label={pwdLabel}
+            className={data.showShowPassword !== false ? "pr-11" : undefined}
+          />
+          {data.showShowPassword !== false && (
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2 top-[calc(50%-2px)] -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label={showPw ? L.hide : L.show}
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="auth-password" className="text-sm">
-            {pwdLabel}
-          </Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="auth-password"
-              type={showPw ? "text" : "password"}
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={pwdPlaceholder}
-              className="auth-icon-input auth-icon-input-with-action"
-            />
-            {data.showShowPassword !== false && (
-              <button
-                type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? L.hide : L.show}
-              >
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            )}
-          </div>
-        </div>
+
 
         <div className="flex items-center justify-between text-sm">
           {data.showRemember !== false ? (
@@ -348,89 +334,57 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
       <Header title={title} subtitle={subtitle} Icon={User} />
       <form onSubmit={submit} className="space-y-4" noValidate>
         {data.showName !== false && (
-          <div className="space-y-1.5">
-            <Label htmlFor="reg-name" className="text-sm">
-              {L.name}
-            </Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="reg-name"
-                autoComplete="given-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("authForms.namePlaceholder")}
-                className="auth-icon-input"
-              />
-            </div>
-          </div>
+          <FloatingInput
+            id="reg-name"
+            autoComplete="given-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            label={L.name}
+          />
         )}
-        <div className="space-y-1.5">
-          <Label htmlFor="reg-email" className="text-sm">
-            {L.email}
-          </Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="reg-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
-              className="auth-icon-input"
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="reg-password" className="text-sm">
-            {L.password}
-          </Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="reg-password"
-              type={showPw ? "text" : "password"}
-              autoComplete="new-password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t("authForms.passwordPlaceholder")}
-              className="auth-icon-input auth-icon-input-with-action"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPw((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-              aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
-            >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
+        <FloatingInput
+          id="reg-email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          label={L.email}
+        />
+        <div className="relative">
+          <FloatingInput
+            id="reg-password"
+            type={showPw ? "text" : "password"}
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            label={L.password}
+            className="pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPw((v) => !v)}
+            className="absolute right-2 top-[calc(50%-2px)] -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+            aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
+          >
+            {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
         {data.showConfirmPassword !== false && (
-          <div className="space-y-1.5">
-            <Label htmlFor="reg-confirm" className="text-sm">
-              {L.confirm}
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="reg-confirm"
-                type={showPw ? "text" : "password"}
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder={t("authForms.confirmPlaceholder")}
-                className="auth-icon-input"
-              />
-            </div>
-          </div>
+          <FloatingInput
+            id="reg-confirm"
+            type={showPw ? "text" : "password"}
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            label={L.confirm}
+          />
         )}
+
 
         {data.showNewsletterOptIn !== false && (
           <label className="widget-align-row flex w-full items-center gap-2 text-sm cursor-pointer leading-snug">
@@ -518,24 +472,16 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="space-y-1.5">
-            <Label htmlFor="lost-email" className="text-sm">
-              {L.email}
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="lost-email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="auth-icon-input"
-              />
-            </div>
-          </div>
+          <FloatingInput
+            id="lost-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            label={L.email}
+          />
+
 
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
@@ -624,54 +570,40 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="space-y-1.5">
-            <Label htmlFor="rs-password" className="text-sm">
-              {L.password}
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="rs-password"
-                type={showPw ? "text" : "password"}
-                autoComplete="new-password"
-                required
-                minLength={minLength}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("authForms.passwordPlaceholderMin", { minLength })}
-                className="auth-icon-input auth-icon-input-with-action"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
-              >
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+          <div className="relative">
+            <FloatingInput
+              id="rs-password"
+              type={showPw ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              minLength={minLength}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              label={L.password}
+              className="pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2 top-[calc(50%-2px)] -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           {data.showConfirmPassword !== false && (
-            <div className="space-y-1.5">
-              <Label htmlFor="rs-confirm" className="text-sm">
-                {L.confirm}
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  id="rs-confirm"
-                  type={showPw ? "text" : "password"}
-                  autoComplete="new-password"
-                  required
-                  minLength={minLength}
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  placeholder={t("authForms.confirmPlaceholder")}
-                  className="auth-icon-input"
-                />
-              </div>
-            </div>
+            <FloatingInput
+              id="rs-confirm"
+              type={showPw ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              minLength={minLength}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              label={L.confirm}
+            />
           )}
+
 
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}

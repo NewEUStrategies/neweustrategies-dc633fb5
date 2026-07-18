@@ -17,10 +17,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+
 
 type Mode = "signin" | "signup";
 
@@ -174,66 +174,43 @@ export function LoginPopup() {
 
           <form onSubmit={submit} className="space-y-3 mt-2">
             {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="lp-name" className="text-sm">
-                  {t("authForms.nameLabel")}
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    id="lp-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t("authForms.namePlaceholder")}
-                    className="auth-icon-input"
-                  />
-                </div>
-              </div>
+              <FloatingInput
+                id="lp-name"
+                label={t("authForms.nameLabel")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+              />
             )}
-            <div className="space-y-1.5">
-              <Label htmlFor="lp-email" className="text-sm">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  id="lp-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="auth-icon-input"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lp-pwd" className="text-sm">
-                {t("authForms.passwordLabel")}
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  id="lp-pwd"
-                  type={showPw ? "text" : "password"}
-                  required
-                  minLength={mode === "signup" ? 8 : undefined}
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t("authForms.passwordPlaceholder")}
-                  className="auth-icon-input auth-icon-input-with-action"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                  aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
-                >
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+            <FloatingInput
+              id="lp-email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              label="Email"
+            />
+            <div className="relative">
+              <FloatingInput
+                id="lp-pwd"
+                type={showPw ? "text" : "password"}
+                required
+                minLength={mode === "signup" ? 8 : undefined}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                label={t("authForms.passwordLabel")}
+                className="pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute right-2 top-[calc(50%-2px)] -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+                aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy
@@ -247,6 +224,7 @@ export function LoginPopup() {
                     : settings.signup_label_en}
             </Button>
           </form>
+
 
           {settings.allow_public_signup && (
             <div className="text-center text-sm pt-2 border-t border-border mt-3">
