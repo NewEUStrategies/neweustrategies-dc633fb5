@@ -2334,7 +2334,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   width: 100%;
   border: 1px solid var(--gc-input-border, var(--cf-border, var(--border)));
   background: var(--gc-input-bg, var(--background));
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 12px 14px;
   font-size: 14px;
   line-height: 1.4;
@@ -4549,6 +4549,24 @@ textarea::placeholder {
   top: 50%;
   height: auto;
   transform: translateY(-50%);
+}
+/* Selects have no reliable :placeholder-shown state. Keep their labels on the
+   border while preserving the same floating-label geometry and 6px control. */
+.input-group > select.input {
+  padding-top: 0.8rem;
+  padding-bottom: 0.2rem;
+}
+.input-group > select.input ~ .user-label {
+  top: 0;
+  height: auto;
+  transform: translateY(-50%) scale(0.8);
+  transform-origin: left center;
+  background-color: var(--background);
+  padding: 0 0.35em;
+  color: var(--ring);
+}
+.input-group--on-dark > select.input ~ .user-label {
+  background-color: var(--input-group-chip-bg);
 }
 .dark .input-group > .user-label {
   color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));

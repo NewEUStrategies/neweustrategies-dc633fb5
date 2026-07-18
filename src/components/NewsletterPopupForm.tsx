@@ -268,11 +268,6 @@ export function NewsletterPopupForm({
   // (--input-group-chip-bg) with white/alpha borders. Compact mode tightens
   // vertical spacing between fields; the field height itself stays uniform.
   const fieldContainer = "input-group--on-dark";
-  // The <select> lists mailing lists and can't use FloatingInput; keep the
-  // legacy dark-input style for it so it visually matches the row.
-  const selectCls =
-    "w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[var(--brand,#f97316)] focus:bg-white/10 transition-colors";
-
   return (
     <form onSubmit={onSubmit} className={compact ? "space-y-2" : "space-y-2.5"} noValidate>
       {/* Honeypot: hidden from real users (CSS + tabIndex + aria-hidden), tempting for bots. */}
@@ -359,19 +354,24 @@ export function NewsletterPopupForm({
         />
       )}
       {showLists && (
-        <select
-          className={selectCls}
-          aria-label={t("Wybierz listę mailingową", "Choose your main mailing list")}
-          value={v.list}
-          onChange={(e) => upd("list", e.target.value)}
-        >
-          <option value="">{t("Wybierz listę mailingową", "Choose your main mailing list")}</option>
-          {lists.map((l) => (
-            <option key={l.id} value={l.id}>
-              {isPl ? l.label_pl : l.label_en}
-            </option>
-          ))}
-        </select>
+        <div className="input-group input-group--on-dark">
+          <select
+            className="input"
+            aria-label={t("Wybierz listę mailingową", "Choose your main mailing list")}
+            value={v.list}
+            onChange={(e) => upd("list", e.target.value)}
+          >
+            <option value="">{t("Wybierz listę mailingową", "Choose your main mailing list")}</option>
+            {lists.map((l) => (
+              <option key={l.id} value={l.id}>
+                {isPl ? l.label_pl : l.label_en}
+              </option>
+            ))}
+          </select>
+          <label className="user-label">
+            {t("Lista mailingowa", "Mailing list")}
+          </label>
+        </div>
       )}
 
 
