@@ -7,6 +7,8 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import { Check, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { FloatingInput } from "@/components/ui/floating-input";
+
 
 interface Props {
   settings: NewsletterSettings;
