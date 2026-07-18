@@ -6,7 +6,15 @@
 // wymagane pola po stronie klienta + polega na serwerowej polityce
 // form_field_policies. Fallback do klasycznego layoutu jest po stronie
 // wywolujacego (NewsletterForm / NewsletterPopup).
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactElement,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -749,23 +757,28 @@ function CouponWidgetView({
 
 function FieldWrap({
   label,
-  required,
   error,
   children,
 }: {
   label: string;
   required?: boolean;
   error?: string;
-  children: React.ReactNode;
+  children: ReactElement<{ className?: string; placeholder?: string }>;
 }) {
+  const field = isValidElement(children)
+    ? cloneElement(children, {
+        className: ["input", children.props.className].filter(Boolean).join(" "),
+        ...(typeof children.type === "string" && children.type !== "select"
+          ? { placeholder: " " }
+          : {}),
+      })
+    : children;
+
   return (
-    <label className="block space-y-1">
-      <span className="text-xs font-semibold">
-        {label}
-        {null}
-      </span>
-      {children}
-      {error && <span className="block text-[11px] text-destructive">{error}</span>}
-    </label>
+    <div className="input-group" data-invalid={error ? "true" : undefined}>
+      {field}
+      <label className="user-label">{label}</label>
+      {error && <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>}
+    </div>
   );
 }
