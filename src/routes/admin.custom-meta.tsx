@@ -141,7 +141,6 @@ function CustomMetaAdmin() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-          <div>
             <FloatingInput
               label="Klucz (a-z, 0-9, _) - np. prep_time"
               value={draft.key}
