@@ -2,12 +2,15 @@
 // columns, button placement, light/dark backgrounds, image background,
 // and six subtle animated background variants.
 import {
+  cloneElement,
+  isValidElement,
   useEffect,
   useId,
   useMemo,
   useState,
   type CSSProperties,
   type FormEvent,
+  type ReactElement,
   type ReactNode,
 } from "react";
 
@@ -715,13 +718,28 @@ function Field({
   className?: string;
   children: ReactNode;
 }) {
+  // Floating-label: injects `.input` + neutralny placeholder do dziecka
+  // (<input>/<textarea>/<select>), więc label unosi się na obramowaniu.
+  // Semantyczne tokeny → działa w light+dark, i18n przez callsite.
+  let injected: ReactNode = children;
+  if (isValidElement(children)) {
+    const el = children as ReactElement<{ className?: string; placeholder?: string }>;
+    const merged = ["input", el.props.className].filter(Boolean).join(" ");
+    injected = cloneElement(el, { className: merged, placeholder: " " });
+  }
   return (
-    <label className={`flex flex-col h-full ${className ?? ""}`}>
-      <span className="cf-field-label block text-xs font-semibold tracking-wide opacity-95 mb-1 min-h-[1.15rem] leading-[1.15rem] whitespace-nowrap overflow-hidden text-ellipsis">
+    <div
+      className={`input-group ${className ?? ""}`}
+      data-invalid={error ? "true" : undefined}
+    >
+      {injected}
+      <label className="user-label">
         {label}
-      </span>
-      <div className="mt-auto">{children}</div>
-      {error && <span className="block text-[11px] text-destructive mt-1">{error}</span>}
-    </label>
+        {required ? <span aria-hidden> *</span> : null}
+      </label>
+      {error && (
+        <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
+      )}
+    </div>
   );
 }

@@ -5,6 +5,7 @@
 // Opcjonalny `widgetConfig` pozwala nadpisywać etykiety / placeholdery per-pole,
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
 // custom fields zdefiniowane w builderze — całość leci do CRM przez server.
+import * as React from "react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
@@ -357,27 +358,27 @@ export function NewsletterForm({
             </>
           ) : (
             <>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={P.name}
-                className="px-3 py-2 rounded border border-input bg-background text-sm"
-                maxLength={120}
-              />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={P.email}
-                className="px-3 py-2 rounded border border-input bg-background text-sm"
-                maxLength={254}
-              />
+              <FieldWrap label={P.name}>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                />
+              </FieldWrap>
+              <FieldWrap label={L.email} required error={errors.email}>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  maxLength={254}
+                />
+              </FieldWrap>
               <button
                 type="submit"
                 disabled={state === "loading"}
-                className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-60"
+                className="bg-brand text-brand-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-60 h-[3.25rem]"
               >
                 {state === "loading" ? "…" : t("newsletterForm.subscribe")}
               </button>
@@ -399,27 +400,36 @@ export function NewsletterForm({
 function FieldWrap({
   label,
   required,
-  showMark,
+  showMark: _showMark,
   error,
   children,
 }: {
   label: string;
   required?: boolean;
-  /** Show the visible "*" marker. Only true inside the CMS builder — public
-   *  visitors never see which fields are required until they try to submit. */
+  /** Legacy - floating label sygnalizuje required przez „*" obok labela. */
   showMark?: boolean;
   error?: string;
-  children: React.ReactNode;
+  children: React.ReactElement<{ className?: string; placeholder?: string }>;
 }) {
+  // Floating-label wrapper: injects `.input` + neutralny placeholder do dziecka,
+  // dzięki czemu label unosi się na obramowanie po focus / gdy pole ma wartość.
+  // Semantyczne tokeny (border/ring/destructive/background) => light+dark OK.
+  const injectedClass = ["input", children.props.className].filter(Boolean).join(" ");
+  const cloned = React.cloneElement(children, {
+    className: injectedClass,
+    placeholder: " ",
+  });
   return (
-    <label className="block space-y-1">
-      <span className="text-xs font-semibold tracking-wide opacity-95">
+    <div className="input-group" data-invalid={error ? "true" : undefined}>
+      {cloned}
+      <label className="user-label">
         {label}
-        {null}
-      </span>
-      {children}
-      {error && <span className="block text-[11px] text-destructive">{error}</span>}
-    </label>
+        {required ? <span aria-hidden> *</span> : null}
+      </label>
+      {error && (
+        <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
+      )}
+    </div>
   );
 }
 

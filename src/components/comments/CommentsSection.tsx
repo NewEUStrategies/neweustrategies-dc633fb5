@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { FloatingTextarea } from "@/components/ui/floating-input";
 import { toast } from "sonner";
 import { Trash2 } from "@/lib/lucide-shim";
 import { MessageCircle, Pencil, Reply } from "lucide-react";
@@ -273,13 +273,12 @@ function CommentComposer({
       }}
       className="space-y-3"
     >
-      <Textarea
+      <FloatingTextarea
+        label={placeholder ?? t("comments.placeholder")}
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder={placeholder ?? t("comments.placeholder")}
         rows={4}
         maxLength={5000}
-        aria-label={t("comments.placeholder")}
         lang={lang}
       />
       <div className="flex items-center gap-2">
