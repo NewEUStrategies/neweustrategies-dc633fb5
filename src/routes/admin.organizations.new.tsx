@@ -151,38 +151,28 @@ function AdminOrganizationNewPage() {
 
           <Card title={L("Kontakt i adres", "Contact & location")}>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label={L("E-mail kontaktowy", "Contact email")}>
-                <Input
-                  type="email"
-                  value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
-                  placeholder="office@acme.com"
-                  className="h-8 text-sm"
-                />
-              </Field>
-              <Field label={L("Strona www", "Website")}>
-                <Input
-                  type="url"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="https://acme.com"
-                  className="h-8 text-sm"
-                />
-              </Field>
-              <Field label={L("Miasto", "City")}>
-                <Input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </Field>
-              <Field label={L("Kraj", "Country")}>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </Field>
+              <FloatingInput
+                label={L("E-mail kontaktowy", "Contact email")}
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+              />
+              <FloatingInput
+                label={L("Strona www", "Website")}
+                type="url"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+              />
+              <FloatingInput
+                label={L("Miasto", "City")}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+              <FloatingInput
+                label={L("Kraj", "Country")}
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+              />
             </div>
           </Card>
 
