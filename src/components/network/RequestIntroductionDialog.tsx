@@ -89,7 +89,7 @@ export function RequestIntroductionDialog({
           reset();
           onOpenChange(false);
         },
-        onError: (err) => toastError(err, t("network.introductions.requestError")),
+        onError: (err) => toastError(err, "save"),
       },
     );
   };
