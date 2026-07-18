@@ -549,12 +549,13 @@ function CampaignEditor() {
               <CardTitle className="text-base">{isPl ? "Wysyłka testowa" : "Test send"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Input
+              <FloatingInput
+                label={isPl ? "Adres testowy" : "Test email"}
                 type="email"
-                placeholder="test@example.com"
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
               />
+
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
