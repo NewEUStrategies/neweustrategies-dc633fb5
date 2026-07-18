@@ -10,7 +10,11 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
+import { useRecordProfileView } from "@/lib/network/useProfileViews";
+
 import { BadgeCheck } from "lucide-react";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
@@ -207,11 +211,23 @@ function ExpertHubPage() {
   const personalized = usePersonalizedSettings();
   const badgesQ = useUserBadges(data?.expert.id);
   const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.expert.id ?? ""));
+  const { user } = useAuth();
+  const recordView = useRecordProfileView();
+  // Rejestrujemy obejrzenie tylko gdy oglądający != właściciel profilu.
+  // Debouncing (raz na godzinę / para) wykonywany jest po stronie RPC,
+  // więc bezpiecznie wywołujemy w useEffect na każdym mount / zmianie id.
+  useEffect(() => {
+    const viewedId = data?.expert.id;
+    if (!viewedId || !user?.id || user.id === viewedId) return;
+    recordView.mutate(viewedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.expert.id, user?.id]);
   if (!data) return <PublicNotFound />;
   const { expert } = data;
   const extraBadges = (badgesQ.data ?? []).filter(
     (badge) => !(badge === "verified" && expert.verified_at),
   );
+
   const name = expert.display_name ?? (lang === "en" ? "Expert" : "Ekspert");
 
   const cssVars = expertLayoutCssVars(settings, "light");
