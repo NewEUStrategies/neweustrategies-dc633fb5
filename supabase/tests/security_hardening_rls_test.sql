@@ -24,7 +24,7 @@
 --       - actor swojego joba - tak; admin tenanta - tak
 
 BEGIN;
-SELECT plan(14);
+SELECT plan(30);
 
 -- ── (1) Granty kolumnowe: PII i sekrety ────────────────────────────────────
 SELECT ok(
