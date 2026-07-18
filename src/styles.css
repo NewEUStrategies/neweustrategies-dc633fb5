@@ -4533,7 +4533,11 @@ textarea::placeholder {
    Anchor single-line labels to the shared control height instead, so their
    center always matches the actual input rather than the stretched wrapper. */
 .input-group > input.input ~ .user-label {
-  top: calc(var(--form-input-height) / 2);
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: var(--form-input-height);
+  transform: none;
 }
 .dark .input-group > .user-label {
   color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
