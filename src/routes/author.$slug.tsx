@@ -349,6 +349,7 @@ function ExpertHubPage() {
             <AuthorCvSections userId={expert.id} />
           </div>
         )}
+        <RecommendationsSection recipientId={expert.id} recipientName={name} />
       </div>
     </div>
   );
