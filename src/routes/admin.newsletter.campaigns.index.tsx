@@ -28,8 +28,8 @@ import {
 } from "@/lib/newsletter-campaigns.functions";
 import { getJobRunnerSettings, updateJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FloatingInput } from "@/components/ui/floating-input";
+
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
