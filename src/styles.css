@@ -4479,7 +4479,7 @@ textarea::placeholder {
 .input-group > .input {
   width: 100%;
   border: 1.5px solid var(--border);
-  border-radius: 0.875rem;
+  border-radius: 6px;
   background: transparent;
   padding: 1rem 0.9rem;
   font-size: 0.95rem;
