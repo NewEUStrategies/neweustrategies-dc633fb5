@@ -8847,6 +8847,51 @@ export type Database = {
         Args: { p_peer_id: string }
         Returns: string
       }
+      get_own_author_profile: {
+        Args: never
+        Returns: {
+          avatar_url: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          brand_accent: string | null
+          brand_accent_dark: string | null
+          company: string | null
+          contact_email: string | null
+          counterpart_lang: string | null
+          counterpart_user_id: string | null
+          created_at: string
+          custom_socials: Json
+          facebook_url: string | null
+          full_bio_en: string | null
+          full_bio_pl: string | null
+          id: string
+          instagram_url: string | null
+          is_public: boolean
+          job_title: string | null
+          layout_overrides: Json | null
+          layout_preset: string | null
+          layout_section_order: string[] | null
+          layout_template_id: string | null
+          linkedin_url: string | null
+          media_contact_email: string | null
+          media_contact_name: string | null
+          media_contact_phone: string | null
+          org_functions: Json
+          phone: string | null
+          spotify_url: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          website_url: string | null
+          x_url: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "author_profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_own_profile: {
         Args: never
         Returns: {
