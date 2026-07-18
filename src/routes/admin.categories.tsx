@@ -231,20 +231,16 @@ function Categories() {
               <DialogTitle>{editing ? t("admin.edit") : t("admin.new")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <div>
-                <Label>Nazwa (PL)</Label>
-                <Input
-                  value={form.name_pl}
-                  onChange={(e) => setForm({ ...form, name_pl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Name (EN)</Label>
-                <Input
-                  value={form.name_en}
-                  onChange={(e) => setForm({ ...form, name_en: e.target.value })}
-                />
-              </div>
+              <FloatingInput
+                label="Nazwa (PL)"
+                value={form.name_pl}
+                onChange={(e) => setForm({ ...form, name_pl: e.target.value })}
+              />
+              <FloatingInput
+                label="Name (EN)"
+                value={form.name_en}
+                onChange={(e) => setForm({ ...form, name_en: e.target.value })}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Wymiar</Label>
