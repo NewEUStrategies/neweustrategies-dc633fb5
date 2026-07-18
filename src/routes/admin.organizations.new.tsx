@@ -116,36 +116,24 @@ function AdminOrganizationNewPage() {
         <div className="lg:col-span-2 space-y-4">
           <Card title={L("Podstawowe dane", "Basic details")}>
             <div className="grid gap-3">
-              <Field label={L("Nazwa organizacji", "Organization name")}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={L("np. Acme Sp. z o.o.", "e.g. Acme Ltd.")}
-                  className="h-8 text-sm"
-                />
-              </Field>
+              <FloatingInput
+                label={L("Nazwa organizacji", "Organization name")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
               <div className="grid gap-3 md:grid-cols-2">
-                <Field
-                  label={L("Slug (URL)", "Slug (URL)")}
-                  hint={L("mała litera, myślniki", "lowercase, hyphens")}
-                >
-                  <Input
-                    value={slug}
-                    onChange={(e) =>
-                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
-                    }
-                    placeholder="acme"
-                    className="h-8 text-sm"
-                  />
-                </Field>
-                <Field label={L("Sektor / branża", "Sector / industry")}>
-                  <Input
-                    value={sector}
-                    onChange={(e) => setSector(e.target.value)}
-                    placeholder={L("np. Finanse, Energetyka", "e.g. Finance, Energy")}
-                    className="h-8 text-sm"
-                  />
-                </Field>
+                <FloatingInput
+                  label={L("Slug (URL) - mała litera, myślniki", "Slug (URL) - lowercase, hyphens")}
+                  value={slug}
+                  onChange={(e) =>
+                    setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+                  }
+                />
+                <FloatingInput
+                  label={L("Sektor / branża", "Sector / industry")}
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                />
               </div>
               <Field label={L("Krótki opis", "Short description")}>
                 <Textarea
