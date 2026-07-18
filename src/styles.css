@@ -4524,7 +4524,9 @@ textarea::placeholder {
 }
 .input-group > .input:focus ~ .user-label,
 .input-group > .input:not(:placeholder-shown) ~ .user-label {
+  top: 0;
   transform: translateY(-50%) scale(0.8);
+  transform-origin: left center;
   background-color: var(--background);
   padding: 0 0.35em;
   color: var(--ring);
