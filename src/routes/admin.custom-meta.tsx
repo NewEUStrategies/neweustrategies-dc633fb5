@@ -141,11 +141,11 @@ function CustomMetaAdmin() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <Label>Klucz (a-z, 0-9, _)</Label>
-            <Input
+          <div>
+            <FloatingInput
+              label="Klucz (a-z, 0-9, _) - np. prep_time"
               value={draft.key}
               onChange={(e) => setDraft({ ...draft, key: e.target.value })}
-              placeholder="np. prep_time"
               disabled={!!editingId}
             />
           </div>
@@ -164,30 +164,22 @@ function CustomMetaAdmin() {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Etykieta PL</Label>
-            <Input
-              value={draft.label_pl}
-              onChange={(e) => setDraft({ ...draft, label_pl: e.target.value })}
-              placeholder="Czas przygotowania"
-            />
-          </div>
-          <div>
-            <Label>Etykieta EN</Label>
-            <Input
-              value={draft.label_en}
-              onChange={(e) => setDraft({ ...draft, label_en: e.target.value })}
-              placeholder="Prep time"
-            />
-          </div>
-          <div>
-            <Label>Pozycja (sort)</Label>
-            <Input
-              type="number"
-              value={draft.position}
-              onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })}
-            />
-          </div>
+          <FloatingInput
+            label="Etykieta PL"
+            value={draft.label_pl}
+            onChange={(e) => setDraft({ ...draft, label_pl: e.target.value })}
+          />
+          <FloatingInput
+            label="Etykieta EN"
+            value={draft.label_en}
+            onChange={(e) => setDraft({ ...draft, label_en: e.target.value })}
+          />
+          <FloatingInput
+            label="Pozycja (sort)"
+            type="number"
+            value={draft.position}
+            onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })}
+          />
         </div>
         <div className="flex gap-2 justify-end">
           {editingId && (
