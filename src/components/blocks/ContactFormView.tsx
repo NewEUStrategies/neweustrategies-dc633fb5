@@ -2,12 +2,15 @@
 // columns, button placement, light/dark backgrounds, image background,
 // and six subtle animated background variants.
 import {
+  cloneElement,
+  isValidElement,
   useEffect,
   useId,
   useMemo,
   useState,
   type CSSProperties,
   type FormEvent,
+  type ReactElement,
   type ReactNode,
 } from "react";
 
