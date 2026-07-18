@@ -137,7 +137,8 @@ export const networkPl = {
       viewedAtLabel: "wyświetlił profil",
       privacyLabel: "Jak jesteś widoczny/a, gdy odwiedzasz profile",
       privacyHint:
-        "„Anonimowo" ukrywa Twoje imię przed osobami, których profil odwiedzasz. „Prywatnie" dodatkowo wyłącza Twój dostęp do listy „Kto oglądał Twój profil".",
+        "\u201eAnonimowo\u201d ukrywa Twoje imię przed osobami, których profil odwiedzasz. \u201ePrywatnie\u201d dodatkowo wyłącza Twój dostęp do listy \u201eKto oglądał Twój profil\u201d.",
+
       modePublic: "Publicznie - imię, zdjęcie i stanowisko",
       modeAnonymous: "Anonimowo - jako użytkownik anonimowy",
       modePrivate: "Prywatnie - w trybie prywatnym",
