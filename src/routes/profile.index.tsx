@@ -1058,3 +1058,53 @@ function prettyUrl(url: string): string {
     return url;
   }
 }
+
+// Wizualizacja paska akcji „jak widzi Cię gość" - lustro układu z /author/$slug.
+// Wszystkie CTA są nieaktywne (nie można nawiązać relacji sam ze sobą); tooltip
+// wyjaśnia, że to podgląd. Klucze i18n są współdzielone z siecią kontaktów
+// (`network.*`) plus fallback defaultValue dla PL/EN.
+function GuestPreviewActionBar() {
+  const { t, i18n } = useTranslation();
+  const isPl = i18n.language?.startsWith("pl");
+  const previewHint = isPl
+    ? "Podgląd - to Twój profil, akcje sieci są tu tylko demonstracyjne"
+    : "Preview - this is your profile, network actions are demo only";
+  return (
+    <div
+      className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-[6px] border border-dashed border-border/70 bg-muted/30 px-3 py-2 sm:justify-start"
+      role="group"
+      aria-label={previewHint}
+      title={previewHint}
+    >
+      <span className="mr-1 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Eye className="h-3 w-3" aria-hidden />
+        {isPl ? "Podgląd jako gość" : "Guest preview"}
+      </span>
+      <Button type="button" size="sm" variant="outline" disabled aria-disabled title={previewHint}>
+        <BellPlus className="h-4 w-4" aria-hidden />
+        {t("follow.follow", { defaultValue: isPl ? "Obserwuj" : "Follow" })}
+      </Button>
+      <Button type="button" size="sm" disabled aria-disabled title={previewHint}>
+        <UserPlus className="h-4 w-4" aria-hidden />
+        {t("network.connect", { defaultValue: isPl ? "Dodaj do sieci" : "Connect" })}
+      </Button>
+      <Button type="button" size="sm" variant="secondary" disabled aria-disabled title={previewHint}>
+        <MessageCircle className="h-4 w-4" aria-hidden />
+        {t("network.messageAction", { defaultValue: isPl ? "Napisz wiadomość" : "Send a message" })}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled
+        aria-disabled
+        title={previewHint}
+        className="text-muted-foreground"
+      >
+        <Flag className="h-4 w-4" aria-hidden />
+        {t("network.report", { defaultValue: isPl ? "Zgłoś" : "Report" })}
+      </Button>
+    </div>
+  );
+}
+
