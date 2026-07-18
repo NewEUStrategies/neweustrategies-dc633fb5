@@ -31,6 +31,10 @@ function ProfileLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const isRoot = pathname === "/profile" || pathname === "/profile/";
+  const guestPreview = useGuestPreview();
+  // Sidebar znika tylko na ekranie /profile (index), gdzie żyje toggle
+  // "Podgląd jak gość" - podstrony /profile/* zachowują nawigację.
+  const hideSidebar = isRoot && guestPreview;
 
   const { data: profile } = useQuery({
     enabled: !!user?.id,
