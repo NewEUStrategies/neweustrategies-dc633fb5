@@ -17,10 +17,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+
 
 type Mode = "signin" | "signup";
 
