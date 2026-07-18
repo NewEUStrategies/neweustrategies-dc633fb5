@@ -550,10 +550,11 @@ function GrantsSection({
           {lang === "pl" ? "Nadaj" : "Grant"}
         </Button>
         <div className="sm:col-span-4">
-          <Label className="text-xs">
-            {lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
-          </Label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} />
+          <FloatingInput
+            label={lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </div>
       </div>
 
