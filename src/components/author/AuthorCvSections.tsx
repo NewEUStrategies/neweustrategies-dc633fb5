@@ -189,9 +189,11 @@ function EducationSection({
 function SkillsSection({
   items,
   isPl,
+  authorId,
 }: {
   items: AuthorCv["skills"];
   isPl: boolean;
+  authorId: string | null;
 }): React.ReactElement {
   const grouped = items.reduce<Record<string, AuthorCv["skills"]>>((acc, s) => {
     const key = s.category ?? "";
@@ -214,38 +216,119 @@ function SkillsSection({
             )}
             <div className="flex flex-wrap gap-2">
               {list.map((s) => (
-                <div
-                  key={s.id}
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-sm"
-                >
-                  <span>{s.label}</span>
-                  {typeof s.level === "number" && s.level > 0 && (
-                    <span
-                      className="flex gap-0.5"
-                      role="meter"
-                      aria-label={`${s.label} ${s.level}/5`}
-                      aria-valuemin={0}
-                      aria-valuemax={5}
-                      aria-valuenow={s.level}
-                    >
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <span
-                          key={n}
-                          className={
-                            "w-1.5 h-1.5 rounded-full " +
-                            (n <= (s.level ?? 0) ? "bg-brand" : "bg-muted")
-                          }
-                        />
-                      ))}
-                    </span>
-                  )}
-                </div>
+                <SkillChip key={s.id} skill={s} authorId={authorId} isPl={isPl} />
               ))}
             </div>
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+function SkillChip({
+  skill,
+  authorId,
+  isPl,
+}: {
+  skill: AuthorCv["skills"][number];
+  authorId: string | null;
+  isPl: boolean;
+}): React.ReactElement {
+  const endorsementsQ = useSkillEndorsements(authorId);
+  const toggle = useToggleEndorsement(authorId ?? "");
+  const { user } = useAuth();
+  const statusesQ = useConnectionStatuses(
+    user && authorId && authorId !== user.id ? [authorId] : [],
+  );
+
+  const row = endorsementsQ.data?.find((r) => r.skill_id === skill.id);
+  const count = row?.cnt ?? 0;
+  const byMe = row?.by_me ?? false;
+
+  const isOwner = !!user && !!authorId && user.id === authorId;
+  const connected = statusesQ.data?.get(authorId ?? "")?.status === "connected";
+  const canEndorse = !!user && !isOwner && connected;
+
+  const handleClick = () => {
+    if (!canEndorse) return;
+    toggle.mutate(
+      { skillId: skill.id, endorsed: byMe },
+      { onError: (e) => toast.error(e.message) },
+    );
+  };
+
+  const title = !user
+    ? isPl
+      ? "Zaloguj się, aby poprzeć"
+      : "Sign in to endorse"
+    : isOwner
+      ? isPl
+        ? "Nie możesz poprzeć własnej umiejętności"
+        : "You can't endorse your own skill"
+      : !connected
+        ? isPl
+          ? "Aby poprzeć, musisz być połączony w sieci kontaktów"
+          : "Connect first to endorse this skill"
+        : byMe
+          ? isPl
+            ? "Cofnij poparcie"
+            : "Remove endorsement"
+          : isPl
+            ? "Poprzyj tę umiejętność"
+            : "Endorse this skill";
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={!canEndorse || toggle.isPending}
+      title={title}
+      aria-pressed={byMe}
+      className={
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors " +
+        (byMe
+          ? "border-brand bg-brand/10 text-brand"
+          : "border-border bg-card hover:border-brand/60") +
+        (canEndorse ? " cursor-pointer" : " cursor-default")
+      }
+    >
+      <span>{skill.label}</span>
+      {typeof skill.level === "number" && skill.level > 0 && (
+        <span
+          className="flex gap-0.5"
+          role="meter"
+          aria-label={`${skill.label} ${skill.level}/5`}
+          aria-valuemin={0}
+          aria-valuemax={5}
+          aria-valuenow={skill.level}
+        >
+          {[1, 2, 3, 4, 5].map((n) => (
+            <span
+              key={n}
+              className={
+                "w-1.5 h-1.5 rounded-full " +
+                (n <= (skill.level ?? 0) ? "bg-brand" : "bg-muted")
+              }
+            />
+          ))}
+        </span>
+      )}
+      {count > 0 && (
+        <span
+          aria-label={
+            isPl ? `${count} osób poparło` : `${count} endorsement${count === 1 ? "" : "s"}`
+          }
+          className={
+            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium " +
+            (byMe ? "bg-brand text-brand-foreground" : "bg-muted text-foreground/80")
+          }
+        >
+          <ThumbsUp className="h-3 w-3" aria-hidden />
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
 
