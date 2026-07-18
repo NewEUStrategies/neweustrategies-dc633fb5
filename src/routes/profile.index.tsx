@@ -63,6 +63,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
+import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
 
 import { promptDialog } from "@/lib/appDialogs";
