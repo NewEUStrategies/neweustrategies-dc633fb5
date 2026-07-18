@@ -2839,6 +2839,45 @@ export type Database = {
           },
         ]
       }
+      introduction_requests: {
+        Row: {
+          bridge_id: string
+          created_at: string
+          id: string
+          message: string
+          requester_id: string
+          responded_at: string | null
+          status: string
+          target_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          bridge_id: string
+          created_at?: string
+          id?: string
+          message: string
+          requester_id: string
+          responded_at?: string | null
+          status?: string
+          target_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          bridge_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          requester_id?: string
+          responded_at?: string | null
+          status?: string
+          target_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       job_runner_settings: {
         Row: {
           base_url: string
@@ -6081,6 +6120,77 @@ export type Database = {
           },
         ]
       }
+      profile_recommendations: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          recipient_id: string
+          relationship: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          recipient_id: string
+          relationship?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          recipient_id?: string
+          relationship?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profile_skill_endorsements: {
+        Row: {
+          created_at: string
+          endorser_id: string
+          id: string
+          recipient_id: string
+          skill_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          endorser_id: string
+          id?: string
+          recipient_id: string
+          skill_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          endorser_id?: string
+          id?: string
+          recipient_id?: string
+          skill_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_skill_endorsements_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "profile_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_skills: {
         Row: {
           category: string | null
@@ -6125,6 +6235,36 @@ export type Database = {
           },
         ]
       }
+      profile_view_events: {
+        Row: {
+          id: string
+          profile_id: string
+          tenant_id: string
+          viewed_at: string
+          viewer_id: string | null
+          viewer_mode: string
+          viewer_snapshot: Json | null
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          tenant_id: string
+          viewed_at?: string
+          viewer_id?: string | null
+          viewer_mode?: string
+          viewer_snapshot?: Json | null
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          tenant_id?: string
+          viewed_at?: string
+          viewer_id?: string | null
+          viewer_mode?: string
+          viewer_snapshot?: Json | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -6150,6 +6290,7 @@ export type Database = {
           location: string | null
           phone: string | null
           prefs: Json
+          profile_view_mode: string
           slug: string | null
           specialization: string | null
           spotify_url: string | null
@@ -6184,6 +6325,7 @@ export type Database = {
           location?: string | null
           phone?: string | null
           prefs?: Json
+          profile_view_mode?: string
           slug?: string | null
           specialization?: string | null
           spotify_url?: string | null
@@ -6218,6 +6360,7 @@ export type Database = {
           location?: string | null
           phone?: string | null
           prefs?: Json
+          profile_view_mode?: string
           slug?: string | null
           specialization?: string | null
           spotify_url?: string | null
@@ -8255,6 +8398,8 @@ export type Database = {
       }
     }
     Functions: {
+      _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
+      _caller_tenant: { Args: never; Returns: string }
       add_cross_reference: {
         Args: {
           p_created_by?: string
@@ -8723,6 +8868,7 @@ export type Database = {
         }
         Returns: string
       }
+      endorse_skill: { Args: { p_skill_id: string }; Returns: string }
       enforce_form_field_policy: {
         Args: { _form_type: string; _payload: Json; _tenant: string }
         Returns: string[]
@@ -8918,6 +9064,7 @@ export type Database = {
           location: string | null
           phone: string | null
           prefs: Json
+          profile_view_mode: string
           slug: string | null
           specialization: string | null
           spotify_url: string | null
@@ -9189,6 +9336,20 @@ export type Database = {
           votes: number
         }[]
       }
+      list_recommendations: {
+        Args: { p_recipient: string }
+        Returns: {
+          author_avatar: string
+          author_headline: string
+          author_id: string
+          author_name: string
+          body: string
+          created_at: string
+          id: string
+          relationship: string
+          status: string
+        }[]
+      }
       log_search_query: {
         Args: { _lang?: string; _q: string; _results?: number }
         Returns: undefined
@@ -9256,6 +9417,23 @@ export type Database = {
           title_pl: string
         }[]
       }
+      my_introduction_requests: {
+        Args: { p_role?: string }
+        Returns: {
+          bridge_id: string
+          bridge_name: string
+          created_at: string
+          id: string
+          message: string
+          requester_avatar: string
+          requester_id: string
+          requester_name: string
+          status: string
+          target_avatar: string
+          target_id: string
+          target_name: string
+        }[]
+      }
       my_network_counts: {
         Args: never
         Returns: {
@@ -9276,6 +9454,18 @@ export type Database = {
           starts_at: string
           status: string
           tier_key: string
+        }[]
+      }
+      my_profile_viewers: {
+        Args: { p_limit?: number }
+        Returns: {
+          avatar_url: string
+          company: string
+          display_name: string
+          job_title: string
+          viewed_at: string
+          viewer_id: string
+          viewer_mode: string
         }[]
       }
       my_resource_downloads: {
@@ -9388,6 +9578,14 @@ export type Database = {
         Returns: number
       }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
+      profile_view_stats: {
+        Args: never
+        Returns: {
+          last_30: number
+          last_7: number
+          last_90: number
+        }[]
+      }
       profiles_generate_unique_slug: {
         Args: { _base: string }
         Returns: string
@@ -9411,6 +9609,7 @@ export type Database = {
         Args: { _post_id: string; _viewer_hash: string }
         Returns: undefined
       }
+      record_profile_view: { Args: { p_profile: string }; Returns: undefined }
       record_redirect_hit: { Args: { _id: string }; Returns: undefined }
       record_seo_404: {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
@@ -9433,6 +9632,10 @@ export type Database = {
         Returns: string
       }
       request_correlation_id: { Args: never; Returns: string }
+      request_introduction: {
+        Args: { p_bridge: string; p_message: string; p_target: string }
+        Returns: string
+      }
       request_public_host: { Args: never; Returns: string }
       resolve_path: {
         Args: { _segments: string[] }
@@ -9440,6 +9643,14 @@ export type Database = {
           page_id: string
           post_id: string
         }[]
+      }
+      respond_introduction: {
+        Args: { p_action: string; p_id: string }
+        Returns: undefined
+      }
+      respond_recommendation: {
+        Args: { p_action: string; p_id: string }
+        Returns: undefined
       }
       rsvp_event: {
         Args: { p_event_id: string; p_status: string }
@@ -9614,6 +9825,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      skill_endorsement_counts: {
+        Args: { p_user: string }
+        Returns: {
+          by_me: boolean
+          cnt: number
+          skill_id: string
+        }[]
+      }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
@@ -9629,6 +9848,7 @@ export type Database = {
         }[]
       }
       unaccent: { Args: { "": string }; Returns: string }
+      unendorse_skill: { Args: { p_skill_id: string }; Returns: undefined }
       user_has_tier_feature: {
         Args: { _feature: string; p_user: string }
         Returns: boolean
@@ -9672,6 +9892,10 @@ export type Database = {
           p_params: Json
           p_payload: Json
         }
+        Returns: string
+      }
+      write_recommendation: {
+        Args: { p_body: string; p_recipient: string; p_relationship: string }
         Returns: string
       }
     }
