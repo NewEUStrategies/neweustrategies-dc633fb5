@@ -472,24 +472,16 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="space-y-1.5">
-            <Label htmlFor="lost-email" className="text-sm">
-              {L.email}
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="lost-email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="auth-icon-input"
-              />
-            </div>
-          </div>
+          <FloatingInput
+            id="lost-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            label={L.email}
+          />
+
 
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
