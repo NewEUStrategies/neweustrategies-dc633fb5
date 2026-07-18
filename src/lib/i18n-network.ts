@@ -144,6 +144,52 @@ export const networkPl = {
       modePrivate: "Prywatnie - w trybie prywatnym",
       loadMore: "Zobacz wszystkich",
     },
+    introductions: {
+      title: "Wprowadzenia",
+      subtitle:
+        "Poproś kogoś ze swojej sieci o wprowadzenie - lub odpowiedz na prośby innych.",
+      requestCta: "Poproś o wprowadzenie",
+      requestTitle: "Poproś o wprowadzenie do {{name}}",
+      requestSubtitle:
+        "Wskaż wspólną osobę z Twojej sieci, która zna {{name}} i napisz krótką notkę - most zdecyduje, czy przekazać prośbę dalej.",
+      bridgeLabel: "Kto Cię wprowadzi?",
+      bridgeUsed: "aktywne",
+      noBridges: "Brak osób w Twojej sieci - dodaj kontakty, żeby móc prosić o wprowadzenia.",
+      messageLabel: "Notka do mostu i osoby docelowej",
+      messagePlaceholder:
+        "Napisz krótko: skąd znasz mnie i dlaczego chcesz poznać {{name}}...",
+      messageHint: "Od 20 do 600 znaków. Zobaczą ją most i osoba docelowa (po akceptacji).",
+      send: "Wyślij prośbę",
+      sending: "Wysyłanie...",
+      cancel: "Anuluj",
+      requestedToast: "Prośba wysłana - most otrzyma powiadomienie",
+      requestError: "Nie udało się wysłać prośby o wprowadzenie",
+      tabBridge: "Do mnie",
+      tabRequester: "Wysłane",
+      tabTarget: "O mnie",
+      emptyBridge: "Nikt nie prosi Cię o wprowadzenie.",
+      emptyRequester: "Nie masz wysłanych próśb o wprowadzenie.",
+      emptyTarget: "Nikt nie został jeszcze wprowadzony do Ciebie.",
+      wantsIntroTo: "chce wprowadzenia do {{name}}",
+      viaBridge: "przez {{name}}",
+      introducedBy: "wprowadzone przez {{name}}",
+      accept: "Przekaż dalej",
+      decline: "Odmów",
+      withdraw: "Wycofaj",
+      acceptedToast: "Wprowadzenie przekazane",
+      declinedToast: "Prośba odrzucona",
+      withdrawnToast: "Prośba wycofana",
+      bridgeHint:
+        "Odmowa jest cicha - osoba prosząca nie zobaczy Twojej decyzji.",
+      targetHint:
+        "Widzisz tylko wprowadzenia zaakceptowane przez wspólnego znajomego.",
+      status: {
+        pending: "Oczekuje",
+        accepted: "Przekazane",
+        declined: "Odrzucone",
+        withdrawn: "Wycofane",
+      },
+    },
   },
 };
 
