@@ -10,7 +10,11 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
+import { useRecordProfileView } from "@/lib/network/useProfileViews";
+
 import { BadgeCheck } from "lucide-react";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
