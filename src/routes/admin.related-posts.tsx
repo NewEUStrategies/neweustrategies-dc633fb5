@@ -89,15 +89,18 @@ function AdminRelatedPostsPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Tytuł (PL)</Label>
-                <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Tytuł (EN)</Label>
-                <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} />
-              </div>
+              <FloatingInput
+                label="Tytuł (PL)"
+                value={form.title_pl}
+                onChange={(e) => set("title_pl", e.target.value)}
+              />
+              <FloatingInput
+                label="Tytuł (EN)"
+                value={form.title_en}
+                onChange={(e) => set("title_en", e.target.value)}
+              />
             </div>
+
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
