@@ -158,52 +158,38 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
     <>
       <Header title={title} subtitle={subtitle} Icon={LogIn} />
       <form onSubmit={submit} className="space-y-4" noValidate>
-        <div className="space-y-1.5">
-          <Label htmlFor="auth-email" className="text-sm">
-            {emailLabel}
-          </Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="auth-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={emailPlaceholder}
-              className="auth-icon-input"
-            />
-          </div>
+        <FloatingInput
+          id="auth-email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          label={emailLabel}
+        />
+        <div className="relative">
+          <FloatingInput
+            id="auth-password"
+            type={showPw ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            label={pwdLabel}
+            className={data.showShowPassword !== false ? "pr-11" : undefined}
+          />
+          {data.showShowPassword !== false && (
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2 top-[calc(50%-2px)] -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label={showPw ? L.hide : L.show}
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="auth-password" className="text-sm">
-            {pwdLabel}
-          </Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="auth-password"
-              type={showPw ? "text" : "password"}
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={pwdPlaceholder}
-              className="auth-icon-input auth-icon-input-with-action"
-            />
-            {data.showShowPassword !== false && (
-              <button
-                type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? L.hide : L.show}
-              >
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            )}
-          </div>
-        </div>
+
 
         <div className="flex items-center justify-between text-sm">
           {data.showRemember !== false ? (
