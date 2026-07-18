@@ -263,12 +263,18 @@ export function NewsletterPopupForm({
     );
   }
 
-  const inputCls = compact
-    ? "w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:border-[var(--brand,#f97316)]"
-    : "w-full px-3.5 py-2.5 rounded-md bg-white/5 border border-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:border-[var(--brand,#f97316)] focus:bg-white/10 transition-colors";
+  // Floating-label variant on dark hero surface. `containerClassName` picks up
+  // the `.input-group--on-dark` modifier that pairs a solid chip background
+  // (--input-group-chip-bg) with white/alpha borders. Compact mode tightens
+  // vertical spacing between fields; the field height itself stays uniform.
+  const fieldContainer = "input-group--on-dark";
+  // The <select> lists mailing lists and can't use FloatingInput; keep the
+  // legacy dark-input style for it so it visually matches the row.
+  const selectCls =
+    "w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[var(--brand,#f97316)] focus:bg-white/10 transition-colors";
 
   return (
-    <form onSubmit={onSubmit} className="space-y-2.5" noValidate>
+    <form onSubmit={onSubmit} className={compact ? "space-y-2" : "space-y-2.5"} noValidate>
       {/* Honeypot: hidden from real users (CSS + tabIndex + aria-hidden), tempting for bots. */}
       <div
         aria-hidden="true"
@@ -289,72 +295,72 @@ export function NewsletterPopupForm({
 
       {ext && (
         <>
-          <input
-            className={inputCls}
-            placeholder={t("Imię", "Name")}
-            aria-label={t("Imię", "Name")}
+          <FloatingInput
+            containerClassName={fieldContainer}
+            label={t("Imię", "Name")}
             value={v.name}
             onChange={(e) => upd("name", e.target.value)}
             maxLength={80}
+            autoComplete="given-name"
           />
-          <input
-            className={inputCls}
-            placeholder={t("Nazwisko", "Surname")}
-            aria-label={t("Nazwisko", "Surname")}
+          <FloatingInput
+            containerClassName={fieldContainer}
+            label={t("Nazwisko", "Surname")}
             value={v.surname}
             onChange={(e) => upd("surname", e.target.value)}
             maxLength={80}
+            autoComplete="family-name"
           />
-          <input
-            className={inputCls}
-            placeholder={t("Stanowisko", "Job position")}
-            aria-label={t("Stanowisko", "Job position")}
+          <FloatingInput
+            containerClassName={fieldContainer}
+            label={t("Stanowisko", "Job position")}
             value={v.job}
             onChange={(e) => upd("job", e.target.value)}
             maxLength={120}
+            autoComplete="organization-title"
           />
-          <input
-            className={inputCls}
-            placeholder={t("Firma / organizacja", "Company")}
-            aria-label={t("Firma / organizacja", "Company")}
+          <FloatingInput
+            containerClassName={fieldContainer}
+            label={t("Firma / organizacja", "Company")}
             value={v.company}
             onChange={(e) => upd("company", e.target.value)}
             maxLength={120}
+            autoComplete="organization"
           />
-          <input
-            className={inputCls}
-            placeholder="LinkedIn"
-            aria-label="LinkedIn"
+          <FloatingInput
+            containerClassName={fieldContainer}
+            label="LinkedIn"
             value={v.linkedin}
             onChange={(e) => upd("linkedin", e.target.value)}
             maxLength={200}
+            inputMode="url"
           />
         </>
       )}
-      <input
-        className={inputCls}
+      <FloatingInput
+        containerClassName={fieldContainer}
         type="email"
         required
-        placeholder={t("Twój e-mail", "Your e-mail")}
-        aria-label={t("Twój e-mail", "Your e-mail")}
+        label={t("Twój e-mail", "Your e-mail")}
         value={v.email}
         onChange={(e) => upd("email", e.target.value)}
         maxLength={254}
+        autoComplete="email"
       />
       {ext && (
-        <input
-          className={inputCls}
+        <FloatingInput
+          containerClassName={fieldContainer}
           type="tel"
-          placeholder={t("Numer telefonu", "Phone number")}
-          aria-label={t("Numer telefonu", "Phone number")}
+          label={t("Numer telefonu", "Phone number")}
           value={v.phone}
           onChange={(e) => upd("phone", e.target.value)}
           maxLength={32}
+          autoComplete="tel"
         />
       )}
       {showLists && (
         <select
-          className={inputCls}
+          className={selectCls}
           aria-label={t("Wybierz listę mailingową", "Choose your main mailing list")}
           value={v.list}
           onChange={(e) => upd("list", e.target.value)}
@@ -367,6 +373,7 @@ export function NewsletterPopupForm({
           ))}
         </select>
       )}
+
 
       <div className="pt-1">
         <button
