@@ -24,6 +24,7 @@ import { RecommendationsSection } from "@/components/network/RecommendationsSect
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
+import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 import { ReportUserButton } from "@/components/network/ReportUserDialog";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
@@ -301,6 +302,7 @@ function ExpertHubPage() {
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
               <ConnectButton userId={expert.id} displayName={name} />
+              <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />
               <ReportUserButton userId={expert.id} displayName={name} />
             </div>
