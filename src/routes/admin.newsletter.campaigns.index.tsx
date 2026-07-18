@@ -28,8 +28,8 @@ import {
 } from "@/lib/newsletter-campaigns.functions";
 import { getJobRunnerSettings, updateJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FloatingInput } from "@/components/ui/floating-input";
+
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -412,19 +412,16 @@ function JobRunnerCard({ isPl }: { isPl: boolean }) {
             : "When enabled, the database (pg_cron + pg_net) pings the app every minute to send scheduled campaigns and continue interrupted batches - no open admin tab required. Otherwise scheduled sending only fires when this page is visited."}
         </p>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="runner-url">
-              {isPl ? "Publiczny adres aplikacji" : "Public app URL"}
-            </Label>
-            <Input
+          <div className="w-[320px] max-w-full">
+            <FloatingInput
               id="runner-url"
               type="url"
-              placeholder="https://neweuropeanstrategies.com"
+              label={isPl ? "Publiczny adres aplikacji" : "Public app URL"}
               value={effBaseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              className="w-[320px] max-w-full"
             />
           </div>
+
           <label className="flex h-10 items-center gap-2 text-sm">
             <Switch checked={effEnabled} onCheckedChange={(v) => setEnabled(v)} />
             {isPl ? "Włączone" : "Enabled"}
