@@ -301,8 +301,14 @@ function ProfileInline() {
             )}
           </div>
 
-          {/* Roles + admin - compact pill row */}
+          {/* Guest preview action bar - odzwierciedla układ akcji z /author/$slug
+              (Obserwuj / Dodaj do sieci / Wiadomość / Zgłoś). Widoczny wyłącznie
+              w trybie „Podgląd jak gość". Akcje są celowo nieaktywne, bo nie
+              można nawiązać relacji z własnym profilem - służą wizualizacji. */}
+          {previewAsGuest && <GuestPreviewActionBar />}
+
           {!previewAsGuest && roles.length > 0 && (
+
             <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
               {roles.map((r) => (
                 <span
