@@ -354,27 +354,24 @@ function SettingsTab({ L }: { L: typeof PL }) {
   return (
     <div className="mt-4 grid md:grid-cols-2 gap-4 max-w-5xl">
       <Card title={L.section.delivery}>
-        <Row label={L.field.recipient}>
-          <Input
-            value={f.default_recipient ?? ""}
-            onChange={(e) => set("default_recipient", e.target.value)}
-            placeholder="kontakt@firma.pl"
-          />
-        </Row>
-        <Row label={L.field.fromName}>
-          <Input
-            value={f.from_name ?? ""}
-            onChange={(e) => set("from_name", e.target.value)}
-            placeholder="New European Strategies"
-          />
-        </Row>
-        <Row label={L.field.fromAddress}>
-          <Input
-            value={f.from_address ?? ""}
-            onChange={(e) => set("from_address", e.target.value)}
-            placeholder="noreply@firma.pl"
-          />
-        </Row>
+        <FloatingInput
+          label={L.field.recipient}
+          value={f.default_recipient ?? ""}
+          onChange={(e) => set("default_recipient", e.target.value)}
+          placeholder="kontakt@firma.pl"
+        />
+        <FloatingInput
+          label={L.field.fromName}
+          value={f.from_name ?? ""}
+          onChange={(e) => set("from_name", e.target.value)}
+          placeholder="New European Strategies"
+        />
+        <FloatingInput
+          label={L.field.fromAddress}
+          value={f.from_address ?? ""}
+          onChange={(e) => set("from_address", e.target.value)}
+          placeholder="noreply@firma.pl"
+        />
         <Row label={L.field.notifyAdmin}>
           <Switch
             checked={!!f.notify_admin_enabled}
@@ -390,12 +387,11 @@ function SettingsTab({ L }: { L: typeof PL }) {
             onCheckedChange={(v) => set("auto_reply_enabled", v)}
           />
         </Row>
-        <Row label={L.field.subjectPL}>
-          <Input
-            value={f.auto_reply_subject_pl ?? ""}
-            onChange={(e) => set("auto_reply_subject_pl", e.target.value)}
-          />
-        </Row>
+        <FloatingInput
+          label={L.field.subjectPL}
+          value={f.auto_reply_subject_pl ?? ""}
+          onChange={(e) => set("auto_reply_subject_pl", e.target.value)}
+        />
         <Row label={L.field.bodyPL}>
           <Textarea
             rows={4}
@@ -403,12 +399,11 @@ function SettingsTab({ L }: { L: typeof PL }) {
             onChange={(e) => set("auto_reply_body_pl", e.target.value)}
           />
         </Row>
-        <Row label={L.field.subjectEN}>
-          <Input
-            value={f.auto_reply_subject_en ?? ""}
-            onChange={(e) => set("auto_reply_subject_en", e.target.value)}
-          />
-        </Row>
+        <FloatingInput
+          label={L.field.subjectEN}
+          value={f.auto_reply_subject_en ?? ""}
+          onChange={(e) => set("auto_reply_subject_en", e.target.value)}
+        />
         <Row label={L.field.bodyEN}>
           <Textarea
             rows={4}
