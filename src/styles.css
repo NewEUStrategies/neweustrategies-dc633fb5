@@ -4477,6 +4477,7 @@ textarea::placeholder {
   width: 100%;
 }
 .input-group > .input {
+  display: block;
   width: 100%;
   border: 1.5px solid var(--border);
   border-radius: 6px;
@@ -4509,11 +4510,9 @@ textarea::placeholder {
      switches to the branded ring color for clarity. */
   color: var(--gc-input-placeholder, var(--muted-foreground));
   pointer-events: none;
-  /* Rest state: vertically centered against the input height. `line-height:1`
-     removes the font leading so translateY(-50%) lands on the true optical
-     center, and `padding: 6px 0` gives the requested vertical breathing room
-     around the placeholder text (label stays visually centered because the
-     padding is symmetric). */
+  /* The input is block-level, so the group has exactly the field height and
+     50% resolves against the control itself rather than an inline baseline
+     line box. Symmetric padding keeps the label's visual box centered. */
   transform: translateY(-50%);
   transform-origin: left center;
   transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
