@@ -4485,6 +4485,7 @@ textarea::placeholder {
   font-size: 0.95rem;
   line-height: 1.25rem;
   color: var(--foreground);
+  text-align: left !important;
   transition:
     border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -4525,6 +4526,7 @@ textarea::placeholder {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: left !important;
 }
 .dark .input-group > .user-label {
   color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
@@ -4571,12 +4573,14 @@ textarea::placeholder {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
+  text-align: left !important;
 }
 .input-group--on-dark > .input:hover:not(:disabled) {
   border-color: rgba(255, 255, 255, 0.24);
 }
 .input-group--on-dark > .user-label {
   color: rgba(255, 255, 255, 0.6);
+  text-align: left !important;
 }
 .input-group--on-dark > .input:focus,
 .input-group--on-dark > .input:not(:placeholder-shown) {
@@ -4607,6 +4611,7 @@ textarea::placeholder {
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: var(--foreground);
+  text-align: left;
   transition:
     border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
