@@ -605,6 +605,9 @@ function ProfileInline() {
               <Card icon={<Eye className="h-3.5 w-3.5" />} title={t("network.profileViews.title")}>
                 <ProfileViewsCard />
               </Card>
+              <Card icon={<Users className="h-3.5 w-3.5" />} title={t("network.introductions.title")}>
+                <IntroductionsCard />
+              </Card>
 
               <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
                 <div className="grid gap-1">
