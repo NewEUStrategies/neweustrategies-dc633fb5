@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { FloatingTextarea } from "@/components/ui/floating-input";
 import { toast } from "sonner";
 import { Trash2 } from "@/lib/lucide-shim";
 import { MessageCircle, Pencil, Reply } from "lucide-react";
