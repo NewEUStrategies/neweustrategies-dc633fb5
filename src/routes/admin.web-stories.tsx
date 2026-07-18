@@ -5,9 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Save, Trash2, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
@@ -250,14 +250,11 @@ function Editor({
   return (
     <section className="bg-card border border-border rounded-lg p-5 space-y-5">
       <div className="grid sm:grid-cols-3 gap-3">
-        <div>
-          <Label>Slug</Label>
-          <Input
-            value={d.slug}
-            onChange={(e) => upd({ slug: e.target.value })}
-            placeholder="moja-historia"
-          />
-        </div>
+        <FloatingInput
+          label="Slug"
+          value={d.slug}
+          onChange={(e) => upd({ slug: e.target.value })}
+        />
         <div>
           <Label>Status</Label>
           <select
@@ -270,13 +267,11 @@ function Editor({
             <option value="archived">Archiwum</option>
           </select>
         </div>
-        <div>
-          <Label>Okładka (URL)</Label>
-          <Input
-            value={d.cover_url ?? ""}
-            onChange={(e) => upd({ cover_url: e.target.value || null })}
-          />
-        </div>
+        <FloatingInput
+          label="Okładka (URL)"
+          value={d.cover_url ?? ""}
+          onChange={(e) => upd({ cover_url: e.target.value || null })}
+        />
       </div>
 
       <Tabs defaultValue="pl">
@@ -285,32 +280,30 @@ function Editor({
           <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
         </TabsList>
         <TabsContent value="pl" className="space-y-3 mt-4">
-          <div>
-            <Label>Tytuł</Label>
-            <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
-          </div>
-          <div>
-            <Label>Opis</Label>
-            <Textarea
-              rows={2}
-              value={d.description_pl}
-              onChange={(e) => upd({ description_pl: e.target.value })}
-            />
-          </div>
+          <FloatingInput
+            label="Tytuł"
+            value={d.title_pl}
+            onChange={(e) => upd({ title_pl: e.target.value })}
+          />
+          <FloatingTextarea
+            label="Opis"
+            rows={2}
+            value={d.description_pl}
+            onChange={(e) => upd({ description_pl: e.target.value })}
+          />
         </TabsContent>
         <TabsContent value="en" className="space-y-3 mt-4">
-          <div>
-            <Label>Title</Label>
-            <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
-          </div>
-          <div>
-            <Label>Description</Label>
-            <Textarea
-              rows={2}
-              value={d.description_en}
-              onChange={(e) => upd({ description_en: e.target.value })}
-            />
-          </div>
+          <FloatingInput
+            label="Title"
+            value={d.title_en}
+            onChange={(e) => upd({ title_en: e.target.value })}
+          />
+          <FloatingTextarea
+            label="Description"
+            rows={2}
+            value={d.description_en}
+            onChange={(e) => upd({ description_en: e.target.value })}
+          />
         </TabsContent>
       </Tabs>
 
@@ -423,83 +416,62 @@ function Editor({
                 </div>
               ) : (
                 <>
-                  <div>
-                    <Label>URL {cur.background === "video" ? "wideo" : "obrazu"}</Label>
-                    <Input
-                      value={cur.media_url}
-                      onChange={(e) => updPage(activePage, { media_url: e.target.value })}
-                    />
-                  </div>
+                  <FloatingInput
+                    label={`URL ${cur.background === "video" ? "wideo" : "obrazu"}`}
+                    value={cur.media_url}
+                    onChange={(e) => updPage(activePage, { media_url: e.target.value })}
+                  />
                   {cur.background === "video" && (
-                    <div>
-                      <Label>Poster (opcjonalny)</Label>
-                      <Input
-                        value={cur.poster_url}
-                        onChange={(e) => updPage(activePage, { poster_url: e.target.value })}
-                      />
-                    </div>
+                    <FloatingInput
+                      label="Poster (opcjonalny)"
+                      value={cur.poster_url}
+                      onChange={(e) => updPage(activePage, { poster_url: e.target.value })}
+                    />
                   )}
                 </>
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Tytuł PL</Label>
-                  <Input
-                    value={cur.title_pl}
-                    onChange={(e) => updPage(activePage, { title_pl: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Tytuł EN</Label>
-                  <Input
-                    value={cur.title_en}
-                    onChange={(e) => updPage(activePage, { title_en: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Podpis PL</Label>
-                  <Textarea
-                    rows={2}
-                    value={cur.caption_pl}
-                    onChange={(e) => updPage(activePage, { caption_pl: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Podpis EN</Label>
-                  <Textarea
-                    rows={2}
-                    value={cur.caption_en}
-                    onChange={(e) => updPage(activePage, { caption_en: e.target.value })}
-                  />
-                </div>
+                <FloatingInput
+                  label="Tytuł PL"
+                  value={cur.title_pl}
+                  onChange={(e) => updPage(activePage, { title_pl: e.target.value })}
+                />
+                <FloatingInput
+                  label="Tytuł EN"
+                  value={cur.title_en}
+                  onChange={(e) => updPage(activePage, { title_en: e.target.value })}
+                />
+                <FloatingTextarea
+                  label="Podpis PL"
+                  rows={2}
+                  value={cur.caption_pl}
+                  onChange={(e) => updPage(activePage, { caption_pl: e.target.value })}
+                />
+                <FloatingTextarea
+                  label="Podpis EN"
+                  rows={2}
+                  value={cur.caption_en}
+                  onChange={(e) => updPage(activePage, { caption_en: e.target.value })}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label>CTA PL</Label>
-                  <Input
-                    value={cur.cta_label_pl}
-                    onChange={(e) => updPage(activePage, { cta_label_pl: e.target.value })}
-                    placeholder="Czytaj więcej"
-                  />
-                </div>
-                <div>
-                  <Label>CTA EN</Label>
-                  <Input
-                    value={cur.cta_label_en}
-                    onChange={(e) => updPage(activePage, { cta_label_en: e.target.value })}
-                    placeholder="Read more"
-                  />
-                </div>
-                <div>
-                  <Label>Link CTA</Label>
-                  <Input
-                    value={cur.cta_href}
-                    onChange={(e) => updPage(activePage, { cta_href: e.target.value })}
-                    placeholder="https://…"
-                  />
-                </div>
+                <FloatingInput
+                  label="CTA PL"
+                  value={cur.cta_label_pl}
+                  onChange={(e) => updPage(activePage, { cta_label_pl: e.target.value })}
+                />
+                <FloatingInput
+                  label="CTA EN"
+                  value={cur.cta_label_en}
+                  onChange={(e) => updPage(activePage, { cta_label_en: e.target.value })}
+                />
+                <FloatingInput
+                  label="Link CTA"
+                  value={cur.cta_href}
+                  onChange={(e) => updPage(activePage, { cta_href: e.target.value })}
+                />
               </div>
 
               <div className="w-40">
