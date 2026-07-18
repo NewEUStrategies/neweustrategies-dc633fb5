@@ -300,33 +300,30 @@ function CreateEventDialog({
           <DialogTitle>{isPl ? "Nowe wydarzenie" : "New event"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid gap-1.5">
-            <Label>Slug</Label>
-            <Input
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
-              placeholder="np. webinar-eu-tech-2026"
+          <FloatingInput
+            label="Slug"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value.toLowerCase())}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FloatingInput
+              label={isPl ? "Tytuł PL" : "Title PL"}
+              value={titlePl}
+              onChange={(e) => setTitlePl(e.target.value)}
+            />
+            <FloatingInput
+              label={isPl ? "Tytuł EN" : "Title EN"}
+              value={titleEn}
+              onChange={(e) => setTitleEn(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Tytuł PL" : "Title PL"}</Label>
-              <Input value={titlePl} onChange={(e) => setTitlePl(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Tytuł EN" : "Title EN"}</Label>
-              <Input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{isPl ? "Start" : "Starts at"}</Label>
-              <Input
-                type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-              />
-            </div>
+            <FloatingInput
+              label={isPl ? "Start" : "Starts at"}
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+            />
             <div className="grid gap-1.5">
               <Label>{isPl ? "Rodzaj" : "Kind"}</Label>
               <Select value={kind} onValueChange={setKind}>
