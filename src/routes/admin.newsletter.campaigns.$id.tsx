@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Textarea } from "@/components/ui/textarea";
+import { CampaignContentBuilder } from "@/components/admin/newsletter/CampaignContentBuilder";
+import { parseEmailDoc, createDefaultEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,6 +57,9 @@ interface FormState {
   subject_en: string;
   html_pl: string;
   html_en: string;
+  /** Silnik treści: "doc" = kreator bloków, "html" = surowy HTML (legacy). */
+  editor: "html" | "doc";
+  content_doc: EmailDoc;
   from_name: string;
   from_email: string;
   reply_to: string;
@@ -101,6 +106,7 @@ function CampaignEditor() {
   const [form, setForm] = useState<FormState | null>(null);
   const [testEmail, setTestEmail] = useState("");
   const [testLang, setTestLang] = useState<"pl" | "en">("pl");
+  const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
   const tiersQ = useMembershipTiers();
 
   useEffect(() => {
@@ -111,6 +117,8 @@ function CampaignEditor() {
         subject_en: campaign.subject_en,
         html_pl: campaign.html_pl,
         html_en: campaign.html_en,
+        editor: campaign.editor === "doc" ? "doc" : "html",
+        content_doc: parseEmailDoc(campaign.content_doc) ?? createDefaultEmailDoc(),
         from_name: campaign.from_name ?? "",
         from_email: campaign.from_email ?? "",
         reply_to: campaign.reply_to ?? "",
@@ -141,6 +149,8 @@ function CampaignEditor() {
           subject_en: state.subject_en,
           html_pl: state.html_pl,
           html_en: state.html_en,
+          editor: state.editor,
+          content_doc: state.editor === "doc" ? state.content_doc : null,
           from_name: state.from_name || null,
           from_email: state.from_email || null,
           reply_to: state.reply_to || null,
@@ -342,63 +352,97 @@ function CampaignEditor() {
                 onChange={(e) => setForm({ ...form, reply_to: e.target.value })}
                 disabled={readonly}
               />
-
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">
                 <Mail className="w-4 h-4 inline mr-2" />
                 {isPl ? "Treść" : "Content"}
               </CardTitle>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={form.editor === "doc" ? "default" : "outline"}
+                  className="h-7 text-[11px]"
+                  disabled={readonly}
+                  onClick={() => setForm({ ...form, editor: "doc" })}
+                >
+                  {isPl ? "Kreator" : "Builder"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={form.editor === "html" ? "default" : "outline"}
+                  className="h-7 text-[11px]"
+                  disabled={readonly}
+                  onClick={() => setForm({ ...form, editor: "html" })}
+                >
+                  HTML
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="pl">
-                <TabsList>
-                  <TabsTrigger value="pl">Polski</TabsTrigger>
-                  <TabsTrigger value="en">English</TabsTrigger>
-                </TabsList>
-                <TabsContent value="pl" className="space-y-3">
-                  <FloatingInput
-                    label={`${isPl ? "Temat" : "Subject"} (PL)`}
-                    value={form.subject_pl}
-                    onChange={(e) => setForm({ ...form, subject_pl: e.target.value })}
-                    disabled={readonly}
-                  />
-                  <div>
-                    <Label>HTML (PL)</Label>
-                    <Textarea
-                      value={form.html_pl}
-                      onChange={(e) => setForm({ ...form, html_pl: e.target.value })}
-                      disabled={readonly}
-                      rows={14}
-                      className="font-mono text-xs"
-                      placeholder="<h1>Witaj {{firstName}}</h1><p>…</p>"
-                    />
-                  </div>
-                </TabsContent>
-                <TabsContent value="en" className="space-y-3">
-                  <FloatingInput
-                    label="Subject (EN)"
-                    value={form.subject_en}
-                    onChange={(e) => setForm({ ...form, subject_en: e.target.value })}
-                    disabled={readonly}
-                  />
-                  <div>
-                    <Label>HTML (EN)</Label>
-                    <Textarea
-                      value={form.html_en}
-                      onChange={(e) => setForm({ ...form, html_en: e.target.value })}
-                      disabled={readonly}
-                      rows={14}
-                      className="font-mono text-xs"
-                      placeholder="<h1>Hi {{firstName}}</h1><p>…</p>"
-                    />
-                  </div>
-                </TabsContent>
+            <CardContent className="space-y-3">
+              {/* Temat jest wspólny dla obu silników. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FloatingInput
+                  label={`${isPl ? "Temat" : "Subject"} (PL)`}
+                  value={form.subject_pl}
+                  onChange={(e) => setForm({ ...form, subject_pl: e.target.value })}
+                  disabled={readonly}
+                />
+                <FloatingInput
+                  label={`${isPl ? "Temat" : "Subject"} (EN)`}
+                  value={form.subject_en}
+                  onChange={(e) => setForm({ ...form, subject_en: e.target.value })}
+                  disabled={readonly}
+                />
+              </div>
 
-              </Tabs>
+              {form.editor === "doc" ? (
+                <CampaignContentBuilder
+                  doc={form.content_doc}
+                  onChange={(content_doc) => setForm({ ...form, content_doc })}
+                  previewLang={previewLang}
+                  onPreviewLangChange={setPreviewLang}
+                  isPl={isPl}
+                />
+              ) : (
+                <Tabs defaultValue="pl">
+                  <TabsList>
+                    <TabsTrigger value="pl">Polski</TabsTrigger>
+                    <TabsTrigger value="en">English</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="pl" className="space-y-3">
+                    <div>
+                      <Label>HTML (PL)</Label>
+                      <Textarea
+                        value={form.html_pl}
+                        onChange={(e) => setForm({ ...form, html_pl: e.target.value })}
+                        disabled={readonly}
+                        rows={14}
+                        className="font-mono text-xs"
+                        placeholder="<h1>Witaj {{firstName}}</h1><p>…</p>"
+                      />
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="en" className="space-y-3">
+                    <div>
+                      <Label>HTML (EN)</Label>
+                      <Textarea
+                        value={form.html_en}
+                        onChange={(e) => setForm({ ...form, html_en: e.target.value })}
+                        disabled={readonly}
+                        rows={14}
+                        className="font-mono text-xs"
+                        placeholder="<h1>Hi {{firstName}}</h1><p>…</p>"
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              )}
               <p className="text-xs text-muted-foreground mt-2">
                 {isPl
                   ? 'Zmienne: {{firstName}}, {{lastName}}, {{email}}. Stopka „Wypisz się" jest doklejana automatycznie.'
