@@ -24,6 +24,7 @@ import { RecommendationsSection } from "@/components/network/RecommendationsSect
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
+import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 import { ReportUserButton } from "@/components/network/ReportUserDialog";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
