@@ -4530,6 +4530,12 @@ textarea::placeholder {
   text-overflow: ellipsis;
   text-align: left !important;
 }
+/* Grid/flex rows can stretch `.input-group` to match a taller sibling button.
+   Anchor single-line labels to the shared control height instead, so their
+   center always matches the actual input rather than the stretched wrapper. */
+.input-group > input.input ~ .user-label {
+  top: calc(var(--form-input-height) / 2);
+}
 .dark .input-group > .user-label {
   color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
 }
