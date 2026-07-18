@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
+import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { toast } from "sonner";
@@ -328,14 +329,11 @@ function SlotsPanel() {
       <section className="border border-border rounded-lg bg-card p-5">
         <h2 className="font-semibold mb-4">{draft.id ? "Edytuj slot" : "Nowy slot"}</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <Label>Nazwa</Label>
-            <Input
-              value={draft.name ?? ""}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="np. AdSense 728x90 góra"
-            />
-          </div>
+          <FloatingInput
+            label="Nazwa"
+            value={draft.name ?? ""}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
           <div>
             <Label>Typ</Label>
             <Select
@@ -356,77 +354,62 @@ function SlotsPanel() {
           </div>
 
           {draft.kind === "html" && (
-            <div className="sm:col-span-2">
-              <Label>Kod HTML</Label>
-              <Textarea
-                rows={4}
-                value={draft.html ?? ""}
-                onChange={(e) => setDraft({ ...draft, html: e.target.value })}
-                placeholder="<div>…</div>"
-                className="font-mono text-xs"
-              />
-            </div>
+            <FloatingTextarea
+              containerClassName="sm:col-span-2"
+              label="Kod HTML"
+              rows={4}
+              value={draft.html ?? ""}
+              onChange={(e) => setDraft({ ...draft, html: e.target.value })}
+              className="font-mono text-xs"
+            />
           )}
           {draft.kind === "script" && (
-            <div className="sm:col-span-2">
-              <Label>Skrypt (np. AdSense)</Label>
-              <Textarea
-                rows={5}
-                value={draft.script ?? ""}
-                onChange={(e) => setDraft({ ...draft, script: e.target.value })}
-                placeholder='<script async src="…"></script>'
-                className="font-mono text-xs"
-              />
-            </div>
+            <FloatingTextarea
+              containerClassName="sm:col-span-2"
+              label="Skrypt (np. AdSense)"
+              rows={5}
+              value={draft.script ?? ""}
+              onChange={(e) => setDraft({ ...draft, script: e.target.value })}
+              className="font-mono text-xs"
+            />
           )}
           {draft.kind === "image" && (
             <>
-              <div className="sm:col-span-2">
-                <Label>URL grafiki</Label>
-                <Input
-                  value={draft.image_url ?? ""}
-                  onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
-                  placeholder="https://…"
-                />
-              </div>
-              <div>
-                <Label>Link kliknięcia</Label>
-                <Input
-                  value={draft.image_link ?? ""}
-                  onChange={(e) => setDraft({ ...draft, image_link: e.target.value })}
-                  placeholder="https://…"
-                />
-              </div>
-              <div>
-                <Label>Alt (dla dostępności)</Label>
-                <Input
-                  value={draft.image_alt ?? ""}
-                  onChange={(e) => setDraft({ ...draft, image_alt: e.target.value })}
-                />
-              </div>
+              <FloatingInput
+                containerClassName="sm:col-span-2"
+                label="URL grafiki"
+                value={draft.image_url ?? ""}
+                onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
+              />
+              <FloatingInput
+                label="Link kliknięcia"
+                value={draft.image_link ?? ""}
+                onChange={(e) => setDraft({ ...draft, image_link: e.target.value })}
+              />
+              <FloatingInput
+                label="Alt (dla dostępności)"
+                value={draft.image_alt ?? ""}
+                onChange={(e) => setDraft({ ...draft, image_alt: e.target.value })}
+              />
             </>
           )}
 
-          <div>
-            <Label>Szerokość (px)</Label>
-            <Input
-              type="number"
-              value={draft.width ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, width: e.target.value ? Number(e.target.value) : null })
-              }
-            />
-          </div>
-          <div>
-            <Label>Wysokość (px)</Label>
-            <Input
-              type="number"
-              value={draft.height ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, height: e.target.value ? Number(e.target.value) : null })
-              }
-            />
-          </div>
+          <FloatingInput
+            label="Szerokość (px)"
+            type="number"
+            value={draft.width ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, width: e.target.value ? Number(e.target.value) : null })
+            }
+          />
+          <FloatingInput
+            label="Wysokość (px)"
+            type="number"
+            value={draft.height ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, height: e.target.value ? Number(e.target.value) : null })
+            }
+          />
 
           <div className="flex items-center gap-2">
             <Switch
@@ -448,14 +431,13 @@ function SlotsPanel() {
             onChange={(next) => setDraft({ ...draft, targeting: adTargetingToJson(next) })}
           />
 
-          <div className="sm:col-span-2">
-            <Label>Notatki wewnętrzne</Label>
-            <Textarea
-              rows={2}
-              value={draft.notes ?? ""}
-              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-            />
-          </div>
+          <FloatingTextarea
+            containerClassName="sm:col-span-2"
+            label="Notatki wewnętrzne"
+            rows={2}
+            value={draft.notes ?? ""}
+            onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+          />
         </div>
         <div className="flex gap-2 mt-5">
           <Button onClick={save} disabled={busy}>
@@ -627,47 +609,39 @@ function PlacementsPanel() {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Sortowanie</Label>
-            <Input
-              type="number"
-              value={draft.sort_order ?? 0}
-              onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
-            />
-          </div>
+          <FloatingInput
+            label="Sortowanie"
+            type="number"
+            value={draft.sort_order ?? 0}
+            onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
+          />
 
           {draft.position === "mid_post" && (
-            <div>
-              <Label>Po którym paragrafie</Label>
-              <Input
-                type="number"
-                min={1}
-                value={(cfg.paragraph as number) ?? 4}
-                onChange={(e) => setCfg("paragraph", Number(e.target.value))}
-              />
-            </div>
+            <FloatingInput
+              label="Po którym paragrafie"
+              type="number"
+              min={1}
+              value={(cfg.paragraph as number) ?? 4}
+              onChange={(e) => setCfg("paragraph", Number(e.target.value))}
+            />
           )}
           {draft.position === "in_feed" && (
-            <div>
-              <Label>Co N kart</Label>
-              <Input
-                type="number"
-                min={1}
-                value={(cfg.every as number) ?? 5}
-                onChange={(e) => setCfg("every", Number(e.target.value))}
-              />
-            </div>
+            <FloatingInput
+              label="Co N kart"
+              type="number"
+              min={1}
+              value={(cfg.every as number) ?? 5}
+              onChange={(e) => setCfg("every", Number(e.target.value))}
+            />
           )}
           {draft.position === "footer_slideup" && (
             <>
-              <div>
-                <Label>Opóźnienie pojawienia się (ms)</Label>
-                <Input
-                  type="number"
-                  value={(cfg.delay_ms as number) ?? 3000}
-                  onChange={(e) => setCfg("delay_ms", Number(e.target.value))}
-                />
-              </div>
+              <FloatingInput
+                label="Opóźnienie pojawienia się (ms)"
+                type="number"
+                value={(cfg.delay_ms as number) ?? 3000}
+                onChange={(e) => setCfg("delay_ms", Number(e.target.value))}
+              />
               <div className="flex items-center gap-2 mt-6">
                 <Switch
                   checked={(cfg.dismissible as boolean) ?? true}
