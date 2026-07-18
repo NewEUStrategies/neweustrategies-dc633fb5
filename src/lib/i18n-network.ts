@@ -121,8 +121,31 @@ export const networkPl = {
     allowConnectionsEveryone: "Każdy w Twojej organizacji",
     allowConnectionsMutual: "Tylko osoby ze wspólnym kontaktem",
     allowConnectionsNobody: "Nikt",
+    profileViews: {
+      title: "Kto oglądał Twój profil",
+      subtitle: "Osoby, które odwiedziły Twój profil w ostatnich dniach.",
+      last7: "Ostatnie 7 dni",
+      last30: "Ostatnie 30 dni",
+      last90: "Ostatnie 90 dni",
+      viewsUnit: "wyświetleń",
+      empty: "Nikt jeszcze nie wyświetlił Twojego profilu.",
+      anonymousViewer: "Użytkownik anonimowy",
+      justNow: "przed chwilą",
+      minutesAgo: "{{count}} min temu",
+      hoursAgo: "{{count}} godz. temu",
+      daysAgo: "{{count}} dni temu",
+      viewedAtLabel: "wyświetlił profil",
+      privacyLabel: "Jak jesteś widoczny/a, gdy odwiedzasz profile",
+      privacyHint:
+        "„Anonimowo" ukrywa Twoje imię przed osobami, których profil odwiedzasz. „Prywatnie" dodatkowo wyłącza Twój dostęp do listy „Kto oglądał Twój profil".",
+      modePublic: "Publicznie - imię, zdjęcie i stanowisko",
+      modeAnonymous: "Anonimowo - jako użytkownik anonimowy",
+      modePrivate: "Prywatnie - w trybie prywatnym",
+      loadMore: "Zobacz wszystkich",
+    },
   },
 };
+
 
 export const networkEn = {
   network: {
