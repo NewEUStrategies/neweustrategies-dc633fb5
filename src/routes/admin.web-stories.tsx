@@ -254,7 +254,6 @@ function Editor({
           label="Slug"
           value={d.slug}
           onChange={(e) => upd({ slug: e.target.value })}
-          placeholder="moja-historia"
         />
         <div>
           <Label>Status</Label>
