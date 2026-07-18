@@ -57,7 +57,7 @@ export function AuthorCvSections({ userId }: Props): React.ReactElement | null {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {skills.length > 0 && (
           <div className="lg:col-span-2">
-            <SkillsSection items={skills} isPl={isPl} />
+            <SkillsSection items={skills} isPl={isPl} authorId={userId ?? null} />
           </div>
         )}
         {hobbies.length > 0 && (
