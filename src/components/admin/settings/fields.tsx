@@ -1,6 +1,13 @@
 // Reusable field primitives for the admin settings tabs.
+// Admin uses an external-label two-column layout (label on the left, control
+// on the right) rather than floating labels, which suit dense config forms
+// better. To stay aligned with the platform-wide input system we render the
+// `<input>` with the shared `.input` class (same border/radius/ring tokens as
+// FloatingInput), and swap the raw checkbox for the animated `Checkbox`.
 import type { ReactNode } from "react";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
+import { Checkbox as AnimatedCheckbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 export function Field({
   label,
@@ -23,23 +30,13 @@ export function Field({
 }
 
 export function Text(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      type="text"
-      {...props}
-      className={`w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand ${props.className ?? ""}`}
-    />
-  );
+  const { className, type = "text", ...rest } = props;
+  return <input type={type} {...rest} className={cn("input w-full", className)} />;
 }
 
 export function NumberInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      type="number"
-      {...props}
-      className={`w-32 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand ${props.className ?? ""}`}
-    />
-  );
+  const { className, ...rest } = props;
+  return <input type="number" {...rest} className={cn("input w-32", className)} />;
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
@@ -78,14 +75,9 @@ export function Checkbox({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-border"
-      />
-      {label}
+    <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+      <AnimatedCheckbox checked={checked} onCheckedChange={(v) => onChange(v === true)} />
+      <span>{label}</span>
     </label>
   );
 }
