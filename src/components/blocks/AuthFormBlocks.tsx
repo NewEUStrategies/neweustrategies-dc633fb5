@@ -7,10 +7,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import "@/lib/i18n-public";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Loader2, Mail, Lock, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
+import { Eye, EyeOff, Loader2, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
+
 import { toast } from "sonner";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
