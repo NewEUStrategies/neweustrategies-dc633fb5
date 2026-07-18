@@ -273,13 +273,12 @@ function CommentComposer({
       }}
       className="space-y-3"
     >
-      <Textarea
+      <FloatingTextarea
+        label={placeholder ?? t("comments.placeholder")}
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder={placeholder ?? t("comments.placeholder")}
         rows={4}
         maxLength={5000}
-        aria-label={t("comments.placeholder")}
         lang={lang}
       />
       <div className="flex items-center gap-2">
