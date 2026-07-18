@@ -67,24 +67,28 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('d0000000-0000-0000-0000-000000000002', 'admin',  'd4444444-4444-4444-4444-444444444444'),
   ('d0000000-0000-0000-0000-000000000003', 'user',   'd4444444-4444-4444-4444-444444444444');
 
--- wp_import_jobs: staff-created job należący do "owner"
-INSERT INTO public.wp_import_jobs (id, tenant_id, actor_id, status)
-VALUES ('d1111111-0000-0000-0000-000000000001',
-        'd4444444-4444-4444-4444-444444444444',
-        'd0000000-0000-0000-0000-000000000001',
-        'pending');
+-- wp_import_jobs: import należący do "owner"
+INSERT INTO public.wp_import_jobs (
+  id, tenant_id, actor_id, status, site, language, total, processed,
+  imported, updated_count, skipped, failed, media_imported, log, options
+) VALUES (
+  'd1111111-0000-0000-0000-000000000001',
+  'd4444444-4444-4444-4444-444444444444',
+  'd0000000-0000-0000-0000-000000000001',
+  'pending', 'https://example.test', 'pl', 0, 0, 0, 0, 0, 0, 0,
+  '[]'::jsonb, '{}'::jsonb
+);
 
 -- domain_events: zdarzenie przypisane do "owner"
-INSERT INTO public.domain_events (tenant_id, actor_id, event_type, payload)
+INSERT INTO public.domain_events (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
 VALUES ('d4444444-4444-4444-4444-444444444444',
         'd0000000-0000-0000-0000-000000000001',
-        'test.event',
-        '{}'::jsonb);
+        'test', gen_random_uuid(), 'test.event', '{}'::jsonb);
 
--- tenant_pending_counters: seed (per-tenant licznik)
-INSERT INTO public.tenant_pending_counters (tenant_id, pending_count)
-VALUES ('d4444444-4444-4444-4444-444444444444', 3)
-ON CONFLICT (tenant_id) DO UPDATE SET pending_count = EXCLUDED.pending_count;
+-- tenant_pending_counters: seed (klucz per-tenant)
+INSERT INTO public.tenant_pending_counters (tenant_id, counter_key, value)
+VALUES ('d4444444-4444-4444-4444-444444444444', 'pending', 3)
+ON CONFLICT (tenant_id, counter_key) DO UPDATE SET value = EXCLUDED.value;
 
 -- ── (2) Wcielenie: nie-staff, nie-actor (reader) ────────────────────────────
 SET LOCAL ROLE authenticated;
