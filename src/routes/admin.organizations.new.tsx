@@ -203,18 +203,16 @@ function AdminOrganizationNewPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={L("Limit miejsc", "Seat limit")}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={seatsLimit}
-                  onChange={(e) =>
-                    setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
-                  }
-                  className="h-8 text-sm"
-                />
-              </Field>
+              <FloatingInput
+                label={L("Limit miejsc", "Seat limit")}
+                type="number"
+                min={1}
+                max={500}
+                value={seatsLimit}
+                onChange={(e) =>
+                  setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
+                }
+              />
               <div className="rounded-md border border-dashed border-border/70 bg-muted/30 p-3 text-[11px] text-muted-foreground">
                 <Building2 className="mb-1 h-3.5 w-3.5" aria-hidden="true" />
                 {L(
