@@ -4462,3 +4462,77 @@ textarea::placeholder {
 .animate-accordion-up {
   animation: accordion-up 0.2s ease-out;
 }
+
+/* =========================================================================
+   Floating-label input (platform-wide atom)
+   Semantic tokens only (border/input/ring/background/foreground/primary).
+   Works in light + dark. Consumed by <FloatingInput/> and <FloatingTextarea/>
+   in src/components/ui/floating-input.tsx.
+   ------------------------------------------------------------------------- */
+.input-group {
+  position: relative;
+  width: 100%;
+}
+.input-group > .input {
+  width: 100%;
+  border: 1.5px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: transparent;
+  padding: 1rem 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1.25rem;
+  color: hsl(var(--foreground));
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+.input-group > textarea.input {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+.input-group > .input::placeholder {
+  color: transparent;
+}
+.input-group > .user-label {
+  position: absolute;
+  left: 0.85rem;
+  top: 0;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  transform: translateY(1rem);
+  transform-origin: left top;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.95rem;
+  max-width: calc(100% - 1.7rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.input-group > .input:focus,
+.input-group > .input:not(:placeholder-shown) {
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.15);
+}
+.input-group > .input:focus ~ .user-label,
+.input-group > .input:not(:placeholder-shown) ~ .user-label {
+  transform: translateY(-50%) scale(0.8);
+  background-color: hsl(var(--background));
+  padding: 0 0.35em;
+  color: hsl(var(--ring));
+}
+.input-group[data-invalid="true"] > .input {
+  border-color: hsl(var(--destructive));
+  box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.15);
+}
+.input-group[data-invalid="true"] > .input:focus ~ .user-label,
+.input-group[data-invalid="true"] > .input:not(:placeholder-shown) ~ .user-label {
+  color: hsl(var(--destructive));
+}
+.input-group > .input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
