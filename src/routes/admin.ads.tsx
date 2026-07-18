@@ -609,47 +609,39 @@ function PlacementsPanel() {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Sortowanie</Label>
-            <Input
-              type="number"
-              value={draft.sort_order ?? 0}
-              onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
-            />
-          </div>
+          <FloatingInput
+            label="Sortowanie"
+            type="number"
+            value={draft.sort_order ?? 0}
+            onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
+          />
 
           {draft.position === "mid_post" && (
-            <div>
-              <Label>Po którym paragrafie</Label>
-              <Input
-                type="number"
-                min={1}
-                value={(cfg.paragraph as number) ?? 4}
-                onChange={(e) => setCfg("paragraph", Number(e.target.value))}
-              />
-            </div>
+            <FloatingInput
+              label="Po którym paragrafie"
+              type="number"
+              min={1}
+              value={(cfg.paragraph as number) ?? 4}
+              onChange={(e) => setCfg("paragraph", Number(e.target.value))}
+            />
           )}
           {draft.position === "in_feed" && (
-            <div>
-              <Label>Co N kart</Label>
-              <Input
-                type="number"
-                min={1}
-                value={(cfg.every as number) ?? 5}
-                onChange={(e) => setCfg("every", Number(e.target.value))}
-              />
-            </div>
+            <FloatingInput
+              label="Co N kart"
+              type="number"
+              min={1}
+              value={(cfg.every as number) ?? 5}
+              onChange={(e) => setCfg("every", Number(e.target.value))}
+            />
           )}
           {draft.position === "footer_slideup" && (
             <>
-              <div>
-                <Label>Opóźnienie pojawienia się (ms)</Label>
-                <Input
-                  type="number"
-                  value={(cfg.delay_ms as number) ?? 3000}
-                  onChange={(e) => setCfg("delay_ms", Number(e.target.value))}
-                />
-              </div>
+              <FloatingInput
+                label="Opóźnienie pojawienia się (ms)"
+                type="number"
+                value={(cfg.delay_ms as number) ?? 3000}
+                onChange={(e) => setCfg("delay_ms", Number(e.target.value))}
+              />
               <div className="flex items-center gap-2 mt-6">
                 <Switch
                   checked={(cfg.dismissible as boolean) ?? true}
