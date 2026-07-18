@@ -24,7 +24,7 @@
 --       - actor swojego joba - tak; admin tenanta - tak
 
 BEGIN;
-SELECT plan(14);
+SELECT plan(30);
 
 -- ── (1) Granty kolumnowe: PII i sekrety ────────────────────────────────────
 SELECT ok(
@@ -186,6 +186,160 @@ SELECT is(
   (SELECT phone FROM public.get_own_author_profile()),
   '+48 000 000 000',
   'get_own_author_profile() zwraca własny phone (SECURITY DEFINER omija kolumnowy REVOKE)'
+);
+
+-- ── (6) Zapisy: anon nie ma DML wcale (kolumnowy/tabelowy REVOKE) ──────────
+-- Wszystkie wrażliwe tabele powinny odrzucać INSERT/UPDATE/DELETE dla anon
+-- na poziomie uprawnień (42501), zanim RLS w ogóle zostanie sprawdzone.
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"tenant-d.example"}', true);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.wp_import_jobs
+       (tenant_id, actor_id, status, site, language, total, processed,
+        imported, updated_count, skipped, failed, media_imported, log, options)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'd0000000-0000-0000-0000-000000000001',
+             'pending', 'https://x.test', 'pl', 0,0,0,0,0,0,0,
+             '[]'::jsonb, '{}'::jsonb) $$,
+  '42501', NULL,
+  'anon: INSERT wp_import_jobs odrzucone (brak grantu)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.domain_events
+       (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'd0000000-0000-0000-0000-000000000001',
+             'test', gen_random_uuid(), 'test.event', '{}'::jsonb) $$,
+  '42501', NULL,
+  'anon: INSERT domain_events odrzucone (brak grantu)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.content_access
+       (tenant_id, entity_type, entity_id, mode, password_hash)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'post', gen_random_uuid(), 'password', 'x') $$,
+  '42501', NULL,
+  'anon: INSERT content_access odrzucone (brak grantu na wrażliwe kolumny)'
+);
+
+SELECT throws_ok(
+  $$ UPDATE public.author_profiles SET phone = 'hijack'
+      WHERE user_id = 'd0000000-0000-0000-0000-000000000001' $$,
+  '42501', NULL,
+  'anon: UPDATE author_profiles odrzucone (brak grantu)'
+);
+
+SELECT throws_ok(
+  $$ DELETE FROM public.profile_badges
+      WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444' $$,
+  '42501', NULL,
+  'anon: DELETE profile_badges odrzucone (brak grantu)'
+);
+
+-- ── (7) Zapisy: authenticated non-staff (reader) - RLS blokuje ─────────────
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.wp_import_jobs
+       (tenant_id, actor_id, status, site, language, total, processed,
+        imported, updated_count, skipped, failed, media_imported, log, options)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'd0000000-0000-0000-0000-000000000003',
+             'pending', 'https://x.test', 'pl', 0,0,0,0,0,0,0,
+             '[]'::jsonb, '{}'::jsonb) $$,
+  '42501', NULL,
+  'reader (non-staff): INSERT wp_import_jobs odrzucone przez RLS (nie ma roli author/editor/admin)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.domain_events
+       (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'd0000000-0000-0000-0000-000000000003',
+             'test', gen_random_uuid(), 'test.event', '{}'::jsonb) $$,
+  '42501', NULL,
+  'reader: INSERT domain_events odrzucone (brak polityki INSERT dla klienta)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.tenant_pending_counters (tenant_id, counter_key, value)
+     VALUES ('d4444444-4444-4444-4444-444444444444', 'x', 1) $$,
+  '42501', NULL,
+  'reader: INSERT tenant_pending_counters odrzucone (brak polityki INSERT)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.profile_badges (tenant_id, user_id, badge)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'd0000000-0000-0000-0000-000000000003', 'test') $$,
+  '42501', NULL,
+  'reader: INSERT profile_badges odrzucone (wymaga has_role admin)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.content_access
+       (tenant_id, entity_type, entity_id, mode)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'post', gen_random_uuid(), 'public') $$,
+  '42501', NULL,
+  'reader (rola user): INSERT content_access odrzucone (RLS wymaga author/editor/admin)'
+);
+
+-- UPDATE cudzego author_profile: RLS filtruje wiersz, więc 0 rows affected
+-- (nie throw). Sprawdzamy że wiersz właściciela pozostał nienaruszony.
+UPDATE public.author_profiles SET phone = 'hijacked-by-reader'
+  WHERE user_id = 'd0000000-0000-0000-0000-000000000001';
+RESET ROLE;
+SELECT is(
+  (SELECT phone FROM public.author_profiles
+     WHERE user_id = 'd0000000-0000-0000-0000-000000000001'),
+  '+48 000 000 000',
+  'reader: UPDATE cudzego author_profile jest bezskuteczne (RLS filtruje wiersz)'
+);
+
+-- ── (8) Zapisy: staff (admin tenanta) - polityki pozwalają ─────────────────
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+
+SELECT lives_ok(
+  $$ INSERT INTO public.profile_badges (tenant_id, user_id, badge)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'd0000000-0000-0000-0000-000000000003', 'verified') $$,
+  'admin: INSERT profile_badges dozwolone (has_role admin, tenant match)'
+);
+
+SELECT lives_ok(
+  $$ INSERT INTO public.content_access
+       (tenant_id, entity_type, entity_id, mode)
+     VALUES ('d4444444-4444-4444-4444-444444444444',
+             'post', gen_random_uuid(), 'public') $$,
+  'admin: INSERT content_access dozwolone (rola admin w bieżącym tenancie)'
+);
+
+SELECT lives_ok(
+  $$ UPDATE public.wp_import_jobs SET status = 'running'
+      WHERE id = 'd1111111-0000-0000-0000-000000000001' $$,
+  'admin: UPDATE wp_import_jobs dozwolone (staff read + update w swoim tenancie)'
+);
+
+SELECT lives_ok(
+  $$ DELETE FROM public.profile_badges
+      WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'
+        AND badge = 'verified' $$,
+  'admin: DELETE profile_badges dozwolone (has_role admin, tenant match)'
+);
+
+SELECT lives_ok(
+  $$ UPDATE public.author_profiles SET media_contact_email = 'ok@d.test'
+      WHERE user_id = 'd0000000-0000-0000-0000-000000000001' $$,
+  'admin: UPDATE author_profiles dozwolone (Admins can manage tenant author profiles)'
 );
 
 RESET ROLE;
