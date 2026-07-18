@@ -252,8 +252,31 @@ export const networkEn = {
     allowConnectionsEveryone: "Everyone in your organization",
     allowConnectionsMutual: "Only people with a mutual connection",
     allowConnectionsNobody: "Nobody",
+    profileViews: {
+      title: "Who viewed your profile",
+      subtitle: "People who visited your profile in the past few days.",
+      last7: "Last 7 days",
+      last30: "Last 30 days",
+      last90: "Last 90 days",
+      viewsUnit: "views",
+      empty: "No one has viewed your profile yet.",
+      anonymousViewer: "Anonymous user",
+      justNow: "just now",
+      minutesAgo: "{{count}} min ago",
+      hoursAgo: "{{count}} h ago",
+      daysAgo: "{{count}} days ago",
+      viewedAtLabel: "viewed your profile",
+      privacyLabel: "How you appear when viewing other profiles",
+      privacyHint:
+        "\u201cAnonymous\u201d hides your name from people whose profile you visit. \u201cPrivate\u201d additionally disables your access to the \u201cWho viewed your profile\u201d list.",
+      modePublic: "Public - name, photo and job title",
+      modeAnonymous: "Anonymous - as an anonymous user",
+      modePrivate: "Private mode",
+      loadMore: "View all",
+    },
   },
 };
+
 
 i18n.addResourceBundle("pl", "translation", networkPl, true, true);
 i18n.addResourceBundle("en", "translation", networkEn, true, true);
