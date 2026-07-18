@@ -16,7 +16,7 @@ import {
   type AudienceFilter,
 } from "@/lib/newsletter-campaigns.functions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Textarea } from "@/components/ui/textarea";
