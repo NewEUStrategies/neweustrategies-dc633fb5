@@ -68,49 +68,47 @@ function ProfileLayout() {
         <div className="container mx-auto max-w-6xl px-3 sm:px-4">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_4px_20px_-4px_color-mix(in oklab, var(--foreground) 8%, transparent)]">
             <div className="flex flex-col md:flex-row">
-              {/* Sidebar */}
-              <aside className="w-full shrink-0 border-b border-border bg-muted/40 p-5 md:w-72 md:border-b-0 md:border-r">
-                <div className="flex h-full flex-col gap-6">
-                  <div className="px-2">
-                    <h1 className="text-xl font-extrabold uppercase italic tracking-tight text-foreground">
-                      {t("profile.title")}
-                    </h1>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
-                    </p>
-                  </div>
+              {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile */}
+              {!hideSidebar && (
+                <aside className="w-full shrink-0 border-b border-border bg-muted/40 p-5 md:w-72 md:border-b-0 md:border-r">
+                  <div className="flex h-full flex-col gap-6">
+                    <div className="px-2">
+                      <h1 className="text-xl font-extrabold uppercase italic tracking-tight text-foreground">
+                        {t("profile.title")}
+                      </h1>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
+                      </p>
+                    </div>
 
-                  <ProfileNav />
+                    <ProfileNav />
 
-                  {user && (
-                    <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div
-                          aria-hidden
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded bg-foreground text-[11px] font-bold text-background"
-                        >
-                          {initials}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-foreground">
-                            {displayName ?? t("profile.account.unnamed", "Użytkownik")}
-                          </p>
-                          <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                            {memberLabel}
-                          </p>
+                    {user && (
+                      <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div
+                            aria-hidden
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded bg-foreground text-[11px] font-bold text-background"
+                          >
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-foreground">
+                              {displayName ?? t("profile.account.unnamed", "Użytkownik")}
+                            </p>
+                            <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                              {memberLabel}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </aside>
+                    )}
+                  </div>
+                </aside>
+              )}
 
               {/* Main content */}
-              <div
-                className={
-                  isRoot ? "min-w-0 flex-1 bg-card p-5 md:p-8" : "min-w-0 flex-1 bg-card p-5 md:p-8"
-                }
-              >
+              <div className="min-w-0 flex-1 bg-card p-5 md:p-8">
                 <Outlet />
               </div>
             </div>
