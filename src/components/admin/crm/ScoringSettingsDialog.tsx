@@ -106,9 +106,26 @@ export function ScoringSettingsDialog({ lang }: { lang: "pl" | "en" }) {
   });
 
   const recomputeMut = useMutation({
-    mutationFn: async () => recomputeAllLeadScores({ data: { limit: 5000 } }),
-    onSuccess: (r: { processed: number }) => {
-      toast.success(t.recomputed(r.processed));
+    // Przeliczenie porcjami po kursorze: każde wywołanie robi 1 batch i zwraca
+    // done + last_id. Pętlimy aż done, dzięki czemu obejmujemy dowolną liczbę
+    // leadów bez timeoutu pojedynczego zapytania (guard 500 iteracji).
+    mutationFn: async () => {
+      let after: string | null = null;
+      let total = 0;
+      for (let i = 0; i < 500; i++) {
+        const r: { processed: number; lastId: string | null; done: boolean } =
+          await recomputeAllLeadScores({ data: { limit: 500, after_id: after } });
+        total += r.processed;
+        if (r.done || !r.lastId) break;
+        after = r.lastId;
+        if (total > 0 && i % 4 === 0) {
+          qc.invalidateQueries({ queryKey: ["crm-leads"] });
+        }
+      }
+      return total;
+    },
+    onSuccess: (total: number) => {
+      toast.success(t.recomputed(total));
       qc.invalidateQueries({ queryKey: ["crm-leads"] });
     },
     onError: (e: Error) => toast.error(e.message),

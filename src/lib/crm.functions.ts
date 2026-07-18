@@ -3,7 +3,9 @@
 // as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
+import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { z } from "zod";
 async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   const enc = new TextEncoder();
@@ -775,8 +777,10 @@ const rpcOf = (context: unknown): RpcFn =>
     (context as { supabase: { rpc: RpcFn } }).supabase,
   );
 
+// Scoring to konfiguracja/akcje sztabowe - wymuszamy requireStaff (rola +
+// step-up MFA) obok backstopu w RPC/RLS (dwie niezależne warstwy, doktryna repo).
 export const getCrmScoringSettings = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .handler(async ({ context }) => {
     // RLS: staff czyta wiersz swojego tenanta; brak wiersza = domyślne.
     const { data: row, error } = await tbl(context, "crm_scoring_settings")
@@ -787,7 +791,7 @@ export const getCrmScoringSettings = createServerFn({ method: "GET" })
   });
 
 export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => ScoringSettingsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -802,22 +806,36 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
     const tenantId = (tenantRow as { tenant_id: string } | null)?.tenant_id;
     if (!tenantId) throw new Error("no_tenant");
 
+    // Normalizacja nadpisań wag do PEŁNYCH obiektów {points, cap}: SQL scala
+    // wagi płytkim `jsonb ||`, więc częściowy override (np. samo `points`)
+    // wyzerowałby `cap` do NULL → sygnał bez sufitu. Domykamy inwariant na
+    // zapisie, niezależnie od klienta.
+    const weights: Record<string, { points: number; cap: number }> = {};
+    for (const [key, w] of Object.entries(data.weights)) {
+      const base = DEFAULT_SCORING_WEIGHTS[key as keyof typeof DEFAULT_SCORING_WEIGHTS];
+      weights[key] = {
+        points: w?.points ?? base?.points ?? 0,
+        cap: w?.cap ?? base?.cap ?? 0,
+      };
+    }
+    const payload = { ...data, weights };
+
     const { data: existing } = await tbl(context, "crm_scoring_settings")
       .select("tenant_id")
       .maybeSingle();
     const res = existing
       ? await (tbl(context, "crm_scoring_settings")
-          .update(data)
+          .update(payload)
           .eq("tenant_id", tenantId) as unknown as Promise<{
           error: { message: string } | null;
         }>)
-      : await tbl(context, "crm_scoring_settings").insert({ ...data, tenant_id: tenantId });
+      : await tbl(context, "crm_scoring_settings").insert({ ...payload, tenant_id: tenantId });
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
 
 export const recomputeLeadScore = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const rpc = rpcOf(context);
@@ -829,17 +847,30 @@ export const recomputeLeadScore = createServerFn({ method: "POST" })
   });
 
 const RecomputeAllInput = z.object({
-  limit: z.number().int().min(1).max(5000).default(1000),
+  // Rozmiar porcji; klient pętli po kursorze `after_id` aż done=true.
+  limit: z.number().int().min(1).max(1000).default(500),
+  after_id: z.string().uuid().nullable().optional(),
 });
 
 export const recomputeAllLeadScores = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => RecomputeAllInput.parse(d))
-  .handler(async ({ data, context }) => {
-    const rpc = rpcOf(context);
-    const { data: processed, error } = await rpc("recompute_crm_lead_scores", {
-      p_limit: data.limit,
-    });
-    if (error) throw new Error(error.message);
-    return { processed: Number(processed ?? 0) };
-  });
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ processed: number; lastId: string | null; done: boolean }> => {
+      const rpc = rpcOf(context);
+      const { data: result, error } = await rpc("recompute_crm_lead_scores", {
+        p_limit: data.limit,
+        p_after_id: data.after_id ?? null,
+      });
+      if (error) throw new Error(error.message);
+      const r = (result ?? {}) as { processed?: number; last_id?: string | null; done?: boolean };
+      return {
+        processed: Number(r.processed ?? 0),
+        lastId: r.last_id ?? null,
+        done: r.done ?? true,
+      };
+    },
+  );

@@ -9,7 +9,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(9);
+SELECT plan(11);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -119,6 +119,31 @@ SELECT ok(
       AND e->>'key' = 'email_click'
   ),
   'email click recomputes lead and records the email_click signal'
+);
+
+-- ── 3b. Komentarze: spam/deleted NIE liczą się, approved/pending liczą ───────
+SELECT score INTO TEMP score_before_comment
+  FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
+INSERT INTO public.comments (tenant_id, user_id, status) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'spam'),
+  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'deleted');
+SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
+SELECT is(
+  (SELECT score FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333'),
+  (SELECT score FROM score_before_comment),
+  'spam/deleted comments do NOT contribute to the score'
+);
+INSERT INTO public.comments (tenant_id, user_id, status) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'approved');
+SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM public.crm_leads,
+      jsonb_array_elements(score_breakdown) e
+    WHERE id = 'cc333333-3333-3333-3333-333333333333'
+      AND e->>'key' = 'comment'
+  ),
+  'approved comment contributes the comment signal'
 );
 
 -- ── 4. RLS crm_scoring_settings: tenant isolation ────────────────────────────

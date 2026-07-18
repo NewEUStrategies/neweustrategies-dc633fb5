@@ -150,7 +150,11 @@ function CampaignEditor() {
           html_pl: state.html_pl,
           html_en: state.html_en,
           editor: state.editor,
-          content_doc: state.editor === "doc" ? state.content_doc : null,
+          // Zawsze utrwalamy oba silniki (wzorzec posts: blocks_data +
+          // builder_data współistnieją); `editor` decyduje, który jest
+          // autorytatywny przy wysyłce. Dzięki temu przełączenie doc↔html
+          // i zapis NIE kasuje pracy w drugim silniku.
+          content_doc: state.content_doc,
           from_name: state.from_name || null,
           from_email: state.from_email || null,
           reply_to: state.reply_to || null,

@@ -381,6 +381,9 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
       rawHtml = renderEmailHtml(doc, data.language, {
         postsByBlock: postRefsForLang(rows, origin, data.language),
       });
+      // Pusty dokument w wybranym języku - nie wysyłamy pustej wiadomości
+      // testowej (czytelny błąd zamiast "wysłano" z pustą treścią).
+      if (!rawHtml) throw new Error("missing_content_for_language");
     }
     const html = renderCampaignHtml(
       rawHtml,
@@ -657,9 +660,17 @@ async function runCampaignSend(
     if (camp.editor === "doc") {
       const doc = parseEmailDoc(camp.content_doc);
       if (!doc) throw new Error("invalid_content_doc");
+      // Bez absolutnego origin blok "najnowsze wpisy" dałby względne (martwe)
+      // linki, a stopka "Wypisz się" i tak nie zostałaby doklejona - nie
+      // wysyłamy niezgodnych z RFC-8058 maili, tylko zatrzymujemy kampanię
+      // (markFailed w catch) z czytelnym błędem operacyjnym.
+      if (!origin) throw new Error("missing_site_origin");
       const rows = await fetchEmailDocPostRows(admin as unknown as EmailDocDbClient, tenantId, doc);
       docHtmlPl = renderEmailHtml(doc, "pl", { postsByBlock: postRefsForLang(rows, origin, "pl") });
       docHtmlEn = renderEmailHtml(doc, "en", { postsByBlock: postRefsForLang(rows, origin, "en") });
+      // Pusty render w OBU językach = brak treści do wysłania (inaczej kampania
+      // skończyłaby jako "sent" z zerem maili). Zatrzymujemy z jasnym błędem.
+      if (!docHtmlPl && !docHtmlEn) throw new Error("empty_content_doc");
     }
 
     for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -914,6 +925,11 @@ export const resolveCampaignDocPosts = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ doc: z.unknown() }).parse(data))
   .handler(async ({ data, context }): Promise<{ json: string }> => {
     const tenantId = await getTenantId(context);
+    // Ten sam limit rozmiaru co przy zapisie (upsertCampaign) - podgląd nie
+    // powinien być tańszym wektorem na ogromny payload.
+    if (data.doc != null && JSON.stringify(data.doc).length > 300_000) {
+      throw new Error("doc_too_large");
+    }
     const doc = parseEmailDoc(data.doc);
     if (!doc) return { json: JSON.stringify({}) };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

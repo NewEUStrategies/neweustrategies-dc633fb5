@@ -44,6 +44,7 @@ import {
   type EmailBlock,
   type EmailBlockType,
   type EmailDoc,
+  type EmailPostListBlock,
 } from "@/lib/newsletter/emailDoc";
 import { renderEmailHtml, type EmailPostRef } from "@/lib/newsletter/renderEmailHtml";
 import { postRefsForLang, type EmailPostRow } from "@/lib/newsletter/emailDocResolve";
@@ -65,6 +66,16 @@ const PALETTE: { type: EmailBlockType; icon: typeof Heading; pl: string; en: str
 function blockLabel(type: EmailBlockType, isPl: boolean): string {
   const item = PALETTE.find((p) => p.type === type);
   return item ? (isPl ? item.pl : item.en) : type;
+}
+
+/** Zwraca wartość opóźnioną o `delay` ms - stabilizuje kosztowny podgląd. */
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handle = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handle);
+  }, [value, delay]);
+  return debounced;
 }
 
 export function CampaignContentBuilder({
@@ -106,7 +117,12 @@ export function CampaignContentBuilder({
     const idx = doc.blocks.findIndex((b) => b.id === id);
     if (idx < 0) return;
     const source = doc.blocks[idx];
-    const copy = { ...structuredClone(source), id: createEmailBlock(source.type).id };
+    // EmailBlock to czysty JSON - klon przez round-trip (bez zależności od
+    // structuredClone, nieużywanego nigdzie indziej w repo).
+    const copy = {
+      ...(JSON.parse(JSON.stringify(source)) as EmailBlock),
+      id: createEmailBlock(source.type).id,
+    };
     const next = [...doc.blocks];
     next.splice(idx + 1, 0, copy);
     setBlocks(next);
@@ -289,16 +305,34 @@ function CampaignPreview({ doc, lang, isPl }: { doc: EmailDoc; lang: "pl" | "en"
     if (typeof window !== "undefined") setOrigin(window.location.origin);
   }, []);
 
+  // Debounce dokumentu zasilającego podgląd: przepisywanie srcDoc iframe przy
+  // każdym naciśnięciu klawisza migotałoby i marnowało pracę. 300 ms daje
+  // płynne pisanie i szybki podgląd po pauzie.
+  const debouncedDoc = useDebouncedValue(doc, 300);
+
   // Rozwiąż bloki "najnowsze wpisy" na wpisy - tym samym kodem co wysyłka.
-  const hasPostList = doc.blocks.some((b) => b.type === "post-list");
+  // Klucz zapytania obejmuje TYLKO pola wpływające na dobór wpisów (mode,
+  // count, kategoria, ręczne id), więc edycja nagłówka sekcji czy układu nie
+  // powoduje ponownego pobrania z serwera.
+  const postListKey = useMemo(
+    () =>
+      debouncedDoc.blocks
+        .filter((b): b is EmailPostListBlock => b.type === "post-list")
+        .map((b) => ({
+          id: b.id,
+          mode: b.mode,
+          count: b.count,
+          categorySlug: b.categorySlug,
+          postIds: b.postIds,
+        })),
+    [debouncedDoc],
+  );
+  const hasPostList = postListKey.length > 0;
   const postsQ = useQuery({
-    queryKey: [
-      "campaign-doc-posts",
-      JSON.stringify(doc.blocks.filter((b) => b.type === "post-list")),
-    ],
+    queryKey: ["campaign-doc-posts", JSON.stringify(postListKey)],
     enabled: hasPostList,
     queryFn: async () => {
-      const r = await resolve({ data: { doc } });
+      const r = await resolve({ data: { doc: debouncedDoc } });
       return JSON.parse((r as { json: string }).json) as Record<string, EmailPostRow[]>;
     },
   });
@@ -310,8 +344,8 @@ function CampaignPreview({ doc, lang, isPl }: { doc: EmailDoc; lang: "pl" | "en"
       origin || "https://example.com",
       lang,
     );
-    return renderEmailHtml(doc, lang, { postsByBlock });
-  }, [doc, lang, postsQ.data, origin]);
+    return renderEmailHtml(debouncedDoc, lang, { postsByBlock });
+  }, [debouncedDoc, lang, postsQ.data, origin]);
 
   return (
     <div className="rounded-md border bg-[#f3f4f6] p-3 overflow-x-auto">

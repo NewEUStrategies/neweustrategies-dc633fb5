@@ -464,7 +464,13 @@ szynę zdarzeń i tabele modułów.
   na `crm_leads` jest kolumnowo zawężony do pól fit/tożsamości, a `compute`
   pisze wyłącznie kolumny `score_*` → brak rekursji.
 - **RPC panelu:** `recompute_crm_lead_score` (pojedynczy, guard `is_staff` +
-  tenant) i `recompute_crm_lead_scores` (hurtowo po zmianie wag). pgTAP:
+  tenant) i `recompute_crm_lead_scores` (hurtowo po zmianie wag) - to drugie
+  **porcjami z kursorem po `id`** (zwraca `{processed,last_id,done}`), a klient
+  pętli aż `done`: żaden pojedynczy statement nie przekracza timeoutu i obsługa
+  obejmuje tenantów z >5000 leadów. Powiązanie lead→konto idzie przez
+  `profiles` zawężone do tenanta (indeks `idx_profiles_tenant_email_ci`), nie
+  globalne `auth.users`. Server-fn scoringu używają `requireStaff` (rola +
+  step-up MFA) obok backstopu RPC/RLS. pgTAP:
   `supabase/tests/crm_lead_scoring_test.sql`; TS: `src/lib/crm/__tests__/scoring.test.ts`.
 
 ## 8. Kreator treści kampanii newslettera (EmailDoc)
@@ -477,8 +483,12 @@ posty/strony.
   (jsonb, migracja `20260718131000`). `editor='html'` renderuje legacy
   `html_pl/html_en` (pełna kompatybilność wstecz); `editor='doc'` renderuje
   `content_doc` (model `EmailDoc v1`, `src/lib/newsletter/emailDoc.ts`). Nowe
-  kampanie startują jako `doc`, istniejące zostają na `html` - nic nie ginie,
-  przełącznik silnika w edytorze niczego nie kasuje.
+  kampanie startują jako `doc`, istniejące zostają na `html`. Zapis utrwala
+  **obie** kolumny niezależnie od `editor` (jak `blocks_data` + `builder_data`
+  w postach), więc przełączanie doc↔html i zapis nigdy nie kasuje pracy w
+  drugim silniku. Wysyłka `doc` przerywa się (markFailed) zamiast wysyłać maile
+  bez absolutnego origin (zepsute linki / brak wypisu RFC-8058) lub z pustym
+  renderem w obu językach.
 - **Bloki** (liniowa lista, e-mail-safe): `heading`, `paragraph`, `image`,
   `button`, `divider`, `spacer`, `quote`, `post-list` (najnowsze/ręcznie
   wybrane wpisy), `footer-note`. Teksty dwujęzyczne (`{pl,en}`) - jeden dokument

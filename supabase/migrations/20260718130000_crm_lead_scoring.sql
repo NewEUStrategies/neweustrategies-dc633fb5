@@ -187,6 +187,9 @@ CREATE INDEX IF NOT EXISTS idx_comments_user_created
   ON public.comments (user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_newsletter_subscribers_email_ci_tenant
   ON public.newsletter_subscribers (tenant_id, lower(email));
+-- Powiązanie lead -> konto po e-mailu w obrębie tenanta (compute_crm_lead_score).
+CREATE INDEX IF NOT EXISTS idx_profiles_tenant_email_ci
+  ON public.profiles (tenant_id, lower(email));
 
 -- ----------------------------------------------------------------------------
 -- 5) Rdzeń: compute_crm_lead_score(lead_id)
@@ -232,9 +235,14 @@ BEGIN
   END IF;
 
   -- Konto powiązane po e-mailu (dla sygnałów user_id); brak konta = NULL.
-  SELECT u.id INTO v_user
-    FROM auth.users u
-   WHERE lower(u.email) = l.email_norm
+  -- Szukamy przez public.profiles zawężone do TENANTA leada, nie przez globalne
+  -- auth.users: (1) tenant-lokalność jest poprawna (sygnały i tak filtrujemy po
+  -- tenant_id), (2) indeks profiles(tenant_id, lower(email)) zamienia skan
+  -- globalnej auth.users na tani lookup.
+  SELECT p.id INTO v_user
+    FROM public.profiles p
+   WHERE p.tenant_id = l.tenant_id
+     AND lower(p.email) = l.email_norm
    LIMIT 1;
 
   -- --- email_open -----------------------------------------------------------
@@ -333,7 +341,10 @@ BEGIN
       FROM public.comments c
      WHERE c.tenant_id = l.tenant_id
        AND c.user_id = v_user
-       AND c.status <> 'rejected'
+       -- Tylko realne zaangażowanie: opublikowane i oczekujące na moderację.
+       -- comments.status CHECK = ('pending','approved','spam','deleted') -
+       -- spam/deleted NIE liczą się do wyniku.
+       AND c.status IN ('approved', 'pending')
        AND c.created_at >= now() - v_horizon;
     v_pts := LEAST(v_decayed * (w->'comment'->>'points')::numeric,
                    (w->'comment'->>'cap')::numeric);
@@ -485,38 +496,59 @@ REVOKE ALL ON FUNCTION public.recompute_crm_lead_score(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.recompute_crm_lead_score(uuid) TO authenticated, service_role;
 
 -- Hurtowe przeliczenie tenanta wywołującego (po zmianie wag / backfill).
--- Zwraca liczbę przetworzonych leadów; limit chroni przed timeoutem.
-CREATE OR REPLACE FUNCTION public.recompute_crm_lead_scores(p_limit integer DEFAULT 1000)
-RETURNS integer
+-- Przetwarzanie PORCJAMI z kursorem po `id` (stabilny), by:
+--   * nie przekroczyć statement_timeout (compute to ~9 zapytań/lead - duża
+--     baza w jednym wywołaniu padłaby timeoutem i cofnęła CAŁOŚĆ),
+--   * objąć również tenantów z >5000 leadów (klient pętli po `after_id`).
+-- Zwraca {processed, last_id, done}; klient woła w pętli aż done=true.
+CREATE OR REPLACE FUNCTION public.recompute_crm_lead_scores(
+  p_limit integer DEFAULT 500,
+  p_after_id uuid DEFAULT NULL
+)
+RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
 DECLARE
   v_tenant uuid;
+  v_batch integer := LEAST(GREATEST(COALESCE(p_limit, 500), 1), 1000);
   v_processed integer := 0;
+  v_last uuid := p_after_id;
   r record;
 BEGIN
   IF NOT public.is_staff() THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
   v_tenant := public.current_tenant_id();
-  IF v_tenant IS NULL THEN RETURN 0; END IF;
+  IF v_tenant IS NULL THEN
+    RETURN jsonb_build_object('processed', 0, 'last_id', NULL, 'done', true);
+  END IF;
   FOR r IN
     SELECT id FROM public.crm_leads
      WHERE tenant_id = v_tenant
-     ORDER BY last_activity_at DESC
-     LIMIT LEAST(GREATEST(COALESCE(p_limit, 1000), 1), 5000)
+       AND (p_after_id IS NULL OR id > p_after_id)
+     ORDER BY id
+     LIMIT v_batch
   LOOP
     PERFORM public.compute_crm_lead_score(r.id);
     v_processed := v_processed + 1;
+    v_last := r.id;
   END LOOP;
-  RETURN v_processed;
+  RETURN jsonb_build_object(
+    'processed', v_processed,
+    'last_id', v_last,
+    -- Mniej niż pełna porcja = koniec zbioru.
+    'done', v_processed < v_batch
+  );
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.recompute_crm_lead_scores(integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.recompute_crm_lead_scores(integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.recompute_crm_lead_scores(integer, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.recompute_crm_lead_scores(integer, uuid) TO authenticated, service_role;
+-- Kursor stabilny wymaga indeksu (tenant_id, id) - PK id + filtr tenant.
+CREATE INDEX IF NOT EXISTS idx_crm_leads_tenant_id_cursor
+  ON public.crm_leads (tenant_id, id);
 
 -- ----------------------------------------------------------------------------
 -- 7) Triggery sygnałowe (AFTER, połykają błędy - nie psują zapisu źródła)
