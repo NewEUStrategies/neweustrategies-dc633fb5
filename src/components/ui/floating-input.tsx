@@ -53,7 +53,6 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
         />
         <label htmlFor={inputId} className="user-label">
           {label}
-          {required ? <span aria-hidden> *</span> : null}
         </label>
         {error ? (
           <p
@@ -103,10 +102,9 @@ export const FloatingTextarea = React.forwardRef<
         aria-describedby={errorId}
         className={cn("input", className)}
       />
-      <label htmlFor={inputId} className="user-label">
-        {label}
-        {required ? <span aria-hidden> *</span> : null}
-      </label>
+        <label htmlFor={inputId} className="user-label">
+          {label}
+        </label>
       {error ? (
         <p id={errorId} className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
           {error}
