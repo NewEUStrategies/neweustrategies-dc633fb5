@@ -280,32 +280,30 @@ function Editor({
           <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
         </TabsList>
         <TabsContent value="pl" className="space-y-3 mt-4">
-          <div>
-            <Label>Tytuł</Label>
-            <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
-          </div>
-          <div>
-            <Label>Opis</Label>
-            <Textarea
-              rows={2}
-              value={d.description_pl}
-              onChange={(e) => upd({ description_pl: e.target.value })}
-            />
-          </div>
+          <FloatingInput
+            label="Tytuł"
+            value={d.title_pl}
+            onChange={(e) => upd({ title_pl: e.target.value })}
+          />
+          <FloatingTextarea
+            label="Opis"
+            rows={2}
+            value={d.description_pl}
+            onChange={(e) => upd({ description_pl: e.target.value })}
+          />
         </TabsContent>
         <TabsContent value="en" className="space-y-3 mt-4">
-          <div>
-            <Label>Title</Label>
-            <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
-          </div>
-          <div>
-            <Label>Description</Label>
-            <Textarea
-              rows={2}
-              value={d.description_en}
-              onChange={(e) => upd({ description_en: e.target.value })}
-            />
-          </div>
+          <FloatingInput
+            label="Title"
+            value={d.title_en}
+            onChange={(e) => upd({ title_en: e.target.value })}
+          />
+          <FloatingTextarea
+            label="Description"
+            rows={2}
+            value={d.description_en}
+            onChange={(e) => upd({ description_en: e.target.value })}
+          />
         </TabsContent>
       </Tabs>
 
