@@ -250,14 +250,12 @@ function Editor({
   return (
     <section className="bg-card border border-border rounded-lg p-5 space-y-5">
       <div className="grid sm:grid-cols-3 gap-3">
-        <div>
-          <Label>Slug</Label>
-          <Input
-            value={d.slug}
-            onChange={(e) => upd({ slug: e.target.value })}
-            placeholder="moja-historia"
-          />
-        </div>
+        <FloatingInput
+          label="Slug"
+          value={d.slug}
+          onChange={(e) => upd({ slug: e.target.value })}
+          placeholder="moja-historia"
+        />
         <div>
           <Label>Status</Label>
           <select
@@ -270,13 +268,11 @@ function Editor({
             <option value="archived">Archiwum</option>
           </select>
         </div>
-        <div>
-          <Label>Okładka (URL)</Label>
-          <Input
-            value={d.cover_url ?? ""}
-            onChange={(e) => upd({ cover_url: e.target.value || null })}
-          />
-        </div>
+        <FloatingInput
+          label="Okładka (URL)"
+          value={d.cover_url ?? ""}
+          onChange={(e) => upd({ cover_url: e.target.value || null })}
+        />
       </div>
 
       <Tabs defaultValue="pl">
