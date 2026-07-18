@@ -26,7 +26,12 @@ import {
   Phone,
   Heart,
   Crown,
+  UserPlus,
+  MessageCircle,
+  Flag,
+  BellPlus,
 } from "lucide-react";
+
 import { useAuth } from "@/hooks/useAuth";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 
