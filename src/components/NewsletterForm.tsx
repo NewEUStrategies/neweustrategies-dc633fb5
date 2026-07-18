@@ -399,7 +399,6 @@ export function NewsletterForm({
 
 function FieldWrap({
   label,
-  required,
   showMark: _showMark,
   error,
   children,
