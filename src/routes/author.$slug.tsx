@@ -16,6 +16,7 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AuthorCvSections } from "@/components/author/AuthorCvSections";
+import { RecommendationsSection } from "@/components/network/RecommendationsSection";
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
