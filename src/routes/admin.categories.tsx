@@ -8,6 +8,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FloatingInput } from "@/components/ui/floating-input";
 import {
   Dialog,
   DialogContent,
@@ -230,20 +231,16 @@ function Categories() {
               <DialogTitle>{editing ? t("admin.edit") : t("admin.new")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <div>
-                <Label>Nazwa (PL)</Label>
-                <Input
-                  value={form.name_pl}
-                  onChange={(e) => setForm({ ...form, name_pl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Name (EN)</Label>
-                <Input
-                  value={form.name_en}
-                  onChange={(e) => setForm({ ...form, name_en: e.target.value })}
-                />
-              </div>
+              <FloatingInput
+                label="Nazwa (PL)"
+                value={form.name_pl}
+                onChange={(e) => setForm({ ...form, name_pl: e.target.value })}
+              />
+              <FloatingInput
+                label="Name (EN)"
+                value={form.name_en}
+                onChange={(e) => setForm({ ...form, name_en: e.target.value })}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Wymiar</Label>
@@ -289,28 +286,21 @@ function Categories() {
                   </Select>
                 </div>
               </div>
-              <div>
-                <Label>Slug</Label>
-                <Input
-                  value={form.slug}
-                  onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                  placeholder="auto"
-                />
-              </div>
-              <div>
-                <Label>Opis (PL)</Label>
-                <Input
-                  value={form.description_pl}
-                  onChange={(e) => setForm({ ...form, description_pl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Description (EN)</Label>
-                <Input
-                  value={form.description_en}
-                  onChange={(e) => setForm({ ...form, description_en: e.target.value })}
-                />
-              </div>
+              <FloatingInput
+                label="Slug (auto)"
+                value={form.slug}
+                onChange={(e) => setForm({ ...form, slug: e.target.value })}
+              />
+              <FloatingInput
+                label="Opis (PL)"
+                value={form.description_pl}
+                onChange={(e) => setForm({ ...form, description_pl: e.target.value })}
+              />
+              <FloatingInput
+                label="Description (EN)"
+                value={form.description_en}
+                onChange={(e) => setForm({ ...form, description_en: e.target.value })}
+              />
             </div>
             <DialogFooter>
               <Button onClick={save}>{t("admin.save")}</Button>
