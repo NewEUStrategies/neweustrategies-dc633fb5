@@ -570,54 +570,40 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="space-y-1.5">
-            <Label htmlFor="rs-password" className="text-sm">
-              {L.password}
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="rs-password"
-                type={showPw ? "text" : "password"}
-                autoComplete="new-password"
-                required
-                minLength={minLength}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("authForms.passwordPlaceholderMin", { minLength })}
-                className="auth-icon-input auth-icon-input-with-action"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
-                aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
-              >
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+          <div className="relative">
+            <FloatingInput
+              id="rs-password"
+              type={showPw ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              minLength={minLength}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              label={L.password}
+              className="pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2 top-[calc(50%-2px)] -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label={showPw ? t("authForms.hidePassword") : t("authForms.showPassword")}
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           {data.showConfirmPassword !== false && (
-            <div className="space-y-1.5">
-              <Label htmlFor="rs-confirm" className="text-sm">
-                {L.confirm}
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  id="rs-confirm"
-                  type={showPw ? "text" : "password"}
-                  autoComplete="new-password"
-                  required
-                  minLength={minLength}
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  placeholder={t("authForms.confirmPlaceholder")}
-                  className="auth-icon-input"
-                />
-              </div>
-            </div>
+            <FloatingInput
+              id="rs-confirm"
+              type={showPw ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              minLength={minLength}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              label={L.confirm}
+            />
           )}
+
 
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
