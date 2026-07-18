@@ -285,24 +285,23 @@ function CampaignEditor() {
               <CardTitle className="text-base">{isPl ? "Ustawienia" : "Settings"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <FloatingInput
+                label={isPl ? "Nazwa (wewnętrzna)" : "Name (internal)"}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                disabled={readonly}
+              />
               <div>
-                <Label>{isPl ? "Nazwa (wewnętrzna)" : "Name (internal)"}</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  disabled={readonly}
-                />
-              </div>
-              <div>
-                <Label>{isPl ? "Zaplanuj wysyłkę" : "Schedule send"}</Label>
                 <div className="flex items-center gap-2">
-                  <Input
-                    type="datetime-local"
-                    value={form.scheduled_at_local}
-                    onChange={(e) => setForm({ ...form, scheduled_at_local: e.target.value })}
-                    disabled={readonly}
-                    className="max-w-[240px]"
-                  />
+                  <div className="flex-1 max-w-[280px]">
+                    <FloatingInput
+                      label={isPl ? "Zaplanuj wysyłkę" : "Schedule send"}
+                      type="datetime-local"
+                      value={form.scheduled_at_local}
+                      onChange={(e) => setForm({ ...form, scheduled_at_local: e.target.value })}
+                      disabled={readonly}
+                    />
+                  </div>
                   {form.scheduled_at_local && (
                     <Button
                       type="button"
@@ -322,35 +321,28 @@ function CampaignEditor() {
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <Label>{isPl ? "Nadawca (nazwa)" : "From name"}</Label>
-                  <Input
-                    value={form.from_name}
-                    onChange={(e) => setForm({ ...form, from_name: e.target.value })}
-                    disabled={readonly}
-                    placeholder="New European Strategies"
-                  />
-                </div>
-                <div>
-                  <Label>{isPl ? "Nadawca (e-mail)" : "From email"}</Label>
-                  <Input
-                    type="email"
-                    value={form.from_email}
-                    onChange={(e) => setForm({ ...form, from_email: e.target.value })}
-                    disabled={readonly}
-                    placeholder="hello@example.com"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>{isPl ? "Reply-To" : "Reply-To"}</Label>
-                <Input
+                <FloatingInput
+                  label={isPl ? "Nadawca (nazwa)" : "From name"}
+                  value={form.from_name}
+                  onChange={(e) => setForm({ ...form, from_name: e.target.value })}
+                  disabled={readonly}
+                />
+                <FloatingInput
+                  label={isPl ? "Nadawca (e-mail)" : "From email"}
                   type="email"
-                  value={form.reply_to}
-                  onChange={(e) => setForm({ ...form, reply_to: e.target.value })}
+                  value={form.from_email}
+                  onChange={(e) => setForm({ ...form, from_email: e.target.value })}
                   disabled={readonly}
                 />
               </div>
+              <FloatingInput
+                label="Reply-To"
+                type="email"
+                value={form.reply_to}
+                onChange={(e) => setForm({ ...form, reply_to: e.target.value })}
+                disabled={readonly}
+              />
+
             </CardContent>
           </Card>
 
