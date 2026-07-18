@@ -57,7 +57,6 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
-import { useEffect } from "react";
 
 import { promptDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/profile/")({
