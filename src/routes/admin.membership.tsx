@@ -793,14 +793,16 @@ function NewTierDialog({
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Nazwa PL</Label>
-              <Input value={namePl} onChange={(e) => setNamePl(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs">Name EN</Label>
-              <Input value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
-            </div>
+            <FloatingInput
+              label="Nazwa PL"
+              value={namePl}
+              onChange={(e) => setNamePl(e.target.value)}
+            />
+            <FloatingInput
+              label="Name EN"
+              value={nameEn}
+              onChange={(e) => setNameEn(e.target.value)}
+            />
           </div>
         </div>
         <DialogFooter>
