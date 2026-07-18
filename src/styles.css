@@ -2845,8 +2845,8 @@ textarea::placeholder {
 .nl-shell :where(input, select, textarea)::placeholder,
 .auth-shell :where(input, select, textarea)::placeholder,
 .join-us-shell :where(input, select, textarea)::placeholder {
-  font-size: var(--gc-input-font-size, 14px);
-  color: var(--gc-input-placeholder, oklch(0.62 0 0));
+  font-size: 0.8125rem;
+  color: var(--gc-input-placeholder, oklch(0.72 0 0));
   opacity: 1;
 }
 .dark .cf-shell :where(input, select, textarea)::placeholder,
@@ -2855,7 +2855,7 @@ textarea::placeholder {
 .dark .nl-shell :where(input, select, textarea)::placeholder,
 .dark .auth-shell :where(input, select, textarea)::placeholder,
 .dark .join-us-shell :where(input, select, textarea)::placeholder {
-  color: var(--gc-input-placeholder-dark, oklch(0.58 0 0));
+  color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
 }
 
 /* Platform-wide icon-input padding. Applies to every field that has a leading
@@ -3449,8 +3449,9 @@ input.icon-input-with-action {
 }
 .light input::placeholder,
 .light textarea::placeholder {
-  color: oklch(0.62 0 0) !important;
+  color: oklch(0.72 0 0) !important;
   opacity: 1 !important;
+  font-size: 0.8125rem;
 }
 .light .cf-shell .cf-input {
   background: var(--gc-input-bg, var(--background));
@@ -3481,7 +3482,7 @@ input.icon-input-with-action {
 .light .nl-shell :where(input, select, textarea)::placeholder,
 .light .auth-shell :where(input, select, textarea)::placeholder,
 .light .join-us-shell :where(input, select, textarea)::placeholder {
-  color: var(--gc-input-placeholder, oklch(0.62 0 0));
+  color: var(--gc-input-placeholder, oklch(0.72 0 0));
 }
 .light
   :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
