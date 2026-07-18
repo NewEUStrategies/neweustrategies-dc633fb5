@@ -2,7 +2,7 @@ import { XIcon } from "@/components/atoms/XIcon";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Eye,
   Pencil,
@@ -56,6 +56,7 @@ import { htmlToPlainText } from "@/lib/sanitize";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
+import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
 
 import { promptDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/profile/")({
@@ -71,6 +72,14 @@ function ProfileInline() {
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
   const [tab, setTab] = useState<TabKey>("about");
+
+  // Propaguj tryb podglądu gościa do layoutu /profile (ukrywa sidebar) i
+  // sprzątaj przy odmontowaniu, żeby powrót na /profile/* nie zostawiał
+  // fantomowego stanu "guest".
+  useEffect(() => {
+    setGuestPreview(previewAsGuest);
+    return () => setGuestPreview(false);
+  }, [previewAsGuest]);
 
   const fullName =
     [data.first_name, data.last_name].filter(Boolean).join(" ") ||
