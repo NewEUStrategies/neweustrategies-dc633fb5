@@ -101,8 +101,8 @@
   --gc-input-font-size: 14px; /* unified input/select/textarea text size */
   --gc-input-line-height: 1.4;
   --gc-input-text: var(--foreground);
-  --gc-input-placeholder: oklch(0.62 0 0);
-  --gc-input-placeholder-dark: oklch(0.58 0 0);
+  --gc-input-placeholder: oklch(0.72 0 0);
+  --gc-input-placeholder-dark: oklch(0.65 0 0);
 
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.18 0 0);
@@ -4614,7 +4614,8 @@ textarea::placeholder {
   cursor: not-allowed;
 }
 .input::placeholder {
-  color: var(--muted-foreground);
+  color: var(--gc-input-placeholder, var(--muted-foreground));
+  font-size: 0.8125rem;
 }
 textarea.input {
   min-height: 3.75rem;
