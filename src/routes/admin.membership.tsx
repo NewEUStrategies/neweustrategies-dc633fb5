@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -549,10 +550,11 @@ function GrantsSection({
           {lang === "pl" ? "Nadaj" : "Grant"}
         </Button>
         <div className="sm:col-span-4">
-          <Label className="text-xs">
-            {lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
-          </Label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} />
+          <FloatingInput
+            label={lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </div>
       </div>
 
@@ -791,14 +793,16 @@ function NewTierDialog({
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Nazwa PL</Label>
-              <Input value={namePl} onChange={(e) => setNamePl(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs">Name EN</Label>
-              <Input value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
-            </div>
+            <FloatingInput
+              label="Nazwa PL"
+              value={namePl}
+              onChange={(e) => setNamePl(e.target.value)}
+            />
+            <FloatingInput
+              label="Name EN"
+              value={nameEn}
+              onChange={(e) => setNameEn(e.target.value)}
+            />
           </div>
         </div>
         <DialogFooter>
