@@ -4475,13 +4475,13 @@ textarea::placeholder {
 }
 .input-group > .input {
   width: 100%;
-  border: 1.5px solid hsl(var(--border));
+  border: 1.5px solid var(--border);
   border-radius: 0.875rem;
   background: transparent;
   padding: 1rem 0.9rem;
   font-size: 0.95rem;
   line-height: 1.25rem;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   transition:
     border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -4498,7 +4498,7 @@ textarea::placeholder {
   position: absolute;
   left: 0.85rem;
   top: 0;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(1rem);
   transform-origin: left top;
@@ -4513,23 +4513,23 @@ textarea::placeholder {
 }
 .input-group > .input:focus,
 .input-group > .input:not(:placeholder-shown) {
-  border-color: hsl(var(--ring));
-  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.15);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent);
 }
 .input-group > .input:focus ~ .user-label,
 .input-group > .input:not(:placeholder-shown) ~ .user-label {
   transform: translateY(-50%) scale(0.8);
-  background-color: hsl(var(--background));
+  background-color: var(--background);
   padding: 0 0.35em;
-  color: hsl(var(--ring));
+  color: var(--ring);
 }
 .input-group[data-invalid="true"] > .input {
-  border-color: hsl(var(--destructive));
-  box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.15);
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
 }
 .input-group[data-invalid="true"] > .input:focus ~ .user-label,
 .input-group[data-invalid="true"] > .input:not(:placeholder-shown) ~ .user-label {
-  color: hsl(var(--destructive));
+  color: var(--destructive);
 }
 .input-group > .input:disabled {
   opacity: 0.6;
