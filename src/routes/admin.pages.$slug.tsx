@@ -579,30 +579,18 @@ function EditPage() {
                 </p>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label>
-                    {t("admin.posts.titleCol")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(PL)</span>
-                  </Label>
-                  <Input
-                    value={form.title_pl}
-                    onChange={(e) => set("title_pl", e.target.value)}
-                    className="text-lg font-display"
-                    placeholder="Tytuł po polsku"
-                  />
-                </div>
-                <div>
-                  <Label>
-                    {t("admin.posts.titleCol")}{" "}
-                    <span className="text-[10px] text-muted-foreground">(EN)</span>
-                  </Label>
-                  <Input
-                    value={form.title_en}
-                    onChange={(e) => set("title_en", e.target.value)}
-                    className="text-lg font-display"
-                    placeholder="Title in English"
-                  />
-                </div>
+                <FloatingInput
+                  label={`${t("admin.posts.titleCol")} (PL)`}
+                  value={form.title_pl}
+                  onChange={(e) => set("title_pl", e.target.value)}
+                  className="text-lg font-display"
+                />
+                <FloatingInput
+                  label={`${t("admin.posts.titleCol")} (EN)`}
+                  value={form.title_en}
+                  onChange={(e) => set("title_en", e.target.value)}
+                  className="text-lg font-display"
+                />
               </div>
 
               <SeoDescriptionField
