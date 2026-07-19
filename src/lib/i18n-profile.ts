@@ -139,6 +139,11 @@ const pl = {
       tooShort: "Hasło musi mieć min. 8 znaków",
       wrongCurrent: "Obecne hasło jest nieprawidłowe.",
       signOut: "Wyloguj",
+      sessions: "Sesje",
+      lastSignIn: "Ostatnie logowanie",
+      signOutOthers: "Wyloguj pozostałe sesje",
+      signedOutOthers: "Wylogowano pozostałe sesje.",
+      exportFailed: "Nie udało się przygotować eksportu. Spróbuj ponownie.",
       email: {
         title: "Adres e-mail",
         subtitle: "Zmiana wymaga potwierdzenia linkiem wysłanym na nowy adres.",
