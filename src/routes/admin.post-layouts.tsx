@@ -13,6 +13,7 @@ import {
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/post-layouts")({ component: Page });
 
