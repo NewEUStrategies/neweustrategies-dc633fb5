@@ -236,6 +236,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
                 }
                 toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
               }}
+              data-reading-icon
               className={[
                 "h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md transition shrink-0",
                 "text-foreground hover:text-brand hover:bg-muted",
