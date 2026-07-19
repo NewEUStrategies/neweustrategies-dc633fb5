@@ -250,7 +250,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             </button>
           )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
-          <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
+          <div data-reading-auth className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (
               <div ref={menuRef} className="relative">
                 <button
