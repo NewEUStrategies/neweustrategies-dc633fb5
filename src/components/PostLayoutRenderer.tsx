@@ -50,6 +50,8 @@ export function PostLayoutRenderer({
   sidebar,
   footer,
   coverViewTransitionId,
+  entityId,
+  entityType = "post",
 }: Props) {
   const preset = findLayout(format, layoutId);
   const hasSidebar = effectiveHasSidebar(preset, settings);
