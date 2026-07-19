@@ -214,6 +214,13 @@ const en = {
       topics: "Topics",
       people: "People & organizations",
     },
+    tab_hints: {
+      all: "Every resource on the platform: analyses, reports, podcasts, interviews, events, and profiles of people and organizations.",
+      titles: "Matched against post title and lead - analyses, reports, interviews, policy papers, and podcast episodes.",
+      types: "Narrow by content format: article, report, policy paper, interview, podcast, event, web story.",
+      topics: "Filter by categories, tags, research programs, and geographic regions.",
+      people: "Authors, experts, speakers, and organizations - with a publication footprint on the platform.",
+    },
     adv: {
       toggle: "Advanced search",
       match_label: "Match",
