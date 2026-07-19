@@ -180,7 +180,7 @@ export function PostLayoutRenderer({
   if (coverImageUrl && preset.cover !== "none") {
     return (
       <>
-        <ReadingHeader title={title} />
+        <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
         {coverWithOverlay()}
         <LayoutBody
           contentMaxW={contentMaxW}
@@ -195,7 +195,7 @@ export function PostLayoutRenderer({
   // Brak cover photo – klasyczny nagłówek nad treścią.
   return (
     <>
-      <ReadingHeader title={title} />
+      <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
       <div>
         {header}
         <LayoutBody
