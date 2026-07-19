@@ -205,7 +205,7 @@ export function MegaPanelView({
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className="h-7 w-7 rounded-full object-cover ring-1 ring-border/60"
+                      className="h-7 w-7 rounded-[6px] object-cover ring-1 ring-border/60"
                     />
                   ) : (
                     <span
