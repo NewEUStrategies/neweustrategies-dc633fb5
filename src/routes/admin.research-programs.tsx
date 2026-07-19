@@ -126,8 +126,10 @@ const EMPTY: Omit<ProgramRow, "id" | "tenant_id"> = {
 };
 
 function AdminResearchPrograms() {
-  const { t: _t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const tp = (k: string) => t(`adminPrograms.${k}`);
+
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
 
@@ -184,15 +186,14 @@ function AdminResearchPrograms() {
 
   const saveProgram = async () => {
     if (!/^[a-z0-9-]{2,80}$/.test(form.slug)) {
-      toast.error(
-        lang === "pl" ? "Slug: małe litery, cyfry i myślniki." : "Slug: lowercase, digits, dashes.",
-      );
+      toast.error(tp("errSlug"));
       return;
     }
     if (!form.name_pl.trim() || !form.name_en.trim()) {
-      toast.error(lang === "pl" ? "Nazwa PL i EN są wymagane." : "PL and EN names required.");
+      toast.error(tp("errNames"));
       return;
     }
+
 
     const payload = {
       ...form,
@@ -210,16 +211,16 @@ function AdminResearchPrograms() {
       toast.error(error.message);
       return;
     }
-    toast.success(lang === "pl" ? "Zapisano." : "Saved.");
+    toast.success(tp("saved"));
     setDialogOpen(false);
     qc.invalidateQueries({ queryKey: ["admin-research-programs"] });
   };
 
   const deleteProgram = async (p: ProgramRow) => {
     const ok = await confirmDialog({
-      title: lang === "pl" ? "Usunąć program?" : "Delete program?",
+      title: tp("deleteConfirm"),
       description: `${p.name_pl} / ${p.name_en}`,
-      confirmLabel: lang === "pl" ? "Usuń" : "Delete",
+      confirmLabel: tp("delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -228,7 +229,8 @@ function AdminResearchPrograms() {
       toast.error(error.message);
       return;
     }
-    toast.success(lang === "pl" ? "Usunięto." : "Deleted.");
+    toast.success(tp("deleted"));
+
     qc.invalidateQueries({ queryKey: ["admin-research-programs"] });
   };
 
@@ -239,20 +241,15 @@ function AdminResearchPrograms() {
     <div className="mx-auto max-w-[1200px] p-4 lg:p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">
-            {lang === "pl" ? "Landing programów badawczych" : "Research program landings"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {lang === "pl"
-              ? "Pełne strony programów (teza, zespół, projekty, partnerzy, kuratorowane treści)."
-              : "Full program landing pages (thesis, team, projects, partners, curated content)."}
-          </p>
+          <h1 className="font-display text-2xl">{tp("title")}</h1>
+          <p className="text-sm text-muted-foreground">{tp("subtitle")}</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          {lang === "pl" ? "Nowy program" : "New program"}
+          {tp("newProgram")}
         </Button>
       </header>
+
 
       {programsQ.isLoading ? (
         <div className="grid gap-2">
@@ -262,7 +259,7 @@ function AdminResearchPrograms() {
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-          {lang === "pl" ? "Brak programów. Utwórz pierwszy." : "No programs yet. Create one."}
+          {tp("empty")}
         </div>
       ) : (
         <ul className="grid gap-2">
@@ -302,7 +299,7 @@ function AdminResearchPrograms() {
               </span>
               <Button variant="ghost" size="sm" onClick={() => setManageFor(p)}>
                 <Users className="mr-1 h-4 w-4" />
-                {lang === "pl" ? "Zawartość" : "Content"}
+                {tp("content")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
                 <Pencil className="h-4 w-4" />
@@ -318,15 +315,8 @@ function AdminResearchPrograms() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editing
-                ? lang === "pl"
-                  ? "Edytuj program"
-                  : "Edit program"
-                : lang === "pl"
-                  ? "Nowy program"
-                  : "New program"}
-            </DialogTitle>
+            <DialogTitle>{editing ? tp("editProgram") : tp("newProgram")}</DialogTitle>
+
           </DialogHeader>
 
           <div className="grid gap-4">
@@ -376,7 +366,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Teza (PL)" : "Tagline (PL)"}</Label>
+                <Label>{tp("field.taglinePl")}</Label>
                 <Textarea
                   rows={2}
                   value={form.tagline_pl ?? ""}
@@ -395,7 +385,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Zakres (PL)" : "Scope (PL)"}</Label>
+                <Label>{tp("field.scopePl")}</Label>
                 <Textarea
                   rows={4}
                   value={form.scope_pl ?? ""}
@@ -420,7 +410,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-3">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Ikona" : "Icon"}</Label>
+                <Label>{tp("field.icon")}</Label>
                 <Select
                   value={form.icon}
                   onValueChange={(v) => setForm((f) => ({ ...f, icon: v }))}
@@ -438,7 +428,7 @@ function AdminResearchPrograms() {
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Kolor akcentu" : "Accent color"}</Label>
+                <Label>{tp("field.accent")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="color"
@@ -453,7 +443,7 @@ function AdminResearchPrograms() {
                 </div>
               </div>
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Kolejność" : "Sort order"}</Label>
+                <Label>{tp("field.sort")}</Label>
                 <Input
                   type="number"
                   value={form.sort_order}
@@ -466,7 +456,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Obraz hero (URL)" : "Hero image (URL)"}</Label>
+                <Label>{tp("field.hero")}</Label>
                 <Input
                   value={form.hero_image_url ?? ""}
                   onChange={(e) =>
@@ -475,7 +465,7 @@ function AdminResearchPrograms() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "E-mail kontaktowy" : "Contact email"}</Label>
+                <Label>{tp("field.contactEmail")}</Label>
                 <Input
                   type="email"
                   value={form.contact_email ?? ""}
@@ -487,11 +477,8 @@ function AdminResearchPrograms() {
             </div>
 
             <div className="grid gap-1.5">
-              <Label>
-                {lang === "pl"
-                  ? "Kategoria treści (do listy najnowszych publikacji)"
-                  : "Content category (for Latest publications)"}
-              </Label>
+              <Label>{tp("field.contentCategory")}</Label>
+
               <Select
                 value={form.category_id ?? "none"}
                 onValueChange={(v) =>
@@ -502,7 +489,7 @@ function AdminResearchPrograms() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">{lang === "pl" ? "Brak" : "None"}</SelectItem>
+                  <SelectItem value="none">{tp("field.none")}</SelectItem>
                   {(categoriesQ.data ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {lang === "pl" ? c.name_pl : c.name_en}{" "}
@@ -516,9 +503,10 @@ function AdminResearchPrograms() {
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>
-              {lang === "pl" ? "Anuluj" : "Cancel"}
+              {tp("cancel")}
             </Button>
-            <Button onClick={saveProgram}>{lang === "pl" ? "Zapisz" : "Save"}</Button>
+            <Button onClick={saveProgram}>{tp("save")}</Button>
+
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -541,6 +529,8 @@ function ResearchQuestionsEditor({
   onChange: (next: { pl: string; en: string }[]) => void;
   lang: "pl" | "en";
 }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const add = () => onChange([...(value ?? []), { pl: "", en: "" }]);
   const update = (i: number, key: "pl" | "en", v: string) => {
     const next = [...value];
@@ -552,26 +542,24 @@ function ResearchQuestionsEditor({
   return (
     <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
       <div className="flex items-center justify-between">
-        <Label>{lang === "pl" ? "Pytania badawcze" : "Research questions"}</Label>
+        <Label>{tp("field.researchQuestions")}</Label>
         <Button size="sm" variant="ghost" onClick={add}>
           <Plus className="mr-1 h-3.5 w-3.5" />
-          {lang === "pl" ? "Dodaj" : "Add"}
+          {tp("add")}
         </Button>
       </div>
       {value.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          {lang === "pl" ? "Brak. Dodaj pierwsze pytanie." : "None. Add the first question."}
-        </p>
+        <p className="text-xs text-muted-foreground">{tp("field.noQuestions")}</p>
       )}
       {value.map((q, i) => (
         <div key={i} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
           <Input
-            placeholder={lang === "pl" ? "Pytanie (PL)" : "Question (PL)"}
+            placeholder={tp("field.questionPl")}
             value={q.pl}
             onChange={(e) => update(i, "pl", e.target.value)}
           />
           <Input
-            placeholder={lang === "pl" ? "Pytanie (EN)" : "Question (EN)"}
+            placeholder={tp("field.questionEn")}
             value={q.en}
             onChange={(e) => update(i, "en", e.target.value)}
           />
@@ -584,6 +572,7 @@ function ResearchQuestionsEditor({
   );
 }
 
+
 /* -------------------- Manage sub-resources (members / projects / partners / items) -------------------- */
 
 function ManageContentDialog({
@@ -595,29 +584,32 @@ function ManageContentDialog({
   onClose: () => void;
   lang: "pl" | "en";
 }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {lang === "pl" ? "Zawartość programu" : "Program content"}: {program.name_pl}
+            {tp("programContent")}: {program.name_pl}
           </DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="members" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="members">
-              <Users className="mr-1 h-4 w-4" /> {lang === "pl" ? "Zespół" : "Team"}
+              <Users className="mr-1 h-4 w-4" /> {tp("tabs.team")}
             </TabsTrigger>
             <TabsTrigger value="projects">
-              <Layers className="mr-1 h-4 w-4" /> {lang === "pl" ? "Projekty" : "Projects"}
+              <Layers className="mr-1 h-4 w-4" /> {tp("tabs.projects")}
             </TabsTrigger>
             <TabsTrigger value="partners">
-              <Handshake className="mr-1 h-4 w-4" /> {lang === "pl" ? "Partnerzy" : "Partners"}
+              <Handshake className="mr-1 h-4 w-4" /> {tp("tabs.partners")}
             </TabsTrigger>
             <TabsTrigger value="items">
-              <Star className="mr-1 h-4 w-4" /> {lang === "pl" ? "Kuratorowane" : "Curated"}
+              <Star className="mr-1 h-4 w-4" /> {tp("tabs.curated")}
             </TabsTrigger>
           </TabsList>
+
           <TabsContent value="members">
             <MembersTab programId={program.id} lang={lang} />
           </TabsContent>
@@ -639,7 +631,10 @@ function ManageContentDialog({
 /* ----- Team members ----- */
 
 function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
+
   const membersQ = useQuery({
     queryKey: ["admin-rp-members", programId],
     queryFn: async (): Promise<MemberRow[]> => {
@@ -748,7 +743,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
         <div className="grid gap-2 md:grid-cols-2">
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger>
-              <SelectValue placeholder={lang === "pl" ? "Wybierz użytkownika" : "Select a user"} />
+              <SelectValue placeholder={tp("members.selectUser")} />
             </SelectTrigger>
             <SelectContent className="max-h-72">
               {available.map((u) => (
@@ -760,24 +755,25 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
           </Select>
           <div className="flex items-center gap-2">
             <Switch checked={isLead} onCheckedChange={setIsLead} id="is-lead" />
-            <Label htmlFor="is-lead">{lang === "pl" ? "Lider" : "Lead"}</Label>
+            <Label htmlFor="is-lead">{tp("members.lead")}</Label>
           </div>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           <Input
-            placeholder={lang === "pl" ? "Rola (PL)" : "Role (PL)"}
+            placeholder={tp("members.rolePl")}
             value={rolePl}
             onChange={(e) => setRolePl(e.target.value)}
           />
           <Input
-            placeholder={lang === "pl" ? "Rola (EN)" : "Role (EN)"}
+            placeholder={tp("members.roleEn")}
             value={roleEn}
             onChange={(e) => setRoleEn(e.target.value)}
           />
         </div>
         <Button onClick={addMember} disabled={!selectedUser}>
-          <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj członka" : "Add member"}
+          <Plus className="mr-1 h-4 w-4" /> {tp("members.addMember")}
         </Button>
+
       </div>
 
       <ul className="grid gap-2">
@@ -795,7 +791,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
             <span className="flex-1" />
             <div className="flex items-center gap-2">
               <Switch checked={m.is_lead} onCheckedChange={(v) => toggleLead(m.profile_id, v)} />
-              <span className="text-xs">{lang === "pl" ? "Lider" : "Lead"}</span>
+              <span className="text-xs">{tp("members.lead")}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={() => removeMember(m.profile_id)}>
               <Trash2 className="h-4 w-4" />
@@ -803,10 +799,9 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
           </li>
         ))}
         {(membersQ.data ?? []).length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {lang === "pl" ? "Brak członków." : "No members yet."}
-          </p>
+          <p className="text-sm text-muted-foreground">{tp("members.empty")}</p>
         )}
+
       </ul>
     </div>
   );
@@ -815,7 +810,10 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
 /* ----- Projects ----- */
 
 function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
+
   const q = useQuery({
     queryKey: ["admin-rp-projects", programId],
     queryFn: async (): Promise<ProjectRow[]> => {
@@ -843,7 +841,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 
   const addProject = async () => {
     if (!draft.name_pl.trim() || !draft.name_en.trim()) {
-      toast.error(lang === "pl" ? "Nazwa PL/EN wymagana." : "PL/EN name required.");
+      toast.error(tp("projects.nameRequired"));
       return;
     }
     const { error } = await supabase.from("research_program_projects").insert({
@@ -881,12 +879,12 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-2">
           <Input
-            placeholder={lang === "pl" ? "Nazwa (PL)" : "Name (PL)"}
+            placeholder={tp("projects.namePl")}
             value={draft.name_pl}
             onChange={(e) => setDraft((d) => ({ ...d, name_pl: e.target.value }))}
           />
           <Input
-            placeholder="Name (EN)"
+            placeholder={tp("projects.nameEn")}
             value={draft.name_en}
             onChange={(e) => setDraft((d) => ({ ...d, name_en: e.target.value }))}
           />
@@ -894,13 +892,13 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
         <div className="grid gap-2 md:grid-cols-2">
           <Textarea
             rows={2}
-            placeholder={lang === "pl" ? "Streszczenie (PL)" : "Summary (PL)"}
+            placeholder={tp("projects.summaryPl")}
             value={draft.summary_pl ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, summary_pl: e.target.value || null }))}
           />
           <Textarea
             rows={2}
-            placeholder="Summary (EN)"
+            placeholder={tp("projects.summaryEn")}
             value={draft.summary_en ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, summary_en: e.target.value || null }))}
           />
@@ -926,7 +924,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
           />
         </div>
         <Button onClick={addProject}>
-          <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj projekt" : "Add project"}
+          <Plus className="mr-1 h-4 w-4" /> {tp("projects.addProject")}
         </Button>
       </div>
 
@@ -957,7 +955,10 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 /* ----- Partners ----- */
 
 function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
+
   const q = useQuery({
     queryKey: ["admin-rp-partners", programId],
     queryFn: async (): Promise<PartnerRow[]> => {
@@ -1007,12 +1008,12 @@ function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en"
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-3">
           <Input
-            placeholder={lang === "pl" ? "Nazwa partnera" : "Partner name"}
+            placeholder={tp("partners.name")}
             value={draft.name}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           />
           <Input
-            placeholder={lang === "pl" ? "URL logo" : "Logo URL"}
+            placeholder={tp("partners.logoUrl")}
             value={draft.logo_url ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, logo_url: e.target.value || null }))}
           />
@@ -1023,9 +1024,10 @@ function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en"
           />
         </div>
         <Button onClick={add}>
-          <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj partnera" : "Add partner"}
+          <Plus className="mr-1 h-4 w-4" /> {tp("partners.addPartner")}
         </Button>
       </div>
+
       <ul className="grid gap-2">
         {(q.data ?? []).map((p) => (
           <li key={p.id} className="flex items-center gap-3 rounded-md border border-border p-2">
@@ -1046,7 +1048,10 @@ function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 /* ----- Curated items (flagship posts / podcasts / events) ----- */
 
 function ItemsTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
+
   const q = useQuery({
     queryKey: ["admin-rp-items", programId],
     queryFn: async (): Promise<ItemRow[]> => {
@@ -1100,28 +1105,23 @@ function ItemsTab({ programId, lang }: { programId: string; lang: "pl" | "en" })
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="flagship_post">
-                {lang === "pl" ? "Raport / wpis" : "Flagship post"}
-              </SelectItem>
-              <SelectItem value="podcast">{lang === "pl" ? "Podcast" : "Podcast"}</SelectItem>
-              <SelectItem value="event">{lang === "pl" ? "Wydarzenie" : "Event"}</SelectItem>
+              <SelectItem value="flagship_post">{tp("items.flagshipPost")}</SelectItem>
+              <SelectItem value="podcast">{tp("items.podcast")}</SelectItem>
+              <SelectItem value="event">{tp("items.event")}</SelectItem>
             </SelectContent>
           </Select>
           <Input
-            placeholder={lang === "pl" ? "UUID rekordu" : "Record UUID"}
+            placeholder={tp("items.recordUuid")}
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
           />
           <Button onClick={add}>
-            <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj" : "Add"}
+            <Plus className="mr-1 h-4 w-4" /> {tp("add")}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {lang === "pl"
-            ? "Wklej UUID posta / podcastu / wydarzenia. Kolejność wg pola sort_order."
-            : "Paste the post / podcast / event UUID. Ordered by sort_order."}
-        </p>
+        <p className="text-xs text-muted-foreground">{tp("items.hint")}</p>
       </div>
+
       <ul className="grid gap-2">
         {(q.data ?? []).map((it) => (
           <li key={it.id} className="flex items-center gap-3 rounded-md border border-border p-2">
