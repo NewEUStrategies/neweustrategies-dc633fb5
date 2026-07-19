@@ -8,7 +8,7 @@ import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
-import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
+import { addRecentSearch } from "@/lib/search/recentSearches";
 import {
   suggestBucketOf,
   suggestionHref,
@@ -53,7 +53,6 @@ export function SearchButtonWidget({
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [tab, setTab] = useState<SuggestBucket | "all">("all");
-  const [recent, setRecent] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reqIdRef = useRef(0);
@@ -141,13 +140,11 @@ export function SearchButtonWidget({
   }, [items]);
 
   const showEmpty = hasQuery && !loading && searched && flat.length === 0;
-  const showRecent = focused && !hasQuery && recent.length > 0;
-  const showPopover = (focused && hasQuery) || showRecent;
+  const showPopover = focused && hasQuery;
   const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
 
   const openFocus = () => {
     setFocused(true);
-    setRecent(getRecentSearches());
   };
 
   const goToResult = () => {
@@ -368,34 +365,6 @@ export function SearchButtonWidget({
           )}
 
           <div className="max-h-[440px] overflow-y-auto py-1.5">
-            {/* Recent searches (query empty) */}
-            {showRecent && (
-              <div>
-                <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {lang === "pl" ? "Ostatnie wyszukiwania" : "Recent searches"}
-                </div>
-                <ul>
-                  {recent.map((term) => (
-                    <li key={term}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setQ(term);
-                          setActive(-1);
-                          inputRef.current?.focus();
-                        }}
-                        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] leading-[1.5] text-foreground transition-colors hover:bg-muted/60"
-                      >
-                        <LucideIcons.Clock className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{term}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
             {focused && hasQuery && loading && (
               <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
                 <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -503,8 +472,7 @@ export function SearchButtonWidget({
             )}
 
             {/* Boolean operators + advanced search */}
-            {focused &&
-              (showRecent || (hasQuery && !loading && (flat.length > 0 || showEmpty))) && (
+            {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
                 <div
                   className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-2.5 text-[11px] text-muted-foreground"
                   style={{ lineHeight: 1.5 }}
