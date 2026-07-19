@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS icon_library_position_name_idx ON public.icon_library (position, name);
