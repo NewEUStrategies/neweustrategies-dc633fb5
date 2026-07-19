@@ -186,15 +186,14 @@ function AdminResearchPrograms() {
 
   const saveProgram = async () => {
     if (!/^[a-z0-9-]{2,80}$/.test(form.slug)) {
-      toast.error(
-        lang === "pl" ? "Slug: małe litery, cyfry i myślniki." : "Slug: lowercase, digits, dashes.",
-      );
+      toast.error(tp("errSlug"));
       return;
     }
     if (!form.name_pl.trim() || !form.name_en.trim()) {
-      toast.error(lang === "pl" ? "Nazwa PL i EN są wymagane." : "PL and EN names required.");
+      toast.error(tp("errNames"));
       return;
     }
+
 
     const payload = {
       ...form,
