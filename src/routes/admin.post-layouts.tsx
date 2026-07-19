@@ -12,11 +12,14 @@ import {
 } from "@/lib/postLayouts";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import "@/lib/i18n-admin-layouts";
 
 export const Route = createFileRoute("/admin/post-layouts")({ component: Page });
 
 function Page() {
+  const { t } = useTranslation();
   const { data } = usePostLayoutSettings();
   const save = useSavePostLayoutSettings();
   const [local, setLocal] = useState<PostLayoutSettings | null>(null);
@@ -26,7 +29,7 @@ function Page() {
   if (!local)
     return (
       <AdminShell hideSidebar>
-        <div className="p-6">Ładowanie…</div>
+        <div className="p-6">{t("adminLayouts.postLayouts.loading")}</div>
       </AdminShell>
     );
 
@@ -36,10 +39,10 @@ function Page() {
     void tenant_id;
     try {
       await save.mutateAsync(rest);
-      toast.success("Zapisano - layout wpisów został zaktualizowany");
+      toast.success(t("adminLayouts.postLayouts.savedToast"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
-      toast.error(`Błąd zapisu: ${msg}`);
+      const msg = e instanceof Error ? e.message : t("adminLayouts.postLayouts.saveFailed");
+      toast.error(t("adminLayouts.postLayouts.saveErrorToast", { msg }));
       console.error("[post-layouts] save failed", e);
     }
   };
@@ -76,7 +79,11 @@ function Page() {
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <h2 className="font-display text-base">{title}</h2>
           <span className="text-[11px] text-muted-foreground">
-            Wybrany: <b>{selected.label}</b> ({selectedHasSidebar ? "z sidebarem" : "bez sidebara"})
+            {t("adminLayouts.postLayouts.selectedPrefix")} <b>{selected.label}</b> (
+            {selectedHasSidebar
+              ? t("adminLayouts.postLayouts.withSidebar")
+              : t("adminLayouts.postLayouts.withoutSidebar")}
+            )
           </span>
         </div>
         {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
@@ -98,13 +105,13 @@ function Page() {
                     {p.recommendedImage ? (
                       <span
                         className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground shrink-0"
-                        title="Rekomendowany rozmiar grafiki"
+                        title={t("adminLayouts.postLayouts.recommendedImageTitle")}
                       >
                         {p.recommendedImage.width}×{p.recommendedImage.height}
                       </span>
                     ) : (
                       <span className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground shrink-0">
-                        brak
+                        {t("adminLayouts.postLayouts.none")}
                       </span>
                     )}
                   </div>
@@ -117,7 +124,7 @@ function Page() {
                           type="button"
                           onClick={() => pickVariant(p.id, withSidebar)}
                           aria-pressed={active}
-                          aria-label={`${p.label} - ${withSidebar ? "z sidebarem" : "bez sidebara"}`}
+                          aria-label={`${p.label} - ${withSidebar ? t("adminLayouts.postLayouts.withSidebar") : t("adminLayouts.postLayouts.withoutSidebar")}`}
                           className={`text-left p-1 rounded border transition ${
                             active
                               ? "border-brand ring-1 ring-brand/40 bg-brand/5"
@@ -130,7 +137,9 @@ function Page() {
                             hasSidebarOverride={withSidebar}
                           />
                           <p className="text-[9px] text-muted-foreground mt-1 leading-tight">
-                            {withSidebar ? "+ sidebar" : "bez sidebara"}
+                            {withSidebar
+                              ? t("adminLayouts.postLayouts.plusSidebar")
+                              : t("adminLayouts.postLayouts.withoutSidebar")}
                           </p>
                         </button>
                       );
@@ -151,13 +160,18 @@ function Page() {
             />
             <ul className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
               <li>
-                Nagłówek: <b>{selected.header}</b>
+                {t("adminLayouts.postLayouts.headerRow")} <b>{selected.header}</b>
               </li>
               <li>
                 Cover: <b>{selected.cover}</b>
               </li>
               <li>
-                Sidebar: <b>{selectedHasSidebar ? "tak" : "nie"}</b>
+                Sidebar:{" "}
+                <b>
+                  {selectedHasSidebar
+                    ? t("adminLayouts.postLayouts.sidebarYes")
+                    : t("adminLayouts.postLayouts.sidebarNo")}
+                </b>
               </li>
               {selected.featuredRatioKey && (
                 <li>
@@ -166,7 +180,7 @@ function Page() {
               )}
               {selected.recommendedImage && (
                 <li className="pt-1 mt-1 border-t border-border/60">
-                  Grafika:{" "}
+                  {t("adminLayouts.postLayouts.graphic")}{" "}
                   <b className="text-foreground">
                     {selected.recommendedImage.width}×{selected.recommendedImage.height}px
                   </b>
@@ -185,16 +199,14 @@ function Page() {
       <div className="space-y-6">
         <header className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="font-display text-xl">Layouty wpisów</h1>
-            <p className="text-xs text-muted-foreground">
-              Globalne ustawienia. Każdy wpis może je nadpisać w swoim edytorze.
-            </p>
+            <h1 className="font-display text-xl">{t("adminLayouts.postLayouts.pageTitle")}</h1>
+            <p className="text-xs text-muted-foreground">{t("adminLayouts.postLayouts.intro")}</p>
           </div>
           <button
             onClick={onSave}
             className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
           >
-            Zapisz
+            {t("common.save")}
           </button>
         </header>
 
@@ -226,7 +238,7 @@ function Page() {
         <section className="space-y-2">
           <h2 className="font-display text-base">Featured Ratio</h2>
           <p className="text-[11px] text-muted-foreground">
-            Procent szerokości względem obrazu wyróżniającego (Layout 6/10/11).
+            {t("adminLayouts.postLayouts.featuredRatioHint")}
           </p>
           <div className="grid sm:grid-cols-3 gap-2">
             {(["featured_ratio_l6", "featured_ratio_l10", "featured_ratio_l11"] as const).map(
@@ -255,51 +267,53 @@ function Page() {
           <section className="space-y-1">
             <h2 className="font-display text-base mb-1">Centering Header</h2>
             <Toggle
-              label="Wycentruj tytuł i opis wpisu"
+              label={t("adminLayouts.postLayouts.centerTitle")}
               checked={local.center_header}
               onChange={(v) => upd({ center_header: v })}
             />
             <Toggle
-              label="Wycentruj pasek meta (data, autor)"
+              label={t("adminLayouts.postLayouts.centerMeta")}
               checked={local.center_entry_meta}
               onChange={(v) => upd({ center_entry_meta: v })}
             />
           </section>
 
           <section className="space-y-1">
-            <h2 className="font-display text-base mb-1">Stopka wpisu</h2>
+            <h2 className="font-display text-base mb-1">
+              {t("adminLayouts.postLayouts.footerHeading")}
+            </h2>
             <Toggle
-              label="Pasek tagów"
+              label={t("adminLayouts.postLayouts.tagsBar")}
               checked={local.show_post_tags_bar}
               onChange={(v) => upd({ show_post_tags_bar: v })}
             />
             <Toggle
-              label="Karta autora"
+              label={t("adminLayouts.postLayouts.authorCard")}
               checked={local.show_author_card}
               onChange={(v) => upd({ show_author_card: v })}
             />
             <Toggle
-              label="Nawigacja Poprzedni/Następny"
+              label={t("adminLayouts.postLayouts.prevNext")}
               checked={local.show_prev_next}
               onChange={(v) => upd({ show_prev_next: v })}
             />
             <Toggle
-              label="Ukryj paginację na mobile"
+              label={t("adminLayouts.postLayouts.hidePaginationMobile")}
               checked={local.prev_next_mobile_hide}
               onChange={(v) => upd({ prev_next_mobile_hide: v })}
             />
             <Toggle
-              label="Dolny newsletter w treści"
+              label={t("adminLayouts.postLayouts.bottomNewsletter")}
               checked={local.show_bottom_newsletter}
               onChange={(v) => upd({ show_bottom_newsletter: v })}
             />
             <Toggle
-              label="Pływający pasek udostępniania (lewa strona, desktop)"
+              label={t("adminLayouts.postLayouts.floatingShare")}
               checked={local.show_floating_share_bar}
               onChange={(v) => upd({ show_floating_share_bar: v })}
             />
             <Toggle
-              label="Auto-load następnego wpisu (przy scrollu do końca)"
+              label={t("adminLayouts.postLayouts.autoLoadNext")}
               checked={local.auto_load_next_post}
               onChange={(v) => upd({ auto_load_next_post: v })}
             />
@@ -355,6 +369,7 @@ function TypographySection({
   local: PostLayoutSettings;
   upd: (p: Partial<PostLayoutSettings>) => void;
 }) {
+  const { t } = useTranslation();
   const overlayTitle: TypoRow[] = [
     { key: "overlay_title_size_base", label: "Mobile", min: 12, max: 96 },
     { key: "overlay_title_size_md", label: "Tablet", min: 12, max: 96 },
@@ -426,31 +441,30 @@ function TypographySection({
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="font-display text-base">Typografia wpisu</h2>
+        <h2 className="font-display text-base">{t("adminLayouts.postLayouts.typoHeading")}</h2>
         <p className="text-[11px] text-muted-foreground">
-          Rozmiary czcionek tytułu i podtytułu (excerpt) per breakpoint. Wartości w pikselach.
-          Zmiana natychmiast synchronizuje publiczny widok wpisu i podgląd w CMS.
+          {t("adminLayouts.postLayouts.typoIntro")}
         </p>
       </div>
 
       <Group
-        heading="Tytuł - overlay (Layout 4 / 5 / 12)"
-        hint="Widoczne w wariantach z pełnoekranowym coverem i nakładką."
+        heading={t("adminLayouts.postLayouts.typoOverlayTitleHeading")}
+        hint={t("adminLayouts.postLayouts.typoOverlayTitleHint")}
         rows={overlayTitle}
       />
       <Group
-        heading="Podtytuł - overlay"
-        hint="Krótki opis (excerpt) na nakładce cover photo."
+        heading={t("adminLayouts.postLayouts.typoOverlayExcerptHeading")}
+        hint={t("adminLayouts.postLayouts.typoOverlayExcerptHint")}
         rows={overlayExcerpt}
       />
       <Group
-        heading="Tytuł - klasyczny nagłówek"
-        hint="Layouty 1-3, 6-11 (nagłówek nad/pod cover, side-by-side, bez cover)."
+        heading={t("adminLayouts.postLayouts.typoHeaderTitleHeading")}
+        hint={t("adminLayouts.postLayouts.typoHeaderTitleHint")}
         rows={headerTitle}
       />
       <Group
-        heading="Podtytuł - klasyczny nagłówek"
-        hint="Excerpt w klasycznych nagłówkach wpisu."
+        heading={t("adminLayouts.postLayouts.typoHeaderExcerptHeading")}
+        hint={t("adminLayouts.postLayouts.typoHeaderExcerptHint")}
         rows={headerExcerpt}
       />
     </section>
