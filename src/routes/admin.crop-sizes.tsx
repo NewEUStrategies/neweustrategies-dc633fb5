@@ -59,7 +59,7 @@ function CropSizesAdmin() {
     try {
       const r = await regen$({ data: { limit: 100 } });
       setRegenStatus(`Media: ${r.media} | rozmiary: ${r.sizes} | OK: ${r.ok} | błędy: ${r.failed}`);
-      toast.success(t("adminToasts.prewarmDone"));
+      toast.success(adminToast.prewarmDone());
     } catch (e) {
       setRegenStatus(null);
       toast.error(e instanceof Error ? e.message : String(e));
@@ -68,12 +68,12 @@ function CropSizesAdmin() {
 
   const save = async () => {
     if (!draft.name.trim()) {
-      toast.error(t("adminToasts.nameRequired"));
+      toast.error(adminToast.nameRequired());
       return;
     }
     try {
       await upsertCropSize(tenantId, draft);
-      toast.success(t("adminToasts.saved"));
+      toast.success(adminToast.saved());
       setDraft(DEFAULT_DRAFT);
       refresh();
     } catch (e) {
