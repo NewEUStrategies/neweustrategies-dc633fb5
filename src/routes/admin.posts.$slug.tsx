@@ -1165,6 +1165,16 @@ function EditPost() {
                         contentBlocks={form.blocks_data}
                         onIssuesChange={setSeoIssues}
                       />
+                      <InternalLinkSuggestions
+                        postId={id === "new" ? null : id}
+                        titlePl={form.title_pl}
+                        titleEn={form.title_en}
+                        contentPl={form.content_pl}
+                        contentEn={form.content_en}
+                        categoryIds={selectedCats}
+                        tagIds={selectedTags}
+                      />
+                    </>
                     )}
 
                     {detailsTab === "meta" && (
