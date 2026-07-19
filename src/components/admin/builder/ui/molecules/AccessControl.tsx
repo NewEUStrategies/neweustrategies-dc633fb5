@@ -7,19 +7,13 @@ import type {
   AccessRolesMode,
 } from "@/lib/builder/types";
 import { Lock, Globe, Users, ShieldCheck } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: AdvancedSettings | undefined;
   onChange: (mut: (a: AdvancedSettings) => void) => void;
 }
-
-const AUTH_OPTIONS: Array<
-  [AccessAuthMode, React.ComponentType<{ className?: string }>, string, string]
-> = [
-  ["any", Users, "Wszyscy", "Brak ograniczeń (domyślnie)"],
-  ["guest", Globe, "Goście", "Tylko niezalogowani"],
-  ["user", Lock, "Zalogowani", "Tylko zalogowani użytkownicy"],
-];
 
 const ROLE_OPTIONS: Array<[AccessRole, string]> = [
   ["admin", "Admin"],
@@ -28,6 +22,14 @@ const ROLE_OPTIONS: Array<[AccessRole, string]> = [
 ];
 
 export function AccessControl({ value, onChange }: Props) {
+  const { t } = useTranslation();
+  const AUTH_OPTIONS: Array<
+    [AccessAuthMode, React.ComponentType<{ className?: string }>, string, string]
+  > = [
+    ["any", Users, t("builder.access.authAll"), t("builder.access.authAllHint")],
+    ["guest", Globe, t("builder.access.authGuest"), t("builder.access.authGuestHint")],
+    ["user", Lock, t("builder.access.authUser"), t("builder.access.authUserHint")],
+  ];
   const access = value?.access;
   const authMode: AccessAuthMode = access?.auth ?? "any";
   const roles = access?.roles ?? [];
@@ -90,7 +92,7 @@ export function AccessControl({ value, onChange }: Props) {
       <div className={`space-y-1.5 ${rolesDisabled ? "opacity-40 pointer-events-none" : ""}`}>
         <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
           <ShieldCheck className="w-3 h-3" />
-          <span>Wymagane role</span>
+          <span>{t("builder.access.requiredRoles")}</span>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
           {ROLE_OPTIONS.map(([r, label]) => {
@@ -113,27 +115,25 @@ export function AccessControl({ value, onChange }: Props) {
         </div>
         {roles.length > 1 && (
           <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="text-muted-foreground">Wymóg:</span>
+            <span className="text-muted-foreground">{t("builder.access.requirement")}</span>
             <button
               type="button"
               onClick={() => setRolesMode("any")}
               className={`px-2 py-0.5 rounded border ${rolesMode === "any" ? "bg-brand/10 border-brand" : "bg-muted/30 border-border"}`}
             >
-              dowolna
+              {t("builder.access.any")}
             </button>
             <button
               type="button"
               onClick={() => setRolesMode("all")}
               className={`px-2 py-0.5 rounded border ${rolesMode === "all" ? "bg-brand/10 border-brand" : "bg-muted/30 border-border"}`}
             >
-              wszystkie
+              {t("builder.access.all")}
             </button>
           </div>
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground">
-        Reguły dotyczą publicznych stron. W edytorze widget jest zawsze widoczny.
-      </p>
+      <p className="text-[10px] text-muted-foreground">{t("builder.access.note")}</p>
     </div>
   );
 }
