@@ -150,7 +150,7 @@ const SearchParams = z.object({
   scope: z.enum(["all", "title"]).optional(),
   tab: z.enum(["all", "titles", "types", "topics", "people"]).optional(),
   /** adv=1 otwiera panel trybów zaawansowanych (deep-link z widgetu nagłówka). */
-  adv: z.string().optional(),
+  adv: z.coerce.string().optional(),
 });
 
 type SearchInput = z.infer<typeof SearchParams>;
