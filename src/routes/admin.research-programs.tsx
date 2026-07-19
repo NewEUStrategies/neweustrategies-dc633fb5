@@ -299,7 +299,7 @@ function AdminResearchPrograms() {
               </span>
               <Button variant="ghost" size="sm" onClick={() => setManageFor(p)}>
                 <Users className="mr-1 h-4 w-4" />
-                {lang === "pl" ? "Zawartość" : "Content"}
+                {tp("content")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
                 <Pencil className="h-4 w-4" />
