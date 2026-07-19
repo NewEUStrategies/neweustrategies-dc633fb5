@@ -123,7 +123,7 @@ function HeaderInner() {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          aria-label={isPl ? "Otwórz wyszukiwarkę" : "Open search"}
+          aria-label={t("common.openSearch")}
           className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
         >
           <Search className="w-5 h-5" aria-hidden />
