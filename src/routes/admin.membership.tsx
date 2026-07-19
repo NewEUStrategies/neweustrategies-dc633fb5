@@ -87,7 +87,9 @@ function benefitsToJson(list: TierBenefit[]): Json {
 function AdminMembershipPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
+  const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const qc = useQueryClient();
+
 
   const tiersQ = useQuery({
     queryKey: ["admin", "membership-tiers"],
