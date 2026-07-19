@@ -854,8 +854,9 @@ function CenteredHero({
                   <Camera className="h-5 w-5" />
                 )}
                 <span className="text-[10px] font-medium tracking-wide uppercase">
-                  {lang === "pl" ? "Zmień" : "Change"}
+                  {t("profile.inline.changeAvatar")}
                 </span>
+
               </button>
             )}
           </div>
