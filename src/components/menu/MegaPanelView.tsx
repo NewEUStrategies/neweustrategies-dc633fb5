@@ -46,6 +46,7 @@ export function MegaPanelView({
   const eyebrowFallback = lang === "en" ? "Featured" : "Wyróżniony wpis";
   const readMore = lang === "en" ? "Read more" : "Czytaj więcej";
   const browseAll = lang === "en" ? "Browse all" : "Przejdź do sekcji";
+  const goToPage = lang === "en" ? "Go to page" : "Przejdź do strony";
   const featuredTitle = featured ? pickLocalized(featured.title_pl, featured.title_en, lang) : "";
   const featuredExcerpt = featured
     ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang)
@@ -282,6 +283,22 @@ export function MegaPanelView({
           </div>
         ) : null}
       </div>
+      {parentLabel && parentHref ? (
+        <div className="border-t border-border/60 bg-muted/30 px-6 py-3.5 sm:px-8 sm:py-4">
+          <AppLink
+            href={safeUrl(parentHref) || "#"}
+            className="group inline-flex items-center gap-2 text-xs font-bold text-brand hover:opacity-80"
+          >
+            <span className="text-muted-foreground">{goToPage}:</span>
+            <span className="font-black uppercase tracking-[0.12em]">{parentLabel}</span>
+            <ArrowRight
+              size={14}
+              className="transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </AppLink>
+        </div>
+      ) : null}
     </div>
   );
 }
