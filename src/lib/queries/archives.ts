@@ -482,8 +482,6 @@ export const searchPeopleOrgsQueryOptions = (q: string, limit: number = 40) =>
           sublabel_pl: (r.sublabel_pl as string | null) ?? null,
           sublabel_en: (r.sublabel_en as string | null) ?? null,
           avatarUrl: (r.avatar_url as string | null) ?? null,
-          // @ts-expect-error logo_url jest zwracane przez nową wersję RPC search_people_orgs;
-          // types.ts zostanie zsynchronizowane z migracją w kolejnym cyklu generowania typów.
           logoUrl: (r.logo_url as string | null) ?? null,
           verified: Boolean(r.verified),
           postCount: Number(r.post_count ?? 0),
