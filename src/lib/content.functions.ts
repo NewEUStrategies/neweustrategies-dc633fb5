@@ -1088,6 +1088,12 @@ const CategoryCore = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, "color must be #rrggbb")
     .nullable()
     .optional(),
+  logo_url: z
+    .string()
+    .url("logo_url must be a valid URL")
+    .nullable()
+    .optional()
+    .or(z.literal("")),
   // Wymiar fasetowy (categories.kind) i hierarchia (region → państwo).
   kind: z
     .enum(["category", "pub_type", "region", "topic", "project", "series", "organization"])
