@@ -16,6 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 const PostBlockEditor = lazy(() =>
   import("@/components/admin/blocks/PostBlockEditor").then((m) => ({ default: m.PostBlockEditor })),
@@ -33,12 +35,13 @@ interface Props {
 }
 
 export function RichTextEditor({ c, setContent }: Props) {
+  const { t } = useTranslation();
   const value = readLocalized(c.doc);
   const plCount = value?.pl?.blocks?.length ?? 0;
   const enCount = value?.en?.blocks?.length ?? 0;
 
   return (
-    <PropField label="Treść (bloki)">
+    <PropField label={t("builder.richTextEditor.field")}>
       <Dialog>
         <DialogTrigger asChild>
           <button
@@ -46,23 +49,27 @@ export function RichTextEditor({ c, setContent }: Props) {
             className="w-full h-8 px-2 text-xs rounded border border-border bg-background hover:bg-accent/40 inline-flex items-center justify-center gap-1.5"
           >
             <FileText className="w-3.5 h-3.5" />
-            Edytuj treść ({plCount} PL / {enCount} EN)
+            {t("builder.richTextEditor.edit", { pl: plCount, en: enCount })}
           </button>
         </DialogTrigger>
         <DialogContent className="max-w-[1100px] w-[96vw] h-[86vh] overflow-hidden p-0 flex flex-col">
           <DialogHeader className="px-4 py-3 border-b border-border">
-            <DialogTitle className="text-sm">Edytor treści (bloki)</DialogTitle>
+            <DialogTitle className="text-sm">{t("builder.richTextEditor.dialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-auto">
             <Suspense
-              fallback={<div className="p-6 text-sm text-muted-foreground">Ładowanie edytora…</div>}
+              fallback={
+                <div className="p-6 text-sm text-muted-foreground">
+                  {t("builder.richTextEditor.loading")}
+                </div>
+              }
             >
               <PostBlockEditor
                 value={value ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
                 onChange={(next: LocalizedBlocks) => setContent("doc", toJson(next))}
                 documentPane={
                   <div className="p-3 text-xs text-muted-foreground">
-                    Treść tego widgetu jest zapisywana w dwóch językach (PL/EN).
+                    {t("builder.richTextEditor.note")}
                   </div>
                 }
               />

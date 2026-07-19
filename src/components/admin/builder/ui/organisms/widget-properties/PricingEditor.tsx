@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -14,13 +16,14 @@ interface Props {
 }
 
 export function PricingEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const plans = itemsOf(c, "plans");
   const update = (next: Item[]) => setContent("plans", toJson(next));
   const upd = (i: number, patch: Item) =>
     update(plans.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   return (
     <ListShell
-      title="Plany cenowe"
+      title={t("builder.pricingEditor.title")}
       items={plans}
       onAdd={() =>
         update([
@@ -47,10 +50,10 @@ export function PricingEditor({ c, lang, setContent }: Props) {
           return (
             <ItemFrame
               key={i}
-              title={`Plan #${i + 1}`}
+              title={t("builder.pricingEditor.item", { n: i + 1 })}
               onRemove={() => update(plans.filter((_, j) => j !== i))}
             >
-              <PropField label={`Nazwa (${lang.toUpperCase()})`}>
+              <PropField label={t("builder.pricingEditor.name", { lang: lang.toUpperCase() })}>
                 <Input
                   value={(p[`name_${lang}`] as string) ?? ""}
                   onChange={(e) => upd(i, { [`name_${lang}`]: e.target.value })}
@@ -58,31 +61,31 @@ export function PricingEditor({ c, lang, setContent }: Props) {
                 />
               </PropField>
               <div className="grid grid-cols-2 gap-2">
-                <PropField label="Cena">
+                <PropField label={t("builder.pricingEditor.price")}>
                   <Input
                     value={(p.price as string) ?? ""}
                     onChange={(e) => upd(i, { price: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </PropField>
-                <PropField label="Waluta">
+                <PropField label={t("builder.pricingEditor.currency")}>
                   <Input
                     value={(p.currency as string) ?? ""}
                     onChange={(e) => upd(i, { currency: e.target.value })}
-                    placeholder="zł / €"
+                    placeholder={t("builder.pricingEditor.currencyPh")}
                     className="h-8 text-xs"
                   />
                 </PropField>
               </div>
-              <PropField label={`Okres (${lang.toUpperCase()})`}>
+              <PropField label={t("builder.pricingEditor.period", { lang: lang.toUpperCase() })}>
                 <Input
                   value={(p[`period_${lang}`] as string) ?? ""}
                   onChange={(e) => upd(i, { [`period_${lang}`]: e.target.value })}
-                  placeholder="/mies."
+                  placeholder={t("builder.pricingEditor.periodPh")}
                   className="h-8 text-xs"
                 />
               </PropField>
-              <PropField label={`Funkcje (${lang.toUpperCase()}) - po jednej na linię`}>
+              <PropField label={t("builder.pricingEditor.features", { lang: lang.toUpperCase() })}>
                 <Textarea
                   rows={4}
                   value={features.join("\n")}
@@ -98,14 +101,14 @@ export function PricingEditor({ c, lang, setContent }: Props) {
                 />
               </PropField>
               <div className="grid grid-cols-2 gap-2">
-                <PropField label={`CTA (${lang.toUpperCase()})`}>
+                <PropField label={t("builder.pricingEditor.cta", { lang: lang.toUpperCase() })}>
                   <Input
                     value={(p[`cta_${lang}`] as string) ?? ""}
                     onChange={(e) => upd(i, { [`cta_${lang}`]: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </PropField>
-                <PropField label="Link CTA">
+                <PropField label={t("builder.pricingEditor.ctaLink")}>
                   <Input
                     value={(p.href as string) ?? ""}
                     onChange={(e) => upd(i, { href: e.target.value })}
@@ -120,7 +123,7 @@ export function PricingEditor({ c, lang, setContent }: Props) {
                   onChange={(e) => upd(i, { featured: e.target.checked })}
                   className="rounded border-border"
                 />
-                Wyróżniony plan
+                {t("builder.pricingEditor.featured")}
               </label>
             </ItemFrame>
           );
