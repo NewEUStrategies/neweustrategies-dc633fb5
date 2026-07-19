@@ -57,6 +57,8 @@ import { FieldLabel } from "@/components/profile/FieldLabel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { adminToast } from "@/lib/adminToasts";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-podcasts";
 
 /** Auto-detect an audio file's duration by loading its metadata in the browser. */
 function detectAudioDuration(url: string): Promise<number | null> {
@@ -126,6 +128,7 @@ interface EpisodeBundle {
 type View = "episodes" | "settings" | "shows";
 
 function Page() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { tenantId } = useAuth();
   const [editing, setEditing] = useState<Podcast | null>(null);
@@ -244,8 +247,8 @@ function Page() {
         .trim()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
-      if (!slug) throw new Error("Slug wymagany");
-      if (!p.audio_url) throw new Error("URL audio wymagany");
+      if (!slug) throw new Error(t("adminPodcasts.errors.slug"));
+      if (!p.audio_url) throw new Error(t("adminPodcasts.errors.audio"));
       const payload = {
         slug,
         title_pl: p.title_pl,
@@ -272,7 +275,7 @@ function Page() {
           p.status === "published" ? (p.published_at ?? new Date().toISOString()) : p.published_at,
       };
 
-      if (!tenantId) throw new Error("Brak kontekstu tenanta");
+      if (!tenantId) throw new Error(t("adminPodcasts.errors.tenant"));
       let episodeId = p.id;
       if (episodeId) {
         const { error } = await supabase.from("podcasts").update(payload).eq("id", episodeId);
@@ -347,25 +350,23 @@ function Page() {
               <Mic className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="font-display text-2xl leading-tight">Podcasty</h1>
-              <p className="text-xs text-muted-foreground">
-                Sieć programów: serie, odcinki, prowadzący i transkrypcje
-              </p>
+              <h1 className="font-display text-2xl leading-tight">{t("adminPodcasts.title")}</h1>
+              <p className="text-xs text-muted-foreground">{t("adminPodcasts.subtitle")}</p>
             </div>
           </div>
           {!editing && view === "episodes" && (
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setView("shows")}>
                 <ListTree className="w-4 h-4 mr-2" />
-                Programy
+                {t("adminPodcasts.showsBtn")}
               </Button>
               <Button variant="outline" onClick={() => setView("settings")}>
                 <Settings className="w-4 h-4 mr-2" />
-                Ustawienia
+                {t("adminPodcasts.settingsBtn")}
               </Button>
               <Button onClick={() => setEditing(newDraft())}>
                 <Plus className="w-4 h-4 mr-2" />
-                Nowy odcinek
+                {t("adminPodcasts.newEpisode")}
               </Button>
             </div>
           )}
@@ -380,23 +381,28 @@ function Page() {
         {view === "episodes" && !editing && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard icon={Mic} label="Wszystkie" value={String(stats.total)} tone="default" />
+              <StatCard
+                icon={Mic}
+                label={t("adminPodcasts.statAll")}
+                value={String(stats.total)}
+                tone="default"
+              />
               <StatCard
                 icon={Check}
-                label="Opublikowane"
+                label={t("adminPodcasts.statPublished")}
                 value={String(stats.published)}
                 tone="success"
               />
               <StatCard
                 icon={FileText}
-                label="Szkice"
+                label={t("adminPodcasts.statDrafts")}
                 value={String(stats.drafts)}
                 tone="warning"
               />
 
               <StatCard
                 icon={Clock}
-                label="Łączny czas"
+                label={t("adminPodcasts.statTotalTime")}
                 value={formatDuration(stats.totalSeconds)}
                 tone="default"
               />
@@ -408,7 +414,7 @@ function Page() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Szukaj odcinka…"
+                  placeholder={t("adminPodcasts.searchPlaceholder")}
                   className="pl-9"
                 />
               </div>
@@ -421,12 +427,12 @@ function Page() {
                     className={`px-3 py-1.5 text-xs rounded font-medium ${statusFilter === s ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                   >
                     {s === "all"
-                      ? "Wszystkie"
+                      ? t("adminPodcasts.filterAll")
                       : s === "published"
-                        ? "Opublikowane"
+                        ? t("adminPodcasts.filterPublished")
                         : s === "draft"
-                          ? "Szkice"
-                          : "Archiwum"}
+                          ? t("adminPodcasts.filterDrafts")
+                          : t("adminPodcasts.filterArchived")}
                   </button>
                 ))}
               </div>
@@ -437,10 +443,10 @@ function Page() {
                 <thead className="text-xs text-muted-foreground border-b border-border bg-muted/30">
                   <tr>
                     <th className="text-left p-3 w-16"></th>
-                    <th className="text-left p-3">Tytuł</th>
-                    <th className="text-left p-3 w-40">Program</th>
+                    <th className="text-left p-3">{t("adminPodcasts.colTitle")}</th>
+                    <th className="text-left p-3 w-40">{t("adminPodcasts.colShow")}</th>
                     <th className="text-left p-3 w-24">S/E</th>
-                    <th className="text-left p-3 w-24">Czas</th>
+                    <th className="text-left p-3 w-24">{t("adminPodcasts.colTime")}</th>
                     <th className="text-left p-3 w-32">Status</th>
                     <th className="p-3 w-24"></th>
                   </tr>
@@ -492,7 +498,7 @@ function Page() {
                           className="text-xs text-destructive hover:underline inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
-                          Usuń
+                          {t("adminPodcasts.remove")}
                         </button>
                       </td>
                     </tr>
@@ -501,8 +507,8 @@ function Page() {
                     <tr>
                       <td colSpan={7} className="p-10 text-center text-muted-foreground">
                         {rows?.length
-                          ? "Brak wyników dla wybranego filtra."
-                          : "Brak odcinków. Dodaj pierwszy klikając „Nowy odcinek”."}
+                          ? t("adminPodcasts.emptyFiltered")
+                          : t("adminPodcasts.emptyNoEpisodes")}
                       </td>
                     </tr>
                   )}
@@ -526,14 +532,11 @@ function Page() {
       <AlertDialog open={!!confirmId} onOpenChange={(o) => !o && setConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Usunąć odcinek?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Odcinek zostanie przeniesiony do usuniętych i zniknie z listy oraz ze strony
-              publicznej. Tej operacji nie można cofnąć z panelu.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("adminPodcasts.confirmEpisodeTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("adminPodcasts.confirmEpisodeDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmId) remove.mutate(confirmId);
@@ -541,7 +544,7 @@ function Page() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Usuń
+              {t("adminPodcasts.remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -555,6 +558,7 @@ function Page() {
 // ============================================================================
 
 function ShowsPane({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { tenantId } = useAuth();
   const [editing, setEditing] = useState<PodcastShow | null>(null);
@@ -599,7 +603,7 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
         .trim()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
-      if (!slug) throw new Error("Slug wymagany");
+      if (!slug) throw new Error(t("adminPodcasts.errors.slug"));
       const payload = {
         slug,
         title_pl: s.title_pl,
@@ -617,7 +621,7 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
         const { error } = await supabase.from("podcast_shows").update(payload).eq("id", s.id);
         if (error) throw error;
       } else {
-        if (!tenantId) throw new Error("Brak kontekstu tenanta");
+        if (!tenantId) throw new Error(t("adminPodcasts.errors.tenant"));
         const { error } = await supabase
           .from("podcast_shows")
           .insert({ ...payload, tenant_id: tenantId });
@@ -663,25 +667,23 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
     <section className="bg-card border border-border rounded-lg p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-lg">Programy podcastowe</h2>
-          <p className="text-xs text-muted-foreground">
-            Serie grupujące odcinki. Każdy program ma własną stronę i kanał RSS.
-          </p>
+          <h2 className="font-display text-lg">{t("adminPodcasts.shows.title")}</h2>
+          <p className="text-xs text-muted-foreground">{t("adminPodcasts.shows.desc")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setEditing(newShow())}>
             <Plus className="w-4 h-4 mr-2" />
-            Nowy program
+            {t("adminPodcasts.shows.newShow")}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            Wróć do odcinków
+            {t("adminPodcasts.shows.back")}
           </Button>
         </div>
       </div>
 
       {(shows ?? []).length === 0 ? (
         <p className="text-sm text-muted-foreground py-10 text-center">
-          Brak programów. Utwórz pierwszy, aby pogrupować odcinki w serie.
+          {t("adminPodcasts.shows.empty")}
         </p>
       ) : (
         <ul className="divide-y divide-border border border-border rounded-lg overflow-hidden">
@@ -716,7 +718,7 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
                 className="text-xs text-destructive hover:underline inline-flex items-center gap-1 ml-2"
               >
                 <Trash2 className="w-3 h-3" />
-                Usuń
+                {t("adminPodcasts.remove")}
               </button>
             </li>
           ))}
@@ -726,14 +728,11 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
       <AlertDialog open={!!confirmId} onOpenChange={(o) => !o && setConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Usunąć program?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Program zniknie z katalogu i ze stron publicznych. Odcinki pozostaną, ale stracą
-              przypisanie do tej serii.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("adminPodcasts.shows.confirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("adminPodcasts.shows.confirmDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmId) remove.mutate(confirmId);
@@ -741,7 +740,7 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Usuń
+              {t("adminPodcasts.remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -761,6 +760,7 @@ function ShowEditor({
   onCancel: () => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [d, setD] = useState<PodcastShow>(s);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const upd = (patch: Partial<PodcastShow>) => setD((prev) => ({ ...prev, ...patch }));
@@ -768,14 +768,16 @@ function ShowEditor({
   return (
     <section className="bg-card border border-border rounded-lg p-5 space-y-5 max-w-3xl">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg">{d.id ? "Edycja programu" : "Nowy program"}</h2>
+        <h2 className="font-display text-lg">
+          {d.id ? t("adminPodcasts.showEditor.editTitle") : t("adminPodcasts.showEditor.newTitle")}
+        </h2>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={onCancel}>
-            Anuluj
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => onSave(d)} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
-            {saving ? "…" : "Zapisz"}
+            {saving ? "…" : t("common.save")}
           </Button>
         </div>
       </div>
@@ -786,7 +788,7 @@ function ShowEditor({
           <Input
             value={d.slug}
             onChange={(e) => upd({ slug: e.target.value })}
-            placeholder="np. gra-mocarstw"
+            placeholder={t("adminPodcasts.showEditor.slugPlaceholder")}
           />
         </div>
         <div>
@@ -796,25 +798,25 @@ function ShowEditor({
             value={d.status}
             onChange={(e) => upd({ status: e.target.value as PodcastStatus })}
           >
-            <option value="draft">Szkic</option>
-            <option value="published">Opublikowany</option>
-            <option value="archived">Archiwum</option>
+            <option value="draft">{t("adminPodcasts.showEditor.statusDraft")}</option>
+            <option value="published">{t("adminPodcasts.showEditor.statusPublished")}</option>
+            <option value="archived">{t("adminPodcasts.showEditor.statusArchived")}</option>
           </select>
         </div>
       </div>
 
       <Tabs defaultValue="pl">
         <TabsList>
-          <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-          <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+          <TabsTrigger value="pl">🇵🇱 {t("adminPodcasts.tabPolish")}</TabsTrigger>
+          <TabsTrigger value="en">🇬🇧 {t("adminPodcasts.tabEnglish")}</TabsTrigger>
         </TabsList>
         <TabsContent value="pl" className="space-y-3 mt-4">
           <div>
-            <Label>Tytuł</Label>
+            <Label>{t("adminPodcasts.showEditor.fieldTitle")}</Label>
             <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
           </div>
           <div>
-            <Label>Opis</Label>
+            <Label>{t("adminPodcasts.showEditor.fieldDescription")}</Label>
             <Textarea
               rows={3}
               value={d.description_pl}
@@ -840,25 +842,25 @@ function ShowEditor({
 
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
-          <Label>Okładka</Label>
+          <Label>{t("adminPodcasts.showEditor.cover")}</Label>
           <div className="flex gap-2">
             <Input
               value={d.cover_image_url ?? ""}
               onChange={(e) => upd({ cover_image_url: e.target.value || null })}
-              placeholder="https://… lub wgraj obraz"
+              placeholder={t("adminPodcasts.showEditor.coverPlaceholder")}
             />
             <Button
               type="button"
               variant="outline"
               onClick={() => setCoverPickerOpen(true)}
-              title="Wgraj / wybierz okładkę"
+              title={t("adminPodcasts.showEditor.uploadCoverTitle")}
             >
               <Upload className="w-4 h-4" />
             </Button>
           </div>
         </div>
         <div>
-          <Label>Kolejność</Label>
+          <Label>{t("adminPodcasts.showEditor.order")}</Label>
           <Input
             type="number"
             value={d.sort_order}
@@ -898,13 +900,14 @@ function ShowEditor({
         onOpenChange={setCoverPickerOpen}
         onPick={(url) => upd({ cover_image_url: url })}
         accept="image"
-        title="Wybierz lub wgraj okładkę programu"
+        title={t("adminPodcasts.showEditor.pickCover")}
       />
     </section>
   );
 }
 
 function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { tenantId } = useAuth();
   const { data, isLoading } = useQuery({
@@ -933,7 +936,7 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("Brak kontekstu tenanta");
+      if (!tenantId) throw new Error(t("adminPodcasts.errors.tenant"));
       const payload = {
         tenant_id: tenantId,
         default_player_variant: merged.default_player_variant,
@@ -961,23 +964,25 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
   });
 
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Ładowanie ustawień…</div>;
+    return (
+      <div className="text-sm text-muted-foreground">{t("adminPodcasts.settings.loading")}</div>
+    );
   }
 
   return (
     <TooltipProvider>
       <section className="bg-card border border-border rounded-lg p-6 space-y-6 max-w-2xl">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg">Ustawienia podcastu</h2>
+          <h2 className="font-display text-lg">{t("adminPodcasts.settings.title")}</h2>
           <Button variant="ghost" onClick={onClose}>
-            Wróć do listy
+            {t("adminPodcasts.settings.back")}
           </Button>
         </div>
 
         <div className="grid gap-4">
           <div className="grid gap-1.5">
-            <FieldLabel tip="Pełny: duży odtwarzacz z okładką i pełnymi kontrolkami. Mini: kompaktowy pasek. Przyklejony: odtwarzacz przyklejony do dołu ekranu podczas przewijania.">
-              Domyślny wariant odtwarzacza
+            <FieldLabel tip={t("adminPodcasts.settings.variantTip")}>
+              {t("adminPodcasts.settings.variantLabel")}
             </FieldLabel>
             <div className="flex gap-2">
               {(["full", "mini", "sticky"] as const).map((v) => (
@@ -987,14 +992,18 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
                   onClick={() => setForm((f) => ({ ...f, default_player_variant: v }))}
                   className={`px-3 py-1.5 text-xs rounded border ${merged.default_player_variant === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}
                 >
-                  {v === "full" ? "Pełny" : v === "mini" ? "Mini" : "Przyklejony"}
+                  {v === "full"
+                    ? t("adminPodcasts.settings.variantFull")
+                    : v === "mini"
+                      ? t("adminPodcasts.settings.variantMini")
+                      : t("adminPodcasts.settings.variantSticky")}
                 </button>
               ))}
             </div>
           </div>
 
           <label className="flex items-center justify-between gap-4 py-2">
-            <span className="text-sm">Pokazuj kontrolę prędkości</span>
+            <span className="text-sm">{t("adminPodcasts.settings.showSpeed")}</span>
             <Switch
               checked={merged.show_speed_control}
               onCheckedChange={(v) => setForm((f) => ({ ...f, show_speed_control: v }))}
@@ -1025,25 +1034,26 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Zewnętrzny RSS (opcjonalnie)</Label>
+            <Label>{t("adminPodcasts.settings.externalRss")}</Label>
             <Input
               value={merged.rss_url ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, rss_url: e.target.value }))}
-              placeholder="Domyślnie: /podcast/rss.xml"
+              placeholder={t("adminPodcasts.settings.rssPlaceholder")}
             />
             <p className="text-xs text-muted-foreground">
-              Zostaw puste, aby używać wbudowanego kanału RSS: <code>/podcast/rss.xml</code>
+              {t("adminPodcasts.settings.rssHelperPre")}
+              <code>/podcast/rss.xml</code>
             </p>
           </div>
         </div>
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            Anuluj
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             <Save className="w-4 h-4 mr-2" />
-            Zapisz ustawienia
+            {t("adminPodcasts.settings.saveSettings")}
           </Button>
         </div>
       </section>
@@ -1052,15 +1062,16 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
 }
 
 function StatusBadge({ status }: { status: PodcastStatus }) {
+  const { t } = useTranslation();
   const map: Record<PodcastStatus, string> = {
     published: "bg-green-500/10 text-green-700 dark:text-green-400",
     draft: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
     archived: "bg-muted text-muted-foreground",
   };
   const label: Record<PodcastStatus, string> = {
-    published: "Opublikowany",
-    draft: "Szkic",
-    archived: "Archiwum",
+    published: t("adminPodcasts.status.published"),
+    draft: t("adminPodcasts.status.draft"),
+    archived: t("adminPodcasts.status.archived"),
   };
   return (
     <span className={`text-xs px-2 py-0.5 rounded font-medium ${map[status]}`}>
@@ -1115,6 +1126,7 @@ function EditorPane({
   onCancel: () => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [d, setD] = useState<Podcast>(p);
   const [durStr, setDurStr] = useState(formatDuration(p.duration_seconds));
   const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
@@ -1195,7 +1207,7 @@ function EditorPane({
     if (secs != null && secs > 0) {
       upd({ duration_seconds: secs });
       setDurStr(formatDuration(secs));
-      toast.success(`Wykryto czas trwania: ${formatDuration(secs)}`);
+      toast.success(t("adminPodcasts.editor.durationDetected", { time: formatDuration(secs) }));
     }
   };
 
@@ -1216,17 +1228,19 @@ function EditorPane({
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start">
         <section className="bg-card border border-border rounded-lg p-5 space-y-5 min-w-0">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg">{d.id ? "Edycja odcinka" : "Nowy odcinek"}</h2>
+            <h2 className="font-display text-lg">
+              {d.id ? t("adminPodcasts.editor.editTitle") : t("adminPodcasts.editor.newTitle")}
+            </h2>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={onCancel}>
-                Anuluj
+                {t("common.cancel")}
               </Button>
               <Button
                 onClick={() => onSave({ episode: d, chapters, quotes, resources, people })}
                 disabled={saving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                {saving ? "…" : "Zapisz"}
+                {saving ? "…" : t("common.save")}
               </Button>
             </div>
           </div>
@@ -1237,7 +1251,7 @@ function EditorPane({
               <Input
                 value={d.slug}
                 onChange={(e) => upd({ slug: e.target.value })}
-                placeholder="np. odcinek-1"
+                placeholder={t("adminPodcasts.editor.slugPlaceholder")}
               />
             </div>
             <div>
@@ -1247,24 +1261,24 @@ function EditorPane({
                 value={d.status}
                 onChange={(e) => upd({ status: e.target.value as PodcastStatus })}
               >
-                <option value="draft">Szkic</option>
-                <option value="published">Opublikowany</option>
-                <option value="archived">Archiwum</option>
+                <option value="draft">{t("adminPodcasts.editor.statusDraft")}</option>
+                <option value="published">{t("adminPodcasts.editor.statusPublished")}</option>
+                <option value="archived">{t("adminPodcasts.editor.statusArchived")}</option>
               </select>
             </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <FieldLabel tip="Seria (program), do której należy odcinek. Program grupuje odcinki w sezony i ma własną stronę oraz kanał RSS.">
-                Program
+              <FieldLabel tip={t("adminPodcasts.editor.showTip")}>
+                {t("adminPodcasts.editor.showLabel")}
               </FieldLabel>
               <select
                 className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                 value={d.show_id ?? ""}
                 onChange={(e) => upd({ show_id: e.target.value || null })}
               >
-                <option value="">— bez programu —</option>
+                <option value="">{t("adminPodcasts.editor.noShow")}</option>
                 {shows.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.title_pl || s.title_en || s.slug}
@@ -1273,15 +1287,15 @@ function EditorPane({
               </select>
             </div>
             <div>
-              <FieldLabel tip="Specjalizacja (kategoria) tematyczna. Odcinek pojawi się też w sekcji „Podcasty” na stronie tej kategorii.">
-                Specjalizacja
+              <FieldLabel tip={t("adminPodcasts.editor.categoryTip")}>
+                {t("adminPodcasts.editor.categoryLabel")}
               </FieldLabel>
               <select
                 className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                 value={d.category_id ?? ""}
                 onChange={(e) => upd({ category_id: e.target.value || null })}
               >
-                <option value="">— brak —</option>
+                <option value="">{t("adminPodcasts.editor.noCategory")}</option>
                 {(categories ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name_pl || c.name_en}
@@ -1293,16 +1307,16 @@ function EditorPane({
 
           <Tabs defaultValue="pl">
             <TabsList>
-              <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-              <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+              <TabsTrigger value="pl">🇵🇱 {t("adminPodcasts.tabPolish")}</TabsTrigger>
+              <TabsTrigger value="en">🇬🇧 {t("adminPodcasts.tabEnglish")}</TabsTrigger>
             </TabsList>
             <TabsContent value="pl" className="space-y-3 mt-4">
               <div>
-                <Label>Tytuł</Label>
+                <Label>{t("adminPodcasts.editor.fieldTitle")}</Label>
                 <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
               </div>
               <div>
-                <Label>Zajawka</Label>
+                <Label>{t("adminPodcasts.editor.excerpt")}</Label>
                 <Textarea
                   rows={2}
                   value={d.excerpt_pl}
@@ -1310,7 +1324,7 @@ function EditorPane({
                 />
               </div>
               <div>
-                <Label>Show notes (HTML)</Label>
+                <Label>{t("adminPodcasts.editor.showNotes")}</Label>
                 <Textarea
                   rows={5}
                   value={d.show_notes_pl}
@@ -1318,7 +1332,7 @@ function EditorPane({
                 />
               </div>
               <div>
-                <Label>Transkrypcja</Label>
+                <Label>{t("adminPodcasts.editor.transcript")}</Label>
                 <Textarea
                   rows={5}
                   value={d.transcript_pl}
@@ -1360,11 +1374,8 @@ function EditorPane({
 
           <div className="grid sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <FieldLabel
-                htmlFor="pod-audio"
-                tip="Wgraj plik audio (mp3/m4a/wav…) z dysku lub wybierz z biblioteki mediów, albo wklej zewnętrzny URL. Czas trwania zostanie wykryty automatycznie po wgraniu."
-              >
-                Plik audio
+              <FieldLabel htmlFor="pod-audio" tip={t("adminPodcasts.editor.audioTip")}>
+                {t("adminPodcasts.editor.audioLabel")}
               </FieldLabel>
               <div className="flex gap-2">
                 <Input
@@ -1375,24 +1386,21 @@ function EditorPane({
                     // Ręcznie wklejony URL też wyzwala wykrycie czasu, jeśli brak.
                     if (e.target.value && !d.duration_seconds) void onAudioPicked(e.target.value);
                   }}
-                  placeholder="https://… lub wgraj plik"
+                  placeholder={t("adminPodcasts.editor.audioPlaceholder")}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setAudioPickerOpen(true)}
-                  title="Wgraj / wybierz z biblioteki mediów"
+                  title={t("adminPodcasts.editor.uploadFromLibrary")}
                 >
                   <Upload className="w-4 h-4" />
                 </Button>
               </div>
             </div>
             <div>
-              <FieldLabel
-                htmlFor="pod-dur"
-                tip="Format MM:SS lub H:MM:SS. Wypełnia się automatycznie po wgraniu pliku audio; możesz nadpisać ręcznie."
-              >
-                Czas trwania
+              <FieldLabel htmlFor="pod-dur" tip={t("adminPodcasts.editor.durationTip")}>
+                {t("adminPodcasts.editor.durationLabel")}
               </FieldLabel>
               <div className="relative">
                 <Input
@@ -1402,7 +1410,7 @@ function EditorPane({
                     setDurStr(e.target.value);
                     upd({ duration_seconds: parseDuration(e.target.value) });
                   }}
-                  placeholder="MM:SS lub H:MM:SS"
+                  placeholder={t("adminPodcasts.editor.durationPlaceholder")}
                 />
                 {detectingDuration && (
                   <Loader2 className="w-4 h-4 animate-spin absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -1413,7 +1421,7 @@ function EditorPane({
 
           <div className="grid sm:grid-cols-3 gap-3">
             <div>
-              <Label>Sezon</Label>
+              <Label>{t("adminPodcasts.editor.season")}</Label>
               <Input
                 type="number"
                 value={d.season ?? ""}
@@ -1421,7 +1429,7 @@ function EditorPane({
               />
             </div>
             <div>
-              <Label>Numer odcinka</Label>
+              <Label>{t("adminPodcasts.editor.episodeNumber")}</Label>
               <Input
                 type="number"
                 value={d.episode_number ?? ""}
@@ -1431,18 +1439,18 @@ function EditorPane({
               />
             </div>
             <div>
-              <Label>Okładka</Label>
+              <Label>{t("adminPodcasts.editor.cover")}</Label>
               <div className="flex gap-2">
                 <Input
                   value={d.cover_image_url ?? ""}
                   onChange={(e) => upd({ cover_image_url: e.target.value || null })}
-                  placeholder="https://… lub wgraj obraz"
+                  placeholder={t("adminPodcasts.editor.coverPlaceholder")}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setCoverPickerOpen(true)}
-                  title="Wgraj / wybierz okładkę z biblioteki mediów"
+                  title={t("adminPodcasts.editor.uploadCoverLibraryTitle")}
                 >
                   <Upload className="w-4 h-4" />
                 </Button>
@@ -1457,9 +1465,9 @@ function EditorPane({
 
           <div className="rounded-md border border-border bg-muted/30 p-3 flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium">Publikuj od razu</div>
+              <div className="text-sm font-medium">{t("adminPodcasts.editor.publishNow")}</div>
               <div className="text-xs text-muted-foreground">
-                Ustawia status na „Opublikowany" i datę publikacji na teraz.
+                {t("adminPodcasts.editor.publishNowDesc")}
               </div>
             </div>
             <Switch
@@ -1477,7 +1485,7 @@ function EditorPane({
         <aside className="xl:sticky xl:top-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              <Eye className="w-3.5 h-3.5" /> Podgląd na żywo
+              <Eye className="w-3.5 h-3.5" /> {t("adminPodcasts.editor.livePreview")}
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -1518,7 +1526,10 @@ function EditorPane({
               </div>
               <div className="p-4 space-y-2">
                 <h3 className="font-display text-lg leading-tight">
-                  {previewTitle || (previewLang === "pl" ? "Tytuł odcinka" : "Episode title")}
+                  {previewTitle ||
+                    (previewLang === "pl"
+                      ? t("adminPodcasts.editor.previewTitleFallback")
+                      : "Episode title")}
                 </h3>
                 {previewExcerpt && (
                   <p className="text-sm text-muted-foreground line-clamp-3">{previewExcerpt}</p>
@@ -1531,7 +1542,7 @@ function EditorPane({
 
             <div>
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
-                Odtwarzacz
+                {t("adminPodcasts.editor.player")}
               </div>
               {d.audio_url ? (
                 <PodcastPlayer
@@ -1543,7 +1554,7 @@ function EditorPane({
                 />
               ) : (
                 <div className="text-xs text-muted-foreground py-6 text-center bg-card border border-dashed border-border rounded-md">
-                  Dodaj URL audio, aby zobaczyć odtwarzacz.
+                  {t("adminPodcasts.editor.addAudioHint")}
                 </div>
               )}
             </div>
@@ -1567,14 +1578,14 @@ function EditorPane({
           onOpenChange={setAudioPickerOpen}
           onPick={(url) => void onAudioPicked(url)}
           accept="all"
-          title="Wybierz lub wgraj plik audio"
+          title={t("adminPodcasts.editor.pickAudio")}
         />
         <MediaPickerDialog
           open={coverPickerOpen}
           onOpenChange={setCoverPickerOpen}
           onPick={(url) => upd({ cover_image_url: url })}
           accept="image"
-          title="Wybierz lub wgraj okładkę"
+          title={t("adminPodcasts.editor.pickCover")}
         />
       </div>
     </TooltipProvider>
@@ -1616,6 +1627,7 @@ function SectionCard({
 }
 
 function RowShell({ onRemove, children }: { onRemove: () => void; children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-start gap-2 rounded border border-border bg-muted/20 p-2">
       <GripVertical className="w-4 h-4 text-muted-foreground/50 mt-2 shrink-0" />
@@ -1624,7 +1636,7 @@ function RowShell({ onRemove, children }: { onRemove: () => void; children: Reac
         type="button"
         onClick={onRemove}
         className="text-muted-foreground hover:text-destructive p-1 mt-1"
-        aria-label="Usuń wiersz"
+        aria-label={t("adminPodcasts.rowRemove")}
       >
         <Trash2 className="w-4 h-4" />
       </button>
@@ -1641,6 +1653,7 @@ function PeopleEditor({
   setPeople: React.Dispatch<React.SetStateAction<PersonDraft[]>>;
   profiles: ProfileOption[];
 }) {
+  const { t } = useTranslation();
   const update = (i: number, patch: Partial<PersonDraft>) =>
     setPeople((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const remove = (i: number) => setPeople((prev) => prev.filter((_, idx) => idx !== i));
@@ -1649,15 +1662,13 @@ function PeopleEditor({
 
   return (
     <SectionCard
-      title="Prowadzący i goście"
-      hint="Powiąż z profilem eksperta (agregacja na jego stronie) lub dodaj gościa zewnętrznego."
+      title={t("adminPodcasts.people.title")}
+      hint={t("adminPodcasts.people.hint")}
       onAdd={add}
-      addLabel="Dodaj osobę"
+      addLabel={t("adminPodcasts.people.add")}
     >
       {people.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">
-          Brak osób. Dodaj prowadzącego lub gościa.
-        </p>
+        <p className="text-xs text-muted-foreground py-2">{t("adminPodcasts.people.empty")}</p>
       ) : (
         <div className="space-y-2">
           {people.map((person, i) => (
@@ -1668,8 +1679,8 @@ function PeopleEditor({
                   value={person.role}
                   onChange={(e) => update(i, { role: e.target.value as "host" | "guest" })}
                 >
-                  <option value="host">Prowadzący</option>
-                  <option value="guest">Gość</option>
+                  <option value="host">{t("adminPodcasts.people.roleHost")}</option>
+                  <option value="guest">{t("adminPodcasts.people.roleGuest")}</option>
                 </select>
                 <select
                   className="px-2 py-1.5 rounded border border-input bg-background text-sm"
@@ -1687,7 +1698,7 @@ function PeopleEditor({
                     });
                   }}
                 >
-                  <option value="">— gość zewnętrzny (bez profilu) —</option>
+                  <option value="">{t("adminPodcasts.people.externalGuest")}</option>
                   {profiles.map((prof) => (
                     <option key={prof.id} value={prof.id}>
                       {prof.display_name || prof.slug || prof.id.slice(0, 8)}
@@ -1699,12 +1710,12 @@ function PeopleEditor({
                 <Input
                   value={person.display_name}
                   onChange={(e) => update(i, { display_name: e.target.value })}
-                  placeholder="Wyświetlane nazwisko"
+                  placeholder={t("adminPodcasts.people.displayNamePlaceholder")}
                 />
                 <Input
                   value={person.url}
                   onChange={(e) => update(i, { url: e.target.value })}
-                  placeholder="Link (opcjonalny, dla gościa bez profilu)"
+                  placeholder={t("adminPodcasts.people.urlPlaceholder")}
                 />
               </div>
             </RowShell>
@@ -1722,6 +1733,7 @@ function ChaptersEditor({
   chapters: PodcastChapter[];
   setChapters: React.Dispatch<React.SetStateAction<PodcastChapter[]>>;
 }) {
+  const { t } = useTranslation();
   const update = (i: number, patch: Partial<PodcastChapter>) =>
     setChapters((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const remove = (i: number) => setChapters((prev) => prev.filter((_, idx) => idx !== i));
@@ -1729,13 +1741,13 @@ function ChaptersEditor({
 
   return (
     <SectionCard
-      title="Rozdziały"
-      hint="Znaczniki czasu z tytułami. Na stronie odcinka klik przeskakuje odtwarzacz do rozdziału."
+      title={t("adminPodcasts.chapters.title")}
+      hint={t("adminPodcasts.chapters.hint")}
       onAdd={add}
-      addLabel="Dodaj rozdział"
+      addLabel={t("adminPodcasts.chapters.add")}
     >
       {chapters.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">Brak rozdziałów.</p>
+        <p className="text-xs text-muted-foreground py-2">{t("adminPodcasts.chapters.empty")}</p>
       ) : (
         <div className="space-y-2">
           {chapters.map((c, i) => (
@@ -1745,12 +1757,12 @@ function ChaptersEditor({
                   value={formatDuration(c.start)}
                   onChange={(e) => update(i, { start: parseDuration(e.target.value) })}
                   placeholder="MM:SS"
-                  aria-label="Czas startu"
+                  aria-label={t("adminPodcasts.chapters.startTime")}
                 />
                 <Input
                   value={c.title_pl}
                   onChange={(e) => update(i, { title_pl: e.target.value })}
-                  placeholder="Tytuł (PL)"
+                  placeholder={t("adminPodcasts.chapters.titlePlPlaceholder")}
                 />
                 <Input
                   value={c.title_en}
@@ -1773,6 +1785,7 @@ function QuotesEditor({
   quotes: PodcastQuote[];
   setQuotes: React.Dispatch<React.SetStateAction<PodcastQuote[]>>;
 }) {
+  const { t } = useTranslation();
   const update = (i: number, patch: Partial<PodcastQuote>) =>
     setQuotes((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const remove = (i: number) => setQuotes((prev) => prev.filter((_, idx) => idx !== i));
@@ -1780,13 +1793,13 @@ function QuotesEditor({
 
   return (
     <SectionCard
-      title="Cytaty do udostępnienia"
-      hint="Wyróżnione fragmenty z przyciskiem kopiowania na stronie odcinka."
+      title={t("adminPodcasts.quotes.title")}
+      hint={t("adminPodcasts.quotes.hint")}
       onAdd={add}
-      addLabel="Dodaj cytat"
+      addLabel={t("adminPodcasts.quotes.add")}
     >
       {quotes.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">Brak cytatów.</p>
+        <p className="text-xs text-muted-foreground py-2">{t("adminPodcasts.quotes.empty")}</p>
       ) : (
         <div className="space-y-2">
           {quotes.map((q, i) => (
@@ -1795,7 +1808,7 @@ function QuotesEditor({
                 rows={2}
                 value={q.text_pl}
                 onChange={(e) => update(i, { text_pl: e.target.value })}
-                placeholder="Cytat (PL)"
+                placeholder={t("adminPodcasts.quotes.quotePlPlaceholder")}
               />
               <Textarea
                 rows={2}
@@ -1806,7 +1819,7 @@ function QuotesEditor({
               <Input
                 value={q.attribution}
                 onChange={(e) => update(i, { attribution: e.target.value })}
-                placeholder="Autor cytatu (np. gen. Skrzypczak)"
+                placeholder={t("adminPodcasts.quotes.attributionPlaceholder")}
               />
             </RowShell>
           ))}
@@ -1823,6 +1836,7 @@ function ResourcesEditor({
   resources: PodcastResource[];
   setResources: React.Dispatch<React.SetStateAction<PodcastResource[]>>;
 }) {
+  const { t } = useTranslation();
   const update = (i: number, patch: Partial<PodcastResource>) =>
     setResources((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const remove = (i: number) => setResources((prev) => prev.filter((_, idx) => idx !== i));
@@ -1831,13 +1845,13 @@ function ResourcesEditor({
 
   return (
     <SectionCard
-      title="Źródła i materiały dodatkowe"
-      hint="Bibliografia i powiązane analizy. „Źródło” i „Materiał powiązany” trafiają do osobnych kolumn."
+      title={t("adminPodcasts.resources.title")}
+      hint={t("adminPodcasts.resources.hint")}
       onAdd={add}
-      addLabel="Dodaj pozycję"
+      addLabel={t("adminPodcasts.resources.add")}
     >
       {resources.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">Brak źródeł.</p>
+        <p className="text-xs text-muted-foreground py-2">{t("adminPodcasts.resources.empty")}</p>
       ) : (
         <div className="space-y-2">
           {resources.map((r, i) => (
@@ -1850,8 +1864,8 @@ function ResourcesEditor({
                     update(i, { kind: e.target.value === "related" ? "related" : "source" })
                   }
                 >
-                  <option value="source">Źródło</option>
-                  <option value="related">Materiał powiązany</option>
+                  <option value="source">{t("adminPodcasts.resources.kindSource")}</option>
+                  <option value="related">{t("adminPodcasts.resources.kindRelated")}</option>
                 </select>
                 <Input
                   value={r.url}
@@ -1863,7 +1877,7 @@ function ResourcesEditor({
                 <Input
                   value={r.label_pl}
                   onChange={(e) => update(i, { label_pl: e.target.value })}
-                  placeholder="Etykieta (PL)"
+                  placeholder={t("adminPodcasts.resources.labelPlPlaceholder")}
                 />
                 <Input
                   value={r.label_en}
