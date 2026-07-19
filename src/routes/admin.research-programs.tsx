@@ -410,7 +410,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-3">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Ikona" : "Icon"}</Label>
+                <Label>{tp("field.icon")}</Label>
                 <Select
                   value={form.icon}
                   onValueChange={(v) => setForm((f) => ({ ...f, icon: v }))}
