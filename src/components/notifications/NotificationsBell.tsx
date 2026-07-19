@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useNotifications,
@@ -141,17 +142,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           aria-expanded={open}
         >
           <LucideIcons.Bell className="h-4 w-4" aria-hidden />
-          {unread > 0 && (
-            <span
-              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
-              aria-label={t("notifications.unread", {
-                count: unread,
-                defaultValue: `${unread} nieprzeczytanych`,
-              })}
-            >
-              {unread > 99 ? "99+" : unread}
-            </span>
-          )}
+          <UnreadBadge count={unread} className="absolute -top-0.5 -right-0.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -174,8 +165,18 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
         style={panelStyle}
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
-          <div className="text-xs font-semibold uppercase tracking-wide">
-            {t("notifications.title", { defaultValue: "Powiadomienia" })}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide">
+              {t("notifications.title", { defaultValue: "Powiadomienia" })}
+            </span>
+            {unread > 0 && (
+              <UnreadBadge
+                count={unread}
+                size="lg"
+                className="static"
+                labelKey="notifications.unread"
+              />
+            )}
           </div>
           <button
             type="button"
@@ -234,12 +235,11 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           {title}
                         </span>
                         {groupUnread > 0 && (
-                          <span
-                            className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground"
-                            aria-label={t("notifications.unread", { count: groupUnread })}
-                          >
-                            {groupUnread > 99 ? "99+" : groupUnread}
-                          </span>
+                          <UnreadBadge
+                            count={groupUnread}
+                            size="sm"
+                            labelKey="notifications.unread"
+                          />
                         )}
                       </div>
                       {pickBody(n, lang) && (
