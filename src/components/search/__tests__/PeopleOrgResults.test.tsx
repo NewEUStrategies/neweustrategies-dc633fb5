@@ -19,6 +19,7 @@ const item = (p: Partial<PeopleOrgItem>): PeopleOrgItem => ({
   sublabel_pl: "Analityk",
   sublabel_en: "Analyst",
   avatarUrl: null,
+  logoUrl: null,
   verified: false,
   postCount: 3,
   ...p,
