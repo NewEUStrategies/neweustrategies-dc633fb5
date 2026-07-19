@@ -26,11 +26,16 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       /* noop */
     }
     const internal = stripLangPrefix(router.state.location.pathname).pathname;
-    void router.navigate({
-      href: localizedPath(internal, next),
-      replace: true,
-      resetScroll: false,
-    });
+    const target = localizedPath(internal, next);
+    try {
+      void router.navigate({
+        href: target,
+        replace: true,
+        resetScroll: false,
+      });
+    } catch {
+      window.location.href = target;
+    }
   };
 
   useEffect(() => {
