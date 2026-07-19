@@ -1,5 +1,6 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
 
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "@/lib/lucide-shim";
