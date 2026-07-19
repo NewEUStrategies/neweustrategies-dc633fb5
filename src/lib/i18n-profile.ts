@@ -498,6 +498,10 @@ const en: typeof pl = {
       notSet: "Not set",
       clickToEdit: "Click to edit",
       saving: "Saving...",
+      addAvatar: "Add photo",
+      changeAvatar: "Change",
+      avatarSize: "400 × 400 px",
+
     },
 
     security: {
