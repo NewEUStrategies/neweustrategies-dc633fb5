@@ -244,25 +244,16 @@ function AdminMembershipPage() {
                       className="h-7 w-7 text-muted-foreground hover:text-destructive"
                       onClick={() => {
                         if (
-                          confirm(
-                            lang === "pl"
-                              ? `Usunąć warstwę "${tier.key}"? Operacji nie można cofnąć.`
-                              : `Delete tier "${tier.key}"? This cannot be undone.`,
-                          )
+                          confirm(tm("deleteConfirm", { key: tier.key }))
                         ) {
                           deleteTier.mutate(tier.id);
                         }
                       }}
                       disabled={deleteTier.isPending || tier.is_default}
                       title={
-                        tier.is_default
-                          ? lang === "pl"
-                            ? "Nie można usunąć warstwy domyślnej"
-                            : "Cannot delete default tier"
-                          : lang === "pl"
-                            ? "Usuń warstwę"
-                            : "Delete tier"
+                        tier.is_default ? tm("deleteDefaultDisabled") : tm("deleteTitle")
                       }
+
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </Button>
