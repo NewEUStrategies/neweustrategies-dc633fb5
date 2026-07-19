@@ -443,7 +443,7 @@ function AdminResearchPrograms() {
                 </div>
               </div>
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Kolejność" : "Sort order"}</Label>
+                <Label>{tp("field.sort")}</Label>
                 <Input
                   type="number"
                   value={form.sort_order}
