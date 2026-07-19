@@ -1,6 +1,7 @@
 // Modal do wysłania pojedynczego zaproszenia (email + rola + tryb).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-team-media";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -51,8 +52,9 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
       if (!id) throw new Error("no_id");
       const s = await send({ data: { id } });
       if (s.ok) {
-        toast.success(t("admin.users.invite.sent", { defaultValue: "Zaproszenie wysłane" }));
-        if (s.tempPassword) toast.info(`Hasło tymczasowe: ${s.tempPassword}`);
+        toast.success(t("adminTeamMedia.inviteUser.sent"));
+        if (s.tempPassword)
+          toast.info(t("adminTeamMedia.inviteUser.tempPassword", { pw: s.tempPassword }));
       } else {
         toast.error(s.error ?? "failed");
       }
@@ -71,9 +73,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {t("admin.users.invite.title", { defaultValue: "Zaproś użytkownika" })}
-          </DialogTitle>
+          <DialogTitle>{t("adminTeamMedia.inviteUser.title")}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1">
@@ -81,11 +81,11 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="grid gap-1">
-            <Label>{t("admin.users.name", { defaultValue: "Imię i nazwisko" })}</Label>
+            <Label>{t("adminTeamMedia.inviteUser.name")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid gap-1">
-            <Label>{t("admin.users.role", { defaultValue: "Rola" })}</Label>
+            <Label>{t("adminTeamMedia.inviteUser.role")}</Label>
             <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
               <SelectTrigger>
                 <SelectValue />
@@ -99,24 +99,28 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
             </Select>
           </div>
           <div className="grid gap-1">
-            <Label>{t("admin.users.invite.mode", { defaultValue: "Tryb" })}</Label>
+            <Label>{t("adminTeamMedia.inviteUser.mode")}</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="magic_link">Link aktywacyjny (user ustawia hasło)</SelectItem>
-                <SelectItem value="temp_password">Login + hasło tymczasowe (email)</SelectItem>
+                <SelectItem value="magic_link">
+                  {t("adminTeamMedia.inviteUser.modeMagic")}
+                </SelectItem>
+                <SelectItem value="temp_password">
+                  {t("adminTeamMedia.inviteUser.modeTempPassword")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
-            {t("common.cancel", { defaultValue: "Anuluj" })}
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={busy || !email || !name}>
-            {busy ? "..." : t("admin.users.invite.send", { defaultValue: "Wyślij zaproszenie" })}
+            {busy ? "..." : t("adminTeamMedia.inviteUser.send")}
           </Button>
         </DialogFooter>
       </DialogContent>

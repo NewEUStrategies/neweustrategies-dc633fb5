@@ -52,6 +52,17 @@ const pl = {
       savingAlt: "Zapisywanie…",
       insertBtn: "Wstaw",
     },
+    inviteUser: {
+      sent: "Zaproszenie wysłane",
+      tempPassword: "Hasło tymczasowe: {{pw}}",
+      title: "Zaproś użytkownika",
+      name: "Imię i nazwisko",
+      role: "Rola",
+      mode: "Tryb",
+      modeMagic: "Link aktywacyjny (user ustawia hasło)",
+      modeTempPassword: "Login + hasło tymczasowe (email)",
+      send: "Wyślij zaproszenie",
+    },
   },
 };
 
@@ -104,6 +115,17 @@ const en = {
       saveAltBtn: "Save alt",
       savingAlt: "Saving…",
       insertBtn: "Insert",
+    },
+    inviteUser: {
+      sent: "Invitation sent",
+      tempPassword: "Temporary password: {{pw}}",
+      title: "Invite user",
+      name: "Full name",
+      role: "Role",
+      mode: "Mode",
+      modeMagic: "Activation link (user sets the password)",
+      modeTempPassword: "Login + temporary password (email)",
+      send: "Send invitation",
     },
   },
 };
