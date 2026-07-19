@@ -81,7 +81,7 @@ const AUTO_ICON: Record<AlertStyle, AlertIconName> = {
 const STORAGE_KEY = "alert-bar-dismissed-v1";
 
 export function AlertBar() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const cfg = useSiteSetting<AlertBarCfg>("theme_options", DEFAULTS);
   const bar = cfg.header?.alert_bar ?? DEFAULTS.header.alert_bar;
   const [dismissed, setDismissed] = useState(false);
