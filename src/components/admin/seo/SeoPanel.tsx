@@ -94,6 +94,15 @@ export function SeoPanel(props: SeoPanelProps) {
     [value, fallbackTitlePl, fallbackTitleEn, fallbackDescPl, fallbackDescEn, slug],
   );
 
+  const headingIssues = useMemo<HeadingIssue[]>(() => {
+    const blocks = props.contentBlocks;
+    const html = props.contentHtml;
+    return [
+      ...validateHeadings("pl", { html: html?.pl ?? null, blocks }),
+      ...validateHeadings("en", { html: html?.en ?? null, blocks }),
+    ];
+  }, [props.contentBlocks, props.contentHtml]);
+
   const issuesKey = useMemo(
     () => issues.map((i) => `${i.lang}:${i.kind}:${i.severity}:${i.chars}:${i.px}`).join("|"),
     [issues],
