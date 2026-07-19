@@ -41,7 +41,7 @@ export function SearchAutosuggest({ items, activeIndex, lang, onPick }: Props) {
       id={AUTOSUGGEST_LISTBOX_ID}
       role="listbox"
       aria-label={t("search.title")}
-      className="absolute z-30 mt-2 w-full max-h-[26rem] overflow-auto rounded-xl border border-border bg-popover shadow-lg py-1"
+      className="absolute left-0 right-0 top-full z-50 mt-2 w-full max-h-[26rem] overflow-auto rounded-xl border border-border/70 bg-popover/95 backdrop-blur-md shadow-2xl ring-1 ring-black/5 py-1 animate-in fade-in-0 slide-in-from-top-1"
     >
       {items.map((it, i) => {
         const bucket = suggestBucketOf(it.kind);
