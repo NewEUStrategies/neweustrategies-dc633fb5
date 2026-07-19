@@ -30,7 +30,7 @@ export function AppDialogHost() {
   const [pending, setPending] = useState<PendingDialog | null>(null);
   const [value, setValue] = useState("");
   const inputId = useId();
-  const isPl = currentLang() === "pl";
+  const { t } = useTranslation();
 
   useEffect(
     () =>
