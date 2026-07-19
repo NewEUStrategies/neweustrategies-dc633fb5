@@ -399,11 +399,8 @@ function AdminMembershipPage() {
         <h2 className="text-lg font-semibold">
           {tm("org.heading")}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {lang === "pl"
-            ? "Członkostwo korporacyjne i partnerskie (wiele kont / miejsc) prowadzisz w osobnym panelu."
-            : "Corporate and partner membership (multiple accounts / seats) is managed in a separate panel."}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{tm("org.hint")}</p>
+
         <Button asChild variant="outline" size="sm" className="mt-3">
           <Link to="/admin/organizations">
             <Landmark className="mr-1.5 h-4 w-4" aria-hidden="true" />
