@@ -524,7 +524,7 @@ export function SearchButtonWidget({
                       setFocused(false);
                     }}
                     className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
-                    style={{ color: "var(--brand-ink)", lineHeight: 1.4 }}
+                    style={{ color: "var(--brand)", lineHeight: 1.4 }}
                   >
                     <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
                     {lang === "pl" ? "Wyszukiwanie zaawansowane" : "Advanced search"}
