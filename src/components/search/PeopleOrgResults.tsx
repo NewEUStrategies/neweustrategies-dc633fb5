@@ -121,7 +121,7 @@ export function PeopleOrgStrip({ items, lang, onSeeAll }: Props & { onSeeAll: ()
           <li key={`${it.kind}-${it.id}`}>
             <AppLink
               href={hrefFor(it)}
-              className="group inline-flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 text-xs transition-colors hover:border-brand"
+              className="group inline-flex items-center gap-2 rounded-[6px] border border-border bg-card py-1 pl-1 pr-3 text-xs transition-colors hover:border-brand"
             >
               {it.kind === "person" && it.avatarUrl ? (
                 <img
