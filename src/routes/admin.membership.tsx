@@ -758,11 +758,8 @@ function NewTierDialog({
               placeholder="patron"
               className="font-mono"
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {lang === "pl"
-                ? "2-32 znaki: a-z, 0-9, _ lub -. Musi być unikalny."
-                : "2-32 chars: a-z, 0-9, _ or -. Must be unique."}
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{tm("newTierDialog.keyHint")}</p>
+
           </div>
           <div>
             <Label className="text-xs">{tm("fields.rank")}</Label>
