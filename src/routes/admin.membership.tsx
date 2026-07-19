@@ -487,11 +487,8 @@ function GrantsSection({
       <h2 className="text-lg font-semibold">
         {tm("grants.heading")}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {lang === "pl"
-          ? "Nadaj warstwę bezpośrednio po e-mailu konta (sprzedaż fakturowa, członkostwo eksperckie/partnerskie, komplementarne). Pozostaw „miesiące” puste dla nadania bezterminowego."
-          : "Grant a tier directly by account email (invoice sales, expert/partner membership, complimentary). Leave “months” empty for an open-ended grant."}
-      </p>
+      <p className="mt-1 text-sm text-muted-foreground">{tm("grants.hint")}</p>
+
 
       <div className="mt-3 grid gap-2 rounded-md border border-border/60 p-3 sm:grid-cols-[1fr_10rem_7rem_auto] sm:items-end">
         <div>
