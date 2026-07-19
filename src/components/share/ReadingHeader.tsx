@@ -119,9 +119,23 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
         visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none",
       ].join(" ")}
     >
-      <div className="mx-auto max-w-[1400px] px-3 sm:px-5 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
+      <style>{`
+        /* Safe-space rules for the condensed reading header.
+           The search mega-box popover is wider than the input; every ancestor
+           of the widget must stay visible so it is never clipped by columns or
+           sections with overflow:hidden in the builder/public wrapper. */
+        [data-reading-header] :has(> .builder-search-widget),
+        [data-reading-header] :has(.builder-search-widget) {
+          overflow: visible !important;
+        }
+        [data-reading-header] .builder-search-widget {
+          position: relative;
+          z-index: 50;
+        }
+      `}</style>
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-5 lg:px-6 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 lg:gap-5">
         {/* Search - same widget as builder header, smaller in the condensed reading bar */}
-        <div className="w-[160px] sm:w-[220px] lg:w-[280px]">
+        <div className="relative z-50 min-w-0 overflow-visible w-[160px] sm:w-[220px] lg:w-[280px]">
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
