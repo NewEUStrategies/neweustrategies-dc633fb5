@@ -22,6 +22,8 @@ export const pl = {
     purpose: "Cel",
     expires: "Wygasa",
     dataProcessingTerms: "Zasady przetwarzania danych",
+    lightMode: "Tryb jasny",
+    darkMode: "Tryb ciemny",
   },
   nav: {
     newsletter: "Newsletter",
