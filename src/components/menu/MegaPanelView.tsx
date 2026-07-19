@@ -46,6 +46,7 @@ export function MegaPanelView({
   const eyebrowFallback = lang === "en" ? "Featured" : "Wyróżniony wpis";
   const readMore = lang === "en" ? "Read more" : "Czytaj więcej";
   const browseAll = lang === "en" ? "Browse all" : "Przejdź do sekcji";
+  const goToPage = lang === "en" ? "Go to page" : "Przejdź do strony";
   const featuredTitle = featured ? pickLocalized(featured.title_pl, featured.title_en, lang) : "";
   const featuredExcerpt = featured
     ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang)
