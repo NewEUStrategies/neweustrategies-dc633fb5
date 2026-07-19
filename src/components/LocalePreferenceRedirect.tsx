@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import { DEFAULT_LANG, localizedPath } from "@/lib/i18n/localePath";
 import { setClientLang } from "@/lib/i18n/localeRuntime";
-import { readLangCookieClient } from "@/lib/i18n/langCookie";
+import { resolveOrPersistPreferredLang } from "@/lib/i18n/langCookie";
 
 /**
- * Honor a returning visitor's stored language preference - but ONLY on the bare
- * homepage. The SSR of "/" always renders the default language (so it stays a
- * single, shareable edge-cache entry); this client-only effect then bounces a
- * visitor who previously chose a non-default language to its prefixed home
+ * Honor a returning visitor's stored language preference - and, on a first
+ * visit, auto-detect from the browser (Polish -> pl, anything else -> en) -
+ * but ONLY on the bare homepage. The SSR of "/" always renders the default
+ * language (so it stays a single, shareable edge-cache entry); this
+ * client-only effect then bounces a visitor to their preferred language
  * ("/en"). Deep links are deliberately left untouched, so shared / indexed
  * content URLs always render exactly as addressed.
  */
@@ -21,7 +22,7 @@ export function LocalePreferenceRedirect() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.location.pathname !== "/") return;
-    const pref = readLangCookieClient();
+    const pref = resolveOrPersistPreferredLang();
     if (!pref || pref === DEFAULT_LANG) return;
     setClientLang(pref);
     void i18n.changeLanguage(pref);
@@ -30,3 +31,4 @@ export function LocalePreferenceRedirect() {
 
   return null;
 }
+

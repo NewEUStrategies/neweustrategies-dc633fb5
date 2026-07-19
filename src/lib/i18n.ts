@@ -4,7 +4,7 @@ import { pl } from "@/lib/locale/pl";
 import { en } from "@/lib/locale/en";
 import { DEFAULT_LANG, type AppLang } from "@/lib/i18n/localePath";
 import { currentLang, setClientLang } from "@/lib/i18n/localeRuntime";
-import { readLangCookieClient, writeLangCookieClient } from "@/lib/i18n/langCookie";
+import { readLangCookieClient, writeLangCookieClient, detectBrowserLang } from "@/lib/i18n/langCookie";
 
 const resources = {
   pl: { translation: pl },
@@ -79,9 +79,13 @@ if (!i18n.isInitialized) {
     });
     try {
       document.documentElement.setAttribute("lang", i18n.language);
-      // Backfill the preference cookie if missing (e.g. set only in
-      // localStorage by an older build).
-      if (!readLangCookieClient()) writeLangCookieClient(i18n.language === "en" ? "en" : "pl");
+      // Backfill the preference cookie if missing. Prefer an auto-detected
+      // browser language (Polish -> pl, anything else -> en) so a first-time
+      // visitor's preference is captured before the homepage redirect runs.
+      if (!readLangCookieClient()) {
+        const detected = detectBrowserLang();
+        writeLangCookieClient(detected ?? (i18n.language === "en" ? "en" : "pl"));
+      }
     } catch {
       /* ignore */
     }
