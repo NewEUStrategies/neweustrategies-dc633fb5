@@ -1,6 +1,5 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
 
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "@/lib/lucide-shim";
@@ -11,12 +10,12 @@ import { setClientLang } from "@/lib/i18n/localeRuntime";
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
   const router = useRouter();
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const next: AppLang = current === "pl" ? "en" : "pl";
 
-  const switchLang = () => {
-    if (current === next) return;
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     setClientLang(next);
     void i18n.changeLanguage(next);
     try {
@@ -28,44 +27,23 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
     const internal = stripLangPrefix(router.state.location.pathname).pathname;
     const target = localizedPath(internal, next);
     try {
-      void router.navigate({
-        href: target,
-        replace: true,
-        resetScroll: false,
-      });
+      void router.navigate({ href: target, replace: true, resetScroll: false });
     } catch {
       window.location.href = target;
     }
   };
 
-  useEffect(() => {
-    const btn = buttonRef.current;
-    if (!btn) return;
-    btn.addEventListener("click", switchLang);
-    return () => btn.removeEventListener("click", switchLang);
-  }, [switchLang]);
-
   return (
     <button
-      ref={buttonRef}
       type="button"
+      onClick={handleClick}
+      onPointerDown={(e) => e.stopPropagation()}
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
-      className="lang-switch"
+      className="lang-switch-simple inline-flex items-center justify-center rounded-[6px] border border-border bg-background hover:bg-muted transition-colors font-semibold"
+      style={{ height: 24, minWidth: 32, padding: "0 8px", fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
     >
-      <span
-        className="lang-switch__container"
-        aria-hidden
-        data-state={current}
-      >
-        <span className="lang-switch__circle-container">
-          <span className="lang-switch__flag-container">
-            <span className="lang-switch__flag">
-              {current.toUpperCase()}
-            </span>
-          </span>
-        </span>
-      </span>
+      {current.toUpperCase()}
     </button>
   );
 }
