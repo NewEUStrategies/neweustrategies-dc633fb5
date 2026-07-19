@@ -126,8 +126,10 @@ const EMPTY: Omit<ProgramRow, "id" | "tenant_id"> = {
 };
 
 function AdminResearchPrograms() {
-  const { t: _t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const tp = (k: string) => t(`adminPrograms.${k}`);
+
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
 
