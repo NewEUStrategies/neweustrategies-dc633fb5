@@ -518,8 +518,10 @@ function SearchPage() {
                 emptyText={t("search.empty")}
                 getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
                 titleClassName="text-base"
+                gridClassName="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
               />
             )}
+
 
             {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
               <div className="mt-6">
