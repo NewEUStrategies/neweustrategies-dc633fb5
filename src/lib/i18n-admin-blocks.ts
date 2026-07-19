@@ -311,6 +311,12 @@ const pl = {
       video: {
         hint: "Poster (miniatura) w panelu po prawej.",
       },
+      adminControls: {
+        pickColor: "Wybierz kolor",
+        disableTransparency: "Wyłącz przezroczystość",
+        setTransparent: "Ustaw przezroczyste",
+        resetDefault: "Przywróć domyślny",
+      },
       postContextBlocks: {
         none: "brak",
         changePhoto: "Zmień zdjęcie",
@@ -537,6 +543,10 @@ const pl = {
         addRow: "Wiersz",
         addCol: "Kolumna",
       },
+    },
+    settings: {
+      rawHtml: "Surowy HTML",
+      rawHtmlNote: "Treść jest sanitizowana przy renderowaniu. Podgląd widoczny w obszarze treści.",
     },
   },
 };
@@ -848,6 +858,12 @@ const en: typeof pl = {
       video: {
         hint: "Poster (thumbnail) in the right panel.",
       },
+      adminControls: {
+        pickColor: "Pick a color",
+        disableTransparency: "Disable transparency",
+        setTransparent: "Set transparent",
+        resetDefault: "Reset to default",
+      },
       postContextBlocks: {
         none: "none",
         changePhoto: "Change photo",
@@ -1074,6 +1090,10 @@ const en: typeof pl = {
         addRow: "Row",
         addCol: "Column",
       },
+    },
+    settings: {
+      rawHtml: "Raw HTML",
+      rawHtmlNote: "Content is sanitized on render. Preview visible in the content area.",
     },
   },
 };

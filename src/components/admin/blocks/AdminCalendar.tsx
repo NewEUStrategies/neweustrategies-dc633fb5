@@ -28,6 +28,7 @@ const YEAR_PAGE_SIZE = 12;
 export function AdminCalendar({ selected, onSelect, locale, className }: Props) {
   const [view, setView] = React.useState<View>("day");
   const [month, setMonth] = React.useState<Date>(selected ?? new Date());
+  const isEn = (locale.code ?? "").startsWith("en");
 
   React.useEffect(() => {
     if (selected) setMonth(selected);
@@ -74,7 +75,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
             type="button"
             onClick={() => setMonth(new Date(month.getFullYear() - 1, month.getMonth(), 1))}
             className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
-            aria-label="Poprzedni rok"
+            aria-label={isEn ? "Previous year" : "Poprzedni rok"}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -89,7 +90,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
             type="button"
             onClick={() => setMonth(new Date(month.getFullYear() + 1, month.getMonth(), 1))}
             className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
-            aria-label="Następny rok"
+            aria-label={isEn ? "Next year" : "Następny rok"}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -136,7 +137,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
           type="button"
           onClick={() => setMonth(new Date(baseYear - YEAR_PAGE_SIZE, month.getMonth(), 1))}
           className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
-          aria-label="Poprzednia dekada"
+          aria-label={isEn ? "Previous decade" : "Poprzednia dekada"}
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -147,7 +148,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
           type="button"
           onClick={() => setMonth(new Date(baseYear + YEAR_PAGE_SIZE, month.getMonth(), 1))}
           className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
-          aria-label="Następna dekada"
+          aria-label={isEn ? "Next decade" : "Następna dekada"}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
