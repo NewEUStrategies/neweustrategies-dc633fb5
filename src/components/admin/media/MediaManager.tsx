@@ -29,6 +29,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-media";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -1286,7 +1287,7 @@ export function MediaManager() {
           },
         },
         {
-          label: t("admin.media.cut", { defaultValue: "Wytnij" }),
+          label: t("admin.media.cutAction", { defaultValue: "Wytnij" }),
           icon: <Scissors className="w-3.5 h-3.5" />,
           shortcut: "⌘X",
           onSelect: () => {
@@ -1338,7 +1339,7 @@ export function MediaManager() {
         onSelect: () => setNewFolderOpen(true),
       },
       {
-        label: t("admin.media.upload", { defaultValue: "Wgraj pliki" }),
+        label: t("admin.media.uploadFiles", { defaultValue: "Wgraj pliki" }),
         icon: <Upload className="w-3.5 h-3.5" />,
         onSelect: () => fileInputRef.current?.click(),
       },
@@ -1772,7 +1773,13 @@ function InfoPanel({
   }, [target?.id, target?.alt_text]);
 
   if (!target) {
-    return <p className="text-muted-foreground">Zaznacz jeden plik, aby zobaczyć szczegóły.</p>;
+    return (
+      <p className="text-muted-foreground">
+        {t("admin.media.selectOneFile", {
+          defaultValue: "Zaznacz jeden plik, aby zobaczyć szczegóły.",
+        })}
+      </p>
+    );
   }
   const isImage = target.mime_type?.startsWith("image/");
   const dirty = (target.alt_text ?? "") !== altDraft;
@@ -1846,7 +1853,8 @@ function InfoPanel({
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-brand hover:underline"
         >
-          Otwórz w nowej karcie <MoreVertical className="w-3 h-3 rotate-90" />
+          {t("admin.media.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}{" "}
+          <MoreVertical className="w-3 h-3 rotate-90" />
         </a>
       </div>
     </div>
