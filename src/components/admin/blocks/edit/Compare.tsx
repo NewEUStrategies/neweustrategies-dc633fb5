@@ -1,6 +1,8 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { GitCompareArrows } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -8,6 +10,8 @@ interface Props {
 }
 
 export function CompareBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const cp = (k: string) => i18n.editor("compare", k);
   const before = String(block.data.before ?? "");
   const after = String(block.data.after ?? "");
   const labelBefore = String(block.data.labelBefore ?? "Przed");
@@ -17,26 +21,26 @@ export function CompareBlock({ block, onChange }: Props) {
   return (
     <div className="not-prose rounded-md border border-border bg-card p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <GitCompareArrows className="w-3.5 h-3.5" /> Before / After
+        <GitCompareArrows className="w-3.5 h-3.5" /> {cp("shellLabel")}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Input
-          placeholder="URL: PRZED"
+          placeholder={cp("urlBefore")}
           value={before}
           onChange={(e) => patch("before", e.target.value)}
         />
         <Input
-          placeholder="URL: PO"
+          placeholder={cp("urlAfter")}
           value={after}
           onChange={(e) => patch("after", e.target.value)}
         />
         <Input
-          placeholder="Etykieta lewa"
+          placeholder={cp("labelLeft")}
           value={labelBefore}
           onChange={(e) => patch("labelBefore", e.target.value)}
         />
         <Input
-          placeholder="Etykieta prawa"
+          placeholder={cp("labelRight")}
           value={labelAfter}
           onChange={(e) => patch("labelAfter", e.target.value)}
         />

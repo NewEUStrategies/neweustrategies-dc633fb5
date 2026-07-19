@@ -297,6 +297,20 @@ const pl = {
         shellLabel: "Przyciski",
         add: "Dodaj",
       },
+      button: {
+        labelPh: "Etykieta…",
+        hint: "- link i wariant w panelu po prawej",
+      },
+      compare: {
+        shellLabel: "Przed / Po",
+        urlBefore: "URL: PRZED",
+        urlAfter: "URL: PO",
+        labelLeft: "Etykieta lewa",
+        labelRight: "Etykieta prawa",
+      },
+      video: {
+        hint: "Poster (miniatura) w panelu po prawej.",
+      },
       postContextBlocks: {
         none: "brak",
         changePhoto: "Zmień zdjęcie",
@@ -819,6 +833,20 @@ const en: typeof pl = {
       buttons: {
         shellLabel: "Buttons",
         add: "Add",
+      },
+      button: {
+        labelPh: "Label…",
+        hint: "- link and variant in the right panel",
+      },
+      compare: {
+        shellLabel: "Before / After",
+        urlBefore: "URL: BEFORE",
+        urlAfter: "URL: AFTER",
+        labelLeft: "Left label",
+        labelRight: "Right label",
+      },
+      video: {
+        hint: "Poster (thumbnail) in the right panel.",
       },
       postContextBlocks: {
         none: "none",
