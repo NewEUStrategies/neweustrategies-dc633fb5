@@ -259,7 +259,7 @@ function AdminResearchPrograms() {
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-          {lang === "pl" ? "Brak programów. Utwórz pierwszy." : "No programs yet. Create one."}
+          {tp("empty")}
         </div>
       ) : (
         <ul className="grid gap-2">
