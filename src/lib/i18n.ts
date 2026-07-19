@@ -4,7 +4,7 @@ import { pl } from "@/lib/locale/pl";
 import { en } from "@/lib/locale/en";
 import { DEFAULT_LANG, type AppLang } from "@/lib/i18n/localePath";
 import { currentLang, setClientLang } from "@/lib/i18n/localeRuntime";
-import { readLangCookieClient, writeLangCookieClient } from "@/lib/i18n/langCookie";
+import { readLangCookieClient, writeLangCookieClient, detectBrowserLang } from "@/lib/i18n/langCookie";
 
 const resources = {
   pl: { translation: pl },
