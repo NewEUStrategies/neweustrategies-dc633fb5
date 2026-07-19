@@ -147,11 +147,17 @@ export function PeopleOrgStrip({ items, lang, onSeeAll }: Props & { onSeeAll: ()
                   loading="lazy"
                   className="h-6 w-6 rounded-[6px] object-cover"
                 />
+              ) : it.kind === "organization" && it.logoUrl ? (
+                <img
+                  src={it.logoUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-6 w-6 rounded-[6px] object-contain bg-white p-0.5 border border-border/60"
+                />
               ) : (
                 <span
                   aria-hidden
                   className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink"
-
                 >
                   {it.kind === "person" ? (
                     <User className="w-3 h-3" />
