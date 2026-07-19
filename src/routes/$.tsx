@@ -3,7 +3,8 @@
 //   /<parent>/<child>/...
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
