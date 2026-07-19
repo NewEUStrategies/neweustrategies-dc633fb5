@@ -24,6 +24,7 @@ import { applyTitleSuffix, resolveSocialImage, type SeoFieldsRow } from "@/lib/s
 import { SITE_NAME } from "@/lib/seo/meta";
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { validateSeoPanel, type SeoIssue } from "@/lib/seo/validation";
+import { validateHeadings, type HeadingIssue } from "@/lib/seo/headingValidation";
 import {
   DEFAULT_SEO_SETTINGS,
   effectiveTitleSuffix,
