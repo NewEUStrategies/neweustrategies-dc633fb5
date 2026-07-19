@@ -60,8 +60,8 @@ export function ThemeToggleWidget() {
       type="button"
       onClick={toggle}
       onPointerDown={(e) => e.stopPropagation()}
-      aria-label={isDark ? t("common.search") : t("common.search")}
-      title={isDark ? t("common.search") : t("common.search")}
+      aria-label={isDark ? t("common.lightMode") : t("common.darkMode")}
+      title={isDark ? t("common.lightMode") : t("common.darkMode")}
       className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border/60 bg-background/80 backdrop-blur-sm text-foreground shadow-sm hover:bg-muted hover:border-border hover:shadow-md transition-all duration-200 ease-out active:scale-95"
     >
       <span
