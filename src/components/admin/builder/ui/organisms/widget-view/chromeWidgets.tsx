@@ -33,6 +33,9 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
     }
   };
 
+  const activeHalf = "font-bold text-foreground bg-brand/15";
+  const inactiveHalf = "text-foreground/40 hover:text-foreground/60";
+
   return (
     <button
       type="button"
@@ -40,12 +43,11 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       onPointerDown={(e) => e.stopPropagation()}
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
-      className="lang-switch-simple inline-flex items-center justify-center rounded-[6px] border border-border bg-background hover:bg-muted transition-colors font-semibold"
-      style={{ height: 24, minWidth: 48, padding: "0 8px", fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
+      className="lang-switch-simple inline-flex items-center rounded-[6px] border border-border bg-background hover:bg-muted transition-colors overflow-hidden"
+      style={{ height: 24, width: 52, fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
     >
-      <span className={current === "pl" ? "font-bold text-foreground bg-brand/15 rounded-[4px] px-1" : "text-muted-foreground"}>PL</span>
-      <span className="text-muted-foreground mx-1" aria-hidden="true">|</span>
-      <span className={current === "en" ? "font-bold text-foreground bg-brand/15 rounded-[4px] px-1" : "text-muted-foreground"}>EN</span>
+      <span className={`w-1/2 h-full inline-flex items-center justify-center ${current === "pl" ? activeHalf : inactiveHalf}`}>PL</span>
+      <span className={`w-1/2 h-full inline-flex items-center justify-center ${current === "en" ? activeHalf : inactiveHalf}`}>EN</span>
     </button>
   );
 }
