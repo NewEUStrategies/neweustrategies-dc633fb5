@@ -510,7 +510,7 @@ export function SearchButtonWidget({
                             el.setSelectionRange(pos, pos);
                           });
                         }}
-                        className="rounded border border-border/60 bg-background px-1 py-0 text-[9px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand-ink)]"
+                        className="rounded border border-border/60 bg-background px-1 py-0 text-[9px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
                         style={{ paddingBottom: "2px" }}
                       >
                         {op}
