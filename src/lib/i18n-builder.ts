@@ -118,6 +118,14 @@ const pl = {
       unlink: "Usuń link",
       clearFormat: "Wyczyść formatowanie (⌘/Ctrl+\\\\)",
     },
+    visibility: {
+      hiddenOn: "Ukryte na {{device}}",
+      visibleOn: "Widoczne na {{device}}",
+    },
+    stepper: {
+      increase: "Zwiększ",
+      decrease: "Zmniejsz",
+    },
   },
 };
 
@@ -234,6 +242,14 @@ const en: typeof pl = {
       insertLink: "Insert link (⌘/Ctrl+K)",
       unlink: "Remove link",
       clearFormat: "Clear formatting (⌘/Ctrl+\\\\)",
+    },
+    visibility: {
+      hiddenOn: "Hidden on {{device}}",
+      visibleOn: "Visible on {{device}}",
+    },
+    stepper: {
+      increase: "Increase",
+      decrease: "Decrease",
     },
   },
 };
