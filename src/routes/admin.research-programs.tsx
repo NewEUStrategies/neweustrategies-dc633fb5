@@ -924,7 +924,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
           />
         </div>
         <Button onClick={addProject}>
-          <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj projekt" : "Add project"}
+          <Plus className="mr-1 h-4 w-4" /> {tp("projects.addProject")}
         </Button>
       </div>
 
