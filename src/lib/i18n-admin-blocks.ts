@@ -548,6 +548,71 @@ const pl = {
       rawHtml: "Surowy HTML",
       rawHtmlNote: "Treść jest sanitizowana przy renderowaniu. Podgląd widoczny w obszarze treści.",
     },
+    toolbar: {
+      undo: "Cofnij",
+      redo: "Ponów",
+      textColor: "Kolor tekstu",
+      highlight: "Zakreślacz",
+      clearFormatting: "Wyczyść formatowanie",
+      unlink: "Usuń link",
+      footnote: "Przypis",
+      footnoteInsert: "Wstaw przypis [fn]…[/fn]",
+      footnotePrompt: "Treść przypisu:",
+      insert: "Wstaw",
+      apply: "Zastosuj",
+      paragraph: "Akapit",
+      alignLeft: "Do lewej",
+      alignCenter: "Środek",
+      alignRight: "Do prawej",
+      alignJustify: "Wyjustuj",
+      bulletList: "Lista punktowa",
+      orderedList: "Lista numerowana",
+      blockquote: "Cytat",
+    },
+  },
+  admin: {
+    layoutScaffold: {
+      cover: {
+        label: "Cover - {{variant}}",
+        empty: "Brak cover - ustaw w panelu Szczegóły",
+      },
+      header: {
+        centered: "Nagłówek - centered",
+        label: "Nagłówek",
+      },
+      overlay: {
+        category: "Kategoria",
+        label: "Cover overlay + nagłówek",
+      },
+      sideBySide: {
+        cover: "Cover - side",
+      },
+      footer: {
+        tags: "Tagi",
+        authorCard: "Karta autora",
+        prevNext: "Poprzedni / Następny",
+        newsletter: "Newsletter",
+        floatingShare: "Floating share",
+        autoLoad: "Auto-load next",
+        label: "Stopka wpisu",
+      },
+      sidebar: {
+        label: "Sidebar",
+        hint: "Tu pojawi się: ToC, tagi, related, reklama, social.",
+      },
+      content: {
+        label: "Treść - max {{max}}px",
+      },
+      summary: {
+        title: "Podgląd layoutu:",
+        format: "format: {{value}}",
+        header: "header: {{value}}",
+        cover: "cover: {{value}}",
+        sidebar: "+ sidebar",
+      },
+      titlePlaceholder: "Tytuł wpisu",
+      excerptPlaceholder: 'Excerpt - uzupełnij w „Szczegóły"',
+    },
   },
 };
 
@@ -1094,6 +1159,71 @@ const en: typeof pl = {
     settings: {
       rawHtml: "Raw HTML",
       rawHtmlNote: "Content is sanitized on render. Preview visible in the content area.",
+    },
+    toolbar: {
+      undo: "Undo",
+      redo: "Redo",
+      textColor: "Text color",
+      highlight: "Highlighter",
+      clearFormatting: "Clear formatting",
+      unlink: "Remove link",
+      footnote: "Footnote",
+      footnoteInsert: "Insert footnote [fn]…[/fn]",
+      footnotePrompt: "Footnote text:",
+      insert: "Insert",
+      apply: "Apply",
+      paragraph: "Paragraph",
+      alignLeft: "Align left",
+      alignCenter: "Center",
+      alignRight: "Align right",
+      alignJustify: "Justify",
+      bulletList: "Bullet list",
+      orderedList: "Numbered list",
+      blockquote: "Quote",
+    },
+  },
+  admin: {
+    layoutScaffold: {
+      cover: {
+        label: "Cover - {{variant}}",
+        empty: "No cover - set it in the Details panel",
+      },
+      header: {
+        centered: "Header - centered",
+        label: "Header",
+      },
+      overlay: {
+        category: "Category",
+        label: "Cover overlay + header",
+      },
+      sideBySide: {
+        cover: "Cover - side",
+      },
+      footer: {
+        tags: "Tags",
+        authorCard: "Author card",
+        prevNext: "Previous / Next",
+        newsletter: "Newsletter",
+        floatingShare: "Floating share",
+        autoLoad: "Auto-load next",
+        label: "Post footer",
+      },
+      sidebar: {
+        label: "Sidebar",
+        hint: "Here you'll see: ToC, tags, related, ads, social.",
+      },
+      content: {
+        label: "Content - max {{max}}px",
+      },
+      summary: {
+        title: "Layout preview:",
+        format: "format: {{value}}",
+        header: "header: {{value}}",
+        cover: "cover: {{value}}",
+        sidebar: "+ sidebar",
+      },
+      titlePlaceholder: "Post title",
+      excerptPlaceholder: 'Excerpt - fill in under "Details"',
     },
   },
 };

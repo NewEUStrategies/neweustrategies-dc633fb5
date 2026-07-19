@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import {
   findLayout,
   overlayTypographyStyle,
@@ -83,7 +84,9 @@ function Cover({
 
 // Meta bar zgodny 1:1 z <PostOverlayMeta /> (public): ikona + etykieta,
 // bez separatorów "|" i bez ikon social. Kolor/rozmiar via klasy nadrzędne.
-function ScaffoldMetaPreview({ lang = "pl" as "pl" | "en" }: { lang?: "pl" | "en" }) {
+function ScaffoldMetaPreview() {
+  const { i18n } = useTranslation();
+  const lang = (i18n.language ?? "").startsWith("en") ? "en" : "pl";
   const L = {
     pl: { by: "Autor", published: "Opublikowano", read: "X min czytania", name: "Imię Nazwisko" },
     en: { by: "By", published: "Published", read: "X min read", name: "First Last" },
