@@ -188,7 +188,7 @@ const BTN_GHOST = cn(
 );
 
 export function ConsentBanner() {
-  const { i18n } = useTranslation();
+  const { i18n, t: tr } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const banner = useCookieBannerConfig();
