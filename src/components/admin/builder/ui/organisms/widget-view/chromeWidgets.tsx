@@ -62,7 +62,7 @@ export function ThemeToggleWidget() {
       onPointerDown={(e) => e.stopPropagation()}
       aria-label={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
       title={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
-      className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border/60 bg-background/80 backdrop-blur-sm text-foreground shadow-sm hover:bg-muted hover:border-border hover:shadow-md transition-all duration-200 ease-out active:scale-95"
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full text-foreground hover:text-brand transition-colors duration-200 ease-out active:scale-95"
     >
       <span
         key={isDark ? "sun" : "moon"}
