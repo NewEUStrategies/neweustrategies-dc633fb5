@@ -305,7 +305,7 @@ const en = {
     },
     active_filters: "Active filters",
     remove_filter: "Remove filter",
-    fuzzy_note: "No exact matches — showing approximate results.",
+    fuzzy_note: "No exact matches - showing approximate results.",
     saved: {
       title: "Saved searches",
       save: "Save search",
@@ -317,8 +317,25 @@ const en = {
       apply: "Apply",
       delete: "Delete",
     },
+    widget: {
+      clear: "Clear",
+      voice: "Voice search",
+      search: "Search",
+      categories: "Suggestion categories",
+      results: "Search results",
+      all: "All",
+      searching: "Searching...",
+      no_results: "No results for ",
+      view_all: "View all results for ",
+      operators: "Operators",
+      operator_insert: "Insert operator into query",
+      operator_word: "-word",
+      advanced: "Advanced search",
+      failed: "Search failed. Please try again.",
+    },
   },
 };
+
 
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
