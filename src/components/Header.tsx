@@ -188,7 +188,7 @@ function HeaderInner() {
             >
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
                 <span className="text-sm font-bold tracking-wider uppercase text-muted-foreground">
-                  {isPl ? "Menu" : "Menu"}
+                  {t("common.menu")}
                 </span>
                 <button
                   type="button"
