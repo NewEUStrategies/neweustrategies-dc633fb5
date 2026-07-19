@@ -4,9 +4,14 @@
 import { AppLink } from "@/components/atoms/AppLink";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { XIcon } from "@/components/atoms/XIcon";
-import { Facebook, Linkedin, Globe, Mail, User as UserIcon } from "@/lib/lucide-shim";
+import { Facebook, Linkedin, Globe, Mail, User as UserIcon, Check, Plus } from "@/lib/lucide-shim";
 import { Instagram } from "lucide-react";
 import { safeUrl } from "@/lib/sanitize";
+import { useFollows, useToggleFollow } from "@/hooks/useFollows";
+import { useAuth } from "@/hooks/useAuth";
+import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
+import { openLoginPopup } from "@/lib/loginPopupBus";
+import { toast } from "sonner";
 
 type Lang = "pl" | "en";
 
@@ -22,11 +27,19 @@ const L = {
     about: "O autorze",
     viewProfile: "Zobacz profil",
     email: "E-mail",
+    follow: "Obserwuj autora",
+    following: "Obserwujesz",
+    followHint: "Otrzymuj powiadomienia o nowych publikacjach",
+    followError: "Nie udało się zaktualizować obserwacji",
   },
   en: {
     about: "About the author",
     viewProfile: "View profile",
     email: "Email",
+    follow: "Follow author",
+    following: "Following",
+    followHint: "Get notified about new publications",
+    followError: "Could not update follow state",
   },
 } as const;
 
@@ -39,22 +52,18 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-function sanitizeBio(bio: string | null | undefined, max = 140): string | null {
-  if (!bio) return null;
-  const text = bio.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  if (!text) return null;
-  if (text.length <= max) return text;
-  const cut = text.slice(0, max);
-  return cut.slice(0, cut.lastIndexOf(" ")) + "…";
-}
+
+
 
 export interface AuthorBusinessCardProps {
   lang: Lang;
   name: string | null;
+  authorId?: string | null;
   avatarUrl?: string | null;
   href?: string | null;
   jobTitle?: string | null;
   company?: string | null;
+  /** @deprecated bio nie jest już wyświetlany w karcie */
   bio?: string | null;
   email?: string | null;
   xUrl?: string | null;
@@ -69,11 +78,11 @@ export interface AuthorBusinessCardProps {
 export function AuthorBusinessCard({
   lang,
   name,
+  authorId,
   avatarUrl,
   href,
   jobTitle,
   company,
-  bio,
   email,
   xUrl,
   linkedinUrl,
@@ -87,7 +96,31 @@ export function AuthorBusinessCard({
   const displayName = name?.trim() || (lang === "en" ? "Author" : "Autor");
   const fallbackInitials = initials(displayName);
   const hasMeta = Boolean(jobTitle || company);
-  const bioText = sanitizeBio(bio);
+
+  const { user } = useAuth();
+  const personalized = usePersonalizedSettings();
+  const { data: follows } = useFollows();
+  const toggleFollow = useToggleFollow();
+  const canFollow = Boolean(authorId) && personalized.enabled;
+  const isFollowing = canFollow
+    ? (follows ?? []).some((f) => f.target_type === "author" && f.target_id === authorId)
+    : false;
+
+  const handleFollow = () => {
+    if (!authorId) return;
+    if (!user) {
+      openLoginPopup({
+        title: personalized.restrictedTitle,
+        description: personalized.restrictedDescription,
+      });
+      return;
+    }
+    toggleFollow.mutate(
+      { targetType: "author", targetId: authorId, on: !isFollowing },
+      { onError: () => toast.error(t.followError) },
+    );
+  };
+
 
   const socials: SocialItem[] = [
     { key: "x", url: xUrl ?? "", label: "X", Fallback: XIcon },
@@ -162,10 +195,35 @@ export function AuthorBusinessCard({
         </div>
       </div>
 
-      {bioText && (
-        <p className="mt-3 text-xs leading-relaxed text-foreground/80 line-clamp-4">
-          {bioText}
-        </p>
+      {canFollow && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={handleFollow}
+            aria-pressed={isFollowing}
+            aria-label={isFollowing ? t.following : t.follow}
+            title={t.followHint}
+            disabled={toggleFollow.isPending}
+            className={[
+              "group inline-flex w-full items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-all duration-200",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/40",
+              isFollowing
+                ? "border border-[color:var(--brand)]/40 bg-[color:var(--brand)]/10 text-[color:var(--brand)] hover:bg-[color:var(--brand)]/15"
+                : "border border-transparent bg-[color:var(--brand)] text-[color:var(--brand-foreground,white)] hover:opacity-90",
+              toggleFollow.isPending ? "opacity-70" : "",
+            ].join(" ")}
+          >
+            {isFollowing ? (
+              <Check className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90" aria-hidden />
+            )}
+            <span>{isFollowing ? t.following : t.follow}</span>
+          </button>
+          <p className="mt-1.5 text-[10.5px] leading-snug text-muted-foreground">
+            {t.followHint}
+          </p>
+        </div>
       )}
 
       {hasAnySocial && (

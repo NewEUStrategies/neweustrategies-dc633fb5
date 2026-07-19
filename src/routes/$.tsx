@@ -780,6 +780,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                                 .filter(Boolean)
                                 .join(" ") ||
                               null,
+                            authorId: postAuthor?.id ?? null,
                             authorHref: postAuthor?.slug ? `/author/${postAuthor.slug}` : null,
                             authorAvatarUrl:
                               postAuthor?.author_profile?.avatar_url ??
