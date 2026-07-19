@@ -827,11 +827,12 @@ function CenteredHero({
                 {editable && (
                   <>
                     <span className="text-[10px] font-medium tracking-wide uppercase">
-                      {lang === "pl" ? "Dodaj zdjęcie" : "Add photo"}
+                      {t("profile.inline.addAvatar")}
                     </span>
                     <span className="text-[9px] leading-tight text-muted-foreground/70 normal-case tracking-normal">
-                      {lang === "pl" ? "400 × 400 px" : "400 × 400 px"}
+                      {t("profile.inline.avatarSize")}
                     </span>
+
                   </>
                 )}
               </button>
@@ -853,8 +854,9 @@ function CenteredHero({
                   <Camera className="h-5 w-5" />
                 )}
                 <span className="text-[10px] font-medium tracking-wide uppercase">
-                  {lang === "pl" ? "Zmień" : "Change"}
+                  {t("profile.inline.changeAvatar")}
                 </span>
+
               </button>
             )}
           </div>

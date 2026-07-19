@@ -18,6 +18,9 @@ import {
 } from "@/lib/search/facetModel";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
+import i18n from "@/lib/i18n";
+import "@/lib/i18n-search";
+
 
 interface BucketedItem {
   item: AutosuggestItem;
@@ -58,6 +61,8 @@ export function SearchButtonWidget({
   const reqIdRef = useRef(0);
   const listboxId = useId();
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
+  const t = (k: string): string => i18n.t(`search.widget.${k}`, { lng: lang }) as string;
+
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -114,7 +119,7 @@ export function SearchButtonWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, liveResults]);
 
-  const placeholder = label || heading || (lang === "pl" ? "Szukaj" : "Search");
+  const placeholder = label || heading || (t("search"));
   const hasQuery = q.trim().length >= 2;
 
   // Group + flatten while keeping a stable index used by keyboard navigation
@@ -256,7 +261,7 @@ export function SearchButtonWidget({
           {q && (
             <button
               type="button"
-              aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
+              aria-label={t("clear")}
               onClick={() => {
                 setQ("");
                 setItems([]);
@@ -271,7 +276,7 @@ export function SearchButtonWidget({
           )}
           <button
             type="button"
-            aria-label={lang === "pl" ? "Szukaj" : "Search"}
+            aria-label={t("search")}
             onMouseDown={(e) => {
               e.preventDefault();
               if (hasQuery) {
@@ -289,8 +294,8 @@ export function SearchButtonWidget({
           <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
           <button
             type="button"
-            aria-label={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
-            title={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
+            aria-label={t("voice")}
+            title={t("voice")}
             className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
           >
             <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
@@ -310,7 +315,7 @@ export function SearchButtonWidget({
           {focused && hasQuery && !loading && flat.length > 0 && (
             <div
               role="tablist"
-              aria-label={lang === "pl" ? "Kategorie sugestii" : "Suggestion categories"}
+              aria-label={t("categories")}
               className="flex items-center gap-1 border-b border-border/60 px-2 pt-2"
             >
               {(["all", ...SUGGEST_BUCKET_ORDER] as const).map((k) => {
@@ -320,9 +325,7 @@ export function SearchButtonWidget({
                 const isActive = tab === k;
                 const label =
                   k === "all"
-                    ? lang === "pl"
-                      ? "Wszystko"
-                      : "All"
+                    ? t("all")
                     : bucketLabel(k as SuggestBucket);
                 return (
                   <button
@@ -368,13 +371,13 @@ export function SearchButtonWidget({
             {focused && hasQuery && loading && (
               <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
                 <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
-                {lang === "pl" ? "Szukam…" : "Searching…"}
+                {t("searching")}
               </div>
             )}
 
             {focused && hasQuery && !loading && showEmpty && (
               <div className="px-4 py-6 text-[13px] text-muted-foreground">
-                {lang === "pl" ? "Brak wyników dla " : "No results for "}
+                {t("no_results")}
                 <span className="font-medium text-foreground">„{q.trim()}"</span>
               </div>
             )}
@@ -383,7 +386,7 @@ export function SearchButtonWidget({
               <div
                 id={listboxId}
                 role="listbox"
-                aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
+                aria-label={t("results")}
               >
                 {SUGGEST_BUCKET_ORDER.map((bucket) => {
                   if (tab !== "all" && tab !== bucket) return null;
@@ -464,7 +467,7 @@ export function SearchButtonWidget({
                 style={{ color: "var(--brand)" }}
               >
                 <span style={{ lineHeight: 1.5, paddingBottom: "2px" }}>
-                  {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
+                  {t("view_all")}
                   <span className="font-semibold">„{q.trim()}"</span>
                 </span>
                 <LucideIcons.ArrowRight className="w-3.5 h-3.5 shrink-0" />
@@ -479,22 +482,20 @@ export function SearchButtonWidget({
                 >
                   <div className="flex flex-wrap items-center gap-1">
                     <span className="mr-1 text-[9px] font-semibold uppercase tracking-wider">
-                      {lang === "pl" ? "Operatory" : "Operators"}
+                      {t("operators")}
                     </span>
                     {[
                       { op: '"fraza"', ins: '"" ' },
                       { op: "AND", ins: " AND " },
                       { op: "OR", ins: " OR " },
                       { op: "NOT", ins: " NOT " },
-                      { op: "-słowo", ins: " -" },
+                      { op: t("operator_word"), ins: " -" },
                     ].map(({ op, ins }) => (
                       <button
                         key={op}
                         type="button"
                         title={
-                          lang === "pl"
-                            ? "Wstaw operator do zapytania"
-                            : "Insert operator into query"
+                          t("operator_insert")
                         }
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -527,7 +528,7 @@ export function SearchButtonWidget({
                     style={{ color: "var(--brand)", lineHeight: 1.4 }}
                   >
                     <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
-                    {lang === "pl" ? "Wyszukiwanie zaawansowane" : "Advanced search"}
+                    {t("advanced")}
                   </AppLink>
                 </div>
               )}
