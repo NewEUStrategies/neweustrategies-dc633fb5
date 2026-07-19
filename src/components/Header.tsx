@@ -212,7 +212,7 @@ function HeaderInner() {
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
         mode="fullscreen"
-        heading={isPl ? "Szukaj" : "Search"}
+        heading={t("common.search")}
         liveResults
         limit={8}
         lang={isPl ? "pl" : "en"}
