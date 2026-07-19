@@ -418,6 +418,11 @@ export const networkEn = {
       toastHidden: "Hidden",
       toastDeleted: "Deleted",
     },
+    guestPreview: {
+      badge: "Preview",
+      hint: "Preview - this is your profile, network actions are demo only",
+      follow: "Follow",
+    },
   },
 };
 
