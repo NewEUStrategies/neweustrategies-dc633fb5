@@ -225,10 +225,9 @@ export const Header = memo(function Header() {
   return (
     <header
       data-site-header
-      // Sticky: header podąża za scrollem (top: 0). z-40 lifts the stacking
-      // context (forced by view-transition-name) above <main>, so the sticky
-      // mobile bar and desktop mega-menu dropdown paint over page content.
-      className="sticky top-0 z-40 bg-background border-b border-border"
+      // Header scrolls away with the page; the condensed ReadingHeader takes
+      // over on post pages once the user scrolls past the hero.
+      className="relative z-40 bg-background border-b border-border"
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
