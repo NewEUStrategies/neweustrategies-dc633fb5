@@ -1,4 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -6,6 +8,8 @@ interface Props {
 }
 
 export function CodeBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const cc = (k: string, o?: Record<string, unknown>) => i18n.editor("code", k, o);
   const code = String(block.data.code ?? "");
   const lang = String(block.data.lang ?? "ts");
   return (
@@ -18,12 +22,14 @@ export function CodeBlock({ block, onChange }: Props) {
           className="bg-transparent text-xs font-mono outline-none border-none p-0 w-20"
           placeholder="ts"
         />
-        <span className="text-[10px] text-muted-foreground">{code.length} znaków</span>
+        <span className="text-[10px] text-muted-foreground">
+          {cc("charCount", { n: code.length })}
+        </span>
       </div>
       <textarea
         value={code}
         onChange={(e) => onChange({ ...block, data: { ...block.data, code: e.target.value } })}
-        placeholder="// kod…"
+        placeholder={cc("codePh")}
         spellCheck={false}
         className="w-full bg-transparent font-mono text-sm p-3 outline-none focus:ring-0 border-none resize-y min-h-[120px]"
       />

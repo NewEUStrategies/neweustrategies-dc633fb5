@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { EyeOff } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -26,7 +27,7 @@ export function SpoilerBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, defaultOpen: e.target.checked } })
             }
           />
-          Otwarty domyślnie
+          {i18n.editor("spoiler", "defaultOpen")}
         </label>
       </div>
       <Input

@@ -13,7 +13,7 @@ export function CalendarBlock({ block, onChange }: Props) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Calendar
+        {i18n.editor("calendar", "title")}
       </div>
       <input
         type="month"

@@ -19,9 +19,9 @@ export function TocBlock({ block, onChange }: Props) {
   return (
     <div className="not-prose rounded-md border border-border bg-muted/30 p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <ListTree className="w-3.5 h-3.5" /> Spis treści
+        <ListTree className="w-3.5 h-3.5" /> {i18n.editor("toc", "title")}
         <span className="ml-auto text-[10px] normal-case tracking-normal">
-          Generowany automatycznie z H2-H{maxLevel}
+          {i18n.editor("toc", "autoHint", { max: maxLevel })}
         </span>
       </div>
       <Input
@@ -31,7 +31,7 @@ export function TocBlock({ block, onChange }: Props) {
       />
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-1">
-          Głębokość:
+          {i18n.editor("toc", "maxLevel")}:
           <AdminSelect
             value={maxLevel}
             onChange={(e) =>
@@ -52,7 +52,7 @@ export function TocBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, ordered: e.target.checked } })
             }
           />
-          Numerowana
+          {i18n.editor("toc", "ordered")}
         </label>
         <label className="flex items-center gap-1">
           <input
@@ -62,7 +62,7 @@ export function TocBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, sticky: e.target.checked } })
             }
           />
-          Sticky (sidebar)
+          {i18n.editor("toc", "sticky")}
         </label>
       </div>
     </div>

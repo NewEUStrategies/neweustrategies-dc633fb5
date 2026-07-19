@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -32,7 +33,9 @@ export function ButtonsBlock({ block, onChange }: Props) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium uppercase tracking-wide text-muted-foreground">Buttons</span>
+        <span className="font-medium uppercase tracking-wide text-muted-foreground">
+          {i18n.editor("buttons", "shellLabel")}
+        </span>
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-1"
           value={align}
@@ -93,7 +96,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
           size="sm"
           onClick={() => update([...items, { label: "Button", href: "#", variant: "default" }])}
         >
-          <Plus className="h-4 w-4 mr-1" /> Dodaj
+          <Plus className="h-4 w-4 mr-1" /> {i18n.editor("buttons", "add")}
         </Button>
       </div>
     </div>

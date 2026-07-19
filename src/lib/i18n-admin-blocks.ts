@@ -257,6 +257,46 @@ const pl = {
         stratCategory: "Z tej kategorii",
         headingPh: "Nagłówek (opcjonalnie)",
       },
+      tagCloud: {
+        showCount: "Pokaż liczbę wpisów",
+      },
+      embed: {
+        noProvider: "Nie rozpoznano dostawcy - URL pojawi się jako link.",
+        pasteHint: "Wklej URL z YouTube, Vimeo lub X.",
+      },
+      spoiler: {
+        defaultOpen: "Otwarty domyślnie",
+      },
+      mediaText: {
+        contentPh: "Treść obok mediów…",
+      },
+      archives: {
+        layoutList: "Lista",
+        layoutDropdown: "Lista rozwijana",
+        showCount: "Pokaż liczbę wpisów",
+      },
+      categoriesList: {
+        shellLabel: "Kategorie",
+        layoutList: "Lista",
+        layoutDropdown: "Lista rozwijana",
+        showCount: "Pokaż liczbę",
+        hierarchical: "Hierarchia",
+      },
+      gallery: {
+        emptyHint: "Galeria - dodaj pierwszy obraz.",
+        addImage: "Dodaj obraz",
+        noUrl: "brak URL",
+        remove: "Usuń",
+        urlPh: "URL…",
+      },
+      code: {
+        charCount: "{{n}} znaków",
+        codePh: "// kod…",
+      },
+      buttons: {
+        shellLabel: "Przyciski",
+        add: "Dodaj",
+      },
       postContextBlocks: {
         none: "brak",
         changePhoto: "Zmień zdjęcie",
@@ -739,6 +779,46 @@ const en: typeof pl = {
         stratTrending: "Popular (7 days)",
         stratCategory: "From this category",
         headingPh: "Heading (optional)",
+      },
+      tagCloud: {
+        showCount: "Show post count",
+      },
+      embed: {
+        noProvider: "Provider not recognized - the URL will appear as a link.",
+        pasteHint: "Paste a URL from YouTube, Vimeo or X.",
+      },
+      spoiler: {
+        defaultOpen: "Open by default",
+      },
+      mediaText: {
+        contentPh: "Content beside media…",
+      },
+      archives: {
+        layoutList: "List",
+        layoutDropdown: "Dropdown",
+        showCount: "Show post count",
+      },
+      categoriesList: {
+        shellLabel: "Categories",
+        layoutList: "List",
+        layoutDropdown: "Dropdown",
+        showCount: "Show count",
+        hierarchical: "Hierarchy",
+      },
+      gallery: {
+        emptyHint: "Gallery - add the first image.",
+        addImage: "Add image",
+        noUrl: "no URL",
+        remove: "Delete",
+        urlPh: "URL…",
+      },
+      code: {
+        charCount: "{{n}} chars",
+        codePh: "// code…",
+      },
+      buttons: {
+        shellLabel: "Buttons",
+        add: "Add",
       },
       postContextBlocks: {
         none: "none",
