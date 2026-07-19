@@ -1024,34 +1024,47 @@ function MultiCardVariant(p: VariantProps) {
                 className="eh-card group"
                 style={{ width: cardWidth, flex: "0 0 auto" }}
               >
-                <div
-                  className={`relative overflow-hidden bg-muted ${href ? "cursor-pointer" : ""}`}
-                  style={{ aspectRatio: "4 / 3", borderRadius: p.rounded }}
-                  onClick={() => {
-                    const d = p.dragRef.current;
-                    if (Math.abs(d.lastX - d.startX) > 5) return;
-                    p.navigateTo(href);
-                  }}
-                >
-                  <ResilientSliderImage
-                    src={safeImageUrl(it.image) || it.image}
-                    fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
-                    placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
-                    active
-                    alwaysVisible
-                    onBrokenSource={p.markImageFailed}
-                    className="eh-hover-zoom absolute inset-0 w-full h-full object-cover"
-                  />
-
-                  {cat && (
-                    <span
-                      className="absolute left-3 top-3 inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow"
-                      style={{ background: catColor, borderRadius: 2 }}
+                {(() => {
+                  const media = (
+                    <div
+                      className={`relative overflow-hidden bg-muted ${href ? "cursor-pointer" : ""}`}
+                      style={{ aspectRatio: "4 / 3", borderRadius: p.rounded }}
+                      onClick={(e) => {
+                        const d = p.dragRef.current;
+                        if (Math.abs(d.lastX - d.startX) > 5) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }
+                      }}
                     >
-                      {cat}
-                    </span>
-                  )}
-                </div>
+                      <ResilientSliderImage
+                        src={safeImageUrl(it.image) || it.image}
+                        fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
+                        placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
+                        active
+                        alwaysVisible
+                        onBrokenSource={p.markImageFailed}
+                        className="eh-hover-zoom absolute inset-0 w-full h-full object-cover"
+                      />
+
+                      {cat && (
+                        <span
+                          className="absolute left-3 top-3 inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow"
+                          style={{ background: catColor, borderRadius: 2 }}
+                        >
+                          {cat}
+                        </span>
+                      )}
+                    </div>
+                  );
+                  return href ? (
+                    <AppLink href={href} aria-label={title} className="block">
+                      {media}
+                    </AppLink>
+                  ) : (
+                    media
+                  );
+                })()}
                 <div className="pt-3 pb-1 px-1">
                   {href ? (
                     <AppLink href={href} className="block">
@@ -1071,12 +1084,23 @@ function MultiCardVariant(p: VariantProps) {
                     </h3>
                   )}
                   {sub && (
-                    <p
-                      className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
-                      style={p.subtitleStyle}
-                    >
-                      {sub}
-                    </p>
+                    href ? (
+                      <AppLink href={href} className="block">
+                        <p
+                          className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
+                          style={p.subtitleStyle}
+                        >
+                          {sub}
+                        </p>
+                      </AppLink>
+                    ) : (
+                      <p
+                        className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
+                        style={p.subtitleStyle}
+                      >
+                        {sub}
+                      </p>
+                    )
                   )}
                   {(it.author || it.readTime) && (
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
