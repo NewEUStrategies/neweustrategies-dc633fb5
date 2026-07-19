@@ -204,8 +204,8 @@ export function SearchButtonWidget({
   const trailingPad = q ? 108 : 84;
 
   return (
-    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0">
-      <div className="input-group" style={{ height: `${h}px` }}>
+    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto" style={{ overflow: "visible" }}>
+      <div className="input-group" style={{ height: `${h}px`, overflow: "visible" }}>
         <input
           ref={inputRef}
           type="text"
@@ -448,11 +448,17 @@ export function SearchButtonWidget({
               width: 0;
               height: 0;
             }
-            /* Placeholder text w kolorze jasnoszarym, spójnym z ikonami. */
+            /* Placeholder text w kolorze jasnoszarym, spójnym z ikonami.
+               Transition dodany na transform + font-size, żeby unoszenie
+               labela było widoczne (animowane). */
             .builder-search-widget .input-group > .user-label {
               color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
               font-size: 0.8125rem;
               font-weight: 400;
+              transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
+                          color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+                          background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+                          padding 180ms cubic-bezier(0.4, 0, 0.2, 1);
             }
             /* Ikony jasnoszare, hover -> foreground. */
             .builder-search-widget button svg,
@@ -462,20 +468,19 @@ export function SearchButtonWidget({
             .builder-search-widget button:hover svg {
               color: var(--foreground);
             }
-            /* KRYTYCZNE: float label zostaje WEWNĄTRZ inputa, nie na górnej
-               krawędzi - dzięki temu chip nie jest przycinany przez parenta
-               nagłówka (overflow-hidden na kolumnie headera). */
+            /* Klasyczny floating label: unosi się na górną krawędź inputa,
+               chip z tłem, żeby "przecinał" obramowanie. Parent widgetu ma
+               overflow: visible, więc chip nie jest już przycinany. */
             .builder-search-widget .input-group > .input:focus ~ .user-label,
             .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
-              top: 50%;
-              transform: translateY(-50%) scale(0.75);
-              background: transparent;
-              padding: 0;
-              color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
-              opacity: 0;
+              top: 0;
+              transform: translateY(-50%) scale(0.78);
+              background-color: var(--background);
+              padding: 0 0.35em;
+              color: var(--ring);
+              opacity: 1;
             }
-            /* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus,
-               żeby widget nie wychodził poza wysokość headera. */
+            /* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus. */
             .builder-search-widget .input-group > .input {
               border-width: 1px;
               border-color: color-mix(in oklab, var(--border) 80%, transparent);
@@ -484,6 +489,7 @@ export function SearchButtonWidget({
               box-shadow: none;
               border-color: var(--ring);
             }
+
           `,
         }}
       />
