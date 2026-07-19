@@ -21,4 +21,7 @@ export const adminToast = {
   prewarmDone: () => i18n.t("adminToasts.prewarmDone"),
   settingsSaved: () => i18n.t("adminToasts.settingsSaved"),
   layoutSaved: () => i18n.t("adminToasts.layoutSaved"),
+  ga4NotConfigured: () => i18n.t("adminToasts.ga4NotConfigured"),
+  ga4Accepted: () => i18n.t("adminToasts.ga4Accepted"),
+  ga4Rejected: () => i18n.t("adminToasts.ga4Rejected"),
 };
