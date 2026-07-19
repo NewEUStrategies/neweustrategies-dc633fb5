@@ -170,12 +170,12 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         </div>
 
         {/* Reading: title */}
-        <div className="min-w-0 flex items-center gap-2">
-          <span className="hidden sm:inline text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
+        <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
+          <span className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
             {t.reading}:
           </span>
           <span
-            className="truncate font-display text-[13.5px] sm:text-[14.5px] font-semibold text-foreground"
+            className="truncate font-display text-[12px] sm:text-[13.5px] lg:text-[14.5px] font-semibold text-foreground"
             title={title}
           >
             {title}
