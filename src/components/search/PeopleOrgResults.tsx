@@ -46,9 +46,30 @@ function PersonAvatar({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
     <span
       aria-hidden
       className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink font-display text-lg"
-
     >
       {initial || <User className="w-5 h-5" />}
+    </span>
+  );
+}
+
+function OrgAvatar({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
+  if (it.logoUrl) {
+    return (
+      <img
+        src={it.logoUrl}
+        alt=""
+        loading="lazy"
+        className="h-12 w-12 shrink-0 rounded-[6px] object-contain border border-border/60 bg-white p-0.5"
+      />
+    );
+  }
+  const initial = itemLabel(it, lang).trim().charAt(0).toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink font-display text-lg"
+    >
+      {initial || <Building2 className="w-5 h-5" />}
     </span>
   );
 }
