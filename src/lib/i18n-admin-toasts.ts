@@ -21,6 +21,9 @@ const pl = {
     prewarmDone: "Pre-warm zakończony",
     settingsSaved: "Ustawienia zapisane",
     layoutSaved: "Zapisano - layout został zaktualizowany",
+    ga4NotConfigured: "Brak konfiguracji Measurement Protocol",
+    ga4Accepted: "Event wysłany. GA4 przyjął payload (debug OK).",
+    ga4Rejected: "GA4 odrzucił event - sprawdź debug w konsoli.",
   },
 };
 
