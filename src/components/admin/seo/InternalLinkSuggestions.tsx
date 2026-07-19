@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link as LinkIcon, Copy, ArrowUpRight, Loader2, Sparkles } from "@/lib/lucide-shim";
+import { Link as LinkIcon, Copy, ArrowRight, Loader2, Sparkles } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { suggestInternalLinks } from "@/lib/seo/linkSuggestions.functions";
@@ -161,7 +161,7 @@ export function InternalLinkSuggestions(props: Props) {
                       defaultValue: "Otwórz",
                     })}
                   >
-                    <ExternalLink className="h-3 w-3" aria-hidden />
+                    <ArrowRight className="h-3 w-3" aria-hidden />
                   </a>
                 </div>
               </li>
@@ -175,7 +175,7 @@ export function InternalLinkSuggestions(props: Props) {
         </div>
       ) : (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-          <Link2 className="h-3 w-3" aria-hidden />
+          <LinkIcon className="h-3 w-3" aria-hidden />
           {t("admin.seo.linkSuggestions.empty", {
             defaultValue: "Brak dopasowań w tym tenantcie.",
           })}
