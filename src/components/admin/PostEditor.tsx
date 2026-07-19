@@ -4,7 +4,9 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import { useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
+import { useTranslation } from "react-i18next";
 import { Textarea } from "@/components/ui/textarea";
+import "@/lib/i18n-admin-panes-misc";
 import {
   Bold,
   Italic,
@@ -33,6 +35,7 @@ export function PostEditor({ value, onChange, mode, onPickImage }: Props) {
 }
 
 function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <Textarea
@@ -42,7 +45,7 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
         className="font-mono text-sm"
       />
       <div className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto">
-        <ReactMarkdown>{value || "*Podgląd...*"}</ReactMarkdown>
+        <ReactMarkdown>{value || t("adminPanesMisc.postEditor.previewPlaceholder")}</ReactMarkdown>
       </div>
     </div>
   );
@@ -57,6 +60,7 @@ function RichEditor({
   onChange: (v: string) => void;
   onPickImage?: () => Promise<string | null>;
 }) {
+  const { t } = useTranslation();
   const editor = useEditor({
     extensions: [StarterKit, Link.configure({ openOnClick: false }), Image],
     content: value,
@@ -154,7 +158,7 @@ function RichEditor({
               title: "Link",
               label: "URL",
               placeholder: "https://…",
-              confirmLabel: "Wstaw",
+              confirmLabel: t("adminPanesMisc.postEditor.insert"),
             });
             if (url) editor.chain().focus().setLink({ href: url }).run();
           }}
@@ -168,10 +172,10 @@ function RichEditor({
             const url = onPickImage
               ? await onPickImage()
               : await promptDialog({
-                  title: "Obraz",
-                  label: "URL obrazka",
+                  title: t("adminPanesMisc.postEditor.imageTitle"),
+                  label: t("adminPanesMisc.postEditor.imageUrlLabel"),
                   placeholder: "https://…",
-                  confirmLabel: "Wstaw",
+                  confirmLabel: t("adminPanesMisc.postEditor.insert"),
                 });
             if (url) editor.chain().focus().setImage({ src: url }).run();
           }}

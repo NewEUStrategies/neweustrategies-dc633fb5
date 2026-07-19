@@ -2,8 +2,10 @@
 // Edytuje globalne kolory (light + dark) z wybranej grupy w Global Colors.
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { Sun, Moon, Save, Undo } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
+import "@/lib/i18n-admin-panes-misc";
 
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
@@ -65,6 +67,7 @@ function resolveColor(
 }
 
 function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
+  const { t } = useTranslation();
   const light: CSSProperties = {
     "--gc-input-bg": resolveColor(draft, "input-bg", "light", "#ffffff"),
     "--gc-input-text": resolveColor(draft, "input-text", "light", "#141414"),
@@ -87,11 +90,11 @@ function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
 
   return (
     <div className="rounded-lg border border-border bg-card/40 p-4 space-y-3">
-      <div className="text-sm font-semibold">Podgląd pola tekstowego</div>
+      <div className="text-sm font-semibold">{t("adminPanesMisc.themeBg.inputPreview")}</div>
       <div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2" style={light}>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-            Tryb jasny
+            {t("adminPanesMisc.themeBg.lightMode")}
           </div>
           <input
             readOnly
@@ -120,7 +123,7 @@ function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
         </div>
         <div className="space-y-2" style={dark}>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-            Tryb ciemny
+            {t("adminPanesMisc.themeBg.darkMode")}
           </div>
           <input
             readOnly
@@ -160,9 +163,12 @@ interface ThemeBackgroundsPaneProps {
 
 export function ThemeBackgroundsPane({
   groupId = "body",
-  title = "Tła motywu",
-  description = "Ustaw główne tła strony oraz powierzchni (kart, sidebaru) dla trybu jasnego i ciemnego. Zmiany działają natychmiast w podglądzie.",
+  title,
+  description,
 }: ThemeBackgroundsPaneProps = {}) {
+  const { t } = useTranslation();
+  const titleText = title ?? t("adminPanesMisc.themeBg.title");
+  const descriptionText = description ?? t("adminPanesMisc.themeBg.description");
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
   const [draft, setDraft] = useState<GlobalColorsValue | null>(null);
@@ -172,7 +178,7 @@ export function ThemeBackgroundsPane({
   }, [data, draft]);
 
   if (isLoading || !draft) {
-    return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+    return <p className="text-sm text-muted-foreground">{t("adminPanesMisc.loading")}</p>;
   }
 
   const group = GLOBAL_COLOR_GROUPS.find((g) => g.id === groupId);
@@ -205,8 +211,8 @@ export function ThemeBackgroundsPane({
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-display text-lg">{title}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <h3 className="font-display text-lg">{titleText}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{descriptionText}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -217,7 +223,7 @@ export function ThemeBackgroundsPane({
             disabled={!isDirty || save.isPending}
           >
             <Undo className="w-4 h-4 mr-2" />
-            Anuluj
+            {t("common.cancel")}
           </Button>
           <Button
             size="sm"
@@ -225,7 +231,7 @@ export function ThemeBackgroundsPane({
             disabled={!isDirty || save.isPending}
           >
             <Save className="w-4 h-4 mr-2" />
-            {save.isPending ? "Zapisywanie…" : "Zapisz"}
+            {save.isPending ? t("adminPanesMisc.saving") : t("common.save")}
           </Button>
         </div>
       </div>
@@ -249,23 +255,23 @@ export function ThemeBackgroundsPane({
                   type="button"
                   onClick={() => resetSlot(slot)}
                   className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 shrink-0"
-                  title="Przywróć domyślne"
+                  title={t("adminPanesMisc.themeBg.resetTitle")}
                 >
                   <Undo className="w-3 h-3" />
-                  Domyślne
+                  {t("adminPanesMisc.themeBg.defaultBtn")}
                 </button>
               </div>
 
               <div className="grid md:grid-cols-2 gap-3">
                 <ColorField
-                  label="Tryb jasny"
+                  label={t("adminPanesMisc.themeBg.lightMode")}
                   icon={<Sun className="w-3.5 h-3.5" />}
                   value={val.light ?? ""}
                   defaultValue={slot.defaultLight}
                   onChange={(v) => setSlot(slot.key, "light", v)}
                 />
                 <ColorField
-                  label="Tryb ciemny"
+                  label={t("adminPanesMisc.themeBg.darkMode")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={val.dark ?? ""}
                   defaultValue={slot.defaultDark}

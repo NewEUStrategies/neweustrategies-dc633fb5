@@ -1,8 +1,10 @@
 // Compact per-post override editor for the related-posts block.
 // Stores a partial RelatedPostsConfig in posts.related_override (jsonb).
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import "@/lib/i18n-admin-panes-misc";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -24,6 +26,7 @@ interface Props {
 }
 
 export function RelatedOverrideEditor({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const override = (value ?? {}) as RelatedPostsOverride;
   const [enabledOverride, setEnabledOverride] = useState<boolean>(value !== null);
 
@@ -44,10 +47,10 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          Nadpisuje globalną konfigurację dla tego wpisu.
+          {t("adminPanesMisc.related.overridesGlobal")}
         </span>
         <label className="flex items-center gap-2 text-xs">
-          <span>Nadpisanie aktywne</span>
+          <span>{t("adminPanesMisc.related.overrideActive")}</span>
           <Switch
             checked={enabledOverride}
             onCheckedChange={(v) => {
@@ -61,7 +64,7 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
       {enabledOverride && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Pokaż sekcję</Label>
+            <Label className="text-xs">{t("adminPanesMisc.related.showSection")}</Label>
             <Select
               value={override.enabled === undefined ? "_" : override.enabled ? "yes" : "no"}
               onValueChange={(v) => setKey("enabled", v === "_" ? undefined : v === "yes")}
@@ -70,14 +73,14 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_">(globalnie)</SelectItem>
-                <SelectItem value="yes">Tak</SelectItem>
-                <SelectItem value="no">Nie</SelectItem>
+                <SelectItem value="_">{t("adminPanesMisc.related.global")}</SelectItem>
+                <SelectItem value="yes">{t("adminPanesMisc.related.yes")}</SelectItem>
+                <SelectItem value="no">{t("adminPanesMisc.related.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Pozycja</Label>
+            <Label className="text-xs">{t("adminPanesMisc.related.position")}</Label>
             <Select
               value={(override.position ?? "_") as string}
               onValueChange={(v) =>
@@ -88,15 +91,17 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_">(globalnie)</SelectItem>
-                <SelectItem value="end">Na końcu</SelectItem>
+                <SelectItem value="_">{t("adminPanesMisc.related.global")}</SelectItem>
+                <SelectItem value="end">{t("adminPanesMisc.related.posEnd")}</SelectItem>
                 <SelectItem value="sidebar">Sidebar</SelectItem>
-                <SelectItem value="after_paragraph">Po paragrafie</SelectItem>
+                <SelectItem value="after_paragraph">
+                  {t("adminPanesMisc.related.posAfterParagraph")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Layout</Label>
+            <Label className="text-xs">{t("adminPanesMisc.related.layout")}</Label>
             <Select
               value={(override.layout ?? "_") as string}
               onValueChange={(v) => setKey("layout", v === "_" ? undefined : (v as RelatedLayout))}
@@ -105,18 +110,22 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_">(globalnie)</SelectItem>
+                <SelectItem value="_">{t("adminPanesMisc.related.global")}</SelectItem>
                 <SelectItem value="grid">Grid</SelectItem>
-                <SelectItem value="list">Lista</SelectItem>
+                <SelectItem value="list">{t("adminPanesMisc.related.layoutList")}</SelectItem>
                 <SelectItem value="slider">Slider</SelectItem>
-                <SelectItem value="cards">Karty (kolor + ikona)</SelectItem>
-                <SelectItem value="magazine">Magazyn (hero + lista)</SelectItem>
-                <SelectItem value="timeline">Oś czasu</SelectItem>
+                <SelectItem value="cards">{t("adminPanesMisc.related.layoutCards")}</SelectItem>
+                <SelectItem value="magazine">
+                  {t("adminPanesMisc.related.layoutMagazine")}
+                </SelectItem>
+                <SelectItem value="timeline">
+                  {t("adminPanesMisc.related.layoutTimeline")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Strategia</Label>
+            <Label className="text-xs">{t("adminPanesMisc.related.strategy")}</Label>
             <Select
               value={(override.source_strategy ?? "_") as string}
               onValueChange={(v) =>
@@ -127,22 +136,24 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_">(globalnie)</SelectItem>
-                <SelectItem value="both">Kat + Tagi</SelectItem>
-                <SelectItem value="categories">Kategorie</SelectItem>
-                <SelectItem value="tags">Tagi</SelectItem>
-                <SelectItem value="author">Autor</SelectItem>
+                <SelectItem value="_">{t("adminPanesMisc.related.global")}</SelectItem>
+                <SelectItem value="both">{t("adminPanesMisc.related.srcBoth")}</SelectItem>
+                <SelectItem value="categories">
+                  {t("adminPanesMisc.related.srcCategories")}
+                </SelectItem>
+                <SelectItem value="tags">{t("adminPanesMisc.related.srcTags")}</SelectItem>
+                <SelectItem value="author">{t("adminPanesMisc.related.srcAuthor")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Liczba wpisów</Label>
+            <Label className="text-xs">{t("adminPanesMisc.related.itemsCount")}</Label>
             <Input
               type="number"
               min={1}
               max={24}
               value={override.items_limit ?? ""}
-              placeholder="(globalnie)"
+              placeholder={t("adminPanesMisc.related.global")}
               onChange={(e) => {
                 const n = Number(e.target.value);
                 setKey("items_limit", Number.isFinite(n) && n > 0 ? n : undefined);
@@ -150,12 +161,12 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Po paragrafie</Label>
+            <Label className="text-xs">{t("adminPanesMisc.related.afterParagraph")}</Label>
             <Input
               type="number"
               min={1}
               value={override.after_paragraph ?? ""}
-              placeholder="(globalnie)"
+              placeholder={t("adminPanesMisc.related.global")}
               onChange={(e) => {
                 const n = Number(e.target.value);
                 setKey("after_paragraph", Number.isFinite(n) && n > 0 ? n : undefined);

@@ -11,6 +11,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-panes-misc";
 
 interface PageRow {
   id: string;
@@ -32,13 +34,14 @@ export interface PageParentSelectProps {
 }
 
 export function PageParentSelect(props: PageParentSelectProps) {
+  const { t } = useTranslation();
   const {
     tenantId,
     value,
     onChange,
     excludeId,
-    label = "Strona nadrzędna",
-    noneLabel = "- najwyższy poziom -",
+    label = t("adminPanesMisc.pageParent.label"),
+    noneLabel = t("adminPanesMisc.pageParent.none"),
   } = props;
   const { data: pages = [] } = useQuery({
     queryKey: ["admin-page-tree", tenantId],

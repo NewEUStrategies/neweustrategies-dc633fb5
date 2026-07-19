@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Upload, X } from "@/lib/lucide-shim";
 import { useRequiredTenant } from "@/hooks/useAuth";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-panes-misc";
 
 export function ImageSlot({
   label,
@@ -25,6 +27,7 @@ export function ImageSlot({
   /** Background of the preview box. 'light' uses theme body bg, 'dark' uses dark body bg, 'auto' uses neutral muted. */
   previewMode?: "auto" | "light" | "dark";
 }) {
+  const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export function ImageSlot({
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
       onChange(data.publicUrl);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Błąd uploadu");
+      setError(e instanceof Error ? e.message : t("adminPanesMisc.imageSlot.uploadError"));
     } finally {
       setUploading(false);
     }
@@ -74,7 +77,7 @@ export function ImageSlot({
       <div className="flex items-center gap-2">
         <Input
           value={value}
-          placeholder="https://... lub wgraj plik"
+          placeholder={t("adminPanesMisc.imageSlot.urlPlaceholder")}
           onChange={(e) => onChange(e.target.value)}
           className="h-8 text-xs flex-1"
         />
@@ -83,7 +86,7 @@ export function ImageSlot({
             type="button"
             onClick={() => onChange("")}
             className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground"
-            title="Usuń"
+            title={t("adminPanesMisc.imageSlot.remove")}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -107,7 +110,9 @@ export function ImageSlot({
         className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
       >
         <Upload className="w-3.5 h-3.5" />
-        {uploading ? "Wgrywam…" : "Wgraj obrazek"}
+        {uploading
+          ? t("adminPanesMisc.imageSlot.uploadingBtn")
+          : t("adminPanesMisc.imageSlot.uploadBtn")}
       </button>
       {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
       {error && <div className="text-[10px] text-destructive">{error}</div>}

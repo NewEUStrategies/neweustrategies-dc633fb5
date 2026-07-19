@@ -2,7 +2,9 @@
 // Wartością jest pełen stos font-family (string), zgodny z `var(--brand-font-*)`.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { CustomFont } from "@/lib/theme/customFonts";
+import "@/lib/i18n-admin-panes-misc";
 
 export interface FontOption {
   label: string;
@@ -17,102 +19,103 @@ export interface FontOption {
 /** Sample dla nagłówków + treści - pokrywa popularne kierunki. */
 const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
 
+// `hint` holds an i18n key path (resolved with t() at render), not literal text.
 const FONT_OPTIONS: FontOption[] = [
   {
     label: "Red Hat Display",
     stack: DEFAULT_FONT_STACK,
     googleFamily: "Red+Hat+Display:wght@400;500;600;700;800",
-    hint: "Domyślny / System UI",
+    hint: "adminPanesMisc.fontPicker.hints.redhat",
   },
   {
     label: "Inter",
     stack: "Inter, system-ui, sans-serif",
     googleFamily: "Inter:wght@400;500;600;700",
-    hint: "Neutralny, czytelny",
+    hint: "adminPanesMisc.fontPicker.hints.inter",
   },
   {
     label: "Manrope",
     stack: "Manrope, system-ui, sans-serif",
     googleFamily: "Manrope:wght@400;500;600;700",
-    hint: "Geometryczny sans",
+    hint: "adminPanesMisc.fontPicker.hints.manrope",
   },
   {
     label: "DM Sans",
     stack: "'DM Sans', system-ui, sans-serif",
     googleFamily: "DM+Sans:wght@400;500;700",
-    hint: "Krągły, przyjazny",
+    hint: "adminPanesMisc.fontPicker.hints.dmsans",
   },
   {
     label: "Space Grotesk",
     stack: "'Space Grotesk', system-ui, sans-serif",
     googleFamily: "Space+Grotesk:wght@400;500;700",
-    hint: "Tech / startup",
+    hint: "adminPanesMisc.fontPicker.hints.spaceGrotesk",
   },
   {
     label: "Outfit",
     stack: "Outfit, system-ui, sans-serif",
     googleFamily: "Outfit:wght@400;500;700",
-    hint: "Lekki display",
+    hint: "adminPanesMisc.fontPicker.hints.outfit",
   },
   {
     label: "Sora",
     stack: "Sora, system-ui, sans-serif",
     googleFamily: "Sora:wght@400;500;700",
-    hint: "Nowoczesny sans",
+    hint: "adminPanesMisc.fontPicker.hints.sora",
   },
   {
     label: "Plus Jakarta Sans",
     stack: "'Plus Jakarta Sans', system-ui, sans-serif",
     googleFamily: "Plus+Jakarta+Sans:wght@400;500;700",
-    hint: "Łagodny, biznesowy",
+    hint: "adminPanesMisc.fontPicker.hints.jakarta",
   },
   {
     label: "Work Sans",
     stack: "'Work Sans', system-ui, sans-serif",
     googleFamily: "Work+Sans:wght@400;500;700",
-    hint: "Klasyczny grotesk",
+    hint: "adminPanesMisc.fontPicker.hints.workSans",
   },
   {
     label: "Playfair Display",
     stack: "'Playfair Display', Georgia, serif",
     googleFamily: "Playfair+Display:wght@400;600;800",
-    hint: "Elegancki serif",
+    hint: "adminPanesMisc.fontPicker.hints.playfair",
   },
   {
     label: "Instrument Serif",
     stack: "'Instrument Serif', Georgia, serif",
     googleFamily: "Instrument+Serif",
-    hint: "Magazynowy serif",
+    hint: "adminPanesMisc.fontPicker.hints.instrument",
   },
   {
     label: "Lora",
     stack: "Lora, Georgia, serif",
     googleFamily: "Lora:wght@400;500;600;700",
-    hint: "Czytelny serif",
+    hint: "adminPanesMisc.fontPicker.hints.lora",
   },
   {
     label: "Cormorant Garamond",
     stack: "'Cormorant Garamond', Georgia, serif",
     googleFamily: "Cormorant+Garamond:wght@400;500;700",
-    hint: "Luksusowy serif",
+    hint: "adminPanesMisc.fontPicker.hints.cormorant",
   },
   {
     label: "Bebas Neue",
     stack: "'Bebas Neue', Impact, sans-serif",
     googleFamily: "Bebas+Neue",
-    hint: "Display, plakat",
+    hint: "adminPanesMisc.fontPicker.hints.bebas",
   },
   {
     label: "Archivo Black",
     stack: "'Archivo Black', Impact, sans-serif",
     googleFamily: "Archivo+Black",
-    hint: "Pogrubiony display",
+    hint: "adminPanesMisc.fontPicker.hints.archivo",
   },
   {
     label: "JetBrains Mono",
     stack: "'JetBrains Mono', ui-monospace, monospace",
     googleFamily: "JetBrains+Mono:wght@400;500;700",
-    hint: "Monospace",
+    hint: "adminPanesMisc.fontPicker.hints.jetbrains",
   },
 ];
 
@@ -146,6 +149,7 @@ export function FontPicker({
   sampleText = "Aa - The quick brown fox",
   customFonts = [],
 }: Props) {
+  const { t } = useTranslation();
   useLoadGoogleFonts();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -153,11 +157,11 @@ export function FontPicker({
   const customOptions = useMemo<FontOption[]>(
     () =>
       customFonts.map((f) => ({
-        label: `${f.label} (własny)`,
+        label: `${f.label} ${t("adminPanesMisc.fontPicker.customSuffix")}`,
         stack: `"${f.id}", system-ui, sans-serif`,
-        hint: "Własny font",
+        hint: "adminPanesMisc.fontPicker.customHint",
       })),
-    [customFonts],
+    [customFonts, t],
   );
   const allOptions = useMemo(() => [...customOptions, ...FONT_OPTIONS], [customOptions]);
   const selected = useMemo(() => allOptions.find((o) => o.stack === value), [allOptions, value]);
@@ -180,7 +184,7 @@ export function FontPicker({
       >
         <span className="flex flex-col items-start min-w-0">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            {selected?.label ?? "Red Hat Display (domyślny)"}
+            {selected?.label ?? t("adminPanesMisc.fontPicker.defaultLabel")}
           </span>
           <span className="truncate text-base" style={{ fontFamily: value || DEFAULT_FONT_STACK }}>
             {sampleText}
@@ -199,7 +203,9 @@ export function FontPicker({
             }}
             className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50"
           >
-            <span className="text-muted-foreground italic">Red Hat Display (domyślny)</span>
+            <span className="text-muted-foreground italic">
+              {t("adminPanesMisc.fontPicker.defaultLabel")}
+            </span>
             {!value && <Check className="w-4 h-4 text-brand" />}
           </button>
           <div className="border-t border-border" />
@@ -218,7 +224,7 @@ export function FontPicker({
                 <span className="flex flex-col min-w-0">
                   <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
                     {opt.label}
-                    {opt.hint ? ` · ${opt.hint}` : ""}
+                    {opt.hint ? ` · ${t(opt.hint)}` : ""}
                   </span>
                   <span className="truncate text-base" style={{ fontFamily: opt.stack }}>
                     {sampleText}

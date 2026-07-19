@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-panes-misc";
 import { useAuth } from "@/hooks/useAuth";
 import { uploadCustomFont, type CustomFont } from "@/lib/theme/customFonts";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ interface Props {
 }
 
 export function CustomFontUploader({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const { tenantId } = useAuth();
   const [label, setLabel] = useState("");
   const [weight, setWeight] = useState("400");
@@ -24,11 +27,11 @@ export function CustomFontUploader({ value, onChange }: Props) {
   const onPick = async (file: File | undefined) => {
     if (!file) return;
     if (!tenantId) {
-      toast.error("Brak tenant_id - zaloguj się ponownie");
+      toast.error(t("adminPanesMisc.customFont.errNoTenant"));
       return;
     }
     if (!label.trim()) {
-      toast.error("Podaj nazwę fontu");
+      toast.error(t("adminPanesMisc.customFont.errNoName"));
       return;
     }
     setBusy(true);
@@ -36,42 +39,41 @@ export function CustomFontUploader({ value, onChange }: Props) {
     setBusy(false);
     if (!font) return;
     if (value.some((f) => f.id === font.id)) {
-      toast.error(`Font o id "${font.id}" już istnieje`);
+      toast.error(t("adminPanesMisc.customFont.errDuplicate", { id: font.id }));
       return;
     }
     onChange([...value, font]);
     setLabel("");
-    toast.success(`Dodano font ${font.label}`);
+    toast.success(t("adminPanesMisc.customFont.addedToast", { label: font.label }));
   };
 
   const remove = (id: string) => onChange(value.filter((f) => f.id !== id));
 
   return (
     <div className="space-y-3 rounded-md border border-border p-4 bg-card">
-      <div className="text-sm font-medium">Własne fonty (.woff2, .woff, .ttf, .otf)</div>
-      <p className="text-xs text-muted-foreground">
-        Wgrane fonty pojawią się automatycznie jako opcje w wyborze fontu nagłówków i treści.
-        Maksymalny rozmiar pliku - 5 MB.
-      </p>
+      <div className="text-sm font-medium">{t("adminPanesMisc.customFont.title")}</div>
+      <p className="text-xs text-muted-foreground">{t("adminPanesMisc.customFont.hint")}</p>
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-2 items-end">
         <div>
-          <Label className="text-xs">Nazwa wyświetlana</Label>
+          <Label className="text-xs">{t("adminPanesMisc.customFont.displayName")}</Label>
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="np. Brand Display"
+            placeholder={t("adminPanesMisc.customFont.namePlaceholder")}
           />
         </div>
         <div>
-          <Label className="text-xs">Waga (CSS)</Label>
+          <Label className="text-xs">{t("adminPanesMisc.customFont.weight")}</Label>
           <Input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="400" />
         </div>
         <div>
           <Button asChild disabled={busy} size="sm">
             <label className="cursor-pointer inline-flex items-center gap-1.5">
               <Upload className="w-3.5 h-3.5" />
-              {busy ? "Wysyłanie..." : "Wybierz plik"}
+              {busy
+                ? t("adminPanesMisc.customFont.uploading")
+                : t("adminPanesMisc.customFont.pickFile")}
               <input
                 type="file"
                 accept=".woff2,.woff,.ttf,.otf,font/*"
@@ -102,7 +104,7 @@ export function CustomFontUploader({ value, onChange }: Props) {
               <button
                 onClick={() => remove(f.id)}
                 className="text-muted-foreground hover:text-destructive"
-                aria-label={`Usuń ${f.label}`}
+                aria-label={t("adminPanesMisc.customFont.removeAria", { label: f.label })}
                 type="button"
               >
                 <Trash2 className="w-3.5 h-3.5" />
