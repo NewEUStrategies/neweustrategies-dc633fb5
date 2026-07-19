@@ -63,7 +63,7 @@ function Page() {
       await save.mutateAsync(rest);
       setSavedAt(Date.now());
 
-      toast.success("Zapisano - layout strony eksperta został zaktualizowany");
+      toast.success(adminToast.layoutSaved());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
       toast.error(`Błąd zapisu: ${msg}`);
