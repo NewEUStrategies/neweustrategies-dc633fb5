@@ -507,6 +507,19 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           />
         </summary>
         <ul className="pl-4">
+          <li>
+            <AppLink
+              href={itemHref(node)}
+              target={itemTarget(node)}
+              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:text-brand"
+            >
+              {node.icon ? (
+                <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+              ) : null}
+              {label}
+            </AppLink>
+          </li>
           {node.children.map((child) => (
             <MobileItem key={child.id} node={child} lang={lang} />
           ))}
