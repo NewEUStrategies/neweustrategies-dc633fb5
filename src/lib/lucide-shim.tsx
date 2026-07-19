@@ -21,6 +21,7 @@ import {
   Clock as LClock,
   Columns2 as LColumns2,
   Copy as LCopy,
+  ExternalLink as LExternalLink,
   Eye as LEye,
   File as LFile,
   FileText as LFileText,
@@ -120,6 +121,9 @@ import {
   Heart as LHeart,
   Target as LTarget,
   TrendingUp as LTrendingUp,
+  RefreshCw as LRefreshCw,
+  CheckCircle2 as LCheckCircle2,
+  XCircle as LXCircle,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -196,6 +200,7 @@ export const Circle = makeIcon("Circle", LCircle);
 export const Clock = makeIcon("Clock", LClock);
 export const Columns2 = makeIcon("Columns2", LColumns2);
 export const Copy = makeIcon("Copy", LCopy);
+export const ExternalLink = makeIcon("ExternalLink", LExternalLink);
 export const Eye = makeIcon("Eye", LEye);
 export const File = makeIcon("File", LFile);
 export const FileText = makeIcon("FileText", LFileText);
@@ -300,3 +305,6 @@ export const HandHeart = makeIcon("HandHeart", LHandHeart);
 export const Heart = makeIcon("Heart", LHeart);
 export const Target = makeIcon("Target", LTarget);
 export const TrendingUp = makeIcon("TrendingUp", LTrendingUp);
+export const RefreshCw = makeIcon("RefreshCw", LRefreshCw);
+export const CheckCircle2 = makeIcon("CheckCircle2", LCheckCircle2);
+export const XCircle = makeIcon("XCircle", LXCircle);

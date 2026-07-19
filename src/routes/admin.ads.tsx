@@ -489,7 +489,7 @@ function PlacementsPanel() {
     setBusy(false);
     if (error) toast.error(error.message);
     else {
-      toast.success("Zapisano pozycję");
+      toast.success(adminToast.saved());
       setDraft(emptyPlacement());
       load();
     }

@@ -14,7 +14,7 @@ import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import "@/lib/i18n-admin-layouts";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/post-layouts")({ component: Page });
 
@@ -39,7 +39,7 @@ function Page() {
     void tenant_id;
     try {
       await save.mutateAsync(rest);
-      toast.success(t("adminLayouts.postLayouts.savedToast"));
+      toast.success(adminToast.layoutSaved());
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("adminLayouts.postLayouts.saveFailed");
       toast.error(t("adminLayouts.postLayouts.saveErrorToast", { msg }));

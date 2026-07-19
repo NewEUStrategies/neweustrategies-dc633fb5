@@ -628,6 +628,8 @@ function EditPage() {
                 fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
                 fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
                 coverImageUrl={form.cover_image_url}
+                contentHtml={{ pl: form.content_pl, en: form.content_en }}
+                contentBlocks={form.builder_data}
                 onIssuesChange={setSeoIssues}
               />
 

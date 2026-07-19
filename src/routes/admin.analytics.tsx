@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
@@ -200,11 +201,11 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
         },
       });
       if (!r.configured) {
-        toast.error(r.error ?? "Brak konfiguracji Measurement Protocol");
+        toast.error(r.error ?? adminToast.ga4NotConfigured());
         return;
       }
-      if (r.ok) toast.success("Event wysłany. GA4 przyjął payload (debug OK).");
-      else toast.error(r.error ?? "GA4 odrzucił event - sprawdź debug w konsoli.");
+      if (r.ok) toast.success(adminToast.ga4Accepted());
+      else toast.error(r.error ?? adminToast.ga4Rejected());
       if (r.debug) console.info("[GA4 Debug]", r.debug);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));

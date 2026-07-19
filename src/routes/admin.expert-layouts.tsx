@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 import { AdminShell } from "@/components/admin/AdminShell";
 import "@/lib/i18n-admin-layouts";
 import { ExpertLayoutPreview } from "@/components/admin/ExpertLayoutPreview";
@@ -56,7 +57,7 @@ function Page() {
       await save.mutateAsync(rest);
       setSavedAt(Date.now());
 
-      toast.success(t("adminLayouts.expertLayouts.savedToast"));
+      toast.success(adminToast.layoutSaved());
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("adminLayouts.expertLayouts.saveFailed");
       toast.error(t("adminLayouts.expertLayouts.saveErrorToast", { msg }));
