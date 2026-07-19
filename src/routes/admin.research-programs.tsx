@@ -584,29 +584,32 @@ function ManageContentDialog({
   onClose: () => void;
   lang: "pl" | "en";
 }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {lang === "pl" ? "Zawartość programu" : "Program content"}: {program.name_pl}
+            {tp("programContent")}: {program.name_pl}
           </DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="members" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="members">
-              <Users className="mr-1 h-4 w-4" /> {lang === "pl" ? "Zespół" : "Team"}
+              <Users className="mr-1 h-4 w-4" /> {tp("tabs.team")}
             </TabsTrigger>
             <TabsTrigger value="projects">
-              <Layers className="mr-1 h-4 w-4" /> {lang === "pl" ? "Projekty" : "Projects"}
+              <Layers className="mr-1 h-4 w-4" /> {tp("tabs.projects")}
             </TabsTrigger>
             <TabsTrigger value="partners">
-              <Handshake className="mr-1 h-4 w-4" /> {lang === "pl" ? "Partnerzy" : "Partners"}
+              <Handshake className="mr-1 h-4 w-4" /> {tp("tabs.partners")}
             </TabsTrigger>
             <TabsTrigger value="items">
-              <Star className="mr-1 h-4 w-4" /> {lang === "pl" ? "Kuratorowane" : "Curated"}
+              <Star className="mr-1 h-4 w-4" /> {tp("tabs.curated")}
             </TabsTrigger>
           </TabsList>
+
           <TabsContent value="members">
             <MembersTab programId={program.id} lang={lang} />
           </TabsContent>
