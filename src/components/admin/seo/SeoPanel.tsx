@@ -33,6 +33,7 @@ import {
   type SeoSettings,
 } from "@/lib/seo/settings";
 import { generateAndUploadOgCard } from "@/lib/seo/ogCardCanvas";
+import { UrlInspectionWidget } from "@/components/admin/seo/UrlInspectionWidget";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 
 export interface SeoPanelValue {
@@ -330,6 +331,10 @@ export function SeoPanel(props: SeoPanelProps) {
             folder="og-cards"
           />
         </div>
+      </div>
+
+      <div className="pt-2 border-t border-border">
+        <UrlInspectionWidget path={previewPath} lang={tab} />
       </div>
     </div>
   );
