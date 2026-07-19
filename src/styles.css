@@ -4722,22 +4722,32 @@ textarea.input {
 
 
 /* Language switcher toggle (chrome header widget).
-   Adapted from a theme-switch pattern: a pill track whose background reflects
-   the active language (PL = white/red, EN = UK blue) and a sliding circle that
-   carries only the active flag. */
+   Reference: a pill track whose background is the active nation's flag,
+   with a white sliding circle that carries the active language code (PL/EN). */
 .lang-switch {
   --toggle-size: 12px;
   --container-width: 5.625em;
   --container-height: 2.5em;
   --container-radius: 6.25em;
   --container-pl-bg: linear-gradient(180deg, #ffffff 50%, #dc143c 50%);
-  --container-en-bg: #1e3a8a;
+  --container-en-bg:
+    linear-gradient(90deg, transparent 45%, #ffffff 45%, #ffffff 55%, transparent 55%),
+    linear-gradient(0deg, transparent 45%, #ffffff 45%, #ffffff 55%, transparent 55%),
+    linear-gradient(90deg, transparent 48%, #c8102e 48%, #c8102e 52%, transparent 52%),
+    linear-gradient(0deg, transparent 48%, #c8102e 48%, #c8102e 52%, transparent 52%),
+    linear-gradient(26.565deg, transparent 47%, #ffffff 47%, #ffffff 53%, transparent 53%),
+    linear-gradient(-26.565deg, transparent 47%, #ffffff 47%, #ffffff 53%, transparent 53%),
+    linear-gradient(26.565deg, transparent 49%, #c8102e 49%, #c8102e 51%, transparent 51%),
+    linear-gradient(-26.565deg, transparent 49%, #c8102e 49%, #c8102e 51%, transparent 51%),
+    #012169;
   --circle-container-diameter: 3.375em;
   --flag-diameter: 2.125em;
   --circle-container-offset: calc((var(--circle-container-diameter) - var(--container-height)) / 2 * -1);
   --transition: 0.5s cubic-bezier(0, -0.02, 0.4, 1.25);
   --circle-transition: 0.3s cubic-bezier(0, -0.02, 0.35, 1.17);
   display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
   cursor: pointer;
   font-size: var(--toggle-size);
   -webkit-tap-highlight-color: transparent;
@@ -4752,17 +4762,19 @@ textarea.input {
   padding: 0;
 }
 
-.lang-switch__checkbox {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-  opacity: 0;
+.lang-switch__label {
+  font-family: "Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 0.875em;
+  font-weight: 700;
+  line-height: 1;
+  color: oklch(0.55 0 0);
+  letter-spacing: 0.04em;
+  transition: color 0.25s ease;
+  user-select: none;
+}
+
+.lang-switch__label[data-active="true"] {
+  color: var(--foreground, #0f172a);
 }
 
 .lang-switch__container {
@@ -4776,6 +4788,7 @@ textarea.input {
     0em -0.062em 0.062em rgba(0, 0, 0, 0.25),
     0em 0.062em 0.125em rgba(255, 255, 255, 0.94);
   transition: var(--transition);
+  flex-shrink: 0;
 }
 
 .lang-switch__container::before {
@@ -4827,8 +4840,12 @@ textarea.input {
 }
 
 .lang-switch__flag {
-  font-size: 1.25em;
+  font-family: "Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 0.75em;
+  font-weight: 800;
   line-height: 1;
+  color: #0f172a;
+  letter-spacing: 0.02em;
   user-select: none;
 }
 
