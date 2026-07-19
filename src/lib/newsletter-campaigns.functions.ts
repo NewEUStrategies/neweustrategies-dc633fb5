@@ -40,6 +40,14 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
+import { parseEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
+import { renderEmailHtml } from "@/lib/newsletter/renderEmailHtml";
+import {
+  fetchEmailDocPostRows,
+  postRefsForLang,
+  type EmailDocDbClient,
+  type EmailPostRow,
+} from "@/lib/newsletter/emailDocResolve";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -93,6 +101,11 @@ const CampaignUpsert = z.object({
   subject_en: z.string().trim().max(300).default(""),
   html_pl: z.string().max(200_000).default(""),
   html_en: z.string().max(200_000).default(""),
+  // Kreator treści: dyskryminator silnika + dokument bloków (EmailDoc v1).
+  // Wzorzec posts/pages - obie kolumny współistnieją, autorytatywna jest ta
+  // wskazana przez `editor`; przełączanie silnika niczego nie kasuje.
+  editor: z.enum(["html", "doc"]).default("html"),
+  content_doc: z.unknown().nullable().optional(),
   from_name: z.string().trim().max(160).nullable().optional(),
   from_email: z.string().trim().email().max(254).nullable().optional(),
   reply_to: z.string().trim().email().max(254).nullable().optional(),
@@ -108,6 +121,10 @@ export interface CampaignRow {
   subject_en: string;
   html_pl: string;
   html_en: string;
+  editor: "html" | "doc";
+  // Struktura dokumentu kreatora (EmailDoc v1) - serializowalna przez
+  // TanStack Start. Surowy jsonb z bazy walidujemy parseEmailDoc na kliencie.
+  content_doc: EmailDoc | null;
   from_name: string | null;
   from_email: string | null;
   reply_to: string | null;
@@ -225,6 +242,15 @@ export const upsertCampaign = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => CampaignUpsert.parse(data))
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const tenantId = await getTenantId(context);
+    // Dokument kreatora normalizujemy parserem (złe bloki odpadają) i
+    // ograniczamy rozmiar - do kolumny nigdy nie trafia niezwalidowany JSON.
+    let contentDoc: EmailDoc | null = null;
+    if (data.content_doc != null) {
+      if (JSON.stringify(data.content_doc).length > 300_000) throw new Error("doc_too_large");
+      contentDoc = parseEmailDoc(data.content_doc);
+      if (!contentDoc) throw new Error("invalid_content_doc");
+    }
+    if (data.editor === "doc" && !contentDoc) throw new Error("invalid_content_doc");
     const payload = {
       tenant_id: tenantId,
       name: data.name,
@@ -232,6 +258,8 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       subject_en: data.subject_en,
       html_pl: data.html_pl,
       html_en: data.html_en,
+      editor: data.editor,
+      content_doc: contentDoc,
       from_name: data.from_name ?? null,
       from_email: data.from_email ?? null,
       reply_to: data.reply_to ?? null,
@@ -242,7 +270,8 @@ export const upsertCampaign = createServerFn({ method: "POST" })
     if (data.id) {
       const { error } = await context.supabase
         .from("newsletter_campaigns")
-        .update(payload)
+        // editor/content_doc są nowsze niż wygenerowane typy -> cast payloadu.
+        .update(payload as never)
         .eq("id", data.id)
         .in("status", ["draft", "scheduled", "failed"]);
       if (error) throw new Error(error.message);
@@ -250,7 +279,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
     }
     const { data: inserted, error } = await context.supabase
       .from("newsletter_campaigns")
-      .insert({ ...payload, created_by: context.userId })
+      .insert({ ...payload, created_by: context.userId } as never)
       .select("id")
       .single();
     if (error || !inserted) throw new Error(error?.message ?? "insert_failed");
@@ -339,8 +368,25 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
     if (!c) throw new Error("not_found");
     const camp = c as unknown as CampaignRow;
     const subject = data.language === "pl" ? camp.subject_pl : camp.subject_en;
+    let rawHtml = data.language === "pl" ? camp.html_pl : camp.html_en;
+    if (camp.editor === "doc") {
+      const doc = parseEmailDoc(camp.content_doc);
+      if (!doc) throw new Error("invalid_content_doc");
+      const origin = await originFromRequest();
+      const rows = await fetchEmailDocPostRows(
+        supabaseAdmin as unknown as EmailDocDbClient,
+        tenantId,
+        doc,
+      );
+      rawHtml = renderEmailHtml(doc, data.language, {
+        postsByBlock: postRefsForLang(rows, origin, data.language),
+      });
+      // Pusty dokument w wybranym języku - nie wysyłamy pustej wiadomości
+      // testowej (czytelny błąd zamiast "wysłano" z pustą treścią).
+      if (!rawHtml) throw new Error("missing_content_for_language");
+    }
     const html = renderCampaignHtml(
-      data.language === "pl" ? camp.html_pl : camp.html_en,
+      rawHtml,
       { email: data.toEmail, firstName: "", lastName: "" },
       data.language,
       null,
@@ -605,13 +651,35 @@ async function runCampaignSend(
     const from = buildFrom(camp);
     const origin = await originFromRequest();
 
+    // Kreator treści (editor='doc'): dokument renderuje się RAZ per język na
+    // wywołanie - blok "najnowsze wpisy" jest świeży w momencie WYSYŁKI, nie
+    // zapisu. Per odbiorca zostaje tylko personalizacja zmiennych + tracking
+    // (renderCampaignHtml niżej, wspólny z trybem html).
+    let docHtmlPl = camp.html_pl;
+    let docHtmlEn = camp.html_en;
+    if (camp.editor === "doc") {
+      const doc = parseEmailDoc(camp.content_doc);
+      if (!doc) throw new Error("invalid_content_doc");
+      // Bez absolutnego origin blok "najnowsze wpisy" dałby względne (martwe)
+      // linki, a stopka "Wypisz się" i tak nie zostałaby doklejona - nie
+      // wysyłamy niezgodnych z RFC-8058 maili, tylko zatrzymujemy kampanię
+      // (markFailed w catch) z czytelnym błędem operacyjnym.
+      if (!origin) throw new Error("missing_site_origin");
+      const rows = await fetchEmailDocPostRows(admin as unknown as EmailDocDbClient, tenantId, doc);
+      docHtmlPl = renderEmailHtml(doc, "pl", { postsByBlock: postRefsForLang(rows, origin, "pl") });
+      docHtmlEn = renderEmailHtml(doc, "en", { postsByBlock: postRefsForLang(rows, origin, "en") });
+      // Pusty render w OBU językach = brak treści do wysłania (inaczej kampania
+      // skończyłaby jako "sent" z zerem maili). Zatrzymujemy z jasnym błędem.
+      if (!docHtmlPl && !docHtmlEn) throw new Error("empty_content_doc");
+    }
+
     for (let i = 0; i < pending.length; i += BATCH_SIZE) {
       const chunk = pending.slice(i, i + BATCH_SIZE);
       await Promise.all(
         chunk.map(async (sub) => {
           const lang = (sub.language === "en" ? "en" : "pl") as "pl" | "en";
           const subject = lang === "pl" ? camp.subject_pl : camp.subject_en;
-          const rawHtml = lang === "pl" ? camp.html_pl : camp.html_en;
+          const rawHtml = lang === "pl" ? docHtmlPl : docHtmlEn;
           if (!subject || !rawHtml) {
             await logRecipient(admin, {
               tenantId,
@@ -844,3 +912,58 @@ async function logRecipient(
     { onConflict: "campaign_id,email" },
   );
 }
+
+// ----------------------------------------------------------------------------
+// Kreator treści: dane dla podglądu w edytorze
+// ----------------------------------------------------------------------------
+
+// Rozwiązuje bloki post-list dokumentu (jeszcze niezapisanego) na surowe
+// wiersze wpisów - edytor renderuje podgląd lokalnie tym samym
+// renderEmailHtml, którym wysyła serwer (podgląd = wysyłka).
+export const resolveCampaignDocPosts = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((data: unknown) => z.object({ doc: z.unknown() }).parse(data))
+  .handler(async ({ data, context }): Promise<{ json: string }> => {
+    const tenantId = await getTenantId(context);
+    // Ten sam limit rozmiaru co przy zapisie (upsertCampaign) - podgląd nie
+    // powinien być tańszym wektorem na ogromny payload.
+    if (data.doc != null && JSON.stringify(data.doc).length > 300_000) {
+      throw new Error("doc_too_large");
+    }
+    const doc = parseEmailDoc(data.doc);
+    if (!doc) return { json: JSON.stringify({}) };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const rows = await fetchEmailDocPostRows(
+      supabaseAdmin as unknown as EmailDocDbClient,
+      tenantId,
+      doc,
+    );
+    return { json: JSON.stringify(rows) };
+  });
+
+// Wyszukiwarka opublikowanych wpisów dla ręcznego doboru w bloku post-list.
+export const searchCampaignPosts = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((data: unknown) =>
+    z.object({ search: z.string().trim().max(200).default("") }).parse(data),
+  )
+  .handler(async ({ data, context }): Promise<{ json: string }> => {
+    const tenantId = await getTenantId(context);
+    let q = context.supabase
+      .from("posts")
+      .select("id, slug, title_pl, title_en, published_at")
+      .eq("tenant_id", tenantId)
+      .eq("status", "published")
+      .is("deleted_at", null)
+      .order("published_at", { ascending: false })
+      .limit(10);
+    if (data.search) {
+      const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
+      q = q.or(`title_pl.ilike.${s},title_en.ilike.${s},slug.ilike.${s}`);
+    }
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return { json: JSON.stringify(rows ?? []) };
+  });
+
+export type { EmailPostRow };

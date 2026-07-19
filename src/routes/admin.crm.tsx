@@ -25,6 +25,10 @@ import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
+import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
+import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
+import { ScoringSettingsDialog } from "@/components/admin/crm/ScoringSettingsDialog";
+import { SCORE_BANDS, SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +89,10 @@ type Lead = {
   follow_up_at: string | null;
   last_activity_at: string;
   created_at: string;
+  score: number;
+  score_band: ScoreBand;
+  score_breakdown: unknown;
+  score_updated_at: string | null;
 };
 
 type ConsentRow = {
@@ -148,9 +156,13 @@ const PL = {
     contact: "Kontakt",
     company: "Firma",
     stage: "Etap",
+    score: "Score",
     consent: "Newsletter",
     activity: "Aktywność",
   },
+  sortActivity: "Sortuj: aktywność",
+  sortScore: "Sortuj: lead score",
+  bandAll: "Wszystkie pasma",
   empty: "Brak leadów dla wybranych filtrów.",
   stage: {
     new: "Nowy",
@@ -251,9 +263,13 @@ const EN = {
     contact: "Contact",
     company: "Company",
     stage: "Stage",
+    score: "Score",
     consent: "Newsletter",
     activity: "Activity",
   },
+  sortActivity: "Sort: activity",
+  sortScore: "Sort: lead score",
+  bandAll: "All bands",
   empty: "No leads for the selected filters.",
   stage: {
     new: "New",
@@ -385,17 +401,23 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState<Stage | "all">("all");
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
+  const [sort, setSort] = useState<"activity" | "score">("activity");
+  const [band, setBand] = useState<ScoreBand | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
+  const { isAdmin } = useAuth();
+  const lang: "pl" | "en" = L === PL ? "pl" : "en";
 
   const q = useQuery({
-    queryKey: ["crm-leads", { search, stage, scope }],
+    queryKey: ["crm-leads", { search, stage, scope, sort, band }],
     queryFn: async () => {
       const r = await listCrmLeads({
         data: {
           search: search || undefined,
           stage: stage === "all" ? undefined : stage,
           scope,
+          sort,
+          band: band === "all" ? undefined : band,
           limit: 200,
         },
       });
@@ -455,6 +477,28 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             ))}
           </SelectContent>
         </Select>
+        <Select value={band} onValueChange={(v) => setBand(v as ScoreBand | "all")}>
+          <SelectTrigger className="h-8 w-[150px] text-[13px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{L.bandAll}</SelectItem>
+            {SCORE_BANDS.map((b) => (
+              <SelectItem key={b} value={b}>
+                {SCORE_BAND_LABELS[lang][b]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={sort} onValueChange={(v) => setSort(v as "activity" | "score")}>
+          <SelectTrigger className="h-8 w-[180px] text-[13px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="activity">{L.sortActivity}</SelectItem>
+            <SelectItem value="score">{L.sortScore}</SelectItem>
+          </SelectContent>
+        </Select>
         {canSeeAll && (
           <Select value={scope} onValueChange={(v) => setScope(v as "tenant" | "all")}>
             <SelectTrigger className="h-8 w-[210px] text-[13px]">
@@ -467,6 +511,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           </Select>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {isAdmin && <ScoringSettingsDialog lang={lang} />}
           <span
             className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
             aria-live="polite"
@@ -496,6 +541,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <thead className="bg-muted/50 text-muted-foreground">
             <tr>
               <th className="text-left p-2">{L.cols.who}</th>
+              <th className="text-left p-2">{L.cols.score}</th>
               <th className="text-left p-2 hidden md:table-cell">{L.cols.contact}</th>
               <th className="text-left p-2 hidden lg:table-cell">{L.cols.company}</th>
               <th className="text-left p-2">{L.cols.stage}</th>
@@ -506,7 +552,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                <td colSpan={7} className="p-4 text-center text-muted-foreground">
                   {L.empty}
                 </td>
               </tr>
@@ -522,6 +568,9 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                     {[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email}
                   </div>
                   <div className="text-[11px] text-muted-foreground">{l.email}</div>
+                </td>
+                <td className="p-2">
+                  <LeadScoreBadge score={l.score ?? 0} band={l.score_band ?? "cold"} lang={lang} />
                 </td>
                 <td className="p-2 hidden md:table-cell text-[12px]">{l.phone ?? "-"}</td>
                 <td className="p-2 hidden lg:table-cell text-[12px]">{l.company ?? "-"}</td>
@@ -697,6 +746,14 @@ function LeadDrawer({
                   value={new Date(lead.last_activity_at).toLocaleString()}
                 />
               </div>
+              <ScoreBreakdownCard
+                leadId={leadId!}
+                score={lead.score ?? 0}
+                band={lead.score_band ?? "cold"}
+                breakdown={lead.score_breakdown}
+                updatedAt={lead.score_updated_at ?? null}
+                lang={L === PL ? "pl" : "en"}
+              />
               <LinkedItemsCard itemType="crm_lead" itemId={leadId} />
             </TabsContent>
 

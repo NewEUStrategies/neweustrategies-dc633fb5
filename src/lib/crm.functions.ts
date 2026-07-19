@@ -3,7 +3,9 @@
 // as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
+import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { z } from "zod";
 async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   const enc = new TextEncoder();
@@ -28,6 +30,8 @@ const ListInput = z.object({
   stage: STAGE_ENUM.optional(),
   scope: z.enum(["tenant", "all"]).default("tenant"),
   limit: z.number().int().min(1).max(500).default(200),
+  sort: z.enum(["activity", "score"]).default("activity"),
+  band: z.enum(["hot", "warm", "cool", "cold"]).optional(),
 });
 
 type AnyQuery = {
@@ -55,9 +59,10 @@ export const listCrmLeads = createServerFn({ method: "POST" })
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
     let q = tbl(context, view)
       .select("*")
-      .order("last_activity_at", { ascending: false })
+      .order(data.sort === "score" ? "score" : "last_activity_at", { ascending: false })
       .limit(data.limit);
     if (data.stage) q = q.eq("stage", data.stage);
+    if (data.band) q = q.eq("score_band", data.band);
     if (data.search) {
       // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
       // term can't inject extra filter conditions (RLS still scopes rows, but
@@ -221,6 +226,8 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
       "phone",
       "company",
       "stage",
+      "score",
+      "score_band",
       "tags",
       "newsletter_status",
       "marketing_consent",
@@ -734,3 +741,136 @@ async function dispatchMerydian(
   const errs = [out.webhook?.error, out.api?.error].filter(Boolean).join(" | ");
   return { ok: okAny, via: mode, error: okAny ? undefined : errs || "no_target" };
 }
+
+// ============ Lead scoring ============
+//
+// Liczenie żyje w bazie (compute_crm_lead_score, migracja 20260718130000);
+// poniżej tylko cienkie mostki: odczyt/zapis ustawień per tenant i wywołanie
+// przeliczeń przez SECURITY DEFINER RPC (guardy ról w funkcjach SQL).
+
+const ScoringWeightInput = z.object({
+  points: z.number().int().min(0).max(1000).optional(),
+  cap: z.number().int().min(0).max(1000).optional(),
+});
+
+const ScoringSettingsInput = z
+  .object({
+    enabled: z.boolean(),
+    half_life_days: z.number().int().min(1).max(365),
+    horizon_days: z.number().int().min(7).max(1095),
+    hot_threshold: z.number().int().min(1).max(10000),
+    warm_threshold: z.number().int().min(1).max(10000),
+    cool_threshold: z.number().int().min(1).max(10000),
+    weights: z.record(z.string().max(60), ScoringWeightInput).default({}),
+  })
+  .refine((s) => s.hot_threshold > s.warm_threshold && s.warm_threshold > s.cool_threshold, {
+    message: "thresholds_must_descend",
+  });
+
+type RpcFn = (
+  name: string,
+  args?: Record<string, unknown>,
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+const rpcOf = (context: unknown): RpcFn =>
+  (context as { supabase: { rpc: RpcFn } }).supabase.rpc.bind(
+    (context as { supabase: { rpc: RpcFn } }).supabase,
+  );
+
+// Scoring to konfiguracja/akcje sztabowe - wymuszamy requireStaff (rola +
+// step-up MFA) obok backstopu w RPC/RLS (dwie niezależne warstwy, doktryna repo).
+export const getCrmScoringSettings = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .handler(async ({ context }) => {
+    // RLS: staff czyta wiersz swojego tenanta; brak wiersza = domyślne.
+    const { data: row, error } = await tbl(context, "crm_scoring_settings")
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { json: j(row ?? null) };
+  });
+
+export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => ScoringSettingsInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const userId = (context as { userId: string }).userId;
+    const rpc = rpcOf(context);
+    const { data: isAdmin } = await rpc("has_role", { _user_id: userId, _role: "admin" });
+    const { data: isSuper } = await rpc("is_super_admin");
+    if (!isAdmin && !isSuper) throw new Error("Forbidden");
+    const { data: tenantRow } = await tbl(context, "profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
+    const tenantId = (tenantRow as { tenant_id: string } | null)?.tenant_id;
+    if (!tenantId) throw new Error("no_tenant");
+
+    // Normalizacja nadpisań wag do PEŁNYCH obiektów {points, cap}: SQL scala
+    // wagi płytkim `jsonb ||`, więc częściowy override (np. samo `points`)
+    // wyzerowałby `cap` do NULL → sygnał bez sufitu. Domykamy inwariant na
+    // zapisie, niezależnie od klienta.
+    const weights: Record<string, { points: number; cap: number }> = {};
+    for (const [key, w] of Object.entries(data.weights)) {
+      const base = DEFAULT_SCORING_WEIGHTS[key as keyof typeof DEFAULT_SCORING_WEIGHTS];
+      weights[key] = {
+        points: w?.points ?? base?.points ?? 0,
+        cap: w?.cap ?? base?.cap ?? 0,
+      };
+    }
+    const payload = { ...data, weights };
+
+    const { data: existing } = await tbl(context, "crm_scoring_settings")
+      .select("tenant_id")
+      .maybeSingle();
+    const res = existing
+      ? await (tbl(context, "crm_scoring_settings")
+          .update(payload)
+          .eq("tenant_id", tenantId) as unknown as Promise<{
+          error: { message: string } | null;
+        }>)
+      : await tbl(context, "crm_scoring_settings").insert({ ...payload, tenant_id: tenantId });
+    if (res.error) throw new Error(res.error.message);
+    return { ok: true };
+  });
+
+export const recomputeLeadScore = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => IdInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const rpc = rpcOf(context);
+    const { data: result, error } = await rpc("recompute_crm_lead_score", {
+      p_lead_id: data.id,
+    });
+    if (error) throw new Error(error.message);
+    return { json: j(result) };
+  });
+
+const RecomputeAllInput = z.object({
+  // Rozmiar porcji; klient pętli po kursorze `after_id` aż done=true.
+  limit: z.number().int().min(1).max(1000).default(500),
+  after_id: z.string().uuid().nullable().optional(),
+});
+
+export const recomputeAllLeadScores = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => RecomputeAllInput.parse(d))
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ processed: number; lastId: string | null; done: boolean }> => {
+      const rpc = rpcOf(context);
+      const { data: result, error } = await rpc("recompute_crm_lead_scores", {
+        p_limit: data.limit,
+        p_after_id: data.after_id ?? null,
+      });
+      if (error) throw new Error(error.message);
+      const r = (result ?? {}) as { processed?: number; last_id?: string | null; done?: boolean };
+      return {
+        processed: Number(r.processed ?? 0),
+        lastId: r.last_id ?? null,
+        done: r.done ?? true,
+      };
+    },
+  );

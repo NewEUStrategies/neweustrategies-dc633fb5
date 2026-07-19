@@ -432,3 +432,77 @@ program (podcast_shows)
   specjalizacji/kategorii (`podcastsByCategoryQueryOptions`), przez wspólny
   `src/components/podcast/PodcastEpisodeStrip.tsx`.
 - **JSON-LD.** Program emituje `PodcastSeries`, odcinek `PodcastEpisode`.
+
+## 7. Lead scoring CRM (behawioralny, decay czasowy)
+
+Skrzynka leadów (`/admin/crm`) niesie **lead score** liczony w bazie z sygnałów
+platformy - bez nowego zbierania danych, wyłącznie z tego, co już płynie przez
+szynę zdarzeń i tabele modułów.
+
+- **Liczenie w bazie, jedno źródło prawdy.** `compute_crm_lead_score(lead_id)`
+  (SECURITY DEFINER, migracja `20260718130000`) sumuje sygnały:
+  - **behawioralne z decay** (półokres konfigurowalny): `email_open`,
+    `email_click` (z `newsletter_campaign_events` po e-mailu subskrybenta),
+    `contact_form` (`contact_messages`), `event_rsvp`, `resource_download`,
+    `comment`, `purchase` (`user_purchases` active), `donation`. Wkład zdarzenia
+    maleje wykładniczo: `0.5^(wiek_dni / half_life_days)`, z sufitem per sygnał.
+  - **statusowe/fit bez decay**: `newsletter_confirmed`, `marketing_consent`,
+    `has_company`, `has_position`, `has_phone`, `has_linkedin`.
+  Wynik → pasmo `hot|warm|cool|cold` wg progów tenanta. Wagi/sufity/progi/decay
+  konfiguruje admin w `crm_scoring_settings` (RLS: read staff, write admin);
+  domyślne wagi żyją w `crm_scoring_default_weights()` i są lustrzane w
+  `src/lib/crm/scoring.ts` (test parzystości kluczy).
+- **Wyjaśnialność.** `crm_leads.score_breakdown` (jsonb `[{key,count,points}]`)
+  zasila kartę „Dlaczego ten wynik" (`ScoreBreakdownCard`). Kolumny
+  `score`/`score_band`/`score_updated_at` pozwalają sortować i filtrować
+  skrzynkę po temperaturze leada.
+- **Spójność z resztą platformy.** Triggery sygnałowe są AFTER i połykają błędy
+  (`EXCEPTION WHEN OTHERS`) - scoring nigdy nie psuje zapisu źródłowego.
+  `compute` zapisuje wiersz **tylko przy realnej zmianie**, więc emitowany przy
+  tym `crm_lead.updated.v1` (istniejący `tg_crm_leads_emit_events`) odświeża
+  skrzynkę na żywo przez mapę inwalidacji - bez nowych kanałów realtime. Trigger
+  na `crm_leads` jest kolumnowo zawężony do pól fit/tożsamości, a `compute`
+  pisze wyłącznie kolumny `score_*` → brak rekursji.
+- **RPC panelu:** `recompute_crm_lead_score` (pojedynczy, guard `is_staff` +
+  tenant) i `recompute_crm_lead_scores` (hurtowo po zmianie wag) - to drugie
+  **porcjami z kursorem po `id`** (zwraca `{processed,last_id,done}`), a klient
+  pętli aż `done`: żaden pojedynczy statement nie przekracza timeoutu i obsługa
+  obejmuje tenantów z >5000 leadów. Powiązanie lead→konto idzie przez
+  `profiles` zawężone do tenanta (indeks `idx_profiles_tenant_email_ci`), nie
+  globalne `auth.users`. Server-fn scoringu używają `requireStaff` (rola +
+  step-up MFA) obok backstopu RPC/RLS. pgTAP:
+  `supabase/tests/crm_lead_scoring_test.sql`; TS: `src/lib/crm/__tests__/scoring.test.ts`.
+
+## 8. Kreator treści kampanii newslettera (EmailDoc)
+
+Treść kampanii (`/admin/newsletter/campaigns/$id`) można komponować w kreatorze
+bloków zamiast wklejać surowy HTML - ten sam wzorzec dyskryminatora `editor` co
+posty/strony.
+
+- **Model danych.** `newsletter_campaigns.editor` (`html|doc`) + `content_doc`
+  (jsonb, migracja `20260718131000`). `editor='html'` renderuje legacy
+  `html_pl/html_en` (pełna kompatybilność wstecz); `editor='doc'` renderuje
+  `content_doc` (model `EmailDoc v1`, `src/lib/newsletter/emailDoc.ts`). Nowe
+  kampanie startują jako `doc`, istniejące zostają na `html`. Zapis utrwala
+  **obie** kolumny niezależnie od `editor` (jak `blocks_data` + `builder_data`
+  w postach), więc przełączanie doc↔html i zapis nigdy nie kasuje pracy w
+  drugim silniku. Wysyłka `doc` przerywa się (markFailed) zamiast wysyłać maile
+  bez absolutnego origin (zepsute linki / brak wypisu RFC-8058) lub z pustym
+  renderem w obu językach.
+- **Bloki** (liniowa lista, e-mail-safe): `heading`, `paragraph`, `image`,
+  `button`, `divider`, `spacer`, `quote`, `post-list` (najnowsze/ręcznie
+  wybrane wpisy), `footer-note`. Teksty dwujęzyczne (`{pl,en}`) - jeden dokument
+  wysyła się w języku subskrybenta. Parser defensywny (złe bloki odpadają).
+- **Renderer.** `renderEmailHtml.ts` to **czysta** funkcja → tabele layoutowe +
+  style inline (klienty pocztowe). Ten sam kod renderuje podgląd w edytorze
+  i wysyłkę, więc „podgląd = to, co dostanie odbiorca". Blok `post-list`
+  rozwiązywany jest serwerowo **w momencie wysyłki** (`emailDocResolve.ts`),
+  więc „najnowsze wpisy" są świeże, nie zamrożone przy zapisie. Personalizację
+  zmiennych (`{{firstName}}`…), tracking open/click i stopkę „Wypisz się"
+  dokłada istniejący `renderCampaignHtml` w pipeline wysyłki - kreator ich nie
+  duplikuje. Linki bloków ograniczone do http(s), teksty escapowane, HTML
+  akapitu przez centralny `sanitizeHtml`.
+- **Wysyłka bez zmian kontraktu.** `runCampaignSend` renderuje dokument RAZ per
+  język na wywołanie (nie per odbiorca), a dalej korzysta z tej samej pętli
+  porcji + dzierżawy + idempotencji per odbiorca co tryb HTML. Testy:
+  `src/lib/newsletter/__tests__/emailDoc.test.ts`, `renderEmailHtml.test.ts`.

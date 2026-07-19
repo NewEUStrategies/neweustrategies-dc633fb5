@@ -27,6 +27,7 @@ import {
   type CampaignRow,
 } from "@/lib/newsletter-campaigns.functions";
 import { getJobRunnerSettings, updateJobRunnerSettings } from "@/lib/newsletter-admin.functions";
+import { createDefaultEmailDoc } from "@/lib/newsletter/emailDoc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FloatingInput } from "@/components/ui/floating-input";
 
@@ -199,6 +200,9 @@ function CampaignsList() {
           subject_en: "",
           html_pl: "",
           html_en: "",
+          // Nowe kampanie startują w kreatorze bloków; legacy zostają na html.
+          editor: "doc",
+          content_doc: createDefaultEmailDoc(),
           audience_filter: {},
         },
       }),
