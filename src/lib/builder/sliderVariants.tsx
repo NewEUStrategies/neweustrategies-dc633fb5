@@ -726,17 +726,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     dragRef.current = { startX: e.clientX, lastX: e.clientX, pointerId: e.pointerId, active: true };
     force((n) => n + 1);
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
+    // NOTE: nie wolno tutaj setPointerCapture — gdyby drag-surface przechwyciła
+    // pointer od razu, click trafiałby w kontener zamiast w <a> pod spodem
+    // (multi-card / split / cinematic mają linki wewnątrz drag-surface).
+    // Przechwycenie robimy dopiero po realnym ruchu w onPointerMove.
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (!d.active || e.pointerId !== d.pointerId) return;
     d.lastX = e.clientX;
-    setDragDx(e.clientX - d.startX);
+    const dx = e.clientX - d.startX;
+    if (Math.abs(dx) > 4) {
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+    }
+    setDragDx(dx);
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
