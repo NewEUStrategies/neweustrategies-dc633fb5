@@ -67,6 +67,13 @@ const pl = {
       topics: "Tematyka",
       people: "Osoby i organizacje",
     },
+    tab_hints: {
+      all: "Wszystkie zasoby platformy: analizy, raporty, podcasty, wywiady, wydarzenia oraz profile osób i organizacji.",
+      titles: "Dopasowanie po tytule i leadzie wpisów - analizy, raporty, wywiady, Policy Papers oraz odcinki podcastów.",
+      types: "Zawęź do formatu treści: artykuł, raport, Policy Paper, wywiad, podcast, wydarzenie, historia web.",
+      topics: "Filtruj po kategoriach, tagach, programach badawczych oraz regionach geograficznych.",
+      people: "Autorzy, eksperci, mówcy i organizacje - z dorobkiem publikacyjnym na platformie.",
+    },
     // Tryby zaawansowane
     adv: {
       toggle: "Wyszukiwanie zaawansowane",
@@ -206,6 +213,13 @@ const en = {
       types: "Content types",
       topics: "Topics",
       people: "People & organizations",
+    },
+    tab_hints: {
+      all: "Every resource on the platform: analyses, reports, podcasts, interviews, events, and profiles of people and organizations.",
+      titles: "Matched against post title and lead - analyses, reports, interviews, policy papers, and podcast episodes.",
+      types: "Narrow by content format: article, report, policy paper, interview, podcast, event, web story.",
+      topics: "Filter by categories, tags, research programs, and geographic regions.",
+      people: "Authors, experts, speakers, and organizations - with a publication footprint on the platform.",
     },
     adv: {
       toggle: "Advanced search",
