@@ -1,8 +1,11 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
 
 import { useTranslation } from "react-i18next";
+import { useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
+import { localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
+import { setClientLang } from "@/lib/i18n/localeRuntime";
 
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
