@@ -159,6 +159,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           [data-reading-header] {
             height: 34px !important;
             --rh-pad-y: 0 !important;
+            background: rgba(220, 38, 38, 0.3) !important;
           }
           [data-reading-header] > div {
             height: 34px !important;
