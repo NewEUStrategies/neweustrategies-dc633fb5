@@ -1,5 +1,5 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
-import * as React from "react";
+
 import { useTranslation } from "react-i18next";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
