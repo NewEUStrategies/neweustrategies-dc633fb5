@@ -93,6 +93,7 @@ const emptyForm: CategoryForm = {
   slug: "",
   description_pl: "",
   description_en: "",
+  logo_url: "",
   kind: "category",
   parent_id: null,
 };
