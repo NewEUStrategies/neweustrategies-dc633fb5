@@ -3,9 +3,11 @@
 // and applied live via <DesignTokensStyle />.
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { DesignSubNav } from "@/components/admin/DesignSubNav";
 import { Plus, Trash2, Copy, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
+import "@/lib/i18n-admin-appearance-routes";
 import {
   useDesignTokens,
   useSaveDesignTokens,
@@ -31,6 +33,7 @@ export const Route = createFileRoute("/admin/settings/design")({
 });
 
 function DesignSettings() {
+  const { t } = useTranslation();
   const { data, isLoading } = useDesignTokens();
   const { data: globals, isLoading: gLoading } = useGlobalColors();
   const save = useSaveDesignTokens();
@@ -47,7 +50,7 @@ function DesignSettings() {
   }, [globals, gDraft]);
 
   if (isLoading || gLoading || !draft || !gDraft) {
-    return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+    return <p className="text-sm text-muted-foreground">{t("adminAppearanceRoutes.loading")}</p>;
   }
 
   const setColors = (mut: (cols: BrandColor[]) => BrandColor[]) =>
@@ -59,7 +62,7 @@ function DesignSettings() {
   const copyVar = (name: string) => {
     const slug = slugifyToken(name);
     navigator.clipboard.writeText(`var(--brand-${slug})`);
-    toast.success(`Skopiowano var(--brand-${slug})`);
+    toast.success(t("adminAppearanceRoutes.design.copiedToast", { var: `var(--brand-${slug})` }));
   };
 
   const setSlot = (key: string, mode: "light" | "dark", v: string | undefined) =>
@@ -73,29 +76,35 @@ function DesignSettings() {
   return (
     <div>
       <DesignSubNav />
-      <h2 className="font-display text-xl mb-1">Tokeny marki</h2>
+      <h2 className="font-display text-xl mb-1">{t("adminAppearanceRoutes.design.brandTokens")}</h2>
       <p className="text-sm text-muted-foreground mb-4">
-        Fonty i kolory definiują wygląd całej strony. Wartości zapisują się jako zmienne CSS (
-        <code>var(--brand-…)</code>, <code>var(--gc-…)</code>) i automatycznie nadpisują tokeny
-        motywu (przyciski, tło, linki, ramki) - w trybie jasnym i ciemnym.
+        {t("adminAppearanceRoutes.design.introPre")}
+        <code>var(--brand-…)</code>, <code>var(--gc-…)</code>
+        {t("adminAppearanceRoutes.design.introPost")}
       </p>
 
       {/* ───────────────────────── FONTY ───────────────────────── */}
       <section className="mb-8">
-        <h3 className="font-medium text-sm mb-2">Typografia</h3>
-        <Field label="Font nagłówków" hint="Używany dla H1–H6 oraz tytułów w widgetach.">
+        <h3 className="font-medium text-sm mb-2">{t("adminAppearanceRoutes.design.typography")}</h3>
+        <Field
+          label={t("adminAppearanceRoutes.design.headingFont")}
+          hint={t("adminAppearanceRoutes.design.headingFontHint")}
+        >
           <FontPicker
             value={draft.fonts.heading}
             onChange={(stack) => setDraft({ ...draft, fonts: { ...draft.fonts, heading: stack } })}
-            sampleText="Nagłówek - Headlines &amp; Display"
+            sampleText={t("adminAppearanceRoutes.design.headingSample")}
             customFonts={draft.fonts.custom ?? []}
           />
         </Field>
-        <Field label="Font tekstu" hint="Treść artykułów, akapity, listy, opisy.">
+        <Field
+          label={t("adminAppearanceRoutes.design.bodyFont")}
+          hint={t("adminAppearanceRoutes.design.bodyFontHint")}
+        >
           <FontPicker
             value={draft.fonts.body}
             onChange={(stack) => setDraft({ ...draft, fonts: { ...draft.fonts, body: stack } })}
-            sampleText="Treść - szybki brązowy lis przeskakuje przez leniwego psa."
+            sampleText={t("adminAppearanceRoutes.design.bodySample")}
             customFonts={draft.fonts.custom ?? []}
           />
         </Field>
@@ -107,7 +116,10 @@ function DesignSettings() {
             }
           />
         </div>
-        <Field label="Promień (radius)" hint="Domyślny border-radius dla kart, przycisków itp.">
+        <Field
+          label={t("adminAppearanceRoutes.design.radius")}
+          hint={t("adminAppearanceRoutes.design.radiusHint")}
+        >
           <Text
             value={draft.scale.radius ?? ""}
             onChange={(e) =>
@@ -122,12 +134,13 @@ function DesignSettings() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="font-medium text-sm">Kolory marki (Global Colors)</h3>
+            <h3 className="font-medium text-sm">{t("adminAppearanceRoutes.design.brandColors")}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Każdy slot ma osobną wartość dla trybu jasnego (
-              <Sun className="inline w-3 h-3 mb-0.5" /> Light) i ciemnego (
-              <Moon className="inline w-3 h-3 mb-0.5" /> Dark). Zmiana wpływa od razu na całą
-              stronę.
+              {t("adminAppearanceRoutes.design.brandColorsDescPrefix")}
+              <Sun className="inline w-3 h-3 mb-0.5" />
+              {t("adminAppearanceRoutes.design.brandColorsDescMid")}
+              <Moon className="inline w-3 h-3 mb-0.5" />
+              {t("adminAppearanceRoutes.design.brandColorsDescSuffix")}
             </p>
           </div>
         </div>
@@ -150,7 +163,8 @@ function DesignSettings() {
                         </div>
                         {slot.overrides && slot.overrides.length > 0 && (
                           <div className="text-[10px] text-muted-foreground/80 mt-1 font-mono">
-                            nadpisuje: {slot.overrides.join(", ")}
+                            {t("adminAppearanceRoutes.design.overrides")}{" "}
+                            {slot.overrides.join(", ")}
                           </div>
                         )}
                         <code className="text-[10px] text-muted-foreground font-mono">
@@ -196,9 +210,11 @@ function DesignSettings() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="font-medium text-sm">Dodatkowe kolory (zmienne)</h3>
+            <h3 className="font-medium text-sm">{t("adminAppearanceRoutes.design.extraColors")}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Własne sloty dostępne jako <code>var(--brand-…)</code> w CSS i widgetach.
+              {t("adminAppearanceRoutes.design.extraColorsDescPrefix")}
+              <code>var(--brand-…)</code>
+              {t("adminAppearanceRoutes.design.extraColorsDescSuffix")}
             </p>
           </div>
           <button
@@ -206,13 +222,13 @@ function DesignSettings() {
             onClick={addColor}
             className="inline-flex items-center gap-1.5 text-xs text-brand hover:underline"
           >
-            <Plus className="w-3.5 h-3.5" /> Dodaj kolor
+            <Plus className="w-3.5 h-3.5" /> {t("adminAppearanceRoutes.design.addColor")}
           </button>
         </div>
 
         {draft.colors.length === 0 ? (
           <p className="text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
-            Brak dodatkowych kolorów.
+            {t("adminAppearanceRoutes.design.noExtraColors")}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -244,7 +260,9 @@ function DesignSettings() {
                     type="button"
                     onClick={() => copyVar(c.name)}
                     className="p-1.5 text-muted-foreground hover:text-brand"
-                    title={`Skopiuj var(--brand-${slug})`}
+                    title={t("adminAppearanceRoutes.design.copyTitle", {
+                      var: `var(--brand-${slug})`,
+                    })}
                   >
                     <Copy className="w-4 h-4" />
                   </button>
@@ -252,7 +270,7 @@ function DesignSettings() {
                     type="button"
                     onClick={() => setColors((cols) => cols.filter((_, i) => i !== idx))}
                     className="p-1.5 text-muted-foreground hover:text-destructive"
-                    title="Usuń"
+                    title={t("adminAppearanceRoutes.design.remove")}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

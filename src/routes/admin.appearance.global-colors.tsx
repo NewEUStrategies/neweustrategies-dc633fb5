@@ -5,17 +5,20 @@
 // wpływ na produkcyjną stronę.
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Save } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { ColorField } from "@/components/admin/builder/ui/atoms/ColorField";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 import { GLOBAL_COLOR_GROUPS, type GlobalColorsValue } from "@/lib/builder/globalColors";
+import "@/lib/i18n-admin-appearance-routes";
 
 export const Route = createFileRoute("/admin/appearance/global-colors")({
   component: GlobalColorsPage,
 });
 
 function GlobalColorsPage() {
+  const { t } = useTranslation();
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
   const [draft, setDraft] = useState<GlobalColorsValue | null>(null);
@@ -25,7 +28,7 @@ function GlobalColorsPage() {
   }, [data, draft]);
 
   if (isLoading || !draft) {
-    return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+    return <p className="text-sm text-muted-foreground">{t("adminAppearanceRoutes.loading")}</p>;
   }
 
   const setSlot = (key: string, mode: "light" | "dark", value: string | undefined) => {
@@ -48,13 +51,14 @@ function GlobalColorsPage() {
         <div>
           <h2 className="font-display text-2xl">Global Colors</h2>
           <p className="text-sm text-muted-foreground">
-            Centralna paleta - każdy slot opisuje, gdzie kolor pojawi się na stronie. Zmiany są
-            natychmiast widoczne w całej witrynie po zapisaniu.
+            {t("adminAppearanceRoutes.globalColors.intro")}
           </p>
         </div>
         <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>
           <Save className="w-4 h-4 mr-2" />
-          {save.isPending ? "Zapisywanie…" : "Zapisz zmiany"}
+          {save.isPending
+            ? t("adminAppearanceRoutes.globalColors.saving")
+            : t("adminAppearanceRoutes.globalColors.saveChanges")}
         </Button>
       </div>
 
@@ -77,7 +81,7 @@ function GlobalColorsPage() {
                       <p className="text-xs text-muted-foreground mt-1">{slot.description}</p>
                       {slot.overrides?.length ? (
                         <p className="text-[11px] text-muted-foreground/80 mt-1">
-                          Nadpisuje:{" "}
+                          {t("adminAppearanceRoutes.globalColors.overrides")}{" "}
                           {slot.overrides.map((o) => (
                             <code key={o} className="mr-1">
                               {o}
@@ -88,7 +92,7 @@ function GlobalColorsPage() {
                     </div>
                     <div>
                       <label className="text-[11px] uppercase tracking-wide text-muted-foreground block mb-1">
-                        Tryb jasny
+                        {t("adminAppearanceRoutes.globalColors.lightMode")}
                       </label>
                       <ColorField
                         value={val.light}
@@ -100,7 +104,7 @@ function GlobalColorsPage() {
                       {slot.hasDark ? (
                         <>
                           <label className="text-[11px] uppercase tracking-wide text-muted-foreground block mb-1">
-                            Tryb ciemny
+                            {t("adminAppearanceRoutes.globalColors.darkMode")}
                           </label>
                           <ColorField
                             value={val.dark}
@@ -110,7 +114,7 @@ function GlobalColorsPage() {
                         </>
                       ) : (
                         <p className="text-xs text-muted-foreground italic mt-5">
-                          (wspólne dla obu trybów)
+                          {t("adminAppearanceRoutes.globalColors.sharedBoth")}
                         </p>
                       )}
                     </div>
@@ -125,7 +129,9 @@ function GlobalColorsPage() {
       <div className="flex justify-end pt-4">
         <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>
           <Save className="w-4 h-4 mr-2" />
-          {save.isPending ? "Zapisywanie…" : "Zapisz zmiany"}
+          {save.isPending
+            ? t("adminAppearanceRoutes.globalColors.saving")
+            : t("adminAppearanceRoutes.globalColors.saveChanges")}
         </Button>
       </div>
     </div>
