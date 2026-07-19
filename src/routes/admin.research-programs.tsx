@@ -315,15 +315,8 @@ function AdminResearchPrograms() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editing
-                ? lang === "pl"
-                  ? "Edytuj program"
-                  : "Edit program"
-                : lang === "pl"
-                  ? "Nowy program"
-                  : "New program"}
-            </DialogTitle>
+            <DialogTitle>{editing ? tp("editProgram") : tp("newProgram")}</DialogTitle>
+
           </DialogHeader>
 
           <div className="grid gap-4">
