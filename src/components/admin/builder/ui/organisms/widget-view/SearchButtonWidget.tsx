@@ -18,6 +18,9 @@ import {
 } from "@/lib/search/facetModel";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
+import i18n from "@/lib/i18n";
+import "@/lib/i18n-search";
+
 
 interface BucketedItem {
   item: AutosuggestItem;
