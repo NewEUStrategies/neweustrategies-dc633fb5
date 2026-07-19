@@ -223,9 +223,6 @@ export function AuthorBusinessCard({
             )}
             <span>{isFollowing ? t.following : t.follow}</span>
           </button>
-          <p className="mt-1.5 text-[10.5px] leading-snug text-muted-foreground">
-            {t.followHint}
-          </p>
         </div>
       )}
 
