@@ -116,9 +116,8 @@ function AdminMembershipPage() {
       try {
         features = JSON.parse(draft.features || "{}") as Json;
       } catch {
-        throw new Error(
-          lang === "pl" ? "Pole features nie jest poprawnym JSON-em" : "Features is not valid JSON",
-        );
+        throw new Error(tm("toast.featuresInvalid"));
+
       }
       const { error } = await supabase
         .from("membership_tiers")
