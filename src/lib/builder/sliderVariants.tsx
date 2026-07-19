@@ -1350,12 +1350,23 @@ function SplitFeatureVariant(p: VariantProps) {
           </h3>
         )}
         {sub && (
-          <p
-            className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
-            style={p.subtitleStyle}
-          >
-            {sub}
-          </p>
+          href ? (
+            <AppLink href={href} className="block">
+              <p
+                className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+                style={p.subtitleStyle}
+              >
+                {sub}
+              </p>
+            </AppLink>
+          ) : (
+            <p
+              className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+              style={p.subtitleStyle}
+            >
+              {sub}
+            </p>
+          )
         )}
         {(cur.author || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
