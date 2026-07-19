@@ -86,6 +86,7 @@ function DropdownPanel({
   }
   const parentLabel = pickLabel(node, lang);
   const eyebrow = lang === "en" ? "In section" : "W sekcji";
+  const sectionHome = lang === "en" ? "Section home" : "Strona sekcji";
   return (
     <div
       role="menu"
@@ -94,7 +95,12 @@ function DropdownPanel({
       onMouseLeave={onRequestClose}
     >
       {parentLabel ? (
-        <div className="flex items-center gap-2 border-b border-border/50 bg-muted/40 px-5 py-3">
+        <AppLink
+          href={itemHref(node)}
+          target={itemTarget(node)}
+          rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+          className="group flex items-center gap-2 border-b border-border/50 bg-muted/40 px-5 py-3 transition-colors hover:bg-muted/60"
+        >
           <span
             aria-hidden
             className="inline-block h-4 w-1 rounded-sm"
@@ -103,12 +109,41 @@ function DropdownPanel({
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
             {eyebrow}
           </span>
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/80">
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/80 transition-colors group-hover:text-brand">
             {parentLabel}
           </span>
-        </div>
+          <ChevronRight
+            size={12}
+            aria-hidden
+            className="ml-auto text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand"
+          />
+        </AppLink>
       ) : null}
       <ul className="flex flex-col p-2">
+        {parentLabel ? (
+          <li>
+            <AppLink
+              href={itemHref(node)}
+              target={itemTarget(node)}
+              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70"
+              role="menuitem"
+            >
+              <span
+                aria-hidden
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand transition-colors group-hover:bg-brand group-hover:text-white"
+              >
+                <ChevronRight size={14} strokeWidth={1.75} />
+              </span>
+              <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
+                {parentLabel}
+              </span>
+              <span className="ml-auto text-[10px] font-medium text-muted-foreground">
+                {sectionHome}
+              </span>
+            </AppLink>
+          </li>
+        ) : null}
         {node.children.map((child) => (
           <SubmenuItem key={child.id} node={child} lang={lang} />
         ))}
@@ -472,6 +507,19 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           />
         </summary>
         <ul className="pl-4">
+          <li>
+            <AppLink
+              href={itemHref(node)}
+              target={itemTarget(node)}
+              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:text-brand"
+            >
+              {node.icon ? (
+                <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
+              ) : null}
+              {label}
+            </AppLink>
+          </li>
           {node.children.map((child) => (
             <MobileItem key={child.id} node={child} lang={lang} />
           ))}

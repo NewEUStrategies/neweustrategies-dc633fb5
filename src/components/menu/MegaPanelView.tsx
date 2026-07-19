@@ -89,6 +89,22 @@ export function MegaPanelView({
               : { gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, gridColumn: "1 / -1" }
           }
         >
+          {parentLabel && parentHref ? (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <AppLink
+                href={safeUrl(parentHref) || "#"}
+                className="group inline-flex items-center gap-2 text-xs font-bold text-brand hover:opacity-80"
+              >
+                <span className="text-muted-foreground">{goToPage}:</span>
+                <span className="font-black uppercase tracking-[0.12em]">{parentLabel}</span>
+                <ArrowRight
+                  size={14}
+                  className="transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </AppLink>
+            </div>
+          ) : null}
           {cols.map((col, i) => {
             const title = pickLocalized(col.title_pl, col.title_en, lang);
             return (
