@@ -71,6 +71,7 @@ interface CategoryRow {
   name_en: string;
   description_pl: string | null;
   description_en: string | null;
+  logo_url: string | null;
   kind: CategoryKind;
   parent_id: string | null;
 }
@@ -81,6 +82,7 @@ interface CategoryForm {
   slug: string;
   description_pl: string;
   description_en: string;
+  logo_url: string;
   kind: CategoryKind;
   parent_id: string | null;
 }
