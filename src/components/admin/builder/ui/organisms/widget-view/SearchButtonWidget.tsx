@@ -196,18 +196,13 @@ export function SearchButtonWidget({
   const h = Math.max(24, Math.min(120, height || 40));
   const pad = Math.max(8, Math.round(h * 0.3));
 
+  // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
+  // right padding so text never slides under the icons.
+  const trailingPad = q ? 108 : 84;
+
   return (
     <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0">
-      <div
-        className="flex w-full items-center gap-2 overflow-hidden border border-input bg-card text-foreground shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40"
-        style={{
-          direction: "ltr",
-          height: `${h}px`,
-          minHeight: `${h}px`,
-          borderRadius: `${radius}px`,
-          paddingRight: `${pad}px`,
-        }}
-      >
+      <div className="input-group" style={{ height: `${h}px` }}>
         <input
           ref={inputRef}
           type="text"
@@ -225,76 +220,73 @@ export function SearchButtonWidget({
           onChange={(e) => setQ(e.target.value)}
           onFocus={openFocus}
           onKeyDown={onKeyDown}
-          placeholder={placeholder}
+          placeholder=" "
           aria-label={label || placeholder}
           dir="ltr"
+          className="input"
           style={{
+            height: `${h}px`,
+            minHeight: `${h}px`,
+            borderRadius: `${radius}px`,
+            fontSize: `${fontSize}px`,
+            paddingLeft: "0.9rem",
+            paddingRight: `${trailingPad}px`,
             textAlign: "left",
             direction: "ltr",
             unicodeBidi: "plaintext",
-            boxShadow: "none",
-            background: "transparent",
-            border: 0,
-            outline: "none",
-            borderRadius: 0,
-            paddingLeft: `${Math.max(16, pad + 4)}px`,
-            paddingRight: 0,
-            paddingTop: 0,
-            paddingBottom: 0,
-            margin: 0,
-            appearance: "none",
-            WebkitAppearance: "none",
-            MozAppearance: "none",
-            height: "100%",
-            fontSize: `${fontSize}px`,
           }}
-          className="flex-1 min-w-0 bg-transparent border-0 text-foreground outline-none ring-0 shadow-none [appearance:none] [-webkit-appearance:none] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground/70"
         />
-        {loading && (
-          <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
-        )}
-        {q && (
+        <label className="user-label">{placeholder}</label>
+        <div
+          className="absolute top-0 flex h-full items-center gap-2"
+          style={{ right: `${pad}px` }}
+        >
+          {loading && (
+            <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+          )}
+          {q && (
+            <button
+              type="button"
+              aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
+              onClick={() => {
+                setQ("");
+                setItems([]);
+                setSearched(false);
+                setActive(-1);
+                inputRef.current?.focus();
+              }}
+              className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
+            >
+              <LucideIcons.X className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             type="button"
-            aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
-            onClick={() => {
-              setQ("");
-              setItems([]);
-              setSearched(false);
-              setActive(-1);
-              inputRef.current?.focus();
+            aria-label={lang === "pl" ? "Szukaj" : "Search"}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (hasQuery) {
+                addRecentSearch(q);
+                setFocused(false);
+                void router.navigate({ href: searchAllHref } as never);
+              } else {
+                inputRef.current?.focus();
+              }
             }}
-            className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
+            className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
           >
-            <LucideIcons.X className="w-3.5 h-3.5" />
+            <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
           </button>
-        )}
-        <button
-          type="button"
-          aria-label={lang === "pl" ? "Szukaj" : "Search"}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            if (hasQuery) {
-              addRecentSearch(q);
-              setFocused(false);
-              void router.navigate({ href: searchAllHref } as never);
-            } else {
-              inputRef.current?.focus();
-            }
-          }}
-          className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
-        >
-          <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
-        </button>
-        <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
-        <button
-          type="button"
-          aria-label={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
-          title={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
-          className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
-        >
-          <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
-        </button>
+          <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+          <button
+            type="button"
+            aria-label={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
+            title={lang === "pl" ? "Wyszukiwanie głosowe" : "Voice search"}
+            className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+          >
+            <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
+          </button>
+        </div>
       </div>
 
       {showPopover && (

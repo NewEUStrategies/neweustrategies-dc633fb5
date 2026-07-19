@@ -617,7 +617,7 @@ function SearchPage() {
         </header>
 
         <form onSubmit={submit} className="relative z-40 mb-2" role="search">
-          <div className="relative flex h-[46px] w-full items-center gap-2 rounded-[6px] border border-border bg-background pr-3 shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
+          <div className="input-group" style={{ height: "46px" }}>
             <input
               value={draft}
               onChange={(e) => {
@@ -627,9 +627,15 @@ function SearchPage() {
               onFocus={() => setSugOpen(true)}
               onBlur={() => setSugOpen(false)}
               onKeyDown={onInputKeyDown}
-              placeholder={t("search.placeholder")}
+              placeholder=" "
               aria-label={t("search.placeholder")}
-              className="h-full w-full min-w-0 flex-1 !border-0 !bg-transparent !pl-5 text-sm text-foreground !outline-none placeholder:text-muted-foreground focus:!outline-none !ring-0 !shadow-none rounded-[6px]"
+              className="input"
+              style={{
+                height: "46px",
+                paddingLeft: "1rem",
+                paddingRight: "88px",
+                fontSize: "0.8125rem",
+              }}
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
@@ -639,23 +645,26 @@ function SearchPage() {
                 showSuggest && sugIndex >= 0 ? autosuggestOptionId(sugIndex) : undefined
               }
             />
-            <button
-              type="submit"
-              aria-label={t("search.submit")}
-              title={t("search.submit")}
-              className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <SearchIcon className="h-[22px] w-[22px]" aria-hidden />
-            </button>
-            <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
-            <button
-              type="button"
-              aria-label={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
-              title={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
-              className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Mic className="h-5 w-5" aria-hidden />
-            </button>
+            <label className="user-label">{t("search.placeholder")}</label>
+            <div className="absolute right-3 top-0 flex h-full items-center gap-2">
+              <button
+                type="submit"
+                aria-label={t("search.submit")}
+                title={t("search.submit")}
+                className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <SearchIcon className="h-[18px] w-[18px]" aria-hidden />
+              </button>
+              <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+              <button
+                type="button"
+                aria-label={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
+                title={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
+                className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Mic className="h-[18px] w-[18px]" aria-hidden />
+              </button>
+            </div>
           </div>
           {showSuggest && (
             <SearchAutosuggest
