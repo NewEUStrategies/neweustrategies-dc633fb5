@@ -755,24 +755,25 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
           </Select>
           <div className="flex items-center gap-2">
             <Switch checked={isLead} onCheckedChange={setIsLead} id="is-lead" />
-            <Label htmlFor="is-lead">{lang === "pl" ? "Lider" : "Lead"}</Label>
+            <Label htmlFor="is-lead">{tp("members.lead")}</Label>
           </div>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           <Input
-            placeholder={lang === "pl" ? "Rola (PL)" : "Role (PL)"}
+            placeholder={tp("members.rolePl")}
             value={rolePl}
             onChange={(e) => setRolePl(e.target.value)}
           />
           <Input
-            placeholder={lang === "pl" ? "Rola (EN)" : "Role (EN)"}
+            placeholder={tp("members.roleEn")}
             value={roleEn}
             onChange={(e) => setRoleEn(e.target.value)}
           />
         </div>
         <Button onClick={addMember} disabled={!selectedUser}>
-          <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj członka" : "Add member"}
+          <Plus className="mr-1 h-4 w-4" /> {tp("members.addMember")}
         </Button>
+
       </div>
 
       <ul className="grid gap-2">
