@@ -37,7 +37,7 @@ function PersonAvatar({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
         src={it.avatarUrl}
         alt=""
         loading="lazy"
-        className="h-12 w-12 shrink-0 rounded-full object-cover border border-border/60"
+        className="h-12 w-12 shrink-0 rounded-[6px] object-cover border border-border/60"
       />
     );
   }
@@ -45,7 +45,8 @@ function PersonAvatar({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
   return (
     <span
       aria-hidden
-      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand-ink font-display text-lg"
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink font-display text-lg"
+
     >
       {initial || <User className="w-5 h-5" />}
     </span>
