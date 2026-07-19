@@ -353,11 +353,8 @@ function AdminMembershipPage() {
         <h2 className="text-lg font-semibold">
           {tm("mapping.heading")}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {lang === "pl"
-            ? "Aktywna subskrypcja planu nadaje wskazaną warstwę. Plan bez warstwy daje tylko dostęp do treści (paywall)."
-            : "An active subscription grants the mapped tier. A plan without a tier only unlocks content (paywall)."}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{tm("mapping.hint")}</p>
+
         <div className="mt-3 space-y-2">
           {(plansQ.data ?? []).map((plan) => (
             <div
