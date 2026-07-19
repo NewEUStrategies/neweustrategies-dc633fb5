@@ -152,10 +152,44 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           position: relative;
           z-index: 50;
         }
+        /* Compact landscape mode: small phones held sideways have very little
+           vertical space, so we shrink the bar further and hide non-essential
+           chrome to prevent overlaps. */
+        @media (max-height: 500px) and (orientation: landscape) {
+          [data-reading-header] {
+            height: 36px !important;
+            overflow: hidden !important;
+          }
+          [data-reading-header] > div {
+            height: 36px !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            gap: 0.375rem !important;
+          }
+          [data-reading-header] .builder-search-widget {
+            max-width: 130px !important;
+          }
+          [data-reading-header] [data-reading-title] {
+            font-size: 11px !important;
+          }
+          [data-reading-header] [data-reading-label],
+          [data-reading-header] [data-reading-auth] {
+            display: none !important;
+          }
+          [data-reading-header] button,
+          [data-reading-header] [data-reading-icon] {
+            height: 24px !important;
+            width: 24px !important;
+          }
+          [data-reading-header] svg {
+            width: 14px !important;
+            height: 14px !important;
+          }
+        }
       `}</style>
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-5 lg:px-6 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 lg:gap-5">
+      <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
         {/* Search - same widget as builder header, smaller in the condensed reading bar */}
-        <div className="relative z-50 min-w-0 overflow-visible w-[160px] sm:w-[220px] lg:w-[280px]">
+        <div className="relative z-50 min-w-0 overflow-visible w-[110px] xs:w-[140px] sm:w-[190px] md:w-[240px] lg:w-[280px]">
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
@@ -163,19 +197,20 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             liveResults
             limit={8}
             lang={lang}
-            height={28}
+            height={24}
             radius={6}
-            fontSize={12}
+            fontSize={11}
           />
         </div>
 
         {/* Reading: title */}
-        <div className="min-w-0 flex items-center gap-2">
-          <span className="hidden sm:inline text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
+        <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
+          <span data-reading-label className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
             {t.reading}:
           </span>
           <span
-            className="truncate font-display text-[13.5px] sm:text-[14.5px] font-semibold text-foreground"
+            data-reading-title
+            className="truncate font-display text-[12px] sm:text-[13.5px] lg:text-[14.5px] font-semibold text-foreground"
             title={title}
           >
             {title}
@@ -183,10 +218,14 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         </div>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <ThemeToggle className="h-8 w-8 grid place-items-center" />
-          <NotificationsBell panelWidth={320} />
-          <ChatBell panelWidth={340} />
+        <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
+          <ThemeToggle data-reading-icon className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center" />
+          <div data-reading-icon className="hidden xs:block">
+            <NotificationsBell panelWidth={280} />
+          </div>
+          <div data-reading-icon className="hidden xs:block">
+            <ChatBell panelWidth={300} />
+          </div>
           {entityId && (
             <button
               type="button"
@@ -201,8 +240,9 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
                 }
                 toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
               }}
+              data-reading-icon
               className={[
-                "h-8 w-8 grid place-items-center rounded-md transition shrink-0",
+                "h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md transition shrink-0",
                 "text-foreground hover:text-brand hover:bg-muted",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
                 isSaved ? "text-brand" : "",
@@ -210,12 +250,12 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
               ].join(" ")}
             >
               <Bookmark
-                className={`w-[18px] h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
+                className={`w-4 h-4 sm:w-[18px] sm:h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
               />
             </button>
           )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
-          <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
+          <div data-reading-auth className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (
               <div ref={menuRef} className="relative">
                 <button
