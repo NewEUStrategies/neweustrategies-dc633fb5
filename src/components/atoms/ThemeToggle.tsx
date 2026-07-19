@@ -15,8 +15,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       aria-label={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
       title={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
       className={cn(
-        "inline-flex items-center justify-center rounded-full border border-border/60 bg-background/80 backdrop-blur-sm",
-        "text-foreground shadow-sm hover:bg-muted hover:border-border hover:shadow-md",
+        "inline-flex items-center justify-center rounded-full text-foreground hover:text-brand",
         "transition-all duration-200 ease-out active:scale-95",
         "w-9 h-9",
         className
