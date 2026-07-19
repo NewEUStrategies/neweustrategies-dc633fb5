@@ -5,6 +5,8 @@ import { LayoutPane } from "./LayoutPane";
 import { StylePane } from "./StylePane";
 import { AdvancedPane } from "./AdvancedPane";
 import { TabsPane } from "./TabsPane";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   section: SectionNode;
@@ -13,20 +15,21 @@ interface Props {
 }
 
 export function SectionProperties({ section, device, onChange }: Props) {
+  const { t } = useTranslation();
   return (
     <Tabs defaultValue="layout">
       <TabsList className="grid grid-cols-4 w-full h-8">
         <TabsTrigger value="layout" className="text-xs">
-          Układ
+          {t("builder.columnProps.tabLayout")}
         </TabsTrigger>
         <TabsTrigger value="style" className="text-xs">
-          Styl
+          {t("builder.columnProps.tabStyle")}
         </TabsTrigger>
         <TabsTrigger value="tabs" className="text-xs">
-          Zakładki
+          {t("builder.sectionProps.tabTabs")}
         </TabsTrigger>
         <TabsTrigger value="advanced" className="text-xs">
-          Zaawans.
+          {t("builder.columnProps.tabAdvanced")}
         </TabsTrigger>
       </TabsList>
 
@@ -35,7 +38,9 @@ export function SectionProperties({ section, device, onChange }: Props) {
       </TabsContent>
 
       <TabsContent value="style" className="space-y-4 mt-3">
-        <div className="text-[10px] text-muted-foreground uppercase">Edytujesz: {device}</div>
+        <div className="text-[10px] text-muted-foreground uppercase">
+          {t("builder.columnProps.editing", { device })}
+        </div>
         <StylePane section={section} device={device} onChange={onChange} />
       </TabsContent>
 
