@@ -13,6 +13,7 @@ import {
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/post-layouts")({ component: Page });
 
@@ -36,7 +37,7 @@ function Page() {
     void tenant_id;
     try {
       await save.mutateAsync(rest);
-      toast.success("Zapisano - layout wpisów został zaktualizowany");
+      toast.success(adminToast.layoutSaved());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
       toast.error(`Błąd zapisu: ${msg}`);

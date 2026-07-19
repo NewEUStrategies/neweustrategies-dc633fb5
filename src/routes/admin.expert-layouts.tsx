@@ -5,6 +5,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { ExpertLayoutPreview } from "@/components/admin/ExpertLayoutPreview";
 import {
@@ -62,7 +63,7 @@ function Page() {
       await save.mutateAsync(rest);
       setSavedAt(Date.now());
 
-      toast.success("Zapisano - layout strony eksperta został zaktualizowany");
+      toast.success(adminToast.layoutSaved());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
       toast.error(`Błąd zapisu: ${msg}`);

@@ -21,6 +21,9 @@ const pl = {
     prewarmDone: "Pre-warm zakończony",
     settingsSaved: "Ustawienia zapisane",
     layoutSaved: "Zapisano - layout został zaktualizowany",
+    ga4NotConfigured: "Brak konfiguracji Measurement Protocol",
+    ga4Accepted: "Event wysłany. GA4 przyjął payload (debug OK).",
+    ga4Rejected: "GA4 odrzucił event - sprawdź debug w konsoli.",
   },
 };
 
@@ -42,6 +45,9 @@ const en = {
     prewarmDone: "Pre-warm complete",
     settingsSaved: "Settings saved",
     layoutSaved: "Saved - layout has been updated",
+    ga4NotConfigured: "Measurement Protocol is not configured",
+    ga4Accepted: "Event sent. GA4 accepted the payload (debug OK).",
+    ga4Rejected: "GA4 rejected the event - check debug in console.",
   },
 };
 
