@@ -71,6 +71,7 @@ interface CategoryRow {
   name_en: string;
   description_pl: string | null;
   description_en: string | null;
+  logo_url: string | null;
   kind: CategoryKind;
   parent_id: string | null;
 }
@@ -81,6 +82,7 @@ interface CategoryForm {
   slug: string;
   description_pl: string;
   description_en: string;
+  logo_url: string;
   kind: CategoryKind;
   parent_id: string | null;
 }
@@ -91,6 +93,7 @@ const emptyForm: CategoryForm = {
   slug: "",
   description_pl: "",
   description_en: "",
+  logo_url: "",
   kind: "category",
   parent_id: null,
 };
@@ -160,6 +163,7 @@ function Categories() {
       slug: c.slug,
       description_pl: c.description_pl ?? "",
       description_en: c.description_en ?? "",
+      logo_url: c.logo_url ?? "",
       kind: c.kind,
       parent_id: c.parent_id,
     });
@@ -177,6 +181,7 @@ function Categories() {
             slug: form.slug || undefined,
             description_pl: form.description_pl || null,
             description_en: form.description_en || null,
+            logo_url: form.logo_url || null,
             kind: form.kind,
             parent_id: form.parent_id,
           },
@@ -300,6 +305,11 @@ function Categories() {
                 label="Description (EN)"
                 value={form.description_en}
                 onChange={(e) => setForm({ ...form, description_en: e.target.value })}
+              />
+              <FloatingInput
+                label="Logo URL"
+                value={form.logo_url}
+                onChange={(e) => setForm({ ...form, logo_url: e.target.value })}
               />
             </div>
             <DialogFooter>

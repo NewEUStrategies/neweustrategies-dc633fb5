@@ -818,6 +818,7 @@ export type Database = {
           featured_template_id: string | null
           id: string
           kind: string
+          logo_url: string | null
           name_en: string
           name_pl: string
           parent_id: string | null
@@ -832,6 +833,7 @@ export type Database = {
           featured_template_id?: string | null
           id?: string
           kind?: string
+          logo_url?: string | null
           name_en: string
           name_pl: string
           parent_id?: string | null
@@ -846,6 +848,7 @@ export type Database = {
           featured_template_id?: string | null
           id?: string
           kind?: string
+          logo_url?: string | null
           name_en?: string
           name_pl?: string
           parent_id?: string | null
@@ -9826,6 +9829,7 @@ export type Database = {
           kind: string
           label_en: string
           label_pl: string
+          logo_url: string
           post_count: number
           score: number
           slug: string

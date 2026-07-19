@@ -46,9 +46,30 @@ function PersonAvatar({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
     <span
       aria-hidden
       className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink font-display text-lg"
-
     >
       {initial || <User className="w-5 h-5" />}
+    </span>
+  );
+}
+
+function OrgAvatar({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
+  if (it.logoUrl) {
+    return (
+      <img
+        src={it.logoUrl}
+        alt=""
+        loading="lazy"
+        className="h-12 w-12 shrink-0 rounded-[6px] object-contain border border-border/60 bg-white p-0.5"
+      />
+    );
+  }
+  const initial = itemLabel(it, lang).trim().charAt(0).toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink font-display text-lg"
+    >
+      {initial || <Building2 className="w-5 h-5" />}
     </span>
   );
 }
@@ -65,12 +86,7 @@ function Card({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
         {it.kind === "person" ? (
           <PersonAvatar it={it} lang={lang} />
         ) : (
-          <span
-            aria-hidden
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand-ink"
-          >
-            <Building2 className="w-5 h-5" />
-          </span>
+          <OrgAvatar it={it} lang={lang} />
         )}
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
@@ -131,11 +147,17 @@ export function PeopleOrgStrip({ items, lang, onSeeAll }: Props & { onSeeAll: ()
                   loading="lazy"
                   className="h-6 w-6 rounded-[6px] object-cover"
                 />
+              ) : it.kind === "organization" && it.logoUrl ? (
+                <img
+                  src={it.logoUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-6 w-6 rounded-[6px] object-contain bg-white p-0.5 border border-border/60"
+                />
               ) : (
                 <span
                   aria-hidden
                   className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink"
-
                 >
                   {it.kind === "person" ? (
                     <User className="w-3 h-3" />

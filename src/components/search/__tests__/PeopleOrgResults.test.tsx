@@ -19,6 +19,7 @@ const item = (p: Partial<PeopleOrgItem>): PeopleOrgItem => ({
   sublabel_pl: "Analityk",
   sublabel_en: "Analyst",
   avatarUrl: null,
+  logoUrl: null,
   verified: false,
   postCount: 3,
   ...p,
@@ -68,6 +69,18 @@ describe("PeopleOrgResults", () => {
     expect(screen.getByLabelText("search.people.verified")).toBeTruthy();
   });
 
+  it("wyświetla logo organizacji, gdy jest dostępne", () => {
+    const { container } = render(
+      <PeopleOrgResults
+        items={[item({ kind: "organization", id: "o1", label_pl: "NATO", logoUrl: "https://example.com/nato.png" })]}
+        lang="pl"
+      />,
+    );
+    const img = container.querySelector('img[alt=""]');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute("src")).toBe("https://example.com/nato.png");
+  });
+
   it("pusta lista nie renderuje niczego", () => {
     const { container } = render(<PeopleOrgResults items={[]} lang="pl" />);
     expect(container.innerHTML).toBe("");
@@ -85,5 +98,18 @@ describe("PeopleOrgStrip", () => {
     expect(screen.getByText("Jan Kowalski")).toBeTruthy();
     fireEvent.click(screen.getByRole("button"));
     expect(onSeeAll).toHaveBeenCalled();
+  });
+
+  it("wyświetla miniaturkę logo organizacji w pigułce", () => {
+    const { container } = render(
+      <PeopleOrgStrip
+        items={[item({ kind: "organization", id: "o1", label_pl: "NATO", logoUrl: "https://example.com/nato.png" })]}
+        lang="pl"
+        onSeeAll={vi.fn()}
+      />,
+    );
+    const img = container.querySelector('img[alt=""]');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute("src")).toBe("https://example.com/nato.png");
   });
 });
