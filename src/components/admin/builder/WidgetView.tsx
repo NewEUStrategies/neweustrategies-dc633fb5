@@ -437,7 +437,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           onCommit={(v) => commit(key, v)}
           className={finalCls}
           style={finalStyle}
-          placeholder="Nagłówek…"
+          placeholder={lang === "pl" ? "Nagłówek…" : "Heading…"}
         />
       ) : (
         (() => {
@@ -725,8 +725,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
       const variant = normalizeNewsletterVariant(getStr(c, "variant") || "icon");
       const placeholder =
-        getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
-      const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
+        getStr(c, `placeholder_${lang}`) ||
+        getStr(c, "placeholder_pl") ||
+        (lang === "pl" ? "Twój email" : "Your email");
+      const ctaLabel =
+        getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || (lang === "pl" ? "Zapisz" : "Subscribe");
       const iconName = getStr(c, "iconName") || "Mail";
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const IconCmp = Icons[iconName] || Icons.Mail;
@@ -1027,7 +1030,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                   value={title}
                   onCommit={(v) => commit(tKey, v)}
                   className="font-display text-2xl"
-                  placeholder="Nagłówek CTA…"
+                  placeholder={lang === "pl" ? "Nagłówek CTA…" : "CTA heading…"}
                 />
               ) : (
                 <h3 className="font-display text-2xl">{title}</h3>
@@ -1173,12 +1176,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "donations": {
       const variant = (getStr(c, "variant") || "hero") as
-        | "hero"
-        | "progress"
-        | "stats-strip"
-        | "compact-card"
-        | "inline-bar"
-        | "thermometer";
+        "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
       const title = lang === "pl" ? getStr(c, "title_pl") : getStr(c, "title_en");
       const subtitle = lang === "pl" ? getStr(c, "subtitle_pl") : getStr(c, "subtitle_en");
       const cta = lang === "pl" ? getStr(c, "cta_pl") : getStr(c, "cta_en");
