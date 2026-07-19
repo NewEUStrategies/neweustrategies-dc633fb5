@@ -153,9 +153,9 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           z-index: 50;
         }
       `}</style>
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-5 lg:px-6 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 lg:gap-5">
+      <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
         {/* Search - same widget as builder header, smaller in the condensed reading bar */}
-        <div className="relative z-50 min-w-0 overflow-visible w-[160px] sm:w-[220px] lg:w-[280px]">
+        <div className="relative z-50 min-w-0 overflow-visible w-[120px] xs:w-[150px] sm:w-[190px] md:w-[240px] lg:w-[280px]">
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
@@ -163,9 +163,9 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             liveResults
             limit={8}
             lang={lang}
-            height={28}
+            height={24}
             radius={6}
-            fontSize={12}
+            fontSize={11}
           />
         </div>
 
