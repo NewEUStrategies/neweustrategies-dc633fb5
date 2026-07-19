@@ -487,7 +487,7 @@ export function ConsentBanner() {
                   href={dataProcessingHref}
                   className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
                 >
-                  {isPl ? "Zasady przetwarzania danych" : "Data Processing Terms"}
+                  {tr("common.dataProcessingTerms")}
                 </a>
                 .
               </p>
