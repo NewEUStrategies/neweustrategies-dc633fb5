@@ -769,11 +769,8 @@ function NewTierDialog({
               value={rank}
               onChange={(e) => setRank(Number(e.target.value) || 0)}
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {lang === "pl"
-                ? "Wyższa ranga = szerszy dostęp. Standard: 0/10/20."
-                : "Higher rank = more access. Standard: 0/10/20."}
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{tm("newTierDialog.rankHint")}</p>
+
           </div>
           <div className="grid grid-cols-2 gap-2">
             <FloatingInput
