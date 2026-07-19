@@ -370,7 +370,7 @@ function Toggle({
       <Checkbox
         checked={checked}
         onCheckedChange={(v) => onChange(v === true)}
-        className="mt-0.5 before:hidden"
+        className="mt-0.5"
       />
 
       <div className="min-w-0">
