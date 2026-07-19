@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/builder/types";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ function readItems(raw: Json | undefined): FaqItem[] {
 }
 
 export function FaqBlock({ block, onChange }: Props) {
+  const { t } = useTranslation();
   const title = String(block.data.title ?? "");
   const items = readItems(block.data.items);
   const setItems = (next: FaqItem[]) =>
@@ -37,7 +40,7 @@ export function FaqBlock({ block, onChange }: Props) {
         <HelpCircle className="w-3.5 h-3.5" /> FAQ
       </div>
       <Input
-        placeholder="Tytuł sekcji (np. Najczęstsze pytania)"
+        placeholder={t("adminBlocks.faq.sectionTitle")}
         value={title}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
@@ -45,7 +48,7 @@ export function FaqBlock({ block, onChange }: Props) {
         <div key={i} className="rounded-md border border-border p-2 space-y-1.5 bg-background">
           <div className="flex items-center gap-1">
             <Input
-              placeholder={`Pytanie ${i + 1}`}
+              placeholder={t("adminBlocks.faq.question", { n: i + 1 })}
               value={it.q}
               onChange={(e) => {
                 const next = [...items];
@@ -58,13 +61,13 @@ export function FaqBlock({ block, onChange }: Props) {
               type="button"
               onClick={() => setItems(items.filter((_, j) => j !== i))}
               className="p-1 hover:bg-accent rounded"
-              aria-label="Usuń"
+              aria-label={t("adminBlocks.common.remove")}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
           <textarea
-            placeholder="Odpowiedź"
+            placeholder={t("adminBlocks.faq.answer")}
             value={it.a}
             onChange={(e) => {
               const next = [...items];
@@ -80,7 +83,7 @@ export function FaqBlock({ block, onChange }: Props) {
         onClick={() => setItems([...items, { q: "", a: "" }])}
         className="text-xs flex items-center gap-1 text-foreground hover:underline"
       >
-        <Plus className="w-3.5 h-3.5" /> Dodaj pytanie
+        <Plus className="w-3.5 h-3.5" /> {t("adminBlocks.faq.addQuestion")}
       </button>
     </div>
   );
