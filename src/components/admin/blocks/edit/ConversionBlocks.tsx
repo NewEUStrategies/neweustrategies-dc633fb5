@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -34,6 +35,8 @@ interface StepItem {
 }
 
 export function StepListBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const cb = (k: string) => i18n.editor("conversionBlocks", k);
   const raw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: StepItem[] = raw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -48,10 +51,10 @@ export function StepListBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Lista kroków (Jak to działa)">
+    <Shell label={cb("stepsLabel")}>
       <input
         className={inp}
-        placeholder="Tytuł sekcji (opcjonalnie)"
+        placeholder={cb("sectionTitle")}
         value={String(block.data.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
@@ -63,8 +66,8 @@ export function StepListBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, orientation: e.target.value } })
           }
         >
-          <option value="vertical">Pionowo</option>
-          <option value="horizontal">Poziomo</option>
+          <option value="vertical">{cb("vertical")}</option>
+          <option value="horizontal">{cb("horizontal")}</option>
         </AdminSelect>
         <AdminSelect
           className={sel}
@@ -73,9 +76,9 @@ export function StepListBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, numberStyle: e.target.value } })
           }
         >
-          <option value="circle">Numer: koło</option>
-          <option value="square">Numer: kwadrat</option>
-          <option value="plain">Numer: tekst</option>
+          <option value="circle">{cb("numCircle")}</option>
+          <option value="square">{cb("numSquare")}</option>
+          <option value="plain">{cb("numPlain")}</option>
         </AdminSelect>
       </div>
       <div className="space-y-2">
@@ -87,7 +90,7 @@ export function StepListBlock({ block, onChange }: Props) {
               </span>
               <input
                 className={inp}
-                placeholder="Tytuł kroku"
+                placeholder={cb("stepTitle")}
                 value={it.title}
                 onChange={(e) => {
                   const next = [...items];
@@ -99,14 +102,14 @@ export function StepListBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń krok"
+                aria-label={cb("removeStep")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
             <textarea
               className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-              placeholder="Opis kroku"
+              placeholder={cb("stepDesc")}
               value={it.description}
               onChange={(e) => {
                 const next = [...items];
@@ -121,7 +124,7 @@ export function StepListBlock({ block, onChange }: Props) {
           onClick={() => update([...items, { title: "", description: "", icon: "" }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj krok
+          <Plus className="w-3.5 h-3.5" /> {cb("addStep")}
         </button>
       </div>
     </Shell>
@@ -136,6 +139,8 @@ interface CompRow {
 }
 
 export function ComparisonTableBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const cb = (k: string, o?: Record<string, unknown>) => i18n.editor("conversionBlocks", k, o);
   const rawCols = Array.isArray(block.data.columns) ? (block.data.columns as Json[]) : [];
   const columns: string[] = rawCols.map((c) => String(c ?? ""));
   const rawRows = Array.isArray(block.data.rows) ? (block.data.rows as Json[]) : [];
@@ -170,20 +175,20 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
   const featuredIdx = Number(block.data.featuredIndex ?? -1);
 
   return (
-    <Shell label="Tabela porównawcza">
+    <Shell label={cb("compareLabel")}>
       <input
         className={inp}
-        placeholder="Tytuł (opcjonalnie)"
+        placeholder={cb("title")}
         value={String(block.data.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="space-y-1.5">
-        <div className="text-xs text-muted-foreground">Kolumny (np. plany)</div>
+        <div className="text-xs text-muted-foreground">{cb("columnsHint")}</div>
         {columns.map((c, i) => (
           <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-2">
             <input
               className={inp}
-              placeholder={`Kolumna ${i + 1}`}
+              placeholder={cb("columnN", { n: i + 1 })}
               value={c}
               onChange={(e) => {
                 const next = [...columns];
@@ -205,7 +210,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                   ? "border-foreground text-foreground"
                   : "border-border text-muted-foreground",
               ].join(" ")}
-              aria-label="Wyróżnij kolumnę"
+              aria-label={cb("highlightColumn")}
             >
               {featuredIdx === i ? "★" : "☆"}
             </button>
@@ -213,7 +218,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
               type="button"
               onClick={() => setColumns(columns.filter((_, k) => k !== i))}
               className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-              aria-label="Usuń kolumnę"
+              aria-label={cb("removeColumn")}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -224,17 +229,17 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
           onClick={() => setColumns([...columns, ""])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj kolumnę
+          <Plus className="w-3.5 h-3.5" /> {cb("addColumn")}
         </button>
       </div>
       <div className="space-y-1.5">
-        <div className="text-xs text-muted-foreground">Wiersze (funkcje)</div>
+        <div className="text-xs text-muted-foreground">{cb("rowsHint")}</div>
         {rows.map((r, ri) => (
           <div key={ri} className="rounded border border-border p-2 space-y-1.5">
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <input
                 className={inp}
-                placeholder="Nazwa funkcji"
+                placeholder={cb("featureName")}
                 value={r.feature}
                 onChange={(e) => {
                   const next = [...rows];
@@ -246,7 +251,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => setRows(rows.filter((_, k) => k !== ri))}
                 className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń wiersz"
+                aria-label={cb("removeRow")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -261,7 +266,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                 <input
                   key={ci}
                   className={inp}
-                  placeholder={`✓, ✗ lub tekst`}
+                  placeholder={cb("cellHint")}
                   value={r.values[ci] ?? ""}
                   onChange={(e) => {
                     const next = [...rows];
@@ -280,7 +285,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
           onClick={() => setRows([...rows, { feature: "", values: columns.map(() => "") }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj wiersz
+          <Plus className="w-3.5 h-3.5" /> {cb("addRow")}
         </button>
       </div>
     </Shell>
@@ -291,9 +296,10 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
 
 export function BannerImageBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const cb = (k: string) => i18n.editor("conversionBlocks", k);
   const d = block.data;
   return (
-    <Shell label="Banner z obrazem">
+    <Shell label={cb("bannerLabel")}>
       <input
         className={inp}
         placeholder={i18n.field("imageUrl")}
@@ -314,7 +320,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-        placeholder="Krótki opis (opcjonalnie)"
+        placeholder={cb("shortDesc")}
         value={String(d.description ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, description: e.target.value } })}
       />
@@ -338,17 +344,17 @@ export function BannerImageBlock({ block, onChange }: Props) {
           value={String(d.position ?? "left")}
           onChange={(e) => onChange({ ...block, data: { ...d, position: e.target.value } })}
         >
-          <option value="left">Tekst lewo</option>
-          <option value="center">Tekst środek</option>
-          <option value="right">Tekst prawo</option>
+          <option value="left">{cb("posLeft")}</option>
+          <option value="center">{cb("posCenter")}</option>
+          <option value="right">{cb("posRight")}</option>
         </AdminSelect>
         <AdminSelect
           className={sel}
           value={String(d.theme ?? "dark")}
           onChange={(e) => onChange({ ...block, data: { ...d, theme: e.target.value } })}
         >
-          <option value="dark">Tekst jasny</option>
-          <option value="light">Tekst ciemny</option>
+          <option value="dark">{cb("textLight")}</option>
+          <option value="light">{cb("textDark")}</option>
         </AdminSelect>
         <AdminSelect
           className={sel}
@@ -371,7 +377,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
           className="flex-1"
         />
         <span className="tabular-nums w-10 text-right">{Number(d.overlay ?? 35)}%</span>
-        <span>Nakładka</span>
+        <span>{cb("overlay")}</span>
       </label>
     </Shell>
   );
@@ -381,18 +387,19 @@ export function BannerImageBlock({ block, onChange }: Props) {
 
 export function VideoHeroBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const cb = (k: string) => i18n.editor("conversionBlocks", k);
   const d = block.data;
   return (
-    <Shell label="Hero z tłem wideo">
+    <Shell label={cb("videoLabel")}>
       <input
         className={inp}
-        placeholder="URL pliku wideo (mp4/webm)"
+        placeholder={cb("videoUrl")}
         value={String(d.src ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, src: e.target.value } })}
       />
       <input
         className={inp}
-        placeholder="URL plakatu (poster, fallback)"
+        placeholder={cb("posterUrl")}
         value={String(d.poster ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, poster: e.target.value } })}
       />
@@ -428,17 +435,17 @@ export function VideoHeroBlock({ block, onChange }: Props) {
           value={String(d.height ?? "lg")}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
         >
-          <option value="md">Średnia</option>
-          <option value="lg">Wysoka</option>
-          <option value="screen">Pełny ekran</option>
+          <option value="md">{cb("heightMd")}</option>
+          <option value="lg">{cb("heightLg")}</option>
+          <option value="screen">{cb("heightScreen")}</option>
         </AdminSelect>
         <AdminSelect
           className={sel}
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
-          <option value="left">Wyrównaj lewo</option>
-          <option value="center">Wyśrodkuj</option>
+          <option value="left">{cb("alignLeft")}</option>
+          <option value="center">{cb("alignCenter")}</option>
         </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -451,7 +458,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
           className="flex-1"
         />
         <span className="tabular-nums w-10 text-right">{Number(d.overlay ?? 45)}%</span>
-        <span>Nakładka</span>
+        <span>{cb("overlay")}</span>
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -460,7 +467,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
             checked={d.autoplay !== false}
             onChange={(e) => onChange({ ...block, data: { ...d, autoplay: e.target.checked } })}
           />
-          Autoodtwarzanie
+          {cb("autoplay")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -468,7 +475,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
             checked={d.loop !== false}
             onChange={(e) => onChange({ ...block, data: { ...d, loop: e.target.checked } })}
           />
-          Zapętlenie
+          {cb("loop")}
         </label>
       </div>
     </Shell>
