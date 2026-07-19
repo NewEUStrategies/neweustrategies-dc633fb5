@@ -210,7 +210,7 @@ export function MegaPanelView({
                   ) : (
                     <span
                       aria-hidden
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] font-black uppercase tracking-wider text-muted-foreground ring-1 ring-border/60"
+                      className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-muted text-[10px] font-black uppercase tracking-wider text-muted-foreground ring-1 ring-border/60"
                     >
                       {authorInitials(name)}
                     </span>
