@@ -4725,9 +4725,9 @@ textarea.input {
    Reference: a pill track whose background is the active nation's flag,
    with a white sliding circle that carries the active language code (PL/EN). */
 .lang-switch {
-  --toggle-size: 10px;
-  --container-width: 4.5em;
-  --container-height: 2em;
+  --toggle-size: 8px;
+  --container-width: 3.6em;
+  --container-height: 1.6em;
   --container-radius: 6px;
   --container-pl-bg: linear-gradient(180deg, #ffffff 50%, #dc143c 50%);
   --container-en-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Crect width='60' height='30' fill='%23012169'/%3E%3Cpath d='M0 0l60 30M60 0L0 30' stroke='%23ffffff' stroke-width='8'/%3E%3Cpath d='M0 0l60 30M60 0L0 30' stroke='%23c8102e' stroke-width='3'/%3E%3Cpath d='M30 0v30M0 15h60' stroke='%23ffffff' stroke-width='10'/%3E%3Cpath d='M30 0v30M0 15h60' stroke='%23c8102e' stroke-width='6'/%3E%3C/svg%3E") center / cover no-repeat;
