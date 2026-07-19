@@ -13,6 +13,8 @@ interface Props {
   getExcerptOverride?: (post: BlogListItem) => React.ReactNode | undefined;
   /** Smaller title font for denser lists like search results. */
   titleClassName?: string;
+  /** Optional override of the responsive grid classes. */
+  gridClassName?: string;
 }
 
 export function ArchivePostList({
@@ -22,6 +24,7 @@ export function ArchivePostList({
   emptyAction,
   getExcerptOverride,
   titleClassName = "text-xl",
+  gridClassName = "grid gap-6 md:grid-cols-2 lg:grid-cols-3",
 }: Props) {
   if (posts.length === 0) {
     return (
@@ -33,7 +36,8 @@ export function ArchivePostList({
     );
   }
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className={gridClassName}>
+
       {posts.map((p) => (
         <PostListCard
           key={p.id}

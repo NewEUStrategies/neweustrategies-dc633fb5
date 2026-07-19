@@ -518,8 +518,10 @@ function SearchPage() {
                 emptyText={t("search.empty")}
                 getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
                 titleClassName="text-base"
+                gridClassName="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
               />
             )}
+
 
             {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
               <div className="mt-6">
@@ -605,7 +607,7 @@ function SearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      <div className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-8 py-10">
         <Breadcrumbs items={[{ label: t("search.title") }]} />
         <header className="mb-6">
           <h1 className="font-display text-3xl lg:text-5xl tracking-tight mb-2">
