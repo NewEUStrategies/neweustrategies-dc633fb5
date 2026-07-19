@@ -191,7 +191,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
 
         {/* Reading: title */}
         <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
-          <span className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
+          <span data-reading-label className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
             {t.reading}:
           </span>
           <span
