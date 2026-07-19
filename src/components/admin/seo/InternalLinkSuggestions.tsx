@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link2, Copy, ExternalLink, Loader2, Sparkles } from "@/lib/lucide-shim";
+import { Link as LinkIcon, Copy, ArrowUpRight, Loader2, Sparkles } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { suggestInternalLinks } from "@/lib/seo/linkSuggestions.functions";
