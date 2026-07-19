@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { MessagesSquare, Search, SquarePen, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AppLink } from "@/components/atoms/AppLink";
+import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { conversationDisplay } from "@/lib/chat/display";
