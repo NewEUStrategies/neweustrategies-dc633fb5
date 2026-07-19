@@ -1704,6 +1704,10 @@ export type Database = {
           phone: string | null
           phone_norm: string | null
           position: string | null
+          score: number
+          score_band: string
+          score_breakdown: Json
+          score_updated_at: string | null
           source_count: number
           stage: Database["public"]["Enums"]["crm_stage"]
           tags: string[]
@@ -1730,6 +1734,10 @@ export type Database = {
           phone?: string | null
           phone_norm?: string | null
           position?: string | null
+          score?: number
+          score_band?: string
+          score_breakdown?: Json
+          score_updated_at?: string | null
           source_count?: number
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
@@ -1756,6 +1764,10 @@ export type Database = {
           phone?: string | null
           phone_norm?: string | null
           position?: string | null
+          score?: number
+          score_band?: string
+          score_breakdown?: Json
+          score_updated_at?: string | null
           source_count?: number
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
@@ -1768,6 +1780,53 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_scoring_settings: {
+        Row: {
+          cool_threshold: number
+          enabled: boolean
+          half_life_days: number
+          horizon_days: number
+          hot_threshold: number
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          warm_threshold: number
+          weights: Json
+        }
+        Insert: {
+          cool_threshold?: number
+          enabled?: boolean
+          half_life_days?: number
+          horizon_days?: number
+          hot_threshold?: number
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          warm_threshold?: number
+          weights?: Json
+        }
+        Update: {
+          cool_threshold?: number
+          enabled?: boolean
+          half_life_days?: number
+          horizon_days?: number
+          hot_threshold?: number
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          warm_threshold?: number
+          weights?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_scoring_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -3899,8 +3958,10 @@ export type Database = {
       newsletter_campaigns: {
         Row: {
           audience_filter: Json
+          content_doc: Json | null
           created_at: string
           created_by: string | null
+          editor: string
           failed_count: number
           finished_at: string | null
           from_email: string | null
@@ -3924,8 +3985,10 @@ export type Database = {
         }
         Insert: {
           audience_filter?: Json
+          content_doc?: Json | null
           created_at?: string
           created_by?: string | null
+          editor?: string
           failed_count?: number
           finished_at?: string | null
           from_email?: string | null
@@ -3949,8 +4012,10 @@ export type Database = {
         }
         Update: {
           audience_filter?: Json
+          content_doc?: Json | null
           created_at?: string
           created_by?: string | null
+          editor?: string
           failed_count?: number
           finished_at?: string | null
           from_email?: string | null
@@ -8373,7 +8438,10 @@ export type Database = {
     Views: {
       crm_leads_all: {
         Row: {
+          aliases: Json | null
           company: string | null
+          company_id: string | null
+          country: string | null
           created_at: string | null
           email: string | null
           email_norm: string | null
@@ -8382,10 +8450,17 @@ export type Database = {
           id: string | null
           last_activity_at: string | null
           last_name: string | null
+          linkedin_url: string | null
           marketing_consent: boolean | null
           newsletter_status: string | null
           owner_id: string | null
           phone: string | null
+          phone_norm: string | null
+          position: string | null
+          score: number | null
+          score_band: string | null
+          score_breakdown: Json | null
+          score_updated_at: string | null
           source_count: number | null
           stage: Database["public"]["Enums"]["crm_stage"] | null
           tags: string[] | null
@@ -8394,7 +8469,15 @@ export type Database = {
           tenant_slug: string | null
           updated_at: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "crm_leads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -8733,6 +8816,10 @@ export type Database = {
         Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
         Returns: undefined
       }
+      compute_crm_lead_score: {
+        Args: { p_lead_id: string }
+        Returns: undefined
+      }
       connection_cancel: {
         Args: { p_connection_id: string }
         Returns: undefined
@@ -8797,6 +8884,11 @@ export type Database = {
         }[]
       }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
+      crm_score_touch_user: {
+        Args: { p_tenant: string; p_user: string }
+        Returns: undefined
+      }
+      crm_scoring_default_weights: { Args: never; Returns: Json }
       crm_set_merydian_secret: {
         Args: { _kind: string; _plaintext: string }
         Returns: undefined
@@ -9596,6 +9688,11 @@ export type Database = {
       prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
+      recompute_crm_lead_score: { Args: { p_lead_id: string }; Returns: Json }
+      recompute_crm_lead_scores: {
+        Args: { p_after_id?: string; p_limit?: number }
+        Returns: Json
+      }
       recompute_my_pending_counters: { Args: never; Returns: undefined }
       recompute_tenant_pending_counters: {
         Args: { p_tenant_id: string }
