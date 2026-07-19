@@ -6,7 +6,9 @@
 // preview = produkcja 1:1.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
+import "@/lib/i18n-admin-layouts";
 import { supabase } from "@/integrations/supabase/client";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
 import { findExpertPreset, type ExpertLayoutSettings } from "@/lib/expertLayouts";
@@ -36,6 +38,7 @@ export function ExpertLayoutPreview({
   settings: ExpertLayoutSettings;
   savedAt?: number;
 }) {
+  const { t } = useTranslation();
   const [lang, setLang] = useState<Lang>("pl");
   const [theme, setTheme] = useState<Theme>("light");
   const [showPlaceholders, setShowPlaceholders] = useState<boolean>(true);
@@ -117,18 +120,18 @@ export function ExpertLayoutPreview({
     <section className="space-y-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="font-display text-base">Podgląd na żywo</h2>
+          <h2 className="font-display text-base">{t("adminLayouts.expertPreview.title")}</h2>
           <p className="text-[11px] text-muted-foreground">
             {mode === "draft"
-              ? "Roboczy podgląd - klik w preset / kolor / kolejność zmienia widok od razu. Zapis przełącza podgląd na wersję publiczną."
-              : "Wersja opublikowana - dokładnie to samo, co widzi publiczność na /author/…. Wróć do trybu roboczego, aby dalej edytować."}
+              ? t("adminLayouts.expertPreview.draftDesc")
+              : t("adminLayouts.expertPreview.publishedDesc")}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <ToggleGroup
             options={[
-              { v: "draft", label: "Roboczy" },
-              { v: "published", label: "Publiczny" },
+              { v: "draft", label: t("adminLayouts.expertPreview.modeDraft") },
+              { v: "published", label: t("adminLayouts.expertPreview.modePublished") },
             ]}
             value={mode}
             onChange={(v) => {
@@ -165,9 +168,9 @@ export function ExpertLayoutPreview({
               type="button"
               onClick={() => setIframeNonce((n) => n + 1)}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] border border-border text-[11px] hover:bg-muted"
-              title="Odśwież iframe"
+              title={t("adminLayouts.expertPreview.refreshTitle")}
             >
-              Odśwież
+              {t("adminLayouts.expertPreview.refresh")}
             </button>
           )}
           {publicHref && (
@@ -186,12 +189,12 @@ export function ExpertLayoutPreview({
       </div>
 
       <label className="block text-[11px] text-muted-foreground">
-        <span>Slug eksperta (profiles.slug)</span>
+        <span>{t("adminLayouts.expertPreview.slugLabel")}</span>
         <input
           type="text"
           value={slug}
           onChange={(e) => setSlug(e.target.value.trim())}
-          placeholder={sampleSlug ?? "np. jan-kowalski"}
+          placeholder={sampleSlug ?? t("adminLayouts.expertPreview.slugPlaceholder")}
           className="mt-1 w-full max-w-xs px-2 py-1.5 rounded-[6px] border border-input bg-background text-xs font-mono text-foreground"
         />
       </label>
@@ -212,7 +215,7 @@ export function ExpertLayoutPreview({
               ref={iframeRef}
               key={`${effectiveSlug}-${lang}-${iframeNonce}`}
               src={iframeSrc}
-              title="Podgląd publicznej strony eksperta"
+              title={t("adminLayouts.expertPreview.iframeTitle")}
               onLoad={applyThemeToIframe}
               className="w-full h-[1000px] bg-background"
               sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
