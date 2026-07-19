@@ -3,6 +3,8 @@
 // history `update` cycle and owns the side effects that touch React state
 // (selection after insert, section-template prompt, focused-column memo).
 import { useCallback, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { toast } from "sonner";
 import { makeWidget } from "@/lib/builder/registry";
 import type {
@@ -37,6 +39,7 @@ interface Args {
 }
 
 export function useBuilderOperations({ history, doc, selection, setSelection, device }: Args) {
+  const { t } = useTranslation();
   const templates = useSectionTemplates();
   const globals = useGlobalWidgets();
   const experiments = useExperimentsAdmin();
@@ -72,61 +75,63 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   // Labels feed the undo/redo toast so users see "Cofnięto: Dodano sekcję"
   // instead of a generic "Cofnięto".
   const addSection = (colsOrSpans: number | number[]) =>
-    update((d) => ops.addSection(d, colsOrSpans), { label: "Dodano sekcję" });
+    update((d) => ops.addSection(d, colsOrSpans), { label: t("builder.ops.addedSection") });
   const addContainer = (withTabs: boolean) =>
     update((d) => ops.insertSectionNode(d, ops.newContainerSection(withTabs)), {
-      label: withTabs ? "Dodano kontener z zakładkami" : "Dodano kontener",
+      label: withTabs ? t("builder.ops.addedTabContainer") : t("builder.ops.addedContainer"),
     });
   const insertContainerAt = (index: number, withTabs: boolean) =>
     update((d) => ops.insertContainerAt(d, index, withTabs), {
-      label: withTabs ? "Dodano kontener z zakładkami" : "Dodano kontener",
+      label: withTabs ? t("builder.ops.addedTabContainer") : t("builder.ops.addedContainer"),
     });
   const loadHomepage = useCallback(() => {
-    history.setDoc(buildHomepageDocument(), { label: "Wczytano szablon strony głównej" });
-  }, [history]);
+    history.setDoc(buildHomepageDocument(), { label: t("builder.ops.loadedHomepage") });
+  }, [history, t]);
   const insertTemplateSection = (tpl: SectionTemplate) =>
     update((d) => ops.insertSectionNode(d, ops.cloneSection(tpl.data)), {
-      label: "Wstawiono szablon sekcji",
+      label: t("builder.ops.insertedTemplate"),
     });
   const saveSectionAsTemplate = async (sid: string) => {
     const s = ops.findSection(doc, sid);
     if (!s) return;
     const name = await promptDialog({
-      title: "Zapisz sekcję jako szablon",
-      label: "Nazwa szablonu sekcji",
-      confirmLabel: "Zapisz",
+      title: t("builder.ops.saveTplTitle"),
+      label: t("builder.ops.saveTplLabel"),
+      confirmLabel: t("builder.ops.save"),
     });
     if (!name?.trim()) return;
     void templates.save(name.trim(), s);
   };
   const removeSection = (id: string) =>
-    update((d) => ops.removeSection(d, id), { label: "Usunięto sekcję" });
+    update((d) => ops.removeSection(d, id), { label: t("builder.ops.removedSection") });
   const moveSection = (id: string, dir: -1 | 1) =>
-    update((d) => ops.moveSection(d, id, dir), { label: "Przeniesiono sekcję" });
+    update((d) => ops.moveSection(d, id, dir), { label: t("builder.ops.movedSection") });
   const duplicateSection = (id: string) =>
-    update((d) => ops.duplicateSection(d, id), { label: "Zduplikowano sekcję" });
+    update((d) => ops.duplicateSection(d, id), { label: t("builder.ops.duplicatedSection") });
   const insertSectionAt = (index: number, colsOrSpans: number | number[]) =>
-    update((d) => ops.insertSectionAt(d, index, colsOrSpans), { label: "Wstawiono sekcję" });
+    update((d) => ops.insertSectionAt(d, index, colsOrSpans), {
+      label: t("builder.ops.insertedSection"),
+    });
   const addSectionToTab = (sectionId: string, tabId: string, colsOrSpans: number | number[]) =>
     update((d) => ops.addSectionToTab(d, sectionId, tabId, colsOrSpans), {
-      label: "Dodano sekcję do zakładki",
+      label: t("builder.ops.addedSectionToTab"),
     });
   const addSectionToContainer = (sectionId: string, colsOrSpans: number | number[]) =>
     update((d) => ops.addSectionToContainer(d, sectionId, colsOrSpans), {
-      label: "Dodano sekcję do kontenera",
+      label: t("builder.ops.addedSectionToContainer"),
     });
   const addInnerSection = (sectionId: string) =>
-    update((d) => ops.addInnerSection(d, sectionId), { label: "Dodano wewnętrzną sekcję" });
+    update((d) => ops.addInnerSection(d, sectionId), { label: t("builder.ops.addedInnerSection") });
   const addColumn = (sectionId: string) =>
-    update((d) => ops.addColumn(d, sectionId), { label: "Dodano kolumnę" });
+    update((d) => ops.addColumn(d, sectionId), { label: t("builder.ops.addedColumn") });
   const removeColumn = (colId: string) =>
-    update((d) => ops.removeColumn(d, colId), { label: "Usunięto kolumnę" });
+    update((d) => ops.removeColumn(d, colId), { label: t("builder.ops.removedColumn") });
   const duplicateColumn = (colId: string) =>
-    update((d) => ops.duplicateColumn(d, colId), { label: "Zduplikowano kolumnę" });
+    update((d) => ops.duplicateColumn(d, colId), { label: t("builder.ops.duplicatedColumn") });
   const removeWidget = (wid: string) =>
-    update((d) => ops.removeWidget(d, wid), { label: "Usunięto widget" });
+    update((d) => ops.removeWidget(d, wid), { label: t("builder.ops.removedWidget") });
   const duplicateWidget = (wid: string) =>
-    update((d) => ops.duplicateWidget(d, wid), { label: "Zduplikowano widget" });
+    update((d) => ops.duplicateWidget(d, wid), { label: t("builder.ops.duplicatedWidget") });
   // Property edits coalesce per widget/section/column so a run of keystrokes
   // in the same field becomes a single undo step.
   const updateWidget = (wid: string, mut: (w: WidgetNode) => void) =>
@@ -135,7 +140,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
         const f = ops.findWidget(d, wid);
         if (f) mut(f.widget);
       },
-      { label: "Edycja widgetu", coalesceKey: `w:${wid}` },
+      { label: t("builder.ops.editWidget"), coalesceKey: `w:${wid}` },
     );
   const updateSection = (sid: string, mut: (s: SectionNode) => void) =>
     update(
@@ -143,7 +148,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
         const s = ops.findSection(d, sid);
         if (s) mut(s);
       },
-      { label: "Edycja sekcji", coalesceKey: `s:${sid}` },
+      { label: t("builder.ops.editSection"), coalesceKey: `s:${sid}` },
     );
   const updateColumn = (cid: string, mut: (c: ColumnNode) => void) =>
     update(
@@ -151,7 +156,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
         const c = ops.findColumn(d, cid);
         if (c) mut(c);
       },
-      { label: "Edycja kolumny", coalesceKey: `c:${cid}` },
+      { label: t("builder.ops.editColumn"), coalesceKey: `c:${cid}` },
     );
 
   // New widget nodes: either a fresh widget of `type`, or an instance of a
@@ -161,23 +166,27 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
 
   const addWidgetToFocused = (type: WidgetType) => {
     const w = makeWidget(type);
-    if (!focusedColumn) update((d) => ops.addWidgetToNewSection(d, w), { label: "Dodano widget" });
-    else update((d) => ops.addWidgetToColumn(d, focusedColumn.id, w), { label: "Dodano widget" });
+    if (!focusedColumn)
+      update((d) => ops.addWidgetToNewSection(d, w), { label: t("builder.ops.addedWidget") });
+    else
+      update((d) => ops.addWidgetToColumn(d, focusedColumn.id, w), {
+        label: t("builder.ops.addedWidget"),
+      });
     setSelection({ kind: "widget", id: w.id });
   };
   const addGlobalWidgetToFocused = (g: Pick<GlobalWidget, "id" | "data">) => {
     const w = makeGlobalInstance(g);
     if (!focusedColumn)
-      update((d) => ops.addWidgetToNewSection(d, w), { label: "Dodano widget globalny" });
+      update((d) => ops.addWidgetToNewSection(d, w), { label: t("builder.ops.addedGlobalWidget") });
     else
       update((d) => ops.addWidgetToColumn(d, focusedColumn.id, w), {
-        label: "Dodano widget globalny",
+        label: t("builder.ops.addedGlobalWidget"),
       });
     setSelection({ kind: "widget", id: w.id });
   };
   const addWidgetToColumn = (colId: string, type: WidgetType, global?: GlobalDragPayload) => {
     const w = makeNode(type, global);
-    update((d) => ops.addWidgetToColumn(d, colId, w), { label: "Dodano widget" });
+    update((d) => ops.addWidgetToColumn(d, colId, w), { label: t("builder.ops.addedWidget") });
     setSelection({ kind: "widget", id: w.id });
   };
   const insertWidgetNear = (
@@ -187,7 +196,9 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     global?: GlobalDragPayload,
   ) => {
     const w = makeNode(type, global);
-    update((d) => ops.insertWidgetNear(d, targetWidgetId, pos, w), { label: "Wstawiono widget" });
+    update((d) => ops.insertWidgetNear(d, targetWidgetId, pos, w), {
+      label: t("builder.ops.insertedWidget"),
+    });
     setSelection({ kind: "widget", id: w.id });
   };
   const appendWidgetToSection = (
@@ -197,7 +208,9 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     tabId?: string,
   ) => {
     const w = makeNode(type, global);
-    update((d) => ops.appendWidgetToSection(d, sectionId, w, tabId), { label: "Dodano widget" });
+    update((d) => ops.appendWidgetToSection(d, sectionId, w, tabId), {
+      label: t("builder.ops.addedWidget"),
+    });
     setSelection({ kind: "widget", id: w.id });
   };
 
@@ -206,25 +219,25 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     const f = ops.findWidget(doc, wid);
     if (!f) return;
     const name = await promptDialog({
-      title: "Zapisz jako widget globalny",
-      label: "Nazwa widgetu globalnego",
-      confirmLabel: "Zapisz",
+      title: t("builder.ops.saveGlobalTitle"),
+      label: t("builder.ops.saveGlobalLabel"),
+      confirmLabel: t("builder.ops.save"),
     });
     if (!name?.trim()) return;
     const id = await globals.save(name.trim(), f.widget);
     if (!id) {
-      toast.error("Nie udało się zapisać widgetu globalnego");
+      toast.error(t("builder.ops.saveGlobalErr"));
       return;
     }
     update((d) => {
       const found = ops.findWidget(d, wid);
       if (found) found.widget.globalId = id;
     });
-    toast.success("Zapisano widget globalny - zmiany będą synchronizowane między stronami");
+    toast.success(t("builder.ops.saveGlobalOk"));
   };
   const unlinkGlobalWidget = (wid: string) => {
     update((d) => ops.unlinkGlobalWidget(d, wid));
-    toast.info("Odłączono od widgetu globalnego - kopia jest teraz lokalna");
+    toast.info(t("builder.ops.unlinkedGlobal"));
   };
 
   // ---------- A/B tests ----------
@@ -232,37 +245,41 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     const s = ops.findSection(doc, sectionId);
     if (!s) return;
     const name = await promptDialog({
-      title: "Nowy test A/B",
-      label: "Nazwa testu A/B",
-      confirmLabel: "Utwórz",
+      title: t("builder.ops.newAbTitle"),
+      label: t("builder.ops.newAbLabel"),
+      confirmLabel: t("builder.ops.create"),
     });
     if (!name?.trim()) return;
     const experimentId = await experiments.create(name.trim());
     if (!experimentId) {
-      toast.error("Nie udało się utworzyć testu A/B");
+      toast.error(t("builder.ops.abCreateErr"));
       return;
     }
     update((d) => ops.startAbTest(d, sectionId, experimentId));
-    toast.success("Utworzono test A/B - edytuj wariant B poniżej oryginału");
+    toast.success(t("builder.ops.abCreateOk"));
   };
   const endAbTest = (experimentId: string, keep: "a" | "b" | "both") => {
     update((d) => ops.endAbTest(d, experimentId, keep));
     void experiments.setStatus(experimentId, "completed");
-    toast.success("Zakończono test A/B");
+    toast.success(t("builder.ops.abEnded"));
   };
 
   const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") =>
-    update((d) => ops.moveWidgetTo(d, srcId, targetId, pos), { label: "Przeniesiono widget" });
+    update((d) => ops.moveWidgetTo(d, srcId, targetId, pos), {
+      label: t("builder.ops.movedWidget"),
+    });
   const moveWidgetToColumn = (srcId: string, targetColId: string) =>
     update((d) => ops.moveWidgetToColumn(d, srcId, targetColId), {
-      label: "Przeniesiono widget do kolumny",
+      label: t("builder.ops.movedWidgetToColumn"),
     });
   const moveWidgetToSection = (srcId: string, targetSectionId: string) =>
     update((d) => ops.moveWidgetToSection(d, srcId, targetSectionId), {
-      label: "Przeniesiono widget do sekcji",
+      label: t("builder.ops.movedWidgetToSection"),
     });
   const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") =>
-    update((d) => ops.moveSectionTo(d, srcId, targetId, pos), { label: "Przeniesiono sekcję" });
+    update((d) => ops.moveSectionTo(d, srcId, targetId, pos), {
+      label: t("builder.ops.movedSection"),
+    });
 
   const toggleHidden = (id: string, kind: NonNullable<SelectionKind>) =>
     update((d) => ops.toggleHidden(d, id, kind, device));
