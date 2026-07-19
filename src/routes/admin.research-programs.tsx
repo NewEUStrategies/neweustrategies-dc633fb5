@@ -879,7 +879,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-2">
           <Input
-            placeholder={lang === "pl" ? "Nazwa (PL)" : "Name (PL)"}
+            placeholder={tp("projects.namePl")}
             value={draft.name_pl}
             onChange={(e) => setDraft((d) => ({ ...d, name_pl: e.target.value }))}
           />
