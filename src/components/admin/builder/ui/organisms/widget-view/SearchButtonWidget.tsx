@@ -61,6 +61,8 @@ export function SearchButtonWidget({
   const reqIdRef = useRef(0);
   const listboxId = useId();
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
+  const t = (k: string): string => i18n.t(`search.widget.${k}`, { lng: lang }) as string;
+
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
