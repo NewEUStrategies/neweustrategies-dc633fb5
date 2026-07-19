@@ -222,12 +222,18 @@ function HeaderInner() {
 }
 
 export const Header = memo(function Header() {
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  // Wyjątek: strona główna (PL "/" i EN "/en") ma sticky header.
+  // Pozostałe strony: header scrolluje razem ze stroną, a ReadingHeader
+  // przejmuje rolę na wpisach po przewinięciu poza hero.
+  const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
   return (
     <header
       data-site-header
-      // Header scrolls away with the page; the condensed ReadingHeader takes
-      // over on post pages once the user scrolls past the hero.
-      className="relative z-40 bg-background border-b border-border"
+      className={
+        (isHome ? "sticky top-0 " : "relative ") +
+        "z-40 bg-background border-b border-border"
+      }
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
