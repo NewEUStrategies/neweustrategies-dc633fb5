@@ -2,7 +2,7 @@
 // once in __root.tsx - callers anywhere in the tree just await
 // confirmDialog()/promptDialog() instead of window.confirm()/window.prompt().
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { currentLang } from "@/lib/i18n/localeRuntime";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
