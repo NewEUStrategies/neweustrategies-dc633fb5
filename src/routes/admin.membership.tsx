@@ -476,14 +476,11 @@ function GrantsSection({
     iso ? new Date(iso).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB") : "—";
   const sourceLabel = (s: string) =>
     s === "donation"
-      ? lang === "pl"
-        ? "darowizna"
-        : "donation"
+      ? tm("grants.sourceDonation")
       : s === "import"
-        ? "import"
-        : lang === "pl"
-          ? "ręczne"
-          : "manual";
+        ? tm("grants.sourceImport")
+        : tm("grants.sourceManual");
+
 
   return (
     <section>
