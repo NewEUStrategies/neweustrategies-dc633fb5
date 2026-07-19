@@ -15,6 +15,7 @@ import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsl
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 import {
   collectCustomValues,
   parseCustomFields,

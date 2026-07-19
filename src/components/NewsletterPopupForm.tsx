@@ -8,6 +8,7 @@ import { Check, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { FloatingInput } from "@/components/ui/floating-input";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 
 
 interface Props {
