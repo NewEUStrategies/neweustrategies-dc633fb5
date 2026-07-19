@@ -128,12 +128,13 @@ export function PeopleOrgStrip({ items, lang, onSeeAll }: Props & { onSeeAll: ()
                   src={it.avatarUrl}
                   alt=""
                   loading="lazy"
-                  className="h-6 w-6 rounded-full object-cover"
+                  className="h-6 w-6 rounded-[6px] object-cover"
                 />
               ) : (
                 <span
                   aria-hidden
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 text-brand-ink"
+                  className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-brand/10 text-brand-ink"
+
                 >
                   {it.kind === "person" ? (
                     <User className="w-3 h-3" />
