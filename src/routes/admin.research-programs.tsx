@@ -428,7 +428,7 @@ function AdminResearchPrograms() {
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Kolor akcentu" : "Accent color"}</Label>
+                <Label>{tp("field.accent")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="color"
