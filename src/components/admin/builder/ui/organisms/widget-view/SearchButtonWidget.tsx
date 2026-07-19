@@ -52,6 +52,7 @@ export function SearchButtonWidget({
   const [searched, setSearched] = useState(false);
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
+  const [tab, setTab] = useState<SuggestBucket | "all">("all");
   const [recent, setRecent] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -204,7 +205,7 @@ export function SearchButtonWidget({
   const trailingPad = q ? 108 : 84;
 
   return (
-    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto" style={{ overflow: "visible" }}>
+    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto" style={{ overflow: "visible", fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}>
       <div className="input-group" style={{ height: `${h}px`, overflow: "visible" }}>
         <input
           ref={inputRef}
@@ -293,29 +294,98 @@ export function SearchButtonWidget({
       </div>
 
       {showPopover && (
-        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-md border border-input bg-card text-card-foreground shadow-lg">
-          <div className="max-h-[380px] overflow-y-auto py-1">
+        <div
+          className="builder-search-megabox absolute left-0 right-0 top-[calc(100%+10px)] z-[70] rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
+          style={{
+            fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif',
+            minWidth: "min(680px, 92vw)",
+          }}
+        >
+          {/* ============= Tabs (mega-box category filter) ============= */}
+          {focused && hasQuery && !loading && flat.length > 0 && (
+            <div
+              role="tablist"
+              aria-label={lang === "pl" ? "Kategorie sugestii" : "Suggestion categories"}
+              className="flex items-center gap-1 border-b border-border/60 px-2 pt-2"
+            >
+              {(["all", ...SUGGEST_BUCKET_ORDER] as const).map((k) => {
+                const count =
+                  k === "all" ? flat.length : (grouped.get(k as SuggestBucket)?.length ?? 0);
+                if (k !== "all" && count === 0) return null;
+                const isActive = tab === k;
+                const label =
+                  k === "all"
+                    ? lang === "pl"
+                      ? "Wszystko"
+                      : "All"
+                    : bucketLabel(k as SuggestBucket);
+                return (
+                  <button
+                    key={k}
+                    role="tab"
+                    aria-selected={isActive}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setTab(k);
+                      setActive(-1);
+                    }}
+                    className={`relative inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium leading-none transition-colors ${
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                    <span
+                      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+                        isActive
+                          ? "bg-[color-mix(in_oklab,var(--brand)_18%,transparent)] text-[var(--brand-ink)]"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                    {isActive && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-x-2 -bottom-px h-[2px] rounded-full"
+                        style={{ backgroundColor: "var(--brand)" }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="max-h-[440px] overflow-y-auto py-1.5">
             {/* Recent searches (query empty) */}
             {showRecent && (
-              <ul aria-label={lang === "pl" ? "Ostatnie wyszukiwania" : "Recent searches"}>
-                {recent.map((term) => (
-                  <li key={term}>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setQ(term);
-                        setActive(-1);
-                        inputRef.current?.focus();
-                      }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
-                    >
-                      <LucideIcons.Clock className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{term}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div>
+                <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {lang === "pl" ? "Ostatnie wyszukiwania" : "Recent searches"}
+                </div>
+                <ul>
+                  {recent.map((term) => (
+                    <li key={term}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setQ(term);
+                          setActive(-1);
+                          inputRef.current?.focus();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] leading-[1.5] text-foreground transition-colors hover:bg-muted/60"
+                      >
+                        <LucideIcons.Clock className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{term}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {focused && hasQuery && loading && (
@@ -326,7 +396,7 @@ export function SearchButtonWidget({
             )}
 
             {focused && hasQuery && !loading && showEmpty && (
-              <div className="px-4 py-5 text-xs text-muted-foreground">
+              <div className="px-4 py-6 text-[13px] text-muted-foreground">
                 {lang === "pl" ? "Brak wyników dla " : "No results for "}
                 <span className="font-medium text-foreground">„{q.trim()}"</span>
               </div>
@@ -339,14 +409,19 @@ export function SearchButtonWidget({
                 aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
               >
                 {SUGGEST_BUCKET_ORDER.map((bucket) => {
+                  if (tab !== "all" && tab !== bucket) return null;
                   const entries = grouped.get(bucket) ?? [];
                   if (entries.length === 0) return null;
                   const Icon = iconFor(bucket);
                   return (
-                    <div key={bucket} className="border-t border-border/60 first:border-t-0">
+                    <div key={bucket} className="border-t border-border/50 first:border-t-0">
                       <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <Icon className="w-3 h-3" aria-hidden />
-                        {bucketLabel(bucket)}
+                        <Icon
+                          className="w-3 h-3"
+                          aria-hidden
+                          style={{ color: "var(--brand)" }}
+                        />
+                        <span>{bucketLabel(bucket)}</span>
                         <span className="ml-auto tabular-nums text-muted-foreground/70">
                           {entries.length}
                         </span>
@@ -355,25 +430,40 @@ export function SearchButtonWidget({
                         {entries.map((entry) => {
                           const it = entry.item;
                           const i = entry.index;
+                          const isActive = i === active;
                           return (
                             <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
                               <AppLink
                                 href={suggestionHref(it)}
                                 id={optionId(i)}
                                 role="option"
-                                aria-selected={i === active}
+                                aria-selected={isActive}
                                 tabIndex={-1}
                                 onClick={goToResult}
                                 onMouseEnter={() => setActive(i)}
-                                className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
-                                  i === active ? "bg-muted/70" : "hover:bg-muted/50"
+                                className={`group flex items-center gap-2.5 px-4 py-2 text-[13px] leading-[1.5] transition-colors ${
+                                  isActive ? "bg-muted/70" : "hover:bg-muted/50"
                                 }`}
+                                style={{ overflow: "visible" }}
                               >
                                 <Icon
-                                  className="w-3.5 h-3.5 shrink-0 text-muted-foreground"
+                                  className="w-3.5 h-3.5 shrink-0 text-muted-foreground group-hover:text-[var(--brand)]"
                                   aria-hidden
+                                  style={
+                                    isActive ? { color: "var(--brand)" } : undefined
+                                  }
                                 />
-                                <span className="truncate text-foreground">{itemLabel(it)}</span>
+                                <span
+                                  className="truncate text-foreground"
+                                  style={{ lineHeight: 1.5, paddingBottom: "2px" }}
+                                >
+                                  {itemLabel(it)}
+                                </span>
+                                <LucideIcons.ArrowRight
+                                  className="ml-auto w-3.5 h-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-70"
+                                  aria-hidden
+                                  style={{ color: "var(--brand-ink)" }}
+                                />
                               </AppLink>
                             </li>
                           );
@@ -393,9 +483,10 @@ export function SearchButtonWidget({
                   addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs font-medium text-brand-ink transition-colors hover:bg-muted/50"
+                className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-[13px] font-medium leading-[1.5] transition-colors hover:bg-muted/50"
+                style={{ color: "var(--brand-ink)" }}
               >
-                <span>
+                <span style={{ lineHeight: 1.5, paddingBottom: "2px" }}>
                   {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
                   <span className="font-semibold">„{q.trim()}"</span>
                 </span>
@@ -403,25 +494,61 @@ export function SearchButtonWidget({
               </AppLink>
             )}
 
-            {/* Premium footer: query-syntax hints + advanced search modes */}
+            {/* Boolean operators + advanced search */}
             {focused &&
               (showRecent || (hasQuery && !loading && (flat.length > 0 || showEmpty))) && (
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
-                  <span className="flex flex-wrap items-center gap-2" aria-hidden>
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                      {lang === "pl" ? '"fraza"' : '"phrase"'}
-                    </code>
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                      {lang === "pl" ? "-wyklucz" : "-exclude"}
-                    </code>
-                  </span>
+                <div
+                  className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-2.5 text-[11px] text-muted-foreground"
+                  style={{ lineHeight: 1.5 }}
+                >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider">
+                      {lang === "pl" ? "Operatory" : "Operators"}
+                    </span>
+                    {[
+                      { op: '"fraza"', ins: '"" ' },
+                      { op: "AND", ins: " AND " },
+                      { op: "OR", ins: " OR " },
+                      { op: "NOT", ins: " NOT " },
+                      { op: "-słowo", ins: " -" },
+                    ].map(({ op, ins }) => (
+                      <button
+                        key={op}
+                        type="button"
+                        title={
+                          lang === "pl"
+                            ? "Wstaw operator do zapytania"
+                            : "Insert operator into query"
+                        }
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const el = inputRef.current;
+                          if (!el) return;
+                          const start = el.selectionStart ?? q.length;
+                          const end = el.selectionEnd ?? q.length;
+                          const next = q.slice(0, start) + ins + q.slice(end);
+                          setQ(next);
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            const pos = start + ins.length;
+                            el.setSelectionRange(pos, pos);
+                          });
+                        }}
+                        className="rounded-md border border-border/60 bg-background px-1.5 py-0.5 text-[10.5px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand-ink)]"
+                        style={{ paddingBottom: "3px" }}
+                      >
+                        {op}
+                      </button>
+                    ))}
+                  </div>
                   <AppLink
                     href={hasQuery ? `${searchAllHref}&adv=1` : "/search?adv=1"}
                     onClick={() => {
                       if (hasQuery) addRecentSearch(q);
                       setFocused(false);
                     }}
-                    className="inline-flex items-center gap-1 font-medium text-brand-ink hover:underline"
+                    className="inline-flex items-center gap-1 font-medium hover:underline"
+                    style={{ color: "var(--brand-ink)", lineHeight: 1.5 }}
                   >
                     <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
                     {lang === "pl" ? "Wyszukiwanie zaawansowane" : "Advanced search"}
@@ -431,6 +558,7 @@ export function SearchButtonWidget({
           </div>
         </div>
       )}
+
 
       <style
         dangerouslySetInnerHTML={{
