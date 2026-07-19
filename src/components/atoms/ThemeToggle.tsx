@@ -1,16 +1,37 @@
+import { useTranslation } from "react-i18next";
 import { Moon, Sun } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
+import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const { theme, toggle } = useTheme();
+  const { t } = useTranslation();
+  const isDark = theme === "dark";
+
   return (
     <button
-      onClick={toggle}
-      aria-label="Przełącz motyw"
       type="button"
-      className={`p-0 rounded-[2px] hover:bg-muted transition ${className}`}
+      onClick={toggle}
+      aria-label={isDark ? t("common.lightMode") : t("common.darkMode")}
+      title={isDark ? t("common.lightMode") : t("common.darkMode")}
+      className={cn(
+        "inline-flex items-center justify-center rounded-full border border-border/60 bg-background/80 backdrop-blur-sm",
+        "text-foreground shadow-sm hover:bg-muted hover:border-border hover:shadow-md",
+        "transition-all duration-200 ease-out active:scale-95",
+        "w-9 h-9",
+        className
+      )}
     >
-      {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+      <span
+        key={isDark ? "sun" : "moon"}
+        className="inline-flex items-center justify-center transition-transform duration-300 ease-out rotate-0"
+      >
+        {isDark ? (
+          <Sun className="w-[18px] h-[18px]" aria-hidden="true" />
+        ) : (
+          <Moon className="w-[18px] h-[18px]" aria-hidden="true" />
+        )}
+      </span>
     </button>
   );
 }
