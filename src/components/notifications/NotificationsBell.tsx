@@ -235,12 +235,11 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           {title}
                         </span>
                         {groupUnread > 0 && (
-                          <span
-                            className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground"
-                            aria-label={t("notifications.unread", { count: groupUnread })}
-                          >
-                            {groupUnread > 99 ? "99+" : groupUnread}
-                          </span>
+                          <UnreadBadge
+                            count={groupUnread}
+                            size="sm"
+                            labelKey="notifications.unread"
+                          />
                         )}
                       </div>
                       {pickBody(n, lang) && (
