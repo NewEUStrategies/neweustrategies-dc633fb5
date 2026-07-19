@@ -69,6 +69,7 @@ import {
   BilingualPickerCard,
 } from "@/components/admin/post-editor/TaxonomyCards";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
+import { InternalLinkSuggestions } from "@/components/admin/seo/InternalLinkSuggestions";
 import { WorkflowStatusSection } from "@/components/admin/post-editor/WorkflowStatusSection";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
 import { SidebarSection, InfoHint } from "@/components/admin/post-editor/SidebarSection";
