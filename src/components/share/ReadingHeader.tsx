@@ -3,7 +3,7 @@
 // visually and behaviourally identical (live results, popover, clear button).
 // Layout: [search] [current article title] [theme | account/login | lang]
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Bookmark, ChevronDown, LogIn, LogOut, Settings, User } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
@@ -14,6 +14,7 @@ import { ChatBell } from "@/components/chat/ChatBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
+import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
 
 interface Props {
   title: string;
