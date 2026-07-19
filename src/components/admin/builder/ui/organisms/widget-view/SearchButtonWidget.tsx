@@ -461,7 +461,7 @@ export function SearchButtonWidget({
                   setFocused(false);
                 }}
                 className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-[13px] font-medium leading-[1.5] transition-colors hover:bg-muted/50"
-                style={{ color: "var(--brand-ink)" }}
+                style={{ color: "var(--brand)" }}
               >
                 <span style={{ lineHeight: 1.5, paddingBottom: "2px" }}>
                   {lang === "pl" ? "Zobacz wszystkie wyniki dla " : "View all results for "}
