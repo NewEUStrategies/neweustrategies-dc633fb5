@@ -2852,6 +2852,14 @@ textarea::placeholder {
   line-height: var(--gc-input-line-height, 1.4);
   color: var(--gc-input-text, var(--foreground));
 }
+
+/* Join-us form inputs must stay left-aligned even when the parent builder
+   widget forces text-align: center with high-specificity [data-w-id] rules. */
+.join-us-shell.join-us-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+.join-us-shell.join-us-shell textarea,
+.join-us-shell.join-us-shell select {
+  text-align: left !important;
+}
 .cf-shell :where(input, select, textarea)::placeholder,
 [data-w-id] :where(input, select, textarea)::placeholder,
 .cms-widget-form :where(input, select, textarea)::placeholder,
