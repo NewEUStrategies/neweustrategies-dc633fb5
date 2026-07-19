@@ -4832,15 +4832,15 @@ textarea.input {
   user-select: none;
 }
 
-.lang-switch__checkbox:checked + .lang-switch__container {
+.lang-switch__container[data-state="en"] {
   background: var(--container-en-bg);
 }
 
-.lang-switch__checkbox:checked + .lang-switch__container .lang-switch__circle-container {
+.lang-switch__container[data-state="en"] .lang-switch__circle-container {
   left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter));
 }
 
-.lang-switch__checkbox:checked + .lang-switch__container .lang-switch__circle-container:hover {
+.lang-switch__container[data-state="en"] .lang-switch__circle-container:hover {
   left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter) - 0.187em);
 }
 
