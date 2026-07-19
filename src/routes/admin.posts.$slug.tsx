@@ -69,6 +69,7 @@ import {
   BilingualPickerCard,
 } from "@/components/admin/post-editor/TaxonomyCards";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
+import { InternalLinkSuggestions } from "@/components/admin/seo/InternalLinkSuggestions";
 import { WorkflowStatusSection } from "@/components/admin/post-editor/WorkflowStatusSection";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
 import { SidebarSection, InfoHint } from "@/components/admin/post-editor/SidebarSection";
@@ -1135,6 +1136,7 @@ function EditPost() {
                     )}
 
                     {detailsTab === "seo" && (
+                      <div className="space-y-3">
                       <SeoPanel
                         value={{
                           seo_title_pl: form.seo_title_pl,
@@ -1164,6 +1166,16 @@ function EditPost() {
                         contentBlocks={form.blocks_data}
                         onIssuesChange={setSeoIssues}
                       />
+                      <InternalLinkSuggestions
+                        postId={id === "new" ? null : id}
+                        titlePl={form.title_pl}
+                        titleEn={form.title_en}
+                        contentPl={form.content_pl}
+                        contentEn={form.content_en}
+                        categoryIds={selectedCats}
+                        tagIds={selectedTags}
+                      />
+                      </div>
                     )}
 
                     {detailsTab === "meta" && (
