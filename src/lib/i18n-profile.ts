@@ -147,6 +147,7 @@ const pl = {
         submit: "Zmień adres e-mail",
         sent: "Wysłaliśmy link potwierdzający na nowy adres.",
         invalid: "Podaj poprawny adres e-mail.",
+        needPassword: "Podaj obecne hasło, aby potwierdzić.",
       },
       danger: {
         title: "Usuń konto",
