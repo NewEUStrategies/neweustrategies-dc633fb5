@@ -9,6 +9,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { BadgeCheck, Crown, Save, Plus, Trash2, ArrowUp, ArrowDown, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import "@/lib/i18n-admin-membership";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,7 +87,9 @@ function benefitsToJson(list: TierBenefit[]): Json {
 function AdminMembershipPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
+  const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const qc = useQueryClient();
+
 
   const tiersQ = useQuery({
     queryKey: ["admin", "membership-tiers"],
@@ -112,9 +116,8 @@ function AdminMembershipPage() {
       try {
         features = JSON.parse(draft.features || "{}") as Json;
       } catch {
-        throw new Error(
-          lang === "pl" ? "Pole features nie jest poprawnym JSON-em" : "Features is not valid JSON",
-        );
+        throw new Error(tm("toast.featuresInvalid"));
+
       }
       const { error } = await supabase
         .from("membership_tiers")
@@ -133,7 +136,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Zapisano warstwę" : "Tier saved");
+      toast.success(tm("toast.tierSaved"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
       void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
     },
@@ -146,7 +149,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Usunięto warstwę" : "Tier deleted");
+      toast.success(tm("toast.tierDeleted"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
       void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
     },
@@ -157,7 +160,7 @@ function AdminMembershipPage() {
     mutationFn: async (input: { key: string; rank: number; name_pl: string; name_en: string }) => {
       // tenant_id wymuszony przez politykę RLS - pobierz z istniejącej warstwy
       const existing = tiersQ.data?.[0];
-      if (!existing) throw new Error(lang === "pl" ? "Brak tenantu" : "No tenant");
+      if (!existing) throw new Error(tm("toast.noTenant"));
       const { error } = await supabase.from("membership_tiers").insert({
         tenant_id: existing.tenant_id,
         key: input.key.trim(),
@@ -170,7 +173,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Utworzono warstwę" : "Tier created");
+      toast.success(tm("toast.tierCreated"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
       void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
     },
@@ -186,7 +189,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Zapisano mapowanie planu" : "Plan mapping saved");
+      toast.success(tm("toast.planMappingSaved"));
       void qc.invalidateQueries({ queryKey: ["admin", "plans-active"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -198,13 +201,10 @@ function AdminMembershipPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <Crown className="h-6 w-6" aria-hidden="true" />
-            {lang === "pl" ? "Warstwy członkostwa" : "Membership tiers"}
+            {tm("title")}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            {lang === "pl"
-              ? "Warstwa decyduje o dostępie do funkcji społeczności (wydarzenia dla członków, briefingi Pro). Ranga: 0 = czytelnik, wyższa = szerszy dostęp."
-              : "The tier gates community features (member events, Pro briefings). Rank: 0 = reader, higher = more access."}
-          </p>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{tm("subtitle")}</p>
+
         </div>
         <NewTierDialog
           lang={lang}
@@ -229,13 +229,13 @@ function AdminMembershipPage() {
                     <BadgeCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                     <span className="truncate font-mono text-sm">{tier.key}</span>
                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">
-                      {lang === "pl" ? "ranga" : "rank"} {tier.rank}
+                      {tm("rankBadge")} {tier.rank}
                     </span>
                   </span>
                   <div className="flex items-center gap-1">
                     {tier.is_default && (
                       <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                        {lang === "pl" ? "domyślna" : "default"}
+                        {tm("defaultBadge")}
                       </span>
                     )}
                     <Button
@@ -244,25 +244,16 @@ function AdminMembershipPage() {
                       className="h-7 w-7 text-muted-foreground hover:text-destructive"
                       onClick={() => {
                         if (
-                          confirm(
-                            lang === "pl"
-                              ? `Usunąć warstwę "${tier.key}"? Operacji nie można cofnąć.`
-                              : `Delete tier "${tier.key}"? This cannot be undone.`,
-                          )
+                          confirm(tm("deleteConfirm", { key: tier.key }))
                         ) {
                           deleteTier.mutate(tier.id);
                         }
                       }}
                       disabled={deleteTier.isPending || tier.is_default}
                       title={
-                        tier.is_default
-                          ? lang === "pl"
-                            ? "Nie można usunąć warstwy domyślnej"
-                            : "Cannot delete default tier"
-                          : lang === "pl"
-                            ? "Usuń warstwę"
-                            : "Delete tier"
+                        tier.is_default ? tm("deleteDefaultDisabled") : tm("deleteTitle")
                       }
+
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </Button>
@@ -309,7 +300,7 @@ function AdminMembershipPage() {
 
                 <div className="grid grid-cols-3 items-end gap-2">
                   <div>
-                    <Label className="text-xs">{lang === "pl" ? "Ranga" : "Rank"}</Label>
+                    <Label className="text-xs">{tm("fields.rank")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -319,14 +310,14 @@ function AdminMembershipPage() {
                   </div>
                   <div className="flex items-center gap-2 pb-2">
                     <Switch checked={draft.active} onCheckedChange={(v) => set({ active: v })} />
-                    <span className="text-xs">{lang === "pl" ? "Aktywna" : "Active"}</span>
+                    <span className="text-xs">{tm("fields.active")}</span>
                   </div>
                   <div className="flex items-center gap-2 pb-2">
                     <Switch
                       checked={draft.is_default}
                       onCheckedChange={(v) => set({ is_default: v })}
                     />
-                    <span className="text-xs">{lang === "pl" ? "Domyślna" : "Default"}</span>
+                    <span className="text-xs">{tm("fields.default")}</span>
                   </div>
                 </div>
                 <div>
@@ -337,10 +328,9 @@ function AdminMembershipPage() {
                     className="font-mono text-xs"
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {lang === "pl"
-                      ? "Flagi: qa_priority (pytania warstwy na górze /qa), pro_briefings (wstęp na wydarzenia kind=briefing dla członków)."
-                      : "Flags: qa_priority (tier's questions ranked first on /qa), pro_briefings (grants entry to members-only kind=briefing events)."}
+                    {tm("fields.featuresHint")}
                   </p>
+
                 </div>
                 <div className="mt-auto pt-1">
                   <Button
@@ -350,7 +340,7 @@ function AdminMembershipPage() {
                     onClick={() => saveTier.mutate({ id: tier.id, draft })}
                   >
                     <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                    {lang === "pl" ? "Zapisz" : "Save"}
+                    {tm("save")}
                   </Button>
                 </div>
               </CardContent>
@@ -361,13 +351,10 @@ function AdminMembershipPage() {
 
       <section>
         <h2 className="text-lg font-semibold">
-          {lang === "pl" ? "Mapowanie planów na warstwy" : "Plan-to-tier mapping"}
+          {tm("mapping.heading")}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {lang === "pl"
-            ? "Aktywna subskrypcja planu nadaje wskazaną warstwę. Plan bez warstwy daje tylko dostęp do treści (paywall)."
-            : "An active subscription grants the mapped tier. A plan without a tier only unlocks content (paywall)."}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{tm("mapping.hint")}</p>
+
         <div className="mt-3 space-y-2">
           {(plansQ.data ?? []).map((plan) => (
             <div
@@ -392,7 +379,7 @@ function AdminMembershipPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">
-                    {lang === "pl" ? "- bez warstwy -" : "- no tier -"}
+                    {tm("mapping.noTier")}
                   </SelectItem>
                   {tierOptions.map((tier) => (
                     <SelectItem key={tier.key} value={tier.key}>
@@ -410,17 +397,14 @@ function AdminMembershipPage() {
 
       <section>
         <h2 className="text-lg font-semibold">
-          {lang === "pl" ? "Członkostwo organizacji" : "Organisation membership"}
+          {tm("org.heading")}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {lang === "pl"
-            ? "Członkostwo korporacyjne i partnerskie (wiele kont / miejsc) prowadzisz w osobnym panelu."
-            : "Corporate and partner membership (multiple accounts / seats) is managed in a separate panel."}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{tm("org.hint")}</p>
+
         <Button asChild variant="outline" size="sm" className="mt-3">
           <Link to="/admin/organizations">
             <Landmark className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {lang === "pl" ? "Otwórz organizacje" : "Open organisations"}
+            {tm("org.open")}
           </Link>
         </Button>
       </section>
@@ -438,7 +422,10 @@ function GrantsSection({
   lang: "pl" | "en";
   tierOptions: MembershipTierRow[];
 }) {
+  const { t } = useTranslation();
+  const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const qc = useQueryClient();
+
   const grantsQ = useQuery({
     queryKey: ["admin", "membership-grants"],
     queryFn: fetchMembershipGrants,
@@ -458,7 +445,7 @@ function GrantsSection({
         note: note.trim() || null,
       }),
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Nadano warstwę" : "Membership granted");
+      toast.success(tm("toast.grantSuccess"));
       setEmail("");
       setNote("");
       void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
@@ -467,10 +454,10 @@ function GrantsSection({
       const msg = e.message || "";
       if (msg.includes("user not found"))
         toast.error(
-          lang === "pl" ? "Nie znaleziono konta o tym e-mailu" : "No account with that email",
+          tm("toast.noAccount"),
         );
       else if (msg.includes("tier not found"))
-        toast.error(lang === "pl" ? "Nieznana warstwa" : "Unknown tier");
+        toast.error(tm("toast.unknownTier"));
       else toast.error(msg);
     },
   });
@@ -478,7 +465,7 @@ function GrantsSection({
   const revokeM = useMutation({
     mutationFn: (id: string) => revokeGrant(id),
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Cofnięto nadanie" : "Grant revoked");
+      toast.success(tm("toast.grantRevoked"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -489,25 +476,19 @@ function GrantsSection({
     iso ? new Date(iso).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB") : "—";
   const sourceLabel = (s: string) =>
     s === "donation"
-      ? lang === "pl"
-        ? "darowizna"
-        : "donation"
+      ? tm("grants.sourceDonation")
       : s === "import"
-        ? "import"
-        : lang === "pl"
-          ? "ręczne"
-          : "manual";
+        ? tm("grants.sourceImport")
+        : tm("grants.sourceManual");
+
 
   return (
     <section>
       <h2 className="text-lg font-semibold">
-        {lang === "pl" ? "Nadania warstwy (poza planem)" : "Membership grants (off-plan)"}
+        {tm("grants.heading")}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {lang === "pl"
-          ? "Nadaj warstwę bezpośrednio po e-mailu konta (sprzedaż fakturowa, członkostwo eksperckie/partnerskie, komplementarne). Pozostaw „miesiące” puste dla nadania bezterminowego."
-          : "Grant a tier directly by account email (invoice sales, expert/partner membership, complimentary). Leave “months” empty for an open-ended grant."}
-      </p>
+      <p className="mt-1 text-sm text-muted-foreground">{tm("grants.hint")}</p>
+
 
       <div className="mt-3 grid gap-2 rounded-md border border-border/60 p-3 sm:grid-cols-[1fr_10rem_7rem_auto] sm:items-end">
         <div>
@@ -520,10 +501,10 @@ function GrantsSection({
           />
         </div>
         <div>
-          <Label className="text-xs">{lang === "pl" ? "Warstwa" : "Tier"}</Label>
+          <Label className="text-xs">{tm("grants.tier")}</Label>
           <Select value={tierKey} onValueChange={setTierKey}>
             <SelectTrigger>
-              <SelectValue placeholder={lang === "pl" ? "wybierz" : "select"} />
+              <SelectValue placeholder={tm("grants.tierSelect")} />
             </SelectTrigger>
             <SelectContent>
               {tierOptions.map((tier) => (
@@ -535,7 +516,7 @@ function GrantsSection({
           </Select>
         </div>
         <div>
-          <Label className="text-xs">{lang === "pl" ? "Miesiące" : "Months"}</Label>
+          <Label className="text-xs">{tm("grants.months")}</Label>
           <Input
             type="number"
             min={1}
@@ -547,11 +528,11 @@ function GrantsSection({
         </div>
         <Button disabled={!canGrant || grantM.isPending} onClick={() => grantM.mutate()}>
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {lang === "pl" ? "Nadaj" : "Grant"}
+          {tm("grants.grant")}
         </Button>
         <div className="sm:col-span-4">
           <FloatingInput
-            label={lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
+            label={tm("grants.note")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
@@ -561,7 +542,7 @@ function GrantsSection({
       <div className="mt-3 space-y-2">
         {(grantsQ.data ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {lang === "pl" ? "Brak aktywnych nadań." : "No active grants."}
+            {tm("grants.empty")}
           </p>
         ) : (
           (grantsQ.data ?? []).map((g: AdminGrantRow) => (
@@ -577,11 +558,10 @@ function GrantsSection({
                 <div className="text-xs text-muted-foreground">
                   {g.tier_key} · {sourceLabel(g.source)} ·{" "}
                   {g.expires_at
-                    ? `${lang === "pl" ? "do" : "until"} ${fmtDate(g.expires_at)}`
-                    : lang === "pl"
-                      ? "bezterminowo"
-                      : "no expiry"}
-                  {g.revoked_at ? ` · ${lang === "pl" ? "cofnięte" : "revoked"}` : ""}
+                    ? `${tm("grants.until")} ${fmtDate(g.expires_at)}`
+                    : tm("grants.noExpiry")}
+
+                  {g.revoked_at ? ` · ${tm("grants.revoked")}` : ""}
                 </div>
               </div>
               {!g.revoked_at && (
@@ -593,7 +573,7 @@ function GrantsSection({
                   onClick={() => revokeM.mutate(g.id)}
                 >
                   <Trash2 className="mr-1 h-4 w-4" aria-hidden="true" />
-                  {lang === "pl" ? "Cofnij" : "Revoke"}
+                  {tm("grants.revoke")}
                 </Button>
               )}
             </div>
@@ -616,6 +596,9 @@ function BenefitsEditor({
   value: TierBenefit[];
   onChange: (next: TierBenefit[]) => void;
 }) {
+  const { t } = useTranslation();
+  const tm = (k: string) => t(`adminMembership.${k}`);
+
   const update = (i: number, patch: Partial<TierBenefit>) => {
     const next = value.map((b, idx) => (idx === i ? { ...b, ...patch } : b));
     onChange(next);
@@ -634,20 +617,19 @@ function BenefitsEditor({
     <div>
       <div className="mb-1 flex items-center justify-between">
         <Label className="text-xs">
-          {lang === "pl" ? "Benefity (per punkt)" : "Benefits (per item)"}
+          {tm("benefits.heading")}
         </Label>
         <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={add}>
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          {lang === "pl" ? "Dodaj" : "Add"}
+          {tm("benefits.add")}
         </Button>
       </div>
       {value.length === 0 ? (
         <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
-          {lang === "pl"
-            ? "Brak benefitów. Dodaj pierwszy punkt."
-            : "No benefits yet. Add the first item."}
+          {tm("benefits.empty")}
         </p>
       ) : (
+
         <ol className="space-y-2">
           {value.map((b, i) => (
             <li key={i} className="rounded-md border border-border/60 bg-muted/30 p-2">
@@ -661,7 +643,7 @@ function BenefitsEditor({
                     className="h-6 w-6"
                     onClick={() => move(i, -1)}
                     disabled={i === 0}
-                    title={lang === "pl" ? "W górę" : "Move up"}
+                    title={tm("benefits.moveUp")}
                   >
                     <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
@@ -672,7 +654,7 @@ function BenefitsEditor({
                     className="h-6 w-6"
                     onClick={() => move(i, 1)}
                     disabled={i === value.length - 1}
-                    title={lang === "pl" ? "W dół" : "Move down"}
+                    title={tm("benefits.moveDown")}
                   >
                     <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
@@ -682,7 +664,7 @@ function BenefitsEditor({
                     variant="ghost"
                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
                     onClick={() => remove(i)}
-                    title={lang === "pl" ? "Usuń" : "Remove"}
+                    title={tm("benefits.remove")}
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
@@ -726,7 +708,10 @@ function NewTierDialog({
   onCreate: (v: { key: string; rank: number; name_pl: string; name_en: string }) => void;
   isPending: boolean;
 }) {
+  const { t } = useTranslation();
+  const tm = (k: string) => t(`adminMembership.${k}`);
   const [open, setOpen] = useState(false);
+
   const [key, setKey] = useState("");
   const [rank, setRank] = useState(suggestedRank);
   const [namePl, setNamePl] = useState("");
@@ -756,41 +741,35 @@ function NewTierDialog({
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {lang === "pl" ? "Nowa warstwa" : "New tier"}
+          {tm("newTierDialog.title")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{lang === "pl" ? "Nowa warstwa" : "New tier"}</DialogTitle>
+          <DialogTitle>{tm("newTierDialog.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">{lang === "pl" ? "Klucz (slug)" : "Key (slug)"}</Label>
+            <Label className="text-xs">{tm("newTierDialog.key")}</Label>
             <Input
               value={key}
               onChange={(e) => setKey(e.target.value.toLowerCase())}
               placeholder="patron"
               className="font-mono"
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {lang === "pl"
-                ? "2-32 znaki: a-z, 0-9, _ lub -. Musi być unikalny."
-                : "2-32 chars: a-z, 0-9, _ or -. Must be unique."}
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{tm("newTierDialog.keyHint")}</p>
+
           </div>
           <div>
-            <Label className="text-xs">{lang === "pl" ? "Ranga" : "Rank"}</Label>
+            <Label className="text-xs">{tm("fields.rank")}</Label>
             <Input
               type="number"
               min={0}
               value={rank}
               onChange={(e) => setRank(Number(e.target.value) || 0)}
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {lang === "pl"
-                ? "Wyższa ranga = szerszy dostęp. Standard: 0/10/20."
-                : "Higher rank = more access. Standard: 0/10/20."}
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{tm("newTierDialog.rankHint")}</p>
+
           </div>
           <div className="grid grid-cols-2 gap-2">
             <FloatingInput
@@ -807,10 +786,10 @@ function NewTierDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            {lang === "pl" ? "Anuluj" : "Cancel"}
+            {tm("newTierDialog.cancel")}
           </Button>
           <Button onClick={submit} disabled={!canSubmit || isPending}>
-            {lang === "pl" ? "Utwórz" : "Create"}
+            {tm("newTierDialog.create")}
           </Button>
         </DialogFooter>
       </DialogContent>
