@@ -743,7 +743,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
         <div className="grid gap-2 md:grid-cols-2">
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger>
-              <SelectValue placeholder={lang === "pl" ? "Wybierz użytkownika" : "Select a user"} />
+              <SelectValue placeholder={tp("members.selectUser")} />
             </SelectTrigger>
             <SelectContent className="max-h-72">
               {available.map((u) => (
