@@ -86,12 +86,7 @@ function Card({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
         {it.kind === "person" ? (
           <PersonAvatar it={it} lang={lang} />
         ) : (
-          <span
-            aria-hidden
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand-ink"
-          >
-            <Building2 className="w-5 h-5" />
-          </span>
+          <OrgAvatar it={it} lang={lang} />
         )}
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
