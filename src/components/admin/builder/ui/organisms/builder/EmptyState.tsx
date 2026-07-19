@@ -1,4 +1,6 @@
 import { Plus } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { StructurePicker } from "../../../StructurePicker";
 
 export function EmptyState({
@@ -12,6 +14,7 @@ export function EmptyState({
   hint?: string;
   onLoadHomepage?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       data-section-inserter
@@ -21,9 +24,9 @@ export function EmptyState({
         <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
           <Plus className="w-5 h-5" />
         </div>
-        <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
+        <h3 className="text-sm font-semibold mb-1">{title ?? t("builder.chrome.startBuilding")}</h3>
         <p className="text-xs text-muted-foreground">
-          {hint ?? "Wybierz strukturę pierwszej sekcji."}
+          {hint ?? t("builder.chrome.pickFirstStructure")}
         </p>
         {onLoadHomepage && (
           <button
@@ -32,7 +35,7 @@ export function EmptyState({
             className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-brand text-brand-foreground text-xs font-semibold hover:opacity-90 transition"
           >
             <Plus className="w-3.5 h-3.5" />
-            Wczytaj layout strony głównej
+            {t("builder.chrome.loadHomeLayout")}
           </button>
         )}
       </div>

@@ -482,7 +482,7 @@ export function VisualCanvas({
         dragRef.current = { kind: "section", id: s.dataset.secId };
         e.dataTransfer?.setData("text/plain", s.dataset.secId);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-        setDragGhost(e, "Sekcja");
+        setDragGhost(e, lang === "pl" ? "Sekcja" : "Section");
         setDragging(true);
       }
     };
@@ -733,6 +733,7 @@ export function VisualCanvas({
     safeDoc,
     selection,
     multi,
+    lang,
     onMoveWidget,
     onMoveWidgetToColumn,
     onMoveWidgetToSection,

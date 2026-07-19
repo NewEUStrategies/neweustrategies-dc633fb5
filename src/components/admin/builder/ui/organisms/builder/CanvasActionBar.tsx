@@ -1,4 +1,6 @@
 import { Undo, Redo, Trash2 } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import type { Selection } from "./types";
 
 export function CanvasActionBar({
@@ -16,14 +18,15 @@ export function CanvasActionBar({
   selection: Selection;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const hasSel = !!selection.id && selection.kind !== null && selection.kind !== "inner-section";
   const kindLabel =
     selection.kind === "section"
-      ? "sekcję"
+      ? t("builder.chrome.kindSection")
       : selection.kind === "column"
-        ? "kolumnę"
+        ? t("builder.chrome.kindColumn")
         : selection.kind === "widget"
-          ? "widget"
+          ? t("builder.chrome.kindWidget")
           : "";
   return (
     <div className="sticky top-0 z-30 mb-2 flex items-center gap-1 px-2 py-1.5 bg-card/95 backdrop-blur border border-border rounded-md shadow-sm">
@@ -32,18 +35,18 @@ export function CanvasActionBar({
         onClick={onUndo}
         disabled={!canUndo}
         className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded hover:bg-muted disabled:opacity-30"
-        title="Cofnij (Ctrl/Cmd+Z)"
+        title={t("builder.chrome.undoTitle")}
       >
-        <Undo className="w-3.5 h-3.5" /> Cofnij
+        <Undo className="w-3.5 h-3.5" /> {t("builder.chrome.undo")}
       </button>
       <button
         type="button"
         onClick={onRedo}
         disabled={!canRedo}
         className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded hover:bg-muted disabled:opacity-30"
-        title="Ponów (Ctrl/Cmd+Shift+Z)"
+        title={t("builder.chrome.redoTitle")}
       >
-        <Redo className="w-3.5 h-3.5" /> Ponów
+        <Redo className="w-3.5 h-3.5" /> {t("builder.chrome.redo")}
       </button>
       <div className="w-px h-5 bg-border mx-1" />
       <button
@@ -51,10 +54,12 @@ export function CanvasActionBar({
         onClick={onDelete}
         disabled={!hasSel}
         className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:text-muted-foreground"
-        title="Usuń zaznaczony element (Delete)"
+        title={t("builder.chrome.deleteSelTitle")}
       >
         <Trash2 className="w-3.5 h-3.5" />
-        {hasSel ? `Usuń ${kindLabel}` : "Nic nie wybrano"}
+        {hasSel
+          ? t("builder.chrome.deleteKind", { kind: kindLabel })
+          : t("builder.chrome.nothingSelected")}
       </button>
     </div>
   );
