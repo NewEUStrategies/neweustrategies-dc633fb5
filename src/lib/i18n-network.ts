@@ -391,6 +391,28 @@ export const networkEn = {
         withdrawn: "Withdrawn",
       },
     },
+    recommendations: {
+      heading: "Recommendations",
+      writeCta: "Write a recommendation",
+      dialogTitle: "Recommendation for {{name}}",
+      dialogDescription:
+        "Your recommendation will appear on the profile after the recipient approves it.",
+      relationshipLabel: "How do you know this person? (e.g. Colleague on project X)",
+      bodyPlaceholder: "Describe concretely what stands out about this person professionally...",
+      minChars: "Minimum {{count}} characters",
+      submit: "Send",
+      cancel: "Cancel",
+      publish: "Publish",
+      hide: "Hide",
+      remove: "Delete",
+      empty: "No public recommendations yet. Be the first to write one.",
+      pendingHeading_one: "New recommendation awaiting your approval ({{count}})",
+      pendingHeading_other: "New recommendations awaiting your approval ({{count}})",
+      toastSent: "Recommendation sent - awaiting the recipient's approval",
+      toastPublished: "Published",
+      toastHidden: "Hidden",
+      toastDeleted: "Deleted",
+    },
   },
 };
 
