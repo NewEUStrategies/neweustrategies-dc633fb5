@@ -559,9 +559,8 @@ function GrantsSection({
                   {g.tier_key} · {sourceLabel(g.source)} ·{" "}
                   {g.expires_at
                     ? `${tm("grants.until")} ${fmtDate(g.expires_at)}`
-                    : lang === "pl"
-                      ? "bezterminowo"
-                      : "no expiry"}
+                    : tm("grants.noExpiry")}
+
                   {g.revoked_at ? ` · ${tm("grants.revoked")}` : ""}
                 </div>
               </div>
