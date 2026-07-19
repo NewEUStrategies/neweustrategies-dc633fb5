@@ -4841,3 +4841,157 @@ textarea.input {
 .lang-switch__circle-container:hover {
   left: calc(var(--circle-container-offset) + 0.187em);
 }
+
+/* =========================================================================
+   Subscribe button (bubbly) - używana we wszystkich formularzach subskrypcji.
+   Bazuje na semantycznych tokenach --brand / --brand-foreground, więc
+   automatycznie wspiera light + dark mode.
+   ========================================================================= */
+@utility btn-bubbly {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  min-height: 2.75rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--brand) 55%, transparent);
+  background-color: var(--brand);
+  color: var(--brand-foreground);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  isolation: isolate;
+  overflow: visible;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    filter 0.2s ease;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--brand) 25%, transparent);
+
+  & .btn-bubbly__label {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.03);
+    box-shadow: 0 6px 18px color-mix(in oklab, var(--brand) 35%, transparent);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 45%, transparent);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &::before,
+  &::after {
+    position: absolute;
+    content: "";
+    width: 150%;
+    left: 50%;
+    height: 100%;
+    transform: translateX(-50%);
+    z-index: -1;
+    pointer-events: none;
+    background-repeat: no-repeat;
+  }
+
+  &:hover:not(:disabled)::before {
+    top: -70%;
+    background-image:
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, transparent 20%, var(--brand) 20%, transparent 30%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, transparent 10%, var(--brand) 15%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%);
+    background-size:
+      10% 10%, 20% 20%, 15% 15%, 20% 20%, 18% 18%,
+      10% 10%, 15% 15%, 10% 10%, 18% 18%;
+    background-position: 50% 120%;
+    animation: btn-bubbly-top 0.6s ease;
+  }
+
+  &:hover:not(:disabled)::after {
+    bottom: -70%;
+    background-image:
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, transparent 10%, var(--brand) 15%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%);
+    background-size: 15% 15%, 20% 20%, 18% 18%, 20% 20%, 15% 15%, 20% 20%, 18% 18%;
+    background-position: 50% 0%;
+    animation: btn-bubbly-bottom 0.6s ease;
+  }
+}
+
+@keyframes btn-bubbly-top {
+  0% {
+    background-position:
+      5% 90%, 10% 90%, 10% 90%, 15% 90%, 25% 90%,
+      25% 90%, 40% 90%, 55% 90%, 70% 90%;
+  }
+  50% {
+    background-position:
+      0% 80%, 0% 20%, 10% 40%, 20% 0%, 30% 30%,
+      22% 50%, 50% 50%, 65% 20%, 90% 30%;
+  }
+  100% {
+    background-position:
+      0% 70%, 0% 10%, 10% 30%, 20% -10%, 30% 20%,
+      22% 40%, 50% 40%, 65% 10%, 90% 20%;
+    background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+}
+
+@keyframes btn-bubbly-bottom {
+  0% {
+    background-position:
+      10% -10%, 30% 10%, 55% -10%, 70% -10%, 85% -10%,
+      70% -10%, 70% 0%;
+  }
+  50% {
+    background-position:
+      0% 80%, 20% 80%, 45% 60%, 60% 100%, 75% 70%,
+      95% 60%, 105% 0%;
+  }
+  100% {
+    background-position:
+      0% 90%, 20% 90%, 45% 70%, 60% 110%, 75% 80%,
+      95% 70%, 110% 10%;
+    background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-bubbly::before,
+  .btn-bubbly::after {
+    display: none;
+  }
+  .btn-bubbly:active:not(:disabled) {
+    transform: none;
+  }
+}
+
