@@ -7,12 +7,77 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { SeoIssue } from "@/lib/seo/validation";
+import type { HeadingIssue } from "@/lib/seo/headingValidation";
 
 const LANG_LABEL: Record<SeoIssue["lang"], string> = { pl: "PL", en: "EN" };
 
-export function SeoValidationSummary({ issues }: { issues: SeoIssue[] }) {
+interface SeoValidationSummaryProps {
+  issues: SeoIssue[];
+  headingIssues?: HeadingIssue[];
+}
+
+export function SeoValidationSummary({
+  issues,
+  headingIssues = [],
+}: SeoValidationSummaryProps) {
   const { t } = useTranslation();
-  if (issues.length === 0) {
+  const all: Array<{ key: string; severity: "error" | "warning"; text: string }> = [];
+
+  for (const issue of issues) {
+    const fieldLabel =
+      issue.kind === "title"
+        ? t("admin.seo.titleLabel", { defaultValue: "Tytuł SEO" })
+        : t("admin.seo.descriptionLabel", { defaultValue: "Opis meta (description)" });
+    const text =
+      issue.severity === "error"
+        ? t("admin.seo.validation.errorLine", {
+            defaultValue: "{{chars}} / {{limit}} znaków (twardy limit)",
+            chars: issue.chars,
+            limit: issue.charLimit,
+          })
+        : t("admin.seo.validation.warnLine", {
+            defaultValue: "{{chars}} znaków, {{px}}px / {{pxLimit}}px budżetu Google",
+            chars: issue.chars,
+            px: issue.px,
+            pxLimit: issue.pxLimit,
+          });
+    all.push({
+      key: `m-${issue.lang}-${issue.kind}-${issue.severity}`,
+      severity: issue.severity,
+      text: `${LANG_LABEL[issue.lang]} - ${fieldLabel}: ${text}`,
+    });
+  }
+
+  for (const h of headingIssues) {
+    let text = "";
+    if (h.kind === "missing_h1") {
+      text = t("admin.seo.validation.missingH1", {
+        defaultValue: "Brakuje H1 w treści - dodaj główny nagłówek.",
+      });
+    } else if (h.kind === "multiple_h1") {
+      text = t("admin.seo.validation.multipleH1", {
+        defaultValue: "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden.",
+        count: h.count ?? 2,
+      });
+    } else if (h.kind === "skipped_level") {
+      text = t("admin.seo.validation.skippedLevel", {
+        defaultValue: "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4.",
+        from: h.from,
+        to: h.to,
+      });
+    } else if (h.kind === "empty_heading") {
+      text = t("admin.seo.validation.emptyHeading", {
+        defaultValue: "Pusty nagłówek w treści - usuń lub uzupełnij.",
+      });
+    }
+    all.push({
+      key: `h-${h.lang}-${h.kind}`,
+      severity: h.severity,
+      text: `${LANG_LABEL[h.lang]} - ${t("admin.seo.validation.headingLabel", { defaultValue: "Struktura nagłówków" })}: ${text}`,
+    });
+  }
+
+  if (all.length === 0) {
     return (
       <div
         role="status"
@@ -27,7 +92,7 @@ export function SeoValidationSummary({ issues }: { issues: SeoIssue[] }) {
       </div>
     );
   }
-  const hasError = issues.some((i) => i.severity === "error");
+  const hasError = all.some((i) => i.severity === "error");
   return (
     <div
       role={hasError ? "alert" : "status"}
@@ -43,39 +108,19 @@ export function SeoValidationSummary({ issues }: { issues: SeoIssue[] }) {
         <span>
           {hasError
             ? t("admin.seo.validation.errorHeading", {
-                defaultValue: "Zapis zablokowany - przekroczono twardy limit znaków.",
+                defaultValue: "Zapis zablokowany - przekroczono twardy limit.",
               })
             : t("admin.seo.validation.warnHeading", {
-                defaultValue: "Google utnie te snippety w wynikach wyszukiwania.",
+                defaultValue: "Ostrzeżenia SEO - warto poprawić przed publikacją.",
               })}
         </span>
       </div>
       <ul className="space-y-0.5 pl-5 list-disc">
-        {issues.map((issue) => {
-          const fieldLabel =
-            issue.kind === "title"
-              ? t("admin.seo.titleLabel", { defaultValue: "Tytuł SEO" })
-              : t("admin.seo.descriptionLabel", { defaultValue: "Opis meta (description)" });
-          return (
-            <li key={`${issue.lang}-${issue.kind}-${issue.severity}`}>
-              <span className="tabular-nums">
-                {LANG_LABEL[issue.lang]} - {fieldLabel}:{" "}
-                {issue.severity === "error"
-                  ? t("admin.seo.validation.errorLine", {
-                      defaultValue: "{{chars}} / {{limit}} znaków (twardy limit)",
-                      chars: issue.chars,
-                      limit: issue.charLimit,
-                    })
-                  : t("admin.seo.validation.warnLine", {
-                      defaultValue: "{{chars}} znaków, {{px}}px / {{pxLimit}}px budżetu Google",
-                      chars: issue.chars,
-                      px: issue.px,
-                      pxLimit: issue.pxLimit,
-                    })}
-              </span>
-            </li>
-          );
-        })}
+        {all.map((row) => (
+          <li key={row.key}>
+            <span className="tabular-nums">{row.text}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );

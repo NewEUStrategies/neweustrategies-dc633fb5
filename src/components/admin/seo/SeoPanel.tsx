@@ -24,6 +24,7 @@ import { applyTitleSuffix, resolveSocialImage, type SeoFieldsRow } from "@/lib/s
 import { SITE_NAME } from "@/lib/seo/meta";
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { validateSeoPanel, type SeoIssue } from "@/lib/seo/validation";
+import { validateHeadings, type HeadingIssue } from "@/lib/seo/headingValidation";
 import {
   DEFAULT_SEO_SETTINGS,
   effectiveTitleSuffix,
@@ -59,6 +60,10 @@ interface SeoPanelProps {
   coverImageUrl: string | null;
   /** Kicker printed on the generated OG card (e.g. section name). */
   ogKicker?: string | null;
+  /** Body HTML per language for the heading-structure validator. */
+  contentHtml?: { pl: string | null; en: string | null };
+  /** Block tree (jsonb) - if set, wins over `contentHtml` for heading scanning. */
+  contentBlocks?: unknown;
   /** Emits the current validation snapshot so save handlers can preflight. */
   onIssuesChange?: (issues: SeoIssue[]) => void;
 }
@@ -88,6 +93,15 @@ export function SeoPanel(props: SeoPanelProps) {
       }),
     [value, fallbackTitlePl, fallbackTitleEn, fallbackDescPl, fallbackDescEn, slug],
   );
+
+  const headingIssues = useMemo<HeadingIssue[]>(() => {
+    const blocks = props.contentBlocks;
+    const html = props.contentHtml;
+    return [
+      ...validateHeadings("pl", { html: html?.pl ?? null, blocks }),
+      ...validateHeadings("en", { html: html?.en ?? null, blocks }),
+    ];
+  }, [props.contentBlocks, props.contentHtml]);
 
   const issuesKey = useMemo(
     () => issues.map((i) => `${i.lang}:${i.kind}:${i.severity}:${i.chars}:${i.px}`).join("|"),
@@ -217,7 +231,7 @@ export function SeoPanel(props: SeoPanelProps) {
         </span>
       </div>
 
-      <SeoValidationSummary issues={issues} />
+      <SeoValidationSummary issues={issues} headingIssues={headingIssues} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v === "en" ? "en" : "pl")}>
         <TabsList className="grid w-full max-w-[200px] grid-cols-2">
