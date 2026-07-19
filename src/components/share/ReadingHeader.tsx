@@ -149,8 +149,10 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
         </div>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <ThemeToggle className="h-8 w-8 grid place-items-center" />
+          <NotificationsBell panelWidth={320} />
+          <ChatBell panelWidth={340} />
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (
