@@ -81,9 +81,9 @@ function nullifyEmpty(value: string): string | null {
 }
 
 function AdminTrackerPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const tt = (k: string, opts?: Record<string, unknown>) => t(`adminTracker.${k}`, opts);
   const qc = useQueryClient();
 
   const itemsQ = useQuery({
