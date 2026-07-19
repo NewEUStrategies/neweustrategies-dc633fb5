@@ -39,7 +39,7 @@ export function UnreadBadge({
   return (
     <span
       className={cn(
-        "absolute -top-0.5 -right-0.5 inline-flex items-center justify-center rounded-full",
+        "inline-flex items-center justify-center rounded-full",
         "bg-primary text-primary-foreground font-bold leading-none",
         "ring-2 ring-background shadow-md",
         "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
