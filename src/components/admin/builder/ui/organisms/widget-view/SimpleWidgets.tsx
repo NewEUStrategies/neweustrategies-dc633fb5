@@ -425,7 +425,7 @@ export function renderSimpleWidget(
       const liveResults = getStr(c, "liveResults") !== "off";
       const limit = getNum(c, "limit", 8);
       const height = getNum(c, "height", 40);
-      const radius = getNum(c, "radius", 8);
+      const radius = getNum(c, "radius", 6);
       const fontSize = getNum(c, "fontSize", 14);
       return (
         <SearchButtonWidget

@@ -617,7 +617,7 @@ function SearchPage() {
         </header>
 
         <form onSubmit={submit} className="relative z-40 mb-2" role="search">
-          <div className="relative flex h-[46px] w-full items-center gap-2 rounded-[5px] border border-border bg-background pr-3 shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
+          <div className="relative flex h-[46px] w-full items-center gap-2 rounded-[6px] border border-border bg-background pr-3 shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
             <input
               value={draft}
               onChange={(e) => {
@@ -629,7 +629,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="h-full w-full min-w-0 flex-1 !border-0 !bg-transparent !pl-5 text-sm text-foreground !outline-none placeholder:text-muted-foreground focus:!outline-none !ring-0 !shadow-none rounded-[5px]"
+              className="h-full w-full min-w-0 flex-1 !border-0 !bg-transparent !pl-5 text-sm text-foreground !outline-none placeholder:text-muted-foreground focus:!outline-none !ring-0 !shadow-none rounded-[6px]"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
