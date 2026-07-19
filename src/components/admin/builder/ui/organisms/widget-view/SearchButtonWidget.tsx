@@ -140,8 +140,7 @@ export function SearchButtonWidget({
   }, [items]);
 
   const showEmpty = hasQuery && !loading && searched && flat.length === 0;
-  const showRecent = focused && !hasQuery && recent.length > 0;
-  const showPopover = (focused && hasQuery) || showRecent;
+  const showPopover = focused && hasQuery;
   const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
 
   const openFocus = () => {
