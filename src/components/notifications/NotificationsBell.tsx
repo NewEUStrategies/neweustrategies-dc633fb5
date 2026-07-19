@@ -142,17 +142,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           aria-expanded={open}
         >
           <LucideIcons.Bell className="h-4 w-4" aria-hidden />
-          {unread > 0 && (
-            <span
-              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
-              aria-label={t("notifications.unread", {
-                count: unread,
-                defaultValue: `${unread} nieprzeczytanych`,
-              })}
-            >
-              {unread > 99 ? "99+" : unread}
-            </span>
-          )}
+          <UnreadBadge count={unread} className="absolute -top-0.5 -right-0.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent
