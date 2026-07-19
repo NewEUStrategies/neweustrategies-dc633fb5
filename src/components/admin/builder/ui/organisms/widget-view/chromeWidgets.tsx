@@ -41,7 +41,15 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       type="button"
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
-      onClick={switchLang}
+      onClick={(e) => {
+        // eslint-disable-next-line no-console
+        console.log("React onClick fired", e);
+        switchLang();
+      }}
+      onPointerDown={() => {
+        // eslint-disable-next-line no-console
+        console.log("React onPointerDown fired");
+      }}
       className="lang-switch"
     >
       <span
