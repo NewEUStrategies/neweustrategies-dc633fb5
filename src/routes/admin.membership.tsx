@@ -422,7 +422,10 @@ function GrantsSection({
   lang: "pl" | "en";
   tierOptions: MembershipTierRow[];
 }) {
+  const { t } = useTranslation();
+  const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const qc = useQueryClient();
+
   const grantsQ = useQuery({
     queryKey: ["admin", "membership-grants"],
     queryFn: fetchMembershipGrants,
