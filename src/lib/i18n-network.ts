@@ -190,8 +190,33 @@ export const networkPl = {
         withdrawn: "Wycofane",
       },
     },
+    recommendations: {
+      heading: "Rekomendacje",
+      writeCta: "Napisz rekomendację",
+      dialogTitle: "Rekomendacja: {{name}}",
+      dialogDescription:
+        "Twoja rekomendacja pojawi się na profilu po akceptacji przez odbiorcę.",
+      relationshipLabel: "Jak znasz tę osobę? (np. Współpracownik w projekcie X)",
+      bodyPlaceholder: "Opisz konkretnie, co wyróżnia tę osobę zawodowo...",
+      minChars: "Minimum {{count}} znaków",
+      submit: "Wyślij",
+      cancel: "Anuluj",
+      publish: "Opublikuj",
+      hide: "Ukryj",
+      remove: "Usuń",
+      empty: "Brak publicznych rekomendacji. Bądź pierwszą osobą, która napisze rekomendację.",
+      pendingHeading_one: "Nowa rekomendacja do zatwierdzenia ({{count}})",
+      pendingHeading_few: "Nowe rekomendacje do zatwierdzenia ({{count}})",
+      pendingHeading_many: "Nowych rekomendacji do zatwierdzenia ({{count}})",
+      pendingHeading_other: "Nowych rekomendacji do zatwierdzenia ({{count}})",
+      toastSent: "Rekomendacja wysłana - czeka na akceptację odbiorcy",
+      toastPublished: "Opublikowano",
+      toastHidden: "Ukryto",
+      toastDeleted: "Usunięto",
+    },
   },
 };
+
 
 
 export const networkEn = {
