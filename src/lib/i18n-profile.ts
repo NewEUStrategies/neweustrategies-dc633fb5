@@ -542,6 +542,7 @@ const en: typeof pl = {
         confirmPassword: "Repeat your new password to avoid typos.",
         update: "Saves your new password and signs out other sessions.",
         signOut: "Signs you out on this device.",
+        signOutOthers: "Signs out all your other sessions on other devices.",
       },
       mfa: {
         title: "Two-factor authentication (TOTP)",
