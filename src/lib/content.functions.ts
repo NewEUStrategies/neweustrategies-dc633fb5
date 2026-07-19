@@ -1090,10 +1090,15 @@ const CategoryCore = z.object({
     .optional(),
   logo_url: z
     .string()
-    .url("logo_url must be a valid URL")
     .nullable()
     .optional()
-    .or(z.literal("")),
+    .transform((v) => {
+      if (v === undefined || v === null || v.trim() === "") return null;
+      return v.trim();
+    })
+    .refine((v) => v === null || z.string().url().safeParse(v).success, {
+      message: "logo_url must be a valid URL",
+    }),
   // Wymiar fasetowy (categories.kind) i hierarchia (region → państwo).
   kind: z
     .enum(["category", "pub_type", "region", "topic", "project", "series", "organization"])
