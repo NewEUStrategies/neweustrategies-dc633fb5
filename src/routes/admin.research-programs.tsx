@@ -841,7 +841,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 
   const addProject = async () => {
     if (!draft.name_pl.trim() || !draft.name_en.trim()) {
-      toast.error(lang === "pl" ? "Nazwa PL/EN wymagana." : "PL/EN name required.");
+      toast.error(tp("projects.nameRequired"));
       return;
     }
     const { error } = await supabase.from("research_program_projects").insert({
