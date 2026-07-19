@@ -1160,6 +1160,8 @@ function EditPost() {
                         ogKicker={
                           allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
                         }
+                        contentHtml={{ pl: form.content_pl, en: form.content_en }}
+                        contentBlocks={form.blocks_data}
                         onIssuesChange={setSeoIssues}
                       />
                     )}
