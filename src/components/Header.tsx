@@ -91,10 +91,8 @@ function HeaderInner() {
 
   if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
 
-  const openLabel = isPl ? "Otwórz menu" : "Open menu";
-  const closeLabel = isPl ? "Zamknij menu" : "Close menu";
-  const openA11y = t("nav.open", { defaultValue: openLabel });
-  const closeA11y = t("nav.close", { defaultValue: closeLabel });
+  const openA11y = t("common.openMenu");
+  const closeA11y = t("common.closeMenu");
 
   return (
     <>
@@ -125,7 +123,7 @@ function HeaderInner() {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          aria-label={isPl ? "Otwórz wyszukiwarkę" : "Open search"}
+          aria-label={t("common.openSearch")}
           className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
         >
           <Search className="w-5 h-5" aria-hidden />
@@ -190,7 +188,7 @@ function HeaderInner() {
             >
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
                 <span className="text-sm font-bold tracking-wider uppercase text-muted-foreground">
-                  {isPl ? "Menu" : "Menu"}
+                  {t("common.menu")}
                 </span>
                 <button
                   type="button"
@@ -214,7 +212,7 @@ function HeaderInner() {
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
         mode="fullscreen"
-        heading={isPl ? "Szukaj" : "Search"}
+        heading={t("common.search")}
         liveResults
         limit={8}
         lang={isPl ? "pl" : "en"}

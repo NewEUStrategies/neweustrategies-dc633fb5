@@ -41,7 +41,7 @@ function markDismissed() {
 
 export function NewsletterPopup() {
   const { data: s } = useNewsletterSettings();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const loc = useLocation();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -173,7 +173,7 @@ export function NewsletterPopup() {
       >
         <button
           type="button"
-          aria-label={isPl ? "Zamknij" : "Close"}
+          aria-label={t("common.close")}
           onClick={close}
           className="absolute top-3 right-3 z-20 h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
           style={{ color: s.popup_text_color || "#ffffff" }}

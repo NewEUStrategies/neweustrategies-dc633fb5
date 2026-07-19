@@ -188,7 +188,7 @@ const BTN_GHOST = cn(
 );
 
 export function ConsentBanner() {
-  const { i18n } = useTranslation();
+  const { i18n, t: tr } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const banner = useCookieBannerConfig();
@@ -482,12 +482,12 @@ export function ConsentBanner() {
                     {t.policyLabel}
                   </span>
                 )}{" "}
-                {isPl ? "oraz" : "and"}{" "}
+                {tr("common.and")}{" "}
                 <a
                   href={dataProcessingHref}
                   className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
                 >
-                  {isPl ? "Zasady przetwarzania danych" : "Data Processing Terms"}
+                  {tr("common.dataProcessingTerms")}
                 </a>
                 .
               </p>
@@ -531,7 +531,7 @@ export function ConsentBanner() {
                         <p className={TX.heading}>{categoryName(cat)}</p>
                         {locked && (
                           <span className="text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]">
-                            {isPl ? "Wymagane" : "Required"}
+                            {tr("common.required")}
                           </span>
                         )}
                         <span
@@ -583,16 +583,16 @@ export function ConsentBanner() {
                         <thead>
                           <tr className="text-[color:var(--cb-fg,var(--muted-foreground))]/80 border-b border-[color:var(--cb-border,var(--border))]">
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Nazwa" : "Name"}
+                              {tr("common.name")}
                             </th>
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Podmiot" : "Party"}
+                              {tr("common.party")}
                             </th>
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Cel" : "Purpose"}
+                              {tr("common.purpose")}
                             </th>
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Wygasa" : "Expires"}
+                              {tr("common.expires")}
                             </th>
                           </tr>
                         </thead>

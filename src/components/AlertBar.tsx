@@ -81,7 +81,7 @@ const AUTO_ICON: Record<AlertStyle, AlertIconName> = {
 const STORAGE_KEY = "alert-bar-dismissed-v1";
 
 export function AlertBar() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const cfg = useSiteSetting<AlertBarCfg>("theme_options", DEFAULTS);
   const bar = cfg.header?.alert_bar ?? DEFAULTS.header.alert_bar;
   const [dismissed, setDismissed] = useState(false);
@@ -127,7 +127,7 @@ export function AlertBar() {
     <div
       className={`w-full text-xs ${styleCls}`}
       role="region"
-      aria-label={isPl ? "Pasek alertu" : "Alert bar"}
+      aria-label={t("common.alertBar")}
     >
       <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-2 flex items-center gap-3">
         {hasLink && !cta ? (
@@ -161,7 +161,7 @@ export function AlertBar() {
                 /* ignore */
               }
             }}
-            aria-label={isPl ? "Zamknij pasek alertu" : "Dismiss alert bar"}
+            aria-label={t("common.dismissAlertBar")}
             className="shrink-0 p-1 rounded hover:bg-black/10 transition"
           >
             <Icons.X className="w-3.5 h-3.5" />

@@ -2,7 +2,7 @@
 // once in __root.tsx - callers anywhere in the tree just await
 // confirmDialog()/promptDialog() instead of window.confirm()/window.prompt().
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { currentLang } from "@/lib/i18n/localeRuntime";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +30,7 @@ export function AppDialogHost() {
   const [pending, setPending] = useState<PendingDialog | null>(null);
   const [value, setValue] = useState("");
   const inputId = useId();
-  const isPl = currentLang() === "pl";
+  const { t } = useTranslation();
 
   useEffect(
     () =>
@@ -43,10 +43,10 @@ export function AppDialogHost() {
 
   if (!pending) return null;
   const req = pending.request;
-  const cancelLabel = req.cancelLabel ?? (isPl ? "Anuluj" : "Cancel");
+  const cancelLabel = req.cancelLabel ?? t("common.cancel");
 
   if (req.kind === "confirm") {
-    const confirmLabel = req.confirmLabel ?? (isPl ? "Potwierdź" : "Confirm");
+    const confirmLabel = req.confirmLabel ?? t("common.confirm");
     return (
       <AlertDialog
         open
@@ -79,7 +79,7 @@ export function AppDialogHost() {
     );
   }
 
-  const confirmLabel = req.confirmLabel ?? (isPl ? "Zapisz" : "Save");
+  const confirmLabel = req.confirmLabel ?? t("common.save");
   const submit = (e: FormEvent): void => {
     e.preventDefault();
     pending.resolve(value);
