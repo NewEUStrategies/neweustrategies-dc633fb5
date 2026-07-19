@@ -4421,8 +4421,9 @@ textarea::placeholder {
 
 
 .dark .lov-check::before {
-  background: color-mix(in oklab, var(--primary) 18%, transparent);
+  content: none;
 }
+
 @media (prefers-reduced-motion: reduce) {
   .lov-check__svg,
   .lov-check__svg path,
