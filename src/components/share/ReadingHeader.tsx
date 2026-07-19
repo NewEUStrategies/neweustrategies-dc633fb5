@@ -118,8 +118,8 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
       ].join(" ")}
     >
       <div className="mx-auto max-w-[1400px] px-3 sm:px-5 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
-        {/* Search - same widget as builder header */}
-        <div className="w-[180px] sm:w-[240px] lg:w-[300px]">
+        {/* Search - same widget as builder header, smaller in the condensed reading bar */}
+        <div className="w-[160px] sm:w-[220px] lg:w-[280px]">
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
@@ -127,9 +127,9 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
             liveResults
             limit={8}
             lang={lang}
-            height={32}
+            height={28}
             radius={6}
-            fontSize={13}
+            fontSize={12}
           />
         </div>
 
