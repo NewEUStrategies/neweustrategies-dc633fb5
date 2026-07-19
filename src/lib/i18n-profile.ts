@@ -174,6 +174,7 @@ const pl = {
         confirmPassword: "Powtórz nowe hasło, żeby uniknąć literówki.",
         update: "Zapisuje nowe hasło i wylogowuje pozostałe sesje.",
         signOut: "Wylogowuje Cię na tym urządzeniu.",
+        signOutOthers: "Wylogowuje wszystkie pozostałe sesje na innych urządzeniach.",
       },
       mfa: {
         title: "Uwierzytelnianie dwuskładnikowe (TOTP)",
