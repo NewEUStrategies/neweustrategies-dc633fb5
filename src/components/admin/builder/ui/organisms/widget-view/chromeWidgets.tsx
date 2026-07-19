@@ -53,7 +53,6 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       className="lang-switch"
     >
-      <span className="lang-switch__label" data-active={current === "pl"}>PL</span>
       <span
         className="lang-switch__container"
         aria-hidden
@@ -67,7 +66,6 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
           </span>
         </span>
       </span>
-      <span className="lang-switch__label" data-active={current === "en"}>EN</span>
     </button>
   );
 }
