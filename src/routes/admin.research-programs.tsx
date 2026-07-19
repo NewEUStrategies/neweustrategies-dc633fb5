@@ -385,7 +385,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Zakres (PL)" : "Scope (PL)"}</Label>
+                <Label>{tp("field.scopePl")}</Label>
                 <Textarea
                   rows={4}
                   value={form.scope_pl ?? ""}
