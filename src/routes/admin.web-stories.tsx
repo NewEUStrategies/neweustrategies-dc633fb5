@@ -10,8 +10,10 @@ import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { Plus, Save, Trash2, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
 import { useAuth } from "@/hooks/useAuth";
+import "@/lib/i18n-admin-misc-routes";
 import {
   newStoryPage,
   safeParsePages,
@@ -28,6 +30,7 @@ type Row = Pick<WebStory, "id" | "slug" | "title_pl" | "title_en" | "status" | "
 };
 
 function Page() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { tenantId } = useAuth();
   const [editing, setEditing] = useState<WebStory | null>(null);
@@ -81,8 +84,8 @@ function Page() {
         .trim()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
-      if (!slug) throw new Error("Slug wymagany");
-      if (!s.pages.length) throw new Error("Dodaj co najmniej jedną stronę");
+      if (!slug) throw new Error(t("adminMiscRoutes.webStories.errSlug"));
+      if (!s.pages.length) throw new Error(t("adminMiscRoutes.webStories.errPages"));
       const payload = {
         slug,
         title_pl: s.title_pl,
@@ -99,7 +102,7 @@ function Page() {
         const { error } = await supabase.from("web_stories").update(payload).eq("id", s.id);
         if (error) throw error;
       } else {
-        if (!tenantId) throw new Error("Brak kontekstu tenanta");
+        if (!tenantId) throw new Error(t("adminMiscRoutes.webStories.errTenant"));
         const { error } = await supabase
           .from("web_stories")
           .insert({ ...payload, tenant_id: tenantId });
@@ -134,7 +137,7 @@ function Page() {
           <h1 className="font-display text-2xl">Web Stories</h1>
           <Button onClick={() => setEditing(newDraft())}>
             <Plus className="w-4 h-4 mr-2" />
-            Nowa historia
+            {t("adminMiscRoutes.webStories.newStory")}
           </Button>
         </div>
 
@@ -151,7 +154,7 @@ function Page() {
               <thead className="text-xs text-muted-foreground border-b border-border">
                 <tr>
                   <th className="text-left p-2 w-12"></th>
-                  <th className="text-left p-2">Tytuł</th>
+                  <th className="text-left p-2">{t("adminMiscRoutes.webStories.colTitle")}</th>
                   <th className="text-left p-2">Slug</th>
                   <th className="text-left p-2">Status</th>
                   <th className="p-2"></th>
@@ -182,12 +185,13 @@ function Page() {
                     <td className="p-2 text-right">
                       <button
                         onClick={() => {
-                          if (confirm("Usunąć historię?")) remove.mutate(r.id);
+                          if (confirm(t("adminMiscRoutes.webStories.confirmRemove")))
+                            remove.mutate(r.id);
                         }}
                         className="text-xs text-destructive hover:underline"
                       >
                         <Trash2 className="w-3 h-3 inline mr-1" />
-                        Usuń
+                        {t("adminMiscRoutes.webStories.remove")}
                       </button>
                     </td>
                   </tr>
@@ -195,7 +199,7 @@ function Page() {
                 {!rows?.length && (
                   <tr>
                     <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                      Brak historii.
+                      {t("adminMiscRoutes.webStories.empty")}
                     </td>
                   </tr>
                 )}
@@ -219,6 +223,7 @@ function Editor({
   onCancel: () => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [d, setD] = useState<WebStory>(s);
   const [activePage, setActivePage] = useState(0);
   const upd = (patch: Partial<WebStory>) => setD({ ...d, ...patch });
@@ -263,13 +268,13 @@ function Editor({
             value={d.status}
             onChange={(e) => upd({ status: e.target.value as WebStoryStatus })}
           >
-            <option value="draft">Szkic</option>
-            <option value="published">Opublikowany</option>
-            <option value="archived">Archiwum</option>
+            <option value="draft">{t("adminMiscRoutes.webStories.statusDraft")}</option>
+            <option value="published">{t("adminMiscRoutes.webStories.statusPublished")}</option>
+            <option value="archived">{t("adminMiscRoutes.webStories.statusArchived")}</option>
           </select>
         </div>
         <FloatingInput
-          label="Okładka (URL)"
+          label={t("adminMiscRoutes.webStories.cover")}
           value={d.cover_url ?? ""}
           onChange={(e) => upd({ cover_url: e.target.value || null })}
         />
@@ -282,12 +287,12 @@ function Editor({
         </TabsList>
         <TabsContent value="pl" className="space-y-3 mt-4">
           <FloatingInput
-            label="Tytuł"
+            label={t("adminMiscRoutes.webStories.title")}
             value={d.title_pl}
             onChange={(e) => upd({ title_pl: e.target.value })}
           />
           <FloatingTextarea
-            label="Opis"
+            label={t("adminMiscRoutes.webStories.description")}
             rows={2}
             value={d.description_pl}
             onChange={(e) => upd({ description_pl: e.target.value })}
@@ -310,10 +315,12 @@ function Editor({
 
       <div className="border-t border-border pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg">Strony historii ({d.pages.length})</h2>
+          <h2 className="font-display text-lg">
+            {t("adminMiscRoutes.webStories.storyPages", { count: d.pages.length })}
+          </h2>
           <Button size="sm" variant="outline" onClick={addPage}>
             <Plus className="w-4 h-4 mr-1" />
-            Dodaj stronę
+            {t("adminMiscRoutes.webStories.addPage")}
           </Button>
         </div>
 
@@ -328,7 +335,7 @@ function Editor({
                   className="flex-1 text-left px-2 py-1 truncate"
                   onClick={() => setActivePage(i)}
                 >
-                  #{i + 1} {p.title_pl || p.title_en || "(brak tytułu)"}
+                  #{i + 1} {p.title_pl || p.title_en || t("adminMiscRoutes.webStories.noTitle")}
                 </button>
                 <button
                   aria-label="Up"
@@ -360,7 +367,7 @@ function Editor({
             <div className="space-y-3 border border-border rounded-lg p-4">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <Label>Tło</Label>
+                  <Label>{t("adminMiscRoutes.webStories.background")}</Label>
                   <select
                     className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                     value={cur.background}
@@ -368,13 +375,13 @@ function Editor({
                       updPage(activePage, { background: e.target.value as StoryPage["background"] })
                     }
                   >
-                    <option value="image">Obraz</option>
-                    <option value="video">Wideo</option>
-                    <option value="color">Kolor</option>
+                    <option value="image">{t("adminMiscRoutes.webStories.bgImage")}</option>
+                    <option value="video">{t("adminMiscRoutes.webStories.bgVideo")}</option>
+                    <option value="color">{t("adminMiscRoutes.webStories.bgColor")}</option>
                   </select>
                 </div>
                 <div>
-                  <Label>Pozycja tekstu</Label>
+                  <Label>{t("adminMiscRoutes.webStories.textPosition")}</Label>
                   <select
                     className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                     value={cur.text_position}
@@ -384,13 +391,13 @@ function Editor({
                       })
                     }
                   >
-                    <option value="top">Góra</option>
-                    <option value="center">Środek</option>
-                    <option value="bottom">Dół</option>
+                    <option value="top">{t("adminMiscRoutes.webStories.posTop")}</option>
+                    <option value="center">{t("adminMiscRoutes.webStories.posCenter")}</option>
+                    <option value="bottom">{t("adminMiscRoutes.webStories.posBottom")}</option>
                   </select>
                 </div>
                 <div>
-                  <Label>Wyrównanie</Label>
+                  <Label>{t("adminMiscRoutes.webStories.align")}</Label>
                   <select
                     className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                     value={cur.text_align}
@@ -398,16 +405,16 @@ function Editor({
                       updPage(activePage, { text_align: e.target.value as StoryPage["text_align"] })
                     }
                   >
-                    <option value="left">Lewo</option>
-                    <option value="center">Środek</option>
-                    <option value="right">Prawo</option>
+                    <option value="left">{t("adminMiscRoutes.webStories.alignLeft")}</option>
+                    <option value="center">{t("adminMiscRoutes.webStories.alignCenter")}</option>
+                    <option value="right">{t("adminMiscRoutes.webStories.alignRight")}</option>
                   </select>
                 </div>
               </div>
 
               {cur.background === "color" ? (
                 <div>
-                  <Label>Kolor tła</Label>
+                  <Label>{t("adminMiscRoutes.webStories.bgColorLabel")}</Label>
                   <AdminColorPicker
                     value={cur.color}
                     onChange={(v) => updPage(activePage, { color: v ?? "#000000" })}
@@ -418,13 +425,17 @@ function Editor({
               ) : (
                 <>
                   <FloatingInput
-                    label={`URL ${cur.background === "video" ? "wideo" : "obrazu"}`}
+                    label={
+                      cur.background === "video"
+                        ? t("adminMiscRoutes.webStories.mediaUrlVideo")
+                        : t("adminMiscRoutes.webStories.mediaUrlImage")
+                    }
                     value={cur.media_url}
                     onChange={(e) => updPage(activePage, { media_url: e.target.value })}
                   />
                   {cur.background === "video" && (
                     <FloatingInput
-                      label="Poster (opcjonalny)"
+                      label={t("adminMiscRoutes.webStories.poster")}
                       value={cur.poster_url}
                       onChange={(e) => updPage(activePage, { poster_url: e.target.value })}
                     />
@@ -434,23 +445,23 @@ function Editor({
 
               <div className="grid grid-cols-2 gap-3">
                 <FloatingInput
-                  label="Tytuł PL"
+                  label={t("adminMiscRoutes.webStories.titlePl")}
                   value={cur.title_pl}
                   onChange={(e) => updPage(activePage, { title_pl: e.target.value })}
                 />
                 <FloatingInput
-                  label="Tytuł EN"
+                  label={t("adminMiscRoutes.webStories.titleEn")}
                   value={cur.title_en}
                   onChange={(e) => updPage(activePage, { title_en: e.target.value })}
                 />
                 <FloatingTextarea
-                  label="Podpis PL"
+                  label={t("adminMiscRoutes.webStories.captionPl")}
                   rows={2}
                   value={cur.caption_pl}
                   onChange={(e) => updPage(activePage, { caption_pl: e.target.value })}
                 />
                 <FloatingTextarea
-                  label="Podpis EN"
+                  label={t("adminMiscRoutes.webStories.captionEn")}
                   rows={2}
                   value={cur.caption_en}
                   onChange={(e) => updPage(activePage, { caption_en: e.target.value })}
@@ -469,14 +480,14 @@ function Editor({
                   onChange={(e) => updPage(activePage, { cta_label_en: e.target.value })}
                 />
                 <FloatingInput
-                  label="Link CTA"
+                  label={t("adminMiscRoutes.webStories.ctaLink")}
                   value={cur.cta_href}
                   onChange={(e) => updPage(activePage, { cta_href: e.target.value })}
                 />
               </div>
 
               <div className="w-40">
-                <Label>Czas wyświetlania (s)</Label>
+                <Label>{t("adminMiscRoutes.webStories.duration")}</Label>
                 <Input
                   type="number"
                   min={2}
@@ -497,10 +508,10 @@ function Editor({
       <div className="flex gap-2 pt-2 border-t border-border">
         <Button onClick={() => onSave(d)} disabled={saving}>
           <Save className="w-4 h-4 mr-2" />
-          {saving ? "…" : "Zapisz"}
+          {saving ? "…" : t("common.save")}
         </Button>
         <Button variant="outline" onClick={onCancel}>
-          Anuluj
+          {t("common.cancel")}
         </Button>
       </div>
     </section>

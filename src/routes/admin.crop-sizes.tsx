@@ -4,7 +4,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import "@/lib/i18n-admin-crop-sizes";
 import { adminToast } from "@/lib/adminToasts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +44,7 @@ const DEFAULT_DRAFT: CropSizeDraft = {
 };
 
 function CropSizesAdmin() {
+  const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
   const { data: sizes = [] } = useQuery({
@@ -58,7 +61,14 @@ function CropSizesAdmin() {
     setRegenStatus("...");
     try {
       const r = await regen$({ data: { limit: 100 } });
-      setRegenStatus(`Media: ${r.media} | rozmiary: ${r.sizes} | OK: ${r.ok} | błędy: ${r.failed}`);
+      setRegenStatus(
+        t("adminCropSizes.regenStatus", {
+          media: r.media,
+          sizes: r.sizes,
+          ok: r.ok,
+          failed: r.failed,
+        }),
+      );
       toast.success(adminToast.prewarmDone());
     } catch (e) {
       setRegenStatus(null);
@@ -94,7 +104,11 @@ function CropSizesAdmin() {
 
   const remove = async (id: string) => {
     if (
-      !(await confirmDialog({ title: "Usunąć preset?", destructive: true, confirmLabel: "Usuń" }))
+      !(await confirmDialog({
+        title: t("adminCropSizes.removeConfirmTitle"),
+        destructive: true,
+        confirmLabel: t("adminCropSizes.removeConfirmLabel"),
+      }))
     )
       return;
     await deleteCropSize(id);
@@ -104,26 +118,25 @@ function CropSizesAdmin() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-2xl">Custom crop sizes</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Globalne presety kadrów obrazków (ratio + rozmiar w px). Generują wariantowe URL-e przez
-          Supabase Storage image transforms.
-        </p>
+        <h1 className="font-display text-2xl">{t("adminCropSizes.pageTitle")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("adminCropSizes.intro")}</p>
       </header>
 
       <section className="rounded-md border p-4 space-y-3">
-        <h2 className="font-medium">{draft.id ? "Edycja" : "Nowy preset"}</h2>
+        <h2 className="font-medium">
+          {draft.id ? t("adminCropSizes.sectionEdit") : t("adminCropSizes.sectionNew")}
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
-            <Label>Nazwa</Label>
+            <Label>{t("adminCropSizes.name")}</Label>
             <Input
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="np. card-4-3"
+              placeholder={t("adminCropSizes.namePlaceholder")}
             />
           </div>
           <div>
-            <Label>Ratio W</Label>
+            <Label>{t("adminCropSizes.ratioW")}</Label>
             <Input
               type="number"
               min={1}
@@ -134,7 +147,7 @@ function CropSizesAdmin() {
             />
           </div>
           <div>
-            <Label>Ratio H</Label>
+            <Label>{t("adminCropSizes.ratioH")}</Label>
             <Input
               type="number"
               min={1}
@@ -145,7 +158,7 @@ function CropSizesAdmin() {
             />
           </div>
           <div>
-            <Label>Width (px)</Label>
+            <Label>{t("adminCropSizes.width")}</Label>
             <Input
               type="number"
               min={16}
@@ -157,7 +170,7 @@ function CropSizesAdmin() {
             />
           </div>
           <div>
-            <Label>Height (px)</Label>
+            <Label>{t("adminCropSizes.height")}</Label>
             <Input
               type="number"
               min={16}
@@ -169,7 +182,7 @@ function CropSizesAdmin() {
             />
           </div>
           <div>
-            <Label>Kolejność</Label>
+            <Label>{t("adminCropSizes.order")}</Label>
             <Input
               type="number"
               value={draft.position}
@@ -178,10 +191,10 @@ function CropSizesAdmin() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={save}>Zapisz</Button>
+          <Button onClick={save}>{t("common.save")}</Button>
           {draft.id && (
             <Button variant="outline" onClick={() => setDraft(DEFAULT_DRAFT)}>
-              Anuluj
+              {t("common.cancel")}
             </Button>
           )}
         </div>
@@ -189,11 +202,11 @@ function CropSizesAdmin() {
 
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="font-medium">Presety ({sizes.length})</h2>
+          <h2 className="font-medium">{t("adminCropSizes.presets", { count: sizes.length })}</h2>
           <div className="flex items-center gap-3">
             {regenStatus && <span className="text-xs text-muted-foreground">{regenStatus}</span>}
             <Button size="sm" variant="secondary" onClick={regenerate}>
-              Regeneruj miniatury
+              {t("adminCropSizes.regenerate")}
             </Button>
           </div>
         </div>
@@ -208,16 +221,16 @@ function CropSizesAdmin() {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => edit(s)}>
-                  Edytuj
+                  {t("adminCropSizes.edit")}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => remove(s.id)}>
-                  Usuń
+                  {t("adminCropSizes.remove")}
                 </Button>
               </div>
             </li>
           ))}
           {sizes.length === 0 && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">Brak presetów.</li>
+            <li className="px-4 py-3 text-sm text-muted-foreground">{t("adminCropSizes.empty")}</li>
           )}
         </ul>
       </section>
