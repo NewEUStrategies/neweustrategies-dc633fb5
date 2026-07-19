@@ -29,6 +29,7 @@ import {
 } from "@/lib/network/useRecommendations";
 import { formatDate } from "@/lib/i18n/format";
 import { toast } from "sonner";
+import "@/lib/i18n-network";
 
 interface Props {
   recipientId: string;
@@ -42,8 +43,8 @@ export function RecommendationsSection({
   recipientId,
   recipientName,
 }: Props): React.ReactElement | null {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t, i18n } = useTranslation();
+  const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
   const { user } = useAuth();
   const isOwner = user?.id === recipientId;
   const listQ = useRecommendations(recipientId);
@@ -51,11 +52,9 @@ export function RecommendationsSection({
   const visible = rows.filter((r) => r.status === "visible");
   const pending = isOwner ? rows.filter((r) => r.status === "pending") : [];
 
-  // Zapraszamy do napisania rekomendacji tylko, gdy oglądający jest
-  // zalogowanym kontaktem (nie właścicielem, nie anon, nie „pending").
   const statusesQ = useConnectionStatuses(user && !isOwner ? [recipientId] : []);
   const isConnected =
-    !!user && !isOwner && (statusesQ.data?.get(recipientId)?.status === "connected");
+    !!user && !isOwner && statusesQ.data?.get(recipientId)?.status === "connected";
 
   if (!visible.length && !pending.length && !isConnected) return null;
 
@@ -65,7 +64,7 @@ export function RecommendationsSection({
         <div className="flex items-center gap-2">
           <Quote className="h-5 w-5 text-brand" aria-hidden />
           <h2 className="font-display text-xl lg:text-2xl">
-            {isPl ? "Rekomendacje" : "Recommendations"}
+            {t("network.recommendations.heading")}
           </h2>
           {visible.length > 0 && (
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
@@ -81,28 +80,22 @@ export function RecommendationsSection({
       {pending.length > 0 && (
         <div className="mb-6 rounded-xl border border-amber-300/50 bg-amber-50/40 p-4 dark:border-amber-500/30 dark:bg-amber-950/20">
           <div className="mb-3 text-sm font-medium">
-            {isPl
-              ? `Nowe rekomendacje do zatwierdzenia (${pending.length})`
-              : `New recommendations awaiting your approval (${pending.length})`}
+            {t("network.recommendations.pendingHeading", { count: pending.length })}
           </div>
           <ul className="space-y-3">
             {pending.map((r) => (
-              <PendingRow key={r.id} rec={r} recipientId={recipientId} isPl={isPl} />
+              <PendingRow key={r.id} rec={r} recipientId={recipientId} />
             ))}
           </ul>
         </div>
       )}
 
       {visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {isPl
-            ? "Brak publicznych rekomendacji. Bądź pierwszą osobą, która napisze rekomendację."
-            : "No public recommendations yet. Be the first to write one."}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("network.recommendations.empty")}</p>
       ) : (
         <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {visible.map((r) => (
-            <RecommendationCard key={r.id} rec={r} isPl={isPl} />
+            <RecommendationCard key={r.id} rec={r} lang={lang} />
           ))}
         </ul>
       )}
@@ -112,10 +105,10 @@ export function RecommendationsSection({
 
 function RecommendationCard({
   rec,
-  isPl,
+  lang,
 }: {
   rec: Recommendation;
-  isPl: boolean;
+  lang: "pl" | "en";
 }): React.ReactElement {
   const created = new Date(rec.created_at);
   const initials = rec.author_name
@@ -156,7 +149,7 @@ function RecommendationCard({
           </div>
           <div className="text-xs text-muted-foreground">
             {rec.relationship ? <span>{rec.relationship} · </span> : null}
-            {formatDate(created, isPl ? "pl" : "en", { year: "numeric", month: "long" })}
+            {formatDate(created, lang, { year: "numeric", month: "long" })}
           </div>
         </div>
       </div>
@@ -170,12 +163,11 @@ function RecommendationCard({
 function PendingRow({
   rec,
   recipientId,
-  isPl,
 }: {
   rec: Recommendation;
   recipientId: string;
-  isPl: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation();
   const respond = useRespondRecommendation();
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border bg-background/60 p-3 sm:flex-row sm:items-start">
@@ -193,7 +185,7 @@ function PendingRow({
             respond.mutate(
               { id: rec.id, action: "approve", recipientId },
               {
-                onSuccess: () => toast.success(isPl ? "Opublikowano" : "Published"),
+                onSuccess: () => toast.success(t("network.recommendations.toastPublished")),
                 onError: (e) => toast.error(e.message),
               },
             )
@@ -201,7 +193,7 @@ function PendingRow({
           disabled={respond.isPending}
         >
           <Check className="mr-1 h-4 w-4" />
-          {isPl ? "Opublikuj" : "Publish"}
+          {t("network.recommendations.publish")}
         </Button>
         <Button
           size="sm"
@@ -210,7 +202,7 @@ function PendingRow({
             respond.mutate(
               { id: rec.id, action: "hide", recipientId },
               {
-                onSuccess: () => toast.success(isPl ? "Ukryto" : "Hidden"),
+                onSuccess: () => toast.success(t("network.recommendations.toastHidden")),
                 onError: (e) => toast.error(e.message),
               },
             )
@@ -218,7 +210,7 @@ function PendingRow({
           disabled={respond.isPending}
         >
           <EyeOff className="mr-1 h-4 w-4" />
-          {isPl ? "Ukryj" : "Hide"}
+          {t("network.recommendations.hide")}
         </Button>
         <Button
           size="sm"
@@ -227,7 +219,7 @@ function PendingRow({
             respond.mutate(
               { id: rec.id, action: "delete", recipientId },
               {
-                onSuccess: () => toast.success(isPl ? "Usunięto" : "Deleted"),
+                onSuccess: () => toast.success(t("network.recommendations.toastDeleted")),
                 onError: (e) => toast.error(e.message),
               },
             )
@@ -235,7 +227,7 @@ function PendingRow({
           disabled={respond.isPending}
         >
           <Trash2 className="mr-1 h-4 w-4" />
-          {isPl ? "Usuń" : "Delete"}
+          {t("network.recommendations.remove")}
         </Button>
       </div>
     </li>
@@ -249,8 +241,7 @@ function WriteRecommendationDialog({
   recipientId: string;
   recipientName: string;
 }): React.ReactElement {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [relationship, setRelationship] = useState("");
   const [body, setBody] = useState("");
@@ -265,11 +256,7 @@ function WriteRecommendationDialog({
       { body: body.trim(), relationship: relationship.trim() },
       {
         onSuccess: () => {
-          toast.success(
-            isPl
-              ? "Rekomendacja wysłana - czeka na akceptację odbiorcy"
-              : "Recommendation sent - awaiting the recipient's approval",
-          );
+          toast.success(t("network.recommendations.toastSent"));
           setOpen(false);
           setBody("");
           setRelationship("");
@@ -284,28 +271,22 @@ function WriteRecommendationDialog({
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
           <Quote className="mr-1 h-4 w-4" />
-          {isPl ? "Napisz rekomendację" : "Write a recommendation"}
+          {t("network.recommendations.writeCta")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {isPl ? `Rekomendacja: ${recipientName}` : `Recommendation for ${recipientName}`}
+            {t("network.recommendations.dialogTitle", { name: recipientName })}
           </DialogTitle>
           <DialogDescription>
-            {isPl
-              ? "Twoja rekomendacja pojawi się na profilu po akceptacji przez odbiorcę."
-              : "Your recommendation will appear on the profile after the recipient approves it."}
+            {t("network.recommendations.dialogDescription")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <FloatingInput
             id="rec-rel"
-            label={
-              isPl
-                ? "Jak znasz tę osobę? (np. Współpracownik w projekcie X)"
-                : "How do you know this person? (e.g. Colleague on project X)"
-            }
+            label={t("network.recommendations.relationshipLabel")}
             value={relationship}
             onChange={(e) => setRelationship(e.target.value)}
             maxLength={120}
@@ -316,19 +297,11 @@ function WriteRecommendationDialog({
               onChange={(e) => setBody(e.target.value)}
               rows={6}
               maxLength={MAX_LEN}
-              placeholder={
-                isPl
-                  ? "Opisz konkretnie, co wyróżnia tę osobę zawodowo..."
-                  : "Describe concretely what stands out about this person professionally..."
-              }
+              placeholder={t("network.recommendations.bodyPlaceholder")}
               className="resize-none"
             />
             <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-              <span>
-                {isPl
-                  ? `Minimum ${MIN_LEN} znaków`
-                  : `Minimum ${MIN_LEN} characters`}
-              </span>
+              <span>{t("network.recommendations.minChars", { count: MIN_LEN })}</span>
               <span>
                 {bodyLen}/{MAX_LEN}
               </span>
@@ -337,11 +310,11 @@ function WriteRecommendationDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={write.isPending}>
-            {isPl ? "Anuluj" : "Cancel"}
+            {t("network.recommendations.cancel")}
           </Button>
           <Button onClick={submit} disabled={!canSubmit || write.isPending}>
             {write.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-            {isPl ? "Wyślij" : "Send"}
+            {t("network.recommendations.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
