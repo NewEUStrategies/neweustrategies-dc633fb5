@@ -366,7 +366,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Teza (PL)" : "Tagline (PL)"}</Label>
+                <Label>{tp("field.taglinePl")}</Label>
                 <Textarea
                   rows={2}
                   value={form.tagline_pl ?? ""}
