@@ -5,6 +5,8 @@
  * Supports uploading new files directly from the user's local disk.
  */
 import { useCallback, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-team-media";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +48,7 @@ export function MediaPickerDialog({
   accept?: "image" | "audio" | "all";
   title?: string;
 }) {
+  const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -67,7 +70,7 @@ export function MediaPickerDialog({
       const list = Array.from(files);
       if (!list.length) return;
       if (!user) {
-        toast.error("Musisz być zalogowany");
+        toast.error(t("adminTeamMedia.mediaPicker.errNotLoggedIn"));
         return;
       }
       setUploading(true);
@@ -75,11 +78,11 @@ export function MediaPickerDialog({
       try {
         for (const file of list) {
           if (accept === "image" && !file.type.startsWith("image/")) {
-            toast.error(`Pominięto ${file.name} - to nie jest obraz`);
+            toast.error(t("adminTeamMedia.mediaPicker.errSkippedImage", { name: file.name }));
             continue;
           }
           if (accept === "audio" && !file.type.startsWith("audio/")) {
-            toast.error(`Pominięto ${file.name} - to nie jest plik audio`);
+            toast.error(t("adminTeamMedia.mediaPicker.errSkippedAudio", { name: file.name }));
             continue;
           }
           const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -102,7 +105,11 @@ export function MediaPickerDialog({
           });
           lastUrl = urlData.publicUrl;
         }
-        toast.success(list.length > 1 ? `Wgrano ${list.length} plików` : "Wgrano plik");
+        toast.success(
+          list.length > 1
+            ? t("adminTeamMedia.mediaPicker.uploadedMany", { count: list.length })
+            : t("adminTeamMedia.mediaPicker.uploadedOne"),
+        );
         await qc.invalidateQueries({ queryKey: ["media-picker", tenantId, accept] });
         if (lastUrl) setPickedUrl(lastUrl);
       } catch (err) {
@@ -112,7 +119,7 @@ export function MediaPickerDialog({
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [accept, qc, registerUpload, tenantId, user],
+    [accept, qc, registerUpload, tenantId, user, t],
   );
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -175,7 +182,7 @@ export function MediaPickerDialog({
     try {
       await updateMeta({ data: { mediaId: picked.id, altText: altDraft.trim() } });
       await qc.invalidateQueries({ queryKey: ["media-picker"] });
-      toast.success("Zapisano alt");
+      toast.success(t("adminTeamMedia.mediaPicker.savedAlt"));
     } catch (err) {
       toastError(err, "save");
     } finally {
@@ -187,7 +194,7 @@ export function MediaPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{title ?? "Biblioteka mediów"}</DialogTitle>
+          <DialogTitle>{title ?? t("adminTeamMedia.mediaPicker.title")}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-wrap gap-2 items-center">
@@ -203,7 +210,7 @@ export function MediaPickerDialog({
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Szukaj plików..."
+              placeholder={t("adminTeamMedia.mediaPicker.searchPlaceholder")}
               className="pl-8 h-8 text-xs placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/40"
             />
           </div>
@@ -212,7 +219,7 @@ export function MediaPickerDialog({
             onChange={(e) => setFolder(e.target.value)}
             className="h-8 text-xs bg-background border border-border rounded px-2"
           >
-            <option value="all">Wszystkie foldery</option>
+            <option value="all">{t("adminTeamMedia.mediaPicker.allFolders")}</option>
             {folders.map((f) => (
               <option key={f} value={f}>
                 {f}
@@ -237,11 +244,13 @@ export function MediaPickerDialog({
           >
             {uploading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Wgrywanie…
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />{" "}
+                {t("adminTeamMedia.mediaPicker.uploading")}
               </>
             ) : (
               <>
-                <Upload className="w-3.5 h-3.5 mr-1" /> Wgraj z dysku
+                <Upload className="w-3.5 h-3.5 mr-1" />{" "}
+                {t("adminTeamMedia.mediaPicker.uploadFromDisk")}
               </>
             )}
           </Button>
@@ -260,14 +269,14 @@ export function MediaPickerDialog({
         >
           {dragOver && (
             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-medium text-primary bg-background/70 backdrop-blur-sm rounded-md">
-              <Upload className="w-4 h-4 mr-2" /> Upuść pliki, aby wgrać
+              <Upload className="w-4 h-4 mr-2" /> {t("adminTeamMedia.mediaPicker.dropToUpload")}
             </div>
           )}
           {!filtered.length ? (
             <div className="text-center text-muted-foreground text-sm py-10">
               {uploading
-                ? "Trwa wgrywanie…"
-                : "Brak pasujących plików. Przeciągnij pliki tutaj lub użyj przycisku „Wgraj z dysku”."}
+                ? t("adminTeamMedia.mediaPicker.uploadingInProgress")
+                : t("adminTeamMedia.mediaPicker.noMatch")}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -323,7 +332,7 @@ export function MediaPickerDialog({
         {picked && pickedIsImage && (
           <div className="border-t border-border pt-3 space-y-2">
             <label htmlFor="picker-alt" className="block text-xs text-muted-foreground font-medium">
-              Tekst alternatywny (alt) — dla dostępności i SEO
+              {t("adminTeamMedia.mediaPicker.altLabel")}
             </label>
             <div className="flex items-start gap-2">
               <textarea
@@ -331,7 +340,7 @@ export function MediaPickerDialog({
                 value={altDraft}
                 onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
                 rows={2}
-                placeholder="Opisz obraz w 1-2 zdaniach"
+                placeholder={t("adminTeamMedia.mediaPicker.altPlaceholder")}
                 className="flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
               />
               <Button
@@ -341,7 +350,9 @@ export function MediaPickerDialog({
                 disabled={!altDirty || savingAlt}
                 onClick={saveAlt}
               >
-                {savingAlt ? "Zapisywanie…" : "Zapisz alt"}
+                {savingAlt
+                  ? t("adminTeamMedia.mediaPicker.savingAlt")
+                  : t("adminTeamMedia.mediaPicker.saveAltBtn")}
               </Button>
             </div>
             <div className="text-[10px] text-muted-foreground">{altDraft.length}/500</div>
@@ -350,7 +361,7 @@ export function MediaPickerDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            <X className="w-3.5 h-3.5 mr-1" /> Anuluj
+            <X className="w-3.5 h-3.5 mr-1" /> {t("common.cancel")}
           </Button>
           <Button
             disabled={!pickedUrl}
@@ -361,7 +372,7 @@ export function MediaPickerDialog({
               }
             }}
           >
-            <Check className="w-3.5 h-3.5 mr-1" /> Wstaw
+            <Check className="w-3.5 h-3.5 mr-1" /> {t("adminTeamMedia.mediaPicker.insertBtn")}
           </Button>
         </DialogFooter>
       </DialogContent>
