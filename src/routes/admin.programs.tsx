@@ -17,7 +17,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -31,6 +30,7 @@ import { Plus, Trash2, Pencil, Users, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
 import "@/lib/i18n-experts";
+import "@/lib/i18n-admin-programs";
 
 export const Route = createFileRoute("/admin/programs")({
   component: AdminPrograms,
@@ -79,6 +79,7 @@ const EMPTY_PROGRAM: Omit<ProgramRow, "id"> = {
 function AdminPrograms() {
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const tp = (k: string, opts?: Record<string, unknown>) => t(`adminPrograms.${k}`, opts);
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
 
@@ -115,13 +116,11 @@ function AdminPrograms() {
 
   const saveProgram = async () => {
     if (!/^[a-z0-9-]{2,80}$/.test(form.slug)) {
-      toast.error(
-        lang === "pl" ? "Slug: małe litery, cyfry i myślniki." : "Slug: lowercase, digits, dashes.",
-      );
+      toast.error(tp("validation.slug"));
       return;
     }
     if (!form.name_pl.trim() || !form.name_en.trim()) {
-      toast.error(lang === "pl" ? "Nazwa PL i EN są wymagane." : "PL and EN name required.");
+      toast.error(tp("validation.names"));
       return;
     }
     const payload = { ...form, tenant_id: tenantId };
@@ -140,11 +139,8 @@ function AdminPrograms() {
 
   const removeProgram = async (p: ProgramRow) => {
     const ok = await confirmDialog({
-      title: lang === "pl" ? "Usunąć program?" : "Delete program?",
-      description:
-        lang === "pl"
-          ? `„${p.name_pl}” i przypisania członków zostaną usunięte.`
-          : `"${p.name_en}" and member assignments will be removed.`,
+      title: tp("remove.title"),
+      description: tp("remove.description", { name: lang === "en" ? p.name_en : p.name_pl }),
     });
     if (!ok) return;
     const { error } = await supabase.from("programs").delete().eq("id", p.id);
@@ -157,9 +153,9 @@ function AdminPrograms() {
   };
 
   const KIND_LABEL: Record<ProgramKind, string> = {
-    program: lang === "pl" ? "Program" : "Program",
-    project: lang === "pl" ? "Projekt" : "Project",
-    department: lang === "pl" ? "Departament" : "Department",
+    program: tp("kind.program"),
+    project: tp("kind.project"),
+    department: tp("kind.department"),
   };
 
   return (
@@ -168,17 +164,13 @@ function AdminPrograms() {
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold">
             <Briefcase className="h-5 w-5" />
-            {t("admin.nav.programs", { defaultValue: lang === "pl" ? "Programy" : "Programs" })}
+            {t("admin.nav.programs", { defaultValue: tp("title") })}
           </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {lang === "pl"
-              ? "Programy, projekty i departamenty oraz przypisani eksperci."
-              : "Programs, projects and departments, and their assigned experts."}
-          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{tp("subtitle")}</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-1 h-4 w-4" />
-          {lang === "pl" ? "Nowy program" : "New program"}
+          {tp("newProgram")}
         </Button>
       </div>
 
@@ -190,9 +182,7 @@ function AdminPrograms() {
         </div>
       ) : (programsQ.data ?? []).length === 0 ? (
         <p className="rounded-md border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          {lang === "pl"
-            ? "Brak programów. Dodaj pierwszy."
-            : "No programs yet. Add the first one."}
+          {tp("empty")}
         </p>
       ) : (
         <ul className="grid gap-2">
@@ -208,16 +198,14 @@ function AdminPrograms() {
                     {KIND_LABEL[p.kind]}
                   </span>
                   {!p.is_active && (
-                    <span className="text-[10px] text-muted-foreground">
-                      ({lang === "pl" ? "nieaktywny" : "inactive"})
-                    </span>
+                    <span className="text-[10px] text-muted-foreground">({tp("inactive")})</span>
                   )}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">/{p.slug}</p>
               </div>
               <Button variant="outline" size="sm" onClick={() => setMembersFor(p)}>
                 <Users className="mr-1 h-4 w-4" />
-                {lang === "pl" ? "Członkowie" : "Members"}
+                {tp("members")}
               </Button>
               <Button variant="ghost" size="icon" onClick={() => openEdit(p)} aria-label="edit">
                 <Pencil className="h-4 w-4" />
@@ -239,15 +227,7 @@ function AdminPrograms() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editing
-                ? lang === "pl"
-                  ? "Edytuj program"
-                  : "Edit program"
-                : lang === "pl"
-                  ? "Nowy program"
-                  : "New program"}
-            </DialogTitle>
+            <DialogTitle>{editing ? tp("dialog.editTitle") : tp("dialog.newTitle")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
@@ -261,7 +241,7 @@ function AdminPrograms() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label htmlFor="p-name-pl">{lang === "pl" ? "Nazwa (PL)" : "Name (PL)"}</Label>
+                <Label htmlFor="p-name-pl">{tp("dialog.namePl")}</Label>
                 <Input
                   id="p-name-pl"
                   value={form.name_pl}
@@ -269,7 +249,7 @@ function AdminPrograms() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="p-name-en">{lang === "pl" ? "Nazwa (EN)" : "Name (EN)"}</Label>
+                <Label htmlFor="p-name-en">{tp("dialog.nameEn")}</Label>
                 <Input
                   id="p-name-en"
                   value={form.name_en}
@@ -279,7 +259,7 @@ function AdminPrograms() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Rodzaj" : "Kind"}</Label>
+                <Label>{tp("dialog.kindLabel")}</Label>
                 <Select
                   value={form.kind}
                   onValueChange={(v) => setForm({ ...form, kind: v as ProgramKind })}
@@ -295,7 +275,7 @@ function AdminPrograms() {
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="p-order">{lang === "pl" ? "Kolejność" : "Sort order"}</Label>
+                <Label htmlFor="p-order">{tp("dialog.order")}</Label>
                 <Input
                   id="p-order"
                   type="number"
@@ -305,7 +285,7 @@ function AdminPrograms() {
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="p-desc-pl">{lang === "pl" ? "Opis (PL)" : "Description (PL)"}</Label>
+              <Label htmlFor="p-desc-pl">{tp("dialog.descPl")}</Label>
               <Textarea
                 id="p-desc-pl"
                 rows={2}
@@ -314,7 +294,7 @@ function AdminPrograms() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="p-desc-en">{lang === "pl" ? "Opis (EN)" : "Description (EN)"}</Label>
+              <Label htmlFor="p-desc-en">{tp("dialog.descEn")}</Label>
               <Textarea
                 id="p-desc-en"
                 rows={2}
@@ -327,14 +307,14 @@ function AdminPrograms() {
                 checked={form.is_active}
                 onCheckedChange={(v) => setForm({ ...form, is_active: v })}
               />
-              {lang === "pl" ? "Aktywny" : "Active"}
+              {tp("dialog.active")}
             </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              {lang === "pl" ? "Anuluj" : "Cancel"}
+              {tp("dialog.cancel")}
             </Button>
-            <Button onClick={() => void saveProgram()}>{lang === "pl" ? "Zapisz" : "Save"}</Button>
+            <Button onClick={() => void saveProgram()}>{tp("dialog.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -359,6 +339,8 @@ function ProgramMembersDialog({
   lang: "pl" | "en";
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
   const [addUserId, setAddUserId] = useState<string>("");
   const [rolePl, setRolePl] = useState("");
@@ -469,16 +451,13 @@ function ProgramMembersDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {lang === "en" ? program.name_en : program.name_pl} —{" "}
-            {lang === "pl" ? "członkowie" : "members"}
+            {lang === "en" ? program.name_en : program.name_pl} - {tp("membersDialog.title")}
           </DialogTitle>
         </DialogHeader>
 
         <ul className="grid gap-2">
           {(membersQ.data ?? []).length === 0 && (
-            <li className="text-sm text-muted-foreground">
-              {lang === "pl" ? "Brak przypisanych ekspertów." : "No experts assigned."}
-            </li>
+            <li className="text-sm text-muted-foreground">{tp("membersDialog.empty")}</li>
           )}
           {(membersQ.data ?? []).map((m) => (
             <li
@@ -493,7 +472,7 @@ function ProgramMembersDialog({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{m.display_name ?? m.user_id}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {[m.role_pl, m.role_en].filter(Boolean).join(" / ") || "—"}
+                  {[m.role_pl, m.role_en].filter(Boolean).join(" / ") || "-"}
                 </p>
               </div>
               <Button
@@ -509,12 +488,10 @@ function ProgramMembersDialog({
         </ul>
 
         <div className="mt-2 grid gap-2 rounded-md border border-dashed border-border p-3">
-          <Label className="text-sm font-medium">
-            {lang === "pl" ? "Dodaj eksperta" : "Add expert"}
-          </Label>
+          <Label className="text-sm font-medium">{tp("membersDialog.addExpert")}</Label>
           <Select value={addUserId} onValueChange={setAddUserId}>
             <SelectTrigger>
-              <SelectValue placeholder={lang === "pl" ? "Wybierz użytkownika" : "Select a user"} />
+              <SelectValue placeholder={tp("membersDialog.selectUser")} />
             </SelectTrigger>
             <SelectContent>
               {candidates.map((u) => (
@@ -526,25 +503,25 @@ function ProgramMembersDialog({
           </Select>
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
-              placeholder={lang === "pl" ? "Funkcja (PL)" : "Role (PL)"}
+              placeholder={tp("membersDialog.rolePl")}
               value={rolePl}
               onChange={(e) => setRolePl(e.target.value)}
             />
             <Input
-              placeholder={lang === "pl" ? "Funkcja (EN)" : "Role (EN)"}
+              placeholder={tp("membersDialog.roleEn")}
               value={roleEn}
               onChange={(e) => setRoleEn(e.target.value)}
             />
           </div>
           <Button size="sm" disabled={!addUserId} onClick={() => void addMember()}>
             <Plus className="mr-1 h-4 w-4" />
-            {lang === "pl" ? "Przypisz" : "Assign"}
+            {tp("membersDialog.assign")}
           </Button>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            {lang === "pl" ? "Zamknij" : "Close"}
+            {tp("membersDialog.close")}
           </Button>
         </DialogFooter>
       </DialogContent>
