@@ -506,6 +506,11 @@ const en: typeof pl = {
       tooShort: "Password must be at least 8 characters",
       wrongCurrent: "Your current password is incorrect.",
       signOut: "Sign out",
+      sessions: "Sessions",
+      lastSignIn: "Last sign-in",
+      signOutOthers: "Sign out other sessions",
+      signedOutOthers: "Signed out other sessions.",
+      exportFailed: "Could not prepare the export. Please try again.",
       email: {
         title: "Email address",
         subtitle: "Changing it requires confirmation via a link sent to the new address.",
