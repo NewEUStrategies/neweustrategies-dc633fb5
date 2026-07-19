@@ -14,12 +14,15 @@ import { toast } from "sonner";
 import defaultLoginLight from "@/assets/login-illustration-light.jpg";
 import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 import { adminToast } from "@/lib/adminToasts";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-login-settings";
 
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
 });
 
 function LoginSettingsPage() {
+  const { t } = useTranslation();
   const remote = useAuthSettings();
   const save = useSaveAuthSettings();
   const [s, setS] = useState<AuthSettings>(remote);
@@ -36,47 +39,47 @@ function LoginSettingsPage() {
       await save.mutateAsync(s);
       toast.success(adminToast.saved());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Błąd");
+      toast.error(e instanceof Error ? e.message : t("adminLoginSettings.errGeneric"));
     }
   };
 
   return (
     <div className="w-full space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold">Logowanie i rejestracja</h1>
+        <h1 className="font-display text-2xl font-bold">{t("adminLoginSettings.pageTitle")}</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setS(AUTH_DEFAULTS)}>
-            Resetuj
+            {t("adminLoginSettings.reset")}
           </Button>
           <Button onClick={submit} disabled={save.isPending}>
-            {save.isPending ? "Zapisywanie…" : "Zapisz zmiany"}
+            {save.isPending ? t("adminLoginSettings.saving") : t("adminLoginSettings.saveChanges")}
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="page" className="w-full">
         <TabsList>
-          <TabsTrigger value="page">Strona /login</TabsTrigger>
+          <TabsTrigger value="page">{t("adminLoginSettings.tabPage")}</TabsTrigger>
           <TabsTrigger value="popup">Popup Sign-In</TabsTrigger>
-          <TabsTrigger value="signup">Rejestracja</TabsTrigger>
+          <TabsTrigger value="signup">{t("adminLoginSettings.tabSignup")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="popup" className="space-y-4 mt-4">
           <Card
-            title="Włącz popup logowania"
-            description="Modal logowania w headerze. Wyłączony = przekierowanie do /login."
+            title={t("adminLoginSettings.popupEnableTitle")}
+            description={t("adminLoginSettings.popupEnableDesc")}
           >
             <Switch checked={s.popup_enabled} onCheckedChange={(v) => update("popup_enabled", v)} />
           </Card>
           <BiField
-            label="Nagłówek"
+            label={t("adminLoginSettings.heading")}
             valPl={s.popup_heading_pl}
             valEn={s.popup_heading_en}
             onPl={(v) => update("popup_heading_pl", v)}
             onEn={(v) => update("popup_heading_en", v)}
           />
           <BiField
-            label="Opis"
+            label={t("adminLoginSettings.description")}
             textarea
             valPl={s.popup_description_pl}
             valEn={s.popup_description_en}
@@ -85,21 +88,21 @@ function LoginSettingsPage() {
           />
           <div className="grid md:grid-cols-2 gap-4">
             <ImageField
-              label="Logo formularza (motyw jasny)"
+              label={t("adminLoginSettings.formLogoLight")}
               icon="light"
               previewBg="light"
               value={s.form_logo_url}
               onChange={(v) => update("form_logo_url", v)}
-              hint="PNG / SVG z przezroczystym tłem. Zalecana wysokość 48–80 px, szerokość do 240 px, waga < 100 KB."
+              hint={t("adminLoginSettings.formLogoLightHint")}
               aspect="240 / 80"
             />
             <ImageField
-              label="Logo formularza (motyw ciemny)"
+              label={t("adminLoginSettings.formLogoDark")}
               icon="dark"
               previewBg="dark"
               value={s.form_logo_url_dark}
               onChange={(v) => update("form_logo_url_dark", v)}
-              hint="Opcjonalnie - jasna wersja logo dla ciemnego motywu. Fallback: logo motywu jasnego."
+              hint={t("adminLoginSettings.formLogoDarkHint")}
               aspect="240 / 80"
             />
           </div>
@@ -107,14 +110,14 @@ function LoginSettingsPage() {
 
         <TabsContent value="page" className="space-y-6 mt-4">
           <BiField
-            label="Tytuł hero"
+            label={t("adminLoginSettings.heroTitle")}
             valPl={s.hero_title_pl}
             valEn={s.hero_title_en}
             onPl={(v) => update("hero_title_pl", v)}
             onEn={(v) => update("hero_title_en", v)}
           />
           <BiField
-            label="Podtytuł hero"
+            label={t("adminLoginSettings.heroSubtitle")}
             textarea
             valPl={s.hero_subtitle_pl}
             valEn={s.hero_subtitle_en}
@@ -124,89 +127,89 @@ function LoginSettingsPage() {
 
           <section className="rounded-lg border border-border bg-card/50 p-5 space-y-4">
             <header className="space-y-1">
-              <h2 className="font-semibold text-base">Ilustracje hero – Logowanie</h2>
+              <h2 className="font-semibold text-base">{t("adminLoginSettings.heroLoginTitle")}</h2>
               <p className="text-xs text-muted-foreground">
-                Obraz po prawej stronie formularza logowania. Dwie wersje – dla jasnego i ciemnego
-                motywu – zapewniają kontrast i czytelność. <br />
-                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do
-                karty hero), minimum 1200 × 900 px. Format WebP/JPG, waga do 400 KB. Focal point
-                centralnie lub po prawej.
+                {t("adminLoginSettings.heroLoginDesc1")} <br />
+                {t("adminLoginSettings.recDims")}
+                <strong>1600 × 1200 px</strong>
+                {t("adminLoginSettings.heroLoginDesc2")}
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
               <ImageField
-                label="Motyw jasny"
+                label={t("adminLoginSettings.themeLight")}
                 icon="light"
                 value={s.hero_image_url_light}
                 onChange={(v) => update("hero_image_url_light", v)}
                 aspect="4 / 3"
                 previewBg="light"
                 fallbackUrl={defaultLoginLight}
-                hint="1600×1200 px (4:3) · jasne tło, ciemne akcenty. Domyślnie: wbudowana ilustracja."
+                hint={t("adminLoginSettings.hintLoginLight")}
               />
               <ImageField
-                label="Motyw ciemny"
+                label={t("adminLoginSettings.themeDark")}
                 icon="dark"
                 value={s.hero_image_url_dark}
                 onChange={(v) => update("hero_image_url_dark", v)}
                 aspect="4 / 3"
                 previewBg="dark"
                 fallbackUrl={defaultLoginDark}
-                hint="1600×1200 px (4:3) · ciemne tło, jasne akcenty. Domyślnie: wbudowana ilustracja."
+                hint={t("adminLoginSettings.hintLoginDark")}
               />
             </div>
           </section>
 
           <section className="rounded-lg border border-border bg-card/50 p-5 space-y-4">
             <header className="space-y-1">
-              <h2 className="font-semibold text-base">Ilustracje – Reset hasła</h2>
+              <h2 className="font-semibold text-base">{t("adminLoginSettings.heroResetTitle")}</h2>
               <p className="text-xs text-muted-foreground">
-                Widoczne po kliknięciu „Zapomniałeś hasła?". Jeśli puste – używana jest ilustracja
-                logowania. <br />
-                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3), format WebP/JPG,
-                waga do 400 KB.
+                {t("adminLoginSettings.heroResetDesc1")} <br />
+                {t("adminLoginSettings.recDims")}
+                <strong>1600 × 1200 px</strong>
+                {t("adminLoginSettings.heroResetDesc2")}
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
               <ImageField
-                label="Motyw jasny"
+                label={t("adminLoginSettings.themeLight")}
                 icon="light"
                 value={s.reset_image_url_light}
                 onChange={(v) => update("reset_image_url_light", v)}
                 aspect="4 / 3"
                 previewBg="light"
-                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
+                hint={t("adminLoginSettings.hintOptFallback")}
               />
               <ImageField
-                label="Motyw ciemny"
+                label={t("adminLoginSettings.themeDark")}
                 icon="dark"
                 value={s.reset_image_url_dark}
                 onChange={(v) => update("reset_image_url_dark", v)}
                 aspect="4 / 3"
                 previewBg="dark"
-                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
+                hint={t("adminLoginSettings.hintOptFallback")}
               />
             </div>
           </section>
 
           <section className="rounded-lg border border-border bg-card/50 p-5 space-y-4">
             <header className="space-y-1">
-              <h2 className="font-semibold text-base">Pełnoekranowe tło</h2>
+              <h2 className="font-semibold text-base">{t("adminLoginSettings.fullscreenTitle")}</h2>
               <p className="text-xs text-muted-foreground">
-                Używane, gdy formularz jest w trybie full-page. Zalecane wymiary:{" "}
-                <strong>1920 × 1080 px</strong> (16:9), format WebP, waga do 500 KB. Preferuj obrazy
-                z niskim kontrastem centralnym, żeby nie konkurowały z formularzem.
+                {t("adminLoginSettings.fullscreenDesc1")}
+                {t("adminLoginSettings.recDims")}
+                <strong>1920 × 1080 px</strong>
+                {t("adminLoginSettings.fullscreenDesc2")}
               </p>
             </header>
             <ImageField
-              label="Tło strony logowania"
+              label={t("adminLoginSettings.loginBgLabel")}
               value={s.login_bg_url}
               onChange={(v) => update("login_bg_url", v)}
               aspect="16 / 9"
-              hint="1920×1080 px · WebP, < 500 KB."
+              hint={t("adminLoginSettings.loginBgHint")}
             />
             <div>
-              <Label>Kolor tła (hex / oklch / var) – fallback bez zdjęcia</Label>
+              <Label>{t("adminLoginSettings.bgColorLabel")}</Label>
               <Input
                 value={s.login_bg_color}
                 onChange={(e) => update("login_bg_color", e.target.value)}
@@ -217,7 +220,7 @@ function LoginSettingsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Link do Polityki prywatności</Label>
+              <Label>{t("adminLoginSettings.privacyLink")}</Label>
               <Input
                 value={s.privacy_url}
                 onChange={(e) => update("privacy_url", e.target.value)}
@@ -225,7 +228,7 @@ function LoginSettingsPage() {
               />
             </div>
             <div>
-              <Label>Link do Regulaminu</Label>
+              <Label>{t("adminLoginSettings.termsLink")}</Label>
               <Input
                 value={s.terms_url}
                 onChange={(e) => update("terms_url", e.target.value)}
@@ -234,8 +237,8 @@ function LoginSettingsPage() {
             </div>
           </div>
           <Card
-            title="Przełącznik języka PL/EN"
-            description="Pokazuje przyciski PL/EN w prawym górnym rogu strony /login."
+            title={t("adminLoginSettings.langSwitchTitle")}
+            description={t("adminLoginSettings.langSwitchDesc")}
           >
             <Switch
               checked={s.show_language_switcher}
@@ -243,7 +246,7 @@ function LoginSettingsPage() {
             />
           </Card>
           <div>
-            <Label>Pozycja formularza</Label>
+            <Label>{t("adminLoginSettings.formPosition")}</Label>
             <select
               className="w-full mt-1 border rounded p-2 bg-background"
               value={s.login_position}
@@ -251,16 +254,15 @@ function LoginSettingsPage() {
                 update("login_position", e.target.value as AuthSettings["login_position"])
               }
             >
-              <option value="left">Lewa</option>
-              <option value="center">Środek</option>
-              <option value="right">Prawa</option>
+              <option value="left">{t("adminLoginSettings.posLeft")}</option>
+              <option value="center">{t("adminLoginSettings.posCenter")}</option>
+              <option value="right">{t("adminLoginSettings.posRight")}</option>
             </select>
             <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-              Lewa / Prawa - kolumna formularza względem ilustracji hero. Środek - ukrywa ilustrację
-              i wyśrodkowuje formularz.
+              {t("adminLoginSettings.formPositionHint")}
             </p>
           </div>
-          <Card title="Pokaż link 'Wróć na stronę główną'" description="">
+          <Card title={t("adminLoginSettings.backHomeTitle")} description="">
             <Switch
               checked={s.show_back_to_home}
               onCheckedChange={(v) => update("show_back_to_home", v)}
@@ -268,27 +270,25 @@ function LoginSettingsPage() {
           </Card>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Niestandardowy URL strony logowania (opcjonalnie)</Label>
+              <Label>{t("adminLoginSettings.customLoginUrl")}</Label>
               <Input
                 value={s.custom_login_url}
                 onChange={(e) => update("custom_login_url", e.target.value)}
                 placeholder="/membership/login"
               />
               <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-                Gdy popup jest wyłączony, przyciski logowania prowadzą tutaj zamiast na /login.
-                Ścieżka wewnętrzna ("/...") lub pełny adres https.
+                {t("adminLoginSettings.customLoginUrlHint")}
               </p>
             </div>
             <div>
-              <Label>Przekierowanie po wylogowaniu</Label>
+              <Label>{t("adminLoginSettings.logoutRedirect")}</Label>
               <Input
                 value={s.logout_redirect_url}
                 onChange={(e) => update("logout_redirect_url", e.target.value)}
                 placeholder="/"
               />
               <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-                Ścieżka wewnętrzna (musi zaczynać się od "/"), na którą trafia użytkownik po
-                wylogowaniu. Domyślnie strona główna.
+                {t("adminLoginSettings.logoutRedirectHint")}
               </p>
             </div>
           </div>
@@ -296,8 +296,8 @@ function LoginSettingsPage() {
 
         <TabsContent value="signup" className="space-y-4 mt-4">
           <Card
-            title="Pozwól na publiczną rejestrację"
-            description="Czytelnicy mogą zakładać konta (rola: user)."
+            title={t("adminLoginSettings.publicSignupTitle")}
+            description={t("adminLoginSettings.publicSignupDesc")}
           >
             <Switch
               checked={s.allow_public_signup}
@@ -305,14 +305,14 @@ function LoginSettingsPage() {
             />
           </Card>
           <BiField
-            label="Etykieta 'Zaloguj'"
+            label={t("adminLoginSettings.signinLabel")}
             valPl={s.signin_label_pl}
             valEn={s.signin_label_en}
             onPl={(v) => update("signin_label_pl", v)}
             onEn={(v) => update("signin_label_en", v)}
           />
           <BiField
-            label="Etykieta 'Zarejestruj'"
+            label={t("adminLoginSettings.signupLabel")}
             valPl={s.signup_label_pl}
             valEn={s.signup_label_en}
             onPl={(v) => update("signup_label_pl", v)}
@@ -321,32 +321,32 @@ function LoginSettingsPage() {
 
           <section className="rounded-lg border border-border bg-card/50 p-5 space-y-4">
             <header className="space-y-1">
-              <h2 className="font-semibold text-base">Ilustracje hero – Rejestracja</h2>
+              <h2 className="font-semibold text-base">{t("adminLoginSettings.heroSignupTitle")}</h2>
               <p className="text-xs text-muted-foreground">
-                Obraz po prawej stronie formularza rejestracji. Jeśli puste – używana jest
-                ilustracja logowania. <br />
-                Zalecane wymiary: <strong>1600 × 1200 px</strong> (landscape 4:3, dopasowane do
-                karty hero), minimum 1200 × 900 px. Format WebP/JPG, waga do 400 KB.
+                {t("adminLoginSettings.heroSignupDesc1")} <br />
+                {t("adminLoginSettings.recDims")}
+                <strong>1600 × 1200 px</strong>
+                {t("adminLoginSettings.heroSignupDesc2")}
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
               <ImageField
-                label="Motyw jasny"
+                label={t("adminLoginSettings.themeLight")}
                 icon="light"
                 value={s.signup_image_url_light}
                 onChange={(v) => update("signup_image_url_light", v)}
                 aspect="4 / 3"
                 previewBg="light"
-                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
+                hint={t("adminLoginSettings.hintOptFallback")}
               />
               <ImageField
-                label="Motyw ciemny"
+                label={t("adminLoginSettings.themeDark")}
                 icon="dark"
                 value={s.signup_image_url_dark}
                 onChange={(v) => update("signup_image_url_dark", v)}
                 aspect="4 / 3"
                 previewBg="dark"
-                hint="1600×1200 px (4:3) · opcjonalnie. Fallback: ilustracja logowania."
+                hint={t("adminLoginSettings.hintOptFallback")}
               />
             </div>
           </section>
@@ -375,6 +375,7 @@ function ImageField({
   icon?: "light" | "dark";
   fallbackUrl?: string;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const bgClass =
     previewBg === "dark"
@@ -399,7 +400,7 @@ function ImageField({
             onClick={() => onChange("")}
             className="text-xs text-muted-foreground hover:text-destructive inline-flex items-center gap-1"
           >
-            <X className="w-3 h-3" /> Wyczyść
+            <X className="w-3 h-3" /> {t("adminLoginSettings.clear")}
           </button>
         )}
       </div>
@@ -416,14 +417,14 @@ function ImageField({
             />
             {isFallback && (
               <span className="absolute top-2 left-2 z-10 rounded-full bg-black/70 text-white text-[10px] px-2 py-0.5 uppercase tracking-wider backdrop-blur">
-                Domyślna
+                {t("adminLoginSettings.defaultBadge")}
               </span>
             )}
           </>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground text-xs">
             <ImageIcon className="w-6 h-6 opacity-60" />
-            <span>Brak obrazu</span>
+            <span>{t("adminLoginSettings.noImage")}</span>
           </div>
         )}
       </div>
@@ -431,11 +432,11 @@ function ImageField({
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="https://…/obraz.jpg"
+          placeholder={t("adminLoginSettings.imgUrlPlaceholder")}
           className="flex-1"
         />
         <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-          <Upload className="w-3.5 h-3.5 mr-1.5" /> Wybierz
+          <Upload className="w-3.5 h-3.5 mr-1.5" /> {t("adminLoginSettings.pick")}
         </Button>
       </div>
       {hint && <p className="text-[11px] text-muted-foreground leading-snug">{hint}</p>}
@@ -447,7 +448,7 @@ function ImageField({
           setOpen(false);
         }}
         accept="image"
-        title={`Wybierz obraz: ${label}`}
+        title={t("adminLoginSettings.pickImage", { label })}
       />
     </div>
   );
