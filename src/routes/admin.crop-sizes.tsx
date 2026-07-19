@@ -43,6 +43,7 @@ const DEFAULT_DRAFT: CropSizeDraft = {
 };
 
 function CropSizesAdmin() {
+  const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
   const { data: sizes = [] } = useQuery({
