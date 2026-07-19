@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -26,9 +27,10 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 
 export function HeroBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const d = block.data;
   return (
-    <Shell label="Sekcja Hero">
+    <Shell label={mb("heroLabel")}>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         placeholder={i18n.field("eyebrow")}
@@ -87,18 +89,18 @@ export function HeroBlock({ block, onChange }: Props) {
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
-          <option value="left">Wyrównaj do lewej</option>
-          <option value="center">Wyśrodkuj</option>
+          <option value="left">{mb("alignLeft")}</option>
+          <option value="center">{mb("alignCenter")}</option>
         </AdminSelect>
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.height ?? "md")}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
         >
-          <option value="sm">Niski</option>
-          <option value="md">Średni</option>
-          <option value="lg">Wysoki</option>
-          <option value="screen">Pełny ekran</option>
+          <option value="sm">{mb("heightSm")}</option>
+          <option value="md">{mb("heightMd")}</option>
+          <option value="lg">{mb("heightLg")}</option>
+          <option value="screen">{mb("heightScreen")}</option>
         </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -111,7 +113,7 @@ export function HeroBlock({ block, onChange }: Props) {
           className="flex-1"
         />
         <span className="tabular-nums w-10 text-right">{Number(d.overlay ?? 40)}%</span>
-        <span>Nakładka</span>
+        <span>{mb("overlay")}</span>
       </label>
     </Shell>
   );
@@ -121,9 +123,10 @@ export function HeroBlock({ block, onChange }: Props) {
 
 export function CtaSectionBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const d = block.data;
   return (
-    <Shell label="Sekcja CTA">
+    <Shell label={mb("ctaLabel")}>
       <input
         className="w-full text-sm font-semibold bg-background border border-border rounded px-2 py-2 h-9"
         placeholder={i18n.field("title")}
@@ -155,10 +158,10 @@ export function CtaSectionBlock({ block, onChange }: Props) {
         value={String(d.variant ?? "primary")}
         onChange={(e) => onChange({ ...block, data: { ...d, variant: e.target.value } })}
       >
-        <option value="primary">Wariant: podstawowy</option>
-        <option value="muted">Wariant: stonowany</option>
-        <option value="gradient">Wariant: gradient</option>
-        <option value="outline">Wariant: kontur</option>
+        <option value="primary">{mb("variantPrimary")}</option>
+        <option value="muted">{mb("variantMuted")}</option>
+        <option value="gradient">{mb("variantGradient")}</option>
+        <option value="outline">{mb("variantOutline")}</option>
       </AdminSelect>
     </Shell>
   );
@@ -175,6 +178,7 @@ interface SlideItem {
 
 export function ImageCarouselBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: SlideItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -193,7 +197,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
   const aspect = String(block.data.aspect ?? "16:9");
 
   return (
-    <Shell label="Karuzela obrazów">
+    <Shell label={mb("carouselLabel")}>
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
@@ -213,12 +217,12 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, autoplay: e.target.checked } })
             }
           />
-          Autoodtwarzanie
+          {mb("autoplay")}
         </label>
       </div>
       {autoplay ? (
         <label className="block text-xs text-muted-foreground">
-          Interwał (ms)
+          {mb("interval")}
           <input
             type="number"
             min={1500}
@@ -250,7 +254,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń slajd"
+                aria-label={mb("removeSlide")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -294,7 +298,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
           onClick={() => update([...items, { url: "", alt: "", caption: "", href: "" }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj slajd
+          <Plus className="w-3.5 h-3.5" /> {mb("addSlide")}
         </button>
       </div>
     </Shell>
@@ -304,18 +308,20 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
 // ===== Contact Form =====
 
 export function ContactFormBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const d = block.data;
   return (
-    <Shell label="Formularz kontaktowy">
+    <Shell label={mb("contactLabel")}>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Tytuł (np. Napisz do nas)"
+        placeholder={mb("contactTitle")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-        placeholder="Krótki opis"
+        placeholder={mb("contactDesc")}
         value={String(d.description ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, description: e.target.value } })}
       />
@@ -326,7 +332,7 @@ export function ContactFormBlock({ block, onChange }: Props) {
             checked={d.showPhone === true}
             onChange={(e) => onChange({ ...block, data: { ...d, showPhone: e.target.checked } })}
           />
-          Pole "Telefon"
+          {mb("fieldPhone")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -334,7 +340,7 @@ export function ContactFormBlock({ block, onChange }: Props) {
             checked={d.showSubject !== false}
             onChange={(e) => onChange({ ...block, data: { ...d, showSubject: e.target.checked } })}
           />
-          Pole "Temat"
+          {mb("fieldSubject")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -344,18 +350,18 @@ export function ContactFormBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...d, requireConsent: e.target.checked } })
             }
           />
-          Wymagaj zgody RODO
+          {mb("requireConsent")}
         </label>
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="Etykieta wysyłki"
+          placeholder={mb("submitLabel")}
           value={String(d.submitLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, submitLabel: e.target.value } })}
         />
       </div>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Komunikat sukcesu"
+        placeholder={mb("successMessage")}
         value={String(d.successMessage ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, successMessage: e.target.value } })}
       />
@@ -366,14 +372,16 @@ export function ContactFormBlock({ block, onChange }: Props) {
 // ===== Map (OSM iframe) =====
 
 export function MapBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const d = block.data;
   const lat = Number(d.lat ?? 52.2297);
   const lng = Number(d.lng ?? 21.0122);
   return (
-    <Shell label="Mapa">
+    <Shell label={mb("mapLabel")}>
       <div className="grid grid-cols-2 gap-2">
         <label className="block text-xs text-muted-foreground">
-          Szerokość geograficzna
+          {mb("latitude")}
           <input
             type="number"
             step="0.0001"
@@ -383,7 +391,7 @@ export function MapBlock({ block, onChange }: Props) {
           />
         </label>
         <label className="block text-xs text-muted-foreground">
-          Długość geograficzna
+          {mb("longitude")}
           <input
             type="number"
             step="0.0001"
@@ -395,7 +403,7 @@ export function MapBlock({ block, onChange }: Props) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block text-xs text-muted-foreground">
-          Powiększenie (1-18)
+          {mb("zoom")}
           <input
             type="number"
             min={1}
@@ -406,7 +414,7 @@ export function MapBlock({ block, onChange }: Props) {
           />
         </label>
         <label className="block text-xs text-muted-foreground">
-          Wysokość (px)
+          {mb("heightPx")}
           <input
             type="number"
             min={160}
@@ -419,7 +427,7 @@ export function MapBlock({ block, onChange }: Props) {
       </div>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Etykieta markera (np. Nasza siedziba)"
+        placeholder={mb("markerLabel")}
         value={String(d.label ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, label: e.target.value } })}
       />
