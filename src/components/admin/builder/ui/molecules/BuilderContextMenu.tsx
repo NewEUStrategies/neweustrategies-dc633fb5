@@ -4,6 +4,8 @@
 // widget / empty area).
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import {
   Copy,
   Trash2,
@@ -67,6 +69,7 @@ interface Props {
 }
 
 export function BuilderContextMenu({ target, actions, onClose }: Props) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -111,14 +114,14 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
 
   const kindLabel =
     target.kind === "section"
-      ? "Sekcja"
+      ? t("builder.contextMenu.kindSection")
       : target.kind === "inner-section"
-        ? "Sekcja wewn."
+        ? t("builder.contextMenu.kindInnerSection")
         : target.kind === "column"
-          ? "Kolumna"
+          ? t("builder.contextMenu.kindColumn")
           : target.kind === "widget"
-            ? "Widget"
-            : "Obszar";
+            ? t("builder.contextMenu.kindWidget")
+            : t("builder.contextMenu.kindArea");
 
   const run = (fn?: () => void) => {
     if (!fn) return;
@@ -179,7 +182,7 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
         <span>{kindLabel}</span>
         <button
           type="button"
-          aria-label="Zamknij"
+          aria-label={t("builder.contextMenu.close")}
           onClick={onClose}
           className="p-0.5 hover:bg-muted rounded"
         >
@@ -191,7 +194,7 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       {actions.openProperties && (
         <Item
           icon={<Settings className="w-3.5 h-3.5" />}
-          label="Właściwości"
+          label={t("builder.contextMenu.properties")}
           onClick={actions.openProperties}
         />
       )}
@@ -200,13 +203,13 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
         <>
           <Item
             icon={<ChevronUp className="w-3.5 h-3.5" />}
-            label="Przenieś w górę"
+            label={t("builder.contextMenu.moveUp")}
             onClick={actions.moveUp}
             disabled={!actions.canMoveUp}
           />
           <Item
             icon={<ChevronDown className="w-3.5 h-3.5" />}
-            label="Przenieś w dół"
+            label={t("builder.contextMenu.moveDown")}
             onClick={actions.moveDown}
             disabled={!actions.canMoveDown}
           />
@@ -217,21 +220,21 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       {actions.addSection && (
         <Item
           icon={<Plus className="w-3.5 h-3.5" />}
-          label="Dodaj sekcję"
+          label={t("builder.contextMenu.addSection")}
           onClick={actions.addSection}
         />
       )}
       {actions.addColumn && (
         <Item
           icon={<Columns2 className="w-3.5 h-3.5" />}
-          label="Dodaj kolumnę"
+          label={t("builder.contextMenu.addColumn")}
           onClick={actions.addColumn}
         />
       )}
       {actions.addInnerSection && (
         <Item
           icon={<Plus className="w-3.5 h-3.5" />}
-          label="Sekcja wewnętrzna"
+          label={t("builder.contextMenu.addInnerSection")}
           onClick={actions.addInnerSection}
         />
       )}
@@ -240,16 +243,20 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       {actions.duplicate && (
         <Item
           icon={<Copy className="w-3.5 h-3.5" />}
-          label="Duplikuj"
+          label={t("builder.contextMenu.duplicate")}
           shortcut="⌘D"
           onClick={actions.duplicate}
         />
       )}
-      {actions.copy && <Item label="Kopiuj" shortcut="⌘C" onClick={actions.copy} />}
-      {actions.cut && <Item label="Wytnij" shortcut="⌘X" onClick={actions.cut} />}
+      {actions.copy && (
+        <Item label={t("builder.contextMenu.copy")} shortcut="⌘C" onClick={actions.copy} />
+      )}
+      {actions.cut && (
+        <Item label={t("builder.contextMenu.cut")} shortcut="⌘X" onClick={actions.cut} />
+      )}
       {actions.paste && (
         <Item
-          label="Wklej"
+          label={t("builder.contextMenu.paste")}
           shortcut="⌘V"
           onClick={actions.paste}
           disabled={!actions.hasClipboard}
@@ -261,7 +268,11 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
           <Sep />
           <Item
             icon={<Eye className="w-3.5 h-3.5" />}
-            label={actions.hiddenOnDevice ? "Pokaż na tym urządzeniu" : "Ukryj na tym urządzeniu"}
+            label={
+              actions.hiddenOnDevice
+                ? t("builder.contextMenu.showOnDevice")
+                : t("builder.contextMenu.hideOnDevice")
+            }
             onClick={actions.toggleHidden}
           />
         </>
@@ -270,7 +281,7 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       {actions.saveAsTemplate && (
         <Item
           icon={<Save className="w-3.5 h-3.5" />}
-          label="Zapisz jako szablon"
+          label={t("builder.contextMenu.saveAsTemplate")}
           onClick={actions.saveAsTemplate}
         />
       )}
@@ -278,14 +289,14 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       {actions.saveAsGlobal && (
         <Item
           icon={<Globe className="w-3.5 h-3.5" />}
-          label="Zapisz jako widget globalny"
+          label={t("builder.contextMenu.saveAsGlobal")}
           onClick={actions.saveAsGlobal}
         />
       )}
       {actions.unlinkGlobal && (
         <Item
           icon={<Link2Off className="w-3.5 h-3.5" />}
-          label="Odłącz od widgetu globalnego"
+          label={t("builder.contextMenu.unlinkGlobal")}
           onClick={actions.unlinkGlobal}
         />
       )}
@@ -295,7 +306,7 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
           <Sep />
           <Item
             icon={<FlaskConical className="w-3.5 h-3.5" />}
-            label="Utwórz test A/B"
+            label={t("builder.contextMenu.startAbTest")}
             onClick={actions.startAbTest}
           />
         </>
@@ -304,21 +315,23 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
         <>
           <Sep />
           <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            Test A/B - wariant {actions.abVariant.toUpperCase()}
+            {t("builder.contextMenu.abVariantHeader", {
+              variant: actions.abVariant.toUpperCase(),
+            })}
           </div>
           <Item
             icon={<FlaskConical className="w-3.5 h-3.5" />}
-            label="Zakończ test - zostaw wariant A"
+            label={t("builder.contextMenu.endAbKeepA")}
             onClick={actions.endAbTestKeepA}
           />
           <Item
             icon={<FlaskConical className="w-3.5 h-3.5" />}
-            label="Zakończ test - zostaw wariant B"
+            label={t("builder.contextMenu.endAbKeepB")}
             onClick={actions.endAbTestKeepB}
           />
           <Item
             icon={<FlaskConical className="w-3.5 h-3.5" />}
-            label="Zakończ test - zostaw oba"
+            label={t("builder.contextMenu.endAbKeepBoth")}
             onClick={actions.endAbTestKeepBoth}
           />
         </>
@@ -329,7 +342,7 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
           <Sep />
           <Item
             icon={<Trash2 className="w-3.5 h-3.5" />}
-            label="Usuń"
+            label={t("builder.contextMenu.remove")}
             shortcut="Del"
             onClick={actions.remove}
             danger

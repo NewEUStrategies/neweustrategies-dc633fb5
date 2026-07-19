@@ -178,11 +178,13 @@ function ExternalUrlEditor({
   value: WidgetLink | undefined;
   onChange: (v: WidgetLink | undefined) => void;
 }) {
+  const { i18n } = useTranslation();
+  const isEn = (i18n.language ?? "").startsWith("en");
   return (
     <PropField label="URL">
       <Input
         value={value?.url ?? ""}
-        placeholder="https://example.com lub /o-nas"
+        placeholder={isEn ? "https://example.com or /about" : "https://example.com lub /o-nas"}
         onChange={(e) => {
           const v = e.target.value;
           if (!v) onChange(undefined);
@@ -320,6 +322,8 @@ function MediaLinkPicker({
   onPick: (url: string, label: string) => void;
   onClear: () => void;
 }) {
+  const { i18n } = useTranslation();
+  const isEn = (i18n.language ?? "").startsWith("en");
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-1.5">
@@ -330,7 +334,7 @@ function MediaLinkPicker({
             type="button"
             onClick={onClear}
             className="text-muted-foreground hover:text-destructive"
-            aria-label="Usuń"
+            aria-label={isEn ? "Remove" : "Usuń"}
           >
             <X className="w-3 h-3" />
           </button>
@@ -344,7 +348,13 @@ function MediaLinkPicker({
         className="w-full h-8 text-xs"
       >
         <ImageIcon className="w-3 h-3 mr-1" />
-        {value?.url ? "Zmień plik" : "Wybierz z Biblioteki mediów"}
+        {value?.url
+          ? isEn
+            ? "Change file"
+            : "Zmień plik"
+          : isEn
+            ? "Choose from Media Library"
+            : "Wybierz z Biblioteki mediów"}
       </Button>
       <MediaPickerDialog
         open={open}
