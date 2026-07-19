@@ -46,7 +46,7 @@ export function AppDialogHost() {
   const cancelLabel = req.cancelLabel ?? t("common.cancel");
 
   if (req.kind === "confirm") {
-    const confirmLabel = req.confirmLabel ?? (isPl ? "Potwierdź" : "Confirm");
+    const confirmLabel = req.confirmLabel ?? t("common.confirm");
     return (
       <AlertDialog
         open
