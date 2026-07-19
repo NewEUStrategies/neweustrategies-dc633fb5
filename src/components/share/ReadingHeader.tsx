@@ -188,8 +188,9 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         }
       `}</style>
       <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
-        {/* Search - same widget as builder header, smaller in the condensed reading bar */}
-        <div className="relative z-50 min-w-0 overflow-visible w-[110px] xs:w-[140px] sm:w-[190px] md:w-[240px] lg:w-[280px]">
+        {/* Search - same widget as builder header, smaller in the condensed reading bar.
+            Hidden on mobile; icons (notifications / messages / profile) take over. */}
+        <div className="hidden sm:block relative z-50 min-w-0 overflow-visible w-[190px] md:w-[240px] lg:w-[280px]">
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
@@ -201,6 +202,28 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             radius={6}
             fontSize={11}
           />
+        </div>
+
+        {/* Mobile-only icon cluster replacing the search widget */}
+        <div className="flex sm:hidden items-center gap-1 shrink-0">
+          <NotificationsBell panelWidth={260} />
+          <ChatBell panelWidth={280} />
+          <Link
+            to={isAuthed ? "/profile" : "/login"}
+            aria-label={t.profile}
+            title={t.profile}
+            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt=""
+                className="h-5 w-5 rounded-full object-cover"
+              />
+            ) : (
+              <User className="w-4 h-4" />
+            )}
+          </Link>
         </div>
 
         {/* Reading: title */}
@@ -220,10 +243,10 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         {/* Right cluster */}
         <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
           <ThemeToggle data-reading-icon className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center" />
-          <div data-reading-icon className="hidden xs:block">
+          <div data-reading-icon className="hidden sm:block">
             <NotificationsBell panelWidth={280} />
           </div>
-          <div data-reading-icon className="hidden xs:block">
+          <div data-reading-icon className="hidden sm:block">
             <ChatBell panelWidth={300} />
           </div>
           {entityId && (
