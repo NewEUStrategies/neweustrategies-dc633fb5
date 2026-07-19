@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
