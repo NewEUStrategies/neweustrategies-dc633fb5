@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export function ImageEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const src = typeof c.src === "string" ? c.src : "";
   const srcDark = typeof c.srcDark === "string" ? c.srcDark : "";
   const altPl = typeof c.alt_pl === "string" ? c.alt_pl : "";
@@ -30,7 +33,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Podgląd
+            {t("builder.imageEditor.preview")}
           </span>
           <div className="inline-flex rounded-md border border-border overflow-hidden">
             <button
@@ -59,7 +62,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
               return (
                 <div className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground">
                   <ImageIcon className="w-5 h-5 opacity-50" />
-                  Brak obrazka
+                  {t("builder.imageEditor.noImage")}
                 </div>
               );
             }
@@ -69,25 +72,22 @@ export function ImageEditor({ c, lang, setContent }: Props) {
       </div>
 
       <ImageSlot
-        label="Obrazek – Light mode"
+        label={t("builder.imageEditor.slotLight")}
         icon={<Sun className="w-3.5 h-3.5" />}
         value={src}
         onChange={(v) => setContent("src", v)}
       />
 
       <ImageSlot
-        label="Obrazek – Dark mode (opcjonalnie)"
+        label={t("builder.imageEditor.slotDark")}
         icon={<Moon className="w-3.5 h-3.5" />}
         value={srcDark}
         onChange={(v) => setContent("srcDark", v)}
-        hint="Jeśli puste – używany jest wariant Light."
+        hint={t("builder.imageEditor.slotDarkHint")}
       />
 
       <div className="pt-2 border-t border-border space-y-2">
-        <PropField
-          label="Szerokość (px)"
-          hint="0 lub puste = pełna szerokość kontenera. Wysokość dopasowuje się automatycznie (zachowane proporcje)."
-        >
+        <PropField label={t("builder.imageEditor.width")} hint={t("builder.imageEditor.widthHint")}>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Input
@@ -122,13 +122,16 @@ export function ImageEditor({ c, lang, setContent }: Props) {
             </div>
           </div>
         </PropField>
-        <PropField label="Maks. szerokość (px)" hint="Opcjonalny limit. 0 = brak limitu.">
+        <PropField
+          label={t("builder.imageEditor.maxWidth")}
+          hint={t("builder.imageEditor.maxWidthHint")}
+        >
           <Input
             type="number"
             min={0}
             step={1}
             value={maxWidthPx || ""}
-            placeholder="brak"
+            placeholder={t("builder.imageEditor.maxWidthPh")}
             onChange={(e) =>
               setContent(
                 "maxWidthPx",
@@ -138,7 +141,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Wyrównanie">
+        <PropField label={t("builder.imageEditor.align")}>
           <div className="inline-flex rounded-md border border-border overflow-hidden">
             {(["left", "center", "right"] as const).map((a) => (
               <button
@@ -147,7 +150,11 @@ export function ImageEditor({ c, lang, setContent }: Props) {
                 onClick={() => setContent("align", a)}
                 className={`px-2 py-1 text-[11px] ${align === a ? "bg-brand text-brand-foreground" : "bg-background hover:bg-muted"}`}
               >
-                {a === "left" ? "Lewo" : a === "center" ? "Środek" : "Prawo"}
+                {a === "left"
+                  ? t("builder.common.left")
+                  : a === "center"
+                    ? t("builder.common.center")
+                    : t("builder.common.right")}
               </button>
             ))}
           </div>
@@ -169,7 +176,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Link (opcjonalnie)">
+        <PropField label={t("builder.imageEditor.link")}>
           <Input
             value={href}
             placeholder="https://..."
@@ -179,7 +186,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
       <div className="text-[10px] text-muted-foreground">
-        Aktywny język edycji: {lang.toUpperCase()}
+        {t("builder.imageEditor.activeLang", { lang: lang.toUpperCase() })}
       </div>
     </div>
   );
