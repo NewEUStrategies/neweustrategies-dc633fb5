@@ -187,6 +187,33 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           <ThemeToggle className="h-8 w-8 grid place-items-center" />
           <NotificationsBell panelWidth={320} />
           <ChatBell panelWidth={340} />
+          {entityId && (
+            <button
+              type="button"
+              aria-pressed={isSaved}
+              aria-label={bookmarkLabel}
+              title={bookmarkLabel}
+              disabled={toggleBookmark.isPending}
+              onClick={() => {
+                if (!isAuthed) {
+                  void navigate({ to: "/login" });
+                  return;
+                }
+                toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
+              }}
+              className={[
+                "h-8 w-8 grid place-items-center rounded-md transition shrink-0",
+                "text-foreground hover:text-brand hover:bg-muted",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+                isSaved ? "text-brand" : "",
+                toggleBookmark.isPending ? "opacity-60 cursor-wait" : "",
+              ].join(" ")}
+            >
+              <Bookmark
+                className={`w-[18px] h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
+              />
+            </button>
+          )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (
