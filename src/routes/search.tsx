@@ -616,8 +616,8 @@ function SearchPage() {
           <p className="text-sm text-muted-foreground max-w-2xl">{t("search.hero_sub")}</p>
         </header>
 
-        <form onSubmit={submit} className="relative z-40 mb-2" role="search">
-          <div className="input-group" style={{ height: "46px" }}>
+        <form onSubmit={submit} className="search-page-form relative z-40 mb-2" role="search">
+          <div className="input-group" style={{ height: "40px" }}>
             <input
               value={draft}
               onChange={(e) => {
@@ -631,9 +631,9 @@ function SearchPage() {
               aria-label={t("search.placeholder")}
               className="input"
               style={{
-                height: "46px",
-                paddingLeft: "1rem",
-                paddingRight: "88px",
+                height: "40px",
+                paddingLeft: "0.9rem",
+                paddingRight: "84px",
                 fontSize: "0.8125rem",
               }}
               autoFocus
@@ -651,18 +651,18 @@ function SearchPage() {
                 type="submit"
                 aria-label={t("search.submit")}
                 title={t("search.submit")}
-                className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                className="flex h-6 w-6 shrink-0 items-center justify-center transition-colors"
               >
-                <SearchIcon className="h-[18px] w-[18px]" aria-hidden />
+                <SearchIcon className="h-[16px] w-[16px]" aria-hidden />
               </button>
-              <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+              <span aria-hidden className="h-5 w-px shrink-0 bg-border/60" />
               <button
                 type="button"
                 aria-label={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
                 title={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
-                className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                className="flex h-6 w-6 shrink-0 items-center justify-center transition-colors"
               >
-                <Mic className="h-[18px] w-[18px]" aria-hidden />
+                <Mic className="h-[16px] w-[16px]" aria-hidden />
               </button>
             </div>
           </div>
@@ -674,6 +674,32 @@ function SearchPage() {
               onPick={(it) => void pickSuggestion(it)}
             />
           )}
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
+                .search-page-form .input-group > .user-label {
+                  color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+                  font-size: 0.8125rem;
+                }
+                .search-page-form button svg {
+                  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+                  transition: color 150ms ease;
+                }
+                .search-page-form button:hover svg { color: var(--foreground); }
+                .search-page-form .input-group > .input:focus ~ .user-label,
+                .search-page-form .input-group > .input:not(:placeholder-shown) ~ .user-label {
+                  top: 50%;
+                  transform: translateY(-50%) scale(0.75);
+                  background: transparent;
+                  padding: 0;
+                  opacity: 0;
+                }
+                .search-page-form .input-group > .input:focus {
+                  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 18%, transparent);
+                }
+              `,
+            }}
+          />
         </form>
 
 
