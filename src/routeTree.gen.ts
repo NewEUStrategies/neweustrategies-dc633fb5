@@ -164,6 +164,7 @@ import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.sett
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
 import { Route as AdminSettingsCookieBannerRouteImport } from './routes/admin.settings.cookie-banner'
 import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
+import { Route as AdminSeoSearchConsoleRouteImport } from './routes/admin.seo.search-console'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
@@ -977,6 +978,11 @@ const AdminSettingsAnalyticsRoute = AdminSettingsAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSeoSearchConsoleRoute = AdminSeoSearchConsoleRouteImport.update({
+  id: '/search-console',
+  path: '/search-console',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -1239,7 +1245,7 @@ export interface FileRoutesByFullPath {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
-  '/admin/seo': typeof AdminSeoRoute
+  '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
@@ -1317,6 +1323,7 @@ export interface FileRoutesByFullPath {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -1426,7 +1433,7 @@ export interface FileRoutesByTo {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
-  '/admin/seo': typeof AdminSeoRoute
+  '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
@@ -1501,6 +1508,7 @@ export interface FileRoutesByTo {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -1615,7 +1623,7 @@ export interface FileRoutesById {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
-  '/admin/seo': typeof AdminSeoRoute
+  '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
@@ -1693,6 +1701,7 @@ export interface FileRoutesById {
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -1886,6 +1895,7 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/seo/search-console'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -2070,6 +2080,7 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/seo/search-console'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -2261,6 +2272,7 @@ export interface FileRouteTypes {
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
+    | '/admin/seo/search-console'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -3458,6 +3470,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsAnalyticsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/seo/search-console': {
+      id: '/admin/seo/search-console'
+      path: '/search-console'
+      fullPath: '/admin/seo/search-console'
+      preLoaderRoute: typeof AdminSeoSearchConsoleRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
     '/admin/posts/new': {
       id: '/admin/posts/new'
       path: '/new'
@@ -3842,6 +3861,18 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
   AdminPostsRouteChildren,
 )
 
+interface AdminSeoRouteChildren {
+  AdminSeoSearchConsoleRoute: typeof AdminSeoSearchConsoleRoute
+}
+
+const AdminSeoRouteChildren: AdminSeoRouteChildren = {
+  AdminSeoSearchConsoleRoute: AdminSeoSearchConsoleRoute,
+}
+
+const AdminSeoRouteWithChildren = AdminSeoRoute._addFileChildren(
+  AdminSeoRouteChildren,
+)
+
 interface AdminSettingsRouteChildren {
   AdminSettingsAnalyticsRoute: typeof AdminSettingsAnalyticsRoute
   AdminSettingsCookieBannerRoute: typeof AdminSettingsCookieBannerRoute
@@ -3937,7 +3968,7 @@ interface AdminRouteChildren {
   AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
   AdminResearchProgramsRoute: typeof AdminResearchProgramsRoute
-  AdminSeoRoute: typeof AdminSeoRoute
+  AdminSeoRoute: typeof AdminSeoRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
@@ -3996,7 +4027,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminResearchProgramsRoute: AdminResearchProgramsRoute,
-  AdminSeoRoute: AdminSeoRoute,
+  AdminSeoRoute: AdminSeoRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
   AdminThemeDesignRoute: AdminThemeDesignRoute,
