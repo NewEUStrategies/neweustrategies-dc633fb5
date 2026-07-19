@@ -231,7 +231,7 @@ export function SeoPanel(props: SeoPanelProps) {
         </span>
       </div>
 
-      <SeoValidationSummary issues={issues} />
+      <SeoValidationSummary issues={issues} headingIssues={headingIssues} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v === "en" ? "en" : "pl")}>
         <TabsList className="grid w-full max-w-[200px] grid-cols-2">
