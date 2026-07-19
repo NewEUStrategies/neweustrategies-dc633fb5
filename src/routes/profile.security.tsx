@@ -79,11 +79,7 @@ function SecurityPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
-      toast.error(
-        isPl
-          ? "Nie udało się przygotować eksportu. Spróbuj ponownie."
-          : "Could not prepare the export. Please try again.",
-      );
+      toast.error(t("profile.security.exportFailed"));
     } finally {
       setExportBusy(false);
     }
