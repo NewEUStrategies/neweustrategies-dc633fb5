@@ -94,14 +94,22 @@ export function renderSimpleWidget(
       const wrapCls = editable
         ? "py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative flex items-center"
         : "";
+      const spacerLabel =
+        variant === "space"
+          ? lang === "pl"
+            ? "Odstęp"
+            : "Spacer"
+          : lang === "pl"
+            ? "Rozdzielacz"
+            : "Divider";
       const label = editable ? (
         <span className="pointer-events-none absolute -top-2 left-2 px-1 text-[9px] uppercase tracking-wider text-muted-foreground bg-background rounded">
-          {variant === "space" ? "Odstęp" : "Rozdzielacz"}
+          {spacerLabel}
         </span>
       ) : null;
       const wrap = (inner: ReactNode) =>
         editable ? (
-          <div className={wrapCls} aria-label={variant === "space" ? "Odstęp" : "Rozdzielacz"}>
+          <div className={wrapCls} aria-label={spacerLabel}>
             {label}
             {inner}
           </div>
@@ -117,7 +125,7 @@ export function renderSimpleWidget(
             <div
               className="w-full flex items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-dashed border-foreground/20 rounded-[6px] bg-foreground/[0.03] relative"
               style={{ height: `${h}px`, minHeight: `${h}px` }}
-              aria-label="Odstęp"
+              aria-label={lang === "pl" ? "Odstęp" : "Spacer"}
             >
               <span>↕ {h}px</span>
             </div>
@@ -405,7 +413,10 @@ export function renderSimpleWidget(
     }
 
     case "lang-switcher": {
-      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
+      const label =
+        getStr(c, `label_${lang}`) ||
+        getStr(c, "label_pl") ||
+        (lang === "pl" ? "Zmień język" : "Change language");
       return (
         <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
           <LangSwitcherDropdown label={label} />
@@ -584,7 +595,7 @@ export function renderSimpleWidget(
       if (imgs.length === 0)
         return (
           <div className="bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">
-            brak zdjęć
+            {lang === "pl" ? "brak zdjęć" : "no images"}
           </div>
         );
       if (variant === "carousel") {
@@ -759,19 +770,9 @@ export function renderSimpleWidget(
         navBgColor: typeof c.navBgColor === "string" ? c.navBgColor : undefined,
         navArrowColor: typeof c.navArrowColor === "string" ? c.navArrowColor : undefined,
         navBgStyle: (typeof c.navBgStyle === "string" ? c.navBgStyle : undefined) as
-          | "glass"
-          | "solid"
-          | "outline"
-          | "soft"
-          | "gradient"
-          | "shadow"
-          | undefined,
+          "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow" | undefined,
         navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
-          | "mid"
-          | "mid-outside"
-          | "bottom"
-          | "top"
-          | undefined,
+          "mid" | "mid-outside" | "bottom" | "top" | undefined,
         navArrowVariant: (typeof c.navArrowVariant === "string" ? c.navArrowVariant : undefined) as
           | "chevron"
           | "chevron-bold"
@@ -790,7 +791,9 @@ export function renderSimpleWidget(
           <div className="relative w-full">
             <SliderRender config={{ ...cfg, typography }} lang={lang} />
             <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-background/85 backdrop-blur px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-border">
-              Podgląd · dodaj slajdy w panelu
+              {lang === "pl"
+                ? "Podgląd · dodaj slajdy w panelu"
+                : "Preview · add slides in the panel"}
             </div>
           </div>
         );

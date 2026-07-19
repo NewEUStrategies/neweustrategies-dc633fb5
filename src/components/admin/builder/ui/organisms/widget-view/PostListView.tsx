@@ -177,13 +177,16 @@ export function PostListView({
     }
     return (
       <div className="w-full text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
-        Brak wpisów spełniających kryteria.
+        {lang === "pl" ? "Brak wpisów spełniających kryteria." : "No posts match the criteria."}
       </div>
     );
   }
 
   const title = (p: PostRow) =>
-    (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "(bez tytułu)";
+    (lang === "pl" ? p.title_pl : p.title_en) ||
+    p.title_pl ||
+    p.title_en ||
+    (lang === "pl" ? "(bez tytułu)" : "(untitled)");
   const excerpt = (p: PostRow) => (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
 
   if (carousel) {

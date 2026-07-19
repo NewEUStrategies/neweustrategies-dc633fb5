@@ -125,7 +125,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           height: containerHeight,
         }}
       >
-        {/* Okrąg / półokrąg */}
+        {/* Circle / semicircle */}
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
@@ -155,7 +155,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           )}
         </svg>
 
-        {/* Środkowy panel z tytułem/opisem aktywnej pozycji */}
+        {/* Center panel with the active item's title/description */}
         <div
           className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center px-6"
           style={{
@@ -177,7 +177,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           )}
         </div>
 
-        {/* Pozycje na łuku */}
+        {/* Items along the arc */}
         {items.map((it, i) => {
           const pos = positions[i];
           if (!pos) return null;

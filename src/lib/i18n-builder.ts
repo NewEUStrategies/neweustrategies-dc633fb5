@@ -828,6 +828,15 @@ const pl = {
       rating: "Ocena (0–10)",
       date: "Data (YYYY-MM-DD)",
     },
+    chrome: {
+      resizeImage: "Zmień rozmiar obrazka (zachowuje proporcje)",
+      resize: "Zmień rozmiar",
+      dragResize: "Przeciągnij aby zmienić rozmiar",
+      themeToLight: "Przełącz na tryb jasny",
+      themeToDark: "Przełącz na tryb ciemny",
+      darkTitle: "Tryb ciemny (kliknij, aby zmienić)",
+      lightTitle: "Tryb jasny (kliknij, aby zmienić)",
+    },
     spacing: {
       padding: "Padding - wewnętrzne odstępy (px)",
       margin: "Margin - zewnętrzne odstępy (px)",
@@ -1764,6 +1773,15 @@ const en: typeof pl = {
       author: "Author",
       rating: "Rating (0–10)",
       date: "Date (YYYY-MM-DD)",
+    },
+    chrome: {
+      resizeImage: "Resize image (keeps aspect ratio)",
+      resize: "Resize",
+      dragResize: "Drag to resize",
+      themeToLight: "Switch to light mode",
+      themeToDark: "Switch to dark mode",
+      darkTitle: "Dark mode (click to change)",
+      lightTitle: "Light mode (click to change)",
     },
     spacing: {
       padding: "Padding - inner spacing (px)",
