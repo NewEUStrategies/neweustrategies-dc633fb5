@@ -41,7 +41,7 @@ function markDismissed() {
 
 export function NewsletterPopup() {
   const { data: s } = useNewsletterSettings();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const loc = useLocation();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
