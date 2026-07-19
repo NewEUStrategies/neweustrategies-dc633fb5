@@ -112,20 +112,11 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
           aria-expanded={open}
         >
           <MessagesSquare className="h-4 w-4" aria-hidden />
-          {unread > 0 && (
-            <>
-              <span
-                className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex h-[16px] min-w-[16px] motion-safe:animate-ping rounded-[6px] bg-primary/60 opacity-70"
-                aria-hidden
-              />
-              <span
-                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-[6px] bg-primary text-primary-foreground text-[9px] font-semibold leading-none inline-flex items-center justify-center shadow-sm ring-2 ring-background motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
-                aria-label={t("chat.unread", { count: unread })}
-              >
-                {unread > 99 ? "99+" : unread}
-              </span>
-            </>
-          )}
+          <UnreadBadge
+            count={unread}
+            className="absolute -top-0.5 -right-0.5"
+            labelKey="chat.unread"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent
