@@ -9829,6 +9829,7 @@ export type Database = {
           kind: string
           label_en: string
           label_pl: string
+          logo_url: string
           post_count: number
           score: number
           slug: string
