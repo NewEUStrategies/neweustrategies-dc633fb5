@@ -456,7 +456,7 @@ function AdminResearchPrograms() {
 
             <div className="grid gap-2 md:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "Obraz hero (URL)" : "Hero image (URL)"}</Label>
+                <Label>{tp("field.hero")}</Label>
                 <Input
                   value={form.hero_image_url ?? ""}
                   onChange={(e) =>
