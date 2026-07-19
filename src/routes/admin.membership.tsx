@@ -203,11 +203,8 @@ function AdminMembershipPage() {
             <Crown className="h-6 w-6" aria-hidden="true" />
             {tm("title")}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            {lang === "pl"
-              ? "Warstwa decyduje o dostępie do funkcji społeczności (wydarzenia dla członków, briefingi Pro). Ranga: 0 = czytelnik, wyższa = szerszy dostęp."
-              : "The tier gates community features (member events, Pro briefings). Rank: 0 = reader, higher = more access."}
-          </p>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{tm("subtitle")}</p>
+
         </div>
         <NewTierDialog
           lang={lang}
