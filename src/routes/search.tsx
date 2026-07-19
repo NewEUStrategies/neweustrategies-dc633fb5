@@ -614,8 +614,8 @@ function SearchPage() {
           <p className="text-sm text-muted-foreground max-w-2xl">{t("search.hero_sub")}</p>
         </header>
 
-        <form onSubmit={submit} className="mb-2" role="search">
-          <div className="relative flex h-[46px] w-full items-center gap-2 overflow-hidden rounded-[5px] border border-border bg-background pr-3 shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
+        <form onSubmit={submit} className="relative z-40 mb-2" role="search">
+          <div className="relative flex h-[46px] w-full items-center gap-2 rounded-[5px] border border-border bg-background pr-3 shadow-sm transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
             <input
               value={draft}
               onChange={(e) => {
@@ -627,7 +627,7 @@ function SearchPage() {
               onKeyDown={onInputKeyDown}
               placeholder={t("search.placeholder")}
               aria-label={t("search.placeholder")}
-              className="h-full w-full min-w-0 flex-1 !border-0 !bg-transparent !pl-5 text-sm text-foreground !outline-none placeholder:text-muted-foreground focus:!outline-none !ring-0 !shadow-none"
+              className="h-full w-full min-w-0 flex-1 !border-0 !bg-transparent !pl-5 text-sm text-foreground !outline-none placeholder:text-muted-foreground focus:!outline-none !ring-0 !shadow-none rounded-[5px]"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
@@ -654,16 +654,17 @@ function SearchPage() {
             >
               <Mic className="h-5 w-5" aria-hidden />
             </button>
-            {showSuggest && (
-              <SearchAutosuggest
-                items={suggestions}
-                activeIndex={sugIndex}
-                lang={lang}
-                onPick={(it) => void pickSuggestion(it)}
-              />
-            )}
           </div>
+          {showSuggest && (
+            <SearchAutosuggest
+              items={suggestions}
+              activeIndex={sugIndex}
+              lang={lang}
+              onPick={(it) => void pickSuggestion(it)}
+            />
+          )}
         </form>
+
 
         <div className="mb-4">
           <button
