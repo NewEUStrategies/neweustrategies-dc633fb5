@@ -1008,12 +1008,12 @@ function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en"
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-3">
           <Input
-            placeholder={lang === "pl" ? "Nazwa partnera" : "Partner name"}
+            placeholder={tp("partners.name")}
             value={draft.name}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           />
           <Input
-            placeholder={lang === "pl" ? "URL logo" : "Logo URL"}
+            placeholder={tp("partners.logoUrl")}
             value={draft.logo_url ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, logo_url: e.target.value || null }))}
           />
@@ -1024,9 +1024,10 @@ function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en"
           />
         </div>
         <Button onClick={add}>
-          <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj partnera" : "Add partner"}
+          <Plus className="mr-1 h-4 w-4" /> {tp("partners.addPartner")}
         </Button>
       </div>
+
       <ul className="grid gap-2">
         {(q.data ?? []).map((p) => (
           <li key={p.id} className="flex items-center gap-3 rounded-md border border-border p-2">
