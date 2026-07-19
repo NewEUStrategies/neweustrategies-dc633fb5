@@ -53,7 +53,6 @@ export function SearchButtonWidget({
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [tab, setTab] = useState<SuggestBucket | "all">("all");
-  const [recent, setRecent] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reqIdRef = useRef(0);
