@@ -468,26 +468,18 @@ export function SearchButtonWidget({
             .builder-search-widget button:hover svg {
               color: var(--foreground);
             }
-            /* Floating label: unosi się do lewego górnego rogu inputa, ale
-               ZOSTAJE w obrębie wysokości inputa (top:2px, transform-origin
-               left top), więc chip nie wychodzi poza wysokość headera i nie
-               jest nigdzie przycinany. Kolor --ring dla wyraźnej sygnalizacji. */
-            .builder-search-widget .input-group > .user-label {
-              transform-origin: left center;
-            }
+            /* Klasyczny floating label: unosi się na górną krawędź inputa,
+               chip z tłem, żeby "przecinał" obramowanie. Parent widgetu ma
+               overflow: visible, więc chip nie jest już przycinany. */
             .builder-search-widget .input-group > .input:focus ~ .user-label,
             .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
-              top: 2px;
-              transform: translateY(0) scale(0.72);
-              transform-origin: left top;
-              background-color: transparent;
-              padding: 0;
+              top: 0;
+              transform: translateY(-50%) scale(0.78);
+              background-color: var(--background);
+              padding: 0 0.35em;
               color: var(--ring);
               opacity: 1;
-              font-weight: 500;
-              letter-spacing: 0.02em;
             }
-
             /* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus. */
             .builder-search-widget .input-group > .input {
               border-width: 1px;
