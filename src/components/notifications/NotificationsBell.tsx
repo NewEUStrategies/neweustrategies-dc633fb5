@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useNotifications,
