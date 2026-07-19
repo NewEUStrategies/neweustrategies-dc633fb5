@@ -79,9 +79,13 @@ if (!i18n.isInitialized) {
     });
     try {
       document.documentElement.setAttribute("lang", i18n.language);
-      // Backfill the preference cookie if missing (e.g. set only in
-      // localStorage by an older build).
-      if (!readLangCookieClient()) writeLangCookieClient(i18n.language === "en" ? "en" : "pl");
+      // Backfill the preference cookie if missing. Prefer an auto-detected
+      // browser language (Polish -> pl, anything else -> en) so a first-time
+      // visitor's preference is captured before the homepage redirect runs.
+      if (!readLangCookieClient()) {
+        const detected = detectBrowserLang();
+        writeLangCookieClient(detected ?? (i18n.language === "en" ? "en" : "pl"));
+      }
     } catch {
       /* ignore */
     }
