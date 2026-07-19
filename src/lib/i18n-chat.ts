@@ -675,6 +675,8 @@ export const chatEn = {
         question:
           "Good question. In demo mode I echo replies - notice bubble alignment and status.",
         echo: "Echo: {{msg}}",
+        image: "Nice photo! (demo preview - the file is not uploaded)",
+        file: "Got your file: {{name}} (demo preview).",
       },
     },
     mediaHistory: {
