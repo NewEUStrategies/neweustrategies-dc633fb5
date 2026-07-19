@@ -459,7 +459,7 @@ export function SearchButtonWidget({
                                 >
                                   {itemLabel(it)}
                                 </span>
-                                <LucideIcons.ArrowUpRight
+                                <LucideIcons.ArrowRight
                                   className="ml-auto w-3.5 h-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-70"
                                   aria-hidden
                                   style={{ color: "var(--brand-ink)" }}
