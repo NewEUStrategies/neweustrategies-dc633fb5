@@ -3,10 +3,12 @@
 // tokens. Shows swatch preview, hex value, presets from the theme accent
 // palette, and a clear button. Emits raw hex (#rrggbb) or undefined.
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Pipette, X } from "lucide-react";
+import "@/lib/i18n-builder";
 
 interface Props {
   value?: string;
@@ -49,12 +51,15 @@ export function ColorPicker({
   value,
   onChange,
   presets = DEFAULT_PRESETS,
-  ariaLabel = "Wybierz kolor",
+  ariaLabel: ariaLabelProp,
   className,
   allowClear = true,
   showInput = false,
-  placeholder = "np. #f59e42 lub var(--brand)",
+  placeholder: placeholderProp,
 }: Props) {
+  const { t } = useTranslation();
+  const ariaLabel = ariaLabelProp ?? t("builder.colorPicker.pickColor");
+  const placeholder = placeholderProp ?? t("builder.colorPicker.placeholder");
   const [open, setOpen] = useState(false);
   const isHex = HEX_RE.test(value ?? "");
   const swatchStyle = value
@@ -145,7 +150,7 @@ export function ColorPicker({
               }}
             >
               <X className="w-3 h-3 mr-1" />
-              Wyczyść
+              {t("builder.colorPicker.clear")}
             </Button>
           </div>
         ) : null}
