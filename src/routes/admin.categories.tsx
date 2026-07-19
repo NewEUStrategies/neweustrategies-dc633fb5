@@ -306,6 +306,11 @@ function Categories() {
                 value={form.description_en}
                 onChange={(e) => setForm({ ...form, description_en: e.target.value })}
               />
+              <FloatingInput
+                label="Logo URL"
+                value={form.logo_url}
+                onChange={(e) => setForm({ ...form, logo_url: e.target.value })}
+              />
             </div>
             <DialogFooter>
               <Button onClick={save}>{t("admin.save")}</Button>
