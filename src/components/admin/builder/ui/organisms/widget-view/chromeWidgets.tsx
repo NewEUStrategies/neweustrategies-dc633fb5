@@ -37,28 +37,27 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
   };
 
   return (
-    <label
+    <button
+      type="button"
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
+      onClick={switchLang}
       className="lang-switch"
     >
-      <input
-        type="checkbox"
-        className="lang-switch__checkbox"
-        checked={current === "en"}
-        onChange={switchLang}
-        aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
-      />
-      <span className="lang-switch__container">
+      <span
+        className="lang-switch__container"
+        aria-hidden
+        data-state={current}
+      >
         <span className="lang-switch__circle-container">
           <span className="lang-switch__flag-container">
-            <span className="lang-switch__flag" aria-hidden>
+            <span className="lang-switch__flag">
               {current === "pl" ? "🇵🇱" : "🇬🇧"}
             </span>
           </span>
         </span>
       </span>
-    </label>
+    </button>
   );
 }
 
