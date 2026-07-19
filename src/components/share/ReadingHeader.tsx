@@ -21,7 +21,7 @@ interface Props {
 
 const COPY = {
   pl: {
-    reading: "CZYTASZ",
+    reading: "aktualnie czytasz",
     search: "Szukaj",
     login: "Zaloguj",
     register: "Zarejestruj",
@@ -34,7 +34,7 @@ const COPY = {
     menu: "Menu konta",
   },
   en: {
-    reading: "READING",
+    reading: "currently reading",
     search: "Search",
     login: "Sign in",
     register: "Sign up",
