@@ -24,6 +24,8 @@ import { SpacingControl } from "../molecules/SpacingControl";
 import { MotionControl } from "../molecules/MotionControl";
 import { VisibilityControl } from "../molecules/VisibilityControl";
 import { AccessControl } from "../molecules/AccessControl";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   column: ColumnNode;
@@ -40,6 +42,8 @@ export function ColumnProperties({
   onModeChange,
   onChange,
 }: Props) {
+  const { t } = useTranslation();
+  const cp = (k: string, o?: Record<string, unknown>) => t(`builder.columnProps.${k}`, o);
   const setStyle = (mut: (s: CommonStyle) => void) =>
     onChange((c) => {
       c.style = c.style ?? {};
@@ -81,24 +85,21 @@ export function ColumnProperties({
     <Tabs defaultValue="layout">
       <TabsList className="grid grid-cols-3 w-full h-8">
         <TabsTrigger value="layout" className="text-xs">
-          Układ
+          {cp("tabLayout")}
         </TabsTrigger>
         <TabsTrigger value="style" className="text-xs">
-          Styl
+          {cp("tabStyle")}
         </TabsTrigger>
         <TabsTrigger value="advanced" className="text-xs">
-          Zaawans.
+          {cp("tabAdvanced")}
         </TabsTrigger>
       </TabsList>
 
       <TabsContent value="layout" className="space-y-3 mt-3">
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          Edytujesz: {device}
+          {cp("editing", { device })}
         </div>
-        <PropField
-          label="Szerokość (1–12)"
-          hint="Szerokość kolumny w 12-kolumnowej siatce rzędu. Np. 6 = pół rzędu, 4 = 1/3, 12 = pełny rząd. Suma szerokości kolumn w rzędzie powinna wynosić 12. Ustawiana osobno dla każdego urządzenia."
-        >
+        <PropField label={cp("width")} hint={cp("widthHint")}>
           <Input
             type="number"
             min={1}
@@ -108,10 +109,7 @@ export function ColumnProperties({
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField
-          label="Minimalna wysokość (px)"
-          hint="Puste = dopasuj do treści. Wpisz np. 200, aby kolumna była co najmniej tak wysoka."
-        >
+        <PropField label={cp("minHeight")} hint={cp("minHeightHint")}>
           <Input
             type="number"
             min={0}
@@ -129,13 +127,13 @@ export function ColumnProperties({
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Wyrównanie poziome (w rzędzie)">
+        <PropField label={cp("hAlign")}>
           <div className="flex gap-1">
             {(
               [
-                { v: "start", label: "Start" },
-                { v: "center", label: "Środek" },
-                { v: "end", label: "Koniec" },
+                { v: "start", label: cp("start") },
+                { v: "center", label: t("builder.common.center") },
+                { v: "end", label: cp("end") },
               ] as const
             ).map((o) => {
               const active = (column.contentAlign ?? "start") === o.v;
@@ -156,14 +154,14 @@ export function ColumnProperties({
             })}
           </div>
         </PropField>
-        <PropField label="Wyrównanie pionowe">
+        <PropField label={cp("vAlign")}>
           <div className="flex gap-1">
             {(
               [
-                { v: "start", label: "Góra" },
-                { v: "center", label: "Środek" },
-                { v: "end", label: "Dół" },
-                { v: "stretch", label: "Rozciągnij" },
+                { v: "start", label: t("builder.common.top") },
+                { v: "center", label: t("builder.common.center") },
+                { v: "end", label: t("builder.common.bottom") },
+                { v: "stretch", label: cp("stretch") },
               ] as const
             ).map((o) => {
               const active = (column.verticalAlign ?? "start") === o.v;
@@ -194,12 +192,12 @@ export function ColumnProperties({
           <div
             className="inline-flex items-center rounded border border-border bg-muted p-0.5"
             role="group"
-            aria-label="Tryb"
+            aria-label={cp("mode")}
           >
             {(
               [
-                ["light", Sun, "Jasny"],
-                ["dark", Moon, "Ciemny"],
+                ["light", Sun, cp("modeLight")],
+                ["dark", Moon, cp("modeDark")],
               ] as const
             ).map(([m, Icon, label]) => (
               <button
@@ -221,17 +219,17 @@ export function ColumnProperties({
 
         <section className="space-y-2">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Kolory ({mode === "dark" ? "ciemny" : "jasny"})
+            {mode === "dark" ? cp("colorsDark") : cp("colorsLight")}
           </h4>
           <ThemedColorRow
-            label="Tło"
+            label={cp("bg")}
             value={getColor("bgColor")}
             onChange={(v) => setColor("bgColor", v)}
             overridden={isOver("bgColor")}
             onReset={() => resetColor("bgColor")}
           />
           <ThemedColorRow
-            label="Tekst"
+            label={cp("text")}
             value={getColor("textColor")}
             onChange={(v) => setColor("textColor", v)}
             overridden={isOver("textColor")}
@@ -241,14 +239,14 @@ export function ColumnProperties({
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Odstępy
+            {cp("spacing")}
           </h4>
           <SpacingControl style={column.style} device={device} onChange={setStyle} />
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Wymiary
+            {cp("dimensions")}
           </h4>
           <PropField label="Border radius">
             <Input
@@ -270,7 +268,7 @@ export function ColumnProperties({
       <TabsContent value="advanced" className="space-y-4 mt-3">
         <section className="space-y-2">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Identyfikatory
+            {cp("identifiers")}
           </h4>
           <PropField label="HTML ID">
             <Input
@@ -305,20 +303,17 @@ export function ColumnProperties({
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Widoczność
+            {cp("visibility")}
           </h4>
           <VisibilityControl value={column.advanced} onChange={setAdvanced} />
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Dostęp (auth/role)
+            {cp("access")}
           </h4>
           <AccessControl value={column.advanced} onChange={setAdvanced} />
-          <p className="text-[10px] text-muted-foreground">
-            Reguły obowiązują tylko na opublikowanej stronie. W edytorze kolumna jest zawsze
-            widoczna.
-          </p>
+          <p className="text-[10px] text-muted-foreground">{cp("accessNote")}</p>
         </section>
       </TabsContent>
     </Tabs>
@@ -338,6 +333,7 @@ function ThemedColorRow({
   overridden: boolean;
   onReset: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <PropField
       label={
@@ -347,13 +343,13 @@ function ThemedColorRow({
             <>
               <span
                 className="inline-block w-1.5 h-1.5 rounded-full bg-brand"
-                aria-label="Nadpisane"
-                title="Nadpisane w tym trybie"
+                aria-label={t("builder.columnProps.overridden")}
+                title={t("builder.columnProps.overriddenInMode")}
               />
               <button
                 type="button"
                 onClick={onReset}
-                title="Przywróć z global colors"
+                title={t("builder.columnProps.resetGlobal")}
                 className="inline-flex items-center text-muted-foreground hover:text-foreground"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -363,7 +359,11 @@ function ThemedColorRow({
         </span>
       }
     >
-      <ColorField value={value} onChange={onChange} placeholder="dziedziczy z global colors" />
+      <ColorField
+        value={value}
+        onChange={onChange}
+        placeholder={t("builder.columnProps.inheritGlobal")}
+      />
     </PropField>
   );
 }
