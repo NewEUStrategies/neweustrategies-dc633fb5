@@ -121,29 +121,34 @@ function DropdownPanel({
       ) : null}
       <ul className="flex flex-col p-2">
         {parentLabel ? (
-          <li>
+          <li className="mb-1.5">
             <AppLink
               href={itemHref(node)}
               target={itemTarget(node)}
               rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-              className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70"
+              className="group relative flex items-center gap-3 overflow-hidden rounded-md border border-brand/25 bg-brand/[0.06] px-3 py-2.5 shadow-[0_1px_0_0_hsl(var(--background))_inset] transition-all hover:border-brand/50 hover:bg-brand/10 hover:shadow-[0_4px_16px_-6px_color-mix(in_oklab,var(--brand)_35%,transparent)] dark:border-brand/35 dark:bg-brand/[0.12] dark:hover:bg-brand/[0.18]"
               role="menuitem"
             >
               <span
                 aria-hidden
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand transition-colors group-hover:bg-brand group-hover:text-white"
+                className="absolute inset-y-0 left-0 w-[3px] bg-brand"
+              />
+              <span
+                aria-hidden
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand text-white shadow-sm ring-1 ring-brand/40 transition-transform group-hover:scale-105"
               >
-                <ChevronRight size={14} strokeWidth={1.75} />
+                <ChevronRight size={14} strokeWidth={2} />
               </span>
               <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
                 {parentLabel}
               </span>
-              <span className="ml-auto text-[10px] font-medium text-muted-foreground">
+              <span className="ml-auto rounded-full border border-brand/30 bg-background/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-brand dark:bg-background/40">
                 {sectionHome}
               </span>
             </AppLink>
           </li>
         ) : null}
+
         {node.children.map((child) => (
           <SubmenuItem key={child.id} node={child} lang={lang} />
         ))}
