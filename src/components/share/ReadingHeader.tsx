@@ -128,7 +128,7 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
             limit={8}
             lang={lang}
             height={32}
-            radius={5}
+            radius={6}
             fontSize={13}
           />
         </div>
