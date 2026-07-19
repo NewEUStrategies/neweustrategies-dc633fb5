@@ -52,21 +52,28 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
 
 export function ThemeToggleWidget() {
   const { theme, toggle } = useTheme();
+  const { t } = useTranslation();
   const isDark = theme === "dark";
+
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-label={isDark ? "Przełącz na tryb jasny" : "Przełącz na tryb ciemny"}
-      title={isDark ? "Tryb ciemny (kliknij, aby zmienić)" : "Tryb jasny (kliknij, aby zmienić)"}
-      className="inline-flex items-center justify-center rounded-[2px] hover:opacity-80 transition-opacity"
-      style={{ width: 14, height: 14 }}
+      onPointerDown={(e) => e.stopPropagation()}
+      aria-label={isDark ? t("common.lightMode") : t("common.darkMode")}
+      title={isDark ? t("common.lightMode") : t("common.darkMode")}
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border/60 bg-background/80 backdrop-blur-sm text-foreground shadow-sm hover:bg-muted hover:border-border hover:shadow-md transition-all duration-200 ease-out active:scale-95"
     >
-      {isDark ? (
-        <LucideIcons.Sun className="w-3.5 h-3.5" style={{ color: "#FA9346" }} />
-      ) : (
-        <LucideIcons.Moon className="w-3.5 h-3.5" />
-      )}
+      <span
+        key={isDark ? "sun" : "moon"}
+        className="inline-flex items-center justify-center transition-transform duration-300 ease-out"
+      >
+        {isDark ? (
+          <LucideIcons.Sun className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <LucideIcons.Moon className="w-4 h-4" aria-hidden="true" />
+        )}
+      </span>
     </button>
   );
 }
