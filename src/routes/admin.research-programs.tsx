@@ -211,16 +211,16 @@ function AdminResearchPrograms() {
       toast.error(error.message);
       return;
     }
-    toast.success(lang === "pl" ? "Zapisano." : "Saved.");
+    toast.success(tp("saved"));
     setDialogOpen(false);
     qc.invalidateQueries({ queryKey: ["admin-research-programs"] });
   };
 
   const deleteProgram = async (p: ProgramRow) => {
     const ok = await confirmDialog({
-      title: lang === "pl" ? "Usunąć program?" : "Delete program?",
+      title: tp("deleteConfirm"),
       description: `${p.name_pl} / ${p.name_en}`,
-      confirmLabel: lang === "pl" ? "Usuń" : "Delete",
+      confirmLabel: tp("delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -229,7 +229,8 @@ function AdminResearchPrograms() {
       toast.error(error.message);
       return;
     }
-    toast.success(lang === "pl" ? "Usunięto." : "Deleted.");
+    toast.success(tp("deleted"));
+
     qc.invalidateQueries({ queryKey: ["admin-research-programs"] });
   };
 
