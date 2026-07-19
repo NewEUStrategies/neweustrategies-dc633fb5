@@ -181,6 +181,7 @@ function Categories() {
             slug: form.slug || undefined,
             description_pl: form.description_pl || null,
             description_en: form.description_en || null,
+            logo_url: form.logo_url || null,
             kind: form.kind,
             parent_id: form.parent_id,
           },
