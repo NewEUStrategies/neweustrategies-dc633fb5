@@ -185,8 +185,12 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         {/* Right cluster */}
         <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
           <ThemeToggle className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center" />
-          <NotificationsBell panelWidth={280} className="hidden xs:flex" />
-          <ChatBell panelWidth={300} className="hidden xs:flex" />
+          <div className="hidden xs:block">
+            <NotificationsBell panelWidth={280} />
+          </div>
+          <div className="hidden xs:block">
+            <ChatBell panelWidth={300} />
+          </div>
           {entityId && (
             <button
               type="button"
