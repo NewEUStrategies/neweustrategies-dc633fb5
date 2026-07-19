@@ -708,7 +708,7 @@ function SearchPage() {
             type="button"
             onClick={() => setAdvOpen((o) => !o)}
             aria-expanded={advOpen}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-ink hover:underline"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden />
             {t("search.adv.toggle")}
