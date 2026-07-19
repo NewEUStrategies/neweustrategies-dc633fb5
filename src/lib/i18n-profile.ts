@@ -509,6 +509,7 @@ const en: typeof pl = {
         submit: "Change email",
         sent: "We've sent a confirmation link to the new address.",
         invalid: "Enter a valid email address.",
+        needPassword: "Enter your current password to confirm.",
       },
       danger: {
         title: "Delete account",
