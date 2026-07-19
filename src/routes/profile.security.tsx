@@ -372,20 +372,16 @@ function SecurityPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>
-              {t("profile.security.sessions", { defaultValue: isPl ? "Sesje" : "Sessions" })}
-            </CardTitle>
+            <CardTitle>{t("profile.security.sessions")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <p className="text-sm text-muted-foreground">
-              {t("profile.security.lastSignIn", {
-                defaultValue: isPl ? "Ostatnie logowanie" : "Last sign-in",
-              })}
+              {t("profile.security.lastSignIn")}
               :{" "}
               <span className="font-medium text-foreground">
                 {user?.last_sign_in_at
                   ? new Date(user.last_sign_in_at).toLocaleString(isPl ? "pl-PL" : "en-US")
-                  : "—"}
+                  : "-"}
               </span>
             </p>
             <Button
@@ -393,15 +389,9 @@ function SecurityPage() {
               className="justify-self-start"
               onClick={() => void signOutOthers()}
               disabled={othersBusy}
-              title={t("profile.security.tip.signOutOthers", {
-                defaultValue: isPl
-                  ? "Wylogowuje wszystkie pozostałe sesje na innych urządzeniach."
-                  : "Signs out all your other sessions on other devices.",
-              })}
+              title={t("profile.security.tip.signOutOthers")}
             >
-              {t("profile.security.signOutOthers", {
-                defaultValue: isPl ? "Wyloguj pozostałe sesje" : "Sign out other sessions",
-              })}
+              {t("profile.security.signOutOthers")}
             </Button>
           </CardContent>
         </Card>
