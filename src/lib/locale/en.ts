@@ -22,6 +22,8 @@ export const en = {
     purpose: "Purpose",
     expires: "Expires",
     dataProcessingTerms: "Data Processing Terms",
+    lightMode: "Light mode",
+    darkMode: "Dark mode",
   },
   nav: {
     newsletter: "Newsletter",
