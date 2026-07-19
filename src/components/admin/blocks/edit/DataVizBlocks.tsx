@@ -4,6 +4,8 @@
 // (wspólny silnik src/components/charts).
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
@@ -24,13 +26,13 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
-const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; label: string }> = [
-  { value: "bar", label: "Kolumny" },
-  { value: "bar-horizontal", label: "Słupki poziome" },
-  { value: "line", label: "Linia" },
-  { value: "area", label: "Pole (area)" },
-  { value: "pie", label: "Kołowy" },
-  { value: "donut", label: "Pierścień (donut)" },
+const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
+  { value: "bar", labelKey: "kinds.bar" },
+  { value: "bar-horizontal", labelKey: "kinds.barHorizontal" },
+  { value: "line", labelKey: "kinds.line" },
+  { value: "area", labelKey: "kinds.area" },
+  { value: "pie", labelKey: "kinds.pie" },
+  { value: "donut", labelKey: "kinds.donut" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
@@ -89,6 +91,7 @@ function seriesToJson(series: SeriesDraft[]): Json[] {
 }
 
 export function ChartBlock({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const categories = (Array.isArray(block.data.categories) ? block.data.categories : []).map((c) =>
     String(c ?? ""),
   );
@@ -108,7 +111,7 @@ export function ChartBlock({ block, onChange }: Props) {
   const setSeries = (next: SeriesDraft[]) => patch({ series: seriesToJson(next) });
 
   return (
-    <Shell label="Wykres">
+    <Shell label={bt.editor("chart", "shellLabel")}>
       {/* Podgląd na żywo - dokładnie ten sam silnik, co strona publiczna. */}
       <div className="pointer-events-none">
         <Chart config={{ ...previewConfig, animate: false }} lang="pl" className="my-0" />
@@ -122,27 +125,27 @@ export function ChartBlock({ block, onChange }: Props) {
         >
           {KIND_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {bt.editor("chart", o.labelKey)}
             </option>
           ))}
         </AdminSelect>
         <input
           className={inputCls}
           value={String(block.data.unit ?? "")}
-          placeholder="Jednostka (np. %, mld EUR)"
+          placeholder={bt.editor("chart", "unit")}
           onChange={(e) => patch({ unit: e.target.value })}
         />
       </div>
       <input
         className={inputCls}
         value={String(block.data.title ?? "")}
-        placeholder="Tytuł wykresu"
+        placeholder={bt.editor("chart", "title")}
         onChange={(e) => patch({ title: e.target.value })}
       />
       <input
         className={inputCls}
         value={String(block.data.description ?? "")}
-        placeholder="Opis (podtytuł)"
+        placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
       />
 
@@ -152,7 +155,7 @@ export function ChartBlock({ block, onChange }: Props) {
           <thead>
             <tr>
               <th className="text-left text-[10px] uppercase tracking-wide text-muted-foreground px-1">
-                Kategoria
+                {bt.editor("chart", "category")}
               </th>
               {series.map((s, si) => (
                 <th key={si} className="min-w-[96px] px-0">
@@ -165,7 +168,7 @@ export function ChartBlock({ block, onChange }: Props) {
                     <input
                       className={cellCls}
                       value={s.name}
-                      placeholder={`Seria ${si + 1}`}
+                      placeholder={bt.editor("chart", "series", { n: si + 1 })}
                       onChange={(e) => {
                         const next = series.map((x, i) =>
                           i === si ? { ...x, name: e.target.value } : x,
@@ -176,7 +179,7 @@ export function ChartBlock({ block, onChange }: Props) {
                     <button
                       type="button"
                       className="text-muted-foreground hover:text-destructive"
-                      aria-label={`Usuń serię ${s.name || si + 1}`}
+                      aria-label={bt.editor("chart", "removeSeries", { name: s.name || si + 1 })}
                       onClick={() => setSeries(series.filter((_, i) => i !== si))}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -189,7 +192,7 @@ export function ChartBlock({ block, onChange }: Props) {
                   <button
                     type="button"
                     className="inline-flex items-center justify-center w-7 h-7 rounded border border-border hover:border-foreground/50"
-                    aria-label="Dodaj serię"
+                    aria-label={bt.editor("chart", "addSeries")}
                     onClick={() =>
                       setSeries([
                         ...series,
@@ -214,7 +217,7 @@ export function ChartBlock({ block, onChange }: Props) {
                   <input
                     className={cellCls}
                     value={cat}
-                    placeholder={`Kategoria ${ci + 1}`}
+                    placeholder={bt.editor("chart", "categoryN", { n: ci + 1 })}
                     onChange={(e) =>
                       setCategories(categories.map((c, i) => (i === ci ? e.target.value : c)))
                     }
@@ -249,7 +252,7 @@ export function ChartBlock({ block, onChange }: Props) {
                   <button
                     type="button"
                     className="text-muted-foreground hover:text-destructive"
-                    aria-label={`Usuń kategorię ${cat || ci + 1}`}
+                    aria-label={bt.editor("chart", "removeCategory", { name: cat || ci + 1 })}
                     onClick={() =>
                       setCategories(
                         categories.filter((_, i) => i !== ci),
@@ -279,7 +282,7 @@ export function ChartBlock({ block, onChange }: Props) {
             )
           }
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj kategorię
+          <Plus className="w-3.5 h-3.5" /> {bt.editor("chart", "addCategory")}
         </button>
       )}
 
@@ -290,7 +293,7 @@ export function ChartBlock({ block, onChange }: Props) {
             checked={block.data.stacked === true}
             onChange={(e) => patch({ stacked: e.target.checked })}
           />
-          Skumulowany (stacked)
+          {bt.editor("chart", "stacked")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -298,7 +301,7 @@ export function ChartBlock({ block, onChange }: Props) {
             checked={block.data.showLegend !== false}
             onChange={(e) => patch({ showLegend: e.target.checked })}
           />
-          Legenda
+          {bt.editor("common", "legend")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -306,7 +309,7 @@ export function ChartBlock({ block, onChange }: Props) {
             checked={block.data.showGrid !== false}
             onChange={(e) => patch({ showGrid: e.target.checked })}
           />
-          Siatka
+          {bt.editor("chart", "grid")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -314,7 +317,7 @@ export function ChartBlock({ block, onChange }: Props) {
             checked={block.data.showValues === true}
             onChange={(e) => patch({ showValues: e.target.checked })}
           />
-          Etykiety wartości
+          {bt.editor("chart", "showValues")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -322,7 +325,7 @@ export function ChartBlock({ block, onChange }: Props) {
             checked={block.data.animate !== false}
             onChange={(e) => patch({ animate: e.target.checked })}
           />
-          Animacja wejścia
+          {bt.editor("common", "animate")}
         </label>
       </div>
 
@@ -334,7 +337,7 @@ export function ChartBlock({ block, onChange }: Props) {
           step={10}
           value={Number(block.data.height ?? 320)}
           onChange={(e) => patch({ height: Number(e.target.value) })}
-          aria-label="Wysokość wykresu"
+          aria-label={bt.editor("chart", "height")}
         />
         <span className="text-xs tabular-nums text-muted-foreground w-14 text-right">
           {Number(block.data.height ?? 320)}px
@@ -343,7 +346,7 @@ export function ChartBlock({ block, onChange }: Props) {
       <input
         className={inputCls}
         value={String(block.data.source ?? "")}
-        placeholder="Źródło danych (np. Źródło: Eurostat 2026)"
+        placeholder={bt.editor("chart", "source")}
         onChange={(e) => patch({ source: e.target.value })}
       />
     </Shell>
@@ -370,6 +373,7 @@ function readMapValues(raw: Json | undefined): MapRowDraft[] {
 }
 
 export function DataMapBlock({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const region: MapRegion = String(block.data.region ?? "europe") === "world" ? "world" : "europe";
   const rows = readMapValues(block.data.values);
   const previewConfig = useMemo(() => parseDataMapConfig(block.data), [block.data]);
@@ -392,7 +396,7 @@ export function DataMapBlock({ block, onChange }: Props) {
     patch({ values: next.map((r) => ({ id: r.id, value: r.value })) });
 
   return (
-    <Shell label="Mapa danych">
+    <Shell label={bt.editor("dataMap", "shellLabel")}>
       <div className="pointer-events-none">
         <ChoroplethMap config={{ ...previewConfig, animate: false }} lang="pl" className="my-0" />
       </div>
@@ -403,26 +407,26 @@ export function DataMapBlock({ block, onChange }: Props) {
           value={region}
           onChange={(e) => patch({ region: e.target.value })}
         >
-          <option value="europe">Europa</option>
-          <option value="world">Świat</option>
+          <option value="europe">{bt.editor("dataMap", "europe")}</option>
+          <option value="world">{bt.editor("dataMap", "world")}</option>
         </AdminSelect>
         <input
           className={inputCls}
           value={String(block.data.unit ?? "")}
-          placeholder="Jednostka (np. %, mln)"
+          placeholder={bt.editor("dataMap", "unit")}
           onChange={(e) => patch({ unit: e.target.value })}
         />
       </div>
       <input
         className={inputCls}
         value={String(block.data.title ?? "")}
-        placeholder="Tytuł mapy"
+        placeholder={bt.editor("dataMap", "title")}
         onChange={(e) => patch({ title: e.target.value })}
       />
       <input
         className={inputCls}
         value={String(block.data.description ?? "")}
-        placeholder="Opis (podtytuł)"
+        placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
       />
 
@@ -436,7 +440,7 @@ export function DataMapBlock({ block, onChange }: Props) {
                 setRows(rows.map((r, i) => (i === ri ? { ...r, id: e.target.value } : r)))
               }
             >
-              <option value="">- wybierz kraj -</option>
+              <option value="">{bt.editor("dataMap", "selectCountry")}</option>
               {countryOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -451,7 +455,7 @@ export function DataMapBlock({ block, onChange }: Props) {
               className={`${cellCls} w-28`}
               inputMode="decimal"
               value={row.value === null ? "" : String(row.value)}
-              placeholder="Wartość"
+              placeholder={bt.editor("dataMap", "value")}
               onChange={(e) => {
                 const raw = e.target.value.trim().replace(",", ".");
                 const v = raw === "" ? null : Number(raw);
@@ -465,7 +469,7 @@ export function DataMapBlock({ block, onChange }: Props) {
             <button
               type="button"
               className="text-muted-foreground hover:text-destructive"
-              aria-label={`Usuń wiersz ${row.id || ri + 1}`}
+              aria-label={bt.editor("dataMap", "removeRow", { name: row.id || ri + 1 })}
               onClick={() => setRows(rows.filter((_, i) => i !== ri))}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -477,7 +481,7 @@ export function DataMapBlock({ block, onChange }: Props) {
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
           onClick={() => setRows([...rows, { id: "", value: null }])}
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj kraj
+          <Plus className="w-3.5 h-3.5" /> {bt.editor("dataMap", "addCountry")}
         </button>
       </div>
 
@@ -488,7 +492,7 @@ export function DataMapBlock({ block, onChange }: Props) {
             checked={block.data.showLegend !== false}
             onChange={(e) => patch({ showLegend: e.target.checked })}
           />
-          Legenda
+          {bt.editor("common", "legend")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -496,13 +500,13 @@ export function DataMapBlock({ block, onChange }: Props) {
             checked={block.data.animate !== false}
             onChange={(e) => patch({ animate: e.target.checked })}
           />
-          Animacja wejścia
+          {bt.editor("common", "animate")}
         </label>
       </div>
       <input
         className={inputCls}
         value={String(block.data.source ?? "")}
-        placeholder="Źródło danych"
+        placeholder={bt.editor("dataMap", "source")}
         onChange={(e) => patch({ source: e.target.value })}
       />
     </Shell>
