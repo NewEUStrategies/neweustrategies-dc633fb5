@@ -627,11 +627,10 @@ function BenefitsEditor({
       </div>
       {value.length === 0 ? (
         <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
-          {lang === "pl"
-            ? "Brak benefitów. Dodaj pierwszy punkt."
-            : "No benefits yet. Add the first item."}
+          {tm("benefits.empty")}
         </p>
       ) : (
+
         <ol className="space-y-2">
           {value.map((b, i) => (
             <li key={i} className="rounded-md border border-border/60 bg-muted/30 p-2">
