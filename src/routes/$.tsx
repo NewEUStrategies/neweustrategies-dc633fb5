@@ -781,6 +781,31 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                                 .join(" ") ||
                               null,
                             authorHref: postAuthor?.slug ? `/author/${postAuthor.slug}` : null,
+                            authorAvatarUrl:
+                              postAuthor?.author_profile?.avatar_url ??
+                              postAuthor?.avatar_url ??
+                              null,
+                            authorJobTitle: postAuthor?.author_profile?.job_title ?? null,
+                            authorCompany: postAuthor?.author_profile?.company ?? null,
+                            authorBio:
+                              (lang === "en"
+                                ? preferCanonicalBio(
+                                    postAuthor?.bio_en ?? null,
+                                    postAuthor?.author_profile?.bio_en ?? null,
+                                  )
+                                : preferCanonicalBio(
+                                    postAuthor?.bio_pl ?? null,
+                                    postAuthor?.author_profile?.bio_pl ?? null,
+                                  )) ?? null,
+                            authorEmail: postAuthor?.author_profile?.contact_email ?? null,
+                            authorXUrl: postAuthor?.author_profile?.x_url ?? null,
+                            authorLinkedinUrl: postAuthor?.author_profile?.linkedin_url ?? null,
+                            authorFacebookUrl: postAuthor?.author_profile?.facebook_url ?? null,
+                            authorInstagramUrl: postAuthor?.author_profile?.instagram_url ?? null,
+                            authorWebsiteUrl: postAuthor?.author_profile?.website_url ?? null,
+                            authorSpotifyUrl: postAuthor?.author_profile?.spotify_url ?? null,
+                            authorCustomSocials:
+                              postAuthor?.author_profile?.custom_socials ?? null,
                             readMinutes,
                             audioUrl:
                               (lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null,

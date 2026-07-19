@@ -27,6 +27,7 @@ import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
+import { AuthorBusinessCard } from "@/components/post/AuthorBusinessCard";
 
 type Lang = "pl" | "en";
 
@@ -57,6 +58,18 @@ interface Props {
     title: string;
     author?: string | null;
     authorHref?: string | null;
+    authorAvatarUrl?: string | null;
+    authorJobTitle?: string | null;
+    authorCompany?: string | null;
+    authorBio?: string | null;
+    authorEmail?: string | null;
+    authorXUrl?: string | null;
+    authorLinkedinUrl?: string | null;
+    authorFacebookUrl?: string | null;
+    authorInstagramUrl?: string | null;
+    authorWebsiteUrl?: string | null;
+    authorSpotifyUrl?: string | null;
+    authorCustomSocials?: Array<{ label: string; url: string; iconUrl?: string }> | null;
     readMinutes?: number | null;
     /** Wgrany MP3 dla bieżącego języka - gdy podany, TTS jest pomijany. */
     audioUrl?: string | null;
@@ -357,18 +370,41 @@ export function FloatingShareBar({
       {isSidebar && listen && (
         // Offset dopasowany do top-edge kart w kolumnie głównej (np. "Z tego
         // artykułu dowiesz się..."), które leżą pod chipem section-label.
-        <div className="mb-4 lg:mt-9">
-          <SidebarListenCard
-            postId={listen.postId}
-            lang={lang}
-            title={listen.title}
-            author={listen.author ?? null}
-            authorHref={listen.authorHref ?? null}
-            readMinutes={listen.readMinutes ?? null}
-            audioUrl={listen.audioUrl ?? null}
-            postHref={href || undefined}
-          />
-        </div>
+        <>
+          <div className="mb-4 lg:mt-9">
+            <SidebarListenCard
+              postId={listen.postId}
+              lang={lang}
+              title={listen.title}
+              author={listen.author ?? null}
+              authorHref={listen.authorHref ?? null}
+              readMinutes={listen.readMinutes ?? null}
+              audioUrl={listen.audioUrl ?? null}
+              postHref={href || undefined}
+            />
+          </div>
+          {listen.author && (
+            <div className="mb-4">
+              <AuthorBusinessCard
+                lang={lang}
+                name={listen.author}
+                avatarUrl={listen.authorAvatarUrl}
+                href={listen.authorHref}
+                jobTitle={listen.authorJobTitle}
+                company={listen.authorCompany}
+                bio={listen.authorBio}
+                email={listen.authorEmail}
+                xUrl={listen.authorXUrl}
+                linkedinUrl={listen.authorLinkedinUrl}
+                facebookUrl={listen.authorFacebookUrl}
+                instagramUrl={listen.authorInstagramUrl}
+                websiteUrl={listen.authorWebsiteUrl}
+                spotifyUrl={listen.authorSpotifyUrl}
+                customSocials={listen.authorCustomSocials}
+              />
+            </div>
+          )}
+        </>
       )}
       <aside
         ref={railRef}
