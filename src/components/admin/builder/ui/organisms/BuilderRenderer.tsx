@@ -30,6 +30,8 @@ import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import {
@@ -427,6 +429,7 @@ const RenderSection = memo(function RenderSection({
   lang: "pl" | "en";
   device: Device;
 }) {
+  const { t } = useTranslation();
   const accessCtx = useAccessContext();
   const tabsCfg = section.tabs;
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
@@ -588,8 +591,8 @@ const RenderSection = memo(function RenderSection({
               >
                 <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2 text-center">
                   {tabsEnabled
-                    ? "Wybierz strukturę dla tej zakładki"
-                    : "Wybierz strukturę kontenera"}
+                    ? t("builder.chrome.pickTabStructure")
+                    : t("builder.chrome.pickContainerStructure")}
                 </div>
                 <StructurePicker
                   cols={7}
@@ -793,8 +796,7 @@ const RenderColumn = memo(function RenderColumn({
       {groups.map((g, gi) => {
         const renderItem = (w: (typeof visibleChildren)[number], inRow: boolean) => {
           const adv = w.advanced as
-            | { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } }
-            | undefined;
+            { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
           const hasExplicitHeight = !!(
             adv?.height &&
             (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)

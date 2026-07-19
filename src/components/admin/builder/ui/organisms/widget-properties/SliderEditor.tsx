@@ -27,6 +27,8 @@ import {
   type NavPosition,
   type NavArrowVariant,
 } from "@/lib/builder/sliderVariants";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -35,23 +37,15 @@ interface Props {
 }
 
 export function SliderEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const variant = ((typeof c.variant === "string" && c.variant) ||
     "editorial-hero") as SliderVariant;
   const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as
-    | "16/9"
-    | "4/3"
-    | "1/1"
-    | "21/9"
-    | "3/2";
+    "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
   const autoplay = c.autoplay !== false;
   const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
   const rounded = (typeof c.rounded === "string" ? c.rounded : "md") as
-    | "none"
-    | "sm"
-    | "md"
-    | "lg"
-    | "xl"
-    | "full";
+    "none" | "sm" | "md" | "lg" | "xl" | "full";
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
   const limit = typeof c.limit === "number" ? c.limit : 5;
@@ -59,9 +53,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
   const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
   const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as
-    | "newest"
-    | "oldest"
-    | "title";
+    "newest" | "oldest" | "title";
   const showExcerpt = c.showExcerpt !== false;
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
@@ -187,10 +179,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Wariant slidera
+            {t("builder.sliderEditor.variant")}
           </div>
           <div className="text-[10px] text-muted-foreground/70">
-            Animacja odtwarza się automatycznie
+            {t("builder.sliderEditor.autoHint")}
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3">
@@ -258,23 +250,23 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       {variant === "multi-card" && (
         <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Układ karuzeli
+            {t("builder.sliderEditor.carouselLayout")}
           </div>
-          <PropField label="Liczba kolumn (desktop)">
+          <PropField label={t("builder.sliderEditor.columnsDesktop")}>
             <Select value={String(columns)} onValueChange={(v) => setContent("columns", Number(v))}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">1 kolumna</SelectItem>
-                <SelectItem value="2">2 kolumny</SelectItem>
-                <SelectItem value="3">3 kolumny</SelectItem>
-                <SelectItem value="4">4 kolumny</SelectItem>
+                <SelectItem value="1">{t("builder.sliderEditor.col1")}</SelectItem>
+                <SelectItem value="2">{t("builder.sliderEditor.col2")}</SelectItem>
+                <SelectItem value="3">{t("builder.sliderEditor.col3")}</SelectItem>
+                <SelectItem value="4">{t("builder.sliderEditor.col4")}</SelectItem>
               </SelectContent>
             </Select>
           </PropField>
           <div className="text-[10px] text-muted-foreground/80 leading-snug">
-            Tablet automatycznie 2 kolumny, mobile 1 kolumna.
+            {t("builder.sliderEditor.responsiveHint")}
           </div>
         </div>
       )}
@@ -282,23 +274,23 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       {/* Source */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Źródło slajdów
+          {t("builder.sliderEditor.sourceTitle")}
         </div>
-        <PropField label="Źródło">
+        <PropField label={t("builder.sliderEditor.source")}>
           <Select value={source} onValueChange={(v) => setContent("source", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="manual">Ręcznie (slajdy poniżej)</SelectItem>
-              <SelectItem value="posts">Wpisy z bazy (filtry poniżej)</SelectItem>
+              <SelectItem value="manual">{t("builder.sliderEditor.sourceManual")}</SelectItem>
+              <SelectItem value="posts">{t("builder.sliderEditor.sourcePosts")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
         {source === "posts" && (
           <>
             <div className="grid grid-cols-2 gap-2">
-              <PropField label="Liczba slajdów">
+              <PropField label={t("builder.sliderEditor.slidesCount")}>
                 <Input
                   type="number"
                   min={1}
@@ -310,34 +302,34 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                   className="h-8 text-xs"
                 />
               </PropField>
-              <PropField label="Sortowanie">
+              <PropField label={t("builder.sliderEditor.sorting")}>
                 <Select value={orderBy} onValueChange={(v) => setContent("orderBy", v)}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="newest">Najnowsze</SelectItem>
-                    <SelectItem value="oldest">Najstarsze</SelectItem>
-                    <SelectItem value="title">Tytuł A→Z</SelectItem>
+                    <SelectItem value="newest">{t("builder.sliderEditor.newest")}</SelectItem>
+                    <SelectItem value="oldest">{t("builder.sliderEditor.oldest")}</SelectItem>
+                    <SelectItem value="title">{t("builder.sliderEditor.titleAZ")}</SelectItem>
                   </SelectContent>
                 </Select>
               </PropField>
             </div>
-            <PropField label="Kategorie">
+            <PropField label={t("builder.sliderEditor.categories")}>
               <TaxonomyPicker
                 mode="categories"
                 value={categorySlugs}
                 onChange={(v) => setContent("categorySlugs", v)}
               />
             </PropField>
-            <PropField label="Tagi">
+            <PropField label={t("builder.sliderEditor.tags")}>
               <TaxonomyPicker
                 mode="tags"
                 value={tagSlugs}
                 onChange={(v) => setContent("tagSlugs", v)}
               />
             </PropField>
-            <PropField label="Wyklucz ID wpisów (po przecinku)">
+            <PropField label={t("builder.sliderEditor.excludeIds")}>
               <Input
                 value={excludeIds}
                 onChange={(e) => setContent("excludeIds", e.target.value)}
@@ -346,7 +338,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               />
             </PropField>
             <div className="grid grid-cols-2 gap-2">
-              <PropField label="Pokaż zajawkę">
+              <PropField label={t("builder.sliderEditor.showExcerpt")}>
                 <Select
                   value={showExcerpt ? "on" : "off"}
                   onValueChange={(v) => setContent("showExcerpt", v === "on")}
@@ -355,17 +347,17 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="on">tak</SelectItem>
-                    <SelectItem value="off">nie</SelectItem>
+                    <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
+                    <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
                   </SelectContent>
                 </Select>
               </PropField>
-              <PropField label={`Tekst CTA (${lang.toUpperCase()})`}>
+              <PropField label={t("builder.sliderEditor.ctaText", { lang: lang.toUpperCase() })}>
                 <Input
                   value={ctaValue}
                   onChange={(e) => setContent(ctaKey, e.target.value)}
                   className="h-8 text-xs"
-                  placeholder="Czytaj więcej"
+                  placeholder={t("builder.sliderEditor.readMore")}
                 />
               </PropField>
             </div>
@@ -375,35 +367,35 @@ export function SliderEditor({ c, lang, setContent }: Props) {
 
       {/* Settings */}
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Proporcje">
+        <PropField label={t("builder.sliderEditor.ratio")}>
           <Select value={ratio} onValueChange={(v) => setContent("ratio", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="16/9">16:9</SelectItem>
-              <SelectItem value="21/9">21:9 (panorama)</SelectItem>
+              <SelectItem value="21/9">{t("builder.sliderEditor.ratio219")}</SelectItem>
               <SelectItem value="4/3">4:3</SelectItem>
               <SelectItem value="3/2">3:2</SelectItem>
-              <SelectItem value="1/1">1:1 (kwadrat)</SelectItem>
+              <SelectItem value="1/1">{t("builder.sliderEditor.ratio11")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Zaokrąglenie">
+        <PropField label={t("builder.sliderEditor.rounded")}>
           <Select value={rounded} onValueChange={(v) => setContent("rounded", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">brak</SelectItem>
-              <SelectItem value="sm">małe</SelectItem>
-              <SelectItem value="md">średnie</SelectItem>
-              <SelectItem value="lg">duże</SelectItem>
+              <SelectItem value="none">{t("builder.sliderEditor.roundedNone")}</SelectItem>
+              <SelectItem value="sm">{t("builder.sliderEditor.roundedSm")}</SelectItem>
+              <SelectItem value="md">{t("builder.sliderEditor.roundedMd")}</SelectItem>
+              <SelectItem value="lg">{t("builder.sliderEditor.roundedLg")}</SelectItem>
               <SelectItem value="xl">XL</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Autoodtwarzanie">
+        <PropField label={t("builder.sliderEditor.autoplay")}>
           <Select
             value={autoplay ? "on" : "off"}
             onValueChange={(v) => setContent("autoplay", v === "on")}
@@ -412,12 +404,12 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="on">włączone</SelectItem>
-              <SelectItem value="off">wyłączone</SelectItem>
+              <SelectItem value="on">{t("builder.sliderEditor.on")}</SelectItem>
+              <SelectItem value="off">{t("builder.sliderEditor.off")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Interwał (ms)">
+        <PropField label={t("builder.sliderEditor.interval")}>
           <Input
             type="number"
             min={1500}
@@ -428,7 +420,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Przyciemnienie overlay'a (0–1)">
+        <PropField label={t("builder.sliderEditor.overlay")}>
           <Input
             type="number"
             min={0}
@@ -446,10 +438,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       {/* Nav buttons styling */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Przyciski nawigacji (strzałki)
+          {t("builder.sliderEditor.navTitle")}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label={`Rozmiar (${navSizePx}px)`}>
+          <PropField label={t("builder.sliderEditor.navSize", { px: navSizePx })}>
             <Input
               type="range"
               min={28}
@@ -463,7 +455,12 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
           <PropField
-            label={`Zaokrąglenie (${navRoundedPx >= 999 ? "pełne" : `${navRoundedPx}px`})`}
+            label={t("builder.sliderEditor.navRounded", {
+              val:
+                navRoundedPx >= 999
+                  ? t("builder.sliderEditor.navRoundedFull")
+                  : `${navRoundedPx}px`,
+            })}
           >
             <Input
               type="range"
@@ -480,7 +477,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           </PropField>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor tła">
+          <PropField label={t("builder.sliderEditor.navBgColor")}>
             <AdminColorPicker
               value={navBgColor}
               onChange={(v) => setContent("navBgColor", v ?? "#ffffff")}
@@ -489,7 +486,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               placeholder="#ffffff"
             />
           </PropField>
-          <PropField label="Kolor strzałki">
+          <PropField label={t("builder.sliderEditor.navArrowColor")}>
             <AdminColorPicker
               value={navArrowColor}
               onChange={(v) => setContent("navArrowColor", v ?? "#ffffff")}
@@ -499,35 +496,35 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
         </div>
-        <PropField label="Styl tła przycisku">
+        <PropField label={t("builder.sliderEditor.navBgStyle")}>
           <Select value={navBgStyle} onValueChange={(v) => setContent("navBgStyle", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="glass">Glass (szkło, półprzezroczyste)</SelectItem>
-              <SelectItem value="solid">Solid (jednolity)</SelectItem>
-              <SelectItem value="outline">Outline (obrys)</SelectItem>
-              <SelectItem value="soft">Soft (miękki, delikatny blur)</SelectItem>
-              <SelectItem value="gradient">Gradient (kierunkowy)</SelectItem>
-              <SelectItem value="shadow">Shadow (unoszący cień)</SelectItem>
+              <SelectItem value="glass">{t("builder.sliderEditor.bgGlass")}</SelectItem>
+              <SelectItem value="solid">{t("builder.sliderEditor.bgSolid")}</SelectItem>
+              <SelectItem value="outline">{t("builder.sliderEditor.bgOutline")}</SelectItem>
+              <SelectItem value="soft">{t("builder.sliderEditor.bgSoft")}</SelectItem>
+              <SelectItem value="gradient">{t("builder.sliderEditor.bgGradient")}</SelectItem>
+              <SelectItem value="shadow">{t("builder.sliderEditor.bgShadow")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Pozycja">
+        <PropField label={t("builder.sliderEditor.position")}>
           <Select value={navPosition} onValueChange={(v) => setContent("navPosition", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="mid">Środek boków (wewnątrz)</SelectItem>
-              <SelectItem value="mid-outside">Środek boków (na zewnątrz)</SelectItem>
-              <SelectItem value="bottom">Prawy dolny róg</SelectItem>
-              <SelectItem value="top">Prawy górny róg</SelectItem>
+              <SelectItem value="mid">{t("builder.sliderEditor.posMid")}</SelectItem>
+              <SelectItem value="mid-outside">{t("builder.sliderEditor.posMidOutside")}</SelectItem>
+              <SelectItem value="bottom">{t("builder.sliderEditor.posBottom")}</SelectItem>
+              <SelectItem value="top">{t("builder.sliderEditor.posTop")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Kształt strzałki">
+        <PropField label={t("builder.sliderEditor.arrowShape")}>
           <Select value={navArrowVariant} onValueChange={(v) => setContent("navArrowVariant", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -541,7 +538,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label={`Grubość linii strzałki (${navArrowStroke.toFixed(2)})`}>
+        <PropField
+          label={t("builder.sliderEditor.arrowStroke", { val: navArrowStroke.toFixed(2) })}
+        >
           <Input
             type="range"
             min={0.5}
@@ -558,18 +557,16 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           />
         </PropField>
         <div className="text-[10px] text-muted-foreground/80 leading-snug">
-          Wskazówka: dla stylu „Outline" ustaw kolor tła = kolor obrysu; dla „Glass" najlepiej
-          sprawdzają się jasne kolory na ciemnych obrazach. Wariant „Caret" jest wypełniony -
-          grubość linii nie ma wpływu.
+          {t("builder.sliderEditor.navHint")}
         </div>
       </div>
 
-      {/* Typografia: edytuj w zakładce „Styl" → Typografia (tytuł / opis) */}
+      {/* Typography: edit in the "Style" tab → Typography (title / subtitle) */}
 
       {/* Live preview */}
       <div className="space-y-1.5">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Podgląd na żywo
+          {t("builder.sliderEditor.livePreview")}
         </div>
         <div className="rounded-md border border-border p-2 bg-muted/20">
           <SliderRender config={previewCfg} lang={lang} />
@@ -581,14 +578,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Slajdy ({items.length})
+              {t("builder.sliderEditor.slides", { count: items.length })}
             </div>
             <button
               type="button"
               onClick={addItem}
               className="h-7 px-2 rounded border border-border hover:bg-muted text-xs"
             >
-              + Dodaj slajd
+              {t("builder.sliderEditor.addSlide")}
             </button>
           </div>
 
@@ -599,7 +596,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             return (
               <div key={i} className="rounded-md border border-border p-2 space-y-2 bg-background">
                 <div className="flex items-center justify-between gap-1">
-                  <span className="text-xs font-medium">Slajd #{i + 1}</span>
+                  <span className="text-xs font-medium">
+                    {t("builder.sliderEditor.slideTitle", { n: i + 1 })}
+                  </span>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -627,7 +626,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                   </div>
                 </div>
 
-                <PropField label="Powiąż z wpisem (live sync)">
+                <PropField label={t("builder.sliderEditor.bindPost")}>
                   <PostPicker
                     value={it.postId}
                     onChange={(id) => updateItem(i, { postId: id })}
@@ -636,30 +635,34 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </PropField>
 
                 <ImageSlot
-                  label={it.postId ? "Obrazek (nadpisuje cover)" : "Obrazek"}
+                  label={
+                    it.postId
+                      ? t("builder.sliderEditor.imageOverride")
+                      : t("builder.sliderEditor.image")
+                  }
                   icon={<ImageIcon className="w-3 h-3" />}
                   value={it.image || ""}
                   onChange={(v) => updateItem(i, { image: v })}
                 />
 
-                <PropField label={`Tytuł (${lang.toUpperCase()})`}>
+                <PropField label={t("builder.sliderEditor.title", { lang: lang.toUpperCase() })}>
                   <Input
                     value={(it[titleKey] as string) || ""}
                     onChange={(e) => updateItem(i, { [titleKey]: e.target.value })}
                     className="h-8 text-xs"
-                    placeholder="np. Najnowsze wieści"
+                    placeholder={t("builder.sliderEditor.titlePh")}
                   />
                 </PropField>
-                <PropField label={`Podtytuł (${lang.toUpperCase()})`}>
+                <PropField label={t("builder.sliderEditor.subtitle", { lang: lang.toUpperCase() })}>
                   <Input
                     value={(it[subKey] as string) || ""}
                     onChange={(e) => updateItem(i, { [subKey]: e.target.value })}
                     className="h-8 text-xs"
-                    placeholder="krótki opis"
+                    placeholder={t("builder.sliderEditor.subtitlePh")}
                   />
                 </PropField>
                 <div className="grid grid-cols-2 gap-2">
-                  <PropField label="Link">
+                  <PropField label={t("builder.sliderEditor.link")}>
                     <Input
                       value={it.href || ""}
                       onChange={(e) => updateItem(i, { href: e.target.value })}
@@ -667,25 +670,27 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                       placeholder="/post/..."
                     />
                   </PropField>
-                  <PropField label={`CTA (${lang.toUpperCase()})`}>
+                  <PropField label={t("builder.sliderEditor.cta", { lang: lang.toUpperCase() })}>
                     <Input
                       value={(it[itemCtaKey] as string) || ""}
                       onChange={(e) => updateItem(i, { [itemCtaKey]: e.target.value })}
                       className="h-8 text-xs"
-                      placeholder="Czytaj więcej"
+                      placeholder={t("builder.sliderEditor.readMore")}
                     />
                   </PropField>
                 </div>
                 <div className="grid grid-cols-[1fr_auto] gap-2">
-                  <PropField label={`Kategoria (${lang.toUpperCase()})`}>
+                  <PropField
+                    label={t("builder.sliderEditor.category", { lang: lang.toUpperCase() })}
+                  >
                     <Input
                       value={(it[`category_${lang}` as const] as string) || ""}
                       onChange={(e) => updateItem(i, { [`category_${lang}`]: e.target.value })}
                       className="h-8 text-xs"
-                      placeholder="np. RAPORTY"
+                      placeholder={t("builder.sliderEditor.categoryPh")}
                     />
                   </PropField>
-                  <PropField label="Kolor">
+                  <PropField label={t("builder.common.color")}>
                     <AdminColorPicker
                       value={it.categoryColor || "#ef6c2e"}
                       onChange={(v) => updateItem(i, { categoryColor: v ?? "#ef6c2e" })}
@@ -695,20 +700,20 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                   </PropField>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <PropField label="Autor">
+                  <PropField label={t("builder.sliderEditor.author")}>
                     <Input
                       value={it.author || ""}
                       onChange={(e) => updateItem(i, { author: e.target.value })}
                       className="h-8 text-xs"
-                      placeholder="np. Jan Kowalski"
+                      placeholder={t("builder.sliderEditor.authorPh")}
                     />
                   </PropField>
-                  <PropField label="Czas czytania">
+                  <PropField label={t("builder.sliderEditor.readTime")}>
                     <Input
                       value={it.readTime || ""}
                       onChange={(e) => updateItem(i, { readTime: e.target.value })}
                       className="h-8 text-xs"
-                      placeholder="np. 18 Min Read"
+                      placeholder={t("builder.sliderEditor.readTimePh")}
                     />
                   </PropField>
                 </div>
@@ -718,7 +723,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
 
           {items.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded">
-              Brak slajdów. Dodaj pierwszy slajd ↑
+              {t("builder.sliderEditor.noSlides")}
             </div>
           )}
         </div>

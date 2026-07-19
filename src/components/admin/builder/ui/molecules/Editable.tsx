@@ -15,7 +15,9 @@ import {
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { sanitizeHtml } from "@/lib/sanitize";
+import "@/lib/i18n-builder";
 
 interface Props {
   as?: ElementType;
@@ -59,6 +61,7 @@ export function Editable({
   multiline = false,
   placeholder,
 }: Props) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState(false);
 
@@ -89,7 +92,7 @@ export function Editable({
   };
 
   const promptLink = () => {
-    const url = window.prompt("Adres URL (https://...)", "https://");
+    const url = window.prompt(t("builder.editable.urlPrompt"), "https://");
     if (!url) return;
     // Basic protocol allow-list; sanitizeHtml on commit will strip anything unsafe.
     if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) return;
@@ -171,7 +174,7 @@ export function Editable({
       {focused && (
         <span
           role="toolbar"
-          aria-label="Formatowanie tekstu"
+          aria-label={t("builder.editable.toolbar")}
           contentEditable={false}
           onMouseDown={(e) => {
             // Prevent blur of the editable when clicking a button.
@@ -182,39 +185,43 @@ export function Editable({
         >
           <FmtBtn
             label="B"
-            title="Pogrubienie (⌘/Ctrl+B)"
+            title={t("builder.editable.bold")}
             onClick={() => runCommand("bold")}
             bold
           />
           <FmtBtn
             label="I"
-            title="Kursywa (⌘/Ctrl+I)"
+            title={t("builder.editable.italic")}
             onClick={() => runCommand("italic")}
             italic
           />
           <FmtBtn
             label="U"
-            title="Podkreślenie (⌘/Ctrl+U)"
+            title={t("builder.editable.underline")}
             onClick={() => runCommand("underline")}
             underline
           />
           <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
           <FmtBtn
             label="•"
-            title="Lista punktowana"
+            title={t("builder.editable.bulletList")}
             onClick={() => runCommand("insertUnorderedList")}
           />
           <FmtBtn
             label="1."
-            title="Lista numerowana"
+            title={t("builder.editable.orderedList")}
             onClick={() => runCommand("insertOrderedList")}
           />
           <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
-          <FmtBtn label="🔗" title="Wstaw link (⌘/Ctrl+K)" onClick={promptLink} />
-          <FmtBtn label="⌫" title="Usuń link" onClick={() => runCommand("unlink")} />
+          <FmtBtn label="🔗" title={t("builder.editable.insertLink")} onClick={promptLink} />
+          <FmtBtn
+            label="⌫"
+            title={t("builder.editable.unlink")}
+            onClick={() => runCommand("unlink")}
+          />
           <FmtBtn
             label="Tx"
-            title="Wyczyść formatowanie (⌘/Ctrl+\\)"
+            title={t("builder.editable.clearFormat")}
             onClick={() => runCommand("removeFormat")}
           />
         </span>

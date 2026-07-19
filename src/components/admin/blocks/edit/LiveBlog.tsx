@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Radio } from "lucide-react";
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -15,6 +17,8 @@ interface Props {
  * reachable from the deep link below.
  */
 export function LiveBlogBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const lb = (k: string) => i18n.editor("liveBlog", k);
   const data = block.data ?? {};
   const title = typeof data.title === "string" ? data.title : "";
   const reverse = data.reverseChronological !== false; // domyślnie najnowsze na górze
@@ -28,18 +32,18 @@ export function LiveBlogBlock({ block, onChange }: Props) {
       </div>
 
       <label className="block space-y-1">
-        <span className="text-xs text-muted-foreground">Tytuł bloku (opcjonalny)</span>
+        <span className="text-xs text-muted-foreground">{lb("titleFieldLabel")}</span>
         <input
           type="text"
           value={title}
           onChange={(e) => onChange({ ...block, data: { ...data, title: e.target.value } })}
-          placeholder="np. Relacja na żywo"
+          placeholder={lb("titlePh")}
           className="w-full rounded border border-border bg-background px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-primary/40"
         />
       </label>
 
       <label className="flex items-center justify-between gap-3">
-        <span className="text-xs">Najnowsze wpisy na górze</span>
+        <span className="text-xs">{lb("newestOnTop")}</span>
         <input
           type="checkbox"
           checked={reverse}
@@ -50,7 +54,7 @@ export function LiveBlogBlock({ block, onChange }: Props) {
       </label>
 
       <label className="flex items-center justify-between gap-3">
-        <span className="text-xs">Aktualizacja na żywo (realtime)</span>
+        <span className="text-xs">{lb("realtime")}</span>
         <input
           type="checkbox"
           checked={autoRefresh}
@@ -64,12 +68,9 @@ export function LiveBlogBlock({ block, onChange }: Props) {
           search={{ blockId: block.id }}
           className="text-xs text-primary hover:underline"
         >
-          Moderuj wpisy tego bloku →
+          {lb("moderate")}
         </Link>
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Wpisy dodajesz i edytujesz w panelu Live blog. Zapisz najpierw ten post, aby blok był
-          dostępny do wyboru.
-        </p>
+        <p className="text-[11px] text-muted-foreground mt-1">{lb("note")}</p>
       </div>
     </div>
   );

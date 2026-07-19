@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: string | undefined;
@@ -74,15 +75,15 @@ export function PostPicker({ value, onChange, lang }: Props) {
           className="flex-1 h-8 px-2 rounded border border-border bg-background text-left text-xs hover:bg-muted truncate"
         >
           {value
-            ? `${t("widget.boundTo", "Powiązane:")} ${label || value.slice(0, 8)}`
-            : t("widget.bindPost", "Powiąż z wpisem...")}
+            ? `${t("builder.picker.boundTo")} ${label || value.slice(0, 8)}`
+            : t("builder.picker.bindPost")}
         </button>
         {value && (
           <button
             type="button"
             onClick={() => onChange(undefined)}
             className="h-8 w-8 inline-flex items-center justify-center rounded border border-border hover:bg-destructive/10 text-destructive text-xs"
-            aria-label={t("widget.unbindPost", "Odepnij wpis")}
+            aria-label={t("builder.picker.unbindPost")}
           >
             ×
           </button>
@@ -94,7 +95,7 @@ export function PostPicker({ value, onChange, lang }: Props) {
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("widget.searchPosts", "Szukaj wpisów...") ?? ""}
+            placeholder={t("builder.picker.searchPosts")}
             className="h-7 text-xs"
           />
           <div className="max-h-48 overflow-y-auto space-y-0.5">
@@ -116,12 +117,12 @@ export function PostPicker({ value, onChange, lang }: Props) {
             })}
             {!hits.length && search.trim().length >= 2 && (
               <div className="px-2 py-1 text-[11px] text-muted-foreground">
-                {t("widget.noResults", "Brak wyników")}
+                {t("builder.picker.noResults")}
               </div>
             )}
             {search.trim().length < 2 && (
               <div className="px-2 py-1 text-[11px] text-muted-foreground">
-                {t("widget.searchHint", "Wpisz min. 2 znaki")}
+                {t("builder.picker.searchHint")}
               </div>
             )}
           </div>

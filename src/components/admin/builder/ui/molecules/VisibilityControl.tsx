@@ -1,6 +1,8 @@
 // Molecule: per-device visibility toggles.
 import type { AdvancedSettings } from "@/lib/builder/types";
 import { Monitor, Tablet, Smartphone } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: AdvancedSettings | undefined;
@@ -16,6 +18,7 @@ const DEVICES: Array<
 ];
 
 export function VisibilityControl({ value, onChange }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-3 gap-1.5">
       {DEVICES.map(([d, Icon, label]) => {
@@ -34,7 +37,11 @@ export function VisibilityControl({ value, onChange }: Props) {
                 ? "bg-destructive/10 border-destructive/40 text-destructive"
                 : "bg-muted/30 border-border hover:bg-muted text-muted-foreground"
             }`}
-            title={hidden ? `Ukryte na ${label}` : `Widoczne na ${label}`}
+            title={
+              hidden
+                ? t("builder.visibility.hiddenOn", { device: label })
+                : t("builder.visibility.visibleOn", { device: label })
+            }
           >
             <Icon className="w-3.5 h-3.5" />
             <span>{label}</span>

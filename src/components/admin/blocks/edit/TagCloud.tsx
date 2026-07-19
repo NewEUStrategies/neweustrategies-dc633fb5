@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -35,7 +36,7 @@ export function TagCloudBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showCount: e.target.checked } })
             }
           />
-          Pokaż liczbę wpisów
+          {i18n.editor("tagCloud", "showCount")}
         </label>
       </div>
     </div>

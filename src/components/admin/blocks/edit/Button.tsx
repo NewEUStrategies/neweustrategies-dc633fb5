@@ -1,4 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -6,6 +8,8 @@ interface Props {
 }
 
 export function ButtonBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const bt = (k: string) => i18n.editor("button", k);
   const label = String(block.data.label ?? "");
   const variant = String(block.data.variant ?? "default");
   const cls =
@@ -22,12 +26,12 @@ export function ButtonBlock({ block, onChange }: Props) {
           type="text"
           value={label}
           onChange={(e) => onChange({ ...block, data: { ...block.data, label: e.target.value } })}
-          placeholder="Etykieta…"
+          placeholder={bt("labelPh")}
           className="bg-transparent outline-none border-none p-0 placeholder:opacity-60 min-w-[6ch]"
           style={{ width: `${Math.max(label.length, 8)}ch` }}
         />
       </span>
-      <span className="text-xs text-muted-foreground">- link i wariant w panelu po prawej</span>
+      <span className="text-xs text-muted-foreground">{bt("hint")}</span>
     </div>
   );
 }

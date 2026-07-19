@@ -1,6 +1,8 @@
 // Molecule: enter-animation preset + duration/delay/easing/distance + play-once toggle.
+import { useTranslation } from "react-i18next";
 import type { AdvancedSettings, MotionPreset, MotionEasing } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import "@/lib/i18n-builder";
 import {
   Select,
   SelectContent,
@@ -15,8 +17,10 @@ interface Props {
   onChange: (mut: (a: AdvancedSettings) => void) => void;
 }
 
+// Labels for "none" / "ease-out" are localized at render (see t(...) overrides);
+// the strings here are inert fallbacks.
 const PRESETS: Array<[MotionPreset, string]> = [
-  ["none", "Brak"],
+  ["none", "None"],
   ["fade", "Fade"],
   ["slide-up", "Slide up"],
   ["slide-down", "Slide down"],
@@ -39,7 +43,7 @@ const PRESETS: Array<[MotionPreset, string]> = [
 ];
 
 const EASINGS: Array<[MotionEasing, string]> = [
-  ["ease-out", "Ease-out (domyślnie)"],
+  ["ease-out", "Ease-out"],
   ["ease", "Ease"],
   ["ease-in", "Ease-in"],
   ["ease-in-out", "Ease-in-out"],
@@ -49,6 +53,7 @@ const EASINGS: Array<[MotionEasing, string]> = [
 ];
 
 export function MotionControl({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const usesDistance = [
     "slide-up",
     "slide-down",
@@ -60,7 +65,7 @@ export function MotionControl({ value, onChange }: Props) {
   ].includes(value?.animation ?? "");
   return (
     <div className="space-y-2">
-      <PropField label="Efekt wejścia">
+      <PropField label={t("builder.motion.effect")}>
         <Select
           value={value?.animation ?? "none"}
           onValueChange={(v) =>
@@ -75,13 +80,13 @@ export function MotionControl({ value, onChange }: Props) {
           <SelectContent>
             {PRESETS.map(([v, l]) => (
               <SelectItem key={v} value={v} className="text-xs">
-                {l}
+                {v === "none" ? t("builder.motion.presetNone") : l}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </PropField>
-      <PropField label="Krzywa (easing)">
+      <PropField label={t("builder.motion.easing")}>
         <Select
           value={value?.animationEasing ?? "ease-out"}
           onValueChange={(v) =>
@@ -96,14 +101,14 @@ export function MotionControl({ value, onChange }: Props) {
           <SelectContent>
             {EASINGS.map(([v, l]) => (
               <SelectItem key={v} value={v} className="text-xs">
-                {l}
+                {v === "ease-out" ? t("builder.motion.easingEaseOutDefault") : l}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </PropField>
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Czas (ms)">
+        <PropField label={t("builder.motion.duration")}>
           <Input
             type="number"
             min={0}
@@ -119,7 +124,7 @@ export function MotionControl({ value, onChange }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Opóźnienie (ms)">
+        <PropField label={t("builder.motion.delay")}>
           <Input
             type="number"
             min={0}
@@ -137,7 +142,7 @@ export function MotionControl({ value, onChange }: Props) {
         </PropField>
       </div>
       {usesDistance && (
-        <PropField label="Dystans (px)">
+        <PropField label={t("builder.motion.distance")}>
           <Input
             type="number"
             min={0}
@@ -165,7 +170,7 @@ export function MotionControl({ value, onChange }: Props) {
             })
           }
         />
-        Odtwarzaj tylko raz
+        {t("builder.motion.playOnce")}
       </label>
     </div>
   );

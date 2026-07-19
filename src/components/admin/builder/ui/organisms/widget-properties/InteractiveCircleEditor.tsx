@@ -18,6 +18,8 @@ import { PropField, ItemFrame, ColorField } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -29,6 +31,7 @@ const s = (v: unknown, d = ""): string => (typeof v === "string" ? v : d);
 const n = (v: unknown, d = 0): number => (typeof v === "number" ? v : d);
 
 export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const items = itemsOf(c, "items");
   const update = (next: Item[]) => setContent("items", toJson(next));
   const patch = (i: number, delta: Partial<Item>) =>
@@ -39,34 +42,34 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Ustawienia ogólne */}
+      {/* General settings */}
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Układ">
+        <PropField label={t("builder.interactiveCircleEditor.layout")}>
           <Select value={layout} onValueChange={(v) => setContent("layout", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="semi">Półokrąg</SelectItem>
-              <SelectItem value="full">Pełny okrąg</SelectItem>
+              <SelectItem value="semi">{t("builder.interactiveCircleEditor.semi")}</SelectItem>
+              <SelectItem value="full">{t("builder.interactiveCircleEditor.full")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Aktywacja">
+        <PropField label={t("builder.interactiveCircleEditor.trigger")}>
           <Select value={trigger} onValueChange={(v) => setContent("trigger", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="hover">Najechanie</SelectItem>
-              <SelectItem value="click">Kliknięcie</SelectItem>
+              <SelectItem value="hover">{t("builder.interactiveCircleEditor.hover")}</SelectItem>
+              <SelectItem value="click">{t("builder.interactiveCircleEditor.click")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Średnica (px)">
+        <PropField label={t("builder.interactiveCircleEditor.diameter")}>
           <Input
             type="number"
             min={280}
@@ -76,7 +79,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Rozmiar pozycji (px)">
+        <PropField label={t("builder.interactiveCircleEditor.itemSize")}>
           <Input
             type="number"
             min={40}
@@ -89,7 +92,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Grubość łuku (px)">
+        <PropField label={t("builder.interactiveCircleEditor.arcThickness")}>
           <Input
             type="number"
             min={1}
@@ -99,7 +102,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Kolor łuku">
+        <PropField label={t("builder.interactiveCircleEditor.arcColor")}>
           <ColorField
             value={s(c.circleColor) || undefined}
             onChange={(v) => setContent("circleColor", v ?? "")}
@@ -109,49 +112,49 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Tło pozycji">
+        <PropField label={t("builder.interactiveCircleEditor.itemBg")}>
           <ColorField
             value={s(c.itemBg) || undefined}
             onChange={(v) => setContent("itemBg", v ?? "")}
-            placeholder="domyślnie: karta"
+            placeholder={t("builder.interactiveCircleEditor.itemBgPh")}
           />
         </PropField>
-        <PropField label="Kolor pozycji">
+        <PropField label={t("builder.interactiveCircleEditor.itemColor")}>
           <ColorField
             value={s(c.itemColor) || undefined}
             onChange={(v) => setContent("itemColor", v ?? "")}
-            placeholder="ikona + tekst"
+            placeholder={t("builder.interactiveCircleEditor.itemColorPh")}
           />
         </PropField>
-        <PropField label="Tło aktywne">
+        <PropField label={t("builder.interactiveCircleEditor.activeBg")}>
           <ColorField
             value={s(c.activeBg) || undefined}
             onChange={(v) => setContent("activeBg", v ?? "")}
-            placeholder="domyślnie: brand"
+            placeholder={t("builder.interactiveCircleEditor.activeBgPh")}
           />
         </PropField>
-        <PropField label="Kolor aktywny">
+        <PropField label={t("builder.interactiveCircleEditor.activeColor")}>
           <ColorField
             value={s(c.activeColor) || undefined}
             onChange={(v) => setContent("activeColor", v ?? "")}
-            placeholder="na tle aktywnym"
+            placeholder={t("builder.interactiveCircleEditor.activeColorPh")}
           />
         </PropField>
       </div>
 
-      {/* Tekst centralny (fallback gdy pozycja nie ma własnego opisu) */}
+      {/* Central text (fallback when an item has no description of its own) */}
       <div className="rounded border border-border p-2 space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Tekst domyślny ({lang.toUpperCase()})
+          {t("builder.interactiveCircleEditor.defaultText", { lang: lang.toUpperCase() })}
         </p>
-        <PropField label="Nagłówek">
+        <PropField label={t("builder.interactiveCircleEditor.heading")}>
           <Input
             value={s(c[`title_${lang}`])}
             onChange={(e) => setContent(`title_${lang}`, e.target.value)}
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Opis">
+        <PropField label={t("builder.interactiveCircleEditor.desc")}>
           <Textarea
             rows={3}
             value={s(c[`desc_${lang}`])}
@@ -161,9 +164,9 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
 
-      {/* Lista pozycji */}
+      {/* Items list */}
       <ListShell
-        title="Pozycje (do 8)"
+        title={t("builder.interactiveCircleEditor.items")}
         items={items}
         onAdd={() =>
           items.length < 8 &&
@@ -189,27 +192,35 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
               title={`#${i + 1} · ${s(it[`label_${lang}`]) || s(it.label_pl) || "-"}`}
               onRemove={() => update(items.filter((_, j) => j !== i))}
             >
-              <PropField label="Ikona (Lucide)">
+              <PropField label={t("builder.interactiveCircleEditor.icon")}>
                 <LucideIconPicker
                   value={s(it.icon)}
                   onChange={(v) => patch(i, { icon: v ?? "" })}
                 />
               </PropField>
-              <PropField label={`Etykieta (${lang.toUpperCase()})`}>
+              <PropField
+                label={t("builder.interactiveCircleEditor.label", { lang: lang.toUpperCase() })}
+              >
                 <Input
                   value={s(it[`label_${lang}`])}
                   onChange={(e) => patch(i, { [`label_${lang}`]: e.target.value })}
                   className="h-8 text-xs"
                 />
               </PropField>
-              <PropField label={`Tytuł w środku (${lang.toUpperCase()})`}>
+              <PropField
+                label={t("builder.interactiveCircleEditor.centerTitle", {
+                  lang: lang.toUpperCase(),
+                })}
+              >
                 <Input
                   value={s(it[`title_${lang}`])}
                   onChange={(e) => patch(i, { [`title_${lang}`]: e.target.value })}
                   className="h-8 text-xs"
                 />
               </PropField>
-              <PropField label={`Opis (${lang.toUpperCase()})`}>
+              <PropField
+                label={t("builder.interactiveCircleEditor.itemDesc", { lang: lang.toUpperCase() })}
+              >
                 <Textarea
                   rows={3}
                   value={s(it[`desc_${lang}`])}
@@ -217,7 +228,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
                   className="text-xs"
                 />
               </PropField>
-              <PropField label="Link (opcjonalny)">
+              <PropField label={t("builder.interactiveCircleEditor.link")}>
                 <Input
                   value={s(it.href)}
                   onChange={(e) => patch(i, { href: e.target.value })}

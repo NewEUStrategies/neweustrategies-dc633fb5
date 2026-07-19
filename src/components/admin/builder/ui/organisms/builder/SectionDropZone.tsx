@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { StructurePicker } from "../../../StructurePicker";
 
 export function SectionDropZone({
@@ -17,6 +19,7 @@ export function SectionDropZone({
   onRemoveAbove?: () => void;
   onRemoveBelow?: () => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   if (open) {
     return (
@@ -27,7 +30,7 @@ export function SectionDropZone({
       >
         <div className="flex items-center justify-between mb-2 gap-2">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            Wybierz strukturę
+            {t("builder.chrome.pickStructure")}
           </span>
           <div className="flex items-center gap-1">
             {onRemoveAbove && (
@@ -37,11 +40,11 @@ export function SectionDropZone({
                   onRemoveAbove();
                   setOpen(false);
                 }}
-                title="Usuń sekcję powyżej"
+                title={t("builder.chrome.deleteSectionAbove")}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
               >
                 <Trash2 className="w-3 h-3" />
-                Usuń ↑ powyżej
+                {t("builder.chrome.deleteAbove")}
               </button>
             )}
             {onRemoveBelow && (
@@ -51,11 +54,11 @@ export function SectionDropZone({
                   onRemoveBelow();
                   setOpen(false);
                 }}
-                title="Usuń sekcję poniżej"
+                title={t("builder.chrome.deleteSectionBelow")}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
               >
                 <Trash2 className="w-3 h-3" />
-                Usuń ↓ poniżej
+                {t("builder.chrome.deleteBelow")}
               </button>
             )}
             <button
@@ -83,7 +86,7 @@ export function SectionDropZone({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={label ?? `Wstaw sekcję w pozycji ${index + 1}`}
+        title={label ?? t("builder.chrome.insertSectionAt", { index: index + 1 })}
         className={`w-full rounded inline-flex items-center justify-center gap-1.5 text-[10px] transition ${
           prominent
             ? "h-[42px] border border-dashed border-brand/40 text-brand/80 hover:border-brand hover:bg-brand/5"

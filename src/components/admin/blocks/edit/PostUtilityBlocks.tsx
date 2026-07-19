@@ -3,6 +3,8 @@
 // Lekkie kontrolki spójne z resztą edit/ - bez zewnętrznych zaleznosci UI.
 
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -22,15 +24,17 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 }
 
 export function BreadcrumbsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pu = (k: string) => i18n.editor("postUtility", k);
   const sep = String(block.data.separator ?? "/");
   const showHome = block.data.showHome !== false;
   return (
-    <Shell label="Okruszki">
+    <Shell label={pu("breadcrumbsLabel")}>
       <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={sep}
-          placeholder="Separator (np. / lub ›)"
+          placeholder={pu("separatorPh")}
           onChange={(e) =>
             onChange({ ...block, data: { ...block.data, separator: e.target.value } })
           }
@@ -43,7 +47,7 @@ export function BreadcrumbsBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showHome: e.target.checked } })
             }
           />
-          Pokaż "Strona główna"
+          {pu("showHome")}
         </label>
       </div>
     </Shell>
@@ -51,10 +55,12 @@ export function BreadcrumbsBlock({ block, onChange }: Props) {
 }
 
 export function ReadingTimeBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pu = (k: string) => i18n.editor("postUtility", k);
   const wpm = Number(block.data.wpm ?? 220);
   const prefix = String(block.data.prefix ?? "");
   return (
-    <Shell label="Czas czytania">
+    <Shell label={pu("readingTimeLabel")}>
       <div className="grid grid-cols-2 gap-2">
         <input
           type="number"
@@ -69,7 +75,7 @@ export function ReadingTimeBlock({ block, onChange }: Props) {
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={prefix}
-          placeholder="Prefix (opcjonalnie)"
+          placeholder={pu("prefixPh")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, prefix: e.target.value } })}
         />
       </div>
@@ -88,6 +94,8 @@ const ALL_NETWORKS = [
 ] as const;
 
 export function ShareButtonsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pu = (k: string) => i18n.editor("postUtility", k);
   const networks = Array.isArray(block.data.networks)
     ? (block.data.networks as string[])
     : ["facebook", "x", "linkedin", "copy"];
@@ -100,15 +108,15 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Udostępnij">
+    <Shell label={pu("shareLabel")}>
       <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={variant}
         onChange={(e) => onChange({ ...block, data: { ...block.data, variant: e.target.value } })}
       >
-        <option value="filled">Wypełnione</option>
-        <option value="outline">Obrys</option>
-        <option value="ghost">Minimalne</option>
+        <option value="filled">{pu("variantFilled")}</option>
+        <option value="outline">{pu("variantOutline")}</option>
+        <option value="ghost">{pu("variantGhost")}</option>
       </AdminSelect>
       <div className="flex flex-wrap gap-1.5">
         {ALL_NETWORKS.map((n) => {
@@ -135,13 +143,15 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
 }
 
 export function PostViewsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pu = (k: string) => i18n.editor("postUtility", k);
   const suffix = String(block.data.suffix ?? "");
   return (
-    <Shell label="Wyświetlenia">
+    <Shell label={pu("viewsLabel")}>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={suffix}
-        placeholder="Suffix (np. wyświetleń)"
+        placeholder={pu("suffixPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, suffix: e.target.value } })}
       />
     </Shell>

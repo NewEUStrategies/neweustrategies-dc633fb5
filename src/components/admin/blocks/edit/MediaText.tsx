@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -50,7 +51,7 @@ export function MediaTextBlock({ block, onChange }: Props) {
         </div>
         <Textarea
           value={text}
-          placeholder={i18n.editor("mediaText", "contentPh") || "Treść obok mediów…"}
+          placeholder={i18n.editor("mediaText", "contentPh")}
           rows={6}
           onChange={(e) => onChange({ ...block, data: { ...block.data, text: e.target.value } })}
         />

@@ -9,6 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { RotateCcw } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface AdminColorPickerProps {
   value: string | undefined;
@@ -129,6 +131,8 @@ export function AdminColorPicker({
   triggerClassName,
   ariaLabel,
 }: AdminColorPickerProps) {
+  const i18n = useBlocksI18n();
+  const ac = (k: string) => i18n.editor("adminControls", k);
   const v = (value ?? "").trim();
   const transparent = isTransparent(v);
   const hasOverride = v.length > 0;
@@ -165,7 +169,7 @@ export function AdminColorPicker({
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label={ariaLabel ?? "Wybierz kolor"}
+            aria-label={ariaLabel ?? ac("pickColor")}
             className={cn(
               "h-8 w-8 shrink-0 rounded-md border border-border overflow-hidden ring-offset-background transition hover:ring-2 hover:ring-ring/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               showInherited && "border-dashed",
@@ -278,7 +282,7 @@ export function AdminColorPicker({
           type="button"
           onClick={() => onChange(transparent ? undefined : "transparent")}
           aria-pressed={transparent}
-          title={transparent ? "Wyłącz przezroczystość" : "Ustaw przezroczyste"}
+          title={transparent ? ac("disableTransparency") : ac("setTransparent")}
           className={cn(
             "h-8 w-8 shrink-0 rounded-md border text-[10px] font-medium transition",
             transparent ? "" : "border-border text-muted-foreground hover:bg-muted",
@@ -307,8 +311,8 @@ export function AdminColorPicker({
           type="button"
           onClick={() => onChange(undefined)}
           disabled={!hasOverride}
-          title="Przywróć domyślny"
-          aria-label="Przywróć domyślny"
+          title={ac("resetDefault")}
+          aria-label={ac("resetDefault")}
           className="h-8 w-8 shrink-0 rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <RotateCcw className="h-3.5 w-3.5" />

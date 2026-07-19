@@ -12,6 +12,8 @@ import type {
 } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Selection {
   kind: "section" | "column" | "widget" | "inner-section" | null;
@@ -27,16 +29,19 @@ interface Props {
 }
 
 export function Navigator(p: Props) {
+  const { t } = useTranslation();
   const doc = safeParseBuilderDoc(p.doc);
   return (
     <div className="text-xs">
       <div className="px-3 py-2 border-b border-border inline-flex items-center gap-2 w-full bg-card">
         <Layers className="w-3.5 h-3.5" />
-        <span className="font-medium">Nawigator</span>
+        <span className="font-medium">{t("builder.navigator.title")}</span>
       </div>
       <div className="p-1 max-h-[260px] overflow-y-auto">
         {doc.sections.length === 0 && (
-          <div className="text-muted-foreground p-2 text-[11px]">Brak sekcji.</div>
+          <div className="text-muted-foreground p-2 text-[11px]">
+            {t("builder.navigator.empty")}
+          </div>
         )}
         {doc.sections.map((s, i) => (
           <SectionRow key={s.id} section={s} index={i + 1} {...p} />
@@ -54,6 +59,7 @@ function SectionRow({
   onSelect,
   onToggleHidden,
 }: Props & { section: SectionNode; index: number }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const selected = selection.kind === "section" && selection.id === section.id;
   const hidden = !!section.advanced?.hideOn?.[device];
@@ -65,7 +71,7 @@ function SectionRow({
         onToggle={() => setOpen(!open)}
         selected={selected}
         hidden={hidden}
-        label={`Sekcja ${index}`}
+        label={t("builder.navigator.section", { n: index })}
         onSelect={() => onSelect({ kind: "section", id: section.id })}
         onToggleHidden={() => onToggleHidden(section.id, "section")}
       />
@@ -106,6 +112,7 @@ function InnerRow({
   onSelect,
   onToggleHidden,
 }: Omit<Props, "doc"> & { inner: InnerSectionNode } & { doc: BuilderDocument }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
   return (
@@ -116,7 +123,7 @@ function InnerRow({
         onToggle={() => setOpen(!open)}
         selected={selected}
         hidden={false}
-        label="Sekcja wewn."
+        label={t("builder.navigator.innerSection")}
         onSelect={() => onSelect({ kind: "inner-section", id: inner.id })}
         onToggleHidden={() => {}}
       />
@@ -153,6 +160,7 @@ function ColumnRow({
   onSelect: (s: Selection) => void;
   onToggleHidden: (id: string, kind: NonNullable<Selection["kind"]>) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const selected = selection.kind === "column" && selection.id === column.id;
   const hidden = !!column.advanced?.hideOn?.[device];
@@ -164,7 +172,9 @@ function ColumnRow({
         onToggle={() => setOpen(!open)}
         selected={selected}
         hidden={hidden}
-        label={`Kolumna (${column.span?.[device] ?? column.span?.desktop ?? 12})`}
+        label={t("builder.navigator.column", {
+          span: column.span?.[device] ?? column.span?.desktop ?? 12,
+        })}
         onSelect={() => onSelect({ kind: "column", id: column.id })}
         onToggleHidden={() => onToggleHidden(column.id, "column")}
       />
@@ -238,6 +248,7 @@ function Row({
   onSelect: () => void;
   onToggleHidden: () => void;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (selected && ref.current) {
@@ -275,7 +286,7 @@ function Row({
           onToggleHidden();
         }}
         className="text-muted-foreground hover:text-foreground"
-        title={hidden ? "Pokaż" : "Ukryj"}
+        title={hidden ? t("builder.navigator.show") : t("builder.navigator.hide")}
       >
         <Eye className={`w-3 h-3 ${hidden ? "opacity-30" : ""}`} />
       </button>

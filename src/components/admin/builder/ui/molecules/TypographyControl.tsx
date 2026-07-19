@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { PropField } from "../atoms/PropField";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: WidgetTypography | undefined;
@@ -28,6 +30,7 @@ interface Props {
 }
 
 export function TypographyControl({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const v = value ?? {};
   const set = (patch: Partial<WidgetTypography>) => {
     const next = { ...v, ...patch } as WidgetTypography;
@@ -99,7 +102,7 @@ export function TypographyControl({ value, onChange }: Props) {
         <button
           type="button"
           tabIndex={-1}
-          aria-label="Zwiększ"
+          aria-label={t("builder.stepper.increase")}
           onClick={() => setter(String((parseInt(current || "0", 10) || 0) + step))}
           className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
         >
@@ -108,7 +111,7 @@ export function TypographyControl({ value, onChange }: Props) {
         <button
           type="button"
           tabIndex={-1}
-          aria-label="Zmniejsz"
+          aria-label={t("builder.stepper.decrease")}
           onClick={() => {
             const next = (parseInt(current || "0", 10) || 0) - step;
             setter(next >= 0 ? String(next) : "");
@@ -134,20 +137,20 @@ export function TypographyControl({ value, onChange }: Props) {
 
   return (
     <div className="space-y-2">
-      <PropField label="Krój pisma">
+      <PropField label={t("builder.typographyControl.fontFamily")}>
         <FontPicker value={v.fontFamily} onChange={(stack) => set({ fontFamily: stack })} />
       </PropField>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Rozmiar tytułu (px)">
-          {renderSizeInput(unifiedPx, setUnifiedSize, "Rozmiar tytułu")}
+        <PropField label={t("builder.typographyControl.titleSize")}>
+          {renderSizeInput(unifiedPx, setUnifiedSize, t("builder.typographyControl.titleSizeAria"))}
         </PropField>
-        <PropField label="Rozmiar opisu (px)">
-          {renderSizeInput(descPx, setDescSize, "Rozmiar opisu")}
+        <PropField label={t("builder.typographyControl.descSize")}>
+          {renderSizeInput(descPx, setDescSize, t("builder.typographyControl.descSizeAria"))}
         </PropField>
       </div>
 
-      <PropField label="Odstęp tytuł ↔ opis (px)">
+      <PropField label={t("builder.typographyControl.gap")}>
         {renderSizeInput(
           typeof v.titleDescriptionGapPx === "number" ? String(v.titleDescriptionGapPx) : "",
           (raw) => {
@@ -158,21 +161,21 @@ export function TypographyControl({ value, onChange }: Props) {
             }
             set({ titleDescriptionGapPx: Math.max(0, Math.min(200, Number(digits) || 0)) });
           },
-          "Odstęp tytuł opis",
+          t("builder.typographyControl.gapAria"),
           "16",
           "px",
           4,
         )}
       </PropField>
 
-      <PropField label="Wyrównanie">
+      <PropField label={t("builder.spacing.align")}>
         <div className="inline-flex rounded border border-border bg-muted/30 p-0.5 w-full">
           {(
             [
-              { v: "left", Icon: AlignLeft, label: "Lewo" },
-              { v: "center", Icon: AlignCenter, label: "Środek" },
-              { v: "right", Icon: AlignRight, label: "Prawo" },
-              { v: "justify", Icon: AlignJustify, label: "Wyjustuj" },
+              { v: "left", Icon: AlignLeft, label: t("builder.common.left") },
+              { v: "center", Icon: AlignCenter, label: t("builder.common.center") },
+              { v: "right", Icon: AlignRight, label: t("builder.common.right") },
+              { v: "justify", Icon: AlignJustify, label: t("builder.typographyControl.justify") },
             ] as const
           ).map(({ v: val, Icon, label }) => {
             const active = v.textAlign === val;
@@ -196,7 +199,7 @@ export function TypographyControl({ value, onChange }: Props) {
       </PropField>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Grubość">
+        <PropField label={t("builder.typographyControl.weight")}>
           <Select
             value={v.fontWeight ?? "__unset"}
             onValueChange={(w) => set({ fontWeight: w === "__unset" ? undefined : w })}
@@ -214,7 +217,7 @@ export function TypographyControl({ value, onChange }: Props) {
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Styl">
+        <PropField label={t("builder.shape.style")}>
           <Select
             value={v.fontStyle ?? "normal"}
             onValueChange={(s) => set({ fontStyle: s as "normal" | "italic" })}
@@ -223,24 +226,36 @@ export function TypographyControl({ value, onChange }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="normal">Normalny</SelectItem>
-              <SelectItem value="italic">Pochyły</SelectItem>
+              <SelectItem value="normal">{t("builder.typographyControl.styleNormal")}</SelectItem>
+              <SelectItem value="italic">{t("builder.typographyControl.styleItalic")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Wysokość linii (px)">
-          {renderSizeInput(lineHeightPx, setLineHeightPx, "Wysokość linii", "24", "px")}
+        <PropField label={t("builder.typographyControl.lineHeight")}>
+          {renderSizeInput(
+            lineHeightPx,
+            setLineHeightPx,
+            t("builder.typographyControl.lineHeightAria"),
+            "24",
+            "px",
+          )}
         </PropField>
-        <PropField label="Odstęp znaków (px)">
-          {renderSizeInput(letterSpacingPx, setLetterSpacingPx, "Odstęp znaków", "0", "px")}
+        <PropField label={t("builder.typographyControl.letterSpacing")}>
+          {renderSizeInput(
+            letterSpacingPx,
+            setLetterSpacingPx,
+            t("builder.typographyControl.letterSpacingAria"),
+            "0",
+            "px",
+          )}
         </PropField>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Wielkość liter">
+        <PropField label={t("builder.typographyControl.textTransform")}>
           <Select
             value={v.textTransform ?? "none"}
             onValueChange={(t) =>
@@ -253,14 +268,16 @@ export function TypographyControl({ value, onChange }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Bez zmian</SelectItem>
-              <SelectItem value="uppercase">WIELKIE LITERY</SelectItem>
-              <SelectItem value="lowercase">małe litery</SelectItem>
-              <SelectItem value="capitalize">Każde Słowo Wielką</SelectItem>
+              <SelectItem value="none">{t("builder.typographyControl.ttNone")}</SelectItem>
+              <SelectItem value="uppercase">{t("builder.typographyControl.ttUpper")}</SelectItem>
+              <SelectItem value="lowercase">{t("builder.typographyControl.ttLower")}</SelectItem>
+              <SelectItem value="capitalize">
+                {t("builder.typographyControl.ttCapitalize")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Dekoracja">
+        <PropField label={t("builder.typographyControl.decoration")}>
           <Select
             value={v.textDecoration ?? "none"}
             onValueChange={(t) =>
@@ -273,9 +290,13 @@ export function TypographyControl({ value, onChange }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Brak</SelectItem>
-              <SelectItem value="underline">Podkreślenie</SelectItem>
-              <SelectItem value="line-through">Przekreślenie</SelectItem>
+              <SelectItem value="none">{t("builder.common.none")}</SelectItem>
+              <SelectItem value="underline">
+                {t("builder.typographyControl.decUnderline")}
+              </SelectItem>
+              <SelectItem value="line-through">
+                {t("builder.typographyControl.decLineThrough")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </PropField>

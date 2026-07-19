@@ -5,6 +5,8 @@
 // the Theme Design tokens (`--td-li-light` / `--td-li-dark` / `--td-li-opacity`),
 // mirroring the runtime cascade in PostListView.
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   /** Widget-level override (light mode). Empty → Theme Design fallback. */
@@ -34,6 +36,7 @@ const Sample = ({
   size: number;
   weight: string;
 }) => {
+  const { t } = useTranslation();
   const wrapperStyle: CSSProperties =
     mode === "dark"
       ? {
@@ -59,7 +62,7 @@ const Sample = ({
     <div
       className="relative overflow-hidden rounded border px-2.5 py-2 flex items-center gap-2 min-h-[52px]"
       style={wrapperStyle}
-      aria-label={`Podgląd numeracji - tryb ${label}`}
+      aria-label={t("builder.indexColorPreview.previewAria", { mode: label })}
     >
       <span
         aria-hidden
@@ -70,7 +73,9 @@ const Sample = ({
       </span>
       <span className="flex flex-col leading-tight min-w-0">
         <span className="text-[11px] uppercase tracking-wider opacity-60">{label}</span>
-        <span className="text-[12px] font-medium truncate">Przykładowy tytuł</span>
+        <span className="text-[12px] font-medium truncate">
+          {t("builder.indexColorPreview.sampleTitle")}
+        </span>
       </span>
     </div>
   );
@@ -83,6 +88,7 @@ export function IndexColorPreview({
   indexSizePx,
   indexWeight,
 }: Props) {
+  const { t } = useTranslation();
   // Mirror runtime cascade: empty widget value → Theme Design token fallback.
   const lightColor = indexColor || "var(--td-li-light, rgb(35,31,32))";
   const darkColor = indexColorDark || "var(--td-li-dark, rgb(250,147,70))";
@@ -94,12 +100,12 @@ export function IndexColorPreview({
   return (
     <div className="mt-3 space-y-1.5">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        Podgląd (light / dark)
+        {t("builder.indexColorPreview.preview")}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Sample
           mode="light"
-          label="Jasny"
+          label={t("builder.common.light")}
           color={lightColor}
           opacity={opacity}
           size={size}
@@ -107,16 +113,14 @@ export function IndexColorPreview({
         />
         <Sample
           mode="dark"
-          label="Ciemny"
+          label={t("builder.common.dark")}
           color={darkColor}
           opacity={opacity}
           size={size}
           weight={weight}
         />
       </div>
-      <p className="text-[10px] text-muted-foreground">
-        Puste pole = kolor z Theme Design → „Numeracja list" (`--td-li-*`).
-      </p>
+      <p className="text-[10px] text-muted-foreground">{t("builder.indexColorPreview.note")}</p>
     </div>
   );
 }

@@ -9,6 +9,8 @@ import {
   ShapeEditor,
   TypographyEditor,
 } from "../../molecules";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 const ensure = <T extends object>(v: T | undefined): T => v ?? ({} as T);
@@ -22,16 +24,18 @@ export function StylePane({
   device: Device;
   onChange: Mut;
 }) {
+  const { t } = useTranslation();
+  const sp = (k: string) => t(`builder.stylePane.${k}`);
   return (
     <div className="space-y-5">
-      <Collapsible title="Tło">
+      <Collapsible title={sp("background")}>
         <Tabs defaultValue="normal">
           <TabsList className="grid grid-cols-2 w-full h-7">
             <TabsTrigger value="normal" className="text-xs">
-              Normalne
+              {sp("normal")}
             </TabsTrigger>
             <TabsTrigger value="hover" className="text-xs">
-              Najechanie
+              {sp("hover")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="normal" className="mt-2 space-y-3">
@@ -59,7 +63,7 @@ export function StylePane({
         </Tabs>
       </Collapsible>
 
-      <Collapsible title="Nakładka tła">
+      <Collapsible title={sp("overlay")}>
         <OverlayEditor
           value={section.overlay}
           onChange={(mut) =>
@@ -71,7 +75,7 @@ export function StylePane({
         />
       </Collapsible>
 
-      <Collapsible title="Obramowanie">
+      <Collapsible title={sp("border")}>
         <BorderEditor
           value={section.border}
           onChange={(mut) =>
@@ -83,7 +87,7 @@ export function StylePane({
         />
       </Collapsible>
 
-      <Collapsible title="Kształt rozdzielacza · góra">
+      <Collapsible title={sp("shapeTop")}>
         <ShapeEditor
           value={section.shapeDividerTop}
           onChange={(mut) =>
@@ -94,7 +98,7 @@ export function StylePane({
           }
         />
       </Collapsible>
-      <Collapsible title="Kształt rozdzielacza · dół">
+      <Collapsible title={sp("shapeBottom")}>
         <ShapeEditor
           value={section.shapeDividerBottom}
           onChange={(mut) =>
@@ -106,7 +110,7 @@ export function StylePane({
         />
       </Collapsible>
 
-      <Collapsible title="Typografia">
+      <Collapsible title={sp("typography")}>
         <TypographyEditor
           value={section.typography}
           device={device}

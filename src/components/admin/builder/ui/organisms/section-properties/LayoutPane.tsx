@@ -18,11 +18,15 @@ import type {
   HtmlTag,
 } from "@/lib/builder/types";
 import { Row, NumberInput } from "../../atoms";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 const ensure = <T extends object>(v: T | undefined): T => v ?? ({} as T);
 
 export function LayoutPane({ section, onChange }: { section: SectionNode; onChange: Mut }) {
+  const { t } = useTranslation();
+  const lp = (k: string) => t(`builder.layoutPane.${k}`);
   const L = section.layout ?? {};
   const setL = (mut: (l: SectionLayout) => void) =>
     onChange((s) => {
@@ -32,7 +36,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
 
   return (
     <>
-      <Row label="Szerokość treści">
+      <Row label={lp("contentWidth")}>
         <Select
           value={L.contentWidth ?? "boxed"}
           onValueChange={(v) =>
@@ -45,14 +49,14 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="boxed">Opakowane</SelectItem>
-            <SelectItem value="full">Pełna szerokość</SelectItem>
+            <SelectItem value="boxed">{lp("boxed")}</SelectItem>
+            <SelectItem value="full">{lp("full")}</SelectItem>
           </SelectContent>
         </Select>
       </Row>
 
       {(L.contentWidth ?? "boxed") === "boxed" && (
-        <Row label="Szerokość (px)" hint="Domyślnie 1140">
+        <Row label={lp("width")} hint={lp("widthHint")}>
           <NumberInput
             value={L.width}
             onChange={(n) =>
@@ -67,7 +71,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
 
-      <Row label="Odstęp kolumn">
+      <Row label={lp("columnsGap")}>
         <Select
           value={L.columnsGap ?? "default"}
           onValueChange={(v) =>
@@ -80,18 +84,18 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">Domyślnie (20)</SelectItem>
-            <SelectItem value="no">Bez odstępów (0)</SelectItem>
-            <SelectItem value="narrow">Wąsko (10)</SelectItem>
-            <SelectItem value="extended">Rozszerzony (15)</SelectItem>
-            <SelectItem value="wide">Szeroki (30)</SelectItem>
-            <SelectItem value="wider">Szerzej (40)</SelectItem>
-            <SelectItem value="custom">Własne…</SelectItem>
+            <SelectItem value="default">{lp("gapDefault")}</SelectItem>
+            <SelectItem value="no">{lp("gapNo")}</SelectItem>
+            <SelectItem value="narrow">{lp("gapNarrow")}</SelectItem>
+            <SelectItem value="extended">{lp("gapExtended")}</SelectItem>
+            <SelectItem value="wide">{lp("gapWide")}</SelectItem>
+            <SelectItem value="wider">{lp("gapWider")}</SelectItem>
+            <SelectItem value="custom">{lp("gapCustom")}</SelectItem>
           </SelectContent>
         </Select>
       </Row>
       {L.columnsGap === "custom" && (
-        <Row label="Własny odstęp (px)">
+        <Row label={lp("customGap")}>
           <NumberInput
             value={L.columnsGapCustom}
             onChange={(n) =>
@@ -106,10 +110,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
 
-      <Row
-        label="Wysokość"
-        hint="Domyślnie = dopasuj do treści. Dopasuj do ekranu = % wysokości okna (vh). Minimalna wysokość = sekcja będzie co najmniej tak wysoka (px). Stała wysokość = dokładnie tyle pikseli."
-      >
+      <Row label={lp("height")} hint={lp("heightHint")}>
         <Select
           value={L.height ?? "default"}
           onValueChange={(v) =>
@@ -122,15 +123,15 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">Domyślnie (dopasuj do treści)</SelectItem>
-            <SelectItem value="fit-screen">Dopasuj do ekranu (vh)</SelectItem>
-            <SelectItem value="min-height">Minimalna wysokość (px)</SelectItem>
-            <SelectItem value="fixed">Stała wysokość (px)</SelectItem>
+            <SelectItem value="default">{lp("hDefault")}</SelectItem>
+            <SelectItem value="fit-screen">{lp("hFitScreen")}</SelectItem>
+            <SelectItem value="min-height">{lp("hMinHeight")}</SelectItem>
+            <SelectItem value="fixed">{lp("hFixed")}</SelectItem>
           </SelectContent>
         </Select>
       </Row>
       {L.height === "fit-screen" && (
-        <Row label="Wysokość (vh)" hint="100 = pełna wysokość okna przeglądarki.">
+        <Row label={lp("heightVh")} hint={lp("heightVhHint")}>
           <NumberInput
             value={L.heightValue ?? 100}
             onChange={(n) =>
@@ -145,10 +146,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
       {L.height === "min-height" && (
-        <Row
-          label="Wysokość minimalna (px)"
-          hint="Sekcja będzie co najmniej tak wysoka - treść może ją rozciągnąć dalej."
-        >
+        <Row label={lp("heightMin")} hint={lp("heightMinHint")}>
           <NumberInput
             value={L.heightValue ?? 400}
             onChange={(n) =>
@@ -163,10 +161,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
       {L.height === "fixed" && (
-        <Row
-          label="Wysokość (px)"
-          hint="Dokładna wysokość sekcji. Treść większa zostanie przycięta (chyba że ustawisz Przepływ → Domyślnie)."
-        >
+        <Row label={lp("heightPx")} hint={lp("heightPxHint")}>
           <NumberInput
             value={L.heightValue ?? 400}
             onChange={(n) =>
@@ -181,7 +176,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
 
-      <Row label="Odstęp górny (px)" hint="Odstęp od poprzedniej sekcji. Domyślnie 5, 0 = brak.">
+      <Row label={lp("marginTop")} hint={lp("marginTopHint")}>
         <NumberInput
           value={L.marginTop ?? 5}
           onChange={(n) =>
@@ -194,7 +189,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
           suffix="px"
         />
       </Row>
-      <Row label="Odstęp dolny (px)" hint="Odstęp do następnej sekcji. Domyślnie 5, 0 = brak.">
+      <Row label={lp("marginBottom")} hint={lp("marginBottomHint")}>
         <NumberInput
           value={L.marginBottom ?? 5}
           onChange={(n) =>
@@ -208,7 +203,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         />
       </Row>
 
-      <Row label="Wyrównanie pionowe">
+      <Row label={lp("vAlign")}>
         <Select
           value={L.verticalAlign ?? "default"}
           onValueChange={(v) =>
@@ -221,18 +216,18 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">Domyślnie</SelectItem>
-            <SelectItem value="top">Góra</SelectItem>
-            <SelectItem value="middle">Środek</SelectItem>
-            <SelectItem value="bottom">Dół</SelectItem>
-            <SelectItem value="space-between">Odstęp pomiędzy</SelectItem>
-            <SelectItem value="space-around">Odstęp wokół</SelectItem>
-            <SelectItem value="space-evenly">Równomiernie</SelectItem>
+            <SelectItem value="default">{lp("vaDefault")}</SelectItem>
+            <SelectItem value="top">{t("builder.common.top")}</SelectItem>
+            <SelectItem value="middle">{t("builder.common.center")}</SelectItem>
+            <SelectItem value="bottom">{t("builder.common.bottom")}</SelectItem>
+            <SelectItem value="space-between">{lp("vaBetween")}</SelectItem>
+            <SelectItem value="space-around">{lp("vaAround")}</SelectItem>
+            <SelectItem value="space-evenly">{lp("vaEvenly")}</SelectItem>
           </SelectContent>
         </Select>
       </Row>
 
-      <Row label="Przepływ">
+      <Row label={lp("overflow")}>
         <Select
           value={L.overflow ?? "default"}
           onValueChange={(v) =>
@@ -245,13 +240,13 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">Domyślnie</SelectItem>
-            <SelectItem value="hidden">Ukryty</SelectItem>
+            <SelectItem value="default">{lp("ovDefault")}</SelectItem>
+            <SelectItem value="hidden">{lp("ovHidden")}</SelectItem>
           </SelectContent>
         </Select>
       </Row>
 
-      <Row label="Sekcja rozciągania" hint="Rozciąga sekcję na pełną szerokość okna (100vw).">
+      <Row label={lp("stretch")} hint={lp("stretchHint")}>
         <Switch
           checked={!!L.stretch}
           onCheckedChange={(v) =>
@@ -262,7 +257,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         />
       </Row>
 
-      <Row label="Znacznik HTML">
+      <Row label={lp("htmlTag")}>
         <Select
           value={L.htmlTag ?? "section"}
           onValueChange={(v) =>

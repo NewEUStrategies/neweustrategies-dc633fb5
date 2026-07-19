@@ -14,6 +14,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Clock, Undo as RotateCcw, Plus } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   template: SectionTemplate | null;
@@ -38,6 +40,7 @@ export function TemplateHistoryDialog({
   onInsert,
   onRestore,
 }: Props) {
+  const { t } = useTranslation();
   const { items, loading } = useTemplateRevisions(open ? (template?.id ?? null) : null);
 
   return (
@@ -45,18 +48,22 @@ export function TemplateHistoryDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="inline-flex items-center gap-2">
-            <Clock className="w-4 h-4" /> Historia: {template?.name ?? ""}
+            <Clock className="w-4 h-4" />{" "}
+            {t("builder.templateHistory.title", { name: template?.name ?? "" })}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Każda zmiana szablonu jest automatycznie zapisywana. Możesz wstawić starszą wersję jako
-            nową sekcję na canvasie lub przywrócić ją jako aktualną treść szablonu.
+            {t("builder.templateHistory.description")}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="text-xs text-muted-foreground py-6 text-center">Ładowanie historii…</div>
+          <div className="text-xs text-muted-foreground py-6 text-center">
+            {t("builder.templateHistory.loading")}
+          </div>
         ) : items.length === 0 ? (
-          <div className="text-xs text-muted-foreground py-6 text-center">Brak rewizji.</div>
+          <div className="text-xs text-muted-foreground py-6 text-center">
+            {t("builder.templateHistory.empty")}
+          </div>
         ) : (
           <ul className="space-y-1.5 max-h-[60vh] overflow-y-auto">
             {items.map((r, idx) => (
@@ -66,7 +73,9 @@ export function TemplateHistoryDialog({
               >
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">
-                    {idx === 0 ? "Aktualna" : `Wersja #${items.length - idx}`}
+                    {idx === 0
+                      ? t("builder.templateHistory.current")
+                      : t("builder.templateHistory.version", { n: items.length - idx })}
                     <span className="text-muted-foreground font-normal"> · {r.name}</span>
                   </div>
                   <div className="text-muted-foreground text-[10px]">{fmt(r.created_at)}</div>
@@ -75,18 +84,18 @@ export function TemplateHistoryDialog({
                   type="button"
                   onClick={() => onInsert(r)}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-muted border border-border"
-                  title="Wstaw tę wersję jako nową sekcję"
+                  title={t("builder.templateHistory.insertTitle")}
                 >
-                  <Plus className="w-3 h-3" /> Wstaw
+                  <Plus className="w-3 h-3" /> {t("builder.templateHistory.insert")}
                 </button>
                 {idx !== 0 && (
                   <button
                     type="button"
                     onClick={() => onRestore(r)}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-brand hover:text-brand-foreground border border-border"
-                    title="Przywróć jako aktualną treść szablonu"
+                    title={t("builder.templateHistory.restoreTitle")}
                   >
-                    <RotateCcw className="w-3 h-3" /> Przywróć
+                    <RotateCcw className="w-3 h-3" /> {t("builder.templateHistory.restore")}
                   </button>
                 )}
               </li>

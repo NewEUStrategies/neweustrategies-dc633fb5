@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -37,6 +38,7 @@ interface TeamMember {
 }
 
 export function TeamGridBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TeamMember[] = rawItems.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -56,10 +58,10 @@ export function TeamGridBlock({ block, onChange }: Props) {
   const shape = String(block.data.shape ?? "circle");
 
   return (
-    <Shell label="Siatka zespołu">
+    <Shell label={i18n.editor("dataSocialBlocks", "teamLabel")}>
       <input
         className={inputCls}
-        placeholder="Tytuł sekcji (opcjonalnie)"
+        placeholder={i18n.editor("dataSocialBlocks", "sectionTitle")}
         value={String(block.data.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
@@ -71,17 +73,17 @@ export function TeamGridBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
         >
-          <option value={2}>2 kolumny</option>
-          <option value={3}>3 kolumny</option>
-          <option value={4}>4 kolumny</option>
+          <option value={2}>{i18n.editor("dataSocialBlocks", "cols2")}</option>
+          <option value={3}>{i18n.editor("dataSocialBlocks", "cols3")}</option>
+          <option value={4}>{i18n.editor("dataSocialBlocks", "cols4")}</option>
         </AdminSelect>
         <AdminSelect
           className={selectCls}
           value={shape}
           onChange={(e) => onChange({ ...block, data: { ...block.data, shape: e.target.value } })}
         >
-          <option value="circle">Awatary okrągłe</option>
-          <option value="square">Awatary kwadratowe</option>
+          <option value="circle">{i18n.editor("dataSocialBlocks", "avatarsCircle")}</option>
+          <option value="square">{i18n.editor("dataSocialBlocks", "avatarsSquare")}</option>
         </AdminSelect>
       </div>
       <div className="space-y-2">
@@ -90,7 +92,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <input
                 className={inputCls}
-                placeholder="Imię i nazwisko"
+                placeholder={i18n.editor("dataSocialBlocks", "name")}
                 value={it.name}
                 onChange={(e) => {
                   const next = [...items];
@@ -102,7 +104,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń osobę"
+                aria-label={i18n.editor("dataSocialBlocks", "removePerson")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -110,7 +112,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <input
                 className={inputCls}
-                placeholder="Stanowisko"
+                placeholder={i18n.editor("dataSocialBlocks", "role")}
                 value={it.role}
                 onChange={(e) => {
                   const next = [...items];
@@ -120,7 +122,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
               />
               <input
                 className={inputCls}
-                placeholder="URL profilu (opcjonalnie)"
+                placeholder={i18n.editor("dataSocialBlocks", "profileUrl")}
                 value={it.href}
                 onChange={(e) => {
                   const next = [...items];
@@ -131,7 +133,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
             </div>
             <input
               className={inputCls}
-              placeholder="URL awatara"
+              placeholder={i18n.editor("dataSocialBlocks", "avatarUrl")}
               value={it.avatar}
               onChange={(e) => {
                 const next = [...items];
@@ -141,7 +143,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
             />
             <textarea
               className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-              placeholder="Krótki opis / bio"
+              placeholder={i18n.editor("dataSocialBlocks", "bio")}
               value={it.bio}
               onChange={(e) => {
                 const next = [...items];
@@ -151,7 +153,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
             />
             <input
               className={inputCls}
-              placeholder="LinkedIn / X / strona (URL)"
+              placeholder={i18n.editor("dataSocialBlocks", "socialUrl")}
               value={it.social}
               onChange={(e) => {
                 const next = [...items];
@@ -168,7 +170,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
           }
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj osobę
+          <Plus className="w-3.5 h-3.5" /> {i18n.editor("dataSocialBlocks", "addPerson")}
         </button>
       </div>
     </Shell>
@@ -195,10 +197,10 @@ export function LogoGridBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Siatka logotypów (klienci / partnerzy)">
+    <Shell label={i18n.editor("dataSocialBlocks", "logoLabel")}>
       <input
         className={inputCls}
-        placeholder="Tytuł sekcji (opcjonalnie)"
+        placeholder={i18n.editor("dataSocialBlocks", "sectionTitle")}
         value={String(block.data.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
@@ -210,10 +212,10 @@ export function LogoGridBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
         >
-          <option value={3}>3 kol.</option>
-          <option value={4}>4 kol.</option>
-          <option value={5}>5 kol.</option>
-          <option value={6}>6 kol.</option>
+          <option value={3}>{i18n.editor("dataSocialBlocks", "cols3short")}</option>
+          <option value={4}>{i18n.editor("dataSocialBlocks", "cols4short")}</option>
+          <option value={5}>{i18n.editor("dataSocialBlocks", "cols5short")}</option>
+          <option value={6}>{i18n.editor("dataSocialBlocks", "cols6short")}</option>
         </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -223,7 +225,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, grayscale: e.target.checked } })
             }
           />
-          Czarno-białe
+          {i18n.editor("dataSocialBlocks", "grayscale")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -233,7 +235,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, bordered: e.target.checked } })
             }
           />
-          Ramki
+          {i18n.editor("dataSocialBlocks", "bordered")}
         </label>
       </div>
       <div className="space-y-2">
@@ -242,7 +244,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <input
                 className={inputCls}
-                placeholder="URL logotypu"
+                placeholder={i18n.editor("dataSocialBlocks", "logoUrl")}
                 value={it.url}
                 onChange={(e) => {
                   const next = [...items];
@@ -254,7 +256,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń logotyp"
+                aria-label={i18n.editor("dataSocialBlocks", "removeLogo")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -262,7 +264,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <input
                 className={inputCls}
-                placeholder="Nazwa (alt)"
+                placeholder={i18n.editor("dataSocialBlocks", "alt")}
                 value={it.alt}
                 onChange={(e) => {
                   const next = [...items];
@@ -288,7 +290,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
           onClick={() => update([...items, { url: "", alt: "", href: "" }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj logotyp
+          <Plus className="w-3.5 h-3.5" /> {i18n.editor("dataSocialBlocks", "addLogo")}
         </button>
       </div>
     </Shell>
@@ -335,16 +337,16 @@ export function FeatureGridBlock({ block, onChange }: Props) {
   ];
 
   return (
-    <Shell label="Siatka funkcji / cech">
+    <Shell label={i18n.editor("dataSocialBlocks", "featureLabel")}>
       <input
         className={inputCls}
-        placeholder="Tytuł sekcji (opcjonalnie)"
+        placeholder={i18n.editor("dataSocialBlocks", "sectionTitle")}
         value={String(block.data.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-        placeholder="Podtytuł sekcji (opcjonalnie)"
+        placeholder={i18n.editor("dataSocialBlocks", "subtitle")}
         value={String(block.data.subtitle ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, subtitle: e.target.value } })}
       />
@@ -356,18 +358,18 @@ export function FeatureGridBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
         >
-          <option value={2}>2 kolumny</option>
-          <option value={3}>3 kolumny</option>
-          <option value={4}>4 kolumny</option>
+          <option value={2}>{i18n.editor("dataSocialBlocks", "cols2")}</option>
+          <option value={3}>{i18n.editor("dataSocialBlocks", "cols3")}</option>
+          <option value={4}>{i18n.editor("dataSocialBlocks", "cols4")}</option>
         </AdminSelect>
         <AdminSelect
           className={selectCls}
           value={String(block.data.style ?? "card")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, style: e.target.value } })}
         >
-          <option value="card">Styl: karta</option>
-          <option value="minimal">Styl: minimal</option>
-          <option value="bordered">Styl: ramka</option>
+          <option value="card">{i18n.editor("dataSocialBlocks", "styleCard")}</option>
+          <option value="minimal">{i18n.editor("dataSocialBlocks", "styleMinimal")}</option>
+          <option value="bordered">{i18n.editor("dataSocialBlocks", "styleBordered")}</option>
         </AdminSelect>
       </div>
       <div className="space-y-2">
@@ -391,7 +393,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
               </AdminSelect>
               <input
                 className={inputCls}
-                placeholder="Tytuł funkcji"
+                placeholder={i18n.editor("dataSocialBlocks", "featureTitle")}
                 value={it.title}
                 onChange={(e) => {
                   const next = [...items];
@@ -403,14 +405,14 @@ export function FeatureGridBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń funkcję"
+                aria-label={i18n.editor("dataSocialBlocks", "removeFeature")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
             <textarea
               className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-              placeholder="Opis funkcji"
+              placeholder={i18n.editor("dataSocialBlocks", "featureDesc")}
               value={it.description}
               onChange={(e) => {
                 const next = [...items];
@@ -435,7 +437,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
           onClick={() => update([...items, { icon: "star", title: "", description: "", href: "" }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj funkcję
+          <Plus className="w-3.5 h-3.5" /> {i18n.editor("dataSocialBlocks", "addFeature")}
         </button>
       </div>
     </Shell>
@@ -448,34 +450,34 @@ export function AlertBannerBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const d = block.data;
   return (
-    <Shell label="Banner alertu">
+    <Shell label={i18n.editor("dataSocialBlocks", "alertLabel")}>
       <AdminSelect
         className={selectCls}
         value={String(d.variant ?? "info")}
         onChange={(e) => onChange({ ...block, data: { ...d, variant: e.target.value } })}
       >
-        <option value="info">Informacja (niebieski)</option>
-        <option value="success">Sukces (zielony)</option>
-        <option value="warning">Ostrzeżenie (żółty)</option>
-        <option value="danger">Błąd (czerwony)</option>
-        <option value="neutral">Neutralny (szary)</option>
+        <option value="info">{i18n.editor("dataSocialBlocks", "variantInfo")}</option>
+        <option value="success">{i18n.editor("dataSocialBlocks", "variantSuccess")}</option>
+        <option value="warning">{i18n.editor("dataSocialBlocks", "variantWarning")}</option>
+        <option value="danger">{i18n.editor("dataSocialBlocks", "variantDanger")}</option>
+        <option value="neutral">{i18n.editor("dataSocialBlocks", "variantNeutral")}</option>
       </AdminSelect>
       <input
         className={inputCls}
-        placeholder="Tytuł (opcjonalnie)"
+        placeholder={i18n.editor("dataSocialBlocks", "title")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[56px]"
-        placeholder="Treść komunikatu"
+        placeholder={i18n.editor("dataSocialBlocks", "message")}
         value={String(d.message ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, message: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <input
           className={inputCls}
-          placeholder="CTA: etykieta (opcjonalnie)"
+          placeholder={i18n.editor("dataSocialBlocks", "ctaLabel")}
           value={String(d.ctaLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaLabel: e.target.value } })}
         />
@@ -493,7 +495,7 @@ export function AlertBannerBlock({ block, onChange }: Props) {
             checked={d.dismissible === true}
             onChange={(e) => onChange({ ...block, data: { ...d, dismissible: e.target.checked } })}
           />
-          Można zamknąć
+          {i18n.editor("dataSocialBlocks", "dismissible")}
         </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -501,7 +503,7 @@ export function AlertBannerBlock({ block, onChange }: Props) {
             checked={d.showIcon !== false}
             onChange={(e) => onChange({ ...block, data: { ...d, showIcon: e.target.checked } })}
           />
-          Pokaż ikonę
+          {i18n.editor("dataSocialBlocks", "showIcon")}
         </label>
       </div>
     </Shell>
@@ -511,12 +513,13 @@ export function AlertBannerBlock({ block, onChange }: Props) {
 // ===== Divider with text =====
 
 export function DividerTextBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
-    <Shell label="Separator z tekstem">
+    <Shell label={i18n.editor("dataSocialBlocks", "dividerLabel")}>
       <input
         className={inputCls}
-        placeholder="Tekst środkowy (np. lub, sekcja)"
+        placeholder={i18n.editor("dataSocialBlocks", "dividerText")}
         value={String(d.text ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, text: e.target.value } })}
       />
@@ -526,18 +529,18 @@ export function DividerTextBlock({ block, onChange }: Props) {
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
-          <option value="left">Tekst po lewej</option>
-          <option value="center">Tekst pośrodku</option>
-          <option value="right">Tekst po prawej</option>
+          <option value="left">{i18n.editor("dataSocialBlocks", "alignLeft")}</option>
+          <option value="center">{i18n.editor("dataSocialBlocks", "alignCenter")}</option>
+          <option value="right">{i18n.editor("dataSocialBlocks", "alignRight")}</option>
         </AdminSelect>
         <AdminSelect
           className={selectCls}
           value={String(d.lineStyle ?? "solid")}
           onChange={(e) => onChange({ ...block, data: { ...d, lineStyle: e.target.value } })}
         >
-          <option value="solid">Linia ciągła</option>
-          <option value="dashed">Linia przerywana</option>
-          <option value="dotted">Linia kropkowana</option>
+          <option value="solid">{i18n.editor("dataSocialBlocks", "lineSolid")}</option>
+          <option value="dashed">{i18n.editor("dataSocialBlocks", "lineDashed")}</option>
+          <option value="dotted">{i18n.editor("dataSocialBlocks", "lineDotted")}</option>
         </AdminSelect>
       </div>
     </Shell>

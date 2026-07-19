@@ -26,6 +26,8 @@ import { useGlobalWidgets, type GlobalWidget } from "@/lib/builder/globalWidgets
 import { GLOBAL_WIDGET_MIME, CONTAINER_MIME } from "./builder/VisualCanvas";
 import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 import { StructurePicker } from "./StructurePicker";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   onPickWidget: (t: WidgetType) => void;
@@ -41,6 +43,8 @@ export function WidgetLibrary({
   onPickGlobal,
   onPickContainer,
 }: Props) {
+  const { t } = useTranslation();
+  const wl = (k: string, o?: Record<string, unknown>) => t(`builder.widgetLibrary.${k}`, o);
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -65,13 +69,13 @@ export function WidgetLibrary({
     (w) => !w.hiddenInPalette && w.label.toLowerCase().includes(search.toLowerCase()),
   );
   const labels: Record<string, string> = {
-    basic: "Podstawowe",
-    media: "Media",
-    dynamic: "Dynamiczne",
-    features: "NES Digital Features",
-    form: "Formularze",
-    navigation: "Nawigacja",
-    blocks: "Bloki",
+    basic: wl("catBasic"),
+    media: wl("catMedia"),
+    dynamic: wl("catDynamic"),
+    features: wl("catFeatures"),
+    form: wl("catForm"),
+    navigation: wl("catNavigation"),
+    blocks: wl("catBlocks"),
   };
   const categoryOrder = [
     "basic",
@@ -107,14 +111,14 @@ export function WidgetLibrary({
     <div className="flex flex-col h-full">
       <div className="p-3 border-b border-border space-y-2">
         <h3 className="text-sm font-medium inline-flex items-center gap-2">
-          <Layers className="w-4 h-4" /> Widgety
+          <Layers className="w-4 h-4" /> {wl("title")}
         </h3>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Szukaj widgetu..."
+            placeholder={wl("searchPh")}
             className="pl-8 h-8 text-xs"
           />
         </div>
@@ -132,7 +136,7 @@ export function WidgetLibrary({
             ) : (
               <ChevronDown className="w-3 h-3" />
             )}
-            <LayoutDashboard className="w-3.5 h-3.5" /> Nowy kontener
+            <LayoutDashboard className="w-3.5 h-3.5" /> {wl("newContainer")}
           </button>
           {!collapsed.__container && (
             <div className="grid grid-cols-2 gap-1.5">
@@ -145,12 +149,12 @@ export function WidgetLibrary({
                   e.dataTransfer.setData("text/plain", "Kontener");
                 }}
                 onClick={() => onPickContainer?.(false)}
-                title="Kliknij lub przeciągnij na płótno: pusty kontener grupujący sekcje."
+                title={wl("containerTitle")}
                 className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
               >
                 <LayoutDashboard className="w-4 h-4 text-brand" />
                 <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
-                  Kontener
+                  {wl("container")}
                 </span>
               </button>
               <button
@@ -162,12 +166,12 @@ export function WidgetLibrary({
                   e.dataTransfer.setData("text/plain", "Kontener z zakładkami");
                 }}
                 onClick={() => onPickContainer?.(true)}
-                title="Kliknij lub przeciągnij na płótno: kontener z zakładkami."
+                title={wl("containerTabsTitle")}
                 className="h-14 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
               >
                 <Rows className="w-4 h-4 text-brand" />
                 <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">
-                  Kontener z zakładkami
+                  {wl("containerTabs")}
                 </span>
               </button>
             </div>
@@ -185,7 +189,7 @@ export function WidgetLibrary({
             ) : (
               <ChevronDown className="w-3 h-3" />
             )}
-            Nowa sekcja - wybierz strukturę
+            {wl("newSection")}
           </button>
           {!collapsed.__struct && <StructurePicker onPick={onPickStructure} cols={2} />}
         </section>
@@ -201,13 +205,13 @@ export function WidgetLibrary({
             ) : (
               <ChevronDown className="w-3 h-3" />
             )}
-            <Save className="w-3.5 h-3.5" /> Szablony sekcji
+            <Save className="w-3.5 h-3.5" /> {wl("templates")}
             {tpl.loading && <span className="text-[10px] normal-case">…</span>}
           </button>
           {!collapsed.__tpl &&
             (tpl.items.length === 0 ? (
               <div className="text-[10px] text-muted-foreground px-2 py-3 border border-dashed border-border rounded">
-                Brak zapisanych. Zaznacz sekcję na canvasie i kliknij ikonę zapisu.
+                {wl("templatesEmpty")}
               </div>
             ) : (
               <ul className="space-y-1">
@@ -222,7 +226,7 @@ export function WidgetLibrary({
                     </button>
                     <button
                       type="button"
-                      title="Historia wersji"
+                      title={wl("versionHistory")}
                       onClick={() => setHistoryOf(t)}
                       className="p-1 text-muted-foreground hover:text-brand opacity-0 group-hover/tpl:opacity-100 transition"
                     >
@@ -230,9 +234,10 @@ export function WidgetLibrary({
                     </button>
                     <button
                       type="button"
-                      title="Usuń szablon"
+                      title={wl("deleteTemplate")}
                       onClick={() => {
-                        if (confirm(`Usunąć szablon "${t.name}"?`)) void tpl.remove(t.id);
+                        if (confirm(wl("confirmDeleteTemplate", { name: t.name })))
+                          void tpl.remove(t.id);
                       }}
                       className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/tpl:opacity-100 transition"
                     >
@@ -255,14 +260,13 @@ export function WidgetLibrary({
             ) : (
               <ChevronDown className="w-3 h-3" />
             )}
-            <Globe className="w-3.5 h-3.5" /> Widgety globalne
+            <Globe className="w-3.5 h-3.5" /> {wl("globals")}
             {globals.loading && <span className="text-[10px] normal-case">…</span>}
           </button>
           {!collapsed.__global &&
             (filteredGlobals.length === 0 ? (
               <div className="text-[10px] text-muted-foreground px-2 py-3 border border-dashed border-border rounded">
-                Brak widgetów globalnych. Kliknij widget prawym przyciskiem i wybierz „Zapisz jako
-                widget globalny” - zmiany będą synchronizowane na wszystkich stronach.
+                {wl("globalsEmpty")}
               </div>
             ) : (
               <ul className="space-y-1">
@@ -283,7 +287,10 @@ export function WidgetLibrary({
                           e.dataTransfer.effectAllowed = "copy";
                         }}
                         onClick={() => onPickGlobal?.(g)}
-                        title={`Wstaw widget globalny: ${g.name} (${def?.label ?? g.data.type})`}
+                        title={wl("insertGlobal", {
+                          name: g.name,
+                          label: def?.label ?? g.data.type,
+                        })}
                         className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 rounded inline-flex items-center gap-1.5 cursor-grab active:cursor-grabbing"
                       >
                         <Icon className="w-3.5 h-3.5 shrink-0 text-amber-600" />
@@ -291,13 +298,9 @@ export function WidgetLibrary({
                       </button>
                       <button
                         type="button"
-                        title="Usuń widget globalny"
+                        title={wl("deleteGlobal")}
                         onClick={() => {
-                          if (
-                            confirm(
-                              `Usunąć widget globalny "${g.name}"? Istniejące kopie na stronach pozostaną jako lokalne.`,
-                            )
-                          )
+                          if (confirm(wl("confirmDeleteGlobal", { name: g.name })))
                             void globals.remove(g.id);
                         }}
                         className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/gw:opacity-100 transition"
@@ -343,7 +346,7 @@ export function WidgetLibrary({
                           e.dataTransfer.effectAllowed = "copy";
                         }}
                         className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
-                        title={`Przeciągnij na sekcję: ${w.label}`}
+                        title={wl("dragToSection", { label: w.label })}
                       >
                         <Icon className="w-3.5 h-3.5 text-brand group-hover:text-brand" />
                         <span className="text-[8px] text-center leading-[1.05] text-foreground group-hover:text-brand line-clamp-2">

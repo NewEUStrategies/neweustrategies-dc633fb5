@@ -1,4 +1,6 @@
 import { Monitor, Tablet, Smartphone, Undo, Redo, Sun, Moon } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import type { Device, Mode } from "@/lib/builder/types";
 
 export function Toolbar({
@@ -24,6 +26,7 @@ export function Toolbar({
   mode: Mode;
   setMode: (m: Mode) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="border-b border-border p-2 flex items-center justify-between gap-2 bg-card">
       <div className="flex items-center gap-1">
@@ -59,11 +62,11 @@ export function Toolbar({
             </button>
           ))}
         </div>
-        <div className="cms-mode-switch" role="group" aria-label="Tryb podglądu">
+        <div className="cms-mode-switch" role="group" aria-label={t("builder.chrome.previewMode")}>
           {(
             [
-              ["light", Sun, "Tryb jasny", "Jasny"],
-              ["dark", Moon, "Tryb ciemny", "Ciemny"],
+              ["light", Sun, t("builder.chrome.lightMode"), t("builder.chrome.light")],
+              ["dark", Moon, t("builder.chrome.darkMode"), t("builder.chrome.dark")],
             ] as const
           ).map(([m, Icon, title, label]) => (
             <button
@@ -80,10 +83,20 @@ export function Toolbar({
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <button onClick={onUndo} disabled={!canUndo} className="cms-tb-btn" title="Cofnij">
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          className="cms-tb-btn"
+          title={t("builder.chrome.undo")}
+        >
           <Undo />
         </button>
-        <button onClick={onRedo} disabled={!canRedo} className="cms-tb-btn" title="Ponów">
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          className="cms-tb-btn"
+          title={t("builder.chrome.redo")}
+        >
           <Redo />
         </button>
       </div>

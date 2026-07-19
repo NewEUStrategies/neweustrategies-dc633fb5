@@ -1,3 +1,5 @@
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { ImagePlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -8,6 +10,7 @@ interface Props {
 }
 
 export function CoverBlock({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const url = String(block.data.url ?? "");
   const title = String(block.data.title ?? "");
   const overlay = Number(block.data.overlay ?? 50);
@@ -18,7 +21,7 @@ export function CoverBlock({ block, onChange }: Props) {
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <ImagePlus className="w-8 h-8 mx-auto text-muted-foreground" />
         <Input
-          placeholder="URL obrazu tła (cover)…"
+          placeholder={bt.editor("cover", "bgUrl")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
           className="max-w-md mx-auto"
         />
@@ -39,7 +42,7 @@ export function CoverBlock({ block, onChange }: Props) {
       <input
         type="text"
         value={title}
-        placeholder="Wpisz tytuł…"
+        placeholder={bt.editor("cover", "title")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
         className="relative z-10 w-full max-w-2xl bg-transparent text-3xl md:text-5xl font-semibold text-white text-center border-none outline-none focus:ring-0 placeholder:text-white/60 px-4 py-12"
       />

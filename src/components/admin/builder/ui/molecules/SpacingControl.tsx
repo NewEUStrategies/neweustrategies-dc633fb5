@@ -9,8 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { PropField } from "../atoms/PropField";
+import "@/lib/i18n-builder";
 
 interface Props {
   style: CommonStyle | undefined;
@@ -83,6 +85,7 @@ function SideInputs({
   placeholder?: string;
   onChange: (next: ResponsiveValue<string>) => void;
 }) {
+  const { t } = useTranslation();
   const cur = pickUnified(value);
   const sides = parseSides(cur);
 
@@ -92,10 +95,10 @@ function SideInputs({
   };
 
   const inputs: Array<{ key: keyof Sides; label: string }> = [
-    { key: "top", label: "Góra" },
-    { key: "right", label: "Prawo" },
-    { key: "bottom", label: "Dół" },
-    { key: "left", label: "Lewo" },
+    { key: "top", label: t("builder.common.top") },
+    { key: "right", label: t("builder.common.right") },
+    { key: "bottom", label: t("builder.common.bottom") },
+    { key: "left", label: t("builder.common.left") },
   ];
 
   return (
@@ -116,11 +119,12 @@ function SideInputs({
 }
 
 export function SpacingControl({ style, onChange }: Props) {
+  const { t } = useTranslation();
   const currentAlign = pickUnified(style?.align) ?? "left";
 
   return (
     <div className="space-y-3">
-      <PropField label="Padding - wewnętrzne odstępy (px)">
+      <PropField label={t("builder.spacing.padding")}>
         <SideInputs
           value={style?.padding}
           placeholder="0"
@@ -131,7 +135,7 @@ export function SpacingControl({ style, onChange }: Props) {
           }
         />
       </PropField>
-      <PropField label="Margin - zewnętrzne odstępy (px)">
+      <PropField label={t("builder.spacing.margin")}>
         <SideInputs
           value={style?.margin}
           placeholder="0"
@@ -142,7 +146,7 @@ export function SpacingControl({ style, onChange }: Props) {
           }
         />
       </PropField>
-      <PropField label="Wyrównanie">
+      <PropField label={t("builder.spacing.align")}>
         <Select
           value={currentAlign}
           onValueChange={(v) =>
@@ -155,9 +159,9 @@ export function SpacingControl({ style, onChange }: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="left">Lewo</SelectItem>
-            <SelectItem value="center">Środek</SelectItem>
-            <SelectItem value="right">Prawo</SelectItem>
+            <SelectItem value="left">{t("builder.common.left")}</SelectItem>
+            <SelectItem value="center">{t("builder.common.center")}</SelectItem>
+            <SelectItem value="right">{t("builder.common.right")}</SelectItem>
           </SelectContent>
         </Select>
       </PropField>

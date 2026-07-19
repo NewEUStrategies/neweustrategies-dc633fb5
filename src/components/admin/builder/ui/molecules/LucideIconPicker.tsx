@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 type IconComponent = React.ComponentType<LucideProps>;
 
@@ -59,7 +61,7 @@ interface Category {
 const CATEGORIES: Category[] = [
   {
     id: "arrows",
-    label: "Strzałki",
+    label: "Arrows",
     icon: "arrow-right",
     patterns: [/^arrow/, /^chevron/, /^move/, /^corner/, /^redo/, /^undo/, /^rotate/, /-arrow/],
   },
@@ -82,7 +84,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "text",
-    label: "Tekst",
+    label: "Text",
     icon: "type",
     patterns: [
       /^type/,
@@ -142,7 +144,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "files",
-    label: "Pliki",
+    label: "Files",
     icon: "folder",
     patterns: [
       /^file/,
@@ -162,7 +164,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "communication",
-    label: "Komunikacja",
+    label: "Communication",
     icon: "mail",
     patterns: [
       /^mail/,
@@ -183,7 +185,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "users",
-    label: "Ludzie",
+    label: "People",
     icon: "users",
     patterns: [
       /^user/,
@@ -220,7 +222,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "shopping",
-    label: "Zakupy",
+    label: "Shopping",
     icon: "shopping-bag",
     patterns: [
       /^shopping/,
@@ -251,7 +253,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "devices",
-    label: "Urządzenia",
+    label: "Devices",
     icon: "laptop",
     patterns: [
       /^laptop/,
@@ -290,7 +292,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "nature",
-    label: "Natura",
+    label: "Nature",
     icon: "leaf",
     patterns: [
       /^tree/,
@@ -339,7 +341,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "tools",
-    label: "Narzędzia",
+    label: "Tools",
     icon: "wrench",
     patterns: [
       /^wrench/,
@@ -379,7 +381,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "shapes",
-    label: "Kształty",
+    label: "Shapes",
     icon: "shapes",
     patterns: [
       /^square/,
@@ -404,7 +406,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "map",
-    label: "Mapy",
+    label: "Maps",
     icon: "map",
     patterns: [
       /^map/,
@@ -461,7 +463,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "food",
-    label: "Jedzenie",
+    label: "Food",
     icon: "utensils",
     patterns: [
       /^coffee/,
@@ -523,7 +525,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "security",
-    label: "Bezpieczeństwo",
+    label: "Security",
     icon: "shield",
     patterns: [
       /^lock/,
@@ -542,7 +544,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "charts",
-    label: "Wykresy",
+    label: "Charts",
     icon: "bar-chart-3",
     patterns: [
       /^chart/,
@@ -563,7 +565,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "time",
-    label: "Czas",
+    label: "Time",
     icon: "clock",
     patterns: [
       /^clock/,
@@ -578,7 +580,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "weather",
-    label: "Pogoda",
+    label: "Weather",
     icon: "cloud-sun",
     patterns: [
       /^sun/,
@@ -626,7 +628,7 @@ function groupIcons(names: string[]): Grouped[] {
     if (items.length > 0) out.push({ id: c.id, label: c.label, items });
   }
   const other = buckets.get("other")!;
-  if (other.length > 0) out.push({ id: "other", label: "Inne", items: other });
+  if (other.length > 0) out.push({ id: "other", label: "Other", items: other });
   return out;
 }
 
@@ -641,8 +643,10 @@ export function LucideIconPicker({
   value,
   onChange,
   className,
-  placeholder = "Wybierz ikonę",
+  placeholder: placeholderProp,
 }: Props) {
+  const { t } = useTranslation();
+  const placeholder = placeholderProp ?? t("builder.iconPicker.placeholderDefault");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<string>("all");
@@ -678,11 +682,15 @@ export function LucideIconPicker({
 
   const sidebarCats: { id: string; label: string; icon: string }[] = useMemo(
     () => [
-      { id: "all", label: "Wszystkie", icon: "layout-grid" },
-      ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })),
-      { id: "other", label: "Inne", icon: "more-horizontal" },
+      { id: "all", label: t("builder.iconPicker.all"), icon: "layout-grid" },
+      ...CATEGORIES.map((c) => ({
+        id: c.id,
+        label: t(`builder.iconPicker.${c.id}`),
+        icon: c.icon,
+      })),
+      { id: "other", label: t("builder.iconPicker.other"), icon: "more-horizontal" },
     ],
-    [],
+    [t],
   );
 
   return (
@@ -694,7 +702,7 @@ export function LucideIconPicker({
             "inline-flex items-center gap-2 h-7 px-2 rounded-md border border-border bg-background text-xs hover:bg-accent transition-colors min-w-0 " +
             (className ?? "")
           }
-          aria-label="Wybierz ikonę Lucide"
+          aria-label={t("builder.iconPicker.ariaOpen")}
         >
           {current ? (
             <DynamicIcon name={current} width={14} height={14} className="shrink-0" />
@@ -710,7 +718,7 @@ export function LucideIconPicker({
           <div className="w-40 shrink-0 border-r border-border bg-muted/30 flex flex-col">
             <div className="px-3 py-2 border-b border-border">
               <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                Kategorie
+                {t("builder.iconPicker.categories")}
               </div>
             </div>
             <ScrollArea className="flex-1">
@@ -760,7 +768,7 @@ export function LucideIconPicker({
                   autoFocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Szukaj (np. rocket, users)"
+                  placeholder={t("builder.iconPicker.searchPh")}
                   className="h-8 text-xs pl-8"
                 />
               </div>
@@ -774,8 +782,8 @@ export function LucideIconPicker({
                     onChange(undefined);
                     setOpen(false);
                   }}
-                  aria-label="Wyczyść ikonę"
-                  title="Wyczyść ikonę"
+                  aria-label={t("builder.iconPicker.clearIcon")}
+                  title={t("builder.iconPicker.clearIcon")}
                 >
                   <X className="w-3.5 h-3.5" />
                 </Button>
@@ -783,7 +791,9 @@ export function LucideIconPicker({
             </div>
             <ScrollArea className="flex-1">
               {displayed.length === 0 ? (
-                <div className="text-xs text-muted-foreground text-center py-10">Brak wyników</div>
+                <div className="text-xs text-muted-foreground text-center py-10">
+                  {t("builder.iconPicker.noResults")}
+                </div>
               ) : (
                 <div className="grid grid-cols-10 gap-1 p-2">
                   {displayed.map((name) => {
@@ -817,8 +827,8 @@ export function LucideIconPicker({
               )}
             </ScrollArea>
             <div className="px-3 py-1.5 border-t border-border text-[10px] text-muted-foreground truncate bg-muted/20">
-              {displayed.length} / {allNames.length} ikon
-              {current ? ` · wybrano: ${current}` : ""}
+              {displayed.length} / {allNames.length} {t("builder.iconPicker.iconsSuffix")}
+              {current ? ` · ${t("builder.iconPicker.selected")}: ${current}` : ""}
             </div>
           </div>
         </div>

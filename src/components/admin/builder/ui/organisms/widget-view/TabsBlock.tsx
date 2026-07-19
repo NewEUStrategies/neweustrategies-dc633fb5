@@ -14,7 +14,12 @@ export function TabsBlock({
   nodeId: string;
 }) {
   const [active, setActive] = useState(0);
-  if (!tabs.length) return <div className="text-xs text-muted-foreground">Brak zakładek</div>;
+  if (!tabs.length)
+    return (
+      <div className="text-xs text-muted-foreground">
+        {lang === "pl" ? "Brak zakładek" : "No tabs"}
+      </div>
+    );
   const safe = Math.min(active, tabs.length - 1);
   const cur = tabs[safe];
   return (

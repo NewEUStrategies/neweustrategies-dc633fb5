@@ -1,3 +1,5 @@
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 
 interface Props {
@@ -6,6 +8,7 @@ interface Props {
 }
 
 export function HeadingBlock({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const level = Number(block.data.level ?? 2);
   const text = String(block.data.text ?? "");
   const sizeClass = level === 2 ? "text-2xl" : level === 3 ? "text-xl" : "text-lg";
@@ -14,7 +17,7 @@ export function HeadingBlock({ block, onChange }: Props) {
     <input
       type="text"
       value={text}
-      placeholder={`Nagłówek H${level}…`}
+      placeholder={bt.editor("heading", "placeholder", { level })}
       onChange={(e) => onChange({ ...block, data: { ...block.data, text: e.target.value } })}
       className={`w-full bg-transparent font-bold border-none outline-none focus:ring-0 p-0 ${sizeClass}`}
     />

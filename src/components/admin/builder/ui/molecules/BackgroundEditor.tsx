@@ -18,6 +18,8 @@ import type {
   GradientType,
 } from "@/lib/builder/types";
 import { Row, ColorInput, NumberInput } from "../atoms";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: BackgroundSettings | undefined;
@@ -25,10 +27,11 @@ interface Props {
 }
 
 export function BackgroundEditor({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const b = value ?? {};
   return (
     <>
-      <Row label="Typ tła">
+      <Row label={t("builder.background.type")}>
         <Select
           value={b.type ?? "none"}
           onValueChange={(v) =>
@@ -41,17 +44,17 @@ export function BackgroundEditor({ value, onChange }: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Brak</SelectItem>
-            <SelectItem value="classic">Klasyczne</SelectItem>
-            <SelectItem value="gradient">Gradient</SelectItem>
-            <SelectItem value="video">Wideo</SelectItem>
-            <SelectItem value="slideshow">Pokaz slajdów</SelectItem>
+            <SelectItem value="none">{t("builder.common.none")}</SelectItem>
+            <SelectItem value="classic">{t("builder.background.classic")}</SelectItem>
+            <SelectItem value="gradient">{t("builder.background.gradient")}</SelectItem>
+            <SelectItem value="video">{t("builder.background.video")}</SelectItem>
+            <SelectItem value="slideshow">{t("builder.background.slideshow")}</SelectItem>
           </SelectContent>
         </Select>
       </Row>
 
       {(b.type === "classic" || b.type === "video" || b.type === "slideshow") && (
-        <Row label="Kolor">
+        <Row label={t("builder.common.color")}>
           <ColorInput
             value={b.color}
             onChange={(v) =>
@@ -65,7 +68,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
 
       {b.type === "classic" && (
         <>
-          <Row label="Obraz (URL)">
+          <Row label={t("builder.background.imageUrl")}>
             <Input
               value={b.imageUrl ?? ""}
               onChange={(e) =>
@@ -77,7 +80,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               className="h-8 text-xs"
             />
           </Row>
-          <Row label="Pozycja">
+          <Row label={t("builder.background.position")}>
             <Select
               value={b.position ?? "center center"}
               onValueChange={(v) =>
@@ -110,7 +113,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               </SelectContent>
             </Select>
           </Row>
-          <Row label="Powtarzanie">
+          <Row label={t("builder.background.repeat")}>
             <Select
               value={b.repeat ?? "no-repeat"}
               onValueChange={(v) =>
@@ -131,7 +134,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               </SelectContent>
             </Select>
           </Row>
-          <Row label="Rozmiar">
+          <Row label={t("builder.background.size")}>
             <Select
               value={b.size ?? "cover"}
               onValueChange={(v) =>
@@ -152,7 +155,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               </SelectContent>
             </Select>
           </Row>
-          <Row label="Przyczepność">
+          <Row label={t("builder.background.attachment")}>
             <Select
               value={b.attachment ?? "scroll"}
               onValueChange={(v) =>
@@ -175,7 +178,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
 
       {b.type === "gradient" && (
         <>
-          <Row label="Typ gradientu">
+          <Row label={t("builder.background.gradientType")}>
             <Select
               value={b.gradientType ?? "linear"}
               onValueChange={(v) =>
@@ -188,12 +191,12 @@ export function BackgroundEditor({ value, onChange }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="linear">Liniowy</SelectItem>
-                <SelectItem value="radial">Promienisty</SelectItem>
+                <SelectItem value="linear">{t("builder.background.linear")}</SelectItem>
+                <SelectItem value="radial">{t("builder.background.radial")}</SelectItem>
               </SelectContent>
             </Select>
           </Row>
-          <Row label="Kolor 1">
+          <Row label={t("builder.background.color1")}>
             <ColorInput
               value={b.gradientColor}
               onChange={(v) =>
@@ -203,7 +206,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               }
             />
           </Row>
-          <Row label="Pozycja 1 (%)">
+          <Row label={t("builder.background.location1")}>
             <NumberInput
               value={b.gradientLocation}
               onChange={(n) =>
@@ -216,7 +219,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               suffix="%"
             />
           </Row>
-          <Row label="Kolor 2">
+          <Row label={t("builder.background.color2")}>
             <ColorInput
               value={b.gradientColor2}
               onChange={(v) =>
@@ -226,7 +229,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
               }
             />
           </Row>
-          <Row label="Pozycja 2 (%)">
+          <Row label={t("builder.background.location2")}>
             <NumberInput
               value={b.gradientLocation2}
               onChange={(n) =>
@@ -240,7 +243,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
             />
           </Row>
           {(b.gradientType ?? "linear") === "linear" && (
-            <Row label="Kąt (°)">
+            <Row label={t("builder.background.angle")}>
               <NumberInput
                 value={b.gradientAngle}
                 onChange={(n) =>
@@ -258,7 +261,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
       )}
 
       {b.type === "video" && (
-        <Row label="URL wideo (mp4/YouTube)">
+        <Row label={t("builder.background.videoUrl")}>
           <Input
             value={b.videoUrl ?? ""}
             onChange={(e) =>
@@ -272,7 +275,7 @@ export function BackgroundEditor({ value, onChange }: Props) {
       )}
 
       {b.type === "slideshow" && (
-        <Row label="Obrazy (URL na linię)">
+        <Row label={t("builder.background.slideshowImages")}>
           <Textarea
             rows={4}
             value={(b.slideshowImages ?? []).join("\n")}

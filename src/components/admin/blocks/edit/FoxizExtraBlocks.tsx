@@ -2,6 +2,8 @@
 // post-stats, post-rating, loginout, more-posts.
 
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -25,6 +27,8 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 const STAT_OPTIONS = ["date", "author", "category", "reading", "views", "comments"] as const;
 
 export function PostStatsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const fx = (k: string) => i18n.editor("foxizExtra", k);
   const items = Array.isArray(block.data.items)
     ? (block.data.items as string[])
     : ["date", "author", "reading"];
@@ -37,7 +41,7 @@ export function PostStatsBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Pasek meta wpisu">
+    <Shell label={fx("postStatsLabel")}>
       <div className="flex flex-wrap gap-1.5">
         {STAT_OPTIONS.map((n) => {
           const active = items.includes(n);
@@ -61,7 +65,7 @@ export function PostStatsBlock({ block, onChange }: Props) {
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={separator}
-        placeholder="Separator (np. • / |)"
+        placeholder={fx("separatorPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, separator: e.target.value } })}
       />
     </Shell>
@@ -71,10 +75,12 @@ export function PostStatsBlock({ block, onChange }: Props) {
 // -------- Post Rating (reader rating) --------
 
 export function PostRatingBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const fx = (k: string) => i18n.editor("foxizExtra", k);
   const max = Number(block.data.max ?? 5);
   const label = String(block.data.label ?? "");
   return (
-    <Shell label="Ocena czytelnika">
+    <Shell label={fx("postRatingLabel")}>
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
@@ -83,13 +89,13 @@ export function PostRatingBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, max: Number(e.target.value) } })
           }
         >
-          <option value={5}>5 gwiazdek</option>
-          <option value={10}>10 gwiazdek</option>
+          <option value={5}>{fx("stars5")}</option>
+          <option value={10}>{fx("stars10")}</option>
         </AdminSelect>
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={label}
-          placeholder="Etykieta (opcjonalnie)"
+          placeholder={fx("labelPh")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, label: e.target.value } })}
         />
       </div>
@@ -100,14 +106,16 @@ export function PostRatingBlock({ block, onChange }: Props) {
 // -------- LoginOut --------
 
 export function LoginOutBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const fx = (k: string) => i18n.editor("foxizExtra", k);
   const loginHref = String(block.data.loginHref ?? "/auth");
   const showAvatar = block.data.showAvatar !== false;
   return (
-    <Shell label="Zaloguj / Wyloguj">
+    <Shell label={fx("loginOutLabel")}>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={loginHref}
-        placeholder="Link logowania (np. /auth)"
+        placeholder={fx("loginHrefPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, loginHref: e.target.value } })}
       />
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -118,7 +126,7 @@ export function LoginOutBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, showAvatar: e.target.checked } })
           }
         />
-        Pokaż avatar
+        {fx("showAvatar")}
       </label>
     </Shell>
   );
@@ -127,11 +135,13 @@ export function LoginOutBlock({ block, onChange }: Props) {
 // -------- More Posts promo --------
 
 export function MorePostsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const fx = (k: string) => i18n.editor("foxizExtra", k);
   const limit = Number(block.data.limit ?? 4);
   const heading = String(block.data.heading ?? "");
   const strategy = String(block.data.strategy ?? "latest");
   return (
-    <Shell label="Polecane wpisy (pasek)">
+    <Shell label={fx("morePostsLabel")}>
       <div className="grid grid-cols-2 gap-2">
         <input
           type="number"
@@ -150,15 +160,15 @@ export function MorePostsBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, strategy: e.target.value } })
           }
         >
-          <option value="latest">Najnowsze</option>
-          <option value="trending">Popularne (7 dni)</option>
-          <option value="category">Z tej kategorii</option>
+          <option value="latest">{fx("stratLatest")}</option>
+          <option value="trending">{fx("stratTrending")}</option>
+          <option value="category">{fx("stratCategory")}</option>
         </AdminSelect>
       </div>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={heading}
-        placeholder="Nagłówek (opcjonalnie)"
+        placeholder={fx("headingPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, heading: e.target.value } })}
       />
     </Shell>

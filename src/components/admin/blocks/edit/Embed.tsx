@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { PlaySquare } from "lucide-react";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -35,11 +36,9 @@ export function EmbedBlock({ block, onChange }: Props) {
           />
         </div>
       ) : url ? (
-        <p className="text-xs text-muted-foreground">
-          Nie rozpoznano dostawcy - URL pojawi się jako link.
-        </p>
+        <p className="text-xs text-muted-foreground">{i18n.editor("embed", "noProvider")}</p>
       ) : (
-        <p className="text-xs text-muted-foreground">Wklej URL z YouTube, Vimeo lub X.</p>
+        <p className="text-xs text-muted-foreground">{i18n.editor("embed", "pasteHint")}</p>
       )}
     </div>
   );

@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -14,11 +16,12 @@ interface Props {
 }
 
 export function AccordionEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const items = itemsOf(c, "items");
   const update = (next: Item[]) => setContent("items", toJson(next));
   return (
     <ListShell
-      title="Pytania (FAQ)"
+      title={t("builder.accordionEditor.title")}
       items={items}
       onAdd={() => update([...items, { q_pl: "Nowe pytanie", a_pl: "Odpowiedź…" }])}
     >
@@ -26,10 +29,10 @@ export function AccordionEditor({ c, lang, setContent }: Props) {
         {items.map((it, i) => (
           <ItemFrame
             key={i}
-            title={`Pozycja #${i + 1}`}
+            title={t("builder.accordionEditor.item", { n: i + 1 })}
             onRemove={() => update(items.filter((_, j) => j !== i))}
           >
-            <PropField label={`Pytanie (${lang.toUpperCase()})`}>
+            <PropField label={t("builder.accordionEditor.question", { lang: lang.toUpperCase() })}>
               <Input
                 value={typeof it[`q_${lang}`] === "string" ? (it[`q_${lang}`] as string) : ""}
                 onChange={(e) =>
@@ -40,7 +43,7 @@ export function AccordionEditor({ c, lang, setContent }: Props) {
                 className="h-8 text-xs"
               />
             </PropField>
-            <PropField label={`Odpowiedź HTML (${lang.toUpperCase()})`}>
+            <PropField label={t("builder.accordionEditor.answer", { lang: lang.toUpperCase() })}>
               <Textarea
                 rows={3}
                 value={typeof it[`a_${lang}`] === "string" ? (it[`a_${lang}`] as string) : ""}

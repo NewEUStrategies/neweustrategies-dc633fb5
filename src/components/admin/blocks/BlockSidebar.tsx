@@ -14,6 +14,7 @@ import {
 import type { Block, BlockStyle, BlocksDoc } from "@/lib/blocks/types";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
 import { DocumentOutline } from "./molecules/DocumentOutline";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -321,7 +322,7 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
 
       {block.type === "html" && (
         <div>
-          <Label className="text-xs">Surowy HTML</Label>
+          <Label className="text-xs">{t("blocks.settings.rawHtml")}</Label>
           <textarea
             value={String(block.data.html ?? "")}
             onChange={(e) => set("html", e.target.value)}
@@ -330,7 +331,7 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
             className="w-full font-mono text-xs p-2 rounded-md border border-border bg-muted/40 min-h-[240px] outline-none focus:ring-1 focus:ring-foreground resize-y"
           />
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Treść jest sanitizowana przy renderowaniu. Podgląd widoczny w obszarze treści.
+            {t("blocks.settings.rawHtmlNote")}
           </p>
         </div>
       )}

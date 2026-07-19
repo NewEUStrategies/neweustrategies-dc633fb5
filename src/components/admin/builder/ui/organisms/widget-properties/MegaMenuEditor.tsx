@@ -19,6 +19,8 @@ import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
 import { PagePicker } from "./PagePicker";
 import { itemsOf, type Item } from "./shared";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -29,6 +31,7 @@ interface Props {
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export function MegaMenuEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const columns = itemsOf(c, "columns");
   const updateCols = (next: Item[]): void => setContent("columns", toJson(next));
   const triggerOn = (str(c.triggerOn) || "hover") as "hover" | "click";
@@ -37,7 +40,7 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
 
   return (
     <div className="space-y-3">
-      <PropField label={`Etykieta wyzwalacza (${lang.toUpperCase()})`}>
+      <PropField label={t("builder.megaMenuEditor.triggerLabel", { lang: lang.toUpperCase() })}>
         <Input
           value={str(c[`trigger_${lang}`])}
           onChange={(e) => setContent(`trigger_${lang}`, e.target.value)}
@@ -45,41 +48,43 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
           placeholder={lang === "pl" ? "Produkty" : "Products"}
         />
       </PropField>
-      <PropField label="URL etykiety (opcjonalny)">
+      <PropField label={t("builder.megaMenuEditor.labelUrl")}>
         <Input
           value={str(c.href)}
           onChange={(e) => setContent("href", e.target.value)}
           className="h-8 text-xs"
-          placeholder="/produkty"
+          placeholder={t("builder.megaMenuEditor.labelUrlPh")}
         />
       </PropField>
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Otwieranie">
+        <PropField label={t("builder.megaMenuEditor.opening")}>
           <Select value={triggerOn} onValueChange={(v) => setContent("triggerOn", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="hover">najazd kursora</SelectItem>
-              <SelectItem value="click">kliknięcie</SelectItem>
+              <SelectItem value="hover">{t("builder.megaMenuEditor.openHover")}</SelectItem>
+              <SelectItem value="click">{t("builder.megaMenuEditor.openClick")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Szerokość panelu">
+        <PropField label={t("builder.megaMenuEditor.panelWidth")}>
           <Select value={width} onValueChange={(v) => setContent("width", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="container">do containera</SelectItem>
-              <SelectItem value="fluid">pełna szerokość</SelectItem>
-              <SelectItem value="fixed">stała (px)</SelectItem>
+              <SelectItem value="container">
+                {t("builder.megaMenuEditor.widthContainer")}
+              </SelectItem>
+              <SelectItem value="fluid">{t("builder.megaMenuEditor.widthFluid")}</SelectItem>
+              <SelectItem value="fixed">{t("builder.megaMenuEditor.widthFixed")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
       </div>
       {width === "fixed" && (
-        <PropField label="Szerokość (px)">
+        <PropField label={t("builder.megaMenuEditor.widthPx")}>
           <NumberInput
             value={widthPx}
             min={320}
@@ -91,7 +96,7 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
       )}
 
       <ListShell
-        title="Kolumny"
+        title={t("builder.megaMenuEditor.columns")}
         items={columns}
         onAdd={() =>
           updateCols([
@@ -134,6 +139,7 @@ function ColumnEditor({
   onRemove: () => void;
   index: number;
 }) {
+  const { t } = useTranslation();
   const links = Array.isArray(col.links) ? (col.links as Item[]) : [];
   const featured = (col.featured ?? null) as Item | null;
   const set = (k: string, v: unknown): void => onChange({ ...col, [k]: toJson(v) });
@@ -142,20 +148,23 @@ function ColumnEditor({
   const kind = (str(col.kind) || "links") as "links" | "category";
 
   return (
-    <ItemFrame title={`Kolumna #${index + 1}`} onRemove={onRemove}>
-      <PropField label="Typ kolumny">
+    <ItemFrame
+      title={t("builder.megaMenuEditor.columnTitle", { n: index + 1 })}
+      onRemove={onRemove}
+    >
+      <PropField label={t("builder.megaMenuEditor.columnType")}>
         <Select value={kind} onValueChange={(v) => set("kind", v)}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="links">Linki + opcjonalna karta</SelectItem>
-            <SelectItem value="category">Kategoria (najnowsze wpisy)</SelectItem>
+            <SelectItem value="links">{t("builder.megaMenuEditor.typeLinks")}</SelectItem>
+            <SelectItem value="category">{t("builder.megaMenuEditor.typeCategory")}</SelectItem>
           </SelectContent>
         </Select>
       </PropField>
 
-      <PropField label={`Nagłówek kolumny (${lang.toUpperCase()})`}>
+      <PropField label={t("builder.megaMenuEditor.columnHeading", { lang: lang.toUpperCase() })}>
         <Input
           value={str(col[`title_${lang}`])}
           onChange={(e) => set(`title_${lang}`, e.target.value)}
@@ -170,7 +179,7 @@ function ColumnEditor({
         />
       </PropField>
 
-      <PropField label="Strona z platformy (link nagłówka)">
+      <PropField label={t("builder.megaMenuEditor.headerLink")}>
         <PagePicker
           value={str(col.href) || undefined}
           onChange={(v) => set("href", v ?? "")}
@@ -199,7 +208,7 @@ function ColumnEditor({
         <>
           <div className="space-y-1">
             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Linki
+              {t("builder.megaMenuEditor.links")}
             </div>
             {links.map((l, i) => (
               <div key={i} className="rounded-md border border-border p-2 space-y-1">
@@ -244,7 +253,7 @@ function ColumnEditor({
                   className="text-[11px] text-destructive hover:underline"
                   onClick={() => updateLinks(links.filter((_, j) => j !== i))}
                 >
-                  usuń link
+                  {t("builder.megaMenuEditor.removeLink")}
                 </button>
               </div>
             ))}
@@ -255,14 +264,14 @@ function ColumnEditor({
                 updateLinks([...links, { label_pl: "Nowy link", label_en: "New link", href: "#" }])
               }
             >
-              + dodaj link
+              {t("builder.megaMenuEditor.addLink")}
             </button>
           </div>
 
           <div className="space-y-1 pt-2 border-t border-border">
             <div className="flex items-center justify-between">
               <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Karta wyróżniona
+                {t("builder.megaMenuEditor.featuredCard")}
               </div>
               {featured ? (
                 <button
@@ -270,7 +279,7 @@ function ColumnEditor({
                   className="text-[11px] text-destructive hover:underline"
                   onClick={() => set("featured", null)}
                 >
-                  usuń
+                  {t("builder.megaMenuEditor.remove")}
                 </button>
               ) : (
                 <button
@@ -278,20 +287,20 @@ function ColumnEditor({
                   className="text-[11px] text-brand hover:underline"
                   onClick={() => set("featured", { title_pl: "Tytuł", title_en: "Title" })}
                 >
-                  + dodaj
+                  {t("builder.megaMenuEditor.add")}
                 </button>
               )}
             </div>
             {featured && (
               <div className="rounded-md border border-border p-2 space-y-2">
                 <ImageSlot
-                  label="Obraz"
+                  label={t("builder.megaMenuEditor.image")}
                   icon={<ImageIcon className="w-4 h-4" />}
                   value={str(featured.image)}
                   onChange={(v) => set("featured", { ...featured, image: v })}
                 />
                 {/* Focal point picker: drag to choose the visible center on every crop. */}
-                <PropField label="Punkt fokalny (kadrowanie)">
+                <PropField label={t("builder.megaMenuEditor.focalPoint")}>
                   <FocalPointPicker
                     image={str(featured.image)}
                     x={typeof featured.focalX === "number" ? featured.focalX : 50}
@@ -326,7 +335,7 @@ function ColumnEditor({
                   </div>
                 </PropField>
                 <div className="grid grid-cols-2 gap-1">
-                  <PropField label="Proporcje">
+                  <PropField label={t("builder.megaMenuEditor.aspect")}>
                     <Select
                       value={str(featured.aspectRatio) || "16/10"}
                       onValueChange={(v) => set("featured", { ...featured, aspectRatio: v })}
@@ -343,7 +352,7 @@ function ColumnEditor({
                       </SelectContent>
                     </Select>
                   </PropField>
-                  <PropField label="Tło placeholdera">
+                  <PropField label={t("builder.megaMenuEditor.placeholderBg")}>
                     <AdminColorPicker
                       value={str(featured.placeholderColor) || "#e5e7eb"}
                       onChange={(v) =>
@@ -355,7 +364,7 @@ function ColumnEditor({
                   </PropField>
                 </div>
                 <Input
-                  placeholder={`Tytuł ${lang.toUpperCase()}`}
+                  placeholder={t("builder.megaMenuEditor.titlePh", { lang: lang.toUpperCase() })}
                   value={str(featured[`title_${lang}`])}
                   onChange={(e) =>
                     set("featured", { ...featured, [`title_${lang}`]: e.target.value })
@@ -363,7 +372,7 @@ function ColumnEditor({
                   className="h-7 text-xs"
                 />
                 <Textarea
-                  placeholder={`Opis ${lang.toUpperCase()}`}
+                  placeholder={t("builder.megaMenuEditor.descPh", { lang: lang.toUpperCase() })}
                   rows={2}
                   value={str(featured[`excerpt_${lang}`])}
                   onChange={(e) =>
@@ -411,6 +420,7 @@ function CategoryColumnFields({
   onCount: (n: number) => void;
   onViewAll: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   const { data: cats = [] } = useQuery({
     queryKey: ["mega-menu-cats"],
     staleTime: 60_000,
@@ -421,13 +431,13 @@ function CategoryColumnFields({
   });
   return (
     <div className="space-y-2 rounded-md border border-dashed border-border p-2 bg-muted/30">
-      <PropField label="Kategoria">
+      <PropField label={t("builder.megaMenuEditor.category")}>
         <Select value={slug || "__none"} onValueChange={(v) => onSlug(v === "__none" ? "" : v)}>
           <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="wybierz" />
+            <SelectValue placeholder={t("builder.megaMenuEditor.choose")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none">- brak -</SelectItem>
+            <SelectItem value="__none">{t("builder.megaMenuEditor.none")}</SelectItem>
             {cats.map((c) => (
               <SelectItem key={c.slug} value={c.slug}>
                 {c.name_pl}
@@ -437,7 +447,7 @@ function CategoryColumnFields({
         </Select>
       </PropField>
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Liczba wpisów">
+        <PropField label={t("builder.megaMenuEditor.postCount")}>
           <NumberInput
             value={postCount}
             min={1}
@@ -446,7 +456,7 @@ function CategoryColumnFields({
             onChange={(n) => onCount(typeof n === "number" ? n : 4)}
           />
         </PropField>
-        <PropField label="Link 'Zobacz wszystkie'">
+        <PropField label={t("builder.megaMenuEditor.viewAllLink")}>
           <Input
             value={viewAllHref}
             onChange={(e) => onViewAll(e.target.value)}

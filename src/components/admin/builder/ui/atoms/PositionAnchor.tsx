@@ -1,6 +1,8 @@
 // Atom: 3x3 anchor picker for "self position" inside a column cell.
 // Combines selfJustify (X) and selfAlign (Y). Includes a separate stretch toggle.
+import { useTranslation } from "react-i18next";
 import type { CommonStyle } from "@/lib/builder/types";
+import "@/lib/i18n-builder";
 
 type J = NonNullable<CommonStyle["selfJustify"]>;
 type A = NonNullable<CommonStyle["selfAlign"]>;
@@ -11,18 +13,18 @@ interface Props {
   onChange: (next: { justify?: J; align?: A }) => void;
 }
 
-const COLS: Array<{ v: J; label: string }> = [
-  { v: "start", label: "L" },
-  { v: "center", label: "Ś" },
-  { v: "end", label: "P" },
-];
-const ROWS: Array<{ v: A; label: string }> = [
-  { v: "start", label: "Góra" },
-  { v: "center", label: "Środek" },
-  { v: "end", label: "Dół" },
-];
-
 export function PositionAnchor({ justify, align, onChange }: Props) {
+  const { t } = useTranslation();
+  const COLS: Array<{ v: J; label: string }> = [
+    { v: "start", label: t("builder.position.colL") },
+    { v: "center", label: t("builder.position.colC") },
+    { v: "end", label: t("builder.position.colR") },
+  ];
+  const ROWS: Array<{ v: A; label: string }> = [
+    { v: "start", label: t("builder.common.top") },
+    { v: "center", label: t("builder.common.center") },
+    { v: "end", label: t("builder.common.bottom") },
+  ];
   const j = justify ?? "auto";
   const a = align ?? "auto";
   const stretched = a === "stretch";
@@ -43,7 +45,7 @@ export function PositionAnchor({ justify, align, onChange }: Props) {
                     ? "bg-brand text-brand-foreground"
                     : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
-                title={`${row.label} • ${col.label === "L" ? "Lewo" : col.label === "P" ? "Prawo" : "Środek"}`}
+                title={`${row.label} • ${col.v === "start" ? t("builder.common.left") : col.v === "end" ? t("builder.common.right") : t("builder.common.center")}`}
               >
                 ●
               </button>
@@ -57,7 +59,7 @@ export function PositionAnchor({ justify, align, onChange }: Props) {
           onClick={() => onChange({ justify: undefined, align: undefined })}
           className="text-[10px] underline text-muted-foreground hover:text-foreground"
         >
-          Domyślnie
+          {t("builder.position.default")}
         </button>
         <span className="text-[10px] text-muted-foreground">•</span>
         <label className="flex items-center gap-1 text-[10px]">
@@ -66,7 +68,7 @@ export function PositionAnchor({ justify, align, onChange }: Props) {
             checked={stretched}
             onChange={(e) => onChange({ justify, align: e.target.checked ? "stretch" : "auto" })}
           />
-          Rozciągnij pionowo
+          {t("builder.position.stretchV")}
         </label>
       </div>
     </div>

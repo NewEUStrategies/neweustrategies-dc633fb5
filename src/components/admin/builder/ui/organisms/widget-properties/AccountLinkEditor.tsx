@@ -23,6 +23,8 @@ import { itemsOf, type Item } from "./shared";
 import { ACCOUNT_PRESETS } from "../widget-view/AccountMenuWidget";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -33,18 +35,20 @@ interface Props {
 type Section = "guest" | "auth" | "staff";
 type Kind = "preset" | "page" | "custom" | "separator" | "logout";
 
-const SECTIONS: Array<{ value: Section; label: string }> = [
-  { value: "guest", label: "Niezalogowani" },
-  { value: "auth", label: "Zalogowani" },
-  { value: "staff", label: "Zespół / Admin" },
-];
-const KINDS: Array<{ value: Kind; label: string }> = [
-  { value: "preset", label: "Preset profilu" },
-  { value: "page", label: "Strona z CMS" },
-  { value: "custom", label: "Własny URL" },
-  { value: "separator", label: "Separator" },
-  { value: "logout", label: "Wyloguj" },
-];
+const SECTIONS: Section[] = ["guest", "auth", "staff"];
+const KINDS: Kind[] = ["preset", "page", "custom", "separator", "logout"];
+const SEC_KEY: Record<Section, string> = {
+  guest: "secGuest",
+  auth: "secAuth",
+  staff: "secStaff",
+};
+const KIND_KEY: Record<Kind, string> = {
+  preset: "kindPreset",
+  page: "kindPage",
+  custom: "kindCustom",
+  separator: "kindSeparator",
+  logout: "kindLogout",
+};
 
 function newItem(section: Section): Item {
   return {
@@ -63,6 +67,9 @@ function readStr(v: unknown): string {
 }
 
 export function AccountLinkEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
+  const secLabel = (v: Section) => t(`builder.accountLinkEditor.${SEC_KEY[v]}`);
+  const kindLabel = (v: Kind) => t(`builder.accountLinkEditor.${KIND_KEY[v]}`);
   const items = itemsOf(c, "items");
   const update = (next: Item[]) => setContent("items", toJson(next));
   const [pages, setPages] = useState<Array<{ slug: string; title: string }>>([]);
@@ -106,13 +113,13 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Style + presety nagłówków */}
+      {/* Panel style + header presets */}
       <div className="rounded-md border border-border/60 p-3 space-y-2">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Wygląd panelu
+          {t("builder.accountLinkEditor.appearance")}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Szerokość (px)">
+          <PropField label={t("builder.accountLinkEditor.width")}>
             <Input
               type="number"
               className="h-8 text-xs"
@@ -120,7 +127,7 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
               onChange={(e) => setContent("panelWidth", Number(e.target.value) || 280)}
             />
           </PropField>
-          <PropField label="Zaokrąglenie (px)">
+          <PropField label={t("builder.accountLinkEditor.radius")}>
             <Input
               type="number"
               className="h-8 text-xs"
@@ -128,7 +135,7 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
               onChange={(e) => setContent("panelRadius", Number(e.target.value) || 0)}
             />
           </PropField>
-          <PropField label="Tło panelu">
+          <PropField label={t("builder.accountLinkEditor.panelBg")}>
             <AdminColorPicker
               value={readStr(c.panelBg) || "#ffffff"}
               onChange={(v) => setContent("panelBg", v ?? "#ffffff")}
@@ -136,7 +143,7 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
               allowReset={false}
             />
           </PropField>
-          <PropField label="Kolor tekstu">
+          <PropField label={t("builder.accountLinkEditor.textColor")}>
             <AdminColorPicker
               value={readStr(c.panelText) || "#141414"}
               onChange={(v) => setContent("panelText", v ?? "#141414")}
@@ -144,7 +151,7 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
               allowReset={false}
             />
           </PropField>
-          <PropField label="Akcent (CTA)">
+          <PropField label={t("builder.accountLinkEditor.accentCta")}>
             <AdminColorPicker
               value={readStr(c.panelAccent) || "#FA9346"}
               onChange={(v) => setContent("panelAccent", v ?? "#FA9346")}
@@ -154,28 +161,32 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
           </PropField>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label={`Etykieta "Zaloguj" (${lang.toUpperCase()})`}>
+          <PropField
+            label={t("builder.accountLinkEditor.signinLabel", { lang: lang.toUpperCase() })}
+          >
             <Input
               className="h-8 text-xs"
               value={readStr(c[`signin_${lang}`])}
               onChange={(e) => setContent(`signin_${lang}`, e.target.value)}
             />
           </PropField>
-          <PropField label={`Etykieta "Zarejestruj" (${lang.toUpperCase()})`}>
+          <PropField
+            label={t("builder.accountLinkEditor.signupLabel", { lang: lang.toUpperCase() })}
+          >
             <Input
               className="h-8 text-xs"
               value={readStr(c[`signup_${lang}`])}
               onChange={(e) => setContent(`signup_${lang}`, e.target.value)}
             />
           </PropField>
-          <PropField label="URL ekranu logowania">
+          <PropField label={t("builder.accountLinkEditor.signinUrl")}>
             <Input
               className="h-8 text-xs"
               value={readStr(c.signinHref) || "/login"}
               onChange={(e) => setContent("signinHref", e.target.value)}
             />
           </PropField>
-          <PropField label="URL rejestracji">
+          <PropField label={t("builder.accountLinkEditor.signupUrl")}>
             <Input
               className="h-8 text-xs"
               value={readStr(c.signupHref) || "/login?mode=signup"}
@@ -186,15 +197,15 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Label className="text-xs">Sekcja:</Label>
+        <Label className="text-xs">{t("builder.accountLinkEditor.section")}</Label>
         <Select value={section} onValueChange={(v) => setSection(v as Section)}>
           <SelectTrigger className="h-8 w-[200px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {SECTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
+              <SelectItem key={s} value={s}>
+                {secLabel(s)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -202,7 +213,7 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
       </div>
 
       <ListShell
-        title={`Pozycje menu - ${SECTIONS.find((s) => s.value === section)?.label}`}
+        title={t("builder.accountLinkEditor.menuItems", { section: secLabel(section) })}
         items={sectionItems}
         onAdd={() => update([...items, newItem(section)])}
       >
@@ -213,7 +224,10 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
             return (
               <ItemFrame
                 key={globalIdx}
-                title={`#${visIdx + 1} · ${KINDS.find((k) => k.value === kind)?.label ?? kind}`}
+                title={t("builder.accountLinkEditor.itemTitle", {
+                  n: visIdx + 1,
+                  kind: KINDS.includes(kind) ? kindLabel(kind) : kind,
+                })}
                 onRemove={() => update(items.filter((_, j) => j !== globalIdx))}
               >
                 <div className="flex items-center gap-1 mb-2">
@@ -237,15 +251,15 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                   </Button>
                 </div>
 
-                <PropField label="Typ pozycji">
+                <PropField label={t("builder.accountLinkEditor.itemType")}>
                   <Select value={kind} onValueChange={(v) => replaceAt(globalIdx, { kind: v })}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {KINDS.map((k) => (
-                        <SelectItem key={k.value} value={k.value}>
-                          {k.label}
+                        <SelectItem key={k} value={k}>
+                          {kindLabel(k)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -253,7 +267,7 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                 </PropField>
 
                 {kind === "preset" && (
-                  <PropField label="Preset">
+                  <PropField label={t("builder.accountLinkEditor.preset")}>
                     <Select
                       value={readStr(it.presetKey) || "profile"}
                       onValueChange={(v) => {
@@ -282,18 +296,18 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                 )}
 
                 {kind === "page" && (
-                  <PropField label="Strona">
+                  <PropField label={t("builder.accountLinkEditor.page")}>
                     <Select
                       value={readStr(it.pageSlug)}
                       onValueChange={(v) => replaceAt(globalIdx, { pageSlug: v })}
                     >
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Wybierz stronę…" />
+                        <SelectValue placeholder={t("builder.accountLinkEditor.pickPage")} />
                       </SelectTrigger>
                       <SelectContent>
                         {pages.length === 0 && (
                           <div className="px-3 py-2 text-xs text-muted-foreground">
-                            Brak opublikowanych stron.
+                            {t("builder.accountLinkEditor.noPages")}
                           </div>
                         )}
                         {pages.map((p) => (
@@ -308,14 +322,14 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
 
                 {kind === "custom" && (
                   <>
-                    <PropField label="URL (lub /ścieżka)">
+                    <PropField label={t("builder.accountLinkEditor.customUrl")}>
                       <Input
                         className="h-8 text-xs"
                         value={readStr(it.customHref)}
                         onChange={(e) => replaceAt(globalIdx, { customHref: e.target.value })}
                       />
                     </PropField>
-                    <PropField label="Otwórz w nowej karcie">
+                    <PropField label={t("builder.accountLinkEditor.newTab")}>
                       <input
                         type="checkbox"
                         checked={!!it.external}
@@ -327,15 +341,17 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
 
                 {kind !== "separator" && (
                   <>
-                    <PropField label="Ikona (Lucide)">
+                    <PropField label={t("builder.accountLinkEditor.icon")}>
                       <Input
                         className="h-8 text-xs"
-                        placeholder="np. User, Bookmark, LogOut"
+                        placeholder={t("builder.accountLinkEditor.iconPh")}
                         value={readStr(it.icon)}
                         onChange={(e) => replaceAt(globalIdx, { icon: e.target.value })}
                       />
                     </PropField>
-                    <PropField label={`Etykieta (${lang.toUpperCase()})`}>
+                    <PropField
+                      label={t("builder.accountLinkEditor.label", { lang: lang.toUpperCase() })}
+                    >
                       <Input
                         className="h-8 text-xs"
                         value={readStr(it[`label_${lang}`])}
@@ -344,7 +360,9 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                         }
                       />
                     </PropField>
-                    <PropField label={`Opis (${lang.toUpperCase()})`}>
+                    <PropField
+                      label={t("builder.accountLinkEditor.desc", { lang: lang.toUpperCase() })}
+                    >
                       <Textarea
                         rows={2}
                         className="text-xs"

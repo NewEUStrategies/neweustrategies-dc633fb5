@@ -14,6 +14,8 @@ import { PropField, ColorField, ItemFrame, CollapsibleSection as Collapsible } f
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { TaxonomyPicker } from "./TaxonomyPicker";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -22,6 +24,7 @@ interface Props {
 }
 
 export function RatedListEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const items = itemsOf(c, "items");
   const update = (next: Item[]) => setContent("items", toJson(next));
   const upd = (i: number, patch: Partial<Item>) =>
@@ -47,19 +50,19 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Źródło danych */}
+      {/* Data source */}
       <div className="space-y-2 border border-border rounded-md p-2 bg-background">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Źródło danych
+          {t("builder.ratedListEditor.dataSource")}
         </div>
-        <PropField label="Skąd brać materiały">
+        <PropField label={t("builder.ratedListEditor.sourceLabel")}>
           <Select value={source} onValueChange={(v) => setContent("source", v as Json)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="manual">Ręczna lista pozycji</SelectItem>
-              <SelectItem value="dynamic">Dynamicznie z wpisów</SelectItem>
+              <SelectItem value="manual">{t("builder.ratedListEditor.sourceManual")}</SelectItem>
+              <SelectItem value="dynamic">{t("builder.ratedListEditor.sourceDynamic")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
@@ -69,7 +72,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             checked={c.showRating !== false}
             onChange={(e) => setContent("showRating", e.target.checked as Json)}
           />
-          Pokazuj ocenę (paski + liczba)
+          {t("builder.ratedListEditor.showRating")}
         </label>
       </div>
 
@@ -90,7 +93,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               mode="categories"
               value={txt("excludeCategories")}
               onChange={(v) => setContent("excludeCategories", v as Json)}
-              placeholder="- Nic nie wykluczaj -"
+              placeholder={t("builder.ratedListEditor.excludeNone")}
             />
           </PropField>
           <PropField label="Tags Filter">
@@ -105,7 +108,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               mode="tags"
               value={txt("excludeTags")}
               onChange={(v) => setContent("excludeTags", v as Json)}
-              placeholder="- Nic nie wykluczaj -"
+              placeholder={t("builder.ratedListEditor.excludeNone")}
             />
           </PropField>
           <PropField label="Post Format">
@@ -117,22 +120,22 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Wszystkie</SelectItem>
+                <SelectItem value="all">{t("builder.ratedListEditor.fmtAll")}</SelectItem>
                 <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="video">Wideo</SelectItem>
-                <SelectItem value="gallery">Galeria</SelectItem>
-                <SelectItem value="quote">Cytat</SelectItem>
+                <SelectItem value="video">{t("builder.ratedListEditor.fmtVideo")}</SelectItem>
+                <SelectItem value="gallery">{t("builder.ratedListEditor.fmtGallery")}</SelectItem>
+                <SelectItem value="quote">{t("builder.ratedListEditor.fmtQuote")}</SelectItem>
                 <SelectItem value="audio">Audio</SelectItem>
                 <SelectItem value="link">Link</SelectItem>
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Author Filter (nazwy autorów, csv)">
+          <PropField label={t("builder.ratedListEditor.authorFilter")}>
             <Input
               value={txt("authorFilter")}
               onChange={(e) => setContent("authorFilter", e.target.value as Json)}
               className="h-8 text-xs"
-              placeholder="Imię Nazwisko, Inna Osoba"
+              placeholder={t("builder.ratedListEditor.authorFilterPh")}
             />
           </PropField>
           <PropField label="Post IDs Filter (UUID, csv)">
@@ -161,10 +164,16 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="last_published">Ostatnio publikowane</SelectItem>
-                  <SelectItem value="title_asc">Tytuł A→Z</SelectItem>
-                  <SelectItem value="title_desc">Tytuł Z→A</SelectItem>
-                  <SelectItem value="random">Losowo</SelectItem>
+                  <SelectItem value="last_published">
+                    {t("builder.ratedListEditor.orderLastPub")}
+                  </SelectItem>
+                  <SelectItem value="title_asc">
+                    {t("builder.ratedListEditor.orderTitleAsc")}
+                  </SelectItem>
+                  <SelectItem value="title_desc">
+                    {t("builder.ratedListEditor.orderTitleDesc")}
+                  </SelectItem>
+                  <SelectItem value="random">{t("builder.ratedListEditor.orderRandom")}</SelectItem>
                 </SelectContent>
               </Select>
             </PropField>
@@ -191,12 +200,12 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       )}
 
-      {/* ===== STYL ===== */}
+      {/* ===== STYLE ===== */}
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground pt-2">
-        Styl elementów
+        {t("builder.ratedListEditor.elementStyle")}
       </div>
 
-      <Collapsible title="Index Counter (numeracja)" defaultOpen>
+      <Collapsible title={t("builder.ratedListEditor.indexCounter")} defaultOpen>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Font">
             <Select value={numFont} onValueChange={(v) => setContent("numberFont", v as Json)}>
@@ -211,7 +220,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Grubość">
+          <PropField label={t("builder.ratedListEditor.weight")}>
             <Select value={numWeight} onValueChange={(v) => setContent("numberWeight", v as Json)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
@@ -225,7 +234,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Rozmiar (px)">
+          <PropField label={t("builder.ratedListEditor.sizePx")}>
             <Input
               type="number"
               min={12}
@@ -235,34 +244,36 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Pozycja">
+          <PropField label={t("builder.ratedListEditor.position")}>
             <Select value={numPos} onValueChange={(v) => setContent("numberPosition", v as Json)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="behind">Za treścią (prawy róg)</SelectItem>
-                <SelectItem value="left">Z lewej obok</SelectItem>
-                <SelectItem value="top">Nad tytułem</SelectItem>
+                <SelectItem value="behind">{t("builder.ratedListEditor.posBehind")}</SelectItem>
+                <SelectItem value="left">{t("builder.ratedListEditor.posLeft")}</SelectItem>
+                <SelectItem value="top">{t("builder.ratedListEditor.posTop")}</SelectItem>
               </SelectContent>
             </Select>
           </PropField>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor (light)">
+          <PropField label={t("builder.ratedListEditor.colorLight")}>
             <ColorField
               value={numColor}
               onChange={(v) => setContent("numberColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Kolor (dark)">
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
             <ColorField
               value={numColorDark}
               onChange={(v) => setContent("numberColorDark", (v ?? "") as Json)}
             />
           </PropField>
         </div>
-        <PropField label={`Przezroczystość (${Math.round(numOpacity * 100)}%)`}>
+        <PropField
+          label={t("builder.ratedListEditor.opacity", { pct: Math.round(numOpacity * 100) })}
+        >
           <Input
             type="range"
             min={0}
@@ -275,29 +286,29 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </PropField>
       </Collapsible>
 
-      <Collapsible title="Entry Category (kategoria)">
+      <Collapsible title={t("builder.ratedListEditor.entryCategory")}>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={bool("showCategory", false)}
             onChange={(e) => setContent("showCategory", e.target.checked as Json)}
           />
-          Pokazuj kategorię nad tytułem
+          {t("builder.ratedListEditor.showCategory")}
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor tekstu">
+          <PropField label={t("builder.ratedListEditor.textColor")}>
             <ColorField
               value={txt("categoryColor", "#dc2626")}
               onChange={(v) => setContent("categoryColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Kolor (dark)">
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
             <ColorField
               value={txt("categoryColorDark", "#f87171")}
               onChange={(v) => setContent("categoryColorDark", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Rozmiar (px)">
+          <PropField label={t("builder.ratedListEditor.sizePx")}>
             <Input
               type="number"
               min={8}
@@ -307,7 +318,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Grubość">
+          <PropField label={t("builder.ratedListEditor.weight")}>
             <Select
               value={txt("categoryWeight", "700")}
               onValueChange={(v) => setContent("categoryWeight", v as Json)}
@@ -335,15 +346,15 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </label>
       </Collapsible>
 
-      <Collapsible title="Post Title (tytuł)">
+      <Collapsible title={t("builder.ratedListEditor.postTitle")}>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor (light)">
+          <PropField label={t("builder.ratedListEditor.colorLight")}>
             <ColorField
               value={txt("titleColor", "")}
               onChange={(v) => setContent("titleColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Kolor (dark)">
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
             <ColorField
               value={txt("titleColorDark", "")}
               onChange={(v) => setContent("titleColorDark", (v ?? "") as Json)}
@@ -355,8 +366,8 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("titleHoverColor", (v ?? "") as Json)}
             />
           </PropField>
-          {/* Rozmiar tytułu: zarządzany w zakładce „Styl" → Typografia (.cms-post-title). */}
-          <PropField label="Grubość">
+          {/* Title size: managed in the "Style" → Typography tab (.cms-post-title). */}
+          <PropField label={t("builder.ratedListEditor.weight")}>
             <Select
               value={txt("titleWeight", "700")}
               onValueChange={(v) => setContent("titleWeight", v as Json)}
@@ -392,14 +403,14 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Entry Meta (autor / data)">
+      <Collapsible title={t("builder.ratedListEditor.entryMeta")}>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={bool("showAuthor", true)}
             onChange={(e) => setContent("showAuthor", e.target.checked as Json)}
           />
-          Pokazuj autora
+          {t("builder.ratedListEditor.showAuthor")}
         </label>
         <label className="flex items-center gap-2 text-xs">
           <input
@@ -407,22 +418,22 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             checked={bool("showDate", false)}
             onChange={(e) => setContent("showDate", e.target.checked as Json)}
           />
-          Pokazuj datę publikacji
+          {t("builder.ratedListEditor.showDate")}
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor (light)">
+          <PropField label={t("builder.ratedListEditor.colorLight")}>
             <ColorField
               value={txt("metaColor", "")}
               onChange={(v) => setContent("metaColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Kolor (dark)">
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
             <ColorField
               value={txt("metaColorDark", "")}
               onChange={(v) => setContent("metaColorDark", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Rozmiar (px)">
+          <PropField label={t("builder.ratedListEditor.sizePx")}>
             <Input
               type="number"
               min={8}
@@ -435,30 +446,30 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Excerpt (zajawka)">
+      <Collapsible title={t("builder.ratedListEditor.excerptSection")}>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={bool("showExcerpt", true)}
             onChange={(e) => setContent("showExcerpt", e.target.checked as Json)}
           />
-          Pokazuj zajawkę
+          {t("builder.ratedListEditor.showExcerpt")}
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor (light)">
+          <PropField label={t("builder.ratedListEditor.colorLight")}>
             <ColorField
               value={txt("excerptColor", "")}
               onChange={(v) => setContent("excerptColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Kolor (dark)">
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
             <ColorField
               value={txt("excerptColorDark", "")}
               onChange={(v) => setContent("excerptColorDark", (v ?? "") as Json)}
             />
           </PropField>
-          {/* Rozmiar excerpt: zarządzany w zakładce „Styl" → Typografia (.cms-post-excerpt). */}
-          <PropField label="Linie (clamp)">
+          {/* Excerpt size: managed in the "Style" → Typography tab (.cms-post-excerpt). */}
+          <PropField label={t("builder.ratedListEditor.excerptLines")}>
             <Input
               type="number"
               min={1}
@@ -471,16 +482,16 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Read More (link)">
+      <Collapsible title={t("builder.ratedListEditor.readMoreSection")}>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={bool("showReadMore", false)}
             onChange={(e) => setContent("showReadMore", e.target.checked as Json)}
           />
-          Pokazuj „Czytaj więcej”
+          {t("builder.ratedListEditor.showReadMore")}
         </label>
-        <PropField label={`Tekst (${lang.toUpperCase()})`}>
+        <PropField label={t("builder.ratedListEditor.text", { lang: lang.toUpperCase() })}>
           <Input
             value={txt(`readMoreText_${lang}`, lang === "pl" ? "Czytaj więcej" : "Read more")}
             onChange={(e) => setContent(`readMoreText_${lang}`, e.target.value as Json)}
@@ -488,13 +499,13 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
           />
         </PropField>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor (light)">
+          <PropField label={t("builder.ratedListEditor.colorLight")}>
             <ColorField
               value={txt("readMoreColor", "")}
               onChange={(v) => setContent("readMoreColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Kolor (dark)">
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
             <ColorField
               value={txt("readMoreColorDark", "")}
               onChange={(v) => setContent("readMoreColorDark", (v ?? "") as Json)}
@@ -503,23 +514,23 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Bookmark (zakładka)">
+      <Collapsible title={t("builder.ratedListEditor.bookmark")}>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={bool("showBookmark", false)}
             onChange={(e) => setContent("showBookmark", e.target.checked as Json)}
           />
-          Pokazuj ikonę zakładki
+          {t("builder.ratedListEditor.showBookmark")}
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor">
+          <PropField label={t("builder.common.color")}>
             <ColorField
               value={txt("bookmarkColor", "")}
               onChange={(v) => setContent("bookmarkColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Rozmiar (px)">
+          <PropField label={t("builder.ratedListEditor.sizePx")}>
             <Input
               type="number"
               min={10}
@@ -532,16 +543,16 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Post Format (ikona formatu)">
+      <Collapsible title={t("builder.ratedListEditor.postFormatIcon")}>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={bool("showPostFormat", false)}
             onChange={(e) => setContent("showPostFormat", e.target.checked as Json)}
           />
-          Pokazuj ikonę formatu (wideo / galeria itd.)
+          {t("builder.ratedListEditor.showPostFormat")}
         </label>
-        <PropField label="Kolor ikony">
+        <PropField label={t("builder.ratedListEditor.iconColor")}>
           <ColorField
             value={txt("postFormatColor", "")}
             onChange={(v) => setContent("postFormatColor", (v ?? "") as Json)}
@@ -549,8 +560,8 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </PropField>
       </Collapsible>
 
-      <Collapsible title="Text Color Scheme (schemat)">
-        <PropField label="Schemat">
+      <Collapsible title={t("builder.ratedListEditor.colorSchemeSection")}>
+        <PropField label={t("builder.ratedListEditor.scheme")}>
           <Select
             value={txt("colorScheme", "auto")}
             onValueChange={(v) => setContent("colorScheme", v as Json)}
@@ -559,20 +570,20 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto">Auto (dziedzicz)</SelectItem>
-              <SelectItem value="light">Wymuś jasny</SelectItem>
-              <SelectItem value="dark">Wymuś ciemny</SelectItem>
+              <SelectItem value="auto">{t("builder.ratedListEditor.schemeAuto")}</SelectItem>
+              <SelectItem value="light">{t("builder.ratedListEditor.schemeLight")}</SelectItem>
+              <SelectItem value="dark">{t("builder.ratedListEditor.schemeDark")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
       </Collapsible>
 
-      {/* ===== UKŁAD ===== */}
+      {/* ===== LAYOUT ===== */}
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground pt-2">
-        Układ
+        {t("builder.ratedListEditor.layout")}
       </div>
 
-      <Collapsible title="Columns (kolumny)">
+      <Collapsible title={t("builder.ratedListEditor.columnsSection")}>
         <div className="grid grid-cols-3 gap-2">
           <PropField label="Desktop">
             <Input
@@ -629,8 +640,8 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Grid Borders (separatory)">
-        <PropField label="Tryb">
+      <Collapsible title={t("builder.ratedListEditor.gridBorders")}>
+        <PropField label={t("builder.ratedListEditor.mode")}>
           <Select
             value={txt("gridBorders", "none")}
             onValueChange={(v) => setContent("gridBorders", v as Json)}
@@ -639,20 +650,20 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Brak</SelectItem>
-              <SelectItem value="between">Między elementami</SelectItem>
-              <SelectItem value="full">Pełna ramka</SelectItem>
+              <SelectItem value="none">{t("builder.ratedListEditor.borderNone")}</SelectItem>
+              <SelectItem value="between">{t("builder.ratedListEditor.borderBetween")}</SelectItem>
+              <SelectItem value="full">{t("builder.ratedListEditor.borderFull")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Kolor">
+          <PropField label={t("builder.common.color")}>
             <ColorField
               value={txt("gridBorderColor", "")}
               onChange={(v) => setContent("gridBorderColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label="Grubość (px)">
+          <PropField label={t("builder.ratedListEditor.widthPx")}>
             <Input
               type="number"
               min={0}
@@ -667,8 +678,10 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Spacing (odstępy)">
-        <PropField label={`Odstęp między pozycjami (px) - ${num("itemSpacingPx", 28)}`}>
+      <Collapsible title={t("builder.ratedListEditor.spacing")}>
+        <PropField
+          label={t("builder.ratedListEditor.itemSpacing", { val: num("itemSpacingPx", 28) })}
+        >
           <Input
             type="range"
             min={0}
@@ -679,7 +692,9 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             className="h-6"
           />
         </PropField>
-        <PropField label={`Padding wewnątrz pozycji (px) - ${num("itemPaddingPx", 0)}`}>
+        <PropField
+          label={t("builder.ratedListEditor.itemPadding", { val: num("itemPaddingPx", 0) })}
+        >
           <Input
             type="range"
             min={0}
@@ -693,7 +708,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
       </Collapsible>
 
       <Collapsible title="Scrolling Mode">
-        <PropField label="Tryb">
+        <PropField label={t("builder.ratedListEditor.mode")}>
           <Select
             value={txt("scrollingMode", "none")}
             onValueChange={(v) => setContent("scrollingMode", v as Json)}
@@ -702,15 +717,17 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Brak (cała lista)</SelectItem>
-              <SelectItem value="scroll">Wewnętrzny scroll</SelectItem>
+              <SelectItem value="none">{t("builder.ratedListEditor.scrollNone")}</SelectItem>
+              <SelectItem value="scroll">{t("builder.ratedListEditor.scrollScroll")}</SelectItem>
               <SelectItem value="loadmore">Load more</SelectItem>
-              <SelectItem value="carousel">Karuzela pozioma</SelectItem>
+              <SelectItem value="carousel">
+                {t("builder.ratedListEditor.scrollCarousel")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </PropField>
         {txt("scrollingMode", "none") === "scroll" && (
-          <PropField label="Max wysokość (px)">
+          <PropField label={t("builder.ratedListEditor.maxHeight")}>
             <Input
               type="number"
               min={120}
@@ -724,7 +741,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
           </PropField>
         )}
         {txt("scrollingMode", "none") === "loadmore" && (
-          <PropField label="Pozycji na stronę">
+          <PropField label={t("builder.ratedListEditor.perPage")}>
             <Input
               type="number"
               min={1}
@@ -739,7 +756,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
 
       {source === "manual" && (
         <ListShell
-          title="Pozycje listy"
+          title={t("builder.ratedListEditor.listItems")}
           items={items}
           onAdd={() =>
             update([
@@ -759,10 +776,10 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             {items.map((it, i) => (
               <ItemFrame
                 key={i}
-                title={`Pozycja #${i + 1}`}
+                title={t("builder.ratedListEditor.itemTitle", { n: i + 1 })}
                 onRemove={() => update(items.filter((_, j) => j !== i))}
               >
-                <PropField label={`Tytuł (${lang.toUpperCase()})`}>
+                <PropField label={t("builder.ratedListEditor.title", { lang: lang.toUpperCase() })}>
                   <Input
                     value={
                       typeof it[`title_${lang}`] === "string" ? (it[`title_${lang}`] as string) : ""
@@ -771,7 +788,9 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                     className="h-8 text-xs"
                   />
                 </PropField>
-                <PropField label={`Zajawka (${lang.toUpperCase()})`}>
+                <PropField
+                  label={t("builder.ratedListEditor.excerptField", { lang: lang.toUpperCase() })}
+                >
                   <Textarea
                     rows={2}
                     value={
@@ -783,7 +802,9 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                     className="text-xs"
                   />
                 </PropField>
-                <PropField label={`Kategoria (${lang.toUpperCase()})`}>
+                <PropField
+                  label={t("builder.ratedListEditor.category", { lang: lang.toUpperCase() })}
+                >
                   <Input
                     value={
                       typeof it[`category_${lang}`] === "string"
@@ -792,18 +813,18 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                     }
                     onChange={(e) => upd(i, { [`category_${lang}`]: e.target.value })}
                     className="h-8 text-xs"
-                    placeholder="Raport, Analiza..."
+                    placeholder={t("builder.ratedListEditor.categoryPh")}
                   />
                 </PropField>
                 <div className="grid grid-cols-2 gap-2">
-                  <PropField label="Autor">
+                  <PropField label={t("builder.ratedListEditor.author")}>
                     <Input
                       value={typeof it.author === "string" ? it.author : ""}
                       onChange={(e) => upd(i, { author: e.target.value })}
                       className="h-8 text-xs"
                     />
                   </PropField>
-                  <PropField label="Ocena (0–10)">
+                  <PropField label={t("builder.ratedListEditor.rating")}>
                     <Input
                       type="number"
                       min={0}
@@ -814,7 +835,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                       className="h-8 text-xs"
                     />
                   </PropField>
-                  <PropField label="Data (YYYY-MM-DD)">
+                  <PropField label={t("builder.ratedListEditor.date")}>
                     <Input
                       value={typeof it.date === "string" ? it.date : ""}
                       onChange={(e) => upd(i, { date: e.target.value })}
@@ -832,9 +853,15 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="video">Wideo</SelectItem>
-                        <SelectItem value="gallery">Galeria</SelectItem>
-                        <SelectItem value="quote">Cytat</SelectItem>
+                        <SelectItem value="video">
+                          {t("builder.ratedListEditor.fmtVideo")}
+                        </SelectItem>
+                        <SelectItem value="gallery">
+                          {t("builder.ratedListEditor.fmtGallery")}
+                        </SelectItem>
+                        <SelectItem value="quote">
+                          {t("builder.ratedListEditor.fmtQuote")}
+                        </SelectItem>
                         <SelectItem value="audio">Audio</SelectItem>
                         <SelectItem value="link">Link</SelectItem>
                       </SelectContent>

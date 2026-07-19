@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Video as VideoIcon } from "@/lib/lucide-shim";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   block: Block;
@@ -22,7 +23,7 @@ export function VideoBlock({ block, onChange }: Props) {
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
           className="max-w-md mx-auto"
         />
-        <p className="text-xs text-muted-foreground">Poster (miniatura) w panelu po prawej.</p>
+        <p className="text-xs text-muted-foreground">{i18n.editor("video", "hint")}</p>
       </div>
     );
   }

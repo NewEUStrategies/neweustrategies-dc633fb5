@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { AdminDateTimePicker } from "../AdminDatePicker";
 
@@ -31,6 +32,7 @@ interface AccordionItem {
 }
 
 export function AccordionBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: AccordionItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -43,7 +45,7 @@ export function AccordionBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Akordeon">
+    <Shell label={i18n.editor("interactiveBlocks", "accordionLabel")}>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <input
           type="checkbox"
@@ -52,7 +54,7 @@ export function AccordionBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, allowMultiple: e.target.checked } })
           }
         />
-        Zezwalaj na otwieranie wielu sekcji
+        {i18n.editor("interactiveBlocks", "accordionAllowMultiple")}
       </label>
       <div className="space-y-2">
         {items.map((it, idx) => (
@@ -61,7 +63,7 @@ export function AccordionBlock({ block, onChange }: Props) {
               <input
                 className="flex-1 text-xs bg-background border border-border rounded px-2 py-2 h-9"
                 value={it.title}
-                placeholder="Tytuł sekcji"
+                placeholder={i18n.editor("interactiveBlocks", "accordionItemTitle")}
                 onChange={(e) => {
                   const next = [...items];
                   next[idx] = { ...it, title: e.target.value };
@@ -72,7 +74,7 @@ export function AccordionBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń sekcję"
+                aria-label={i18n.editor("interactiveBlocks", "accordionRemove")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -80,7 +82,7 @@ export function AccordionBlock({ block, onChange }: Props) {
             <textarea
               className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[64px]"
               value={it.body}
-              placeholder="Treść (HTML / markdown)"
+              placeholder={i18n.editor("interactiveBlocks", "accordionBody")}
               onChange={(e) => {
                 const next = [...items];
                 next[idx] = { ...it, body: e.target.value };
@@ -94,7 +96,7 @@ export function AccordionBlock({ block, onChange }: Props) {
           onClick={() => update([...items, { title: "", body: "" }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj sekcję
+          <Plus className="w-3.5 h-3.5" /> {i18n.editor("interactiveBlocks", "accordionAdd")}
         </button>
       </div>
     </Shell>
@@ -109,6 +111,7 @@ interface TabItem {
 }
 
 export function TabsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TabItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -121,7 +124,7 @@ export function TabsBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Zakładki">
+    <Shell label={i18n.editor("interactiveBlocks", "tabsLabel")}>
       <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={orientation}
@@ -129,8 +132,8 @@ export function TabsBlock({ block, onChange }: Props) {
           onChange({ ...block, data: { ...block.data, orientation: e.target.value } })
         }
       >
-        <option value="horizontal">Poziomo</option>
-        <option value="vertical">Pionowo</option>
+        <option value="horizontal">{i18n.editor("interactiveBlocks", "tabsHorizontal")}</option>
+        <option value="vertical">{i18n.editor("interactiveBlocks", "tabsVertical")}</option>
       </AdminSelect>
       <div className="space-y-2">
         {items.map((it, idx) => (
@@ -139,7 +142,7 @@ export function TabsBlock({ block, onChange }: Props) {
               <input
                 className="flex-1 text-xs bg-background border border-border rounded px-2 py-2 h-9"
                 value={it.label}
-                placeholder="Etykieta zakładki"
+                placeholder={i18n.editor("interactiveBlocks", "tabLabel")}
                 onChange={(e) => {
                   const next = [...items];
                   next[idx] = { ...it, label: e.target.value };
@@ -150,7 +153,7 @@ export function TabsBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń zakładkę"
+                aria-label={i18n.editor("interactiveBlocks", "tabRemove")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -158,7 +161,7 @@ export function TabsBlock({ block, onChange }: Props) {
             <textarea
               className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[64px]"
               value={it.body}
-              placeholder="Treść (HTML)"
+              placeholder={i18n.editor("interactiveBlocks", "tabBody")}
               onChange={(e) => {
                 const next = [...items];
                 next[idx] = { ...it, body: e.target.value };
@@ -172,7 +175,7 @@ export function TabsBlock({ block, onChange }: Props) {
           onClick={() => update([...items, { label: "", body: "" }])}
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj zakładkę
+          <Plus className="w-3.5 h-3.5" /> {i18n.editor("interactiveBlocks", "tabAdd")}
         </button>
       </div>
     </Shell>
@@ -182,11 +185,12 @@ export function TabsBlock({ block, onChange }: Props) {
 // ===== Countdown =====
 
 export function CountdownBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const targetAt = String(block.data.targetAt ?? "");
   const label = String(block.data.label ?? "");
   const expiredText = String(block.data.expiredText ?? "");
   return (
-    <Shell label="Odliczanie">
+    <Shell label={i18n.editor("interactiveBlocks", "countdownLabel")}>
       <AdminDateTimePicker
         value={targetAt}
         onChange={(v) => onChange({ ...block, data: { ...block.data, targetAt: v ?? "" } })}
@@ -194,13 +198,13 @@ export function CountdownBlock({ block, onChange }: Props) {
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={label}
-        placeholder="Opis (np. Do końca promocji)"
+        placeholder={i18n.editor("interactiveBlocks", "countdownDesc")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, label: e.target.value } })}
       />
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={expiredText}
-        placeholder="Tekst po wygaśnięciu (np. Promocja zakończona)"
+        placeholder={i18n.editor("interactiveBlocks", "countdownExpired")}
         onChange={(e) =>
           onChange({ ...block, data: { ...block.data, expiredText: e.target.value } })
         }
@@ -218,7 +222,7 @@ export function ProgressBlock({ block, onChange }: Props) {
   const showValue = block.data.showValue !== false;
   const color = String(block.data.color ?? "primary");
   return (
-    <Shell label="Pasek postępu">
+    <Shell label={i18n.editor("interactiveBlocks", "progressLabel")}>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={label}
@@ -243,10 +247,16 @@ export function ProgressBlock({ block, onChange }: Props) {
           value={color}
           onChange={(e) => onChange({ ...block, data: { ...block.data, color: e.target.value } })}
         >
-          <option value="primary">Podstawowy</option>
-          <option value="success">Sukces</option>
-          <option value="warning">Ostrzeżenie</option>
-          <option value="danger">Krytyczny</option>
+          <option value="primary">
+            {i18n.editor("interactiveBlocks", "progressColorPrimary")}
+          </option>
+          <option value="success">
+            {i18n.editor("interactiveBlocks", "progressColorSuccess")}
+          </option>
+          <option value="warning">
+            {i18n.editor("interactiveBlocks", "progressColorWarning")}
+          </option>
+          <option value="danger">{i18n.editor("interactiveBlocks", "progressColorDanger")}</option>
         </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -256,7 +266,7 @@ export function ProgressBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showValue: e.target.checked } })
             }
           />
-          Pokaż %
+          {i18n.editor("interactiveBlocks", "progressShowPercent")}
         </label>
       </div>
     </Shell>

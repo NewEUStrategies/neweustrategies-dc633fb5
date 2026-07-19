@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   /** Currently bound href (e.g. "/about"). */
@@ -152,7 +153,7 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
               setFocusedIndex(-1);
             }}
             onKeyDown={handleKeyDown}
-            placeholder={placeholder ?? t("widget.bindPage", "Wybierz stronę z platformy...")}
+            placeholder={placeholder ?? t("builder.picker.bindPage")}
             className="h-8 text-xs pr-7"
             aria-autocomplete="list"
             aria-expanded={open}
@@ -171,7 +172,7 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
                 inputRef.current?.focus();
               }}
               className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive text-xs"
-              aria-label={t("widget.unbindPage", "Odepnij stronę")}
+              aria-label={t("builder.picker.unbindPage")}
             >
               ×
             </button>
@@ -208,7 +209,7 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
             })}
             {!hits.length && (
               <div className="px-2 py-1 text-[11px] text-muted-foreground">
-                {t("widget.noResults", "Brak wyników")}
+                {t("builder.picker.noResults")}
               </div>
             )}
           </div>

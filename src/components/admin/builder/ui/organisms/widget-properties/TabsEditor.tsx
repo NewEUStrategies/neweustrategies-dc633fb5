@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -14,11 +16,12 @@ interface Props {
 }
 
 export function TabsEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const tabs = itemsOf(c, "tabs");
   const update = (next: Item[]) => setContent("tabs", toJson(next));
   return (
     <ListShell
-      title="Zakładki"
+      title={t("builder.tabsEditor.title")}
       items={tabs}
       onAdd={() => update([...tabs, { label_pl: "Nowa", html_pl: "<p>Treść…</p>" }])}
     >
@@ -26,10 +29,10 @@ export function TabsEditor({ c, lang, setContent }: Props) {
         {tabs.map((it, i) => (
           <ItemFrame
             key={i}
-            title={`Zakładka #${i + 1}`}
+            title={t("builder.tabsEditor.item", { n: i + 1 })}
             onRemove={() => update(tabs.filter((_, j) => j !== i))}
           >
-            <PropField label={`Etykieta (${lang.toUpperCase()})`}>
+            <PropField label={t("builder.tabsEditor.label", { lang: lang.toUpperCase() })}>
               <Input
                 value={
                   typeof it[`label_${lang}`] === "string" ? (it[`label_${lang}`] as string) : ""
@@ -42,7 +45,7 @@ export function TabsEditor({ c, lang, setContent }: Props) {
                 className="h-8 text-xs"
               />
             </PropField>
-            <PropField label={`Treść HTML (${lang.toUpperCase()})`}>
+            <PropField label={t("builder.tabsEditor.html", { lang: lang.toUpperCase() })}>
               <Textarea
                 rows={4}
                 value={typeof it[`html_${lang}`] === "string" ? (it[`html_${lang}`] as string) : ""}

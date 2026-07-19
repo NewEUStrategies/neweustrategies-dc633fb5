@@ -3,6 +3,8 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Images, Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 interface GalleryImage {
   url: string;
@@ -28,6 +30,8 @@ function readImages(block: Block): GalleryImage[] {
 }
 
 export function GalleryBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const gb = (k: string) => i18n.editor("gallery", k);
   const images = readImages(block);
 
   const update = (next: GalleryImage[]) => {
@@ -38,9 +42,9 @@ export function GalleryBlock({ block, onChange }: Props) {
     return (
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <Images className="w-8 h-8 mx-auto text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Galeria - dodaj pierwszy obraz.</p>
+        <p className="text-sm text-muted-foreground">{gb("emptyHint")}</p>
         <Button size="sm" variant="outline" onClick={() => update([{ url: "", alt: "" }])}>
-          <Plus className="w-3 h-3 mr-1" /> Dodaj obraz
+          <Plus className="w-3 h-3 mr-1" /> {gb("addImage")}
         </Button>
       </div>
     );
@@ -63,14 +67,14 @@ export function GalleryBlock({ block, onChange }: Props) {
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                brak URL
+                {gb("noUrl")}
               </div>
             )}
             <button
               type="button"
               onClick={() => update(images.filter((_, j) => j !== i))}
               className="absolute top-1 right-1 p-1 rounded bg-popover/90 border border-border opacity-0 group-hover:opacity-100"
-              title="Usuń"
+              title={gb("remove")}
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -79,14 +83,14 @@ export function GalleryBlock({ block, onChange }: Props) {
               onChange={(e) =>
                 update(images.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))
               }
-              placeholder="URL…"
+              placeholder={gb("urlPh")}
               className="absolute bottom-1 left-1 right-1 h-6 text-[10px] bg-popover/90"
             />
           </div>
         ))}
       </div>
       <Button size="sm" variant="outline" onClick={() => update([...images, { url: "", alt: "" }])}>
-        <Plus className="w-3 h-3 mr-1" /> Dodaj obraz
+        <Plus className="w-3 h-3 mr-1" /> {gb("addImage")}
       </Button>
     </div>
   );

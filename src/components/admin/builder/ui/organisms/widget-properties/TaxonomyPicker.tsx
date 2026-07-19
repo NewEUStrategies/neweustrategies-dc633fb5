@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronDown, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 type Mode = "categories" | "tags";
 
@@ -57,6 +59,7 @@ interface Props {
 }
 
 export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
+  const { t } = useTranslation();
   const { data: rows = [], isLoading } = useTaxonomy(mode);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
@@ -89,10 +92,10 @@ export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
   const selectedRows = rows.filter((r) => selected.has(r.slug));
   const displayLabel =
     selectedRows.length === 0
-      ? (placeholder ?? "- Wszystkie -")
+      ? (placeholder ?? t("builder.taxonomyPicker.all"))
       : selectedRows.length === 1
         ? selectedRows[0].label
-        : `${selectedRows.length} wybrane`;
+        : t("builder.taxonomyPicker.countSelected", { count: selectedRows.length });
 
   return (
     <div className="space-y-1">
@@ -110,13 +113,19 @@ export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Szukaj…"
+            placeholder={t("builder.taxonomyPicker.searchPh")}
             className="h-7 text-xs mb-2"
           />
           <div className="max-h-64 overflow-y-auto -mx-1 px-1">
-            {isLoading && <div className="text-[11px] text-muted-foreground p-2">Wczytywanie…</div>}
+            {isLoading && (
+              <div className="text-[11px] text-muted-foreground p-2">
+                {t("builder.taxonomyPicker.loading")}
+              </div>
+            )}
             {!isLoading && filtered.length === 0 && (
-              <div className="text-[11px] text-muted-foreground p-2">Brak wyników.</div>
+              <div className="text-[11px] text-muted-foreground p-2">
+                {t("builder.taxonomyPicker.noResults")}
+              </div>
             )}
             {filtered.map((r) => {
               const checked = selected.has(r.slug);
@@ -143,7 +152,7 @@ export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
               onClick={() => onChange("")}
               className="mt-2 w-full h-7 text-[11px] rounded border border-border hover:bg-muted inline-flex items-center justify-center gap-1"
             >
-              <X className="w-3 h-3" /> Wyczyść wybór
+              <X className="w-3 h-3" /> {t("builder.taxonomyPicker.clear")}
             </button>
           )}
         </PopoverContent>

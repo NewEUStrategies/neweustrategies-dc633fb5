@@ -2,6 +2,8 @@
 // ResizableImageWrap preserves image aspect ratio; ResizableBox resizes both
 // axes freely (buttons/CTAs). Both no-op (or just apply size) when not editable.
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 export function ResizableImageWrap({
   enabled,
@@ -14,6 +16,7 @@ export function ResizableImageWrap({
   onCommit: (px: number) => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [livePx, setLivePx] = useState<number | undefined>(undefined);
   const dragRef = useRef<{
@@ -72,8 +75,8 @@ export function ResizableImageWrap({
       {children}
       <div
         role="slider"
-        aria-label="Zmień rozmiar obrazka (zachowuje proporcje)"
-        title={`Przeciągnij aby zmienić rozmiar${livePx ? ` - ${Math.round(livePx)}px` : ""}`}
+        aria-label={t("builder.chrome.resizeImage")}
+        title={`${t("builder.chrome.dragResize")}${livePx ? ` - ${Math.round(livePx)}px` : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -139,6 +142,7 @@ export function ResizableBox({
   onCommit: (w: number, h: number) => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState<{ w: number; h: number } | undefined>(undefined);
   const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(
@@ -198,8 +202,8 @@ export function ResizableBox({
       <div style={{ width: "100%", height: "100%", display: "flex" }}>{children}</div>
       <div
         role="slider"
-        aria-label="Zmień rozmiar"
-        title={`Przeciągnij aby zmienić rozmiar${live ? ` - ${Math.round(live.w)}×${Math.round(live.h)}px` : ""}`}
+        aria-label={t("builder.chrome.resize")}
+        title={`${t("builder.chrome.dragResize")}${live ? ` - ${Math.round(live.w)}×${Math.round(live.h)}px` : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

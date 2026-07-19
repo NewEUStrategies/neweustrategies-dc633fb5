@@ -1,8 +1,10 @@
 // Molecule: hover-state editor (bg, text, transform, shadow, transition).
+import { useTranslation } from "react-i18next";
 import type { HoverStyle } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { PropField } from "../atoms/PropField";
 import { ColorField } from "../atoms/ColorField";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: HoverStyle | undefined;
@@ -10,6 +12,7 @@ interface Props {
 }
 
 export function HoverControl({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const v = value ?? {};
   const set = (patch: Partial<HoverStyle>) => onChange({ ...v, ...patch });
   const enabled = !!value;
@@ -24,19 +27,19 @@ export function HoverControl({ value, onChange }: Props) {
             onChange(e.target.checked ? (value ?? { transitionMs: 200 }) : undefined)
           }
         />
-        Włącz styl hover
+        {t("builder.hover.enable")}
       </label>
 
       {enabled && (
         <>
-          <PropField label="Tło (hover)">
+          <PropField label={t("builder.hover.bg")}>
             <ColorField value={v.bgColor} onChange={(bgColor) => set({ bgColor })} />
           </PropField>
-          <PropField label="Tekst (hover)">
+          <PropField label={t("builder.hover.text")}>
             <ColorField value={v.textColor} onChange={(textColor) => set({ textColor })} />
           </PropField>
           <div className="grid grid-cols-2 gap-2">
-            <PropField label="Skala">
+            <PropField label={t("builder.hover.scale")}>
               <Input
                 type="number"
                 step={0.01}
@@ -68,7 +71,7 @@ export function HoverControl({ value, onChange }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Cień (box-shadow)">
+          <PropField label={t("builder.hover.shadow")}>
             <Input
               value={v.shadow ?? ""}
               placeholder="0 8px 24px rgba(0,0,0,.18)"
@@ -76,7 +79,7 @@ export function HoverControl({ value, onChange }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Czas przejścia (ms)">
+          <PropField label={t("builder.hover.transition")}>
             <Input
               type="number"
               min={0}

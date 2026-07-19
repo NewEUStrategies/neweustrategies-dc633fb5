@@ -6,6 +6,8 @@
 //   - VisibilityControl  -> per-device hide
 //   - ColorField         -> bg / text colors with native picker
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import type {
   WidgetNode,
   CommonStyle,
@@ -92,6 +94,9 @@ export function WidgetProperties({
   onModeChange,
   onChange,
 }: Props) {
+  const { t } = useTranslation();
+  const md = () =>
+    mode === "dark" ? t("builder.widgetProps.modeDark") : t("builder.widgetProps.modeLight");
   const setContent = (k: string, v: Json) =>
     onChange((w) => {
       w.content = w.content ?? {};
@@ -117,12 +122,7 @@ export function WidgetProperties({
 
   // ---- Themed (light/dark) helpers for color-style fields ----
   type ColorKey =
-    | "bgColor"
-    | "textColor"
-    | "borderColor"
-    | "iconColor"
-    | "iconHoverColor"
-    | "iconActiveColor";
+    "bgColor" | "textColor" | "borderColor" | "iconColor" | "iconHoverColor" | "iconActiveColor";
   const getColor = (key: ColorKey): string | undefined =>
     pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
   const setColor = (key: ColorKey, v: string | undefined) =>
@@ -320,9 +320,9 @@ export function WidgetProperties({
                 })
               }
               className={`flex-1 h-7 px-2 text-[11px] rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-              title="Widget zajmuje cały wiersz (pod poprzednim)"
+              title={t("builder.widgetProps.blockLayoutTitle")}
             >
-              Pod
+              {t("builder.widgetProps.block")}
             </button>
             <button
               type="button"
@@ -332,21 +332,21 @@ export function WidgetProperties({
                 })
               }
               className={`flex-1 h-7 px-2 text-[11px] rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-              title="Widget ustawia się obok poprzedniego inline-widgetu"
+              title={t("builder.widgetProps.inlineLayoutTitle")}
             >
-              Obok
+              {t("builder.widgetProps.inline")}
             </button>
           </div>
         </div>
         <TabsList className="grid grid-cols-3 w-full h-6">
           <TabsTrigger value="content" className="text-[11px]">
-            Treść
+            {t("builder.widgetProps.tabContent")}
           </TabsTrigger>
           <TabsTrigger value="style" className="text-[11px]">
-            Styl
+            {t("builder.widgetProps.tabStyle")}
           </TabsTrigger>
           <TabsTrigger value="advanced" className="text-[11px]">
-            Zaawans.
+            {t("builder.widgetProps.tabAdvanced")}
           </TabsTrigger>
         </TabsList>
 
@@ -358,17 +358,17 @@ export function WidgetProperties({
           {/* Light / Dark mode tabs - synced with global preview switcher */}
           <div className="flex items-center justify-between gap-2">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              Edytujesz: {device}
+              {t("builder.widgetProps.editingDevice", { device })}
             </div>
             <div
               className="inline-flex items-center rounded border border-border bg-muted p-0.5"
               role="group"
-              aria-label="Tryb"
+              aria-label={t("builder.widgetProps.mode")}
             >
               {(
                 [
-                  ["light", Sun, "Jasny"],
-                  ["dark", Moon, "Ciemny"],
+                  ["light", Sun, t("builder.chrome.light")],
+                  ["dark", Moon, t("builder.chrome.dark")],
                 ] as const
               ).map(([m, Icon, label]) => (
                 <button
@@ -388,20 +388,20 @@ export function WidgetProperties({
             </div>
           </div>
 
-          {/* ═══════════════ GROUP: Wygląd ═══════════════ */}
+          {/* ═══════════════ GROUP: Appearance ═══════════════ */}
           <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1">
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
               <span className="h-1 w-1 rounded-full bg-brand" />
-              Wygląd
+              {t("builder.widgetProps.appearance")}
               <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
-                typografia, kolory, obramowanie
+                {t("builder.widgetProps.appearanceSub")}
               </span>
             </div>
           </div>
 
           <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Typografia ({mode === "dark" ? "ciemny" : "jasny"})
+              {t("builder.widgetProps.typography")} ({md()})
             </h4>
 
             <TypographyControl
@@ -414,11 +414,10 @@ export function WidgetProperties({
           {sizeFields && (
             <section className="space-y-2 pt-2 border-t border-border">
               <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Rozmiary elementów formularza (px)
+                {t("builder.widgetProps.formSizes")}
               </h4>
               <p className="text-[10px] text-muted-foreground -mt-1">
-                Zmiany działają od razu w preview. Puste = automatyczny (pokazany obok). Możesz też
-                kliknąć element bezpośrednio w preview.
+                {t("builder.widgetProps.formSizesHint")}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {sizeFields.map((f) => {
@@ -448,31 +447,31 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Kolory ({mode === "dark" ? "ciemny" : "jasny"})
+              {t("builder.widgetProps.colors")} ({md()})
             </h4>
             <ThemedColorField
-              label="Tło"
+              label={t("builder.widgetProps.bg")}
               value={getColor("bgColor")}
               onChange={(v) => setColor("bgColor", v)}
               overridden={isOverridden("bgColor")}
               onReset={() => resetColor("bgColor")}
-              placeholderHint="dziedziczy z global colors"
+              placeholderHint={t("builder.widgetProps.inheritGlobal")}
               inheritedValue={inherited.bgColor}
             />
             <ThemedColorField
-              label="Tekst"
+              label={t("builder.widgetProps.text")}
               value={getColor("textColor")}
               onChange={(v) => setColor("textColor", v)}
               overridden={isOverridden("textColor")}
               onReset={() => resetColor("textColor")}
-              placeholderHint="dziedziczy z global colors"
+              placeholderHint={t("builder.widgetProps.inheritGlobal")}
               inheritedValue={inherited.textColor}
             />
           </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {lang === "en" ? "Icons" : "Ikony"} ({mode === "dark" ? "ciemny" : "jasny"})
+              {lang === "en" ? "Icons" : "Ikony"} ({md()})
             </h4>
             <p className="text-[10px] text-muted-foreground -mt-1">
               {lang === "en"
@@ -510,10 +509,10 @@ export function WidgetProperties({
           {widget.type === "dark-featured-card" && (
             <section className="space-y-2 pt-2 border-t border-border">
               <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                Etykieta (badge)
+                {t("builder.widgetProps.badgeLabel")}
               </h4>
               <div className="grid grid-cols-2 gap-2">
-                <PropField label="Wariant">
+                <PropField label={t("builder.widgetProps.variant")}>
                   <Select
                     value={(widget.content?.badgeVariant as string) || "solid-red"}
                     onValueChange={(v) => setContent("badgeVariant", v)}
@@ -523,11 +522,11 @@ export function WidgetProperties({
                     </SelectTrigger>
                     <SelectContent>
                       {[
-                        { v: "solid-red", l: "Pełny - czerwony" },
-                        { v: "solid-brand", l: "Pełny - brand" },
-                        { v: "solid-dark", l: "Pełny - ciemny" },
-                        { v: "outline", l: "Obrysowany" },
-                        { v: "ghost", l: "Przezroczysty" },
+                        { v: "solid-red", l: t("builder.widgetProps.badgeSolidRed") },
+                        { v: "solid-brand", l: t("builder.widgetProps.badgeSolidBrand") },
+                        { v: "solid-dark", l: t("builder.widgetProps.badgeSolidDark") },
+                        { v: "outline", l: t("builder.widgetProps.badgeOutline") },
+                        { v: "ghost", l: t("builder.widgetProps.badgeGhost") },
                         { v: "gradient", l: "Gradient" },
                       ].map((o) => (
                         <SelectItem key={o.v} value={o.v} className="text-xs">
@@ -537,7 +536,7 @@ export function WidgetProperties({
                     </SelectContent>
                   </Select>
                 </PropField>
-                <PropField label="Zaokrąglenie">
+                <PropField label={t("builder.widgetProps.rounding")}>
                   <Select
                     value={(widget.content?.badgeRadius as string) || "none"}
                     onValueChange={(v) => setContent("badgeRadius", v)}
@@ -547,10 +546,10 @@ export function WidgetProperties({
                     </SelectTrigger>
                     <SelectContent>
                       {[
-                        { v: "none", l: "Brak" },
-                        { v: "sm", l: "Małe" },
-                        { v: "md", l: "Średnie" },
-                        { v: "lg", l: "Duże" },
+                        { v: "none", l: t("builder.widgetProps.radiusNone") },
+                        { v: "sm", l: t("builder.widgetProps.radiusSm") },
+                        { v: "md", l: t("builder.widgetProps.radiusMd") },
+                        { v: "lg", l: t("builder.widgetProps.radiusLg") },
                         { v: "full", l: "Pill" },
                       ].map((o) => (
                         <SelectItem key={o.v} value={o.v} className="text-xs">
@@ -560,7 +559,7 @@ export function WidgetProperties({
                     </SelectContent>
                   </Select>
                 </PropField>
-                <PropField label="Rozmiar">
+                <PropField label={t("builder.widgetProps.size")}>
                   <Select
                     value={(widget.content?.badgeSize as string) || "xs"}
                     onValueChange={(v) => setContent("badgeSize", v)}
@@ -583,13 +582,13 @@ export function WidgetProperties({
                 </PropField>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <PropField label="Kolor tła etykiety">
+                <PropField label={t("builder.widgetProps.badgeBg")}>
                   <ColorField
                     value={(widget.content?.badgeBg as string) || ""}
                     onChange={(v) => setContent("badgeBg", v || "")}
                   />
                 </PropField>
-                <PropField label="Kolor tekstu etykiety">
+                <PropField label={t("builder.widgetProps.badgeText")}>
                   <ColorField
                     value={(widget.content?.badgeText as string) || ""}
                     onChange={(v) => setContent("badgeText", v || "")}
@@ -597,16 +596,16 @@ export function WidgetProperties({
                 </PropField>
               </div>
               <div className="text-[10px] text-muted-foreground">
-                Własne kolory nadpisują wybrany wariant.
+                {t("builder.widgetProps.badgeHint")}
               </div>
             </section>
           )}
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Zaokrąglenie rogów
+              {t("builder.widgetProps.cornerRounding")}
             </h4>
-            <PropField label="Promień (px)">
+            <PropField label={t("builder.widgetProps.radiusPx")}>
               <StepperInput
                 value={getFlatStr("borderRadius")}
                 placeholder="8px"
@@ -618,10 +617,10 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Obramowanie
+              {t("builder.widgetProps.border")}
             </h4>
             <div className="grid grid-cols-2 gap-2">
-              <PropField label="Styl">
+              <PropField label={t("builder.widgetProps.style")}>
                 <Select
                   value={getFlatBorderStyle()}
                   onValueChange={(v) =>
@@ -633,11 +632,11 @@ export function WidgetProperties({
                   </SelectTrigger>
                   <SelectContent>
                     {[
-                      { v: "none", l: "Brak" },
-                      { v: "solid", l: "Ciągła" },
-                      { v: "dashed", l: "Kreskowana" },
-                      { v: "dotted", l: "Kropkowana" },
-                      { v: "double", l: "Podwójna" },
+                      { v: "none", l: t("builder.widgetProps.radiusNone") },
+                      { v: "solid", l: t("builder.widgetProps.borderSolid") },
+                      { v: "dashed", l: t("builder.widgetProps.borderDashed") },
+                      { v: "dotted", l: t("builder.widgetProps.borderDotted") },
+                      { v: "double", l: t("builder.widgetProps.borderDouble") },
                     ].map((o) => (
                       <SelectItem key={o.v} value={o.v} className="text-xs">
                         {o.l}
@@ -646,7 +645,7 @@ export function WidgetProperties({
                   </SelectContent>
                 </Select>
               </PropField>
-              <PropField label="Grubość (px)">
+              <PropField label={t("builder.widgetProps.thickness")}>
                 <StepperInput
                   value={getFlatStr("borderWidth")}
                   placeholder="1px"
@@ -656,41 +655,41 @@ export function WidgetProperties({
               </PropField>
             </div>
             <ThemedColorField
-              label={`Kolor (${mode === "dark" ? "ciemny" : "jasny"})`}
+              label={`${t("builder.widgetProps.color")} (${md()})`}
               value={getColor("borderColor")}
               onChange={(v) => setColor("borderColor", v)}
               overridden={isOverridden("borderColor")}
               onReset={() => resetColor("borderColor")}
-              placeholderHint="dziedziczy z global colors"
+              placeholderHint={t("builder.widgetProps.inheritGlobal")}
               inheritedValue={inherited.borderColor}
             />
           </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Hover ({mode === "dark" ? "ciemny" : "jasny"})
+              Hover ({md()})
             </h4>
 
             <HoverControl value={hoverValue} onChange={onHoverChange} />
           </section>
 
-          {/* ═══════════════ GROUP: Układ ═══════════════ */}
+          {/* ═══════════════ GROUP: Layout ═══════════════ */}
           <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1 mt-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
               <span className="h-1 w-1 rounded-full bg-brand" />
-              Układ
+              {t("builder.widgetProps.layout")}
               <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
-                odstępy, pozycja, wyrównanie
+                {t("builder.widgetProps.layoutSub")}
               </span>
             </div>
           </div>
 
           <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Odstępy
+              {t("builder.widgetProps.spacing")}
             </h4>
             <SpacingControl style={widget.style} device={device} onChange={setStyle} />
-            <PropField label="Pozycja w komórce">
+            <PropField label={t("builder.widgetProps.cellPosition")}>
               <PositionAnchor
                 justify={widget.style?.selfJustify}
                 align={widget.style?.selfAlign}
@@ -708,7 +707,7 @@ export function WidgetProperties({
         <TabsContent value="advanced" className="space-y-4 mt-3">
           <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Identyfikatory
+              {t("builder.widgetProps.identifiers")}
             </h4>
             <PropField label="HTML ID">
               <Input
@@ -736,7 +735,7 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Pozycja względem innych widgetów
+              {t("builder.widgetProps.positionRelative")}
             </h4>
             <div className="flex gap-1">
               <button
@@ -747,9 +746,9 @@ export function WidgetProperties({
                   })
                 }
                 className={`flex-1 h-8 px-2 text-xs rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-                title="Widget zajmuje cały wiersz (pod poprzednim)"
+                title={t("builder.widgetProps.blockLayoutTitle")}
               >
-                Pod (pełna szerokość)
+                {t("builder.widgetProps.blockFull")}
               </button>
               <button
                 type="button"
@@ -759,25 +758,25 @@ export function WidgetProperties({
                   })
                 }
                 className={`flex-1 h-8 px-2 text-xs rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-                title="Widget ustawia się obok poprzedniego inline-widgetu"
+                title={t("builder.widgetProps.inlineLayoutTitle")}
               >
-                Obok (w wierszu)
+                {t("builder.widgetProps.inlineRow")}
               </button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Sąsiadujące widgety z opcją „Obok” łączą się w jeden wiersz.
+              {t("builder.widgetProps.adjacentHint")}
             </p>
           </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Treść wewnątrz widgetu
+              {t("builder.widgetProps.contentInside")}
             </h4>
-            <PropField label="Max. szerokość treści (px)">
+            <PropField label={t("builder.widgetProps.maxContentWidth")}>
               <Input
                 type="number"
                 min={0}
-                placeholder="pełna szerokość"
+                placeholder={t("builder.widgetProps.fullWidth")}
                 value={
                   typeof widget.advanced?.contentMaxWidth === "number"
                     ? widget.advanced.contentMaxWidth
@@ -792,7 +791,7 @@ export function WidgetProperties({
                 className="h-8 text-xs"
               />
             </PropField>
-            <PropField label="Wyrównanie treści">
+            <PropField label={t("builder.widgetProps.contentAlign")}>
               <div className="flex gap-1">
                 {(["start", "center", "end"] as const).map((v) => {
                   const active = (widget.advanced?.contentAlign ?? "start") === v;
@@ -807,17 +806,21 @@ export function WidgetProperties({
                       }
                       className={`flex-1 h-8 px-2 text-xs rounded border ${active ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                     >
-                      {v === "start" ? "Lewo" : v === "center" ? "Środek" : "Prawo"}
+                      {v === "start"
+                        ? t("builder.common.left")
+                        : v === "center"
+                          ? t("builder.common.center")
+                          : t("builder.common.right")}
                     </button>
                   );
                 })}
               </div>
             </PropField>
-            <PropField label="Odstęp między elementami (px)">
+            <PropField label={t("builder.widgetProps.itemGap")}>
               <Input
                 type="number"
                 min={0}
-                placeholder="domyślny"
+                placeholder={t("builder.widgetProps.defaultPh")}
                 value={
                   typeof widget.advanced?.contentGap === "number" ? widget.advanced.contentGap : ""
                 }
@@ -831,8 +834,7 @@ export function WidgetProperties({
               />
             </PropField>
             <p className="text-[10px] text-muted-foreground">
-              Zwęża i centruje treść wewnątrz widgetu bez zmiany jego szerokości. Odstęp działa na
-              bezpośrednich dzieciach treści.
+              {t("builder.widgetProps.contentInsideHint")}
             </p>
           </section>
 
@@ -845,25 +847,24 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Widoczność
+              {t("builder.widgetProps.visibility")}
             </h4>
             <VisibilityControl value={widget.advanced} onChange={setAdvanced} />
           </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Dostęp (auth / role)
+              {t("builder.widgetProps.access")}
             </h4>
             <AccessControl value={widget.advanced} onChange={setAdvanced} />
           </section>
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Link widgetu
+              {t("builder.widgetProps.widgetLink")}
             </h4>
             <p className="text-[10px] text-muted-foreground -mt-1">
-              Cały widget staje się klikalny - wybierz URL zewnętrzny, wpis, stronę lub plik z
-              Biblioteki mediów.
+              {t("builder.widgetProps.widgetLinkHint")}
             </p>
             <LinkPicker
               value={widget.advanced?.link}
@@ -916,6 +917,7 @@ function ThemedColorField({
   placeholderHint?: string;
   inheritedValue?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <PropField
       label={
@@ -924,15 +926,15 @@ function ThemedColorField({
           {overridden && (
             <span
               className="inline-block w-1.5 h-1.5 rounded-full bg-brand"
-              aria-label="Nadpisane"
-              title="Nadpisane w tym trybie"
+              aria-label={t("builder.widgetProps.overridden")}
+              title={t("builder.widgetProps.overriddenTitle")}
             />
           )}
           {overridden && (
             <button
               type="button"
               onClick={onReset}
-              title="Przywróć z global colors"
+              title={t("builder.widgetProps.restoreGlobal")}
               className="inline-flex items-center text-muted-foreground hover:text-foreground"
             >
               <RotateCcw className="w-3 h-3" />
@@ -969,6 +971,7 @@ function FormElementSizeField({
   onChange: (next: number | null) => void;
   onPreview: () => void;
 }) {
+  const { t } = useTranslation();
   const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next)));
   const numericValue = typeof value === "number" ? value : null;
   const isAuto = numericValue === null;
@@ -993,7 +996,7 @@ function FormElementSizeField({
           {isAuto && (
             <span
               className="rounded bg-muted px-1 py-px text-[8px] font-bold uppercase tracking-wider text-muted-foreground"
-              title={`Bez nadpisania — aktualnie ${effectivePx}px`}
+              title={t("builder.widgetProps.noOverridePx", { px: effectivePx })}
             >
               auto
             </span>
@@ -1006,7 +1009,7 @@ function FormElementSizeField({
           type="button"
           onClick={() => bump(-1)}
           className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={`Zmniejsz: ${label}`}
+          aria-label={t("builder.widgetProps.decreaseLabel", { label })}
         >
           <Minus className="h-3 w-3" />
         </button>
@@ -1023,7 +1026,7 @@ function FormElementSizeField({
           type="button"
           onClick={() => bump(1)}
           className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={`Zwiększ: ${label}`}
+          aria-label={t("builder.widgetProps.increaseLabel", { label })}
         >
           <Plus className="h-3 w-3" />
         </button>
@@ -1101,6 +1104,7 @@ function ContentFields({
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
 }) {
+  const { t } = useTranslation();
   const c = widget.content;
 
   // Custom (list-style) editors for complex widgets.
@@ -1142,7 +1146,9 @@ function ContentFields({
   const schema = WIDGET_SCHEMAS[widget.type];
   if (!schema || schema.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>
+      <div className="text-xs text-muted-foreground">
+        {t("builder.widgetProps.noEditableFields")}
+      </div>
     );
   }
   return (
@@ -1160,12 +1166,12 @@ function ContentFields({
           titleSample={
             ((typeof c[`text_${lang}`] === "string" && c[`text_${lang}`]) as string) ||
             (typeof c.text_pl === "string" ? (c.text_pl as string) : "") ||
-            "Przykładowy nagłówek"
+            t("builder.widgetProps.sampleHeading")
           }
           subtitleSample={
             ((typeof c[`subtitle_${lang}`] === "string" && c[`subtitle_${lang}`]) as string) ||
             (typeof c.subtitle_pl === "string" ? (c.subtitle_pl as string) : "") ||
-            "Przykładowy podtytuł"
+            t("builder.widgetProps.sampleSubtitle")
           }
         />
       ) : null}
@@ -1180,6 +1186,7 @@ function AdSlotEditor({
   c: Record<string, Json>;
   setContent: (k: string, v: Json) => void;
 }) {
+  const { t } = useTranslation();
   const [slots, setSlots] = useState<
     Array<{ id: string; name: string; kind: string; status: string }>
   >([]);
@@ -1198,20 +1205,20 @@ function AdSlotEditor({
   }, []);
   const value = typeof c.slotId === "string" ? c.slotId : "";
   return (
-    <PropField label="Slot reklamowy">
+    <PropField label={t("builder.widgetProps.adSlot")}>
       <Select value={value} onValueChange={(v) => setContent("slotId", v)}>
         <SelectTrigger>
-          <SelectValue placeholder="Wybierz slot…" />
+          <SelectValue placeholder={t("builder.widgetProps.pickSlot")} />
         </SelectTrigger>
         <SelectContent>
           {slots.length === 0 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">
-              Brak slotów - dodaj w panelu Reklamy.
+              {t("builder.widgetProps.noSlots")}
             </div>
           )}
           {slots.map((s) => (
             <SelectItem key={s.id} value={s.id}>
-              {s.name} {s.status !== "active" ? "(wstrzymany)" : ""}
+              {s.name} {s.status !== "active" ? t("builder.widgetProps.paused") : ""}
             </SelectItem>
           ))}
         </SelectContent>
@@ -1226,22 +1233,23 @@ function AdSlotEditor({
  * copy (the snapshot stays, the reference is removed).
  */
 function GlobalWidgetBanner({ globalId, onUnlink }: { globalId: string; onUnlink: () => void }) {
+  const { t } = useTranslation();
   const meta = useGlobalWidgetMeta(globalId);
   return (
     <div className="mb-2 px-2 py-1.5 rounded border border-amber-500/50 bg-amber-500/10 space-y-1">
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
         <Globe className="w-3.5 h-3.5 shrink-0" />
-        <span className="truncate">{meta?.name ?? "Widget globalny"}</span>
+        <span className="truncate">{meta?.name ?? t("builder.widgetProps.globalWidget")}</span>
       </div>
       <p className="text-[10px] leading-snug text-muted-foreground">
-        Widget globalny - zmiany synchronizują się na wszystkich stronach, które go używają.
+        {t("builder.widgetProps.globalWidgetHint")}
       </p>
       <button
         type="button"
         onClick={onUnlink}
         className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400 hover:underline"
       >
-        <Link2Off className="w-3 h-3" /> Odłącz (kopia lokalna)
+        <Link2Off className="w-3 h-3" /> {t("builder.widgetProps.unlink")}
       </button>
     </div>
   );

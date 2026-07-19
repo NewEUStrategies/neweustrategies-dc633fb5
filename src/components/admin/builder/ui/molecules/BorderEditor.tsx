@@ -7,8 +7,10 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 import type { BorderSettings, BorderStyle } from "@/lib/builder/types";
 import { Row, ColorInput, SidesInput } from "../atoms";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: BorderSettings | undefined;
@@ -16,10 +18,11 @@ interface Props {
 }
 
 export function BorderEditor({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const b = value ?? {};
   return (
     <>
-      <Row label="Typ obramowania">
+      <Row label={t("builder.border.type")}>
         <Select
           value={b.style ?? "none"}
           onValueChange={(v) =>
@@ -42,7 +45,7 @@ export function BorderEditor({ value, onChange }: Props) {
       </Row>
       {b.style && b.style !== "none" && (
         <>
-          <Row label="Szerokość (px)">
+          <Row label={t("builder.border.width")}>
             <SidesInput
               value={b.width}
               onChange={(w) =>
@@ -52,7 +55,7 @@ export function BorderEditor({ value, onChange }: Props) {
               }
             />
           </Row>
-          <Row label="Kolor">
+          <Row label={t("builder.common.color")}>
             <ColorInput
               value={b.color}
               onChange={(v) =>
@@ -64,7 +67,7 @@ export function BorderEditor({ value, onChange }: Props) {
           </Row>
         </>
       )}
-      <Row label="Zaokrąglenie narożników (px)">
+      <Row label={t("builder.border.radius")}>
         <SidesInput
           value={b.radius}
           onChange={(r) =>
@@ -74,7 +77,7 @@ export function BorderEditor({ value, onChange }: Props) {
           }
         />
       </Row>
-      <Row label="Cień (CSS box-shadow)" hint="Np. 0 10px 30px rgba(0,0,0,.2)">
+      <Row label={t("builder.border.shadow")} hint={t("builder.border.shadowHint")}>
         <Input
           value={b.boxShadow ?? ""}
           onChange={(e) =>

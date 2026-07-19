@@ -21,6 +21,8 @@ import { TaxonomyPicker } from "./TaxonomyPicker";
 import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
 import { Image as ImageIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -29,34 +31,48 @@ interface Props {
 }
 
 const VARIANTS = [
-  { v: "card", l: "Karty (grid)" },
-  { v: "boxed-grid", l: "Karty boxed (tło)" },
-  { v: "minimal", l: "Minimalny" },
-  { v: "classic", l: "Classic (duża okładka, kolumna)" },
-  { v: "flex-grid", l: "Flex grid (lead + lista)" },
-  { v: "overlay", l: "Overlay na okładce" },
-  { v: "list", l: "Lista" },
-  { v: "boxed-list", l: "Lista boxed" },
-  { v: "numbered", l: "Numerowana (01, 02)" },
-  { v: "ranked", l: "Ranking (numer + autor, bez obrazka)" },
+  "card",
+  "boxed-grid",
+  "minimal",
+  "classic",
+  "flex-grid",
+  "overlay",
+  "list",
+  "boxed-list",
+  "numbered",
+  "ranked",
 ] as const;
+const VARIANT_KEY: Record<(typeof VARIANTS)[number], string> = {
+  card: "varCard",
+  "boxed-grid": "varBoxedGrid",
+  minimal: "varMinimal",
+  classic: "varClassic",
+  "flex-grid": "varFlexGrid",
+  overlay: "varOverlay",
+  list: "varList",
+  "boxed-list": "varBoxedList",
+  numbered: "varNumbered",
+  ranked: "varRanked",
+};
 
-const ORDER_BY = [
-  { v: "published_at", l: "Data publikacji" },
-  { v: "created_at", l: "Data utworzenia" },
-  { v: "title", l: "Tytuł (alfabetycznie)" },
-  { v: "popular", l: "Popularność (odsłony)" },
-  { v: "random", l: "Losowo" },
-] as const;
+const ORDER_BY = ["published_at", "created_at", "title", "popular", "random"] as const;
+const ORDER_KEY: Record<(typeof ORDER_BY)[number], string> = {
+  published_at: "obPublished",
+  created_at: "obCreated",
+  title: "obTitle",
+  popular: "obPopular",
+  random: "obRandom",
+};
 
-const POST_FORMATS = [
-  { v: "", l: "- Wszystkie -" },
-  { v: "standard", l: "Standard" },
-  { v: "video", l: "Wideo" },
-  { v: "audio", l: "Audio" },
-  { v: "gallery", l: "Galeria" },
-  { v: "quote", l: "Cytat" },
-] as const;
+const POST_FORMATS = ["", "standard", "video", "audio", "gallery", "quote"] as const;
+const FORMAT_KEY: Record<string, string> = {
+  "": "fmtAll",
+  standard: "fmtStandard",
+  video: "fmtVideo",
+  audio: "fmtAudio",
+  gallery: "fmtGallery",
+  quote: "fmtQuote",
+};
 
 function str(c: WidgetNode["content"], k: string, dflt = ""): string {
   const v = c[k];
@@ -70,6 +86,7 @@ function num(c: WidgetNode["content"], k: string, dflt: number): number {
 }
 
 export function PostListEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const variant = str(c, "variant", "card");
   const columns = num(c, "columns", 3);
   const limit = num(c, "limit", 6);
@@ -162,24 +179,24 @@ export function PostListEditor({ c, lang, setContent }: Props) {
   return (
     <div className="space-y-2">
       {/* ── Display ─────────────────────────────────────────── */}
-      <Collapsible title="Wyświetlanie" defaultOpen>
+      <Collapsible title={t("builder.postListEditor.display")} defaultOpen>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Wariant">
+          <PropField label={t("builder.postListEditor.variant")}>
             <Select value={variant} onValueChange={(v) => setContent("variant", v)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {VARIANTS.map((o) => (
-                  <SelectItem key={o.v} value={o.v} className="text-xs">
-                    {o.l}
+                  <SelectItem key={o} value={o} className="text-xs">
+                    {t(`builder.postListEditor.${VARIANT_KEY[o]}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </PropField>
           {variant !== "numbered" && variant !== "list" && variant !== "ranked" && (
-            <PropField label="Kolumny">
+            <PropField label={t("builder.postListEditor.columns")}>
               <Input
                 type="number"
                 min={1}
@@ -191,7 +208,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             </PropField>
           )}
           {variant !== "ranked" && (
-            <PropField label="Proporcje obrazu">
+            <PropField label={t("builder.postListEditor.imageAspect")}>
               <Select
                 value={str(c, "imageAspect", "4/3")}
                 onValueChange={(v) => setContent("imageAspect", v)}
@@ -201,16 +218,16 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="4/3" className="text-xs">
-                    Poziome 4:3
+                    {t("builder.postListEditor.aspH43")}
                   </SelectItem>
                   <SelectItem value="3/4" className="text-xs">
-                    Pionowe 3:4
+                    {t("builder.postListEditor.aspV34")}
                   </SelectItem>
                   <SelectItem value="1/1" className="text-xs">
-                    Kwadrat 1:1
+                    {t("builder.postListEditor.aspSq11")}
                   </SelectItem>
                   <SelectItem value="16/9" className="text-xs">
-                    Szerokie 16:9
+                    {t("builder.postListEditor.aspW169")}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -221,41 +238,41 @@ export function PostListEditor({ c, lang, setContent }: Props) {
       {/* anchor */}
 
       {/* ── Query ──────────────────────────────────────────── */}
-      <Collapsible title="Filtry zapytania" defaultOpen>
+      <Collapsible title={t("builder.postListEditor.queryFilters")} defaultOpen>
         <div className="space-y-2">
-          <PropField label="Kategorie (uwzględnij)">
+          <PropField label={t("builder.postListEditor.catsInclude")}>
             <TaxonomyPicker
               mode="categories"
               value={categoriesCsv}
               onChange={(v) => setContent("categoriesCsv", v)}
             />
           </PropField>
-          <PropField label="Kategorie (wyklucz)">
+          <PropField label={t("builder.postListEditor.catsExclude")}>
             <TaxonomyPicker
               mode="categories"
               value={excludeCategoriesCsv}
               onChange={(v) => setContent("excludeCategoriesCsv", v)}
-              placeholder="- Brak -"
+              placeholder={t("builder.postListEditor.none")}
             />
           </PropField>
-          <PropField label="Tagi (uwzględnij)">
+          <PropField label={t("builder.postListEditor.tagsInclude")}>
             <TaxonomyPicker
               mode="tags"
               value={tagsCsv}
               onChange={(v) => setContent("tagsCsv", v)}
             />
           </PropField>
-          <PropField label="Tagi (wyklucz)">
+          <PropField label={t("builder.postListEditor.tagsExclude")}>
             <TaxonomyPicker
               mode="tags"
               value={excludeTagsCsv}
               onChange={(v) => setContent("excludeTagsCsv", v)}
-              placeholder="- Brak -"
+              placeholder={t("builder.postListEditor.none")}
             />
           </PropField>
 
           <div className="grid grid-cols-2 gap-2">
-            <PropField label="Format wpisu">
+            <PropField label={t("builder.postListEditor.postFormat")}>
               <Select
                 value={postFormat || "__all__"}
                 onValueChange={(v) => setContent("postFormat", v === "__all__" ? "" : v)}
@@ -265,24 +282,24 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   {POST_FORMATS.map((o) => (
-                    <SelectItem key={o.v || "__all__"} value={o.v || "__all__"} className="text-xs">
-                      {o.l}
+                    <SelectItem key={o || "__all__"} value={o || "__all__"} className="text-xs">
+                      {t(`builder.postListEditor.${FORMAT_KEY[o]}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </PropField>
-            <PropField label="Autor">
+            <PropField label={t("builder.postListEditor.author")}>
               <Select
                 value={authorId || "__all__"}
                 onValueChange={(v) => setContent("authorId", v === "__all__" ? "" : v)}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="- Wszyscy -" />
+                  <SelectValue placeholder={t("builder.postListEditor.allAuthors")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__" className="text-xs">
-                    - Wszyscy -
+                    {t("builder.postListEditor.allAuthors")}
                   </SelectItem>
                   {authors.map((a) => (
                     <SelectItem key={a.id} value={a.id} className="text-xs">
@@ -294,7 +311,10 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             </PropField>
           </div>
 
-          <PropField label="Konkretne wpisy (ID, po przecinku)" hint="Pokaż wyłącznie te wpisy.">
+          <PropField
+            label={t("builder.postListEditor.includeIds")}
+            hint={t("builder.postListEditor.includeIdsHint")}
+          >
             <Input
               value={includeIdsCsv}
               placeholder="uuid1, uuid2"
@@ -302,7 +322,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs font-mono"
             />
           </PropField>
-          <PropField label="Wyklucz wpisy (ID, po przecinku)">
+          <PropField label={t("builder.postListEditor.excludeIds")}>
             <Input
               value={excludeIdsCsv}
               placeholder="uuid1, uuid2"
@@ -312,10 +332,10 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           </PropField>
 
           <div className="grid grid-cols-2 gap-2">
-            <PropField label="Data od">
+            <PropField label={t("builder.postListEditor.dateFrom")}>
               <AdminDatePicker value={dateFrom} onChange={(v) => setContent("dateFrom", v ?? "")} />
             </PropField>
-            <PropField label="Data do">
+            <PropField label={t("builder.postListEditor.dateTo")}>
               <AdminDatePicker value={dateTo} onChange={(v) => setContent("dateTo", v ?? "")} />
             </PropField>
           </div>
@@ -323,7 +343,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
       </Collapsible>
 
       {/* ── Behaviour ──────────────────────────────────────── */}
-      <Collapsible title="Zachowanie i unikalność" defaultOpen={false}>
+      <Collapsible title={t("builder.postListEditor.behaviour")} defaultOpen={false}>
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-xs">
             <input
@@ -332,7 +352,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               onChange={(e) => setContent("uniqueOnPage", e.target.checked)}
               className="h-3.5 w-3.5"
             />
-            <span>Nie powtarzaj wpisów z wcześniejszych widgetów na stronie</span>
+            <span>{t("builder.postListEditor.uniqueOnPage")}</span>
           </label>
           <label className="flex items-center gap-2 text-xs">
             <input
@@ -341,47 +361,47 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               onChange={(e) => setContent("mobileHorizontalScroll", e.target.checked)}
               className="h-3.5 w-3.5"
             />
-            <span>Tryb przewijania poziomego na mobile</span>
+            <span>{t("builder.postListEditor.mobileScroll")}</span>
           </label>
           <div className="text-[10px] text-muted-foreground">
-            Działa dla widoku kart / overlay / minimal. Na desktop nic się nie zmienia.
+            {t("builder.postListEditor.behaviourHint")}
           </div>
         </div>
       </Collapsible>
 
       {/* ── Sort / paging ──────────────────────────────────── */}
-      <Collapsible title="Sortowanie i ilość" defaultOpen>
+      <Collapsible title={t("builder.postListEditor.sortPaging")} defaultOpen>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Sortuj wg">
+          <PropField label={t("builder.postListEditor.sortBy")}>
             <Select value={orderBy} onValueChange={(v) => setContent("orderBy", v)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {ORDER_BY.map((o) => (
-                  <SelectItem key={o.v} value={o.v} className="text-xs">
-                    {o.l}
+                  <SelectItem key={o} value={o} className="text-xs">
+                    {t(`builder.postListEditor.${ORDER_KEY[o]}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Kierunek">
+          <PropField label={t("builder.postListEditor.direction")}>
             <Select value={orderDir} onValueChange={(v) => setContent("orderDir", v)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="desc" className="text-xs">
-                  Malejąco
+                  {t("builder.postListEditor.descending")}
                 </SelectItem>
                 <SelectItem value="asc" className="text-xs">
-                  Rosnąco
+                  {t("builder.postListEditor.ascending")}
                 </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Liczba wpisów">
+          <PropField label={t("builder.postListEditor.limit")}>
             <Input
               type="number"
               min={1}
@@ -391,7 +411,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Offset (pomiń N)">
+          <PropField label={t("builder.postListEditor.offset")}>
             <Input
               type="number"
               min={0}
@@ -402,7 +422,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
           {orderBy === "popular" && (
-            <PropField label="Okres popularności (dni)">
+            <PropField label={t("builder.postListEditor.popularDays")}>
               <Input
                 type="number"
                 min={1}
@@ -418,21 +438,24 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="mt-2 text-[10px] text-muted-foreground">
           {typeof matchCount === "number"
-            ? `Pasujących wpisów: ${matchCount} • język podglądu: ${lang.toUpperCase()}`
-            : "Liczenie pasujących wpisów…"}
+            ? t("builder.postListEditor.matchCount", {
+                count: matchCount,
+                lang: lang.toUpperCase(),
+              })
+            : t("builder.postListEditor.counting")}
         </div>
       </Collapsible>
 
       <PerPostThumbnailsSection c={c} lang={lang} setContent={setContent} />
 
-      {/* Typografia tytułu / excerpt: zarządzana wyłącznie w zakładce
-          „Styl" → Typografia (single source of truth, działa przez
-          `.cms-post-title` / `.cms-post-excerpt`). Brak duplikatów tutaj. */}
+      {/* Title / excerpt typography: managed only in the "Style" → Typography tab
+          (single source of truth, works via `.cms-post-title` / `.cms-post-excerpt`).
+          No duplicates here. */}
 
       {(variant === "numbered" || variant === "ranked") && (
-        <Collapsible title="Numeracja (01, 02, 03…)" defaultOpen>
+        <Collapsible title={t("builder.postListEditor.numberingTitle")} defaultOpen>
           <div className="grid grid-cols-2 gap-2">
-            <PropField label="Rozmiar (px)">
+            <PropField label={t("builder.postListEditor.sizePx")}>
               <Input
                 type="number"
                 min={12}
@@ -442,7 +465,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 className="h-8 text-xs"
               />
             </PropField>
-            <PropField label="Grubość">
+            <PropField label={t("builder.postListEditor.weight")}>
               <Select
                 value={str(c, "indexWeight", "800")}
                 onValueChange={(v) => setContent("indexWeight", v)}
@@ -459,7 +482,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
-            <PropField label="Pozycja pozioma">
+            <PropField label={t("builder.postListEditor.hPosition")}>
               <Select
                 value={str(c, "indexSide", "right")}
                 onValueChange={(v) => setContent("indexSide", v)}
@@ -468,12 +491,12 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="left">Lewa</SelectItem>
-                  <SelectItem value="right">Prawa</SelectItem>
+                  <SelectItem value="left">{t("builder.postListEditor.left")}</SelectItem>
+                  <SelectItem value="right">{t("builder.postListEditor.right")}</SelectItem>
                 </SelectContent>
               </Select>
             </PropField>
-            <PropField label="Pozycja pionowa">
+            <PropField label={t("builder.postListEditor.vPosition")}>
               <Select
                 value={str(c, "indexVAlign", "top")}
                 onValueChange={(v) => setContent("indexVAlign", v)}
@@ -482,22 +505,22 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="top">Góra (równo z tytułem)</SelectItem>
-                  <SelectItem value="middle">Środek</SelectItem>
-                  <SelectItem value="bottom">Dół</SelectItem>
+                  <SelectItem value="top">{t("builder.postListEditor.vTop")}</SelectItem>
+                  <SelectItem value="middle">{t("builder.postListEditor.vMiddle")}</SelectItem>
+                  <SelectItem value="bottom">{t("builder.postListEditor.vBottom")}</SelectItem>
                 </SelectContent>
               </Select>
             </PropField>
           </div>
 
           <div className="grid grid-cols-1 gap-3 mt-3 p-2.5 rounded-md border border-border/60 bg-muted/30">
-            <PropField label="Kolor (light)">
+            <PropField label={t("builder.postListEditor.colorLight")}>
               <ColorField
                 value={str(c, "indexColor", "")}
                 onChange={(v) => setContent("indexColor", v ?? "")}
               />
             </PropField>
-            <PropField label="Kolor (dark)">
+            <PropField label={t("builder.postListEditor.colorDark")}>
               <ColorField
                 value={str(c, "indexColorDark", "")}
                 onChange={(v) => setContent("indexColorDark", v ?? "")}
@@ -505,7 +528,11 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             </PropField>
           </div>
           <PropField
-            label={`Przezroczystość (${Math.round((num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05)) * 100)}%) - używana gdy brak własnego koloru`}
+            label={t("builder.postListEditor.opacity", {
+              pct: Math.round(
+                (num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05)) * 100,
+              ),
+            })}
           >
             <Input
               type="range"
@@ -518,8 +545,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
           <div className="mt-1 text-[10px] text-muted-foreground">
-            Puste pole koloru = automatyczne dopasowanie do trybu jasnego/ciemnego z ustawioną
-            przezroczystością.
+            {t("builder.postListEditor.opacityHint")}
           </div>
           <IndexColorPreview
             indexColor={str(c, "indexColor", "")}
@@ -570,6 +596,7 @@ async function resolveTaxonomyIds(
 }
 
 function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const limit = Math.max(1, Math.min(100, num(c, "limit", 6)));
   const offset = Math.max(0, num(c, "offset", 0));
   const orderByRaw = str(c, "orderBy", "published_at");
@@ -710,18 +737,22 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
 
   return (
     <Collapsible
-      title={isRanked ? "Podgląd rankingu" : "Miniatury (override per wpis)"}
+      title={
+        isRanked
+          ? t("builder.postListEditor.rankPreview")
+          : t("builder.postListEditor.thumbOverrides")
+      }
       defaultOpen={false}
     >
       <div className="space-y-3">
         <div className="text-[10px] text-muted-foreground">
-          {isRanked
-            ? "Podgląd wariantu Ranking - numer po prawej, autor jako zwykły tekst. Miniatury nie są używane w tym wariancie."
-            : "Nadpisz miniaturkę okładki indywidualnie dla każdego wpisu wyświetlanego w tym widgecie. Puste pole = oryginalna okładka wpisu."}
+          {isRanked ? t("builder.postListEditor.rankHint") : t("builder.postListEditor.thumbHint")}
         </div>
-        {isLoading && <div className="text-xs text-muted-foreground">Ładowanie…</div>}
+        {isLoading && (
+          <div className="text-xs text-muted-foreground">{t("builder.postListEditor.loading")}</div>
+        )}
         {!isLoading && rows.length === 0 && (
-          <div className="text-xs text-muted-foreground">Brak wpisów.</div>
+          <div className="text-xs text-muted-foreground">{t("builder.postListEditor.noPosts")}</div>
         )}
 
         {isRanked &&
@@ -809,12 +840,14 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
                   </div>
                 </div>
                 <ImageSlot
-                  label="Miniatura (override)"
+                  label={t("builder.postListEditor.thumbLabel")}
                   icon={<ImageIcon className="w-3 h-3" />}
                   value={current}
                   onChange={(v) => updateOverride(p.id, v)}
                   hint={
-                    current ? "Nadpisana miniatura aktywna." : "Puste = oryginalna okładka wpisu."
+                    current
+                      ? t("builder.postListEditor.thumbActive")
+                      : t("builder.postListEditor.thumbEmpty")
                   }
                 />
               </div>

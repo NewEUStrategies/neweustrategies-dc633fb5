@@ -7,6 +7,9 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   label: string;
@@ -35,10 +38,8 @@ const ALLOWED_MIME = [
   "video/mp4",
   "video/webm",
 ];
-const URL_HINT = "Podaj pełny adres https://… lub wgraj plik z dysku.";
-
 /** Returns null when the URL is acceptable, otherwise a localized error. */
-function validateUrl(raw: string): string | null {
+function validateUrl(raw: string, t: TFunction): string | null {
   const v = raw.trim();
   if (!v) return null;
   if (v.startsWith("data:image/")) return null;
@@ -46,34 +47,37 @@ function validateUrl(raw: string): string | null {
   try {
     const u = new URL(v);
     if (u.protocol !== "https:" && u.protocol !== "http:") {
-      return "Adres musi zaczynać się od https:// (lub http://).";
+      return t("builder.imageSlot.urlProtocol");
     }
     return null;
   } catch {
-    return "Nieprawidłowy adres URL miniatury. " + URL_HINT;
+    return t("builder.imageSlot.urlInvalid", { hint: t("builder.imageSlot.urlHint") });
   }
 }
 
 export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }: Props) {
+  const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const tenantId = useRequiredTenant();
 
-  const urlError = validateUrl(value);
+  const urlError = validateUrl(value, t);
 
   const handleFile = async (file: File) => {
     setError(null);
     if (!ALLOWED_MIME.includes(file.type)) {
       setError(
-        `Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, APNG, SVG, MP4, WEBM.`,
+        t("builder.imageSlot.badType", {
+          type: file.type || t("builder.imageSlot.unknownType"),
+        }),
       );
       return;
     }
     const sizeMb = file.size / (1024 * 1024);
     if (sizeMb > maxSizeMb) {
-      setError(`Plik jest za duży (${sizeMb.toFixed(1)} MB). Maksymalnie ${maxSizeMb} MB.`);
+      setError(t("builder.imageSlot.tooBig", { size: sizeMb.toFixed(1), max: maxSizeMb }));
       return;
     }
     setUploading(true);
@@ -81,7 +85,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       const { data: userData, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw authErr;
       const uid = userData.user?.id;
-      if (!uid) throw new Error("Brak zalogowanego użytkownika - zaloguj się ponownie.");
+      if (!uid) throw new Error(t("builder.imageSlot.noUser"));
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const path = `${tenantId}/${uid}/widgets/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("media").upload(path, file, {
@@ -91,11 +95,11 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
-      if (!data?.publicUrl) throw new Error("Nie udało się pobrać publicznego adresu pliku.");
+      if (!data?.publicUrl) throw new Error(t("builder.imageSlot.noPublicUrl"));
       onChange(data.publicUrl);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Nieznany błąd uploadu.";
-      setError(`Błąd uploadu: ${msg}`);
+      const msg = e instanceof Error ? e.message : t("builder.imageSlot.unknownError");
+      setError(t("builder.imageSlot.uploadError", { msg }));
     } finally {
       setUploading(false);
     }
@@ -110,7 +114,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       <div className="flex items-center gap-2">
         <Input
           value={value}
-          placeholder="https://... lub wgraj plik"
+          placeholder={t("builder.imageSlot.urlPlaceholder")}
           onChange={(e) => {
             setError(null);
             onChange(e.target.value);
@@ -126,7 +130,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
               onChange("");
             }}
             className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground"
-            title="Usuń"
+            title={t("builder.common.delete")}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -151,7 +155,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
           className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
         >
           <Upload className="w-3.5 h-3.5" />
-          {uploading ? "Wgrywam…" : "Wgraj plik"}
+          {uploading ? t("builder.imageSlot.uploading") : t("builder.imageSlot.uploadFile")}
         </button>
         <button
           type="button"
@@ -162,7 +166,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
           className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs"
         >
           <FolderOpen className="w-3.5 h-3.5" />
-          Biblioteka mediów
+          {t("builder.imageSlot.mediaLibrary")}
         </button>
       </div>
       <MediaPickerDialog
@@ -173,7 +177,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
           onChange(url);
           setPickerOpen(false);
         }}
-        title="Wybierz obrazek z biblioteki mediów"
+        title={t("builder.imageSlot.pickFromLibrary")}
       />
       {hint && !urlError && !error && (
         <div className="text-[10px] text-muted-foreground">{hint}</div>

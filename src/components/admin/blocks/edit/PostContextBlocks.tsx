@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { AuthorBioView } from "@/components/blocks/PostContextViews";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
@@ -96,6 +97,8 @@ function InlineAuthorForm({
   author: CurrentPostAuthor;
   onChange: (patch: Partial<CurrentPostAuthor>) => void;
 }) {
+  const i18n = useBlocksI18n();
+  const pc = (k: string) => i18n.editor("postContextBlocks", k);
   const [pickAvatarOpen, setPickAvatarOpen] = useState(false);
   const [pickIconIdx, setPickIconIdx] = useState<number | null>(null);
   const socials: CustomAuthorSocial[] = Array.isArray(author.customSocials)
@@ -129,13 +132,13 @@ function InlineAuthorForm({
           {author.avatarUrl ? (
             <img src={author.avatarUrl} alt="" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-[10px] text-muted-foreground">brak</span>
+            <span className="text-[10px] text-muted-foreground">{pc("none")}</span>
           )}
         </div>
         <div className="flex-1 flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => setPickAvatarOpen(true)}>
             <Upload className="h-3.5 w-3.5 mr-1.5" />
-            {author.avatarUrl ? "Zmień zdjęcie" : "Wgraj zdjęcie"}
+            {author.avatarUrl ? pc("changePhoto") : pc("uploadPhoto")}
           </Button>
           {author.avatarUrl && (
             <Button
@@ -145,29 +148,29 @@ function InlineAuthorForm({
               onClick={() => onChange({ avatarUrl: "" })}
             >
               <XClose className="h-3.5 w-3.5 mr-1.5" />
-              Usuń
+              {i18n.editor("common", "remove")}
             </Button>
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        {field("name", "Imię i nazwisko", "Jan Kowalski")}
-        {field("jobTitle", "Stanowisko", "Redaktor naczelny")}
-        {field("company", "Firma / organizacja", "Acme Media")}
+        {field("name", pc("fName"), pc("fNamePh"))}
+        {field("jobTitle", pc("fJobTitle"), pc("fJobTitlePh"))}
+        {field("company", pc("fCompany"), pc("fCompanyPh"))}
         <label className="block">
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Slug (URL profilu, opcjonalnie)
+            {pc("fSlug")}
           </span>
           <Input
             value={author.slug ?? ""}
-            placeholder="jan-kowalski"
+            placeholder={pc("fSlugPh")}
             onChange={(e) => onChange({ slug: e.target.value })}
             className="mt-1 h-9 text-xs"
           />
         </label>
-        {field("contactEmail", "E-mail kontaktowy", "kontakt@example.com", "email")}
-        {field("phone", "Telefon", "+48 500 000 000", "tel")}
+        {field("contactEmail", pc("fContactEmail"), pc("fContactEmailPh"), "email")}
+        {field("phone", pc("fPhone"), pc("fPhonePh"), "tel")}
       </div>
 
       <label className="block">
@@ -189,7 +192,7 @@ function InlineAuthorForm({
 
       <div className="pt-2 border-t border-border/60 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Social media
+          {pc("socialMedia")}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {field("xUrl", "X (x.com)", "https://x.com/...", "url")}
@@ -197,14 +200,14 @@ function InlineAuthorForm({
           {field("facebookUrl", "Facebook", "https://facebook.com/...", "url")}
           {field("instagramUrl", "Instagram", "https://instagram.com/...", "url")}
           {field("spotifyUrl", "Spotify", "https://open.spotify.com/...", "url")}
-          {field("websiteUrl", "Strona www", "https://...", "url")}
+          {field("websiteUrl", pc("fWebsite"), "https://...", "url")}
         </div>
       </div>
 
       <div className="pt-2 border-t border-border/60 space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Własne linki (dowolne platformy)
+            {pc("customLinks")}
           </div>
           <Button
             type="button"
@@ -213,7 +216,7 @@ function InlineAuthorForm({
             onClick={() => updateSocials([...socials, { label: "", url: "", iconUrl: "" }])}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Dodaj link
+            {pc("addLink")}
           </Button>
         </div>
         {socials.map((s, i) => (
@@ -225,7 +228,7 @@ function InlineAuthorForm({
               type="button"
               onClick={() => setPickIconIdx(i)}
               className="w-10 h-10 rounded-[7px] border border-border bg-background flex items-center justify-center overflow-hidden hover:border-foreground/40"
-              title="Wgraj ikonę"
+              title={pc("uploadIcon")}
             >
               {s.iconUrl ? (
                 <img src={s.iconUrl} alt="" className="w-6 h-6 object-contain" />
@@ -235,7 +238,7 @@ function InlineAuthorForm({
             </button>
             <Input
               value={s.label}
-              placeholder="Nazwa (np. Substack)"
+              placeholder={pc("linkName")}
               className="h-9 text-xs"
               onChange={(e) => {
                 const next = [...socials];
@@ -259,17 +262,14 @@ function InlineAuthorForm({
               size="icon"
               variant="ghost"
               onClick={() => updateSocials(socials.filter((_, j) => j !== i))}
-              aria-label="Usuń link"
+              aria-label={pc("removeLink")}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         ))}
         {socials.length === 0 && (
-          <p className="text-[11px] text-muted-foreground italic">
-            Brak własnych linków. Jeśli brakuje ikony dla platformy, wgraj własną - w przeciwnym
-            razie użyta zostanie ikona łańcucha.
-          </p>
+          <p className="text-[11px] text-muted-foreground italic">{pc("noCustomLinks")}</p>
         )}
       </div>
 
@@ -278,7 +278,7 @@ function InlineAuthorForm({
         onOpenChange={setPickAvatarOpen}
         onPick={(url) => onChange({ avatarUrl: url })}
         accept="image"
-        title="Wybierz zdjęcie autora"
+        title={pc("pickAvatarTitle")}
       />
       <MediaPickerDialog
         open={pickIconIdx !== null}
@@ -291,7 +291,7 @@ function InlineAuthorForm({
           setPickIconIdx(null);
         }}
         accept="image"
-        title="Wybierz ikonę social"
+        title={pc("pickIconTitle")}
       />
     </div>
   );
@@ -299,6 +299,7 @@ function InlineAuthorForm({
 
 export function AuthorBioBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const pc = (k: string) => i18n.editor("postContextBlocks", k);
   const showAvatar = block.data.showAvatar !== false;
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
@@ -327,14 +328,14 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   const previewLabel =
     authorSource === "inline"
       ? inlineAuthor.name
-        ? "(autor inline)"
-        : "(uzupełnij dane inline)"
+        ? pc("previewInline")
+        : pc("previewFillInline")
       : selectedAuthorId
         ? ""
-        : "(przykładowe dane)";
+        : pc("previewSample");
 
   return (
-    <Shell label="Bio autora">
+    <Shell label={pc("authorBioLabel")}>
       {/* Wybór źródła danych autora */}
       <div className="flex gap-2 text-xs">
         <button
@@ -342,26 +343,28 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           className={`px-3 py-1.5 rounded border transition-colors ${authorSource === "existing" ? "bg-accent text-accent-foreground border-border" : "border-border/60 hover:bg-muted"}`}
           onClick={() => set({ authorSource: "existing" })}
         >
-          Istniejący autor
+          {pc("existingAuthor")}
         </button>
         <button
           type="button"
           className={`px-3 py-1.5 rounded border transition-colors ${authorSource === "inline" ? "bg-accent text-accent-foreground border-border" : "border-border/60 hover:bg-muted"}`}
           onClick={() => set({ authorSource: "inline" })}
         >
-          Nowy autor (inline)
+          {pc("newInlineAuthor")}
         </button>
       </div>
 
       {authorSource === "existing" ? (
         <label className="block">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Autor</span>
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {pc("authorLabel")}
+          </span>
           <AdminSelect
             className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
             value={selectedAuthorId}
             onChange={(e) => set({ authorId: e.target.value })}
           >
-            <option value="">Autor bieżącego wpisu</option>
+            <option value="">{pc("currentPostAuthor")}</option>
             {authors.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.display_name ?? a.slug ?? a.id}
@@ -373,57 +376,63 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         <>
           <InlineAuthorForm author={inlineAuthor} onChange={setInline} />
           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-            Chcesz, żeby ten autor był dostępny globalnie w innych wpisach?
+            {pc("globalNote")}
             <a
               href="/admin/users"
               target="_blank"
               rel="noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-1"
             >
-              Utwórz profil w bazie <ExternalLink className="h-3 w-3" />
+              {pc("createProfile")} <ExternalLink className="h-3 w-3" />
             </a>
           </p>
         </>
       )}
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Wariant</span>
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {pc("variant")}
+        </span>
         <AdminSelect
           className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={variant}
           onChange={(e) => set({ variant: e.target.value })}
         >
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
-          <option value="split">Split (kolorowy panel)</option>
-          <option value="inline">Inline</option>
-          <option value="minimal">Minimalna</option>
+          <option value="split">{pc("optSplit")}</option>
+          <option value="inline">{pc("optInline")}</option>
+          <option value="minimal">{pc("optMinimal")}</option>
         </AdminSelect>
       </label>
 
       <div className="flex flex-wrap gap-3">
-        <Toggle checked={showAvatar} onChange={(v) => set({ showAvatar: v })} label="Avatar" />
+        <Toggle
+          checked={showAvatar}
+          onChange={(v) => set({ showAvatar: v })}
+          label={pc("toggleAvatar")}
+        />
         <Toggle
           checked={showSocial}
           onChange={(v) => set({ showSocial: v })}
-          label="Linki social"
+          label={pc("toggleSocial")}
         />
         <Toggle
           checked={showPostsCount}
           onChange={(v) => set({ showPostsCount: v })}
-          label="Licznik wpisów"
+          label={pc("togglePostsCount")}
         />
       </div>
 
       <div className="pt-2 border-t border-border/60 space-y-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Podgląd -{" "}
+          {pc("previewPrefix")}{" "}
           {variant === "card"
-            ? "Karta"
+            ? pc("variantNameCard")
             : variant === "split"
-              ? "Split"
+              ? pc("variantNameSplit")
               : variant === "inline"
-                ? "Inline"
-                : "Minimalna"}
+                ? pc("variantNameInline")
+                : pc("variantNameMinimal")}
           {previewLabel && <span className="ml-1 italic normal-case">{previewLabel}</span>}
         </div>
         <CurrentPostProvider value={previewCtx}>
@@ -438,7 +447,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         </CurrentPostProvider>
 
         <details className="text-[11px] text-muted-foreground">
-          <summary className="cursor-pointer select-none">Zobacz pozostałe warianty</summary>
+          <summary className="cursor-pointer select-none">{pc("seeOtherVariants")}</summary>
           <div className="mt-3 space-y-4">
             {(["card", "split", "inline", "minimal"] as const)
               .filter((v) => v !== variant)
@@ -446,12 +455,12 @@ export function AuthorBioBlock({ block, onChange }: Props) {
                 <div key={v} className="space-y-1">
                   <div className="text-[10px] uppercase tracking-wide">
                     {v === "card"
-                      ? "Karta"
+                      ? pc("variantNameCard")
                       : v === "split"
-                        ? "Split"
+                        ? pc("variantNameSplit")
                         : v === "inline"
-                          ? "Inline"
-                          : "Minimalna"}
+                          ? pc("variantNameInline")
+                          : pc("variantNameMinimal")}
                   </div>
                   <CurrentPostProvider value={previewCtx}>
                     <AuthorBioView
@@ -475,6 +484,8 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 }
 
 export function RelatedPostsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pc = (k: string) => i18n.editor("postContextBlocks", k);
   const limit = Number(block.data.limit ?? 3);
   const strategy = String(block.data.strategy ?? "category");
   const layout = String(block.data.layout ?? "grid");
@@ -483,11 +494,11 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, ...patch } });
 
   return (
-    <Shell label="Powiązane wpisy">
+    <Shell label={pc("relatedLabel")}>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={heading}
-        placeholder="Nagłówek (opcjonalnie)"
+        placeholder={pc("relatedHeading")}
         onChange={(e) => set({ heading: e.target.value })}
       />
       <div className="grid grid-cols-3 gap-2">
@@ -504,10 +515,10 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           value={strategy}
           onChange={(e) => set({ strategy: e.target.value })}
         >
-          <option value="category">Wg kategorii</option>
-          <option value="tag">Wg tagu</option>
-          <option value="author">Wg autora</option>
-          <option value="latest">Najnowsze</option>
+          <option value="category">{pc("strategyCategory")}</option>
+          <option value="tag">{pc("strategyTag")}</option>
+          <option value="author">{pc("strategyAuthor")}</option>
+          <option value="latest">{pc("strategyLatest")}</option>
         </AdminSelect>
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
@@ -515,8 +526,8 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           onChange={(e) => set({ layout: e.target.value })}
         >
           <option value="grid">Grid</option>
-          <option value="list">Lista</option>
-          <option value="compact">Kompakt</option>
+          <option value="list">{pc("layoutList")}</option>
+          <option value="compact">{pc("layoutCompact")}</option>
         </AdminSelect>
       </div>
     </Shell>

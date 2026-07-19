@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -45,9 +46,10 @@ const ICON_NAMES = [
 
 export function IconBoxBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const d = block.data;
   return (
-    <Shell label="Karta z ikoną">
+    <Shell label={pb("iconBoxLabel")}>
       <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={String(d.icon ?? "star")}
@@ -74,13 +76,13 @@ export function IconBoxBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="URL przycisku"
+          placeholder={pb("buttonUrl")}
           value={String(d.href ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, href: e.target.value } })}
         />
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="Etykieta przycisku"
+          placeholder={pb("buttonLabel")}
           value={String(d.linkLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, linkLabel: e.target.value } })}
         />
@@ -90,8 +92,8 @@ export function IconBoxBlock({ block, onChange }: Props) {
         value={String(d.align ?? "center")}
         onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
       >
-        <option value="left">Wyrównaj do lewej</option>
-        <option value="center">Wyśrodkuj</option>
+        <option value="left">{pb("alignLeft")}</option>
+        <option value="center">{pb("alignCenter")}</option>
       </AdminSelect>
     </Shell>
   );
@@ -107,6 +109,7 @@ interface StatItem {
 
 export function StatsCounterBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: StatItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -122,9 +125,9 @@ export function StatsCounterBlock({ block, onChange }: Props) {
   const duration = Number(block.data.duration ?? 1500);
 
   return (
-    <Shell label="Liczniki / statystyki">
+    <Shell label={pb("statsLabel")}>
       <label className="block text-xs text-muted-foreground">
-        Czas animacji (ms)
+        {pb("animDuration")}
         <input
           type="number"
           className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
@@ -140,7 +143,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
         <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
           <input
             className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            placeholder="Wartość (np. 1200)"
+            placeholder={pb("statValue")}
             value={it.value}
             onChange={(e) => {
               const next = [...items];
@@ -150,7 +153,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
           />
           <input
             className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            placeholder="Sufiks (+, K, %)"
+            placeholder={pb("statSuffix")}
             value={it.suffix}
             onChange={(e) => {
               const next = [...items];
@@ -172,7 +175,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
             type="button"
             onClick={() => update(items.filter((_, i) => i !== idx))}
             className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-            aria-label="Usuń"
+            aria-label={pb("remove")}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -183,7 +186,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
         onClick={() => update([...items, { value: "", label: "", suffix: "" }])}
         className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
       >
-        <Plus className="w-3.5 h-3.5" /> Dodaj wskaźnik
+        <Plus className="w-3.5 h-3.5" /> {pb("addStat")}
       </button>
     </Shell>
   );
@@ -200,6 +203,8 @@ interface Testimonial {
 }
 
 export function TestimonialsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: Testimonial[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -217,21 +222,21 @@ export function TestimonialsBlock({ block, onChange }: Props) {
   const layout = String(block.data.layout ?? "grid");
 
   return (
-    <Shell label="Opinie / Testimoniale">
+    <Shell label={pb("testimonialsLabel")}>
       <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={layout}
         onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}
       >
-        <option value="grid">Siatka</option>
-        <option value="slider">Slider</option>
+        <option value="grid">{pb("layoutGrid")}</option>
+        <option value="slider">{pb("layoutSlider")}</option>
       </AdminSelect>
       <div className="space-y-2">
         {items.map((it, idx) => (
           <div key={idx} className="rounded border border-border p-2 space-y-1.5">
             <textarea
               className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[56px]"
-              placeholder="Cytat / opinia"
+              placeholder={pb("quote")}
               value={it.quote}
               onChange={(e) => {
                 const next = [...items];
@@ -242,7 +247,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <input
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-                placeholder="Autor"
+                placeholder={pb("author")}
                 value={it.author}
                 onChange={(e) => {
                   const next = [...items];
@@ -252,7 +257,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
               />
               <input
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-                placeholder="Rola / firma"
+                placeholder={pb("role")}
                 value={it.role}
                 onChange={(e) => {
                   const next = [...items];
@@ -264,7 +269,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
               <input
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-                placeholder="URL awatara"
+                placeholder={pb("avatarUrl")}
                 value={it.avatar}
                 onChange={(e) => {
                   const next = [...items];
@@ -288,7 +293,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
                 type="button"
                 onClick={() => update(items.filter((_, i) => i !== idx))}
                 className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-                aria-label="Usuń opinię"
+                aria-label={pb("removeTestimonial")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -302,7 +307,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
           }
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj opinię
+          <Plus className="w-3.5 h-3.5" /> {pb("addTestimonial")}
         </button>
       </div>
     </Shell>
@@ -323,6 +328,8 @@ interface PricingPlan {
 }
 
 export function PricingTableBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const itemsRaw = Array.isArray(block.data.plans) ? (block.data.plans as Json[]) : [];
   const plans: PricingPlan[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -344,13 +351,13 @@ export function PricingTableBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Tabela cenowa">
+    <Shell label={pb("pricingLabel")}>
       {plans.map((p, idx) => (
         <div key={idx} className="rounded border border-border p-2 space-y-1.5">
           <div className="grid grid-cols-2 gap-2">
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Nazwa planu"
+              placeholder={pb("planName")}
               value={p.name}
               onChange={(e) => {
                 const next = [...plans];
@@ -368,13 +375,13 @@ export function PricingTableBlock({ block, onChange }: Props) {
                   update(next);
                 }}
               />
-              Wyróżniony
+              {pb("featured")}
             </label>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Cena (np. 49 PLN)"
+              placeholder={pb("price")}
               value={p.price}
               onChange={(e) => {
                 const next = [...plans];
@@ -384,7 +391,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
             />
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Okres (np. /mies.)"
+              placeholder={pb("period")}
               value={p.period}
               onChange={(e) => {
                 const next = [...plans];
@@ -395,7 +402,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
           </div>
           <input
             className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            placeholder="Krótki opis"
+            placeholder={pb("shortDesc")}
             value={p.description}
             onChange={(e) => {
               const next = [...plans];
@@ -405,7 +412,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
           />
           <textarea
             className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[60px]"
-            placeholder="Funkcje (po jednej w linii)"
+            placeholder={pb("features")}
             value={p.features.join("\n")}
             onChange={(e) => {
               const features = e.target.value
@@ -420,7 +427,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Etykieta CTA"
+              placeholder={pb("ctaLabel")}
               value={p.ctaLabel}
               onChange={(e) => {
                 const next = [...plans];
@@ -430,7 +437,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
             />
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="URL CTA"
+              placeholder={pb("ctaUrl")}
               value={p.ctaHref}
               onChange={(e) => {
                 const next = [...plans];
@@ -442,7 +449,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
               type="button"
               onClick={() => update(plans.filter((_, i) => i !== idx))}
               className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-              aria-label="Usuń plan"
+              aria-label={pb("removePlan")}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -468,7 +475,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
         }
         className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
       >
-        <Plus className="w-3.5 h-3.5" /> Dodaj plan
+        <Plus className="w-3.5 h-3.5" /> {pb("addPlan")}
       </button>
     </Shell>
   );
@@ -484,6 +491,7 @@ interface TimelineItem {
 
 export function TimelineBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TimelineItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -498,13 +506,13 @@ export function TimelineBlock({ block, onChange }: Props) {
   };
 
   return (
-    <Shell label="Oś czasu">
+    <Shell label={pb("timelineLabel")}>
       {items.map((it, idx) => (
         <div key={idx} className="rounded border border-border p-2 space-y-1.5">
           <div className="grid grid-cols-[1fr_2fr_auto] gap-2">
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Data (np. 2024)"
+              placeholder={pb("date")}
               value={it.date}
               onChange={(e) => {
                 const next = [...items];
@@ -526,14 +534,14 @@ export function TimelineBlock({ block, onChange }: Props) {
               type="button"
               onClick={() => update(items.filter((_, i) => i !== idx))}
               className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
-              aria-label="Usuń etap"
+              aria-label={pb("removeStage")}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
           <textarea
             className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[56px]"
-            placeholder="Opis (opcjonalnie)"
+            placeholder={pb("descOptional")}
             value={it.description}
             onChange={(e) => {
               const next = [...items];
@@ -548,7 +556,7 @@ export function TimelineBlock({ block, onChange }: Props) {
         onClick={() => update([...items, { date: "", title: "", description: "" }])}
         className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
       >
-        <Plus className="w-3.5 h-3.5" /> Dodaj etap
+        <Plus className="w-3.5 h-3.5" /> {pb("addStage")}
       </button>
     </Shell>
   );

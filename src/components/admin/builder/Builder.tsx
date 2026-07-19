@@ -16,6 +16,8 @@
 // DndContext in the builder; the previous @dnd-kit onDragEnd/sensors here were
 // never mounted and have been removed.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
@@ -73,39 +75,6 @@ interface Props {
   scope?: "page" | "header" | "footer" | "menu" | "popup";
 }
 
-const SCOPE_COPY = {
-  page: {
-    title: "Zacznij budować stronę",
-    hint: "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.",
-    first: "Wstaw sekcję pod nagłówkiem",
-    last: "Wstaw sekcję nad stopką",
-  },
-  header: {
-    title: "Zbuduj nagłówek",
-    hint: "Dodaj pierwszą sekcję nagłówka (logo, menu, wyszukiwarka).",
-    first: "Wstaw sekcję nagłówka",
-    last: "Dodaj sekcję na końcu nagłówka",
-  },
-  footer: {
-    title: "Zbuduj stopkę",
-    hint: "Dodaj pierwszą sekcję stopki (kolumny linków, kontakt, copyright).",
-    first: "Wstaw sekcję stopki",
-    last: "Dodaj sekcję na końcu stopki",
-  },
-  menu: {
-    title: "Zbuduj menu",
-    hint: "Dodaj sekcję z linkami menu - użyj widgetu Link nawigacji.",
-    first: "Wstaw sekcję menu",
-    last: "Dodaj sekcję na końcu menu",
-  },
-  popup: {
-    title: "Zbuduj popup",
-    hint: "Dodaj pierwszą sekcję popupu (nagłówek, tekst, przycisk lub newsletter).",
-    first: "Wstaw sekcję popupu",
-    last: "Dodaj sekcję na końcu popupu",
-  },
-} as const;
-
 export function Builder({
   value,
   onChange,
@@ -114,7 +83,13 @@ export function Builder({
   hideChrome = false,
   scope = "page",
 }: Props) {
-  const copy = SCOPE_COPY[scope];
+  const { t } = useTranslation();
+  const copy = {
+    title: t(`builder.scope.${scope}.title`),
+    hint: t(`builder.scope.${scope}.hint`),
+    first: t(`builder.scope.${scope}.first`),
+    last: t(`builder.scope.${scope}.last`),
+  };
 
   const initial = useMemo(() => safeParseBuilderDoc(value ?? emptyDocument()), [value]);
   const history = useHistory(initial, onChange);
@@ -128,15 +103,15 @@ export function Builder({
     const label = history.lastLabel;
     clearAllLiveWidgetTypography();
     historyUndo();
-    toast(label ? `Cofnięto: ${label}` : "Cofnięto");
-  }, [history.canUndo, history.lastLabel, historyUndo]);
+    toast(label ? t("builder.chrome.undoneLabel", { label }) : t("builder.chrome.undone"));
+  }, [history.canUndo, history.lastLabel, historyUndo, t]);
   const redo = useCallback(() => {
     if (!history.canRedo) return;
     const label = history.nextLabel;
     clearAllLiveWidgetTypography();
     historyRedo();
-    toast(label ? `Ponowiono: ${label}` : "Ponowiono");
-  }, [history.canRedo, history.nextLabel, historyRedo]);
+    toast(label ? t("builder.chrome.redoneLabel", { label }) : t("builder.chrome.redone"));
+  }, [history.canRedo, history.nextLabel, historyRedo, t]);
   const [device, setDevice] = useState<Device>("desktop");
   // Default canvas preview mode follows the live site theme so the editor
   // shows the same colors/tokens visitors see - keeps admin and prod parity.
@@ -481,11 +456,11 @@ export function Builder({
             <button
               onClick={() => setSidebarCollapsed(false)}
               className="flex-1 w-full flex flex-col items-center gap-2 py-3 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
-              title="Rozwiń panel"
+              title={t("builder.chrome.expandPanel")}
             >
               <ChevronRight className="w-4 h-4" />
               <span className="text-[10px] font-medium uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">
-                Widgety
+                {t("builder.chrome.widgets")}
               </span>
             </button>
           ) : (
@@ -497,28 +472,28 @@ export function Builder({
                       onClick={() => setSelection({ kind: null, id: null })}
                       className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
                     >
-                      <ChevronLeft className="w-3.5 h-3.5" /> Widgety
+                      <ChevronLeft className="w-3.5 h-3.5" /> {t("builder.chrome.widgets")}
                     </button>
                     <h3 className="text-sm font-medium inline-flex items-center gap-2">
                       <SettingsIcon className="w-4 h-4" />
                       {selectedWidget
-                        ? "Widget"
+                        ? t("builder.chrome.widget")
                         : selectedColumn
-                          ? "Kolumna"
+                          ? t("builder.chrome.column")
                           : selectedInner
-                            ? "Sekcja wewn."
-                            : "Sekcja"}
+                            ? t("builder.chrome.innerSectionShort")
+                            : t("builder.chrome.section")}
                     </h3>
                     <div className="inline-flex items-center gap-1">
                       <button
                         onClick={() => setSelection({ kind: null, id: null })}
-                        title="Zamknij"
+                        title={t("builder.chrome.close")}
                       >
                         <X className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setSidebarCollapsed(true)}
-                        title="Zwiń panel"
+                        title={t("builder.chrome.collapsePanel")}
                         className="text-muted-foreground hover:text-foreground"
                       >
                         <ChevronLeft className="w-4 h-4" />
@@ -554,7 +529,7 @@ export function Builder({
                     )}
                     {selectedInner && (
                       <div className="text-xs text-muted-foreground">
-                        Sekcja wewnętrzna - wybierz kolumnę aby ją edytować.
+                        {t("builder.chrome.innerSectionHint")}
                       </div>
                     )}
                   </div>
@@ -563,11 +538,11 @@ export function Builder({
                 <>
                   <div className="px-3 py-2 border-b border-border flex items-center justify-between bg-muted/20">
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Widgety
+                      {t("builder.chrome.widgets")}
                     </span>
                     <button
                       onClick={() => setSidebarCollapsed(true)}
-                      title="Zwiń panel"
+                      title={t("builder.chrome.collapsePanel")}
                       className="text-muted-foreground hover:text-foreground"
                     >
                       <ChevronLeft className="w-4 h-4" />
@@ -650,21 +625,24 @@ export function Builder({
               >
                 {/* Site chrome - Header preview with hover edit overlay (page editor only) */}
                 {!hideChrome && scope === "page" && (
-                  <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
+                  <ChromeFrame
+                    label={t("builder.chrome.headerFramePage")}
+                    editTo="/admin/settings/general"
+                  >
                     <Header />
                   </ChromeFrame>
                 )}
 
                 {scope !== "page" && (
                   <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    Edytujesz:{" "}
+                    {t("builder.chrome.editing")}{" "}
                     {scope === "header"
-                      ? "Nagłówek"
+                      ? t("builder.chrome.scopeHeader")
                       : scope === "footer"
-                        ? "Stopkę"
+                        ? t("builder.chrome.scopeFooter")
                         : scope === "popup"
-                          ? "Popup"
-                          : "Menu"}
+                          ? t("builder.chrome.scopePopup")
+                          : t("builder.chrome.scopeMenu")}
                   </div>
                 )}
 
@@ -726,7 +704,10 @@ export function Builder({
                 </div>
 
                 {!hideChrome && scope === "page" && (
-                  <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
+                  <ChromeFrame
+                    label={t("builder.chrome.footerFramePage")}
+                    editTo="/admin/settings/general"
+                  >
                     <Footer />
                   </ChromeFrame>
                 )}

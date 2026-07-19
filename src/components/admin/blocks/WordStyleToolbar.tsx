@@ -32,6 +32,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 
 import { promptDialog } from "@/lib/appDialogs";
 interface Props {
@@ -186,7 +187,7 @@ export function WordStyleToolbar({ editor }: Props) {
       title: "Link",
       label: "URL",
       defaultValue: current,
-      confirmLabel: "Zastosuj",
+      confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
     });
     if (url === null) return;
     if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -362,7 +363,9 @@ export function WordStyleToolbar({ editor }: Props) {
         <Divider />
 
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.footnote", { defaultValue: "Wstaw przypis [fn]…[/fn]" })}
+          title={i18n.t("blocks.toolbar.footnoteInsert", {
+            defaultValue: "Wstaw przypis [fn]…[/fn]",
+          })}
           onClick={insertFootnote}
         >
           <StickyNote className="h-3.5 w-3.5" />
