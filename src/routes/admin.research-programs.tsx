@@ -791,7 +791,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
             <span className="flex-1" />
             <div className="flex items-center gap-2">
               <Switch checked={m.is_lead} onCheckedChange={(v) => toggleLead(m.profile_id, v)} />
-              <span className="text-xs">{lang === "pl" ? "Lider" : "Lead"}</span>
+              <span className="text-xs">{tp("members.lead")}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={() => removeMember(m.profile_id)}>
               <Trash2 className="h-4 w-4" />
@@ -799,10 +799,9 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
           </li>
         ))}
         {(membersQ.data ?? []).length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {lang === "pl" ? "Brak członków." : "No members yet."}
-          </p>
+          <p className="text-sm text-muted-foreground">{tp("members.empty")}</p>
         )}
+
       </ul>
     </div>
   );
