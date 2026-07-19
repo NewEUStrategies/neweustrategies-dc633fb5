@@ -19,6 +19,8 @@ import {
   type AnimatedHeadingMode,
   type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
@@ -27,6 +29,7 @@ interface Props {
 }
 
 export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const mode = (typeof c.mode === "string" ? c.mode : "highlight") as AnimatedHeadingMode;
   const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
   const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
@@ -108,7 +111,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Tryb animacji">
+        <PropField label={t("builder.animatedHeadingEditor.mode")}>
           <Select value={mode} onValueChange={handleModeChange}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -122,7 +125,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Tag HTML">
+        <PropField label={t("builder.animatedHeadingEditor.htmlTag")}>
           <Select value={tag} onValueChange={(v) => setContent("tag", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -140,7 +143,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
 
       <div className="space-y-1.5">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Kształt animacji
+          {t("builder.animatedHeadingEditor.shape")}
         </div>
         <div className="grid grid-cols-3 gap-2">
           {visibleShapes.map((s) => {
@@ -187,30 +190,30 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         <div className="flex items-center gap-2">
           <span className="inline-block h-4 w-1 rounded bg-muted-foreground/50" />
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Tekst statyczny (bez animacji)
+            {t("builder.animatedHeadingEditor.staticText")}
           </h4>
         </div>
-        <PropField label={`Przed tekstem (${lang.toUpperCase()})`}>
+        <PropField label={t("builder.animatedHeadingEditor.before", { lang: lang.toUpperCase() })}>
           <Input
             value={textBefore}
             onChange={(e) => setContent(`textBefore_${lang}`, e.target.value)}
-            placeholder="np. Dołącz"
+            placeholder={t("builder.animatedHeadingEditor.beforePh")}
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label={`Za tekstem (${lang.toUpperCase()})`}>
+        <PropField label={t("builder.animatedHeadingEditor.after", { lang: lang.toUpperCase() })}>
           <Input
             value={textAfter}
             onChange={(e) => setContent(`textAfter_${lang}`, e.target.value)}
-            placeholder="np. już dziś"
+            placeholder={t("builder.animatedHeadingEditor.afterPh")}
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Kolor tekstu statycznego">
+        <PropField label={t("builder.animatedHeadingEditor.staticColor")}>
           <ColorField
             value={color}
             onChange={(v) => setContent("color", v ?? "")}
-            placeholder="domyślny"
+            placeholder={t("builder.animatedHeadingEditor.defaultPh")}
           />
         </PropField>
       </section>
@@ -219,32 +222,36 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         <div className="flex items-center gap-2">
           <span className="inline-block h-4 w-1 rounded bg-brand" />
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-brand">
-            Tekst animowany (duo-tone)
+            {t("builder.animatedHeadingEditor.animatedText")}
           </h4>
         </div>
 
         {mode === "highlight" ? (
-          <PropField label={`Tekst wyróżniony (${lang.toUpperCase()})`}>
+          <PropField
+            label={t("builder.animatedHeadingEditor.highlight", { lang: lang.toUpperCase() })}
+          >
             <Input
               value={highlight}
               onChange={(e) => setContent(`highlight_${lang}`, e.target.value)}
-              placeholder="np. do nas"
+              placeholder={t("builder.animatedHeadingEditor.highlightPh")}
               className="h-8 text-xs"
             />
           </PropField>
         ) : (
-          <PropField label={`Słowa do rotacji (${lang.toUpperCase()}) - jedno na linię`}>
+          <PropField
+            label={t("builder.animatedHeadingEditor.rotateWords", { lang: lang.toUpperCase() })}
+          >
             <Textarea
               rows={4}
               value={rotateWords.join("\n")}
               onChange={(e) => setWords(e.target.value)}
-              placeholder={"szybko\nłatwo\nskutecznie"}
+              placeholder={t("builder.animatedHeadingEditor.rotatePh")}
               className="text-xs font-mono"
             />
           </PropField>
         )}
 
-        <PropField label="Kolor tekstu animowanego + kształtu">
+        <PropField label={t("builder.animatedHeadingEditor.animatedColor")}>
           <ColorField
             value={accentColor}
             onChange={(v) => setContent("accentColor", v ?? "")}
@@ -265,7 +272,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Czas animacji (ms)">
+          <PropField label={t("builder.animatedHeadingEditor.duration")}>
             <Input
               type="number"
               min={300}
@@ -276,7 +283,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Opóźnienie startu (ms)">
+          <PropField label={t("builder.animatedHeadingEditor.delay")}>
             <Input
               type="number"
               min={0}
@@ -287,7 +294,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
-          <PropField label="Pętla">
+          <PropField label={t("builder.animatedHeadingEditor.loopLabel")}>
             <Select
               value={loop ? "on" : "off"}
               onValueChange={(v) => setContent("loop", v === "on")}
@@ -296,20 +303,24 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="on">tak</SelectItem>
-                <SelectItem value="off">nie</SelectItem>
+                <SelectItem value="on">{t("builder.animatedHeadingEditor.yes")}</SelectItem>
+                <SelectItem value="off">{t("builder.animatedHeadingEditor.no")}</SelectItem>
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Wyrównanie">
+          <PropField label={t("builder.animatedHeadingEditor.align")}>
             <Select value={align} onValueChange={(v) => setContent("align", v)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="left">do lewej</SelectItem>
-                <SelectItem value="center">do środka</SelectItem>
-                <SelectItem value="right">do prawej</SelectItem>
+                <SelectItem value="left">{t("builder.animatedHeadingEditor.alignLeft")}</SelectItem>
+                <SelectItem value="center">
+                  {t("builder.animatedHeadingEditor.alignCenter")}
+                </SelectItem>
+                <SelectItem value="right">
+                  {t("builder.animatedHeadingEditor.alignRight")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
@@ -318,7 +329,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
 
       <div className="space-y-1.5">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Podgląd na żywo
+          {t("builder.animatedHeadingEditor.livePreview")}
         </div>
         <div className="rounded-md border border-border p-4 bg-background">
           <AnimatedHeadingRender config={previewCfg} />
