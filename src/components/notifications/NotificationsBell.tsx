@@ -165,8 +165,18 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
         style={panelStyle}
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
-          <div className="text-xs font-semibold uppercase tracking-wide">
-            {t("notifications.title", { defaultValue: "Powiadomienia" })}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide">
+              {t("notifications.title", { defaultValue: "Powiadomienia" })}
+            </span>
+            {unread > 0 && (
+              <UnreadBadge
+                count={unread}
+                size="lg"
+                className="static"
+                labelKey="notifications.unread"
+              />
+            )}
           </div>
           <button
             type="button"
