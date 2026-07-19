@@ -6,9 +6,11 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 import type { OverlaySettings } from "@/lib/builder/types";
 import { Row, NumberInput } from "../atoms";
 import { BackgroundEditor } from "./BackgroundEditor";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: OverlaySettings | undefined;
@@ -16,13 +18,14 @@ interface Props {
 }
 
 export function OverlayEditor({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const o = value ?? {};
   return (
     <>
       <BackgroundEditor value={value} onChange={onChange} />
       {o.type && o.type !== "none" && (
         <>
-          <Row label="Przezroczystość (0–1)">
+          <Row label={t("builder.overlay.opacity")}>
             <NumberInput
               value={o.opacity}
               step={0.05}
@@ -35,7 +38,7 @@ export function OverlayEditor({ value, onChange }: Props) {
               }
             />
           </Row>
-          <Row label="Tryb mieszania">
+          <Row label={t("builder.overlay.blendMode")}>
             <Select
               value={o.blendMode ?? "normal"}
               onValueChange={(v) =>

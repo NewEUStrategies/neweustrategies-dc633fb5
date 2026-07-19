@@ -6,8 +6,10 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 import type { ShapeDividerSettings, ShapeDividerType } from "@/lib/builder/types";
 import { Row, ColorInput, NumberInput } from "../atoms";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: ShapeDividerSettings | undefined;
@@ -15,10 +17,11 @@ interface Props {
 }
 
 export function ShapeEditor({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const s = value ?? {};
   return (
     <>
-      <Row label="Styl">
+      <Row label={t("builder.shape.style")}>
         <Select
           value={s.type ?? "none"}
           onValueChange={(v) =>
@@ -57,7 +60,7 @@ export function ShapeEditor({ value, onChange }: Props) {
       </Row>
       {s.type && s.type !== "none" && (
         <>
-          <Row label="Kolor">
+          <Row label={t("builder.common.color")}>
             <ColorInput
               value={s.color}
               onChange={(v) =>
@@ -67,7 +70,7 @@ export function ShapeEditor({ value, onChange }: Props) {
               }
             />
           </Row>
-          <Row label="Wysokość (px)">
+          <Row label={t("builder.shape.height")}>
             <NumberInput
               value={s.height}
               onChange={(n) =>
@@ -80,7 +83,7 @@ export function ShapeEditor({ value, onChange }: Props) {
               suffix="px"
             />
           </Row>
-          <Row label="Szerokość (%)">
+          <Row label={t("builder.shape.width")}>
             <NumberInput
               value={s.width}
               onChange={(n) =>
@@ -128,7 +131,7 @@ export function ShapeEditor({ value, onChange }: Props) {
                   })
                 }
               />{" "}
-              Na wierzch
+              {t("builder.shape.bringToFront")}
             </label>
           </div>
         </>

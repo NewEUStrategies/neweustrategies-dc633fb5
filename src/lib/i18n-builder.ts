@@ -1,0 +1,193 @@
+// Uzupełnia klucze i18n dla page buildera (src/components/admin/builder/**),
+// które renderowały twarde polskie napisy. Rejestrujemy z overwrite=false,
+// więc istniejące klucze rdzenia nie są nadpisywane - dokładamy tylko brakujące.
+import i18n from "@/lib/i18n";
+
+const pl = {
+  builder: {
+    common: {
+      top: "Góra",
+      right: "Prawo",
+      bottom: "Dół",
+      left: "Lewo",
+      center: "Środek",
+      color: "Kolor",
+      cancel: "Anuluj",
+      delete: "Usuń",
+    },
+    spacing: {
+      padding: "Padding - wewnętrzne odstępy (px)",
+      margin: "Margin - zewnętrzne odstępy (px)",
+      align: "Wyrównanie",
+    },
+    border: {
+      type: "Typ obramowania",
+      width: "Szerokość (px)",
+      radius: "Zaokrąglenie narożników (px)",
+      shadow: "Cień (CSS box-shadow)",
+      shadowHint: "Np. 0 10px 30px rgba(0,0,0,.2)",
+    },
+    typography: {
+      headingColor: "Kolor nagłówków",
+      textColor: "Kolor tekstu",
+      linkColor: "Kolor linków",
+      linkHoverColor: "Kolor linków (hover)",
+      align: "Wyrównanie ({{device}})",
+    },
+    motion: {
+      effect: "Efekt wejścia",
+      easing: "Krzywa (easing)",
+      duration: "Czas (ms)",
+      delay: "Opóźnienie (ms)",
+      distance: "Dystans (px)",
+      playOnce: "Odtwarzaj tylko raz",
+      presetNone: "Brak",
+      easingEaseOutDefault: "Ease-out (domyślnie)",
+    },
+    hover: {
+      enable: "Włącz styl hover",
+      bg: "Tło (hover)",
+      text: "Tekst (hover)",
+      scale: "Skala",
+      shadow: "Cień (box-shadow)",
+      transition: "Czas przejścia (ms)",
+    },
+    shape: {
+      style: "Styl",
+      height: "Wysokość (px)",
+      width: "Szerokość (%)",
+      bringToFront: "Na wierzch",
+    },
+    overlay: {
+      opacity: "Przezroczystość (0–1)",
+      blendMode: "Tryb mieszania",
+    },
+    position: {
+      colL: "L",
+      colC: "Ś",
+      colR: "P",
+      default: "Domyślnie",
+      stretchV: "Rozciągnij pionowo",
+    },
+    confirmDelete: {
+      sectionTitle: "Usunąć sekcję?",
+      sectionDesc:
+        "Sekcja wraz ze wszystkimi kolumnami i widgetami zostanie usunięta. Operację możesz cofnąć skrótem Ctrl+Z.",
+      columnTitle: "Usunąć kolumnę?",
+      columnDesc:
+        "Kolumna wraz ze wszystkimi widgetami zostanie usunięta. Operację możesz cofnąć skrótem Ctrl+Z.",
+      widgetTitle: "Usunąć widget?",
+      widgetDesc: "Widget zostanie usunięty. Operację możesz cofnąć skrótem Ctrl+Z.",
+    },
+    bulk: {
+      ariaSelected: "Zaznaczone widgety",
+      selected: "Zaznaczono",
+      widget1: "widget",
+      widgetFew: "widgety",
+      widgetMany: "widgetów",
+      copy: "Kopiuj",
+      copyTitle: "Kopiuj (Ctrl/⌘+C)",
+      duplicate: "Duplikuj",
+      duplicateTitle: "Duplikuj (Ctrl/⌘+D)",
+      deleteTitle: "Usuń (Delete)",
+      deselect: "Odznacz",
+      deselectTitle: "Odznacz (Esc)",
+    },
+  },
+};
+
+const en: typeof pl = {
+  builder: {
+    common: {
+      top: "Top",
+      right: "Right",
+      bottom: "Bottom",
+      left: "Left",
+      center: "Center",
+      color: "Color",
+      cancel: "Cancel",
+      delete: "Delete",
+    },
+    spacing: {
+      padding: "Padding - inner spacing (px)",
+      margin: "Margin - outer spacing (px)",
+      align: "Alignment",
+    },
+    border: {
+      type: "Border type",
+      width: "Width (px)",
+      radius: "Corner radius (px)",
+      shadow: "Shadow (CSS box-shadow)",
+      shadowHint: "E.g. 0 10px 30px rgba(0,0,0,.2)",
+    },
+    typography: {
+      headingColor: "Heading color",
+      textColor: "Text color",
+      linkColor: "Link color",
+      linkHoverColor: "Link color (hover)",
+      align: "Alignment ({{device}})",
+    },
+    motion: {
+      effect: "Enter effect",
+      easing: "Easing",
+      duration: "Duration (ms)",
+      delay: "Delay (ms)",
+      distance: "Distance (px)",
+      playOnce: "Play only once",
+      presetNone: "None",
+      easingEaseOutDefault: "Ease-out (default)",
+    },
+    hover: {
+      enable: "Enable hover style",
+      bg: "Background (hover)",
+      text: "Text (hover)",
+      scale: "Scale",
+      shadow: "Shadow (box-shadow)",
+      transition: "Transition time (ms)",
+    },
+    shape: {
+      style: "Style",
+      height: "Height (px)",
+      width: "Width (%)",
+      bringToFront: "Bring to front",
+    },
+    overlay: {
+      opacity: "Opacity (0–1)",
+      blendMode: "Blend mode",
+    },
+    position: {
+      colL: "L",
+      colC: "C",
+      colR: "R",
+      default: "Default",
+      stretchV: "Stretch vertically",
+    },
+    confirmDelete: {
+      sectionTitle: "Delete section?",
+      sectionDesc:
+        "The section and all its columns and widgets will be deleted. You can undo with Ctrl+Z.",
+      columnTitle: "Delete column?",
+      columnDesc: "The column and all its widgets will be deleted. You can undo with Ctrl+Z.",
+      widgetTitle: "Delete widget?",
+      widgetDesc: "The widget will be deleted. You can undo with Ctrl+Z.",
+    },
+    bulk: {
+      ariaSelected: "Selected widgets",
+      selected: "Selected",
+      widget1: "widget",
+      widgetFew: "widgets",
+      widgetMany: "widgets",
+      copy: "Copy",
+      copyTitle: "Copy (Ctrl/⌘+C)",
+      duplicate: "Duplicate",
+      duplicateTitle: "Duplicate (Ctrl/⌘+D)",
+      deleteTitle: "Delete (Delete)",
+      deselect: "Deselect",
+      deselectTitle: "Deselect (Esc)",
+    },
+  },
+};
+
+// overwrite=false -> nie nadpisujemy istniejących kluczy w rdzeniu.
+i18n.addResourceBundle("pl", "translation", pl, true, false);
+i18n.addResourceBundle("en", "translation", en, true, false);

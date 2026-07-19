@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -8,23 +9,9 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import "@/lib/i18n-builder";
 
 export type DeleteKind = "section" | "column" | "widget";
-
-const LABELS: Record<DeleteKind, { title: string; desc: string }> = {
-  section: {
-    title: "Usunąć sekcję?",
-    desc: "Sekcja wraz ze wszystkimi kolumnami i widgetami zostanie usunięta. Operację możesz cofnąć skrótem Ctrl+Z.",
-  },
-  column: {
-    title: "Usunąć kolumnę?",
-    desc: "Kolumna wraz ze wszystkimi widgetami zostanie usunięta. Operację możesz cofnąć skrótem Ctrl+Z.",
-  },
-  widget: {
-    title: "Usunąć widget?",
-    desc: "Widget zostanie usunięty. Operację możesz cofnąć skrótem Ctrl+Z.",
-  },
-};
 
 export function ConfirmDeleteDialog({
   pending,
@@ -35,6 +22,21 @@ export function ConfirmDeleteDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useTranslation();
+  const LABELS: Record<DeleteKind, { title: string; desc: string }> = {
+    section: {
+      title: t("builder.confirmDelete.sectionTitle"),
+      desc: t("builder.confirmDelete.sectionDesc"),
+    },
+    column: {
+      title: t("builder.confirmDelete.columnTitle"),
+      desc: t("builder.confirmDelete.columnDesc"),
+    },
+    widget: {
+      title: t("builder.confirmDelete.widgetTitle"),
+      desc: t("builder.confirmDelete.widgetDesc"),
+    },
+  };
   const open = !!pending;
   const copy = pending ? LABELS[pending.kind] : LABELS.widget;
   return (
@@ -50,13 +52,13 @@ export function ConfirmDeleteDialog({
           <AlertDialogDescription>{copy.desc}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Anuluj</AlertDialogCancel>
+          <AlertDialogCancel>{t("builder.common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={onConfirm}
             autoFocus
           >
-            Usuń
+            {t("builder.common.delete")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
