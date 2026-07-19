@@ -61,7 +61,7 @@ const COPY = {
   },
 } as const;
 
-export function ReadingHeader({ title, showAfter = 320 }: Props) {
+export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "post" }: Props) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
@@ -85,6 +85,15 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
   const [visible, setVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Save-for-later state for the current article.
+  const { data: bookmarks } = useBookmarks();
+  const toggleBookmark = useToggleBookmark();
+  const navigate = useNavigate();
+  const isSaved = entityId
+    ? bookmarks?.some((b) => b.entity_type === entityType && b.entity_id === entityId) ?? false
+    : false;
+  const bookmarkLabel = isSaved ? t.removeBookmark : t.saveForLater;
 
   useEffect(() => {
     if (!menuOpen) return;
