@@ -365,34 +365,6 @@ export function SearchButtonWidget({
           )}
 
           <div className="max-h-[440px] overflow-y-auto py-1.5">
-            {/* Recent searches (query empty) */}
-            {showRecent && (
-              <div>
-                <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {lang === "pl" ? "Ostatnie wyszukiwania" : "Recent searches"}
-                </div>
-                <ul>
-                  {recent.map((term) => (
-                    <li key={term}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setQ(term);
-                          setActive(-1);
-                          inputRef.current?.focus();
-                        }}
-                        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] leading-[1.5] text-foreground transition-colors hover:bg-muted/60"
-                      >
-                        <LucideIcons.Clock className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{term}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
             {focused && hasQuery && loading && (
               <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
                 <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
