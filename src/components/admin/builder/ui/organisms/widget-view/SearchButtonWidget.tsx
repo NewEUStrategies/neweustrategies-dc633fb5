@@ -435,6 +435,20 @@ export function SearchButtonWidget({
       <style
         dangerouslySetInnerHTML={{
           __html: `
+            /* Wymuszamy overflow: visible i wysoki z-index na całym łańcuchu
+               przodków widgetu, żeby chip floating-labela nie był przycinany
+               przez kolumny/sekcje headera z overflow: hidden. */
+            :where(*):has(> .builder-search-widget),
+            :where(*):has(.builder-search-widget) {
+              overflow: visible !important;
+            }
+            .builder-search-widget {
+              position: relative;
+              z-index: 40;
+            }
+            .builder-search-widget .input-group {
+              overflow: visible !important;
+            }
             .builder-search-widget input::-webkit-search-decoration,
             .builder-search-widget input::-webkit-search-cancel-button,
             .builder-search-widget input::-webkit-search-results-button,
@@ -449,12 +463,12 @@ export function SearchButtonWidget({
               height: 0;
             }
             /* Placeholder text w kolorze jasnoszarym, spójnym z ikonami.
-               Transition dodany na transform + font-size, żeby unoszenie
-               labela było widoczne (animowane). */
+               Transition dodany na transform, żeby unoszenie było animowane. */
             .builder-search-widget .input-group > .user-label {
               color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
               font-size: 0.8125rem;
               font-weight: 400;
+              z-index: 50;
               transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
                           color 180ms cubic-bezier(0.4, 0, 0.2, 1),
                           background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -468,9 +482,7 @@ export function SearchButtonWidget({
             .builder-search-widget button:hover svg {
               color: var(--foreground);
             }
-            /* Klasyczny floating label: unosi się na górną krawędź inputa,
-               chip z tłem, żeby "przecinał" obramowanie. Parent widgetu ma
-               overflow: visible, więc chip nie jest już przycinany. */
+            /* Klasyczny floating label: unosi się na górną krawędź inputa. */
             .builder-search-widget .input-group > .input:focus ~ .user-label,
             .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
               top: 0;
@@ -489,10 +501,10 @@ export function SearchButtonWidget({
               box-shadow: none;
               border-color: var(--ring);
             }
-
           `,
         }}
       />
+
     </div>
   );
 }
