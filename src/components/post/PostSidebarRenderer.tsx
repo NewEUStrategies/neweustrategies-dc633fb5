@@ -38,6 +38,7 @@ export interface PostSidebarRendererProps {
     postId: string;
     title: string;
     author?: string | null;
+    authorId?: string | null;
     authorHref?: string | null;
     authorAvatarUrl?: string | null;
     authorJobTitle?: string | null;

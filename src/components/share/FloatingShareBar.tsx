@@ -57,6 +57,7 @@ interface Props {
     postId: string;
     title: string;
     author?: string | null;
+    authorId?: string | null;
     authorHref?: string | null;
     authorAvatarUrl?: string | null;
     authorJobTitle?: string | null;
@@ -388,11 +389,11 @@ export function FloatingShareBar({
               <AuthorBusinessCard
                 lang={lang}
                 name={listen.author}
+                authorId={listen.authorId ?? null}
                 avatarUrl={listen.authorAvatarUrl}
                 href={listen.authorHref}
                 jobTitle={listen.authorJobTitle}
                 company={listen.authorCompany}
-                bio={listen.authorBio}
                 email={listen.authorEmail}
                 xUrl={listen.authorXUrl}
                 linkedinUrl={listen.authorLinkedinUrl}
