@@ -2,6 +2,8 @@
 // Preview + wybór osób + tryb wysyłki + opcjonalne linkowanie widgetów po imporcie.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-team-media";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Dialog,
@@ -37,6 +39,7 @@ interface Props {
 }
 
 export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDone }: Props) {
+  const { t } = useTranslation();
   const [candidates, setCandidates] = useState<TeamImportCandidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"magic_link" | "temp_password">("magic_link");
@@ -109,23 +112,25 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
         }));
 
       if (items.length === 0) {
-        toast.info("Brak nowych osób do zaproszenia");
+        toast.info(t("adminTeamMedia.teamImport.toastNoNew"));
         return;
       }
 
       const r = await create({ data: { items } });
-      toast.success(`Utworzono ${r.created} zaproszeń`);
+      toast.success(t("adminTeamMedia.teamImport.toastCreated", { count: r.created }));
 
       if (sendNow && r.ids.length > 0) {
         const s = await bulkSend({ data: { ids: r.ids } });
         const ok = s.results.filter((x) => x.ok).length;
         const fail = s.results.length - ok;
-        toast.success(`Wysłano ${ok} / błędy: ${fail}`);
+        toast.success(t("adminTeamMedia.teamImport.toastSent", { ok, fail }));
       }
 
       if (autoLink) {
         const l = await link({ data: { pageSlug } });
-        toast.success(`Powiązano ${l.updated} widgetów w /${pageSlug}`);
+        toast.success(
+          t("adminTeamMedia.teamImport.toastLinked", { count: l.updated, slug: pageSlug }),
+        );
       }
 
       onDone?.();
@@ -141,12 +146,12 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Import zespołu z /{pageSlug}</DialogTitle>
+          <DialogTitle>{t("adminTeamMedia.teamImport.title", { slug: pageSlug })}</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-4 py-2">
           <div>
-            <Label>Rola dla wszystkich</Label>
+            <Label>{t("adminTeamMedia.teamImport.roleAll")}</Label>
             <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
               <SelectTrigger>
                 <SelectValue />
@@ -160,14 +165,18 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
             </Select>
           </div>
           <div>
-            <Label>Tryb wysyłki</Label>
+            <Label>{t("adminTeamMedia.teamImport.sendMode")}</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="magic_link">Link aktywacyjny</SelectItem>
-                <SelectItem value="temp_password">Login + hasło tymczasowe</SelectItem>
+                <SelectItem value="magic_link">
+                  {t("adminTeamMedia.teamImport.modeMagic")}
+                </SelectItem>
+                <SelectItem value="temp_password">
+                  {t("adminTeamMedia.teamImport.modeTempPassword")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -176,26 +185,28 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
         <div className="flex gap-4 text-sm">
           <label className="flex items-center gap-2">
             <Checkbox checked={autoLink} onCheckedChange={(v) => setAutoLink(v === true)} />
-            Po imporcie powiąż widgety z profilami
+            {t("adminTeamMedia.teamImport.linkAfter")}
           </label>
           <label className="flex items-center gap-2">
             <Checkbox checked={sendNow} onCheckedChange={(v) => setSendNow(v === true)} />
-            Wyślij zaproszenia od razu
+            {t("adminTeamMedia.teamImport.sendNow")}
           </label>
         </div>
 
         <div className="flex-1 overflow-auto border border-border rounded mt-2">
           {loading ? (
-            <div className="p-6 text-sm text-muted-foreground">Ładowanie…</div>
+            <div className="p-6 text-sm text-muted-foreground">
+              {t("adminTeamMedia.teamImport.loading")}
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-muted/30 text-xs uppercase">
                 <tr>
                   <th className="p-2 w-8"></th>
-                  <th className="p-2 text-left">Imię</th>
-                  <th className="p-2 text-left">E-mail</th>
-                  <th className="p-2 text-left">Funkcja</th>
-                  <th className="p-2 text-left">Status</th>
+                  <th className="p-2 text-left">{t("adminTeamMedia.teamImport.colName")}</th>
+                  <th className="p-2 text-left">{t("adminTeamMedia.teamImport.colEmail")}</th>
+                  <th className="p-2 text-left">{t("adminTeamMedia.teamImport.colFunction")}</th>
+                  <th className="p-2 text-left">{t("adminTeamMedia.teamImport.colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,11 +228,17 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
                       </td>
                       <td className="p-2 text-xs">
                         {exists ? (
-                          <span className="text-emerald-600">konto istnieje</span>
+                          <span className="text-emerald-600">
+                            {t("adminTeamMedia.teamImport.statusExists")}
+                          </span>
                         ) : c.existingInvitationId ? (
-                          <span className="text-amber-600">zaproszenie w kolejce</span>
+                          <span className="text-amber-600">
+                            {t("adminTeamMedia.teamImport.statusQueued")}
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground">nowy</span>
+                          <span className="text-muted-foreground">
+                            {t("adminTeamMedia.teamImport.statusNew")}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -234,10 +251,13 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
 
         <DialogFooter className="flex-wrap gap-2">
           <div className="flex-1 text-xs text-muted-foreground">
-            Zaznaczono: {selected.size} / {candidates.length}
+            {t("adminTeamMedia.teamImport.selectedCount", {
+              selected: selected.size,
+              total: candidates.length,
+            })}
           </div>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
-            Anuluj
+            {t("common.cancel")}
           </Button>
           <Button
             variant="outline"
@@ -247,11 +267,19 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
               try {
                 const r = await provision({ data: { pageSlug, role, autoLink } });
                 toast.success(
-                  `Utworzono ${r.created} kont, pominięto ${r.skipped}, powiązano ${r.linked} widgetów`,
+                  t("adminTeamMedia.teamImport.toastProvisioned", {
+                    created: r.created,
+                    skipped: r.skipped,
+                    linked: r.linked,
+                  }),
                 );
                 if (r.errors.length > 0) {
                   toast.error(
-                    `Błędy: ${r.errors.length} (${r.errors[0].email}: ${r.errors[0].error})`,
+                    t("adminTeamMedia.teamImport.toastErrors", {
+                      count: r.errors.length,
+                      email: r.errors[0].email,
+                      error: r.errors[0].error,
+                    }),
                   );
                 }
                 onDone?.();
@@ -263,10 +291,10 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
               }
             }}
           >
-            {busy ? "..." : "Utwórz konta (bez maili)"}
+            {busy ? "..." : t("adminTeamMedia.teamImport.provisionBtn")}
           </Button>
           <Button onClick={run} disabled={busy || selected.size === 0}>
-            {busy ? "..." : "Utwórz zaproszenia"}
+            {busy ? "..." : t("adminTeamMedia.teamImport.createInvitesBtn")}
           </Button>
         </DialogFooter>
       </DialogContent>

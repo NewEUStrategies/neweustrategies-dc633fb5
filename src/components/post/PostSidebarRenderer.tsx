@@ -38,7 +38,20 @@ export interface PostSidebarRendererProps {
     postId: string;
     title: string;
     author?: string | null;
+    authorId?: string | null;
     authorHref?: string | null;
+    authorAvatarUrl?: string | null;
+    authorJobTitle?: string | null;
+    authorCompany?: string | null;
+    authorBio?: string | null;
+    authorEmail?: string | null;
+    authorXUrl?: string | null;
+    authorLinkedinUrl?: string | null;
+    authorFacebookUrl?: string | null;
+    authorInstagramUrl?: string | null;
+    authorWebsiteUrl?: string | null;
+    authorSpotifyUrl?: string | null;
+    authorCustomSocials?: Array<{ label: string; url: string; iconUrl?: string }> | null;
     readMinutes?: number | null;
     /** Wgrany MP3 dla bieżącego języka - gdy podany, TTS jest pomijany. */
     audioUrl?: string | null;

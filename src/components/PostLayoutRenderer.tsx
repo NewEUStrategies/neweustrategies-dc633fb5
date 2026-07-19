@@ -31,6 +31,10 @@ interface Props {
    * `post-cover-<id>` po obu stronach nawigacji tworzy płynny morph okładki.
    */
   coverViewTransitionId?: string;
+  /** Identyfikator encji dla akcji "zapisz na później" w pasku czytania. */
+  entityId?: string;
+  /** Rodzaj encji zapisywanej do zakładek (post lub page). */
+  entityType?: "post" | "page";
 }
 
 export function PostLayoutRenderer({
@@ -46,6 +50,8 @@ export function PostLayoutRenderer({
   sidebar,
   footer,
   coverViewTransitionId,
+  entityId,
+  entityType = "post",
 }: Props) {
   const preset = findLayout(format, layoutId);
   const hasSidebar = effectiveHasSidebar(preset, settings);
@@ -174,7 +180,7 @@ export function PostLayoutRenderer({
   if (coverImageUrl && preset.cover !== "none") {
     return (
       <>
-        <ReadingHeader title={title} />
+        <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
         {coverWithOverlay()}
         <LayoutBody
           contentMaxW={contentMaxW}
@@ -189,7 +195,7 @@ export function PostLayoutRenderer({
   // Brak cover photo – klasyczny nagłówek nad treścią.
   return (
     <>
-      <ReadingHeader title={title} />
+      <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
       <div>
         {header}
         <LayoutBody

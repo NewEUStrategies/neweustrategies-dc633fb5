@@ -15,6 +15,7 @@ import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsl
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -375,13 +376,15 @@ export function NewsletterForm({
                   maxLength={254}
                 />
               </FieldWrap>
-              <button
-                type="submit"
-                disabled={state === "loading"}
-                className="bg-brand text-brand-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-60 h-[3.25rem]"
+              <SubscribeButton
+                loading={state === "loading"}
+                aria-label={t("newsletterForm.subscribe")}
+                className="!min-h-0 !py-0 !px-6 self-stretch"
               >
-                {state === "loading" ? "…" : t("newsletterForm.subscribe")}
-              </button>
+                {t("newsletterForm.subscribe")}
+              </SubscribeButton>
+
+
             </>
           )}
         </form>

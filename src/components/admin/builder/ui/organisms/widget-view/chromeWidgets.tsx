@@ -1,76 +1,54 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
-import { useEffect, useRef, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+import { useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
-import "@/lib/i18n-builder";
+import { localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
+import { setClientLang } from "@/lib/i18n/localeRuntime";
 
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
-  const current: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const next: AppLang = current === "pl" ? "en" : "pl";
 
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setClientLang(next);
+    void i18n.changeLanguage(next);
+    try {
+      localStorage.setItem("i18nextLng", next);
+      document.documentElement.lang = next;
+    } catch {
+      /* noop */
+    }
+    const internal = stripLangPrefix(router.state.location.pathname).pathname;
+    const target = localizedPath(internal, next);
+    try {
+      void router.navigate({ href: target, replace: true, resetScroll: false });
+    } catch {
+      window.location.href = target;
+    }
+  };
 
-  const options: { code: "pl" | "en"; flag: string; label: string }[] = [
-    { code: "pl", flag: "🇵🇱", label: "PL" },
-    { code: "en", flag: "🇬🇧", label: "EN" },
-  ];
-  const cur = options.find((o) => o.code === current)!;
+  const activeHalf = "font-bold text-foreground bg-brand/15";
+  const inactiveHalf = "text-foreground/40 hover:text-foreground/60";
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-label={label}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((s) => !s)}
-        className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-border bg-background hover:bg-muted transition text-xs font-medium"
-      >
-        <span className="text-base leading-none">{cur.flag}</span>
-        <span>{cur.label}</span>
-        <LucideIcons.ChevronDown
-          className={`w-3.5 h-3.5 opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute right-0 top-full mt-1 z-50 min-w-[7rem] rounded-md border border-border bg-popover shadow-md py-1"
-        >
-          {options.map((o) => {
-            const active = o.code === current;
-            return (
-              <li key={o.code}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  onClick={() => {
-                    i18n.changeLanguage(o.code);
-                    setOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-muted transition ${active ? "font-semibold" : ""}`}
-                >
-                  <span className="text-base leading-none">{o.flag}</span>
-                  <span className="flex-1">{o.label}</span>
-                  {active && <LucideIcons.Check className="w-3.5 h-3.5 opacity-70" />}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      onPointerDown={(e) => e.stopPropagation()}
+      aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
+      title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
+      className="lang-switch-simple inline-flex items-center rounded-[6px] border border-border bg-background hover:bg-muted transition-colors overflow-hidden"
+      style={{ height: 24, width: 52, fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
+    >
+      <span className={`w-1/2 h-full inline-flex items-center justify-center ${current === "pl" ? activeHalf : inactiveHalf}`}>PL</span>
+      <span className={`w-1/2 h-full inline-flex items-center justify-center ${current === "en" ? activeHalf : inactiveHalf}`}>EN</span>
+    </button>
   );
 }
 
@@ -78,20 +56,26 @@ export function ThemeToggleWidget() {
   const { theme, toggle } = useTheme();
   const { t } = useTranslation();
   const isDark = theme === "dark";
+
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-label={isDark ? t("builder.chrome.themeToLight") : t("builder.chrome.themeToDark")}
-      title={isDark ? t("builder.chrome.darkTitle") : t("builder.chrome.lightTitle")}
-      className="inline-flex items-center justify-center rounded-[2px] hover:opacity-80 transition-opacity"
-      style={{ width: 14, height: 14 }}
+      onPointerDown={(e) => e.stopPropagation()}
+      aria-label={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
+      title={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full text-foreground hover:text-brand transition-colors duration-200 ease-out active:scale-95"
     >
-      {isDark ? (
-        <LucideIcons.Sun className="w-3.5 h-3.5" style={{ color: "#FA9346" }} />
-      ) : (
-        <LucideIcons.Moon className="w-3.5 h-3.5" />
-      )}
+      <span
+        key={isDark ? "sun" : "moon"}
+        className="inline-flex items-center justify-center transition-transform duration-300 ease-out"
+      >
+        {isDark ? (
+          <LucideIcons.Sun className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <LucideIcons.Moon className="w-4 h-4" aria-hidden="true" />
+        )}
+      </span>
     </button>
   );
 }

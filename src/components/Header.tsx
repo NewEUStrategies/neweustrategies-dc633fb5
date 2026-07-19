@@ -222,13 +222,18 @@ function HeaderInner() {
 }
 
 export const Header = memo(function Header() {
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  // Wyjątek: strona główna (PL "/" i EN "/en") ma sticky header.
+  // Pozostałe strony: header scrolluje razem ze stroną, a ReadingHeader
+  // przejmuje rolę na wpisach po przewinięciu poza hero.
+  const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
   return (
     <header
       data-site-header
-      // Sticky: header podąża za scrollem (top: 0). z-40 lifts the stacking
-      // context (forced by view-transition-name) above <main>, so the sticky
-      // mobile bar and desktop mega-menu dropdown paint over page content.
-      className="sticky top-0 z-40 bg-background border-b border-border"
+      className={
+        (isHome ? "sticky top-0 " : "relative ") +
+        "z-40 bg-background border-b border-border"
+      }
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>

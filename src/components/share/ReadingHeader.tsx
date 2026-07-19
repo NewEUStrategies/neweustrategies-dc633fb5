@@ -3,25 +3,32 @@
 // visually and behaviourally identical (live results, popover, clear button).
 // Layout: [search] [current article title] [theme | account/login | lang]
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Bookmark, ChevronDown, LogIn, LogOut, Settings, User } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
+import { ChatBell } from "@/components/chat/ChatBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
+import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
 
 interface Props {
   title: string;
   /** Reveal once the user has scrolled past this many pixels. */
   showAfter?: number;
+  /** Identifier of the current post/page for the "save for later" action. */
+  entityId?: string;
+  /** Type of entity being saved (post or page). Defaults to post. */
+  entityType?: BookmarkEntityType;
 }
 
 const COPY = {
   pl: {
-    reading: "CZYTASZ",
+    reading: "aktualnie czytasz",
     search: "Szukaj",
     login: "Zaloguj",
     register: "Zarejestruj",
@@ -32,9 +39,12 @@ const COPY = {
     logout: "Wyloguj",
     lang: "Język",
     menu: "Menu konta",
+    saveForLater: "Zapisz na później",
+    saved: "Zapisano",
+    removeBookmark: "Usuń z zapisanych",
   },
   en: {
-    reading: "READING",
+    reading: "currently reading",
     search: "Search",
     login: "Sign in",
     register: "Sign up",
@@ -45,10 +55,13 @@ const COPY = {
     logout: "Sign out",
     lang: "Language",
     menu: "Account menu",
+    saveForLater: "Save for later",
+    saved: "Saved",
+    removeBookmark: "Remove from saved",
   },
 } as const;
 
-export function ReadingHeader({ title, showAfter = 320 }: Props) {
+export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "post" }: Props) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
@@ -72,6 +85,15 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
   const [visible, setVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Save-for-later state for the current article.
+  const { data: bookmarks } = useBookmarks();
+  const toggleBookmark = useToggleBookmark();
+  const navigate = useNavigate();
+  const isSaved = entityId
+    ? bookmarks?.some((b) => b.entity_type === entityType && b.entity_id === entityId) ?? false
+    : false;
+  const bookmarkLabel = isSaved ? t.removeBookmark : t.saveForLater;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -117,9 +139,58 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
         visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none",
       ].join(" ")}
     >
-      <div className="mx-auto max-w-[1400px] px-3 sm:px-5 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
-        {/* Search - same widget as builder header */}
-        <div className="w-[180px] sm:w-[240px] lg:w-[300px]">
+      <style>{`
+        /* Safe-space rules for the condensed reading header.
+           The search mega-box popover is wider than the input; every ancestor
+           of the widget must stay visible so it is never clipped by columns or
+           sections with overflow:hidden in the builder/public wrapper. */
+        [data-reading-header] :has(> .builder-search-widget),
+        [data-reading-header] :has(.builder-search-widget) {
+          overflow: visible !important;
+        }
+        [data-reading-header] .builder-search-widget {
+          position: relative;
+          z-index: 50;
+        }
+        /* Compact landscape mode: small phones held sideways have very little
+           vertical space, so we shrink the bar further and hide non-essential
+           chrome to prevent overlaps. */
+        @media (max-height: 500px) and (orientation: landscape) {
+          [data-reading-header] {
+            height: 36px !important;
+            overflow: hidden !important;
+          }
+          [data-reading-header] > div {
+            height: 36px !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            gap: 0.375rem !important;
+          }
+          [data-reading-header] .builder-search-widget {
+            max-width: 130px !important;
+          }
+          [data-reading-header] [data-reading-title] {
+            font-size: 11px !important;
+          }
+          [data-reading-header] [data-reading-label],
+          [data-reading-header] [data-reading-auth] {
+            display: none !important;
+          }
+          [data-reading-header] button,
+          [data-reading-header] [data-reading-icon] {
+            height: 24px !important;
+            width: 24px !important;
+          }
+          [data-reading-header] svg {
+            width: 14px !important;
+            height: 14px !important;
+          }
+        }
+      `}</style>
+      <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
+        {/* Search - same widget as builder header, smaller in the condensed reading bar.
+            Hidden on mobile; icons (notifications / messages / profile) take over. */}
+        <div className="hidden sm:block relative z-50 min-w-0 overflow-visible w-[190px] md:w-[240px] lg:w-[280px]">
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
@@ -127,19 +198,42 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
             liveResults
             limit={8}
             lang={lang}
-            height={32}
+            height={24}
             radius={6}
-            fontSize={13}
+            fontSize={11}
           />
         </div>
 
+        {/* Mobile-only icon cluster replacing the search widget */}
+        <div className="flex sm:hidden items-center gap-1 shrink-0">
+          <NotificationsBell panelWidth={260} />
+          <ChatBell panelWidth={280} />
+          <Link
+            to={isAuthed ? "/profile" : "/login"}
+            aria-label={t.profile}
+            title={t.profile}
+            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt=""
+                className="h-5 w-5 rounded-full object-cover"
+              />
+            ) : (
+              <User className="w-4 h-4" />
+            )}
+          </Link>
+        </div>
+
         {/* Reading: title */}
-        <div className="min-w-0 flex items-center gap-2">
-          <span className="hidden sm:inline text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
+        <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
+          <span data-reading-label className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
             {t.reading}:
           </span>
           <span
-            className="truncate font-display text-[13.5px] sm:text-[14.5px] font-semibold text-foreground"
+            data-reading-title
+            className="truncate font-display text-[12px] sm:text-[13.5px] lg:text-[14.5px] font-semibold text-foreground"
             title={title}
           >
             {title}
@@ -147,10 +241,44 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
         </div>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          <ThemeToggle className="h-8 w-8 grid place-items-center" />
+        <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
+          <ThemeToggle data-reading-icon className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center" />
+          <div data-reading-icon className="hidden sm:block">
+            <NotificationsBell panelWidth={280} />
+          </div>
+          <div data-reading-icon className="hidden sm:block">
+            <ChatBell panelWidth={300} />
+          </div>
+          {entityId && (
+            <button
+              type="button"
+              aria-pressed={isSaved}
+              aria-label={bookmarkLabel}
+              title={bookmarkLabel}
+              disabled={toggleBookmark.isPending}
+              onClick={() => {
+                if (!isAuthed) {
+                  void navigate({ to: "/login" });
+                  return;
+                }
+                toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
+              }}
+              data-reading-icon
+              className={[
+                "h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md transition shrink-0",
+                "text-foreground hover:text-brand hover:bg-muted",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+                isSaved ? "text-brand" : "",
+                toggleBookmark.isPending ? "opacity-60 cursor-wait" : "",
+              ].join(" ")}
+            >
+              <Bookmark
+                className={`w-4 h-4 sm:w-[18px] sm:h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
+              />
+            </button>
+          )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
-          <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
+          <div data-reading-auth className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (
               <div ref={menuRef} className="relative">
                 <button

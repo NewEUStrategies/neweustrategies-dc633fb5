@@ -726,17 +726,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     dragRef.current = { startX: e.clientX, lastX: e.clientX, pointerId: e.pointerId, active: true };
     force((n) => n + 1);
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
+    // NOTE: nie wolno tutaj setPointerCapture — gdyby drag-surface przechwyciła
+    // pointer od razu, click trafiałby w kontener zamiast w <a> pod spodem
+    // (multi-card / split / cinematic mają linki wewnątrz drag-surface).
+    // Przechwycenie robimy dopiero po realnym ruchu w onPointerMove.
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (!d.active || e.pointerId !== d.pointerId) return;
     d.lastX = e.clientX;
-    setDragDx(e.clientX - d.startX);
+    const dx = e.clientX - d.startX;
+    if (Math.abs(dx) > 4) {
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+    }
+    setDragDx(dx);
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
@@ -960,12 +967,23 @@ function EditorialHeroVariant(p: VariantProps) {
             </h3>
           </div>
         )}
-        <p
-          className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-          style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
-        >
-          {sub || "\u00A0"}
-        </p>
+        {href ? (
+          <AppLink href={href} className="block">
+            <p
+              className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+              style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+            >
+              {sub || "\u00A0"}
+            </p>
+          </AppLink>
+        ) : (
+          <p
+            className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+            style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+          >
+            {sub || "\u00A0"}
+          </p>
+        )}
         {(cur.author || cur.readTime) && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
             {cur.author && (
@@ -1339,12 +1357,23 @@ function SplitFeatureVariant(p: VariantProps) {
           </h3>
         )}
         {sub && (
-          <p
-            className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
-            style={p.subtitleStyle}
-          >
-            {sub}
-          </p>
+          href ? (
+            <AppLink href={href} className="block">
+              <p
+                className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+                style={p.subtitleStyle}
+              >
+                {sub}
+              </p>
+            </AppLink>
+          ) : (
+            <p
+              className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+              style={p.subtitleStyle}
+            >
+              {sub}
+            </p>
+          )
         )}
         {(cur.author || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">

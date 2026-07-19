@@ -33,6 +33,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --breakpoint-xs: 30rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -2852,6 +2853,14 @@ textarea::placeholder {
   line-height: var(--gc-input-line-height, 1.4);
   color: var(--gc-input-text, var(--foreground));
 }
+
+/* Join-us form inputs must stay left-aligned even when the parent builder
+   widget forces text-align: center with high-specificity [data-w-id] rules. */
+.join-us-shell.join-us-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+.join-us-shell.join-us-shell textarea,
+.join-us-shell.join-us-shell select {
+  text-align: left !important;
+}
 .cf-shell :where(input, select, textarea)::placeholder,
 [data-w-id] :where(input, select, textarea)::placeholder,
 .cms-widget-form :where(input, select, textarea)::placeholder,
@@ -4603,6 +4612,14 @@ textarea::placeholder {
   cursor: not-allowed;
 }
 
+/* Beat high-specificity builder widget styles ([data-w-id] repeated) that
+   force text-align: center on all descendants. The floating input atom must
+   always keep its text left-aligned regardless of parent widget alignment. */
+.input-group.input-group > .input.input,
+.input-group.input-group > textarea.input.input {
+  text-align: left !important;
+}
+
 /* On-dark modifier: for use inside dark popup/marketing surfaces
    (LoginPopup dark hero, NewsletterPopupForm split). The label chip needs a
    solid backdrop matching the dark surface (bg-white/5 over a near-black
@@ -4703,4 +4720,278 @@ textarea.input {
 
 
 
+
+
+/* Language switcher toggle (chrome header widget).
+   Reference: a pill track whose background is the active nation's flag,
+   with a white sliding circle that carries the active language code (PL/EN). */
+.lang-switch {
+  --toggle-size: 8px;
+  --container-width: 3.6em;
+  --container-height: 1.6em;
+  --container-radius: 6px;
+  --container-pl-bg: linear-gradient(180deg, #ffffff 50%, #dc143c 50%);
+  --container-en-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Crect width='60' height='30' fill='%23012169'/%3E%3Cpath d='M0 0l60 30M60 0L0 30' stroke='%23ffffff' stroke-width='8'/%3E%3Cpath d='M0 0l60 30M60 0L0 30' stroke='%23c8102e' stroke-width='3'/%3E%3Cpath d='M30 0v30M0 15h60' stroke='%23ffffff' stroke-width='10'/%3E%3Cpath d='M30 0v30M0 15h60' stroke='%23c8102e' stroke-width='6'/%3E%3C/svg%3E") center / cover no-repeat;
+  --circle-container-diameter: 2.3em;
+  --flag-diameter: 1.4em;
+  --circle-container-offset: calc((var(--circle-container-diameter) - var(--container-height)) / 2 * -1);
+  --transition: 0.5s cubic-bezier(0, -0.02, 0.4, 1.25);
+  --circle-transition: 0.3s cubic-bezier(0, -0.02, 0.35, 1.17);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  cursor: pointer;
+  font-size: var(--toggle-size);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lang-switch,
+.lang-switch *,
+.lang-switch *::before,
+.lang-switch *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.lang-switch__container {
+  width: var(--container-width);
+  height: var(--container-height);
+  background: var(--container-pl-bg);
+  border-radius: var(--container-radius);
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    0em -0.062em 0.062em rgba(0, 0, 0, 0.25),
+    0em 0.062em 0.125em rgba(255, 255, 255, 0.94);
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.lang-switch__container::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  box-shadow: 0em 0.05em 0.187em rgba(0, 0, 0, 0.25) inset;
+  border-radius: var(--container-radius);
+}
+
+.lang-switch__circle-container {
+  width: var(--circle-container-diameter);
+  height: var(--circle-container-diameter);
+  background-color: rgba(255, 255, 255, 0.1);
+  position: absolute;
+  left: var(--circle-container-offset);
+  top: var(--circle-container-offset);
+  border-radius: var(--container-radius);
+  box-shadow:
+    inset 0 0 0 3.375em rgba(255, 255, 255, 0.1),
+    0 0 0 0.625em rgba(255, 255, 255, 0.1),
+    0 0 0 1.25em rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--circle-transition);
+  pointer-events: none;
+}
+
+.lang-switch__flag-container {
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+  width: var(--flag-diameter);
+  height: var(--flag-diameter);
+  border-radius: var(--container-radius);
+  background-color: #ffffff;
+  box-shadow:
+    0.062em 0.062em 0.062em 0em rgba(254, 255, 239, 0.61) inset,
+    0em -0.062em 0.062em 0em #a1872a inset;
+  filter: drop-shadow(0.062em 0.125em 0.125em rgba(0, 0, 0, 0.25))
+    drop-shadow(0em 0.062em 0.125em rgba(0, 0, 0, 0.25));
+  overflow: hidden;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lang-switch__flag {
+  font-family: "Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 0.85em;
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.lang-switch__container[data-state="en"] {
+  background: var(--container-en-bg);
+}
+
+.lang-switch__container[data-state="en"] .lang-switch__circle-container {
+  left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter));
+}
+
+.lang-switch__container[data-state="en"] .lang-switch__circle-container:hover {
+  left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter) - 0.187em);
+}
+
+.lang-switch__circle-container:hover {
+  left: calc(var(--circle-container-offset) + 0.187em);
+}
+
+/* =========================================================================
+   Subscribe button (bubbly) - używana we wszystkich formularzach subskrypcji.
+   Bazuje na semantycznych tokenach --brand / --brand-foreground, więc
+   automatycznie wspiera light + dark mode.
+   ========================================================================= */
+@utility btn-bubbly {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.5rem;
+  min-height: 35px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--brand) 55%, transparent);
+  background-color: var(--brand);
+  color: var(--brand-foreground);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  isolation: isolate;
+  overflow: visible;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    filter 0.2s ease;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--brand) 25%, transparent);
+
+  & .btn-bubbly__label {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.03);
+    box-shadow: 0 6px 18px color-mix(in oklab, var(--brand) 35%, transparent);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 45%, transparent);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &::before,
+  &::after {
+    position: absolute;
+    content: "";
+    width: 150%;
+    left: 50%;
+    height: 100%;
+    transform: translateX(-50%);
+    z-index: -1;
+    pointer-events: none;
+    background-repeat: no-repeat;
+  }
+
+  &:hover:not(:disabled)::before {
+    top: -70%;
+    background-image:
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, transparent 20%, var(--brand) 20%, transparent 30%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, transparent 10%, var(--brand) 15%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%);
+    background-size:
+      10% 10%, 20% 20%, 15% 15%, 20% 20%, 18% 18%,
+      10% 10%, 15% 15%, 10% 10%, 18% 18%;
+    background-position: 50% 120%;
+    animation: btn-bubbly-top 0.6s ease;
+  }
+
+  &:hover:not(:disabled)::after {
+    bottom: -70%;
+    background-image:
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, transparent 10%, var(--brand) 15%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%),
+      radial-gradient(circle, var(--brand) 20%, transparent 20%);
+    background-size: 15% 15%, 20% 20%, 18% 18%, 20% 20%, 15% 15%, 20% 20%, 18% 18%;
+    background-position: 50% 0%;
+    animation: btn-bubbly-bottom 0.6s ease;
+  }
+}
+
+@keyframes btn-bubbly-top {
+  0% {
+    background-position:
+      5% 90%, 10% 90%, 10% 90%, 15% 90%, 25% 90%,
+      25% 90%, 40% 90%, 55% 90%, 70% 90%;
+  }
+  50% {
+    background-position:
+      0% 80%, 0% 20%, 10% 40%, 20% 0%, 30% 30%,
+      22% 50%, 50% 50%, 65% 20%, 90% 30%;
+  }
+  100% {
+    background-position:
+      0% 70%, 0% 10%, 10% 30%, 20% -10%, 30% 20%,
+      22% 40%, 50% 40%, 65% 10%, 90% 20%;
+    background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+}
+
+@keyframes btn-bubbly-bottom {
+  0% {
+    background-position:
+      10% -10%, 30% 10%, 55% -10%, 70% -10%, 85% -10%,
+      70% -10%, 70% 0%;
+  }
+  50% {
+    background-position:
+      0% 80%, 20% 80%, 45% 60%, 60% 100%, 75% 70%,
+      95% 60%, 105% 0%;
+  }
+  100% {
+    background-position:
+      0% 90%, 20% 90%, 45% 70%, 60% 110%, 75% 80%,
+      95% 70%, 110% 10%;
+    background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-bubbly::before,
+  .btn-bubbly::after {
+    display: none;
+  }
+  .btn-bubbly:active:not(:disabled) {
+    transform: none;
+  }
+}
 

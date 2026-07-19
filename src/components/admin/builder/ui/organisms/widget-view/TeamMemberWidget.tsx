@@ -68,7 +68,12 @@ export function TeamMemberWidget({
   const socials: Array<{ key: SocialKey; url: string }> = (
     ["x", "facebook", "linkedin", "instagram", "youtube", "website"] as SocialKey[]
   )
-    .map((key) => ({ key, url: safeUrl(getStr(c, key)) }))
+    .map((key) => {
+      const raw = getStr(c, key).trim();
+      if (!raw) return { key, url: "" };
+      const url = safeUrl(raw, "");
+      return { key, url: url && url !== "#" ? url : "" };
+    })
     .filter((s) => Boolean(s.url));
 
   const cardMaxWidthRaw = Number(cRaw.cardMaxWidth);

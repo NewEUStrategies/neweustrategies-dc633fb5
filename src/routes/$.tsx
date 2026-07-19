@@ -3,7 +3,8 @@
 //   /<parent>/<child>/...
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -141,7 +142,21 @@ export const Route = createFileRoute("/$")({
     const segments = splatToSegments(splat);
     if (segments.length === 0) throw notFound();
     const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
-    if (!data) throw notFound();
+    if (!data) {
+      // Taxonomy fallback: /<slug> may point at a category or tag archive.
+      // Categories/tags live at /category/<slug> and /tag/<slug>; if the bare
+      // slug matches one, redirect there instead of 404-ing.
+      if (segments.length === 1) {
+        const slug = segments[0];
+        const [{ data: cat }, { data: tag }] = await Promise.all([
+          supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
+          supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
+        ]);
+        if (cat?.slug) throw redirect({ to: "/category/$slug", params: { slug: cat.slug }, replace: true });
+        if (tag?.slug) throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
+      }
+      throw notFound();
+    }
     // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
     // are fetched client-side after hydration), so it is safe to share-cache and
     // serve stale-while-revalidate from the CDN. The language lives in the URL
@@ -692,6 +707,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             coverViewTransitionId={it.id}
+            entityId={it.id}
+            entityType="post"
             meta={
               <PostOverlayMeta
                 lang={lang}
@@ -763,7 +780,33 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                                 .filter(Boolean)
                                 .join(" ") ||
                               null,
+                            authorId: postAuthor?.id ?? null,
                             authorHref: postAuthor?.slug ? `/author/${postAuthor.slug}` : null,
+                            authorAvatarUrl:
+                              postAuthor?.author_profile?.avatar_url ??
+                              postAuthor?.avatar_url ??
+                              null,
+                            authorJobTitle: postAuthor?.author_profile?.job_title ?? null,
+                            authorCompany: postAuthor?.author_profile?.company ?? null,
+                            authorBio:
+                              (lang === "en"
+                                ? preferCanonicalBio(
+                                    postAuthor?.bio_en ?? null,
+                                    postAuthor?.author_profile?.bio_en ?? null,
+                                  )
+                                : preferCanonicalBio(
+                                    postAuthor?.bio_pl ?? null,
+                                    postAuthor?.author_profile?.bio_pl ?? null,
+                                  )) ?? null,
+                            authorEmail: postAuthor?.author_profile?.contact_email ?? null,
+                            authorXUrl: postAuthor?.author_profile?.x_url ?? null,
+                            authorLinkedinUrl: postAuthor?.author_profile?.linkedin_url ?? null,
+                            authorFacebookUrl: postAuthor?.author_profile?.facebook_url ?? null,
+                            authorInstagramUrl: postAuthor?.author_profile?.instagram_url ?? null,
+                            authorWebsiteUrl: postAuthor?.author_profile?.website_url ?? null,
+                            authorSpotifyUrl: postAuthor?.author_profile?.spotify_url ?? null,
+                            authorCustomSocials:
+                              postAuthor?.author_profile?.custom_socials ?? null,
                             readMinutes,
                             audioUrl:
                               (lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null,
