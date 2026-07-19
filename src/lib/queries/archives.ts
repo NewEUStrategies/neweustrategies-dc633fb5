@@ -458,6 +458,7 @@ export interface PeopleOrgItem {
   sublabel_pl: string | null;
   sublabel_en: string | null;
   avatarUrl: string | null;
+  logoUrl: string | null;
   verified: boolean;
   postCount: number;
 }
