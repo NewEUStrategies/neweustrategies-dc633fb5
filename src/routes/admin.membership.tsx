@@ -328,10 +328,9 @@ function AdminMembershipPage() {
                     className="font-mono text-xs"
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {lang === "pl"
-                      ? "Flagi: qa_priority (pytania warstwy na górze /qa), pro_briefings (wstęp na wydarzenia kind=briefing dla członków)."
-                      : "Flags: qa_priority (tier's questions ranked first on /qa), pro_briefings (grants entry to members-only kind=briefing events)."}
+                    {tm("fields.featuresHint")}
                   </p>
+
                 </div>
                 <div className="mt-auto pt-1">
                   <Button
