@@ -157,18 +157,20 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
            chrome to prevent overlaps. */
         @media (max-height: 500px) and (orientation: landscape) {
           [data-reading-header] {
-            height: 34px !important;
-            --rh-pad-y: 0 !important;
-            background: rgba(220, 38, 38, 0.3) !important;
+            height: 36px !important;
+            overflow: hidden !important;
           }
           [data-reading-header] > div {
-            height: 34px !important;
+            height: 36px !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
             gap: 0.375rem !important;
           }
           [data-reading-header] .builder-search-widget {
             max-width: 130px !important;
+          }
+          [data-reading-header] [data-reading-title] {
+            font-size: 11px !important;
           }
           [data-reading-header] [data-reading-label],
           [data-reading-header] [data-reading-auth] {
