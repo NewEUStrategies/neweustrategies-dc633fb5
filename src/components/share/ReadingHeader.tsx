@@ -209,6 +209,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             {t.reading}:
           </span>
           <span
+            data-reading-title
             className="truncate font-display text-[12px] sm:text-[13.5px] lg:text-[14.5px] font-semibold text-foreground"
             title={title}
           >
