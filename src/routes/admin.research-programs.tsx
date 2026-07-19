@@ -529,6 +529,8 @@ function ResearchQuestionsEditor({
   onChange: (next: { pl: string; en: string }[]) => void;
   lang: "pl" | "en";
 }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const add = () => onChange([...(value ?? []), { pl: "", en: "" }]);
   const update = (i: number, key: "pl" | "en", v: string) => {
     const next = [...value];
@@ -540,26 +542,24 @@ function ResearchQuestionsEditor({
   return (
     <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
       <div className="flex items-center justify-between">
-        <Label>{lang === "pl" ? "Pytania badawcze" : "Research questions"}</Label>
+        <Label>{tp("field.researchQuestions")}</Label>
         <Button size="sm" variant="ghost" onClick={add}>
           <Plus className="mr-1 h-3.5 w-3.5" />
-          {lang === "pl" ? "Dodaj" : "Add"}
+          {tp("add")}
         </Button>
       </div>
       {value.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          {lang === "pl" ? "Brak. Dodaj pierwsze pytanie." : "None. Add the first question."}
-        </p>
+        <p className="text-xs text-muted-foreground">{tp("field.noQuestions")}</p>
       )}
       {value.map((q, i) => (
         <div key={i} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
           <Input
-            placeholder={lang === "pl" ? "Pytanie (PL)" : "Question (PL)"}
+            placeholder={tp("field.questionPl")}
             value={q.pl}
             onChange={(e) => update(i, "pl", e.target.value)}
           />
           <Input
-            placeholder={lang === "pl" ? "Pytanie (EN)" : "Question (EN)"}
+            placeholder={tp("field.questionEn")}
             value={q.en}
             onChange={(e) => update(i, "en", e.target.value)}
           />
@@ -571,6 +571,7 @@ function ResearchQuestionsEditor({
     </div>
   );
 }
+
 
 /* -------------------- Manage sub-resources (members / projects / partners / items) -------------------- */
 
