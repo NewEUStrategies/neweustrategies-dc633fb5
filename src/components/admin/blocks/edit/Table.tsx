@@ -1,3 +1,5 @@
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/builder/types";
 import type { Block } from "@/lib/blocks/types";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,7 @@ function readRows(block: Block): string[][] {
 }
 
 export function TableBlockEdit({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const rows = readRows(block);
   const header = Boolean(block.data.header);
   const cols = Math.max(1, ...rows.map((r) => r.length));
@@ -43,7 +46,7 @@ export function TableBlockEdit({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, header: e.target.checked } })
             }
           />
-          Pierwszy wiersz = nagłówek
+          {bt.editor("table", "headerRow")}
         </label>
       </div>
       <div className="overflow-x-auto rounded-md border border-border">
@@ -66,7 +69,7 @@ export function TableBlockEdit({ block, onChange }: Props) {
                     type="button"
                     onClick={() => removeRow(r)}
                     className="text-muted-foreground hover:text-destructive p-1"
-                    title="Usuń wiersz"
+                    title={bt.editor("table", "removeRow")}
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -80,7 +83,7 @@ export function TableBlockEdit({ block, onChange }: Props) {
                     type="button"
                     onClick={() => removeCol(c)}
                     className="text-muted-foreground hover:text-destructive p-1"
-                    title="Usuń kolumnę"
+                    title={bt.editor("table", "removeCol")}
                   >
                     <Trash2 className="w-3 h-3 inline" />
                   </button>
@@ -92,10 +95,10 @@ export function TableBlockEdit({ block, onChange }: Props) {
       </div>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={addRow}>
-          <Plus className="w-3 h-3 mr-1" /> Wiersz
+          <Plus className="w-3 h-3 mr-1" /> {bt.editor("table", "addRow")}
         </Button>
         <Button size="sm" variant="outline" onClick={addCol}>
-          <Plus className="w-3 h-3 mr-1" /> Kolumna
+          <Plus className="w-3 h-3 mr-1" /> {bt.editor("table", "addCol")}
         </Button>
       </div>
     </div>

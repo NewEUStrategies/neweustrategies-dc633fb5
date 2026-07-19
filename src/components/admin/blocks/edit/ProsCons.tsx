@@ -1,3 +1,5 @@
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, ThumbsUp, ThumbsDown } from "lucide-react";
@@ -13,6 +15,7 @@ function readList(raw: unknown): string[] {
 }
 
 export function ProsConsBlock({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const title = String(block.data.title ?? "");
   const pros = readList(block.data.pros);
   const cons = readList(block.data.cons);
@@ -53,7 +56,7 @@ export function ProsConsBlock({ block, onChange }: Props) {
             type="button"
             onClick={() => onItems(items.filter((_, j) => j !== i))}
             className="p-1 hover:bg-accent rounded"
-            aria-label="Usuń"
+            aria-label={bt.editor("common", "remove")}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -64,7 +67,7 @@ export function ProsConsBlock({ block, onChange }: Props) {
         onClick={() => onItems([...items, ""])}
         className="text-xs flex items-center gap-1 text-foreground hover:underline"
       >
-        <Plus className="w-3.5 h-3.5" /> Dodaj
+        <Plus className="w-3.5 h-3.5" /> {bt.editor("prosCons", "add")}
       </button>
     </div>
   );
@@ -72,20 +75,20 @@ export function ProsConsBlock({ block, onChange }: Props) {
   return (
     <div className="not-prose space-y-2">
       <Input
-        placeholder="Tytuł (opcjonalnie)"
+        placeholder={bt.editor("prosCons", "title")}
         value={title}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <Col
-          label="Plusy"
+          label={bt.editor("prosCons", "pros")}
           items={pros}
           onItems={(v) => setField("pros", v)}
           Icon={ThumbsUp}
           color="bg-emerald-500/5 border-emerald-500/30"
         />
         <Col
-          label="Minusy"
+          label={bt.editor("prosCons", "cons")}
           items={cons}
           onItems={(v) => setField("cons", v)}
           Icon={ThumbsDown}

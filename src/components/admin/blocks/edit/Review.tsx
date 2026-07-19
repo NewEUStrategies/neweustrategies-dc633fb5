@@ -1,4 +1,6 @@
 // Foxiz-style Review Box editor.
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/builder/types";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ function readCriteria(raw: Json | undefined): Criterion[] {
 }
 
 export function ReviewBlock({ block, onChange }: Props) {
+  const bt = useBlocksI18n();
   const title = String(block.data.title ?? "");
   const summary = String(block.data.summary ?? "");
   const ctaLabel = String(block.data.ctaLabel ?? "");
@@ -50,22 +53,22 @@ export function ReviewBlock({ block, onChange }: Props) {
         </span>
       </div>
       <Input
-        placeholder="Tytuł recenzji"
+        placeholder={bt.editor("review", "title")}
         value={title}
         onChange={(e) => patch("title", e.target.value)}
       />
       <textarea
-        placeholder="Podsumowanie / werdykt"
+        placeholder={bt.editor("review", "summary")}
         value={summary}
         onChange={(e) => patch("summary", e.target.value)}
         className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[60px]"
       />
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Kryteria (skala 0-{scale})</span>
+          <span>{bt.editor("review", "criteriaScale", { scale })}</span>
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1">
-              Skala:
+              {bt.editor("review", "scale")}
               <AdminSelect
                 value={scale}
                 onChange={(e) => patch("scale", Number(e.target.value))}
@@ -80,7 +83,7 @@ export function ReviewBlock({ block, onChange }: Props) {
         {criteria.map((c, i) => (
           <div key={i} className="flex items-center gap-2">
             <Input
-              placeholder={`Kryterium ${i + 1}`}
+              placeholder={bt.editor("review", "criterion", { n: i + 1 })}
               value={c.label}
               onChange={(e) => {
                 const next = [...criteria];
@@ -107,7 +110,7 @@ export function ReviewBlock({ block, onChange }: Props) {
               type="button"
               onClick={() => patchCriteria(criteria.filter((_, j) => j !== i))}
               className="p-1 hover:bg-accent rounded text-muted-foreground"
-              aria-label="Usuń kryterium"
+              aria-label={bt.editor("review", "removeCriterion")}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -118,17 +121,17 @@ export function ReviewBlock({ block, onChange }: Props) {
           onClick={() => patchCriteria([...criteria, { label: "", score: 8 }])}
           className="text-xs flex items-center gap-1 text-foreground hover:underline"
         >
-          <Plus className="w-3.5 h-3.5" /> Dodaj kryterium
+          <Plus className="w-3.5 h-3.5" /> {bt.editor("review", "addCriterion")}
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Input
-          placeholder="Etykieta CTA (np. Kup książkę)"
+          placeholder={bt.editor("review", "ctaLabel")}
           value={ctaLabel}
           onChange={(e) => patch("ctaLabel", e.target.value)}
         />
         <Input
-          placeholder="Link CTA (https://...)"
+          placeholder={bt.editor("review", "ctaHref")}
           value={ctaHref}
           onChange={(e) => patch("ctaHref", e.target.value)}
         />
