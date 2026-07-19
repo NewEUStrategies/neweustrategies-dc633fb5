@@ -474,11 +474,11 @@ export function SearchButtonWidget({
             {/* Boolean operators + advanced search */}
             {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
                 <div
-                  className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-2.5 text-[11px] text-muted-foreground"
-                  style={{ lineHeight: 1.5 }}
+                  className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground"
+                  style={{ lineHeight: 1.4 }}
                 >
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="mr-1 text-[9px] font-semibold uppercase tracking-wider">
                       {lang === "pl" ? "Operatory" : "Operators"}
                     </span>
                     {[
@@ -510,8 +510,8 @@ export function SearchButtonWidget({
                             el.setSelectionRange(pos, pos);
                           });
                         }}
-                        className="rounded-md border border-border/60 bg-background px-1.5 py-0.5 text-[10.5px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand-ink)]"
-                        style={{ paddingBottom: "3px" }}
+                        className="rounded border border-border/60 bg-background px-1 py-0 text-[9px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand-ink)]"
+                        style={{ paddingBottom: "2px" }}
                       >
                         {op}
                       </button>
@@ -523,8 +523,8 @@ export function SearchButtonWidget({
                       if (hasQuery) addRecentSearch(q);
                       setFocused(false);
                     }}
-                    className="inline-flex items-center gap-1 font-medium hover:underline"
-                    style={{ color: "var(--brand-ink)", lineHeight: 1.5 }}
+                    className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
+                    style={{ color: "var(--brand-ink)", lineHeight: 1.4 }}
                   >
                     <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
                     {lang === "pl" ? "Wyszukiwanie zaawansowane" : "Advanced search"}
