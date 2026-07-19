@@ -11,13 +11,12 @@ import { setClientLang } from "@/lib/i18n/localeRuntime";
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
   const router = useRouter();
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const next: AppLang = current === "pl" ? "en" : "pl";
 
   const switchLang = () => {
     if (current === next) return;
-    // eslint-disable-next-line no-console
-    console.log("switchLang called", { current, next, pathname: router.state.location.pathname });
     setClientLang(next);
     void i18n.changeLanguage(next);
     try {
@@ -27,30 +26,26 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       /* noop */
     }
     const internal = stripLangPrefix(router.state.location.pathname).pathname;
-    const target = localizedPath(internal, next);
-    // eslint-disable-next-line no-console
-    console.log("navigating to", target);
     void router.navigate({
-      href: target,
+      href: localizedPath(internal, next),
       replace: true,
       resetScroll: false,
     });
   };
 
+  useEffect(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    btn.addEventListener("click", switchLang);
+    return () => btn.removeEventListener("click", switchLang);
+  }, [switchLang]);
+
   return (
     <button
+      ref={buttonRef}
       type="button"
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
-      onClick={(e) => {
-        // eslint-disable-next-line no-console
-        console.log("React onClick fired", e);
-        switchLang();
-      }}
-      onPointerDown={() => {
-        // eslint-disable-next-line no-console
-        console.log("React onPointerDown fired");
-      }}
       className="lang-switch"
     >
       <span
