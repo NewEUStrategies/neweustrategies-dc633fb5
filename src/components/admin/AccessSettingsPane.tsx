@@ -20,6 +20,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-post-panes";
 
 type Props = { entityType: AccessEntityType; entityId: string | null };
 
@@ -31,6 +33,7 @@ type PasswordState = {
 };
 
 export function AccessSettingsPane({ entityType, entityId }: Props) {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   const [rule, setRule] = useState<Partial<ContentAccessRule>>({
     mode: "public",
@@ -85,9 +88,9 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
   }, [entityType, entityId]);
 
   const save = async () => {
-    if (!entityId) return toast.error("Najpierw zapisz treść, aby ustawić dostęp.");
+    if (!entityId) return toast.error(t("adminPostPanes.access.saveContentFirst"));
     if (rule.mode === "password" && !pwd.hasPassword && !pwd.newPassword.trim()) {
-      return toast.error("Ustaw hasło dla trybu „Hasło”.");
+      return toast.error(t("adminPostPanes.access.setPasswordForMode"));
     }
     setSaving(true);
     const payload = {
@@ -135,7 +138,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
     }
 
     setSaving(false);
-    toast.success("Zapisano dostęp");
+    toast.success(t("adminPostPanes.access.accessSaved"));
   };
 
   const clearPassword = async () => {
@@ -146,7 +149,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
     });
     if (error) return toastError(error, "delete");
     setPwd({ hasPassword: false, newPassword: "", hintPl: "", hintEn: "" });
-    toast.success("Hasło usunięte");
+    toast.success(t("adminPostPanes.access.passwordRemoved"));
   };
 
   const togglePlan = (id: string) => {
@@ -154,19 +157,22 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
     setRule({ ...rule, plan_ids: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
   };
 
-  if (loading) return <div className="text-xs text-muted-foreground p-3">Wczytywanie…</div>;
+  if (loading)
+    return (
+      <div className="text-xs text-muted-foreground p-3">{t("adminPostPanes.access.loading")}</div>
+    );
 
   return (
     <div className="space-y-4 border border-border rounded-lg p-4 bg-card">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Dostęp / Paywall</h3>
+        <h3 className="font-semibold text-sm">{t("adminPostPanes.access.title")}</h3>
         <Button size="sm" onClick={save} disabled={saving}>
-          Zapisz dostęp
+          {t("adminPostPanes.access.saveAccess")}
         </Button>
       </div>
 
       <div>
-        <Label className="text-xs">Tryb</Label>
+        <Label className="text-xs">{t("adminPostPanes.access.mode")}</Label>
         <Select
           value={rule.mode ?? "public"}
           onValueChange={(v) => setRule({ ...rule, mode: v as AccessMode })}
@@ -175,10 +181,10 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="public">Publiczny - wszyscy widzą</SelectItem>
-            <SelectItem value="members">Tylko zalogowani (members-only)</SelectItem>
-            <SelectItem value="paid">Płatny (plan lub zakup jednorazowy)</SelectItem>
-            <SelectItem value="password">Hasło - dostęp po wpisaniu hasła</SelectItem>
+            <SelectItem value="public">{t("adminPostPanes.access.modePublic")}</SelectItem>
+            <SelectItem value="members">{t("adminPostPanes.access.modeMembers")}</SelectItem>
+            <SelectItem value="paid">{t("adminPostPanes.access.modePaid")}</SelectItem>
+            <SelectItem value="password">{t("adminPostPanes.access.modePassword")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -187,11 +193,13 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
         <div className="space-y-3 border border-border rounded-md p-3 bg-muted/30">
           <div className="flex items-center justify-between">
             <Label className="text-xs">
-              {pwd.hasPassword ? "Hasło jest ustawione" : "Ustaw hasło"}
+              {pwd.hasPassword
+                ? t("adminPostPanes.access.passwordSet")
+                : t("adminPostPanes.access.passwordSetLabel")}
             </Label>
             {pwd.hasPassword && (
               <Button size="sm" variant="ghost" onClick={clearPassword}>
-                Usuń hasło
+                {t("adminPostPanes.access.removePassword")}
               </Button>
             )}
           </div>
@@ -200,16 +208,19 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             autoComplete="new-password"
             value={pwd.newPassword}
             onChange={(e) => setPwd({ ...pwd, newPassword: e.target.value })}
-            placeholder={pwd.hasPassword ? "Nowe hasło (opcjonalnie - zmień)" : "Wpisz hasło"}
+            placeholder={
+              pwd.hasPassword
+                ? t("adminPostPanes.access.newPasswordPlaceholder")
+                : t("adminPostPanes.access.enterPasswordPlaceholder")
+            }
             className="h-9"
           />
           <p className="text-[11px] text-muted-foreground">
-            Hasło jest hashowane po stronie serwera (bcrypt) - nigdy nie trafia w postaci jawnej do
-            bazy ani do przeglądarki.
+            {t("adminPostPanes.access.passwordHashedHelper")}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Podpowiedź PL (opcjonalna)</Label>
+              <Label className="text-xs">{t("adminPostPanes.access.hintPl")}</Label>
               <Input
                 value={pwd.hintPl}
                 onChange={(e) => setPwd({ ...pwd, hintPl: e.target.value })}
@@ -217,7 +228,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs">Podpowiedź EN (opcjonalna)</Label>
+              <Label className="text-xs">{t("adminPostPanes.access.hintEn")}</Label>
               <Input
                 value={pwd.hintEn}
                 onChange={(e) => setPwd({ ...pwd, hintEn: e.target.value })}
@@ -231,10 +242,10 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       {rule.mode === "paid" && (
         <>
           <div>
-            <Label className="text-xs">Plany subskrypcji odblokowujące tę treść</Label>
+            <Label className="text-xs">{t("adminPostPanes.access.plansLabel")}</Label>
             {plans.length === 0 ? (
               <p className="text-xs text-muted-foreground mt-1">
-                Brak planów. Utwórz je w „Paywall → Plany".
+                {t("adminPostPanes.access.noPlans")}
               </p>
             ) : (
               <div className="space-y-1.5 mt-2">
@@ -255,7 +266,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Cena jednorazowa (grosze, 0 = wyłącz)</Label>
+              <Label className="text-xs">{t("adminPostPanes.access.oneTimePrice")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -267,7 +278,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs">Waluta</Label>
+              <Label className="text-xs">{t("adminPostPanes.access.currency")}</Label>
               <Input
                 value={rule.one_time_currency ?? "PLN"}
                 onChange={(e) => setRule({ ...rule, one_time_currency: e.target.value })}
@@ -281,7 +292,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       {rule.mode !== "public" && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs">Teaser PL (opcjonalny)</Label>
+            <Label className="text-xs">{t("adminPostPanes.access.teaserPl")}</Label>
             <Textarea
               rows={3}
               value={rule.teaser_pl ?? ""}
@@ -289,7 +300,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             />
           </div>
           <div>
-            <Label className="text-xs">Teaser EN (opcjonalny)</Label>
+            <Label className="text-xs">{t("adminPostPanes.access.teaserEn")}</Label>
             <Textarea
               rows={3}
               value={rule.teaser_en ?? ""}
@@ -298,9 +309,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
           </div>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">
-        Gdy nie podasz teasera, system automatycznie pokaże ok. 20% początku treści.
-      </p>
+      <p className="text-[11px] text-muted-foreground">{t("adminPostPanes.access.teaserHelper")}</p>
     </div>
   );
 }

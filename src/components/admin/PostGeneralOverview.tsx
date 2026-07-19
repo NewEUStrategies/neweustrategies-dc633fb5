@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import "@/lib/i18n-admin-post-panes";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -76,19 +78,6 @@ type Props = {
 
   onNavigate: (tab: DetailsTab) => void;
 };
-
-const titles = {
-  general: "Ogólne",
-  settings: "Ustawienia strony",
-  seo: "SEO",
-  meta: "Custom meta",
-  related: "Powiązane wpisy",
-  publish: "Publikacja",
-  layout: "Layout",
-  taxonomy: "Kategorie i tagi",
-  access: "Dostęp / Paywall",
-  revisions: "Historia zmian",
-} as const;
 
 function Tile({
   onClick,
@@ -211,6 +200,19 @@ export function PostGeneralOverview({
   selectedTagNames,
   onNavigate,
 }: Props) {
+  const { t } = useTranslation();
+  const titles = {
+    general: t("adminPostPanes.general.titleGeneral"),
+    settings: t("adminPostPanes.general.titleSettings"),
+    seo: t("adminPostPanes.general.titleSeo"),
+    meta: t("adminPostPanes.general.titleMeta"),
+    related: t("adminPostPanes.general.titleRelated"),
+    publish: t("adminPostPanes.general.titlePublish"),
+    layout: t("adminPostPanes.general.titleLayout"),
+    taxonomy: t("adminPostPanes.general.titleTaxonomy"),
+    access: t("adminPostPanes.general.titleAccess"),
+    revisions: t("adminPostPanes.general.titleRevisions"),
+  };
   const { data: accessRule } = useQuery({
     queryKey: ["content_access", "post", entityId],
     enabled: !!entityId,
@@ -268,61 +270,71 @@ export function PostGeneralOverview({
   const accessMode = accessRule?.mode ?? "public";
   const accessLabel =
     accessMode === "public"
-      ? "Publiczny"
+      ? t("adminPostPanes.general.accessPublic")
       : accessMode === "members"
-        ? "Członkowie"
+        ? t("adminPostPanes.general.accessMembers")
         : accessMode === "paid"
-          ? "Płatny"
+          ? t("adminPostPanes.general.accessPaid")
           : accessMode === "password"
-            ? "Hasło"
+            ? t("adminPostPanes.general.accessPassword")
             : accessMode;
 
   return (
     <div className="space-y-6">
       {/* Header + inline title/excerpt inputs */}
       <div className="space-y-1">
-        <h2 className="text-xl font-display font-semibold">Podsumowanie wpisu</h2>
-        <p className="text-xs text-muted-foreground">
-          Wszystkie karty są zsynchronizowane z pozostałymi zakładkami - kliknij kartę, aby przejść
-          do edycji szczegółów. Zmiany są odzwierciedlane natychmiast w obu miejscach.
-        </p>
+        <h2 className="text-xl font-display font-semibold">
+          {t("adminPostPanes.general.summaryTitle")}
+        </h2>
+        <p className="text-xs text-muted-foreground">{t("adminPostPanes.general.summaryIntro")}</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
           <Label className="flex items-center justify-between">
             <span>
-              Tytuł <span className="text-[10px] text-muted-foreground">(PL)</span>
+              {t("adminPostPanes.general.titleLabel")}{" "}
+              <span className="text-[10px] text-muted-foreground">(PL)</span>
             </span>
-            {titlePl.trim() ? <Chip tone="ok">✓</Chip> : <Chip tone="warn">brak</Chip>}
+            {titlePl.trim() ? (
+              <Chip tone="ok">✓</Chip>
+            ) : (
+              <Chip tone="warn">{t("adminPostPanes.general.none")}</Chip>
+            )}
           </Label>
           <Input
             value={titlePl}
             onChange={(e) => onTitlePlChange(e.target.value)}
             className="text-lg font-display"
-            placeholder="Tytuł po polsku"
+            placeholder={t("adminPostPanes.general.titlePlPlaceholder")}
           />
           <Label className="flex items-center justify-between">
             <span>
-              Lead <span className="text-[10px] text-muted-foreground">(PL)</span>
+              {t("adminPostPanes.general.lead")}{" "}
+              <span className="text-[10px] text-muted-foreground">(PL)</span>
             </span>
             <span className="text-[10px] text-muted-foreground font-normal">
-              {excerptPl.length} zn.
+              {t("adminPostPanes.general.charsCount", { n: excerptPl.length })}
             </span>
           </Label>
           <Textarea
             value={excerptPl}
             onChange={(e) => onExcerptPlChange(e.target.value)}
             rows={3}
-            placeholder="Krótki opis wpisu po polsku"
+            placeholder={t("adminPostPanes.general.excerptPlPlaceholder")}
           />
         </div>
         <div className="space-y-3">
           <Label className="flex items-center justify-between">
             <span>
-              Tytuł <span className="text-[10px] text-muted-foreground">(EN)</span>
+              {t("adminPostPanes.general.titleLabel")}{" "}
+              <span className="text-[10px] text-muted-foreground">(EN)</span>
             </span>
-            {titleEn.trim() ? <Chip tone="ok">✓</Chip> : <Chip tone="warn">brak</Chip>}
+            {titleEn.trim() ? (
+              <Chip tone="ok">✓</Chip>
+            ) : (
+              <Chip tone="warn">{t("adminPostPanes.general.none")}</Chip>
+            )}
           </Label>
           <Input
             value={titleEn}
@@ -332,10 +344,11 @@ export function PostGeneralOverview({
           />
           <Label className="flex items-center justify-between">
             <span>
-              Lead <span className="text-[10px] text-muted-foreground">(EN)</span>
+              {t("adminPostPanes.general.lead")}{" "}
+              <span className="text-[10px] text-muted-foreground">(EN)</span>
             </span>
             <span className="text-[10px] text-muted-foreground font-normal">
-              {excerptEn.length} zn.
+              {t("adminPostPanes.general.charsCount", { n: excerptEn.length })}
             </span>
           </Label>
           <Textarea
@@ -349,16 +362,31 @@ export function PostGeneralOverview({
 
       {/* Completion bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-        <span className="text-xs text-muted-foreground">Status wypełnienia:</span>
-        <Chip tone={titleFilled ? "ok" : "warn"}>Tytuły {titleFilled ? "✓" : "1/2"}</Chip>
-        <Chip tone={excerptFilled ? "ok" : "muted"}>Zajawki {excerptFilled ? "✓" : "opc."}</Chip>
-        <Chip tone={coverImageUrl ? "ok" : "muted"}>Cover {coverImageUrl ? "✓" : "brak"}</Chip>
+        <span className="text-xs text-muted-foreground">
+          {t("adminPostPanes.general.completionStatus")}
+        </span>
+        <Chip tone={titleFilled ? "ok" : "warn"}>
+          {t("adminPostPanes.general.titlesChip")} {titleFilled ? "✓" : "1/2"}
+        </Chip>
+        <Chip tone={excerptFilled ? "ok" : "muted"}>
+          {t("adminPostPanes.general.excerptsChip")}{" "}
+          {excerptFilled ? "✓" : t("adminPostPanes.general.optAbbr")}
+        </Chip>
+        <Chip tone={coverImageUrl ? "ok" : "muted"}>
+          Cover {coverImageUrl ? "✓" : t("adminPostPanes.general.none")}
+        </Chip>
         <Chip tone={blockingSeo > 0 ? "danger" : warnSeo > 0 ? "warn" : "ok"}>
           SEO{" "}
-          {blockingSeo > 0 ? `${blockingSeo} błędów` : warnSeo > 0 ? `${warnSeo} ostrzeżeń` : "OK"}
+          {blockingSeo > 0
+            ? t("adminPostPanes.general.seoErrors", { n: blockingSeo })
+            : warnSeo > 0
+              ? t("adminPostPanes.general.seoWarnings", { n: warnSeo })
+              : "OK"}
         </Chip>
         {seoNoindex && <Chip tone="warn">noindex</Chip>}
-        <Chip tone={accessMode === "public" ? "muted" : "brand"}>Dostęp: {accessLabel}</Chip>
+        <Chip tone={accessMode === "public" ? "muted" : "brand"}>
+          {t("adminPostPanes.general.accessChip", { label: accessLabel })}
+        </Chip>
         <Chip tone="muted">{status}</Chip>
       </div>
 
@@ -371,9 +399,18 @@ export function PostGeneralOverview({
           badge={<Chip tone={status === "published" ? "ok" : "muted"}>{status}</Chip>}
         >
           <Row label="Slug" value={slug || "—"} />
-          <Row label="Opublikowano" value={formatDate(publishedAt)} />
-          {publishAt && <Row label="Zaplanowane" value={formatDate(publishAt)} />}
-          <Row label="Cover" value={coverImageUrl ? "ustawiony" : "brak"} />
+          <Row label={t("adminPostPanes.general.publishedRow")} value={formatDate(publishedAt)} />
+          {publishAt && (
+            <Row label={t("adminPostPanes.general.scheduledRow")} value={formatDate(publishAt)} />
+          )}
+          <Row
+            label="Cover"
+            value={
+              coverImageUrl
+                ? t("adminPostPanes.general.coverSet")
+                : t("adminPostPanes.general.none")
+            }
+          />
         </Tile>
 
         <Tile
@@ -382,9 +419,11 @@ export function PostGeneralOverview({
           title={titles.seo}
           badge={
             blockingSeo > 0 ? (
-              <Chip tone="danger">{blockingSeo} błąd.</Chip>
+              <Chip tone="danger">
+                {t("adminPostPanes.general.seoErrorsAbbr", { n: blockingSeo })}
+              </Chip>
             ) : warnSeo > 0 ? (
-              <Chip tone="warn">{warnSeo} ostrz.</Chip>
+              <Chip tone="warn">{t("adminPostPanes.general.seoWarnAbbr", { n: warnSeo })}</Chip>
             ) : (
               <Chip tone="ok">OK</Chip>
             )
@@ -393,8 +432,18 @@ export function PostGeneralOverview({
         >
           <Row label="Meta title (PL)" value={`${(seoTitlePl ?? "").length} / 60`} />
           <Row label="Meta desc. (PL)" value={`${(seoDescriptionPl ?? "").length} / 160`} />
-          <Row label="Indexowanie" value={seoNoindex ? "noindex" : "index, follow"} />
-          <Row label="EN" value={seoTitleEn || seoDescriptionEn ? "uzupełnione" : "z zajawki"} />
+          <Row
+            label={t("adminPostPanes.general.indexingRow")}
+            value={seoNoindex ? "noindex" : "index, follow"}
+          />
+          <Row
+            label="EN"
+            value={
+              seoTitleEn || seoDescriptionEn
+                ? t("adminPostPanes.general.enFilled")
+                : t("adminPostPanes.general.enFromExcerpt")
+            }
+          />
         </Tile>
 
         <Tile
@@ -403,25 +452,31 @@ export function PostGeneralOverview({
           title={titles.settings}
           badge={
             <Chip tone={tocOverride ? "brand" : "muted"}>
-              {tocOverride ? "override" : "domyślne"}
+              {tocOverride
+                ? t("adminPostPanes.general.badgeOverride")
+                : t("adminPostPanes.general.badgeDefault")}
             </Chip>
           }
         >
           <Row
             label="Table of Contents"
-            value={tocOverride ? "nadpisane" : "z ustawień globalnych"}
+            value={
+              tocOverride
+                ? t("adminPostPanes.general.tocOverridden")
+                : t("adminPostPanes.general.tocFromGlobal")
+            }
           />
           <Row
-            label="Dowiesz się (PL)"
-            value={`${takeawaysPl.length} punkt${takeawaysPl.length === 1 ? "" : "y"}`}
+            label={t("adminPostPanes.general.takeawaysPlRow")}
+            value={t("adminPostPanes.general.takeawaysCount", { count: takeawaysPl.length })}
           />
           <Row
-            label="Dowiesz się (EN)"
-            value={`${takeawaysEn.length} punkt${takeawaysEn.length === 1 ? "" : "y"}`}
+            label={t("adminPostPanes.general.takeawaysEnRow")}
+            value={t("adminPostPanes.general.takeawaysCount", { count: takeawaysEn.length })}
           />
           {takeawaysCount === 0 && (
             <p className="text-[11px] italic text-muted-foreground">
-              Sugerowane: 3-5 punktów, 1 zdanie = 1 myśl.
+              {t("adminPostPanes.general.takeawaysSuggestion")}
             </p>
           )}
         </Tile>
@@ -432,20 +487,32 @@ export function PostGeneralOverview({
           title={titles.access}
           badge={<Chip tone={accessMode === "public" ? "muted" : "brand"}>{accessLabel}</Chip>}
         >
-          <Row label="Tryb" value={accessLabel} />
+          <Row label={t("adminPostPanes.general.modeRow")} value={accessLabel} />
           {accessMode === "paid" && (
             <>
-              <Row label="Plany" value={`${(accessRule?.plan_ids ?? []).length} wybrane`} />
+              <Row
+                label={t("adminPostPanes.general.plansRow")}
+                value={t("adminPostPanes.general.plansSelected", {
+                  count: (accessRule?.plan_ids ?? []).length,
+                })}
+              />
               {accessRule?.one_time_price_cents ? (
                 <Row
-                  label="Cena jednorazowa"
+                  label={t("adminPostPanes.general.oneTimePriceRow")}
                   value={`${((accessRule.one_time_price_cents ?? 0) / 100).toFixed(2)} ${accessRule.one_time_currency ?? "PLN"}`}
                 />
               ) : null}
             </>
           )}
           {accessMode === "password" && (
-            <Row label="Hasło" value={accessRule?.has_password ? "ustawione ✓" : "brak"} />
+            <Row
+              label={t("adminPostPanes.general.passwordRow")}
+              value={
+                accessRule?.has_password
+                  ? t("adminPostPanes.general.passwordSet")
+                  : t("adminPostPanes.general.none")
+              }
+            />
           )}
         </Tile>
 
@@ -455,7 +522,7 @@ export function PostGeneralOverview({
           title={titles.taxonomy}
           badge={
             <Chip tone={selectedCatNames.length ? "brand" : "warn"}>
-              {selectedCatNames.length} kat.
+              {t("adminPostPanes.general.catCount", { count: selectedCatNames.length })}
             </Chip>
           }
           tone={selectedCatNames.length === 0 ? "warn" : "default"}
@@ -468,7 +535,7 @@ export function PostGeneralOverview({
             ))}
             {selectedCatNames.length > 4 && <Chip>+{selectedCatNames.length - 4}</Chip>}
             {selectedCatNames.length === 0 && (
-              <span className="text-[11px] italic">brak kategorii</span>
+              <span className="text-[11px] italic">{t("adminPostPanes.general.noCategories")}</span>
             )}
           </div>
           <div className="flex flex-wrap gap-1 pt-1">
@@ -477,7 +544,7 @@ export function PostGeneralOverview({
             ))}
             {selectedTagNames.length > 5 && <Chip>+{selectedTagNames.length - 5}</Chip>}
             {selectedTagNames.length === 0 && (
-              <span className="text-[11px] italic">brak tagów</span>
+              <span className="text-[11px] italic">{t("adminPostPanes.general.noTags")}</span>
             )}
           </div>
         </Tile>
@@ -488,10 +555,14 @@ export function PostGeneralOverview({
           title={titles.layout}
           badge={<Chip>{postFormat}</Chip>}
         >
-          <Row label="Format" value={postFormat} />
+          <Row label={t("adminPostPanes.general.formatRow")} value={postFormat} />
           <Row
             label="Overrides"
-            value={layoutOverridesCount === 0 ? "brak" : `${layoutOverridesCount} pól`}
+            value={
+              layoutOverridesCount === 0
+                ? t("adminPostPanes.general.none")
+                : t("adminPostPanes.general.fieldsCount", { count: layoutOverridesCount })
+            }
           />
         </Tile>
 
@@ -501,7 +572,10 @@ export function PostGeneralOverview({
           title={titles.meta}
           badge={<Chip tone={customMetaCount > 0 ? "brand" : "muted"}>{customMetaCount}</Chip>}
         >
-          <Row label="Wypełnione pola" value={customMetaCount === 0 ? "brak" : customMetaCount} />
+          <Row
+            label={t("adminPostPanes.general.filledFieldsRow")}
+            value={customMetaCount === 0 ? t("adminPostPanes.general.none") : customMetaCount}
+          />
         </Tile>
 
         <Tile
@@ -510,13 +584,19 @@ export function PostGeneralOverview({
           title={titles.related}
           badge={
             <Chip tone={relatedOverride ? "brand" : "muted"}>
-              {relatedOverride ? "override" : "globalne"}
+              {relatedOverride
+                ? t("adminPostPanes.general.badgeOverride")
+                : t("adminPostPanes.general.badgeGlobal")}
             </Chip>
           }
         >
           <Row
-            label="Konfiguracja"
-            value={relatedOverride ? "per-wpis" : "z ustawień globalnych"}
+            label={t("adminPostPanes.general.configRow")}
+            value={
+              relatedOverride
+                ? t("adminPostPanes.general.configPerPost")
+                : t("adminPostPanes.general.tocFromGlobal")
+            }
           />
         </Tile>
 
@@ -527,7 +607,7 @@ export function PostGeneralOverview({
           badge={<Chip>{revisionsCount ?? 0}</Chip>}
         >
           <Row
-            label="Zapisane wersje"
+            label={t("adminPostPanes.general.savedVersionsRow")}
             value={revisionsCount === undefined ? "—" : revisionsCount}
           />
         </Tile>
