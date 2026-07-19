@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { FileDown } from "lucide-react";
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function FileBlock({ block, onChange }: Props) {
-  const { t } = useTranslation();
+  const bt = useBlocksI18n();
   const url = String(block.data.url ?? "");
   const label = String(block.data.label ?? "");
   const showButton = block.data.showButton !== false;
@@ -21,13 +21,13 @@ export function FileBlock({ block, onChange }: Props) {
         <FileDown className="w-5 h-5 text-muted-foreground shrink-0" />
         <Input
           value={label}
-          placeholder={t("adminBlocks.file.label")}
+          placeholder={bt.editor("file", "label")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, label: e.target.value } })}
         />
       </div>
       <Input
         value={url}
-        placeholder={t("adminBlocks.file.url")}
+        placeholder={bt.editor("file", "url")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
       />
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -38,7 +38,7 @@ export function FileBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, showButton: e.target.checked } })
           }
         />
-        {t("adminBlocks.file.showButton")}
+        {bt.editor("file", "showButton")}
       </label>
     </div>
   );

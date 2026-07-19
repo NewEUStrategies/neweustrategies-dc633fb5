@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function ImageBlock({ block, onChange }: Props) {
-  const { t } = useTranslation();
+  const bt = useBlocksI18n();
   const url = String(block.data.url ?? "");
   const alt = String(block.data.alt ?? "");
   const caption = String(block.data.caption ?? "");
@@ -20,11 +20,11 @@ export function ImageBlock({ block, onChange }: Props) {
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground" />
         <Input
-          placeholder={t("adminBlocks.image.url")}
+          placeholder={bt.editor("image", "url")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
           className="max-w-md mx-auto"
         />
-        <p className="text-xs text-muted-foreground">{t("adminBlocks.image.settingsHint")}</p>
+        <p className="text-xs text-muted-foreground">{bt.editor("image", "settingsHint")}</p>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export function ImageBlock({ block, onChange }: Props) {
       <input
         type="text"
         value={caption}
-        placeholder={t("adminBlocks.image.caption")}
+        placeholder={bt.editor("image", "caption")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, caption: e.target.value } })}
         className="w-full bg-transparent text-sm text-muted-foreground text-center italic border-none outline-none focus:ring-0 p-0"
       />
