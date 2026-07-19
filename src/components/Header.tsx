@@ -91,10 +91,8 @@ function HeaderInner() {
 
   if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
 
-  const openLabel = isPl ? "Otwórz menu" : "Open menu";
-  const closeLabel = isPl ? "Zamknij menu" : "Close menu";
-  const openA11y = t("nav.open", { defaultValue: openLabel });
-  const closeA11y = t("nav.close", { defaultValue: closeLabel });
+  const openA11y = t("common.openMenu");
+  const closeA11y = t("common.closeMenu");
 
   return (
     <>
