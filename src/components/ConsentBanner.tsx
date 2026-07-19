@@ -482,7 +482,7 @@ export function ConsentBanner() {
                     {t.policyLabel}
                   </span>
                 )}{" "}
-                {isPl ? "oraz" : "and"}{" "}
+                {tr("common.and")}{" "}
                 <a
                   href={dataProcessingHref}
                   className="text-[color:var(--cb-accent,var(--primary))] underline underline-offset-2 hover:opacity-80"
