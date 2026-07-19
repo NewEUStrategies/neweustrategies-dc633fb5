@@ -3,7 +3,7 @@
 // visually and behaviourally identical (live results, popover, clear button).
 // Layout: [search] [current article title] [theme | account/login | lang]
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Bookmark, ChevronDown, LogIn, LogOut, Settings, User } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
@@ -14,11 +14,16 @@ import { ChatBell } from "@/components/chat/ChatBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
+import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
 
 interface Props {
   title: string;
   /** Reveal once the user has scrolled past this many pixels. */
   showAfter?: number;
+  /** Identifier of the current post/page for the "save for later" action. */
+  entityId?: string;
+  /** Type of entity being saved (post or page). Defaults to post. */
+  entityType?: BookmarkEntityType;
 }
 
 const COPY = {
@@ -34,6 +39,9 @@ const COPY = {
     logout: "Wyloguj",
     lang: "Język",
     menu: "Menu konta",
+    saveForLater: "Zapisz na później",
+    saved: "Zapisano",
+    removeBookmark: "Usuń z zapisanych",
   },
   en: {
     reading: "currently reading",
@@ -47,10 +55,13 @@ const COPY = {
     logout: "Sign out",
     lang: "Language",
     menu: "Account menu",
+    saveForLater: "Save for later",
+    saved: "Saved",
+    removeBookmark: "Remove from saved",
   },
 } as const;
 
-export function ReadingHeader({ title, showAfter = 320 }: Props) {
+export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "post" }: Props) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
@@ -74,6 +85,15 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
   const [visible, setVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Save-for-later state for the current article.
+  const { data: bookmarks } = useBookmarks();
+  const toggleBookmark = useToggleBookmark();
+  const navigate = useNavigate();
+  const isSaved = entityId
+    ? bookmarks?.some((b) => b.entity_type === entityType && b.entity_id === entityId) ?? false
+    : false;
+  const bookmarkLabel = isSaved ? t.removeBookmark : t.saveForLater;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -167,6 +187,33 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
           <ThemeToggle className="h-8 w-8 grid place-items-center" />
           <NotificationsBell panelWidth={320} />
           <ChatBell panelWidth={340} />
+          {entityId && (
+            <button
+              type="button"
+              aria-pressed={isSaved}
+              aria-label={bookmarkLabel}
+              title={bookmarkLabel}
+              disabled={toggleBookmark.isPending}
+              onClick={() => {
+                if (!isAuthed) {
+                  void navigate({ to: "/login" });
+                  return;
+                }
+                toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
+              }}
+              className={[
+                "h-8 w-8 grid place-items-center rounded-md transition shrink-0",
+                "text-foreground hover:text-brand hover:bg-muted",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+                isSaved ? "text-brand" : "",
+                toggleBookmark.isPending ? "opacity-60 cursor-wait" : "",
+              ].join(" ")}
+            >
+              <Bookmark
+                className={`w-[18px] h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
+              />
+            </button>
+          )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (

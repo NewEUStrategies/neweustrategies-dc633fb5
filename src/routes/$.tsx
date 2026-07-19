@@ -707,6 +707,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             coverViewTransitionId={it.id}
+            entityId={it.id}
+            entityType="post"
             meta={
               <PostOverlayMeta
                 lang={lang}
