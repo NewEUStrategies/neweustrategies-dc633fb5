@@ -709,7 +709,10 @@ function NewTierDialog({
   onCreate: (v: { key: string; rank: number; name_pl: string; name_en: string }) => void;
   isPending: boolean;
 }) {
+  const { t } = useTranslation();
+  const tm = (k: string) => t(`adminMembership.${k}`);
   const [open, setOpen] = useState(false);
+
   const [key, setKey] = useState("");
   const [rank, setRank] = useState(suggestedRank);
   const [namePl, setNamePl] = useState("");
