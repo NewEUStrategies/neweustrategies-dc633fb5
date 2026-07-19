@@ -21,6 +21,7 @@ import {
   Clock as LClock,
   Columns2 as LColumns2,
   Copy as LCopy,
+  ExternalLink as LExternalLink,
   Eye as LEye,
   File as LFile,
   FileText as LFileText,
