@@ -365,11 +365,10 @@ function Toggle({
 }) {
   return (
     <label className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/40 transition-colors">
-      <input
-        type="checkbox"
-        className="mt-1 w-4 h-4 accent-primary"
+      <Checkbox
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
+        onCheckedChange={(v) => onChange(v === true)}
+        className="mt-0.5"
       />
       <div className="min-w-0">
         <div className="text-sm font-medium">{label}</div>
@@ -378,6 +377,7 @@ function Toggle({
     </label>
   );
 }
+
 
 const MODE_OPTIONS: { value: NewsletterMode; title: string; desc: string; icon: typeof Mail }[] = [
   { value: "off", title: "Wylaczony", desc: "Zaden formularz nie jest widoczny.", icon: UserMinus },
