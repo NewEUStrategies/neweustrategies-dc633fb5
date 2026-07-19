@@ -284,22 +284,6 @@ export function MegaPanelView({
           </div>
         ) : null}
       </div>
-      {parentLabel && parentHref ? (
-        <div className="border-t border-border/60 bg-muted/30 px-6 py-3.5 sm:px-8 sm:py-4">
-          <AppLink
-            href={safeUrl(parentHref) || "#"}
-            className="group inline-flex items-center gap-2 text-xs font-bold text-brand hover:opacity-80"
-          >
-            <span className="text-muted-foreground">{goToPage}:</span>
-            <span className="font-black uppercase tracking-[0.12em]">{parentLabel}</span>
-            <ArrowRight
-              size={14}
-              className="transition-transform group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </AppLink>
-        </div>
-      ) : null}
     </div>
   );
 }
