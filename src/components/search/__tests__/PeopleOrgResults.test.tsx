@@ -69,6 +69,18 @@ describe("PeopleOrgResults", () => {
     expect(screen.getByLabelText("search.people.verified")).toBeTruthy();
   });
 
+  it("wyświetla logo organizacji, gdy jest dostępne", () => {
+    const { container } = render(
+      <PeopleOrgResults
+        items={[item({ kind: "organization", id: "o1", label_pl: "NATO", logoUrl: "https://example.com/nato.png" })]}
+        lang="pl"
+      />,
+    );
+    const img = container.querySelector('img[alt=""]');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute("src")).toBe("https://example.com/nato.png");
+  });
+
   it("pusta lista nie renderuje niczego", () => {
     const { container } = render(<PeopleOrgResults items={[]} lang="pl" />);
     expect(container.innerHTML).toBe("");
