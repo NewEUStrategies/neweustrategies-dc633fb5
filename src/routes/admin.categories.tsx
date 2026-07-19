@@ -163,6 +163,7 @@ function Categories() {
       slug: c.slug,
       description_pl: c.description_pl ?? "",
       description_en: c.description_en ?? "",
+      logo_url: c.logo_url ?? "",
       kind: c.kind,
       parent_id: c.parent_id,
     });
