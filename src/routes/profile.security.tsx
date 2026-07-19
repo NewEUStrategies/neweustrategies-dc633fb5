@@ -124,13 +124,7 @@ function SecurityPage() {
       return toast.error(t("profile.security.email.invalid"));
     }
     if (!emailPw) {
-      return toast.error(
-        t("profile.security.email.needPassword", {
-          defaultValue: isPl
-            ? "Podaj obecne hasło, aby potwierdzić."
-            : "Enter your current password to confirm.",
-        }),
-      );
+      return toast.error(t("profile.security.email.needPassword"));
     }
     setEmailBusy(true);
     try {
