@@ -379,9 +379,11 @@ export function NewsletterForm({
               <SubscribeButton
                 loading={state === "loading"}
                 aria-label={t("newsletterForm.subscribe")}
+                className="!min-h-[52px] !py-0 !px-6 self-stretch"
               >
                 {t("newsletterForm.subscribe")}
               </SubscribeButton>
+
 
             </>
           )}
