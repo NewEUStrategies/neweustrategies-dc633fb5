@@ -960,12 +960,23 @@ function EditorialHeroVariant(p: VariantProps) {
             </h3>
           </div>
         )}
-        <p
-          className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-          style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
-        >
-          {sub || "\u00A0"}
-        </p>
+        {href ? (
+          <AppLink href={href} className="block">
+            <p
+              className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+              style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+            >
+              {sub || "\u00A0"}
+            </p>
+          </AppLink>
+        ) : (
+          <p
+            className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+            style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+          >
+            {sub || "\u00A0"}
+          </p>
+        )}
         {(cur.author || cur.readTime) && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
             {cur.author && (
@@ -1339,12 +1350,23 @@ function SplitFeatureVariant(p: VariantProps) {
           </h3>
         )}
         {sub && (
-          <p
-            className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
-            style={p.subtitleStyle}
-          >
-            {sub}
-          </p>
+          href ? (
+            <AppLink href={href} className="block">
+              <p
+                className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+                style={p.subtitleStyle}
+              >
+                {sub}
+              </p>
+            </AppLink>
+          ) : (
+            <p
+              className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+              style={p.subtitleStyle}
+            >
+              {sub}
+            </p>
+          )
         )}
         {(cur.author || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
