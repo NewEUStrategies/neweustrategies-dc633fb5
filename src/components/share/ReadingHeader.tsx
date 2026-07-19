@@ -183,10 +183,10 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         </div>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <ThemeToggle className="h-8 w-8 grid place-items-center" />
-          <NotificationsBell panelWidth={320} />
-          <ChatBell panelWidth={340} />
+        <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
+          <ThemeToggle className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center" />
+          <NotificationsBell panelWidth={280} className="hidden xs:flex" />
+          <ChatBell panelWidth={300} className="hidden xs:flex" />
           {entityId && (
             <button
               type="button"
@@ -202,7 +202,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
                 toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
               }}
               className={[
-                "h-8 w-8 grid place-items-center rounded-md transition shrink-0",
+                "h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md transition shrink-0",
                 "text-foreground hover:text-brand hover:bg-muted",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
                 isSaved ? "text-brand" : "",
@@ -210,7 +210,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
               ].join(" ")}
             >
               <Bookmark
-                className={`w-[18px] h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
+                className={`w-4 h-4 sm:w-[18px] sm:h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
               />
             </button>
           )}
