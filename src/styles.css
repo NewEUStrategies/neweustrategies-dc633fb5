@@ -4725,10 +4725,10 @@ textarea.input {
    Reference: a pill track whose background is the active nation's flag,
    with a white sliding circle that carries the active language code (PL/EN). */
 .lang-switch {
-  --toggle-size: 12px;
-  --container-width: 5.625em;
-  --container-height: 2.5em;
-  --container-radius: 6.25em;
+  --toggle-size: 10px;
+  --container-width: 4.5em;
+  --container-height: 2em;
+  --container-radius: 6px;
   --container-pl-bg: linear-gradient(180deg, #ffffff 50%, #dc143c 50%);
   --container-en-bg:
     linear-gradient(90deg, transparent 45%, #ffffff 45%, #ffffff 55%, transparent 55%),
@@ -4740,14 +4740,14 @@ textarea.input {
     linear-gradient(26.565deg, transparent 49%, #c8102e 49%, #c8102e 51%, transparent 51%),
     linear-gradient(-26.565deg, transparent 49%, #c8102e 49%, #c8102e 51%, transparent 51%),
     #012169;
-  --circle-container-diameter: 3.375em;
-  --flag-diameter: 2.125em;
+  --circle-container-diameter: 2.8em;
+  --flag-diameter: 1.7em;
   --circle-container-offset: calc((var(--circle-container-diameter) - var(--container-height)) / 2 * -1);
   --transition: 0.5s cubic-bezier(0, -0.02, 0.4, 1.25);
   --circle-transition: 0.3s cubic-bezier(0, -0.02, 0.35, 1.17);
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
+  gap: 0.4em;
   cursor: pointer;
   font-size: var(--toggle-size);
   -webkit-tap-highlight-color: transparent;
