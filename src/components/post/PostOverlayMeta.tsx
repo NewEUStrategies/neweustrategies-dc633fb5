@@ -78,7 +78,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
                   src={author.avatar_url}
                   alt={name}
                   loading="lazy"
-                  className="w-7 h-7 rounded-full object-cover ring-2 ring-white/70 shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
+                  className="w-7 h-7 rounded-[6px] object-cover ring-2 ring-white/70 shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
                 />
               </AppLink>
             ) : (
@@ -86,7 +86,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
                 src={author.avatar_url}
                 alt={name}
                 loading="lazy"
-                className="w-7 h-7 rounded-full object-cover ring-2 ring-white/70 shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
+                className="w-7 h-7 rounded-[6px] object-cover ring-2 ring-white/70 shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
               />
             )
           ) : (
