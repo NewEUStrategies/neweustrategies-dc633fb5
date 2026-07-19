@@ -9,10 +9,13 @@ import { setClientLang } from "@/lib/i18n/localeRuntime";
 
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
-  const current: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
-  const next: "pl" | "en" = current === "pl" ? "en" : "pl";
+  const router = useRouter();
+  const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const next: AppLang = current === "pl" ? "en" : "pl";
 
   const switchLang = () => {
+    if (current === next) return;
+    setClientLang(next);
     void i18n.changeLanguage(next);
     try {
       localStorage.setItem("i18nextLng", next);
@@ -20,6 +23,12 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
     } catch {
       /* noop */
     }
+    const internal = stripLangPrefix(router.state.location.pathname).pathname;
+    void router.navigate({
+      href: localizedPath(internal, next),
+      replace: true,
+      resetScroll: false,
+    });
   };
 
   return (
