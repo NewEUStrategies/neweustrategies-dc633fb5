@@ -892,7 +892,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
         <div className="grid gap-2 md:grid-cols-2">
           <Textarea
             rows={2}
-            placeholder={lang === "pl" ? "Streszczenie (PL)" : "Summary (PL)"}
+            placeholder={tp("projects.summaryPl")}
             value={draft.summary_pl ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, summary_pl: e.target.value || null }))}
           />
