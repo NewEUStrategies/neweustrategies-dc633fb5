@@ -265,21 +265,6 @@ export function MegaPanelView({
                 />
               </div>
             </AppLink>
-            {parentLabel && parentHref ? (
-              <div className="mt-6 border-t border-border/60 pt-4">
-                <AppLink
-                  href={parentHref}
-                  className="group inline-flex items-center gap-1.5 text-xs font-bold text-brand hover:opacity-80"
-                >
-                  {lang === "en" ? `All in ${parentLabel}` : `Wszystko w: ${parentLabel}`}
-                  <ArrowRight
-                    size={14}
-                    className="transition-transform group-hover:translate-x-0.5"
-                    aria-hidden
-                  />
-                </AppLink>
-              </div>
-            ) : null}
           </div>
         ) : null}
       </div>
