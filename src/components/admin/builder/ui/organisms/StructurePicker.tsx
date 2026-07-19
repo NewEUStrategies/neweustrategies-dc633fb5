@@ -4,6 +4,8 @@
 // specific position.
 import { Plus } from "@/lib/lucide-shim";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 type Structure = { spans: number[]; label: string };
 
@@ -33,6 +35,9 @@ interface Props {
 }
 
 export function StructurePicker({ onPick, compact = false, cols = 4 }: Props) {
+  const { t } = useTranslation();
+  const labelOf = (s: Structure) =>
+    s.spans.length === 1 ? t("builder.chrome.oneColumn") : s.label;
   const h = compact ? "h-12" : "h-16";
   const gap = compact ? "gap-[2px]" : "gap-1";
   return (
@@ -55,7 +60,7 @@ export function StructurePicker({ onPick, compact = false, cols = 4 }: Props) {
               e.dataTransfer.setData("text/plain", s.label);
             }}
             onClick={() => onPick(s.spans)}
-            title={`Wstaw sekcję: ${s.label} (kliknij lub przeciągnij na płótno)`}
+            title={t("builder.chrome.insertSection", { label: labelOf(s) })}
             className={`relative ${h} bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-stretch justify-stretch p-1.5 transition group cursor-grab active:cursor-grabbing`}
           >
             <div className={`flex-1 flex ${gap} items-stretch`}>
@@ -68,7 +73,7 @@ export function StructurePicker({ onPick, compact = false, cols = 4 }: Props) {
               ))}
             </div>
             <div className="mt-1 text-[9px] leading-tight text-muted-foreground group-hover:text-brand truncate pointer-events-none">
-              {s.label}
+              {labelOf(s)}
             </div>
             <Plus className="absolute top-0.5 right-0.5 w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-brand pointer-events-none" />
           </button>

@@ -1,4 +1,7 @@
 // Atom: framed item with title + remove button. Used inside list editors.
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
+
 export function ItemFrame({
   title,
   onRemove,
@@ -8,6 +11,7 @@ export function ItemFrame({
   onRemove: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="border border-border rounded-md p-2 space-y-1.5 bg-background">
       <div className="flex items-center justify-between">
@@ -17,7 +21,7 @@ export function ItemFrame({
           onClick={onRemove}
           className="text-[10px] text-muted-foreground hover:text-destructive"
         >
-          Usuń
+          {t("builder.common.delete")}
         </button>
       </div>
       {children}

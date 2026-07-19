@@ -2,6 +2,8 @@
 // the object-position percentages. Uses a draggable crosshair overlay.
 import { useCallback, useRef, type CSSProperties } from "react";
 import { safeImageUrl } from "@/lib/sanitize";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   image: string;
@@ -23,6 +25,7 @@ export function FocalPointPicker({
   aspectCls = "aspect-[16/10]",
   placeholderColor,
 }: Props) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
 
@@ -87,7 +90,7 @@ export function FocalPointPicker({
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground">
-          Brak obrazu - dodaj URL powyżej
+          {t("builder.chrome.noImageAddUrl")}
         </div>
       )}
       <div

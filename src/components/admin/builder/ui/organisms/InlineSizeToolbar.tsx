@@ -18,6 +18,8 @@
 //     target element is re-resolved by (widgetId, key) with a grace period.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { Minus, Plus, PanelRightOpen, X } from "lucide-react";
 import type { BuilderDocument, WidgetNode, Json } from "@/lib/builder/types";
 import { findWidget } from "@/lib/builder/operations";
@@ -79,6 +81,7 @@ function sameRect(a: Rects["el"], b: Rects["el"]) {
 }
 
 export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }: Props) {
+  const { t } = useTranslation();
   const [target, setTarget] = useState<Target | null>(null);
   const [rects, setRects] = useState<Rects | null>(null);
   const [effectivePx, setEffectivePx] = useState<number | null>(null);
@@ -325,7 +328,7 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
         data-cms-size-toolbar
         data-builder-chrome="size-toolbar"
         role="toolbar"
-        aria-label={`Rozmiar czcionki: ${meta.label}`}
+        aria-label={t("builder.inlineSize.fontSizeAria", { label: meta.label })}
         onPointerDown={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
@@ -369,15 +372,15 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
           type="button"
           onClick={() => bump(-1)}
           style={iconBtn}
-          title="Zmniejsz (Shift = -4)"
-          aria-label="Zmniejsz rozmiar"
+          title={t("builder.inlineSize.decreaseTitle")}
+          aria-label={t("builder.inlineSize.decreaseSize")}
         >
           <Minus size={12} strokeWidth={2.4} />
         </button>
         <input
           type="text"
           inputMode="numeric"
-          aria-label={`Rozmiar w px: ${meta.label}`}
+          aria-label={t("builder.inlineSize.pxSizeAria", { label: meta.label })}
           value={shown}
           onFocus={() => setDraft(String(override ?? effectivePx ?? meta.fallbackPx))}
           onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
@@ -416,7 +419,7 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
         <span style={{ color: chrome.dim, fontSize: 9, lineHeight: 1, flex: "0 0 auto" }}>px</span>
         {isAuto && (
           <span
-            title="Brak nadpisania — pokazujemy aktualny (wyliczony) rozmiar"
+            title={t("builder.inlineSize.noOverride")}
             style={{
               color: "#fbbf77",
               fontSize: 9,
@@ -434,8 +437,8 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
           type="button"
           onClick={() => bump(1)}
           style={iconBtn}
-          title="Zwiększ (Shift = +4)"
-          aria-label="Zwiększ rozmiar"
+          title={t("builder.inlineSize.increaseTitle")}
+          aria-label={t("builder.inlineSize.increaseSize")}
         >
           <Plus size={12} strokeWidth={2.4} />
         </button>
@@ -447,7 +450,12 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
             flex: "0 0 auto",
           }}
         />
-        <button type="button" onClick={openInPanel} style={textBtn} title="Otwórz w panelu Styl">
+        <button
+          type="button"
+          onClick={openInPanel}
+          style={textBtn}
+          title={t("builder.inlineSize.openInStyle")}
+        >
           <PanelRightOpen size={12} strokeWidth={2.4} />
           Panel
         </button>
@@ -458,7 +466,7 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
             commitValue(null);
           }}
           style={{ ...textBtn, opacity: isAuto ? 0.45 : 1 }}
-          title="Przywróć domyślny rozmiar"
+          title={t("builder.inlineSize.resetSize")}
           disabled={isAuto}
         >
           Reset
@@ -467,8 +475,8 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
           type="button"
           onClick={() => setTarget(null)}
           style={iconBtn}
-          title="Zamknij (Esc)"
-          aria-label="Zamknij"
+          title={t("builder.inlineSize.closeTitle")}
+          aria-label={t("builder.inlineSize.close")}
         >
           <X size={12} strokeWidth={2.4} />
         </button>
