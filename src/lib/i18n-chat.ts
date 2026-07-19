@@ -261,6 +261,8 @@ export const chatPl = {
         question:
           "Dobre pytanie. W trybie demo odpowiadam echem - zwróć uwagę na wyrównanie dymka i status.",
         echo: "Echo: {{msg}}",
+        image: "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)",
+        file: "Otrzymałem plik: {{name}} (podgląd demo).",
       },
     },
     mediaHistory: {
