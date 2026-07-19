@@ -10,6 +10,8 @@
 //   title   → --td-pt-size (15px)  / --td-pt-lh (1.3) / --td-pt-weight (600)
 //   subtitle→ --td-pe-size (13px)  / --td-pe-lh (1.5) / --td-pe-weight (400)
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   /** Empty → inherit --td-pt-weight. */
@@ -56,6 +58,7 @@ const Row = ({
   weightFallbackNote,
   lhFallbackNote,
 }: RowProps) => {
+  const { t } = useTranslation();
   const wrapper: CSSProperties =
     mode === "dark"
       ? { background: "#0f0f11", color: "#f8f6f4", borderColor: "rgba(255,255,255,0.08)" }
@@ -76,7 +79,7 @@ const Row = ({
     <div
       className="rounded border p-3 space-y-1"
       style={wrapper}
-      aria-label={`Podgląd nagłówka - tryb ${label}`}
+      aria-label={t("builder.headingFallbackPreview.previewAria", { mode: label })}
     >
       <div className="text-[10px] uppercase tracking-wider opacity-60">{label}</div>
       <div className="font-display" style={titleStyle}>
@@ -105,6 +108,7 @@ export function HeadingFallbackPreview({
   titleSample,
   subtitleSample,
 }: Props) {
+  const { t } = useTranslation();
   // Mirror WidgetView.tsx exactly:
   //  - sizePx > 0                → px + lh 1.1 (hardcoded to match preset)
   //  - sizePx = 0 and no preset  → var(--td-pt-size, 15px) + var(--td-pt-lh, 1.3)
@@ -134,26 +138,24 @@ export function HeadingFallbackPreview({
 
   const weightFallbackNote =
     !titleWeight && !subtitleWeight
-      ? "Wagi (tytuł + podtytuł) dziedziczą z Theme Design → Typografia."
+      ? t("builder.headingFallbackPreview.weightsBoth")
       : !titleWeight
-        ? "Waga tytułu dziedziczy z Theme Design (--td-pt-weight)."
+        ? t("builder.headingFallbackPreview.weightTitle")
         : !subtitleWeight
-          ? "Waga podtytułu dziedziczy z Theme Design (--td-pe-weight)."
-          : "Wagi ustawione lokalnie na widgecie.";
+          ? t("builder.headingFallbackPreview.weightSubtitle")
+          : t("builder.headingFallbackPreview.weightsLocal");
   const lhFallbackNote =
-    !usePxTitle || !usePxSub
-      ? "Line-height dziedziczy z Theme Design (--td-pt-lh / --td-pe-lh)."
-      : "";
+    !usePxTitle || !usePxSub ? t("builder.headingFallbackPreview.lineHeight") : "";
 
   return (
     <div className="mt-3 space-y-1.5">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        Podgląd fallbacków (light / dark)
+        {t("builder.headingFallbackPreview.preview")}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Row
           mode="light"
-          label="Jasny"
+          label={t("builder.common.light")}
           titleWeight={resolvedTitleWeight}
           subtitleWeight={resolvedSubtitleWeight}
           titleFontSize={titleFontSize}
@@ -167,7 +169,7 @@ export function HeadingFallbackPreview({
         />
         <Row
           mode="dark"
-          label="Ciemny"
+          label={t("builder.common.dark")}
           titleWeight={resolvedTitleWeight}
           subtitleWeight={resolvedSubtitleWeight}
           titleFontSize={titleFontSize}
@@ -181,7 +183,7 @@ export function HeadingFallbackPreview({
         />
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Puste pole „Grubość" / brak „Rozmiar px" = wartość z Theme Design → „Typografia postów".
+        {t("builder.headingFallbackPreview.note")}
       </p>
     </div>
   );
