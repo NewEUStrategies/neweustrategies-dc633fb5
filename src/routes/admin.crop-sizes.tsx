@@ -5,6 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,7 +59,7 @@ function CropSizesAdmin() {
     try {
       const r = await regen$({ data: { limit: 100 } });
       setRegenStatus(`Media: ${r.media} | rozmiary: ${r.sizes} | OK: ${r.ok} | błędy: ${r.failed}`);
-      toast.success("Pre-warm zakończony");
+      toast.success(adminToast.prewarmDone());
     } catch (e) {
       setRegenStatus(null);
       toast.error(e instanceof Error ? e.message : String(e));
@@ -67,12 +68,12 @@ function CropSizesAdmin() {
 
   const save = async () => {
     if (!draft.name.trim()) {
-      toast.error("Nazwa wymagana");
+      toast.error(adminToast.nameRequired());
       return;
     }
     try {
       await upsertCropSize(tenantId, draft);
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
       setDraft(DEFAULT_DRAFT);
       refresh();
     } catch (e) {

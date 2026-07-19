@@ -34,6 +34,7 @@ import {
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { adminToast } from "@/lib/adminToasts";
 
 interface SearchParams {
   postId?: string;
@@ -201,8 +202,8 @@ function LiveBlogAdmin() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["liveBlogEntries"] });
 
   const addEntry = async () => {
-    if (!enabled) return toast.error("Najpierw wybierz post i blok");
-    if (!draft.body_html.trim()) return toast.error("Pusta treść");
+    if (!enabled) return toast.error(adminToast.error());
+    if (!draft.body_html.trim()) return toast.error(adminToast.emptyContent());
     const { error } = await supabase.from("live_blog_entries").insert({
       tenant_id: tenantId,
       post_id: search.postId!,
@@ -215,20 +216,20 @@ function LiveBlogAdmin() {
     });
     if (error) return toast.error(error.message);
     setDraft({ title: "", body_html: "", pinned: false });
-    toast.success("Dodano wpis");
+    toast.success(adminToast.added());
     refresh();
   };
 
   const saveEdit = async () => {
     if (!editing) return;
-    if (!editing.body_html.trim()) return toast.error("Pusta treść");
+    if (!editing.body_html.trim()) return toast.error(adminToast.emptyContent());
     const { error } = await supabase
       .from("live_blog_entries")
       .update({ title: editing.title || null, body_html: editing.body_html })
       .eq("id", editing.id);
     if (error) return toast.error(error.message);
     setEditing(null);
-    toast.success("Zapisano zmiany");
+    toast.success(adminToast.saved());
     refresh();
   };
 
@@ -244,7 +245,7 @@ function LiveBlogAdmin() {
   const remove = async (id: string) => {
     const { error } = await supabase.from("live_blog_entries").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Usunięto wpis");
+    toast.success(adminToast.deleted());
     refresh();
   };
 

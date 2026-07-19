@@ -38,6 +38,7 @@ import { useInterestCatalog } from "@/hooks/useInterests";
 import "@/lib/i18n-ads-admin";
 
 import { confirmDialog } from "@/lib/appDialogs";
+import { adminToast } from "@/lib/adminToasts";
 export const Route = createFileRoute("/admin/ads")({ component: AdsAdmin });
 
 function emptySlot(): Partial<AdSlot> {
@@ -274,7 +275,7 @@ function SlotsPanel() {
     const { error } = await supabase.from("ad_slots").delete().eq("id", id);
     if (error) toast.error(error.message);
     else {
-      toast.success("Usunięto");
+      toast.success(adminToast.deleted());
       load();
     }
   };
@@ -502,7 +503,7 @@ function PlacementsPanel() {
     const { error } = await supabase.from("ad_placements").delete().eq("id", id);
     if (error) toast.error(error.message);
     else {
-      toast.success("Usunięto");
+      toast.success(adminToast.deleted());
       load();
     }
   };

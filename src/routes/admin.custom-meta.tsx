@@ -25,6 +25,7 @@ import {
 import { CUSTOM_META_ICON_NAMES } from "@/components/post/CustomMetaList";
 
 import { confirmDialog } from "@/lib/appDialogs";
+import { adminToast } from "@/lib/adminToasts";
 export const Route = createFileRoute("/admin/custom-meta")({
   component: CustomMetaAdmin,
   head: () => ({ meta: [{ title: "Custom meta - Admin" }] }),
@@ -59,11 +60,11 @@ function CustomMetaAdmin() {
 
   const save = async (): Promise<void> => {
     if (!draft.key.trim()) {
-      toast.error("Klucz jest wymagany");
+      toast.error(adminToast.keyRequired());
       return;
     }
     if (!draft.label_pl.trim() && !draft.label_en.trim()) {
-      toast.error("Podaj etykietę PL lub EN");
+      toast.error(adminToast.labelRequired());
       return;
     }
     try {
@@ -76,7 +77,7 @@ function CustomMetaAdmin() {
           .toLowerCase()
           .replace(/[^a-z0-9_]+/g, "_"),
       });
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
       setDraft({
         key: "",
         label_pl: "",
@@ -114,7 +115,7 @@ function CustomMetaAdmin() {
     try {
       await deleteCustomMetaDef(id);
       refresh();
-      toast.success("Usunięto");
+      toast.success(adminToast.deleted());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Błąd");
     }

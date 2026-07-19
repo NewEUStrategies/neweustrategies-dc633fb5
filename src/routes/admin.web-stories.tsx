@@ -19,6 +19,7 @@ import {
   type WebStory,
   type WebStoryStatus,
 } from "@/lib/web-stories/types";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/web-stories")({ component: Page });
 
@@ -108,7 +109,7 @@ function Page() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "web-stories"] });
       qc.invalidateQueries({ queryKey: ["web-stories"] });
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
       setEditing(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -121,7 +122,7 @@ function Page() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "web-stories"] });
-      toast.success("Usunięto");
+      toast.success(adminToast.deleted());
     },
     onError: (e: Error) => toast.error(e.message),
   });

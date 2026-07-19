@@ -56,6 +56,7 @@ import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { adminToast } from "@/lib/adminToasts";
 
 /** Auto-detect an audio file's duration by loading its metadata in the browser. */
 function detectAudioDuration(url: string): Promise<number | null> {
@@ -317,7 +318,7 @@ function Page() {
       qc.invalidateQueries({ queryKey: ["admin", "podcasts"] });
       qc.invalidateQueries({ queryKey: ["podcasts"] });
       qc.invalidateQueries({ queryKey: ["podcast-people"] });
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
       setEditing(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -333,7 +334,7 @@ function Page() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "podcasts"] });
-      toast.success("Usunięto");
+      toast.success(adminToast.deleted());
     },
   });
 
@@ -626,7 +627,7 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "podcast-shows"] });
       qc.invalidateQueries({ queryKey: ["podcast-shows"] });
-      toast.success("Zapisano program");
+      toast.success(adminToast.saved());
       setEditing(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -643,7 +644,7 @@ function ShowsPane({ onClose }: { onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "podcast-shows"] });
       qc.invalidateQueries({ queryKey: ["podcast-shows"] });
-      toast.success("Usunięto program");
+      toast.success(adminToast.deleted());
     },
   });
 
@@ -953,7 +954,7 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "podcast-settings"] });
       qc.invalidateQueries({ queryKey: ["podcast-settings"] });
-      toast.success("Ustawienia zapisane");
+      toast.success(adminToast.settingsSaved());
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),

@@ -11,6 +11,7 @@ import {
   sendInvitation,
   revokeInvitation,
 } from "@/lib/admin/invitations.functions";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/users/invitations")({
   component: InvitationsPage,
@@ -30,7 +31,7 @@ function InvitationsPage() {
   const doResend = async (id: string) => {
     const r = await resend({ data: { id } });
     if (r.ok) {
-      toast.success("Wysłano");
+      toast.success(adminToast.sent());
       if (r.tempPassword) toast.info(`Hasło: ${r.tempPassword}`);
     } else toast.error(r.error ?? "failed");
     qc.invalidateQueries({ queryKey: ["user-invitations"] });
