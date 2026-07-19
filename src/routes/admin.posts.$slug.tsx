@@ -1136,6 +1136,7 @@ function EditPost() {
                     )}
 
                     {detailsTab === "seo" && (
+                      <div className="space-y-3">
                       <SeoPanel
                         value={{
                           seo_title_pl: form.seo_title_pl,
