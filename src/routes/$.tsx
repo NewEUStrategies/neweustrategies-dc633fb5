@@ -142,7 +142,21 @@ export const Route = createFileRoute("/$")({
     const segments = splatToSegments(splat);
     if (segments.length === 0) throw notFound();
     const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
-    if (!data) throw notFound();
+    if (!data) {
+      // Taxonomy fallback: /<slug> may point at a category or tag archive.
+      // Categories/tags live at /category/<slug> and /tag/<slug>; if the bare
+      // slug matches one, redirect there instead of 404-ing.
+      if (segments.length === 1) {
+        const slug = segments[0];
+        const [{ data: cat }, { data: tag }] = await Promise.all([
+          supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
+          supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
+        ]);
+        if (cat?.slug) throw redirect({ to: "/category/$slug", params: { slug: cat.slug }, replace: true });
+        if (tag?.slug) throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
+      }
+      throw notFound();
+    }
     // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
     // are fetched client-side after hydration), so it is safe to share-cache and
     // serve stale-while-revalidate from the CDN. The language lives in the URL
