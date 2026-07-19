@@ -4762,21 +4762,6 @@ textarea.input {
   padding: 0;
 }
 
-.lang-switch__label {
-  font-family: "Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif;
-  font-size: 0.875em;
-  font-weight: 700;
-  line-height: 1;
-  color: oklch(0.55 0 0);
-  letter-spacing: 0.04em;
-  transition: color 0.25s ease;
-  user-select: none;
-}
-
-.lang-switch__label[data-active="true"] {
-  color: var(--foreground, #0f172a);
-}
-
 .lang-switch__container {
   width: var(--container-width);
   height: var(--container-height);
