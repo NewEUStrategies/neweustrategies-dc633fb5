@@ -583,16 +583,16 @@ export function ConsentBanner() {
                         <thead>
                           <tr className="text-[color:var(--cb-fg,var(--muted-foreground))]/80 border-b border-[color:var(--cb-border,var(--border))]">
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Nazwa" : "Name"}
+                              {tr("common.name")}
                             </th>
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Podmiot" : "Party"}
+                              {tr("common.party")}
                             </th>
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Cel" : "Purpose"}
+                              {tr("common.purpose")}
                             </th>
                             <th className="text-left font-medium px-3 py-2">
-                              {isPl ? "Wygasa" : "Expires"}
+                              {tr("common.expires")}
                             </th>
                           </tr>
                         </thead>
