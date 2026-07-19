@@ -43,7 +43,7 @@ export function AppDialogHost() {
 
   if (!pending) return null;
   const req = pending.request;
-  const cancelLabel = req.cancelLabel ?? (isPl ? "Anuluj" : "Cancel");
+  const cancelLabel = req.cancelLabel ?? t("common.cancel");
 
   if (req.kind === "confirm") {
     const confirmLabel = req.confirmLabel ?? (isPl ? "Potwierdź" : "Confirm");
