@@ -161,7 +161,7 @@ export function AlertBar() {
                 /* ignore */
               }
             }}
-            aria-label={isPl ? "Zamknij pasek alertu" : "Dismiss alert bar"}
+            aria-label={t("common.dismissAlertBar")}
             className="shrink-0 p-1 rounded hover:bg-black/10 transition"
           >
             <Icons.X className="w-3.5 h-3.5" />
