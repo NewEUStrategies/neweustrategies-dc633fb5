@@ -166,11 +166,7 @@ function SecurityPage() {
         toast.error(error.message);
         return;
       }
-      toast.success(
-        t("profile.security.signedOutOthers", {
-          defaultValue: isPl ? "Wylogowano pozostałe sesje." : "Signed out other sessions.",
-        }),
-      );
+      toast.success(t("profile.security.signedOutOthers"));
     } finally {
       setOthersBusy(false);
     }
