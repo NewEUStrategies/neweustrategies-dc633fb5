@@ -126,7 +126,11 @@ const pl = {
       notSet: "Nie ustawiono",
       clickToEdit: "Kliknij, aby edytować",
       saving: "Zapisywanie...",
+      addAvatar: "Dodaj zdjęcie",
+      changeAvatar: "Zmień",
+      avatarSize: "400 × 400 px",
     },
+
 
     security: {
       changePassword: "Zmień hasło",
