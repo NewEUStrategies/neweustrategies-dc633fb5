@@ -229,29 +229,36 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/70"
+          className="group relative flex items-center gap-3 rounded-md border border-transparent px-3 py-2.5 transition-all duration-200 hover:border-brand/25 hover:bg-brand/[0.04] hover:shadow-[0_2px_10px_-6px_color-mix(in_oklab,var(--brand)_40%,transparent)] dark:hover:bg-brand/[0.08]"
           role="menuitem"
         >
-          {node.icon ? (
-            <span
-              aria-hidden
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand"
-            >
+          <span
+            aria-hidden
+            className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-brand opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          />
+          <span
+            aria-hidden
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/50 bg-muted/40 text-muted-foreground transition-all duration-200 group-hover:border-brand/40 group-hover:bg-brand/10 group-hover:text-brand group-hover:scale-[1.06]"
+          >
+            {node.icon ? (
               <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} />
-            </span>
-          ) : (
-            <span
-              aria-hidden
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-border transition-colors group-hover:bg-brand"
-            />
-          )}
-          <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
+            ) : (
+              <ChevronRight size={13} strokeWidth={2} />
+            )}
+          </span>
+          <span className="block flex-1 text-[13.5px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
             {label}
           </span>
+          <ChevronRight
+            size={14}
+            aria-hidden
+            className="-translate-x-1 text-muted-foreground/50 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:text-brand group-hover:opacity-100"
+          />
         </AppLink>
       </li>
     );
   }
+
 
   return (
     <li className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
