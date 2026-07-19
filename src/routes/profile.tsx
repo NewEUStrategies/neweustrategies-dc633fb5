@@ -87,12 +87,16 @@ function ProfileLayout() {
                     {user && (
                       <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
                         <div className="flex items-center gap-3">
-                          <div
-                            aria-hidden
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded bg-foreground text-[11px] font-bold text-background"
-                          >
-                            {initials}
-                          </div>
+                          <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
+                            <AvatarImage
+                              src={profile?.avatar_url ?? undefined}
+                              alt={displayName ?? t("profile.account.unnamed", "Użytkownik")}
+                              className="rounded-[6px] object-cover"
+                            />
+                            <AvatarFallback className="rounded-[6px] bg-foreground text-[11px] font-bold text-background">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
                           <div className="min-w-0">
                             <p className="truncate text-xs font-bold text-foreground">
                               {displayName ?? t("profile.account.unnamed", "Użytkownik")}
