@@ -810,7 +810,10 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
 /* ----- Projects ----- */
 
 function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
+
   const q = useQuery({
     queryKey: ["admin-rp-projects", programId],
     queryFn: async (): Promise<ProjectRow[]> => {
