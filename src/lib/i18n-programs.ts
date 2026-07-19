@@ -128,23 +128,27 @@ export const programsEn = {
     },
     projects: {
       namePl: "Nazwa (PL)",
+      nameEn: "Nazwa (EN)",
       summaryPl: "Streszczenie (PL)",
+      summaryEn: "Streszczenie (EN)",
       addProject: "Dodaj projekt",
+      nameRequired: "Nazwa PL/EN wymagana.",
     },
     partners: {
-      partnerName: "Nazwa partnera",
+      name: "Nazwa partnera",
       logoUrl: "URL logo",
       addPartner: "Dodaj partnera",
     },
     items: {
-      flagship: "Raport / wpis",
+      flagshipPost: "Raport / wpis",
       podcast: "Podcast",
       event: "Wydarzenie",
-      uuid: "UUID rekordu",
+      recordUuid: "UUID rekordu",
       hint: "Wklej UUID posta / podcastu / wydarzenia. Kolejność wg pola sort_order.",
     },
   },
 };
+
 
 // English shares the top-level structure via addition below
 const adminProgramsEn = {
