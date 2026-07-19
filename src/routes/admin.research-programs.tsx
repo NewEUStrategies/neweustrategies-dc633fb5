@@ -503,9 +503,10 @@ function AdminResearchPrograms() {
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>
-              {lang === "pl" ? "Anuluj" : "Cancel"}
+              {tp("cancel")}
             </Button>
-            <Button onClick={saveProgram}>{lang === "pl" ? "Zapisz" : "Save"}</Button>
+            <Button onClick={saveProgram}>{tp("save")}</Button>
+
           </DialogFooter>
         </DialogContent>
       </Dialog>
