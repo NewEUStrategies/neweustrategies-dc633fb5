@@ -477,11 +477,8 @@ function AdminResearchPrograms() {
             </div>
 
             <div className="grid gap-1.5">
-              <Label>
-                {lang === "pl"
-                  ? "Kategoria treści (do listy najnowszych publikacji)"
-                  : "Content category (for Latest publications)"}
-              </Label>
+              <Label>{tp("field.contentCategory")}</Label>
+
               <Select
                 value={form.category_id ?? "none"}
                 onValueChange={(v) =>
