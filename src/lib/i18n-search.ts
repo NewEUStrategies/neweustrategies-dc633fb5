@@ -67,6 +67,13 @@ const pl = {
       topics: "Tematyka",
       people: "Osoby i organizacje",
     },
+    tab_hints: {
+      all: "Wszystkie zasoby platformy: analizy, raporty, podcasty, wywiady, wydarzenia oraz profile osób i organizacji.",
+      titles: "Dopasowanie po tytule i leadzie wpisów - analizy, raporty, wywiady, Policy Papers oraz odcinki podcastów.",
+      types: "Zawęź do formatu treści: artykuł, raport, Policy Paper, wywiad, podcast, wydarzenie, historia web.",
+      topics: "Filtruj po kategoriach, tagach, programach badawczych oraz regionach geograficznych.",
+      people: "Autorzy, eksperci, mówcy i organizacje - z dorobkiem publikacyjnym na platformie.",
+    },
     // Tryby zaawansowane
     adv: {
       toggle: "Wyszukiwanie zaawansowane",
