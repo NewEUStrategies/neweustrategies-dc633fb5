@@ -898,7 +898,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
           />
           <Textarea
             rows={2}
-            placeholder="Summary (EN)"
+            placeholder={tp("projects.summaryEn")}
             value={draft.summary_en ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, summary_en: e.target.value || null }))}
           />
