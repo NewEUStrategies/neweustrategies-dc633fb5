@@ -17,6 +17,8 @@
  *   7. Bar rank: top strony wg odsłon
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueries } from "@tanstack/react-query";
 import { Loader2, RefreshCw, BarChart3 } from "lucide-react";
@@ -62,6 +64,7 @@ export function Ga4BiDashboard({
   configured: boolean;
   activeMode?: string;
 }) {
+  const { t } = useTranslation();
   const fetchReport = useServerFn(runGa4Report);
   const [days, setDays] = useState<number>(28);
 
@@ -172,34 +175,41 @@ export function Ga4BiDashboard({
     const idxUsers = idx("activeUsers");
     const idxViews = idx("screenPageViews");
     return {
-      legend: { top: 4, data: ["Sesje", "Aktywni użytkownicy", "Odsłony"] },
+      legend: {
+        top: 4,
+        data: [
+          t("adminAnalytics.ga4.sessions"),
+          t("adminAnalytics.ga4.activeUsers"),
+          t("adminAnalytics.ga4.views"),
+        ],
+      },
       tooltip: { trigger: "axis" },
       dataZoom: [{ type: "inside", start: 0, end: 100 }],
       xAxis: { type: "category", data: dates, boundaryGap: false },
       yAxis: { type: "value" },
       series: [
         {
-          name: "Sesje",
+          name: t("adminAnalytics.ga4.sessions"),
           type: "line",
           smooth: true,
           areaStyle: { opacity: 0.2 },
           data: rows.map((r) => parseNumber(r.metrics[idxSessions])),
         },
         {
-          name: "Aktywni użytkownicy",
+          name: t("adminAnalytics.ga4.activeUsers"),
           type: "line",
           smooth: true,
           data: rows.map((r) => parseNumber(r.metrics[idxUsers])),
         },
         {
-          name: "Odsłony",
+          name: t("adminAnalytics.ga4.views"),
           type: "line",
           smooth: true,
           data: rows.map((r) => parseNumber(r.metrics[idxViews])),
         },
       ],
     };
-  }, [dateQ.data]);
+  }, [dateQ.data, t]);
 
   const donutFrom = (report: Ga4Report | undefined, top = 8): EChartsCoreOption => {
     const rows = (report?.rows ?? []).slice();
@@ -213,7 +223,7 @@ export function Ga4BiDashboard({
       value: parseNumber(r.metrics[idxSessions]),
     }));
     const other = rest.reduce((acc, r) => acc + parseNumber(r.metrics[idxSessions]), 0);
-    if (other > 0) data.push({ name: "Inne", value: other });
+    if (other > 0) data.push({ name: t("adminAnalytics.ga4.other"), value: other });
     return {
       tooltip: {
         trigger: "item",
@@ -261,11 +271,11 @@ export function Ga4BiDashboard({
       tooltip: {},
       radar: {
         indicator: [
-          { name: "Zaangażowanie", max: 100 },
-          { name: "Czas sesji", max: 100 },
-          { name: "Odsłon/sesja", max: 100 },
-          { name: "Retencja (100 - bounce)", max: 100 },
-          { name: "Eventy", max: 100 },
+          { name: t("adminAnalytics.ga4.radar.engagement"), max: 100 },
+          { name: t("adminAnalytics.ga4.radar.sessionTime"), max: 100 },
+          { name: t("adminAnalytics.ga4.radar.viewsPerSession"), max: 100 },
+          { name: t("adminAnalytics.ga4.radar.retention"), max: 100 },
+          { name: t("adminAnalytics.ga4.radar.events"), max: 100 },
         ],
         radius: "62%",
         splitLine: { lineStyle: { color: "hsl(var(--border))" } },
@@ -277,11 +287,11 @@ export function Ga4BiDashboard({
           type: "radar",
           symbol: "circle",
           areaStyle: { opacity: 0.25 },
-          data: [{ value: values, name: `Ostatnie ${days} dni` }],
+          data: [{ value: values, name: t("adminAnalytics.ga4.radar.seriesName", { days }) }],
         },
       ],
     };
-  }, [engageQ.data, days]);
+  }, [engageQ.data, days, t]);
 
   const topPagesOption = useMemo<EChartsCoreOption>(() => {
     const rows = (pageQ.data?.rows ?? []).slice();
@@ -307,11 +317,17 @@ export function Ga4BiDashboard({
     };
   }, [pageQ.data]);
 
+  const modeText =
+    activeMode === "oauth_refresh"
+      ? t("adminAnalytics.ga4.modeOauth")
+      : t("adminAnalytics.ga4.modeServiceAccount");
+
   if (!configured) {
     return (
       <Card className="p-6 text-sm text-muted-foreground">
-        GA4 Data API nie jest jeszcze skonfigurowany. Wróć do zakładki <b>GA4</b> i podłącz Service
-        Account lub OAuth refresh token.
+        {t("adminAnalytics.ga4.notConfiguredPre")}
+        <b>{t("adminAnalytics.ga4.notConfiguredTab")}</b>
+        {t("adminAnalytics.ga4.notConfiguredPost")}
       </Card>
     );
   }
@@ -319,7 +335,9 @@ export function Ga4BiDashboard({
   if (anyError && anyError.data && "error" in anyError.data) {
     return (
       <Card className="p-6 text-sm text-destructive">
-        Błąd Data API: {String((anyError.data as { error?: string }).error)}
+        {t("adminAnalytics.ga4.apiError", {
+          error: String((anyError.data as { error?: string }).error),
+        })}
       </Card>
     );
   }
@@ -328,16 +346,18 @@ export function Ga4BiDashboard({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
+          <label className="text-xs text-muted-foreground block mb-1">
+            {t("adminAnalytics.ga4.window")}
+          </label>
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
             <SelectTrigger className="h-9 text-sm w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="14">14 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
+              <SelectItem value="7">{t("adminAnalytics.timeRange.preset7d")}</SelectItem>
+              <SelectItem value="14">{t("adminAnalytics.timeRange.preset14d")}</SelectItem>
+              <SelectItem value="28">{t("adminAnalytics.timeRange.preset28d")}</SelectItem>
+              <SelectItem value="90">{t("adminAnalytics.timeRange.preset90d")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -347,40 +367,40 @@ export function Ga4BiDashboard({
           onClick={() => queries.forEach((q) => q.refetch())}
           className="h-9"
         >
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
+          <RefreshCw className="w-3.5 h-3.5 mr-2" /> {t("adminAnalytics.common.refresh")}
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <BarChart3 className="w-3 h-3" /> Tryb:{" "}
-          {activeMode === "oauth_refresh" ? "OAuth" : "Service Account"}
+          <BarChart3 className="w-3 h-3" /> {t("adminAnalytics.ga4.modeLabel")}
+          {modeText}
         </div>
         {anyLoading ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> Ładowanie...
+            <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loading")}
           </span>
         ) : null}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiTile
-          label="Sesje"
+          label={t("adminAnalytics.ga4.sessions")}
           value={totals.sessions.toLocaleString("pl-PL")}
           current={totals.sessions}
           previous={prevTotals.sessions}
         />
         <KpiTile
-          label="Aktywni użytkownicy"
+          label={t("adminAnalytics.ga4.activeUsers")}
           value={totals.activeUsers.toLocaleString("pl-PL")}
           current={totals.activeUsers}
           previous={prevTotals.activeUsers}
         />
         <KpiTile
-          label="Odsłony"
+          label={t("adminAnalytics.ga4.views")}
           value={totals.screenPageViews.toLocaleString("pl-PL")}
           current={totals.screenPageViews}
           previous={prevTotals.screenPageViews}
         />
         <KpiTile
-          label="Zaangażowanie"
+          label={t("adminAnalytics.ga4.engagement")}
           value={`${(totals.engagementRate * 100).toFixed(1)}%`}
           current={totals.engagementRate}
           previous={prevTotals.engagementRate}
@@ -391,15 +411,15 @@ export function Ga4BiDashboard({
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <ChartCard
-          title="Trend ruchu"
-          subtitle="Sesje, użytkownicy i odsłony w oknie"
+          title={t("adminAnalytics.ga4.charts.trendTitle")}
+          subtitle={t("adminAnalytics.ga4.charts.trendSubtitle")}
           option={trendOption}
           height={320}
           className="xl:col-span-2"
         />
         <ChartCard
-          title="Zaangażowanie"
-          subtitle="5 wymiarów jakości ruchu"
+          title={t("adminAnalytics.ga4.charts.engagementTitle")}
+          subtitle={t("adminAnalytics.ga4.charts.engagementSubtitle")}
           option={radarOption}
           height={320}
         />
@@ -407,35 +427,35 @@ export function Ga4BiDashboard({
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <ChartCard
-          title="Źródła ruchu"
-          subtitle="Sesje wg sessionSource"
+          title={t("adminAnalytics.ga4.charts.sourcesTitle")}
+          subtitle={t("adminAnalytics.ga4.charts.sourcesSubtitle")}
           option={donutFrom(sourceQ.data)}
           height={280}
         />
         <ChartCard
-          title="Kraje"
-          subtitle="Sesje wg kraju"
+          title={t("adminAnalytics.ga4.charts.countriesTitle")}
+          subtitle={t("adminAnalytics.ga4.charts.countriesSubtitle")}
           option={donutFrom(countryQ.data)}
           height={280}
         />
         <ChartCard
-          title="Urządzenia"
-          subtitle="Sesje wg typu urządzenia"
+          title={t("adminAnalytics.ga4.charts.devicesTitle")}
+          subtitle={t("adminAnalytics.ga4.charts.devicesSubtitle")}
           option={donutFrom(deviceQ.data, 5)}
           height={280}
         />
       </div>
 
       <ChartCard
-        title="Top strony"
-        subtitle="Rank wg odsłon"
+        title={t("adminAnalytics.ga4.charts.topPagesTitle")}
+        subtitle={t("adminAnalytics.ga4.charts.topPagesSubtitle")}
         option={topPagesOption}
         height={340}
       />
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection
-        subtitle={`Analiza GA4 · okno ${days} dni · tryb: ${activeMode === "oauth_refresh" ? "OAuth" : "Service Account"}`}
+        subtitle={t("adminAnalytics.ga4.insightsSubtitle", { days, mode: modeText })}
         insights={buildGa4Insights({
           dateReport: dateQ.data,
           prevReport: prevQ.data,
@@ -445,6 +465,7 @@ export function Ga4BiDashboard({
           pageReport: pageQ.data,
           engagementReport: engageQ.data,
           windowDays: days,
+          t,
         })}
       />
     </div>

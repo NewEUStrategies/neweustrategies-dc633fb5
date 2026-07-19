@@ -1,6 +1,8 @@
 // Dashboard "Audytorium / retencja" - segmentacja zalogowani vs anonimowi.
 // Reużywa EChart wrapper, InsightSection, Card, Tabs z projektu.
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Users, UserCheck, UserX, Eye, Loader2 } from "lucide-react";
@@ -20,10 +22,10 @@ import {
   type AudienceSegmentsResult,
 } from "@/lib/analytics/audience.functions";
 
-const RANGES: ReadonlyArray<{ v: number; l: string }> = [
-  { v: 7, l: "7 dni" },
-  { v: 30, l: "30 dni" },
-  { v: 90, l: "90 dni" },
+const RANGES: ReadonlyArray<{ v: number; lKey: string }> = [
+  { v: 7, lKey: "adminAnalytics.timeRange.preset7d" },
+  { v: 30, lKey: "adminAnalytics.timeRange.preset30d" },
+  { v: 90, lKey: "adminAnalytics.timeRange.preset90d" },
 ];
 
 interface KpiCardProps {
@@ -60,6 +62,7 @@ function KpiCard({ label, value, hint, Icon, tone }: KpiCardProps) {
 }
 
 export function AudienceSegmentsDashboard() {
+  const { t } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const fetchAudience = useServerFn(getAudienceSegments);
 
@@ -76,20 +79,23 @@ export function AudienceSegmentsDashboard() {
     const anon = series.map((s) => s.anon);
     return {
       tooltip: { trigger: "axis" as const },
-      legend: { data: ["Zalogowani", "Anonimowi"], top: 0 },
+      legend: {
+        data: [t("adminAnalytics.audience.logged"), t("adminAnalytics.audience.anon")],
+        top: 0,
+      },
       grid: { top: 32, left: 40, right: 16, bottom: 32 },
       xAxis: { type: "category" as const, data: dates, axisLabel: { fontSize: 10 } },
       yAxis: { type: "value" as const },
       series: [
         {
-          name: "Zalogowani",
+          name: t("adminAnalytics.audience.logged"),
           type: "bar" as const,
           stack: "views",
           data: logged,
           itemStyle: { color: "oklch(0.7 0.18 145)" },
         },
         {
-          name: "Anonimowi",
+          name: t("adminAnalytics.audience.anon"),
           type: "bar" as const,
           stack: "views",
           data: anon,
@@ -97,24 +103,22 @@ export function AudienceSegmentsDashboard() {
         },
       ],
     };
-  }, [q.data]);
+  }, [q.data, t]);
 
   const insights: Insight[] = useMemo(() => {
     const out: Insight[] = [];
     if (!q.data) return out;
+    const arr = (key: string): string[] => t(key, { returnObjects: true }) as string[];
     const { kpi } = q.data;
     const total = kpi.views_total;
     if (total === 0) {
       out.push({
         id: "empty",
-        element: "KPI",
+        element: t("adminAnalytics.audience.insights.empty.element"),
         severity: "info",
-        title: "Brak danych w oknie",
-        detail: "W wybranym zakresie nie zapisano żadnej odsłony.",
-        fixes: [
-          "Sprawdź, czy skrypt zliczania odsłon (post_views) uruchamia się na stronach publicznych.",
-          "Wydłuż zakres do 90 dni.",
-        ],
+        title: t("adminAnalytics.audience.insights.empty.title"),
+        detail: t("adminAnalytics.audience.insights.empty.detail"),
+        fixes: arr("adminAnalytics.audience.insights.empty.fixes"),
       });
       return out;
     }
@@ -122,59 +126,60 @@ export function AudienceSegmentsDashboard() {
     if (loggedShare < 0.05) {
       out.push({
         id: "low-logged",
-        element: "Segment zalogowanych",
+        element: t("adminAnalytics.audience.insights.lowLogged.element"),
         severity: "warn",
-        title: `Zalogowani to tylko ${(loggedShare * 100).toFixed(1)}% odsłon`,
-        detail:
-          "Ruch jest zdominowany przez anonimowych. Retencja i personalizacja mają ograniczony wpływ.",
-        fixes: [
-          "Rozważ CTA rejestracji przy topowych wpisach z segmentu anonimowego.",
-          "Zaproponuj bookmarki / newsletter na końcu artykułów.",
-        ],
+        title: t("adminAnalytics.audience.insights.lowLogged.title", {
+          pct: (loggedShare * 100).toFixed(1),
+        }),
+        detail: t("adminAnalytics.audience.insights.lowLogged.detail"),
+        fixes: arr("adminAnalytics.audience.insights.lowLogged.fixes"),
       });
     } else if (loggedShare > 0.6) {
       out.push({
         id: "high-logged",
-        element: "Segment zalogowanych",
+        element: t("adminAnalytics.audience.insights.highLogged.element"),
         severity: "good",
-        title: `Zalogowani dostarczają ${(loggedShare * 100).toFixed(1)}% odsłon`,
-        detail: "Baza użytkowników silnie wraca do treści - dobre podłoże pod rekomendacje.",
-        fixes: [
-          "Podnieś wagę personalizacji w silniku rekomendacji.",
-          "Testuj sekcje 'Dalej dla Ciebie' pod topowymi wpisami zalogowanych.",
-        ],
+        title: t("adminAnalytics.audience.insights.highLogged.title", {
+          pct: (loggedShare * 100).toFixed(1),
+        }),
+        detail: t("adminAnalytics.audience.insights.highLogged.detail"),
+        fixes: arr("adminAnalytics.audience.insights.highLogged.fixes"),
       });
     }
     if (kpi.unique_logged > 0 && kpi.views_logged / kpi.unique_logged > 4) {
       out.push({
         id: "loyal-logged",
-        element: "Retencja zalogowanych",
+        element: t("adminAnalytics.audience.insights.loyalLogged.element"),
         severity: "good",
-        title: `Zalogowany czyta średnio ${(kpi.views_logged / kpi.unique_logged).toFixed(1)} wpisów`,
-        detail: "Zaangażowanie w tym segmencie jest wysokie.",
-        fixes: ["Zbuduj widok 'Ostatnio czytane' dla zalogowanych na stronie profilu."],
+        title: t("adminAnalytics.audience.insights.loyalLogged.title", {
+          count: (kpi.views_logged / kpi.unique_logged).toFixed(1),
+        }),
+        detail: t("adminAnalytics.audience.insights.loyalLogged.detail"),
+        fixes: arr("adminAnalytics.audience.insights.loyalLogged.fixes"),
       });
     }
     if (q.data.truncated) {
       out.push({
         id: "trunc",
-        element: "Dane wejściowe",
+        element: t("adminAnalytics.audience.insights.trunc.element"),
         severity: "warn",
-        title: "Wyniki przycięte do 50 000 rekordów",
-        detail: "W wybranym oknie jest więcej odsłon niż limit. Wartości mogą być zaniżone.",
-        fixes: ["Zawęź zakres do krótszego okna (np. 7 dni)."],
+        title: t("adminAnalytics.audience.insights.trunc.title"),
+        detail: t("adminAnalytics.audience.insights.trunc.detail"),
+        fixes: arr("adminAnalytics.audience.insights.trunc.fixes"),
       });
     }
     return out;
-  }, [q.data]);
+  }, [q.data, t]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="font-display text-lg">Audytorium: zalogowani vs anonimowi</h3>
+          <h3 className="font-display text-lg">{t("adminAnalytics.audience.title")}</h3>
           <p className="text-sm text-muted-foreground">
-            Segmentacja odsłon z <code>post_views</code> per tenant. Wskaźniki liczone w oknie.
+            {t("adminAnalytics.audience.descPre")}
+            <code>post_views</code>
+            {t("adminAnalytics.audience.descPost")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -185,7 +190,7 @@ export function AudienceSegmentsDashboard() {
             <SelectContent>
               {RANGES.map((r) => (
                 <SelectItem key={r.v} value={String(r.v)}>
-                  {r.l}
+                  {t(r.lKey)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -196,27 +201,27 @@ export function AudienceSegmentsDashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
-          label="Odsłony razem"
+          label={t("adminAnalytics.audience.kpi.viewsTotal")}
           value={q.data?.kpi.views_total ?? 0}
           Icon={Eye}
           tone="brand"
         />
         <KpiCard
-          label="Zalogowani"
+          label={t("adminAnalytics.audience.kpi.logged")}
           value={q.data?.kpi.views_logged ?? 0}
-          hint={`${q.data?.kpi.unique_logged ?? 0} unikalnych`}
+          hint={t("adminAnalytics.audience.uniqueHint", { count: q.data?.kpi.unique_logged ?? 0 })}
           Icon={UserCheck}
           tone="logged"
         />
         <KpiCard
-          label="Anonimowi"
+          label={t("adminAnalytics.audience.kpi.anon")}
           value={q.data?.kpi.views_anon ?? 0}
-          hint={`${q.data?.kpi.unique_anon ?? 0} unikalnych`}
+          hint={t("adminAnalytics.audience.uniqueHint", { count: q.data?.kpi.unique_anon ?? 0 })}
           Icon={UserX}
           tone="anon"
         />
         <KpiCard
-          label="Unikalni czytelnicy"
+          label={t("adminAnalytics.audience.kpi.uniqueReaders")}
           value={q.data?.kpi.unique_readers ?? 0}
           Icon={Users}
           tone="brand"
@@ -225,10 +230,10 @@ export function AudienceSegmentsDashboard() {
 
       <Card className="p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h4 className="font-display text-base">Odsłony dziennie (stacked)</h4>
+          <h4 className="font-display text-base">{t("adminAnalytics.audience.dailyViews")}</h4>
           {q.data?.truncated && (
             <Badge variant="outline" className="text-xs">
-              próba przycięta
+              {t("adminAnalytics.audience.sampleTruncated")}
             </Badge>
           )}
         </div>
@@ -236,8 +241,16 @@ export function AudienceSegmentsDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TopPosts title="Top - zalogowani" rows={q.data?.top_logged ?? []} tone="logged" />
-        <TopPosts title="Top - anonimowi" rows={q.data?.top_anon ?? []} tone="anon" />
+        <TopPosts
+          title={t("adminAnalytics.audience.topLogged")}
+          rows={q.data?.top_logged ?? []}
+          tone="logged"
+        />
+        <TopPosts
+          title={t("adminAnalytics.audience.topAnon")}
+          rows={q.data?.top_anon ?? []}
+          tone="anon"
+        />
       </div>
 
       <InsightSection insights={insights} />
@@ -260,6 +273,7 @@ function TopPosts({
   }>;
   tone: "logged" | "anon";
 }) {
+  const { t } = useTranslation();
   const dot = tone === "logged" ? "bg-cat-finance" : "bg-cat-transport";
   return (
     <Card className="p-4">
@@ -268,7 +282,9 @@ function TopPosts({
         <h4 className="font-display text-base">{title}</h4>
       </div>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-6 text-center">Brak danych w oknie.</p>
+        <p className="text-sm text-muted-foreground py-6 text-center">
+          {t("adminAnalytics.common.noDataWindow")}
+        </p>
       ) : (
         <ol className="divide-y divide-border">
           {rows.map((r, i) => (
@@ -280,7 +296,9 @@ function TopPosts({
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-medium">{r.views.toLocaleString("pl-PL")}</div>
-                <div className="text-xs text-muted-foreground">{r.uniques} uniq</div>
+                <div className="text-xs text-muted-foreground">
+                  {r.uniques} {t("adminAnalytics.audience.uniqShort")}
+                </div>
               </div>
             </li>
           ))}

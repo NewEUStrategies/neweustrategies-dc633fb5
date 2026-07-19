@@ -4,8 +4,10 @@
  * KPI (sesje / użytkownicy / odsłony / zaangażowanie), trend ruchu, źródła,
  * kraje, urządzenia, radar zaangażowania oraz top strony.
  */
+import type { TFunction } from "i18next";
 import type { Ga4Report } from "@/lib/analytics/ga4.functions";
 import { type Insight, pctDelta, classifyDelta } from "./InsightSection";
+import "@/lib/i18n-admin-analytics";
 
 function num(v: string | undefined): number {
   if (v === undefined) return 0;
@@ -31,10 +33,15 @@ interface Params {
   pageReport: Ga4Report | undefined;
   engagementReport: Ga4Report | undefined;
   windowDays: number;
+  t: TFunction;
 }
 
 export function buildGa4Insights(p: Params): Insight[] {
   const out: Insight[] = [];
+  const t = p.t;
+  const arr = (key: string): string[] => t(key, { returnObjects: true }) as string[];
+  const B = "adminAnalytics.ga4.insights";
+  const signed = (n: number): string => `${n >= 0 ? "+" : ""}${n.toFixed(1)}`;
   const totals = totalsFromReport(p.dateReport);
   const prev = totalsFromReport(p.prevReport);
   const engage = totalsFromReport(p.engagementReport);
@@ -43,26 +50,23 @@ export function buildGa4Insights(p: Params): Insight[] {
   const dSess = pctDelta(totals.sessions ?? 0, prev.sessions ?? 0);
   out.push({
     id: "kpi-sessions",
-    element: "KPI · Sesje",
+    element: t(`${B}.sessions.element`),
     severity: classifyDelta(dSess, true),
     title:
       dSess === null
-        ? `Sesje: ${totals.sessions ?? 0}`
-        : `Sesje ${dSess >= 0 ? "+" : ""}${dSess.toFixed(1)}% vs poprzednie ${p.windowDays} dni`,
-    detail: `Bieżące: ${totals.sessions ?? 0}, poprzednie: ${prev.sessions ?? 0}. Aktywni: ${totals.activeUsers ?? 0}.`,
+        ? t(`${B}.sessions.titleNoDelta`, { sessions: totals.sessions ?? 0 })
+        : t(`${B}.sessions.titleDelta`, { delta: signed(dSess), days: p.windowDays }),
+    detail: t(`${B}.sessions.detail`, {
+      sessions: totals.sessions ?? 0,
+      prev: prev.sessions ?? 0,
+      active: totals.activeUsers ?? 0,
+    }),
     fixes:
       dSess !== null && dSess < -10
-        ? [
-            "Sprawdź GA4 > Acquisition > Traffic acquisition - który kanał spadł?",
-            "Jeśli spadł organic - patrz GSC (Search Console).",
-            "Jeśli spadł direct - sprawdź czy nie zniknął istotny backlink lub kampania.",
-          ]
+        ? arr(`${B}.sessions.fixesDown`)
         : dSess !== null && dSess > 15
-          ? [
-              "Skaluj kanał który zyskał - powtórz publikacje w podobnym stylu.",
-              "Dopracuj retencję: newsletter/RSS na stronach które zyskały ruch.",
-            ]
-          : ["Trend stabilny - dobra baza do eksperymentów CRO."],
+          ? arr(`${B}.sessions.fixesUp`)
+          : arr(`${B}.sessions.fixesStable`),
   });
 
   // 2. KPI Zaangażowanie
@@ -71,20 +75,11 @@ export function buildGa4Insights(p: Params): Insight[] {
   const dEng = engRate - prevEng;
   out.push({
     id: "kpi-engagement",
-    element: "KPI · Zaangażowanie",
+    element: t(`${B}.engagement.element`),
     severity: engRate >= 0.6 ? "good" : engRate >= 0.4 ? "info" : "warn",
-    title: `Engagement rate ${(engRate * 100).toFixed(1)}%`,
-    detail:
-      `Benchmark: >60% świetnie, 40-60% średnio, <40% problem z jakością ruchu lub UX. ` +
-      `Zmiana: ${(dEng * 100).toFixed(1)} pp.`,
-    fixes:
-      engRate < 0.4
-        ? [
-            "Skróć LCP i INP w Web Vitals - wolne strony = odbicie w pierwszych 3 sekundach.",
-            "Dopasuj intent: sprawdź czy landing page odpowiada na frazę, którą wpisał user.",
-            "Zredukuj popupy/modale w pierwszej sesji - Google traktuje je jak intruzywne.",
-          ]
-        : ["Utrzymuj obecny UX - dodaj mikroeventy (scroll depth 75%) do lepszej segmentacji."],
+    title: t(`${B}.engagement.title`, { rate: (engRate * 100).toFixed(1) }),
+    detail: t(`${B}.engagement.detail`, { delta: (dEng * 100).toFixed(1) }),
+    fixes: engRate < 0.4 ? arr(`${B}.engagement.fixesLow`) : arr(`${B}.engagement.fixesGood`),
   });
 
   // 3. Trend ruchu
@@ -99,20 +94,17 @@ export function buildGa4Insights(p: Params): Insight[] {
     const trend = pctDelta(late, early);
     out.push({
       id: "trend",
-      element: "Trend ruchu",
+      element: t(`${B}.trend.element`),
       severity: classifyDelta(trend, true),
       title:
         trend === null
-          ? "Trend - brak wystarczających danych"
-          : `Druga połowa okna: ${trend >= 0 ? "+" : ""}${trend.toFixed(1)}% sesji`,
-      detail: `Sesje H1: ${early}, H2: ${late}. Sygnalizuje kierunek w bieżącym oknie.`,
+          ? t(`${B}.trend.titleNoData`)
+          : t(`${B}.trend.title`, { delta: signed(trend) }),
+      detail: t(`${B}.trend.detail`, { early, late }),
       fixes:
         trend !== null && trend < -10
-          ? [
-              "Zestaw z GSC: jeśli GSC bez spadku - to problem po stronie GA4 (filtry, blokada IP).",
-              "Sprawdź integrację analytics w consent bannerze - blokujący consent = spadek sesji.",
-            ]
-          : ["Kontynuuj obecną strategię publikacji."],
+          ? arr(`${B}.trend.fixesDown`)
+          : arr(`${B}.trend.fixesDefault`),
     });
   }
 
@@ -128,25 +120,25 @@ export function buildGa4Insights(p: Params): Insight[] {
     const organicPct = total > 0 && organic ? num(organic.metrics[idx]) / total : 0;
     out.push({
       id: "sources",
-      element: "Źródła ruchu",
+      element: t(`${B}.sources.element`),
       severity: directPct > 0.6 ? "warn" : organicPct < 0.2 ? "warn" : "info",
-      title: `Direct ${(directPct * 100).toFixed(0)}%, Google ${(organicPct * 100).toFixed(0)}%`,
-      detail: `${rows.length} źródeł. TOP 3: ${rows
-        .slice(0, 3)
-        .map((r) => `${r.dims[0] ?? "?"} (${num(r.metrics[idx])})`)
-        .join(", ")}.`,
+      title: t(`${B}.sources.title`, {
+        direct: (directPct * 100).toFixed(0),
+        organic: (organicPct * 100).toFixed(0),
+      }),
+      detail: t(`${B}.sources.detail`, {
+        count: rows.length,
+        top3: rows
+          .slice(0, 3)
+          .map((r) => `${r.dims[0] ?? "?"} (${num(r.metrics[idx])})`)
+          .join(", "),
+      }),
       fixes:
         directPct > 0.6
-          ? [
-              "Wysoki direct = brak UTM w kampaniach lub problem z referrerem. Otaguj wszystkie linki (utm_source/medium/campaign).",
-              "Sprawdź czy strona jest publikowana w social - dodaj UTM w każdym poście.",
-            ]
+          ? arr(`${B}.sources.fixesDirect`)
           : organicPct < 0.2
-            ? [
-                "Niski organic - zainwestuj w GSC + content SEO (już masz GSC podłączone).",
-                "Zbuduj cluster: 1 pillar + 5-8 supportujących artykułów per temat.",
-              ]
-            : ["Zdywersyfikuj: dodaj kanał referral (guest posts) i newsletter."],
+            ? arr(`${B}.sources.fixesOrganic`)
+            : arr(`${B}.sources.fixesDefault`),
     });
   }
 
@@ -160,17 +152,14 @@ export function buildGa4Insights(p: Params): Insight[] {
     const topPct = total > 0 && top ? num(top.metrics[idx]) / total : 0;
     out.push({
       id: "countries",
-      element: "Kraje",
+      element: t(`${B}.countries.element`),
       severity: topPct > 0.9 ? "info" : "good",
-      title: `Dominuje: ${top?.dims[0] ?? "?"} (${(topPct * 100).toFixed(0)}%)`,
-      detail: `${rows.length} krajów w wynikach.`,
-      fixes:
-        topPct > 0.9
-          ? [
-              "Rozważ wersję językową dla drugiego rynku - system i18n (PL/EN) już masz.",
-              "Dodaj hreflang w head - Google skieruje właściwy język per kraj.",
-            ]
-          : ["Zdywersyfikowany geograficznie ruch - dobrze. Utrzymaj hreflang."],
+      title: t(`${B}.countries.title`, {
+        country: top?.dims[0] ?? "?",
+        pct: (topPct * 100).toFixed(0),
+      }),
+      detail: t(`${B}.countries.detail`, { count: rows.length }),
+      fixes: topPct > 0.9 ? arr(`${B}.countries.fixesSingle`) : arr(`${B}.countries.fixesMulti`),
     });
   }
 
@@ -184,19 +173,14 @@ export function buildGa4Insights(p: Params): Insight[] {
     const mobilePct = total > 0 && mobile ? num(mobile.metrics[idx]) / total : 0;
     out.push({
       id: "devices",
-      element: "Urządzenia",
+      element: t(`${B}.devices.element`),
       severity: "info",
-      title: `Mobile ${(mobilePct * 100).toFixed(0)}% ruchu`,
-      detail: `Mobile: ${mobile ? num(mobile.metrics[idx]) : 0}, desktop: ${desktop ? num(desktop.metrics[idx]) : 0}.`,
-      fixes:
-        mobilePct > 0.6
-          ? [
-              "Priorytet mobile-first: LCP < 2.5 s i INP < 200 ms na 4G.",
-              "Sprawdź czy sticky elementy nie zjadają viewportu na 360×640.",
-            ]
-          : [
-              "Desktop-heavy - zadbaj o czytelność na dużych ekranach (max-width contentu, line-length 60-75 znaków).",
-            ],
+      title: t(`${B}.devices.title`, { pct: (mobilePct * 100).toFixed(0) }),
+      detail: t(`${B}.devices.detail`, {
+        mobile: mobile ? num(mobile.metrics[idx]) : 0,
+        desktop: desktop ? num(desktop.metrics[idx]) : 0,
+      }),
+      fixes: mobilePct > 0.6 ? arr(`${B}.devices.fixesMobile`) : arr(`${B}.devices.fixesDesktop`),
     });
   }
 
@@ -207,22 +191,20 @@ export function buildGa4Insights(p: Params): Insight[] {
     const spv = engage.screenPageViewsPerSession ?? 0;
     out.push({
       id: "engagement-radar",
-      element: "Zaangażowanie (radar)",
+      element: t(`${B}.engagementRadar.element`),
       severity: bounce > 0.6 ? "warn" : spv < 1.5 ? "warn" : "good",
-      title: `Śr. czas ${asd.toFixed(0)}s · ${spv.toFixed(2)} odsł./sesja · bounce ${(bounce * 100).toFixed(0)}%`,
-      detail: `Radar sumuje 5 wymiarów: engagement, czas sesji, odsłony/sesja, retencję (100-bounce) i eventy.`,
+      title: t(`${B}.engagementRadar.title`, {
+        asd: asd.toFixed(0),
+        spv: spv.toFixed(2),
+        bounce: (bounce * 100).toFixed(0),
+      }),
+      detail: t(`${B}.engagementRadar.detail`),
       fixes:
         spv < 1.5
-          ? [
-              "Dodaj related posts na końcu artykułu - podniesie odsłony/sesja.",
-              "Skrócone CTA w połowie artykułu do powiązanych materiałów.",
-            ]
+          ? arr(`${B}.engagementRadar.fixesLowSpv`)
           : bounce > 0.6
-            ? [
-                "Sprawdź LCP + CLS - najczęstszy powód bounce.",
-                "Dodaj table of contents w długich wpisach - zatrzymuje usera dłużej.",
-              ]
-            : ["Zaangażowanie w normie - dobra jakość ruchu."],
+            ? arr(`${B}.engagementRadar.fixesHighBounce`)
+            : arr(`${B}.engagementRadar.fixesGood`),
     });
   }
 
@@ -235,18 +217,11 @@ export function buildGa4Insights(p: Params): Insight[] {
     const weakTop = rows.slice(0, 10).filter((r) => num(r.metrics[idxE]) < 0.35).length;
     out.push({
       id: "top-pages",
-      element: "Top strony",
+      element: t(`${B}.topPages.element`),
       severity: weakTop >= 3 ? "warn" : "info",
-      title: `Top 10 stron: ${10 - weakTop} zaangażowanych, ${weakTop} słabych`,
-      detail: `Słabe = engagement rate < 35%. Wysoki traffic + niski engagement = strona przyciąga zły intent.`,
-      fixes:
-        weakTop >= 3
-          ? [
-              "Przepisz H1 + pierwszy akapit tych stron - musi odpowiadać na frazę, którą wpisał user.",
-              "Zbadaj GSC dla tych URL - może rankują na frazę, której nie chcesz.",
-              "Dodaj CTA i internal links do powiązanych treści.",
-            ]
-          : ["Utrzymaj format zwycięskich stron - użyj go jako template."],
+      title: t(`${B}.topPages.title`, { strong: 10 - weakTop, weak: weakTop }),
+      detail: t(`${B}.topPages.detail`),
+      fixes: weakTop >= 3 ? arr(`${B}.topPages.fixesWeak`) : arr(`${B}.topPages.fixesDefault`),
     });
   }
 

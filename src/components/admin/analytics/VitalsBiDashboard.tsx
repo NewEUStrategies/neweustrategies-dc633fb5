@@ -16,6 +16,8 @@
  *   5. Rating pie of the whole window.
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Gauge } from "lucide-react";
@@ -43,6 +45,7 @@ function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[
 }
 
 export function VitalsBiDashboard() {
+  const { t } = useTranslation();
   const fetchVitals = useServerFn(getVitalsSummary);
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
 
@@ -173,7 +176,7 @@ export function VitalsBiDashboard() {
       tooltip: {
         formatter: (raw: unknown) => {
           const p = raw as { name: string; value: number; data: { lcp: number } };
-          return `${p.name}<br/>Próbek: <b>${p.value}</b><br/>LCP p75: ${p.data.lcp ? fmtValue("LCP", p.data.lcp) : "-"}`;
+          return `${p.name}<br/>${t("adminAnalytics.vitals.samplesLabel")}: <b>${p.value}</b><br/>LCP p75: ${p.data.lcp ? fmtValue("LCP", p.data.lcp) : "-"}`;
         },
       },
       series: [
@@ -199,7 +202,7 @@ export function VitalsBiDashboard() {
         },
       ],
     };
-  }, [report]);
+  }, [report, t]);
 
   const overallPieOption = useMemo<EChartsCoreOption>(() => {
     const good = (report?.metrics ?? []).reduce((acc, m) => acc + m.good, 0);
@@ -216,7 +219,7 @@ export function VitalsBiDashboard() {
           label: {
             show: true,
             position: "center",
-            formatter: `{a|${good + ni + poor}}\n{b|próbek}`,
+            formatter: `{a|${good + ni + poor}}\n{b|${t("adminAnalytics.vitals.samplesWord")}}`,
             rich: {
               a: { fontSize: 22, fontWeight: 700, color: "hsl(var(--foreground))" },
               b: { fontSize: 10, color: "hsl(var(--muted-foreground))" },
@@ -230,7 +233,7 @@ export function VitalsBiDashboard() {
         },
       ],
     };
-  }, [report]);
+  }, [report, t]);
 
   return (
     <div className="space-y-4">
@@ -242,31 +245,33 @@ export function VitalsBiDashboard() {
           onClick={() => void curQ.refetch({ cancelRefetch: true })}
           disabled={isFetching}
           className="h-7"
-          aria-label="Odśwież dane Web Vitals"
+          aria-label={t("adminAnalytics.vitals.refreshAria")}
           title={
             curQ.dataUpdatedAt
-              ? `Ostatnie odświeżenie: ${new Date(curQ.dataUpdatedAt).toLocaleTimeString()}`
-              : "Odśwież"
+              ? t("adminAnalytics.vitals.lastRefresh", {
+                  time: new Date(curQ.dataUpdatedAt).toLocaleTimeString(),
+                })
+              : t("adminAnalytics.common.refresh")
           }
         >
           <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
-          {isFetching ? "Odświeżanie…" : "Odśwież"}
+          {isFetching ? t("adminAnalytics.vitals.refreshing") : t("adminAnalytics.common.refresh")}
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <Gauge className="w-3 h-3" /> Próbek w oknie: {report?.windowTotal ?? 0}
-          {report?.capped ? " (agregacja z najnowszych 20 000)" : ""}
+          <Gauge className="w-3 h-3" />{" "}
+          {t("adminAnalytics.vitals.samplesInWindow", { count: report?.windowTotal ?? 0 })}
+          {report?.capped ? t("adminAnalytics.vitals.cappedNote") : ""}
         </div>
         {isLoading ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> Ładowanie...
+            <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loading")}
           </span>
         ) : null}
       </div>
 
       {!report || report.total === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
-          Brak próbek RUM w wybranym oknie. Otwórz kilka podstron w prawdziwym trybie (nie w
-          edytorze) - beacony trafią do tabeli i pojawią się tu automatycznie.
+          {t("adminAnalytics.vitals.noSamples")}
         </Card>
       ) : (
         <>
@@ -293,8 +298,8 @@ export function VitalsBiDashboard() {
             {METRIC_ORDER.filter((m) => metricsByName.has(m)).map((metric) => (
               <ChartCard
                 key={metric}
-                title={`${metric} - trend p75`}
-                subtitle="Pasma: zielone Good, żółte Needs, czerwone Poor"
+                title={t("adminAnalytics.vitals.trendTitle", { metric })}
+                subtitle={t("adminAnalytics.vitals.trendSubtitle")}
                 option={trendOption(metric)}
                 height={260}
               />
@@ -304,15 +309,15 @@ export function VitalsBiDashboard() {
           {/* Rating stack + overall */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <ChartCard
-              title="Ratingi per metryka"
-              subtitle="Liczba próbek Good / Needs / Poor"
+              title={t("adminAnalytics.vitals.ratingsPerMetric")}
+              subtitle={t("adminAnalytics.vitals.ratingsSubtitle")}
               option={ratingStackOption}
               height={280}
               className="xl:col-span-2"
             />
             <ChartCard
-              title="Rating ogółem"
-              subtitle="Cały panel próbek w oknie"
+              title={t("adminAnalytics.vitals.ratingOverall")}
+              subtitle={t("adminAnalytics.vitals.ratingOverallSubtitle")}
               option={overallPieOption}
               height={280}
             />
@@ -320,8 +325,8 @@ export function VitalsBiDashboard() {
 
           {/* Path treemap */}
           <ChartCard
-            title="Ścieżki wg liczby próbek"
-            subtitle="Wielkość = próbki, kolor = LCP p75 (zielony → czerwony)"
+            title={t("adminAnalytics.vitals.pathsBySamples")}
+            subtitle={t("adminAnalytics.vitals.pathsSubtitle")}
             option={pathTreemapOption}
             height={340}
           />

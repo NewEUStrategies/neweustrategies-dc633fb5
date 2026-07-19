@@ -6,8 +6,10 @@
  * kalendarz), zgodnie z prośbą użytkownika o analitykę "dla każdego
  * elementu".
  */
+import type { TFunction } from "i18next";
 import type { GscRow } from "@/lib/analytics/gsc.functions";
 import { type Insight, pctDelta, classifyDelta } from "./InsightSection";
+import "@/lib/i18n-admin-analytics";
 
 interface Totals {
   clicks: number;
@@ -25,6 +27,7 @@ interface Params {
   countryRows: GscRow[];
   deviceRows: GscRow[];
   windowDays: number;
+  t: TFunction;
 }
 
 const CTR_BENCHMARK_BY_POS: Array<{ maxPos: number; expected: number }> = [
@@ -41,34 +44,34 @@ function expectedCtr(pos: number): number {
 
 export function buildGscInsights(p: Params): Insight[] {
   const out: Insight[] = [];
-  const { totals, prevTotals, dateRows, queryRows, pageRows, countryRows, deviceRows } = p;
+  const { totals, prevTotals, dateRows, queryRows, pageRows, countryRows, deviceRows, t } = p;
+  const arr = (key: string): string[] => t(key, { returnObjects: true }) as string[];
+  const B = "adminAnalytics.gsc.insights";
+  const signed = (n: number): string => `${n >= 0 ? "+" : ""}${n.toFixed(1)}`;
 
   // ── 1. KPI: kliknięcia ─────────────────────────────────────────────
   const dClicks = pctDelta(totals.clicks, prevTotals.clicks);
   out.push({
     id: "kpi-clicks",
-    element: "KPI · Kliknięcia",
+    element: t(`${B}.clicks.element`),
     severity: classifyDelta(dClicks, true),
     title:
       dClicks === null
-        ? `Kliknięcia w oknie: ${totals.clicks}`
-        : `Kliknięcia ${dClicks >= 0 ? "+" : ""}${dClicks.toFixed(1)}% vs poprzednie okno`,
-    detail:
-      `W bieżącym oknie ${p.windowDays} dni: ${totals.clicks} klik. ` +
-      `Poprzednio: ${prevTotals.clicks}. Wyświetlenia: ${totals.impressions} (poprzednio ${prevTotals.impressions}).`,
+        ? t(`${B}.clicks.titleNoDelta`, { clicks: totals.clicks })
+        : t(`${B}.clicks.titleDelta`, { delta: signed(dClicks) }),
+    detail: t(`${B}.clicks.detail`, {
+      days: p.windowDays,
+      clicks: totals.clicks,
+      prev: prevTotals.clicks,
+      impr: totals.impressions,
+      prevImpr: prevTotals.impressions,
+    }),
     fixes:
       dClicks !== null && dClicks < -10
-        ? [
-            "Sprawdź w GSC Coverage czy nie wypadły ważne strony (soft 404 / noindex).",
-            "Zweryfikuj czy zmieniłeś tytuły/meta description na TOP stronach - CTR mogło spaść.",
-            "Uruchom `/admin/seo` i przeindeksuj strony z największym spadkiem impressions.",
-          ]
+        ? arr(`${B}.clicks.fixesDown`)
         : dClicks !== null && dClicks > 20
-          ? [
-              "Utrwal trend: dodaj wewnętrzne linki do stron, które ostatnio zyskały.",
-              "Zbierz nowe frazy z Top zapytań i rozwiń content pod długi ogon.",
-            ]
-          : ["Utrzymaj rytm publikacji - stabilny trend jest dobrą bazą do skalowania."],
+          ? arr(`${B}.clicks.fixesUp`)
+          : arr(`${B}.clicks.fixesStable`),
   });
 
   // ── 2. KPI: CTR ────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ export function buildGscInsights(p: Params): Insight[] {
   const ctrGap = totals.ctr - expectedCtr(totals.position);
   out.push({
     id: "kpi-ctr",
-    element: "KPI · CTR",
+    element: t(`${B}.ctr.element`),
     severity:
       ctrGap < -0.02
         ? "warn"
@@ -87,43 +90,36 @@ export function buildGscInsights(p: Params): Insight[] {
             : dCtr < 0
               ? "warn"
               : "good",
-    title: `CTR ${(totals.ctr * 100).toFixed(2)}% przy pozycji ${totals.position.toFixed(1)}`,
-    detail:
-      `Oczekiwany CTR dla tej pozycji: ~${(expectedCtr(totals.position) * 100).toFixed(1)}%. ` +
-      `Twój CTR jest ${ctrGap >= 0 ? "wyższy" : "niższy"} o ${(Math.abs(ctrGap) * 100).toFixed(1)} pp. ` +
-      `Zmiana vs poprzednie okno: ${(dCtr * 100).toFixed(2)} pp.`,
-    fixes:
-      ctrGap < 0
-        ? [
-            "Przepisz meta title na TOP stronach: dodaj korzyść + rok + brand na końcu (≤ 60 znaków).",
-            "Popraw meta description: konkretna wartość + CTA (≤ 155 znaków).",
-            "Wdroż FAQ / HowTo schema.org - często dają rich results w SERP.",
-            "Sprawdź faktyczny snippet w SERP (site:) - czasem Google generuje własny opis; wtedy popraw H1/pierwszy akapit.",
-          ]
-        : ["Utrzymaj stylistykę tytułów - działa. Wprowadź ten sam wzorzec na słabszych stronach."],
+    title: t(`${B}.ctr.title`, {
+      ctr: (totals.ctr * 100).toFixed(2),
+      pos: totals.position.toFixed(1),
+    }),
+    detail: t(`${B}.ctr.detail`, {
+      exp: (expectedCtr(totals.position) * 100).toFixed(1),
+      cmp: ctrGap >= 0 ? t(`${B}.ctr.cmpHigher`) : t(`${B}.ctr.cmpLower`),
+      gap: (Math.abs(ctrGap) * 100).toFixed(1),
+      dctr: (dCtr * 100).toFixed(2),
+    }),
+    fixes: ctrGap < 0 ? arr(`${B}.ctr.fixesLow`) : arr(`${B}.ctr.fixesGood`),
   });
 
   // ── 3. KPI: pozycja ────────────────────────────────────────────────
   const dPos = totals.position - prevTotals.position;
   out.push({
     id: "kpi-position",
-    element: "KPI · Śr. pozycja",
+    element: t(`${B}.position.element`),
     severity: dPos <= -0.5 ? "good" : dPos >= 0.5 ? "warn" : "info",
-    title: `Średnia pozycja: ${totals.position.toFixed(1)} (${dPos >= 0 ? "+" : ""}${dPos.toFixed(1)})`,
+    title: t(`${B}.position.title`, {
+      pos: totals.position.toFixed(1),
+      delta: signed(dPos),
+    }),
     detail:
       dPos > 0
-        ? `Pozycja pogorszyła się o ${dPos.toFixed(1)} miejsc - spadek widoczności.`
+        ? t(`${B}.position.detailWorse`, { n: dPos.toFixed(1) })
         : dPos < 0
-          ? `Pozycja poprawiła się o ${Math.abs(dPos).toFixed(1)} miejsc.`
-          : `Pozycja stabilna względem poprzedniego okna.`,
-    fixes:
-      dPos > 0.5
-        ? [
-            "Zbadaj konkurencję TOP-3 pod Twoje TOP frazy (SEMrush SERP analysis).",
-            "Zaktualizuj najstarsze wpisy z najlepszymi frazami: refresh treści + data modyfikacji.",
-            "Dodaj wewnętrzne linki z filarowych stron do artykułów tracących pozycje.",
-          ]
-        : ["Utrzymaj tempo linkowania wewnętrznego i publikacji."],
+          ? t(`${B}.position.detailBetter`, { n: Math.abs(dPos).toFixed(1) })
+          : t(`${B}.position.detailStable`),
+    fixes: dPos > 0.5 ? arr(`${B}.position.fixesWorse`) : arr(`${B}.position.fixesStable`),
   });
 
   // ── 4. Trend widoczności ───────────────────────────────────────────
@@ -137,21 +133,17 @@ export function buildGscInsights(p: Params): Insight[] {
     const trend = pctDelta(late, early);
     out.push({
       id: "trend",
-      element: "Trend widoczności",
+      element: t(`${B}.trend.element`),
       severity: classifyDelta(trend, true),
       title:
         trend === null
-          ? "Trend widoczności - brak dostatecznych danych"
-          : `Druga połowa okna: ${trend >= 0 ? "+" : ""}${trend.toFixed(1)}% klik. vs pierwsza`,
-      detail: `Kliknięcia H1: ${early}, H2: ${late}. Kierunek trendu w oknie ${p.windowDays} dni.`,
+          ? t(`${B}.trend.titleNoData`)
+          : t(`${B}.trend.title`, { delta: signed(trend) }),
+      detail: t(`${B}.trend.detail`, { early, late, days: p.windowDays }),
       fixes:
         trend !== null && trend < -10
-          ? [
-              "Sprawdź logi crawlowania w GSC - może pojawił się blok robots / 5xx.",
-              "Zweryfikuj sitemap.xml (świeżość + brak 404).",
-              "Uruchom URL Inspection dla stron które utraciły ruch.",
-            ]
-          : ["Analizuj korelację ze świętami / weekendami - w B2B typowy spadek weekendowy."],
+          ? arr(`${B}.trend.fixesDown`)
+          : arr(`${B}.trend.fixesDefault`),
     });
   }
 
@@ -164,27 +156,20 @@ export function buildGscInsights(p: Params): Insight[] {
     const zeroClickHigh = queryRows.filter((r) => r.clicks === 0 && r.impressions >= 20).length;
     out.push({
       id: "top-queries",
-      element: "Top 15 zapytań",
+      element: t(`${B}.topQueries.element`),
       severity: brandedPct > 0.6 ? "warn" : zeroClickHigh > 5 ? "warn" : "info",
       title:
         brandedPct > 0.6
-          ? `Ruch mocno brandowy (${(brandedPct * 100).toFixed(0)}%)`
-          : `${zeroClickHigh} fraz z ≥20 wyśw. i 0 klik.`,
+          ? t(`${B}.topQueries.titleBranded`, { pct: (brandedPct * 100).toFixed(0) })
+          : t(`${B}.topQueries.titleZeroClick`, { count: zeroClickHigh }),
       detail:
         brandedPct > 0.6
-          ? "Ponad połowa kliknięć pochodzi z fraz brandowych - brakuje widoczności generycznej."
-          : `Wysokie impressions bez kliknięć = SERP snippet nie sprzedaje. Fraz: ${zeroClickHigh}.`,
+          ? t(`${B}.topQueries.detailBranded`)
+          : t(`${B}.topQueries.detailZeroClick`, { count: zeroClickHigh }),
       fixes:
         brandedPct > 0.6
-          ? [
-              "Zbuduj content pod generic long-tail (poradniki, case studies) w tematach z branży.",
-              "Skorzystaj z SEMrush keyword research: filtruj KD < 30 i intent Informational.",
-              "Zlinkuj artykuły filarowe (pillar page) z ich klastrami tematycznymi.",
-            ]
-          : [
-              "Weź 5 fraz z 0-CTR i przepisz meta title + description z korzyścią / liczbą.",
-              "Zbuduj FAQ na tych stronach - Google chętnie promuje snippet Q&A.",
-            ],
+          ? arr(`${B}.topQueries.fixesBranded`)
+          : arr(`${B}.topQueries.fixesZeroClick`),
     });
   }
 
@@ -201,18 +186,21 @@ export function buildGscInsights(p: Params): Insight[] {
     const top10Pct = totalImp > 0 ? (inWindow.top3 + inWindow.top10) / totalImp : 0;
     out.push({
       id: "position-histogram",
-      element: "Rozkład pozycji SERP",
+      element: t(`${B}.positionHistogram.element`),
       severity: top10Pct >= 0.5 ? "good" : top10Pct >= 0.25 ? "info" : "warn",
-      title: `${(top10Pct * 100).toFixed(0)}% wyświetleń w TOP 10`,
-      detail:
-        `TOP3: ${inWindow.top3}, TOP4-10: ${inWindow.top10}, TOP11-20: ${inWindow.top20}, 21+: ${inWindow.deep}. ` +
-        `Grupa 11-20 to "striking distance" - najłatwiejszy zysk.`,
+      title: t(`${B}.positionHistogram.title`, { pct: (top10Pct * 100).toFixed(0) }),
+      detail: t(`${B}.positionHistogram.detail`, {
+        top3: inWindow.top3,
+        top10: inWindow.top10,
+        top20: inWindow.top20,
+        deep: inWindow.deep,
+      }),
       fixes: [
-        "Wypisz wszystkie zapytania z pozycji 11-20 - to najlepszy ROI. Dodaj sekcje tematyczne + linki wewnętrzne.",
-        "Do najbardziej dochodowych fraz z TOP4-10 dodaj FAQ / listę + zaktualizuj rok w tytule.",
+        t(`${B}.positionHistogram.fix1`),
+        t(`${B}.positionHistogram.fix2`),
         top10Pct < 0.25
-          ? "Rozważ backlinki tematyczne - bez off-site trudno wskoczyć z 20+ do TOP10."
-          : "Utrzymuj świeżość - refresh co 6 miesięcy dla TOP fraz.",
+          ? t(`${B}.positionHistogram.fix3Low`)
+          : t(`${B}.positionHistogram.fix3High`),
       ],
     });
   }
@@ -224,23 +212,20 @@ export function buildGscInsights(p: Params): Insight[] {
     const topShare = totals.clicks > 0 ? top.clicks / totals.clicks : 0;
     out.push({
       id: "countries",
-      element: "Kraje",
+      element: t(`${B}.countries.element`),
       severity: topShare > 0.9 ? "info" : "good",
-      title: `Dominujący kraj: ${(top.keys[0] ?? "?").toUpperCase()} (${(topShare * 100).toFixed(0)}%)`,
-      detail: `${sorted.length} krajów w wynikach. Top 3: ${sorted
-        .slice(0, 3)
-        .map((r) => `${(r.keys[0] ?? "?").toUpperCase()} ${r.clicks}`)
-        .join(", ")}.`,
-      fixes:
-        topShare > 0.9
-          ? [
-              "Jeden rynek = jedno ryzyko. Rozważ wersję EN dla najsilniejszych treści (i18n już masz).",
-              "Ustaw hreflang na przetłumaczonych stronach - Google poda właściwą wersję per kraj.",
-            ]
-          : [
-              "Podłącz country-specific meta description dla topowych rynków.",
-              "Uruchom Merchant/Business Profile w krajach z ≥5% ruchu (jeśli B2C).",
-            ],
+      title: t(`${B}.countries.title`, {
+        country: (top.keys[0] ?? "?").toUpperCase(),
+        pct: (topShare * 100).toFixed(0),
+      }),
+      detail: t(`${B}.countries.detail`, {
+        count: sorted.length,
+        top3: sorted
+          .slice(0, 3)
+          .map((r) => `${(r.keys[0] ?? "?").toUpperCase()} ${r.clicks}`)
+          .join(", "),
+      }),
+      fixes: topShare > 0.9 ? arr(`${B}.countries.fixesSingle`) : arr(`${B}.countries.fixesMulti`),
     });
   }
 
@@ -255,18 +240,15 @@ export function buildGscInsights(p: Params): Insight[] {
     const gap = desktopCtr - mobileCtr;
     out.push({
       id: "devices",
-      element: "Urządzenia",
+      element: t(`${B}.devices.element`),
       severity: gap > 0.02 ? "warn" : "info",
-      title: `Mobile ${mobileClicks} klik., desktop ${desktopClicks} klik.`,
-      detail: `CTR: mobile ${(mobileCtr * 100).toFixed(2)}%, desktop ${(desktopCtr * 100).toFixed(2)}%. ${gap > 0.02 ? "Desktop wyraźnie przoduje - mobilny snippet nie działa." : "Równomierny rozkład CTR."}`,
-      fixes:
-        gap > 0.02
-          ? [
-              "Skróć meta title do 50 znaków (mobile SERP ucina wcześniej).",
-              "Sprawdź LCP mobile w Web Vitals - wolne mobile = niższy CTR.",
-              "Zweryfikuj sticky headery i cookie bar - blokują first paint na mobile.",
-            ]
-          : ["Utrzymuj responsywność. Warto przetestować AMP tylko jeśli publikujesz newsy."],
+      title: t(`${B}.devices.title`, { mobile: mobileClicks, desktop: desktopClicks }),
+      detail: t(`${B}.devices.detail`, {
+        mctr: (mobileCtr * 100).toFixed(2),
+        dctr: (desktopCtr * 100).toFixed(2),
+        note: gap > 0.02 ? t(`${B}.devices.noteGap`) : t(`${B}.devices.noteEven`),
+      }),
+      fixes: gap > 0.02 ? arr(`${B}.devices.fixesGap`) : arr(`${B}.devices.fixesEven`),
     });
   }
 
@@ -277,15 +259,11 @@ export function buildGscInsights(p: Params): Insight[] {
     const winners = withImpr.filter((r) => r.ctr > expectedCtr(r.position) * 1.3);
     out.push({
       id: "pages",
-      element: "Strony wg wyświetleń",
+      element: t(`${B}.pages.element`),
       severity: lowCtr.length > 3 ? "warn" : "info",
-      title: `${lowCtr.length} stron znacząco poniżej benchmarku CTR, ${winners.length} powyżej`,
-      detail: `Analiza ${withImpr.length} stron z ≥30 wyświetleń. Sortuj: kolor treemapy = CTR (zielone = mocne, czerwone = słabe).`,
-      fixes: [
-        "Weź 3 najsłabsze strony i przepisz H1 + meta title - najszybszy efekt.",
-        "Ze zwycięzców skopiuj wzorzec: układ H1 + CTA + FAQ na słabsze strony.",
-        "Wewnętrzne linki: z winnerów podlinkuj strony z niską widocznością - transfer autorytetu.",
-      ],
+      title: t(`${B}.pages.title`, { low: lowCtr.length, winners: winners.length }),
+      detail: t(`${B}.pages.detail`, { count: withImpr.length }),
+      fixes: arr(`${B}.pages.fixes`),
     });
   }
 
@@ -297,26 +275,18 @@ export function buildGscInsights(p: Params): Insight[] {
     const zeros = sorted.filter((r) => r.clicks === 0).length;
     const spikeIdx = sorted.reduce((acc, r, i) => (r.clicks > sorted[acc].clicks ? i : acc), 0);
     const spike = sorted[spikeIdx];
+    const manyZeros = zeros > sorted.length * 0.4;
     out.push({
       id: "calendar",
-      element: "Aktywność dzienna",
-      severity: zeros > sorted.length * 0.4 ? "warn" : "info",
-      title:
-        zeros > sorted.length * 0.4
-          ? `${zeros}/${sorted.length} dni bez kliknięć`
-          : `Szczyt: ${spike.clicks} klik. ${spike.keys[0] ?? ""}`,
-      detail:
-        zeros > sorted.length * 0.4
-          ? "Duża liczba zerowych dni sugeruje wąską niszę lub problem z indeksacją długi czas."
-          : `Największy szczyt aktywności w wybranym oknie: ${spike.keys[0] ?? "-"} (${spike.clicks} klik.).`,
-      fixes:
-        zeros > sorted.length * 0.4
-          ? [
-              "Zwiększ częstotliwość publikacji - target 2-3 posty tygodniowo daje ciągły dopływ impressions.",
-              "Uruchom URL Inspection dla zerowych dni w kluczowych URL.",
-              "Rozważ syndication (LinkedIn / newsletter) - dywersyfikuje źródła ruchu.",
-            ]
-          : ["Zbadaj co spowodowało szczyt - powtórz format / temat / dystrybucję."],
+      element: t(`${B}.calendar.element`),
+      severity: manyZeros ? "warn" : "info",
+      title: manyZeros
+        ? t(`${B}.calendar.titleZeros`, { zeros, total: sorted.length })
+        : t(`${B}.calendar.titleSpike`, { clicks: spike.clicks, date: spike.keys[0] ?? "" }),
+      detail: manyZeros
+        ? t(`${B}.calendar.detailZeros`)
+        : t(`${B}.calendar.detailSpike`, { date: spike.keys[0] ?? "-", clicks: spike.clicks }),
+      fixes: manyZeros ? arr(`${B}.calendar.fixesZeros`) : arr(`${B}.calendar.fixesSpike`),
     });
   }
 
