@@ -41,9 +41,11 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       className="lang-switch-simple inline-flex items-center justify-center rounded-[6px] border border-border bg-background hover:bg-muted transition-colors font-semibold"
-      style={{ height: 24, minWidth: 32, padding: "0 8px", fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
+      style={{ height: 24, minWidth: 48, padding: "0 8px", fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
     >
-      {current.toUpperCase()}
+      <span className={current === "pl" ? "text-foreground" : "text-muted-foreground"}>PL</span>
+      <span className="text-muted-foreground mx-1" aria-hidden="true">|</span>
+      <span className={current === "en" ? "text-foreground" : "text-muted-foreground"}>EN</span>
     </button>
   );
 }
