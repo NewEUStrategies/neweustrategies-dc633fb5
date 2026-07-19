@@ -531,7 +531,7 @@ export function ConsentBanner() {
                         <p className={TX.heading}>{categoryName(cat)}</p>
                         {locked && (
                           <span className="text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded bg-[color:var(--cb-accent,var(--primary))]/12 text-[color:var(--cb-accent,var(--primary))]">
-                            {isPl ? "Wymagane" : "Required"}
+                            {tr("common.required")}
                           </span>
                         )}
                         <span
