@@ -8,7 +8,7 @@ import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
-import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
+import { addRecentSearch } from "@/lib/search/recentSearches";
 import {
   suggestBucketOf,
   suggestionHref,
