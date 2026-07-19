@@ -136,7 +136,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Zapisano warstwę" : "Tier saved");
+      toast.success(tm("toast.tierSaved"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
       void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
     },
@@ -149,7 +149,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Usunięto warstwę" : "Tier deleted");
+      toast.success(tm("toast.tierDeleted"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
       void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
     },
@@ -160,7 +160,7 @@ function AdminMembershipPage() {
     mutationFn: async (input: { key: string; rank: number; name_pl: string; name_en: string }) => {
       // tenant_id wymuszony przez politykę RLS - pobierz z istniejącej warstwy
       const existing = tiersQ.data?.[0];
-      if (!existing) throw new Error(lang === "pl" ? "Brak tenantu" : "No tenant");
+      if (!existing) throw new Error(tm("toast.noTenant"));
       const { error } = await supabase.from("membership_tiers").insert({
         tenant_id: existing.tenant_id,
         key: input.key.trim(),
@@ -173,7 +173,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Utworzono warstwę" : "Tier created");
+      toast.success(tm("toast.tierCreated"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
       void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
     },
@@ -189,7 +189,7 @@ function AdminMembershipPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Zapisano mapowanie planu" : "Plan mapping saved");
+      toast.success(tm("toast.planMappingSaved"));
       void qc.invalidateQueries({ queryKey: ["admin", "plans-active"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -201,7 +201,7 @@ function AdminMembershipPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <Crown className="h-6 w-6" aria-hidden="true" />
-            {lang === "pl" ? "Warstwy członkostwa" : "Membership tiers"}
+            {tm("title")}
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             {lang === "pl"
@@ -232,13 +232,13 @@ function AdminMembershipPage() {
                     <BadgeCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                     <span className="truncate font-mono text-sm">{tier.key}</span>
                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">
-                      {lang === "pl" ? "ranga" : "rank"} {tier.rank}
+                      {tm("rankBadge")} {tier.rank}
                     </span>
                   </span>
                   <div className="flex items-center gap-1">
                     {tier.is_default && (
                       <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                        {lang === "pl" ? "domyślna" : "default"}
+                        {tm("defaultBadge")}
                       </span>
                     )}
                     <Button
@@ -312,7 +312,7 @@ function AdminMembershipPage() {
 
                 <div className="grid grid-cols-3 items-end gap-2">
                   <div>
-                    <Label className="text-xs">{lang === "pl" ? "Ranga" : "Rank"}</Label>
+                    <Label className="text-xs">{tm("fields.rank")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -322,14 +322,14 @@ function AdminMembershipPage() {
                   </div>
                   <div className="flex items-center gap-2 pb-2">
                     <Switch checked={draft.active} onCheckedChange={(v) => set({ active: v })} />
-                    <span className="text-xs">{lang === "pl" ? "Aktywna" : "Active"}</span>
+                    <span className="text-xs">{tm("fields.active")}</span>
                   </div>
                   <div className="flex items-center gap-2 pb-2">
                     <Switch
                       checked={draft.is_default}
                       onCheckedChange={(v) => set({ is_default: v })}
                     />
-                    <span className="text-xs">{lang === "pl" ? "Domyślna" : "Default"}</span>
+                    <span className="text-xs">{tm("fields.default")}</span>
                   </div>
                 </div>
                 <div>
@@ -353,7 +353,7 @@ function AdminMembershipPage() {
                     onClick={() => saveTier.mutate({ id: tier.id, draft })}
                   >
                     <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                    {lang === "pl" ? "Zapisz" : "Save"}
+                    {tm("save")}
                   </Button>
                 </div>
               </CardContent>
@@ -364,7 +364,7 @@ function AdminMembershipPage() {
 
       <section>
         <h2 className="text-lg font-semibold">
-          {lang === "pl" ? "Mapowanie planów na warstwy" : "Plan-to-tier mapping"}
+          {tm("mapping.heading")}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {lang === "pl"
@@ -395,7 +395,7 @@ function AdminMembershipPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">
-                    {lang === "pl" ? "- bez warstwy -" : "- no tier -"}
+                    {tm("mapping.noTier")}
                   </SelectItem>
                   {tierOptions.map((tier) => (
                     <SelectItem key={tier.key} value={tier.key}>
@@ -413,7 +413,7 @@ function AdminMembershipPage() {
 
       <section>
         <h2 className="text-lg font-semibold">
-          {lang === "pl" ? "Członkostwo organizacji" : "Organisation membership"}
+          {tm("org.heading")}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {lang === "pl"
@@ -423,7 +423,7 @@ function AdminMembershipPage() {
         <Button asChild variant="outline" size="sm" className="mt-3">
           <Link to="/admin/organizations">
             <Landmark className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {lang === "pl" ? "Otwórz organizacje" : "Open organisations"}
+            {tm("org.open")}
           </Link>
         </Button>
       </section>
@@ -782,7 +782,7 @@ function NewTierDialog({
             </p>
           </div>
           <div>
-            <Label className="text-xs">{lang === "pl" ? "Ranga" : "Rank"}</Label>
+            <Label className="text-xs">{tm("fields.rank")}</Label>
             <Input
               type="number"
               min={0}
