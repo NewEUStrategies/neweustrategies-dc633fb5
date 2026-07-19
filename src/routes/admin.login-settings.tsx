@@ -13,6 +13,7 @@ import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import defaultLoginLight from "@/assets/login-illustration-light.jpg";
 import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
@@ -33,7 +34,7 @@ function LoginSettingsPage() {
   const submit = async () => {
     try {
       await save.mutateAsync(s);
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Błąd");
     }

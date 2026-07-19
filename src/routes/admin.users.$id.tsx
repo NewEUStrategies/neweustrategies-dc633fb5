@@ -49,6 +49,7 @@ import {
 } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
+import { adminToast } from "@/lib/adminToasts";
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
@@ -502,15 +503,15 @@ function AvatarEditor({
 
   const handlePick = (file: File) => {
     if (!tenantId) {
-      toast.error("Brak kontekstu tenanta");
+      toast.error(adminToast.missingTenant());
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Plik za duży (max 5 MB)");
+      toast.error(adminToast.fileTooBig());
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Wymagany plik graficzny");
+      toast.error(adminToast.imageRequired());
       return;
     }
     setPendingFile(file);
@@ -544,7 +545,7 @@ function AvatarEditor({
         _avatar_url: pub.publicUrl,
       });
       if (updErr) throw updErr;
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
       onUpdated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");

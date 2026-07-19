@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Plus, Save, Trash2, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
 import { useAuth } from "@/hooks/useAuth";
 import {
+import { adminToast } from "@/lib/adminToasts";
   newStoryPage,
   safeParsePages,
   type StoryPage,
@@ -108,7 +109,7 @@ function Page() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "web-stories"] });
       qc.invalidateQueries({ queryKey: ["web-stories"] });
-      toast.success("Zapisano");
+      toast.success(adminToast.saved());
       setEditing(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -121,7 +122,7 @@ function Page() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "web-stories"] });
-      toast.success("Usunięto");
+      toast.success(adminToast.deleted());
     },
     onError: (e: Error) => toast.error(e.message),
   });
