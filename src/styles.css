@@ -4603,6 +4603,14 @@ textarea::placeholder {
   cursor: not-allowed;
 }
 
+/* Beat high-specificity builder widget styles ([data-w-id] repeated) that
+   force text-align: center on all descendants. The floating input atom must
+   always keep its text left-aligned regardless of parent widget alignment. */
+.input-group.input-group > .input.input,
+.input-group.input-group > textarea.input.input {
+  text-align: left !important;
+}
+
 /* On-dark modifier: for use inside dark popup/marketing surfaces
    (LoginPopup dark hero, NewsletterPopupForm split). The label chip needs a
    solid backdrop matching the dark surface (bg-white/5 over a near-black
