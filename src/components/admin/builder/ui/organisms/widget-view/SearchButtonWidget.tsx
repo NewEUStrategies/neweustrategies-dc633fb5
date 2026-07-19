@@ -205,7 +205,7 @@ export function SearchButtonWidget({
   const trailingPad = q ? 108 : 84;
 
   return (
-    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto" style={{ overflow: "visible" }}>
+    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto" style={{ overflow: "visible", fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}>
       <div className="input-group" style={{ height: `${h}px`, overflow: "visible" }}>
         <input
           ref={inputRef}
