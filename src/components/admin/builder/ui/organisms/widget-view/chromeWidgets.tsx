@@ -15,6 +15,8 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
 
   const switchLang = () => {
     if (current === next) return;
+    // eslint-disable-next-line no-console
+    console.log("switchLang called", { current, next, pathname: router.state.location.pathname });
     setClientLang(next);
     void i18n.changeLanguage(next);
     try {
@@ -24,8 +26,11 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       /* noop */
     }
     const internal = stripLangPrefix(router.state.location.pathname).pathname;
+    const target = localizedPath(internal, next);
+    // eslint-disable-next-line no-console
+    console.log("navigating to", target);
     void router.navigate({
-      href: localizedPath(internal, next),
+      href: target,
       replace: true,
       resetScroll: false,
     });
