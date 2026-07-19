@@ -241,20 +241,15 @@ function AdminResearchPrograms() {
     <div className="mx-auto max-w-[1200px] p-4 lg:p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">
-            {lang === "pl" ? "Landing programów badawczych" : "Research program landings"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {lang === "pl"
-              ? "Pełne strony programów (teza, zespół, projekty, partnerzy, kuratorowane treści)."
-              : "Full program landing pages (thesis, team, projects, partners, curated content)."}
-          </p>
+          <h1 className="font-display text-2xl">{tp("title")}</h1>
+          <p className="text-sm text-muted-foreground">{tp("subtitle")}</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          {lang === "pl" ? "Nowy program" : "New program"}
+          {tp("newProgram")}
         </Button>
       </header>
+
 
       {programsQ.isLoading ? (
         <div className="grid gap-2">
