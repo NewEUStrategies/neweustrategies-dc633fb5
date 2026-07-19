@@ -425,6 +425,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 
 function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const label = pickLabel(node, lang);
+  const goToPage = lang === "en" ? "Go to page" : "Przejdź do strony";
   if (!label) return null;
   const hasChildren = node.children.length > 0;
   const megaLinks =
