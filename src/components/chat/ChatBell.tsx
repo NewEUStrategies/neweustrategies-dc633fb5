@@ -143,12 +143,12 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
           <h2 className="flex items-center gap-2 text-base font-bold tracking-tight">
             {t("chat.messages")}
             {unread > 0 && (
-              <span
-                className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-md bg-[var(--brand)] px-1.5 text-[11px] font-semibold leading-none text-white"
-                aria-label={t("chat.unread", { count: unread })}
-              >
-                {unread > 99 ? "99+" : unread}
-              </span>
+              <UnreadBadge
+                count={unread}
+                size="lg"
+                className="static"
+                labelKey="chat.unread"
+              />
             )}
           </h2>
           <button
