@@ -70,12 +70,12 @@ function CropSizesAdmin() {
 
   const save = async () => {
     if (!draft.name.trim()) {
-      toast.error("Nazwa wymagana");
+      toast.error(t("adminToasts.nameRequired"));
       return;
     }
     try {
       await upsertCropSize(tenantId, draft);
-      toast.success("Zapisano");
+      toast.success(t("adminToasts.saved"));
       setDraft(DEFAULT_DRAFT);
       refresh();
     } catch (e) {
