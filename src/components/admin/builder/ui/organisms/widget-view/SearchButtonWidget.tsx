@@ -193,8 +193,11 @@ export function SearchButtonWidget({
     }
   };
 
-  const h = Math.max(24, Math.min(120, height || 40));
-  const pad = Math.max(8, Math.round(h * 0.3));
+  // Compact by default (36px) — bell/kolumny nagłówka mają obcięcie parenta,
+  // więc niższy widget + label pływający WEWNĄTRZ inputa (poniżej) chroni
+  // przed przycinaniem chipu na górnej krawędzi headera.
+  const h = Math.max(28, Math.min(120, height || 36));
+  const pad = Math.max(8, Math.round(h * 0.28));
 
   // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
   // right padding so text never slides under the icons.
@@ -444,6 +447,42 @@ export function SearchButtonWidget({
               display: none;
               width: 0;
               height: 0;
+            }
+            /* Placeholder text w kolorze jasnoszarym, spójnym z ikonami. */
+            .builder-search-widget .input-group > .user-label {
+              color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+              font-size: 0.8125rem;
+              font-weight: 400;
+            }
+            /* Ikony jasnoszare, hover -> foreground. */
+            .builder-search-widget button svg,
+            .builder-search-widget .absolute svg {
+              color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+            }
+            .builder-search-widget button:hover svg {
+              color: var(--foreground);
+            }
+            /* KRYTYCZNE: float label zostaje WEWNĄTRZ inputa, nie na górnej
+               krawędzi - dzięki temu chip nie jest przycinany przez parenta
+               nagłówka (overflow-hidden na kolumnie headera). */
+            .builder-search-widget .input-group > .input:focus ~ .user-label,
+            .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
+              top: 50%;
+              transform: translateY(-50%) scale(0.75);
+              background: transparent;
+              padding: 0;
+              color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+              opacity: 0;
+            }
+            /* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus,
+               żeby widget nie wychodził poza wysokość headera. */
+            .builder-search-widget .input-group > .input {
+              border-width: 1px;
+              border-color: color-mix(in oklab, var(--border) 80%, transparent);
+            }
+            .builder-search-widget .input-group > .input:focus {
+              box-shadow: none;
+              border-color: var(--ring);
             }
           `,
         }}
