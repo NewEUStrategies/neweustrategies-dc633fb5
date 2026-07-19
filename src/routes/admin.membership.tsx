@@ -445,7 +445,7 @@ function GrantsSection({
         note: note.trim() || null,
       }),
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Nadano warstwę" : "Membership granted");
+      toast.success(tm("toast.grantSuccess"));
       setEmail("");
       setNote("");
       void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
@@ -454,10 +454,10 @@ function GrantsSection({
       const msg = e.message || "";
       if (msg.includes("user not found"))
         toast.error(
-          lang === "pl" ? "Nie znaleziono konta o tym e-mailu" : "No account with that email",
+          tm("toast.noAccount"),
         );
       else if (msg.includes("tier not found"))
-        toast.error(lang === "pl" ? "Nieznana warstwa" : "Unknown tier");
+        toast.error(tm("toast.unknownTier"));
       else toast.error(msg);
     },
   });
@@ -465,7 +465,7 @@ function GrantsSection({
   const revokeM = useMutation({
     mutationFn: (id: string) => revokeGrant(id),
     onSuccess: () => {
-      toast.success(lang === "pl" ? "Cofnięto nadanie" : "Grant revoked");
+      toast.success(tm("toast.grantRevoked"));
       void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -488,7 +488,7 @@ function GrantsSection({
   return (
     <section>
       <h2 className="text-lg font-semibold">
-        {lang === "pl" ? "Nadania warstwy (poza planem)" : "Membership grants (off-plan)"}
+        {tm("grants.heading")}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {lang === "pl"
@@ -507,10 +507,10 @@ function GrantsSection({
           />
         </div>
         <div>
-          <Label className="text-xs">{lang === "pl" ? "Warstwa" : "Tier"}</Label>
+          <Label className="text-xs">{tm("grants.tier")}</Label>
           <Select value={tierKey} onValueChange={setTierKey}>
             <SelectTrigger>
-              <SelectValue placeholder={lang === "pl" ? "wybierz" : "select"} />
+              <SelectValue placeholder={tm("grants.tierSelect")} />
             </SelectTrigger>
             <SelectContent>
               {tierOptions.map((tier) => (
@@ -522,7 +522,7 @@ function GrantsSection({
           </Select>
         </div>
         <div>
-          <Label className="text-xs">{lang === "pl" ? "Miesiące" : "Months"}</Label>
+          <Label className="text-xs">{tm("grants.months")}</Label>
           <Input
             type="number"
             min={1}
@@ -534,11 +534,11 @@ function GrantsSection({
         </div>
         <Button disabled={!canGrant || grantM.isPending} onClick={() => grantM.mutate()}>
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {lang === "pl" ? "Nadaj" : "Grant"}
+          {tm("grants.grant")}
         </Button>
         <div className="sm:col-span-4">
           <FloatingInput
-            label={lang === "pl" ? "Notatka (opcjonalnie)" : "Note (optional)"}
+            label={tm("grants.note")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
@@ -548,7 +548,7 @@ function GrantsSection({
       <div className="mt-3 space-y-2">
         {(grantsQ.data ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {lang === "pl" ? "Brak aktywnych nadań." : "No active grants."}
+            {tm("grants.empty")}
           </p>
         ) : (
           (grantsQ.data ?? []).map((g: AdminGrantRow) => (
@@ -564,11 +564,11 @@ function GrantsSection({
                 <div className="text-xs text-muted-foreground">
                   {g.tier_key} · {sourceLabel(g.source)} ·{" "}
                   {g.expires_at
-                    ? `${lang === "pl" ? "do" : "until"} ${fmtDate(g.expires_at)}`
+                    ? `${tm("grants.until")} ${fmtDate(g.expires_at)}`
                     : lang === "pl"
                       ? "bezterminowo"
                       : "no expiry"}
-                  {g.revoked_at ? ` · ${lang === "pl" ? "cofnięte" : "revoked"}` : ""}
+                  {g.revoked_at ? ` · ${tm("grants.revoked")}` : ""}
                 </div>
               </div>
               {!g.revoked_at && (
@@ -580,7 +580,7 @@ function GrantsSection({
                   onClick={() => revokeM.mutate(g.id)}
                 >
                   <Trash2 className="mr-1 h-4 w-4" aria-hidden="true" />
-                  {lang === "pl" ? "Cofnij" : "Revoke"}
+                  {tm("grants.revoke")}
                 </Button>
               )}
             </div>
@@ -621,11 +621,11 @@ function BenefitsEditor({
     <div>
       <div className="mb-1 flex items-center justify-between">
         <Label className="text-xs">
-          {lang === "pl" ? "Benefity (per punkt)" : "Benefits (per item)"}
+          {tm("benefits.heading")}
         </Label>
         <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={add}>
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          {lang === "pl" ? "Dodaj" : "Add"}
+          {tm("benefits.add")}
         </Button>
       </div>
       {value.length === 0 ? (
@@ -648,7 +648,7 @@ function BenefitsEditor({
                     className="h-6 w-6"
                     onClick={() => move(i, -1)}
                     disabled={i === 0}
-                    title={lang === "pl" ? "W górę" : "Move up"}
+                    title={tm("benefits.moveUp")}
                   >
                     <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
@@ -659,7 +659,7 @@ function BenefitsEditor({
                     className="h-6 w-6"
                     onClick={() => move(i, 1)}
                     disabled={i === value.length - 1}
-                    title={lang === "pl" ? "W dół" : "Move down"}
+                    title={tm("benefits.moveDown")}
                   >
                     <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
@@ -669,7 +669,7 @@ function BenefitsEditor({
                     variant="ghost"
                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
                     onClick={() => remove(i)}
-                    title={lang === "pl" ? "Usuń" : "Remove"}
+                    title={tm("benefits.remove")}
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
@@ -743,16 +743,16 @@ function NewTierDialog({
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {lang === "pl" ? "Nowa warstwa" : "New tier"}
+          {tm("newTierDialog.title")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{lang === "pl" ? "Nowa warstwa" : "New tier"}</DialogTitle>
+          <DialogTitle>{tm("newTierDialog.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">{lang === "pl" ? "Klucz (slug)" : "Key (slug)"}</Label>
+            <Label className="text-xs">{tm("newTierDialog.key")}</Label>
             <Input
               value={key}
               onChange={(e) => setKey(e.target.value.toLowerCase())}
@@ -794,10 +794,10 @@ function NewTierDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            {lang === "pl" ? "Anuluj" : "Cancel"}
+            {tm("newTierDialog.cancel")}
           </Button>
           <Button onClick={submit} disabled={!canSubmit || isPending}>
-            {lang === "pl" ? "Utwórz" : "Create"}
+            {tm("newTierDialog.create")}
           </Button>
         </DialogFooter>
       </DialogContent>
