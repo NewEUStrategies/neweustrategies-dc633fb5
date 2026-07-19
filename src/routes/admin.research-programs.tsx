@@ -465,7 +465,7 @@ function AdminResearchPrograms() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>{lang === "pl" ? "E-mail kontaktowy" : "Contact email"}</Label>
+                <Label>{tp("field.contactEmail")}</Label>
                 <Input
                   type="email"
                   value={form.contact_email ?? ""}
