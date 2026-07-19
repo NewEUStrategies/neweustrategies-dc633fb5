@@ -631,7 +631,10 @@ function ManageContentDialog({
 /* ----- Team members ----- */
 
 function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
+
   const membersQ = useQuery({
     queryKey: ["admin-rp-members", programId],
     queryFn: async (): Promise<MemberRow[]> => {
