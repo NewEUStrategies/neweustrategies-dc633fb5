@@ -484,6 +484,17 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
               </li>
             ) : null,
           )}
+          <li className="border-t border-border/40 pt-1">
+            <AppLink
+              href={itemHref(node)}
+              target={itemTarget(node)}
+              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-brand"
+            >
+              {goToPage}: <span className="font-black uppercase tracking-[0.08em]">{label}</span>
+              <ChevronRight size={14} aria-hidden />
+            </AppLink>
+          </li>
         </ul>
       </details>
     </li>
