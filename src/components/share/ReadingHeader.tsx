@@ -20,6 +20,10 @@ interface Props {
   title: string;
   /** Reveal once the user has scrolled past this many pixels. */
   showAfter?: number;
+  /** Identifier of the current post/page for the "save for later" action. */
+  entityId?: string;
+  /** Type of entity being saved (post or page). Defaults to post. */
+  entityType?: BookmarkEntityType;
 }
 
 const COPY = {
@@ -35,6 +39,9 @@ const COPY = {
     logout: "Wyloguj",
     lang: "Język",
     menu: "Menu konta",
+    saveForLater: "Zapisz na później",
+    saved: "Zapisano",
+    removeBookmark: "Usuń z zapisanych",
   },
   en: {
     reading: "currently reading",
@@ -48,6 +55,9 @@ const COPY = {
     logout: "Sign out",
     lang: "Language",
     menu: "Account menu",
+    saveForLater: "Save for later",
+    saved: "Saved",
+    removeBookmark: "Remove from saved",
   },
 } as const;
 
