@@ -884,7 +884,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
             onChange={(e) => setDraft((d) => ({ ...d, name_pl: e.target.value }))}
           />
           <Input
-            placeholder="Name (EN)"
+            placeholder={tp("projects.nameEn")}
             value={draft.name_en}
             onChange={(e) => setDraft((d) => ({ ...d, name_en: e.target.value }))}
           />
