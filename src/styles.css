@@ -4731,8 +4731,8 @@ textarea.input {
   --container-radius: 6px;
   --container-pl-bg: linear-gradient(180deg, #ffffff 50%, #dc143c 50%);
   --container-en-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Crect width='60' height='30' fill='%23012169'/%3E%3Cpath d='M0 0l60 30M60 0L0 30' stroke='%23ffffff' stroke-width='8'/%3E%3Cpath d='M0 0l60 30M60 0L0 30' stroke='%23c8102e' stroke-width='3'/%3E%3Cpath d='M30 0v30M0 15h60' stroke='%23ffffff' stroke-width='10'/%3E%3Cpath d='M30 0v30M0 15h60' stroke='%23c8102e' stroke-width='6'/%3E%3C/svg%3E") center / cover no-repeat;
-  --circle-container-diameter: 2.8em;
-  --flag-diameter: 1.7em;
+  --circle-container-diameter: 2.3em;
+  --flag-diameter: 1.4em;
   --circle-container-offset: calc((var(--circle-container-diameter) - var(--container-height)) / 2 * -1);
   --transition: 0.5s cubic-bezier(0, -0.02, 0.4, 1.25);
   --circle-transition: 0.3s cubic-bezier(0, -0.02, 0.35, 1.17);
