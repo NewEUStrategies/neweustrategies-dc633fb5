@@ -152,6 +152,26 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           position: relative;
           z-index: 50;
         }
+        /* Compact landscape mode: small phones held sideways have very little
+           vertical space, so we shrink the bar further and hide non-essential
+           chrome to prevent overlaps. */
+        @media (max-height: 460px) and (orientation: landscape) {
+          [data-reading-header] {
+            height: 36px !important;
+          }
+          [data-reading-header] > div {
+            height: 36px !important;
+            padding-left: 0.625rem !important;
+            padding-right: 0.625rem !important;
+            gap: 0.5rem !important;
+          }
+          [data-reading-header] .builder-search-widget {
+            max-width: 140px !important;
+          }
+          [data-reading-header] [data-reading-label] {
+            display: none !important;
+          }
+        }
       `}</style>
       <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
         {/* Search - same widget as builder header, smaller in the condensed reading bar */}
