@@ -101,7 +101,10 @@ export function AuthorBusinessCard({
   const personalized = usePersonalizedSettings();
   const { data: follows } = useFollows();
   const toggleFollow = useToggleFollow();
-  const canFollow = Boolean(authorId) && personalized.enabled;
+  // "Follow author" powinien być gated jedynie flagą kontekstową dla nagłówka
+  // autora - `personalized.enabled` reguluje sekcje rekomendacji, nie samą
+  // relację obserwacji, która ma sens także przy wyłączonej personalizacji.
+  const canFollow = Boolean(authorId) && personalized.followInAuthorHeader !== false;
   const isFollowing = canFollow
     ? (follows ?? []).some((f) => f.target_type === "author" && f.target_id === authorId)
     : false;
