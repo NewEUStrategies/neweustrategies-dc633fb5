@@ -9,6 +9,8 @@ import { Bookmark, ChevronDown, LogIn, LogOut, Settings, User } from "@/lib/luci
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
+import { ChatBell } from "@/components/chat/ChatBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
