@@ -17,6 +17,8 @@
  *   8. Calendar heatmap - daily clicks activity
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Search as SearchIcon } from "lucide-react";
@@ -73,6 +75,7 @@ const POSITION_BUCKETS = [
 ];
 
 export function GscBiDashboard({ configured }: { configured: boolean }) {
+  const { t } = useTranslation();
   const fetchSites = useServerFn(listGscSites);
   const fetchAnalytics = useServerFn(queryGscAnalytics);
   const [siteUrl, setSiteUrl] = useState<string>("");
@@ -155,7 +158,10 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       .slice()
       .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
     return {
-      legend: { data: ["Kliknięcia", "Wyświetlenia", "CTR"], top: 4 },
+      legend: {
+        data: [t("adminAnalytics.gsc.clicks"), t("adminAnalytics.gsc.impressions"), "CTR"],
+        top: 4,
+      },
       tooltip: { trigger: "axis" },
       grid: { left: 44, right: 60, top: 32, bottom: 40, containLabel: true },
       xAxis: {
@@ -164,19 +170,25 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         boundaryGap: false,
       },
       yAxis: [
-        { type: "value", name: "Kliknięcia", nameTextStyle: { fontSize: 10 } },
+        { type: "value", name: t("adminAnalytics.gsc.clicks"), nameTextStyle: { fontSize: 10 } },
         {
           type: "value",
-          name: "Wyświetlenia",
+          name: t("adminAnalytics.gsc.impressions"),
           nameTextStyle: { fontSize: 10 },
           splitLine: { show: false },
         },
-        { type: "value", name: "CTR %", nameTextStyle: { fontSize: 10 }, show: false, max: 100 },
+        {
+          type: "value",
+          name: t("adminAnalytics.gsc.ctrPct"),
+          nameTextStyle: { fontSize: 10 },
+          show: false,
+          max: 100,
+        },
       ],
       dataZoom: [{ type: "inside", start: 0, end: 100 }],
       series: [
         {
-          name: "Kliknięcia",
+          name: t("adminAnalytics.gsc.clicks"),
           type: "line",
           smooth: true,
           areaStyle: { opacity: 0.25 },
@@ -186,7 +198,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           symbolSize: 4,
         },
         {
-          name: "Wyświetlenia",
+          name: t("adminAnalytics.gsc.impressions"),
           type: "line",
           smooth: true,
           data: sorted.map((r) => r.impressions),
@@ -205,7 +217,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [dateRows]);
+  }, [dateRows, t]);
 
   const topQueriesOption = useMemo<EChartsCoreOption>(() => {
     const top = queryRows
@@ -221,7 +233,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           const arr = raw as Array<{ name: string; value: number; dataIndex: number }>;
           const r = top[arr[0]?.dataIndex ?? 0];
           if (!r) return "";
-          return `${r.keys[0] ?? ""}<br/>Kliknięcia: <b>${r.clicks}</b><br/>Wyświetlenia: ${r.impressions}<br/>CTR: ${(r.ctr * 100).toFixed(2)}%<br/>Pozycja: ${r.position.toFixed(1)}`;
+          return `${r.keys[0] ?? ""}<br/>${t("adminAnalytics.gsc.clicksLabel")}<b>${r.clicks}</b><br/>${t("adminAnalytics.gsc.impressionsLabel")}${r.impressions}<br/>${t("adminAnalytics.gsc.ctrLabel")}${(r.ctr * 100).toFixed(2)}%<br/>${t("adminAnalytics.gsc.positionLabel")}${r.position.toFixed(1)}`;
         },
       },
       xAxis: { type: "value" },
@@ -238,7 +250,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [queryRows]);
+  }, [queryRows, t]);
 
   const positionHistogramOption = useMemo<EChartsCoreOption>(() => {
     const buckets = POSITION_BUCKETS.map((b) => ({ ...b, impressions: 0, clicks: 0 }));
@@ -249,19 +261,22 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       b.clicks += r.clicks;
     }
     return {
-      legend: { data: ["Wyświetlenia", "Kliknięcia"], top: 4 },
+      legend: {
+        data: [t("adminAnalytics.gsc.impressions"), t("adminAnalytics.gsc.clicks")],
+        top: 4,
+      },
       tooltip: { trigger: "axis" },
       xAxis: { type: "category", data: buckets.map((b) => b.label) },
       yAxis: [{ type: "value" }, { type: "value", splitLine: { show: false } }],
       series: [
         {
-          name: "Wyświetlenia",
+          name: t("adminAnalytics.gsc.impressions"),
           type: "bar",
           data: buckets.map((b) => b.impressions),
           itemStyle: { borderRadius: [4, 4, 0, 0] },
         },
         {
-          name: "Kliknięcia",
+          name: t("adminAnalytics.gsc.clicks"),
           type: "line",
           yAxisIndex: 1,
           data: buckets.map((b) => b.clicks),
@@ -269,7 +284,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [queryRows]);
+  }, [queryRows, t]);
 
   const donutOption = (rows: GscRow[], title: string): EChartsCoreOption => {
     const top = rows
@@ -278,7 +293,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       .slice(0, 8);
     const otherClicks = rows.slice(8).reduce((acc, r) => acc + r.clicks, 0);
     const data = top.map((r) => ({ name: r.keys[0] ?? "?", value: r.clicks }));
-    if (otherClicks > 0) data.push({ name: "Inne", value: otherClicks });
+    if (otherClicks > 0) data.push({ name: t("adminAnalytics.gsc.other"), value: otherClicks });
     return {
       tooltip: {
         trigger: "item",
@@ -319,7 +334,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       tooltip: {
         formatter: (raw: unknown) => {
           const p = raw as { name: string; value: number; data: { ctr: number; clicks: number } };
-          return `${p.name}<br/>Wyświetlenia: <b>${p.value}</b><br/>Kliknięcia: ${p.data.clicks}<br/>CTR: ${(p.data.ctr * 100).toFixed(2)}%`;
+          return `${p.name}<br/>${t("adminAnalytics.gsc.impressionsLabel")}<b>${p.value}</b><br/>${t("adminAnalytics.gsc.clicksLabel")}${p.data.clicks}<br/>${t("adminAnalytics.gsc.ctrLabel")}${(p.data.ctr * 100).toFixed(2)}%`;
         },
       },
       series: [
@@ -344,7 +359,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [pageRows]);
+  }, [pageRows, t]);
 
   const calendarOption = useMemo<EChartsCoreOption>(() => {
     if (!dateRows.length) return { series: [] };
@@ -359,7 +374,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       tooltip: {
         formatter: (raw: unknown) => {
           const p = raw as { value: [string, number] };
-          return `${p.value[0]}: <b>${p.value[1]}</b> klik.`;
+          return `${p.value[0]}: <b>${p.value[1]}</b> ${t("adminAnalytics.gsc.clicksShort")}`;
         },
       },
       visualMap: {
@@ -382,20 +397,21 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       },
       series: [{ type: "heatmap", coordinateSystem: "calendar", data }],
     };
-  }, [dateRows]);
+  }, [dateRows, t]);
 
   if (!configured) {
     return (
       <Card className="p-6 text-sm text-muted-foreground">
-        Search Console nie jest jeszcze podłączony. Wróć do zakładki <b>Przegląd</b> i użyj
-        przycisku „Połącz Search Console".
+        {t("adminAnalytics.gsc.notConfiguredPre")}
+        <b>{t("adminAnalytics.gsc.notConfiguredTab")}</b>
+        {t("adminAnalytics.gsc.notConfiguredPost")}
       </Card>
     );
   }
 
   const trendCsv = {
     filename: "gsc-trend",
-    headers: ["data", "kliknięcia", "wyświetlenia", "ctr", "pozycja"],
+    headers: t("adminAnalytics.gsc.csvTrendHeaders", { returnObjects: true }) as string[],
     rows: dateRows.map((r) => [
       r.keys[0] ?? "",
       r.clicks,
@@ -406,7 +422,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   };
   const queriesCsv = {
     filename: "gsc-queries",
-    headers: ["zapytanie", "kliknięcia", "wyświetlenia", "ctr", "pozycja"],
+    headers: t("adminAnalytics.gsc.csvQueriesHeaders", { returnObjects: true }) as string[],
     rows: queryRows.map((r) => [
       r.keys[0] ?? "",
       r.clicks,
@@ -430,10 +446,12 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[220px]">
-          <label className="text-xs text-muted-foreground block mb-1">Właściwość</label>
+          <label className="text-xs text-muted-foreground block mb-1">
+            {t("adminAnalytics.gsc.property")}
+          </label>
           <Select value={effectiveSite} onValueChange={setSiteUrl}>
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Wybierz właściwość" />
+              <SelectValue placeholder={t("adminAnalytics.gsc.selectProperty")} />
             </SelectTrigger>
             <SelectContent>
               {sites.map((s) => (
@@ -445,16 +463,18 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           </Select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Okno</label>
+          <label className="text-xs text-muted-foreground block mb-1">
+            {t("adminAnalytics.gsc.window")}
+          </label>
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
             <SelectTrigger className="h-9 text-sm w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">7 dni</SelectItem>
-              <SelectItem value="14">14 dni</SelectItem>
-              <SelectItem value="28">28 dni</SelectItem>
-              <SelectItem value="90">90 dni</SelectItem>
+              <SelectItem value="7">{t("adminAnalytics.timeRange.preset7d")}</SelectItem>
+              <SelectItem value="14">{t("adminAnalytics.timeRange.preset14d")}</SelectItem>
+              <SelectItem value="28">{t("adminAnalytics.timeRange.preset28d")}</SelectItem>
+              <SelectItem value="90">{t("adminAnalytics.timeRange.preset90d")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -464,11 +484,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           onClick={() => queries.forEach((q) => q.refetch())}
           className="h-9"
         >
-          <RefreshCw className="w-3.5 h-3.5 mr-2" /> Odśwież
+          <RefreshCw className="w-3.5 h-3.5 mr-2" /> {t("adminAnalytics.common.refresh")}
         </Button>
         {anyLoading ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> Ładowanie danych...
+            <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loadingData")}
           </span>
         ) : null}
       </div>
@@ -476,7 +496,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiTile
-          label="Kliknięcia"
+          label={t("adminAnalytics.gsc.clicks")}
           value={totals.clicks.toLocaleString("pl-PL")}
           current={totals.clicks}
           previous={prevTotals.clicks}
@@ -484,7 +504,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           icon={<SearchIcon className="w-3 h-3" />}
         />
         <KpiTile
-          label="Wyświetlenia"
+          label={t("adminAnalytics.gsc.impressions")}
           value={totals.impressions.toLocaleString("pl-PL")}
           current={totals.impressions}
           previous={prevTotals.impressions}
@@ -499,7 +519,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           deltaSuffix="pp"
         />
         <KpiTile
-          label="Śr. pozycja"
+          label={t("adminAnalytics.gsc.avgPosition")}
           value={totals.position ? totals.position.toFixed(1) : "-"}
           current={totals.position}
           previous={prevTotals.position}
@@ -510,15 +530,15 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       {/* Trend + top queries */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartCard
-          title="Trend widoczności"
-          subtitle="Kliknięcia i wyświetlenia w czasie + CTR (linia przerywana)"
+          title={t("adminAnalytics.gsc.charts.trendTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.trendSubtitle")}
           option={trendOption}
           csv={trendCsv}
           height={320}
         />
         <ChartCard
-          title="Top 15 zapytań"
-          subtitle="Rank wg kliknięć"
+          title={t("adminAnalytics.gsc.charts.topQueriesTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.topQueriesSubtitle")}
           option={topQueriesOption}
           csv={queriesCsv}
           height={320}
@@ -528,21 +548,21 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       {/* Position histogram + donuts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <ChartCard
-          title="Rozkład pozycji SERP"
-          subtitle="Wyświetlenia i kliknięcia wg przedziału pozycji"
+          title={t("adminAnalytics.gsc.charts.positionTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.positionSubtitle")}
           option={positionHistogramOption}
           height={280}
         />
         <ChartCard
-          title="Kraje"
-          subtitle="Kliknięcia wg kraju"
-          option={donutOption(countryRows, "Kraje")}
+          title={t("adminAnalytics.gsc.charts.countriesTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.countriesSubtitle")}
+          option={donutOption(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
           height={280}
         />
         <ChartCard
-          title="Urządzenia"
-          subtitle="Kliknięcia wg typu urządzenia"
-          option={donutOption(deviceRows, "Urządzenia")}
+          title={t("adminAnalytics.gsc.charts.devicesTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.devicesSubtitle")}
+          option={donutOption(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
           height={280}
         />
       </div>
@@ -550,14 +570,14 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       {/* Treemap + calendar */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartCard
-          title="Strony wg wyświetleń"
-          subtitle="Treemap top 20 stron (wielkość = wyświetlenia)"
+          title={t("adminAnalytics.gsc.charts.pagesTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.pagesSubtitle")}
           option={treemapOption}
           height={320}
         />
         <ChartCard
-          title="Aktywność dzienna"
-          subtitle="Heatmapa kalendarzowa - kliknięcia per dzień"
+          title={t("adminAnalytics.gsc.charts.calendarTitle")}
+          subtitle={t("adminAnalytics.gsc.charts.calendarSubtitle")}
           option={calendarOption}
           height={320}
         />
@@ -565,7 +585,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection
-        subtitle={`Analiza dla właściwości ${effectiveSite} · okno ${days} dni`}
+        subtitle={t("adminAnalytics.gsc.insightsSubtitle", { site: effectiveSite, days })}
         insights={buildGscInsights({
           totals,
           prevTotals,
@@ -575,6 +595,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           countryRows,
           deviceRows,
           windowDays: days,
+          t,
         })}
       />
     </div>

@@ -21,6 +21,8 @@ import {
 import { Save, Undo as RotateCcw, Loader2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-panes-misc";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { FooterChromePane } from "@/components/admin/FooterChromePane";
 import { TrendingTickerPane } from "@/components/admin/TrendingTickerPane";
@@ -35,6 +37,7 @@ interface Props {
 type Json = Record<string, unknown>;
 
 export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [lang, setLang] = useState<"pl" | "en">("pl");
   const [doc, setDoc] = useState<BuilderDocument | null>(null);
@@ -81,14 +84,14 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
       // exact key so Header/Footer/Menu refresh immediately after save.
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
       qc.invalidateQueries({ queryKey: ["site_settings_public", settingsKey] });
-      toast.success("Zapisano");
+      toast.success(t("adminPanesMisc.savedToast"));
     },
     onError: (e: Error) => toastError(e, "save"),
   });
 
   const onChange = useCallback((v: BuilderDocument) => setDoc(v), []);
 
-  if (!doc) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (!doc) return <p className="text-sm text-muted-foreground">{t("adminPanesMisc.loading")}</p>;
 
   return (
     <div className="space-y-3">
@@ -99,26 +102,28 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <RotateCcw className="w-4 h-4 mr-2" /> Przywróć domyślny układ
+                  <RotateCcw className="w-4 h-4 mr-2" />{" "}
+                  {t("adminPanesMisc.appearance.resetLayout")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Przywrócić domyślny układ?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {t("adminPanesMisc.appearance.resetLayoutTitle")}
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Bieżący układ zostanie zastąpiony domyślnym szablonem. Zmiana wejdzie w życie po
-                    kliknięciu „Zapisz”.
+                    {t("adminPanesMisc.appearance.resetLayoutDesc")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => {
                       setDoc(defaultDocFor(scope));
-                      toast.info("Przywrócono domyślny układ – kliknij „Zapisz”, aby utrwalić.");
+                      toast.info(t("adminPanesMisc.appearance.resetLayoutToast"));
                     }}
                   >
-                    Przywróć
+                    {t("adminPanesMisc.appearance.restore")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -127,11 +132,11 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
           <Button onClick={() => save.mutate(doc)} disabled={save.isPending}>
             {save.isPending ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Zapisywanie…
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t("adminPanesMisc.saving")}
               </>
             ) : (
               <>
-                <Save className="w-4 h-4 mr-2" /> Zapisz
+                <Save className="w-4 h-4 mr-2" /> {t("common.save")}
               </>
             )}
           </Button>
@@ -141,8 +146,10 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
         <Tabs defaultValue="builder">
           <TabsList>
             <TabsTrigger value="builder">Builder</TabsTrigger>
-            <TabsTrigger value="trending">Na czasie</TabsTrigger>
-            <TabsTrigger value="options">Opcje motywu</TabsTrigger>
+            <TabsTrigger value="trending">{t("adminPanesMisc.appearance.tabTrending")}</TabsTrigger>
+            <TabsTrigger value="options">
+              {t("adminPanesMisc.appearance.tabThemeOptions")}
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="builder" className="mt-3">
             <Builder
@@ -165,7 +172,9 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
         <Tabs defaultValue="builder">
           <TabsList>
             <TabsTrigger value="builder">Builder</TabsTrigger>
-            <TabsTrigger value="options">Opcje stopki</TabsTrigger>
+            <TabsTrigger value="options">
+              {t("adminPanesMisc.appearance.tabFooterOptions")}
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="builder" className="mt-3">
             <Builder

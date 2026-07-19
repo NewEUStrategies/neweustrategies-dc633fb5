@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useTranslation } from "react-i18next";
 
 export type ConfirmState = {
   title: string;
@@ -25,6 +26,7 @@ export function ConfirmDialog({
   state: ConfirmState | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <AlertDialog open={!!state} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -35,7 +37,7 @@ export function ConfirmDialog({
           ) : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{state?.cancelLabel ?? "Anuluj"}</AlertDialogCancel>
+          <AlertDialogCancel>{state?.cancelLabel ?? t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={async (e) => {
               e.preventDefault();
@@ -48,7 +50,7 @@ export function ConfirmDialog({
                 : ""
             }
           >
-            {state?.confirmLabel ?? "Potwierdź"}
+            {state?.confirmLabel ?? t("common.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

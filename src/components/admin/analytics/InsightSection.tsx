@@ -15,6 +15,8 @@
  * ich rozbijania w layoutcie.
  */
 import { type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { AlertTriangle, CheckCircle2, Info, Lightbulb, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,16 +58,19 @@ const STYLE: Record<InsightSeverity, { ring: string; badge: string; icon: ReactN
 const ORDER: Record<InsightSeverity, number> = { critical: 0, warn: 1, info: 2, good: 3 };
 
 export function InsightSection({
-  title = "Interpretacja i rekomendacje",
+  title,
   subtitle,
   insights,
-  emptyLabel = "Nie znaleziono krytycznych zagadnień - utrzymaj obecną strategię.",
+  emptyLabel,
 }: {
   title?: string;
   subtitle?: string;
   insights: Insight[];
   emptyLabel?: string;
 }) {
+  const { t } = useTranslation();
+  const titleText = title ?? t("adminAnalytics.insightSection.defaultTitle");
+  const emptyText = emptyLabel ?? t("adminAnalytics.insightSection.emptyDefault");
   if (insights.length === 0) {
     return (
       <Card className="p-4 border-emerald-500/30 bg-emerald-500/5">
@@ -74,8 +79,8 @@ export function InsightSection({
             <CheckCircle2 className="w-5 h-5 text-emerald-500" />
           </span>
           <div>
-            <div className="text-sm font-semibold leading-5">{title}</div>
-            <p className="text-xs text-muted-foreground mt-1">{emptyLabel}</p>
+            <div className="text-sm font-semibold leading-5">{titleText}</div>
+            <p className="text-xs text-muted-foreground mt-1">{emptyText}</p>
           </div>
         </div>
       </Card>
@@ -92,29 +97,29 @@ export function InsightSection({
         <div className="flex items-center gap-2">
           <Lightbulb className="w-4 h-4 text-primary" />
           <div>
-            <h3 className="text-sm font-semibold leading-none">{title}</h3>
+            <h3 className="text-sm font-semibold leading-none">{titleText}</h3>
             {subtitle ? <p className="text-[11px] text-muted-foreground mt-1">{subtitle}</p> : null}
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {counts.critical > 0 ? (
             <Badge variant="outline" className={STYLE.critical.badge}>
-              {counts.critical} krytycznych
+              {t("adminAnalytics.insightSection.badgeCritical", { count: counts.critical })}
             </Badge>
           ) : null}
           {counts.warn > 0 ? (
             <Badge variant="outline" className={STYLE.warn.badge}>
-              {counts.warn} do poprawy
+              {t("adminAnalytics.insightSection.badgeWarn", { count: counts.warn })}
             </Badge>
           ) : null}
           {counts.info > 0 ? (
             <Badge variant="outline" className={STYLE.info.badge}>
-              {counts.info} obserwacji
+              {t("adminAnalytics.insightSection.badgeInfo", { count: counts.info })}
             </Badge>
           ) : null}
           {counts.good > 0 ? (
             <Badge variant="outline" className={STYLE.good.badge}>
-              {counts.good} OK
+              {t("adminAnalytics.insightSection.badgeOk", { count: counts.good })}
             </Badge>
           ) : null}
         </div>

@@ -10,9 +10,11 @@
  *  - Fully keyboard accessible via shadcn primitives.
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { pl } from "date-fns/locale";
+import { pl, enUS } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -33,15 +35,15 @@ export interface TimeRangeValue {
 
 interface PresetSpec {
   id: Exclude<TimeRangePresetId, "custom">;
-  label: string;
+  labelKey: string;
   hours: number;
 }
 
 const PRESETS: PresetSpec[] = [
-  { id: "24h", label: "24 godz.", hours: 24 },
-  { id: "7d", label: "7 dni", hours: 24 * 7 },
-  { id: "30d", label: "30 dni", hours: 24 * 30 },
-  { id: "90d", label: "90 dni", hours: 24 * 90 },
+  { id: "24h", labelKey: "adminAnalytics.timeRange.preset24h", hours: 24 },
+  { id: "7d", labelKey: "adminAnalytics.timeRange.preset7d", hours: 24 * 7 },
+  { id: "30d", labelKey: "adminAnalytics.timeRange.preset30d", hours: 24 * 30 },
+  { id: "90d", labelKey: "adminAnalytics.timeRange.preset90d", hours: 24 * 90 },
 ];
 
 export function buildPresetRange(id: Exclude<TimeRangePresetId, "custom">): TimeRangeValue {
@@ -91,6 +93,8 @@ interface TimeRangeFilterProps {
 }
 
 export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterProps) {
+  const { t, i18n } = useTranslation();
+  const dfLocale = i18n.language?.toLowerCase().startsWith("en") ? enUS : pl;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>(() =>
     value.presetId === "custom"
@@ -100,12 +104,13 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
 
   const label = useMemo(() => {
     if (value.presetId !== "custom") {
-      return PRESETS.find((p) => p.id === value.presetId)?.label ?? value.presetId;
+      const preset = PRESETS.find((p) => p.id === value.presetId);
+      return preset ? t(preset.labelKey) : value.presetId;
     }
     const from = new Date(value.sinceIso);
     const to = new Date(value.untilIso);
-    return `${format(from, "d MMM", { locale: pl })} - ${format(to, "d MMM yyyy", { locale: pl })}`;
-  }, [value]);
+    return `${format(from, "d MMM", { locale: dfLocale })} - ${format(to, "d MMM yyyy", { locale: dfLocale })}`;
+  }, [value, t, dfLocale]);
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
@@ -123,7 +128,7 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
             )}
             aria-pressed={value.presetId === p.id}
           >
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
       </div>
@@ -136,7 +141,7 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
             className="h-7 text-xs gap-1.5"
           >
             <CalendarIcon className="w-3.5 h-3.5" />
-            {value.presetId === "custom" ? label : "Zakres"}
+            {value.presetId === "custom" ? label : t("adminAnalytics.timeRange.range")}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto p-0 pointer-events-auto">
@@ -146,14 +151,14 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
             selected={draft}
             onSelect={setDraft}
             defaultMonth={draft?.from ?? new Date(value.sinceIso)}
-            locale={pl}
+            locale={dfLocale}
             className="p-3 pointer-events-auto"
           />
           <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
             <span className="text-xs text-muted-foreground">
               {draft?.from && draft?.to
-                ? `${format(draft.from, "d MMM yyyy", { locale: pl })} - ${format(draft.to, "d MMM yyyy", { locale: pl })}`
-                : "Wybierz początek i koniec"}
+                ? `${format(draft.from, "d MMM yyyy", { locale: dfLocale })} - ${format(draft.to, "d MMM yyyy", { locale: dfLocale })}`
+                : t("adminAnalytics.timeRange.pickHint")}
             </span>
             <div className="flex gap-1">
               <Button
@@ -165,7 +170,7 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
                   setPickerOpen(false);
                 }}
               >
-                Anuluj
+                {t("common.cancel")}
               </Button>
               <Button
                 size="sm"
@@ -178,7 +183,7 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
                   }
                 }}
               >
-                Zastosuj
+                {t("adminAnalytics.timeRange.apply")}
               </Button>
             </div>
           </div>

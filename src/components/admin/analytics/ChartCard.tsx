@@ -11,6 +11,8 @@
  * ECharts option (bar, line, treemap, radar, ...) without knowing the shape.
  */
 import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,6 +56,7 @@ export function ChartCard({
   footer,
   themeVersion,
 }: ChartCardProps) {
+  const { t } = useTranslation();
   const [full, setFull] = useState(false);
   const instanceRef = useRef<ECharts | null>(null);
 
@@ -100,7 +103,7 @@ export function ChartCard({
                 onClick={doPng}
                 className="w-full text-left flex items-center px-2 py-1.5 text-sm rounded hover:bg-accent"
               >
-                <Download className="w-3.5 h-3.5 mr-2" /> Eksport PNG
+                <Download className="w-3.5 h-3.5 mr-2" /> {t("adminAnalytics.chartCard.exportPng")}
               </button>
               {csv ? (
                 <button
@@ -108,7 +111,8 @@ export function ChartCard({
                   onClick={doCsv}
                   className="w-full text-left flex items-center px-2 py-1.5 text-sm rounded hover:bg-accent"
                 >
-                  <Download className="w-3.5 h-3.5 mr-2" /> Eksport CSV
+                  <Download className="w-3.5 h-3.5 mr-2" />{" "}
+                  {t("adminAnalytics.chartCard.exportCsv")}
                 </button>
               ) : null}
             </PopoverContent>
@@ -118,7 +122,11 @@ export function ChartCard({
             size="icon"
             className="h-7 w-7"
             onClick={() => setFull((v) => !v)}
-            aria-label={full ? "Zamknij pełny ekran" : "Pełny ekran"}
+            aria-label={
+              full
+                ? t("adminAnalytics.chartCard.exitFullscreen")
+                : t("adminAnalytics.chartCard.fullscreen")
+            }
           >
             {full ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>

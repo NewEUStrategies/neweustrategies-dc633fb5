@@ -14,6 +14,8 @@
  * Wszystko izolowane per tenant przez auth-middleware + admin gate.
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-analytics";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, TrendingUp } from "lucide-react";
@@ -37,6 +39,7 @@ function nice(n: number): string {
 }
 
 export function RelatedPostsAnalytics() {
+  const { t } = useTranslation();
   const fetchInsights = useServerFn(getRelatedInsights);
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("30d"));
 
@@ -124,7 +127,7 @@ export function RelatedPostsAnalytics() {
         formatter: (raw: unknown) => {
           const p = raw as { value: [number, number, number] };
           const [i, j, c] = p.value;
-          return `${names[i]} × ${names[j]}<br/>wspólnych wpisów: <b>${c}</b>`;
+          return `${names[i]} × ${names[j]}<br/>${t("adminAnalytics.related.coocLabel")}<b>${c}</b>`;
         },
       },
       grid: { top: 20, left: 8, right: 8, bottom: 90, containLabel: true },
@@ -153,7 +156,7 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report, tagIdToName]);
+  }, [report, tagIdToName, t]);
 
   const popularityScatterOption = useMemo<EChartsCoreOption>(() => {
     const rows = (report?.popularity ?? []).slice(0, 40);
@@ -162,12 +165,12 @@ export function RelatedPostsAnalytics() {
         trigger: "item",
         formatter: (raw: unknown) => {
           const p = raw as { value: [number, number]; name: string };
-          return `${p.name}<br/>Views: <b>${p.value[0]}</b><br/>Unikalnych: <b>${p.value[1]}</b>`;
+          return `${p.name}<br/>${t("adminAnalytics.related.views")}: <b>${p.value[0]}</b><br/>${t("adminAnalytics.related.uniques")}: <b>${p.value[1]}</b>`;
         },
       },
       grid: { left: 40, right: 20, top: 16, bottom: 30, containLabel: true },
-      xAxis: { type: "value", name: "Views", nameGap: 22 },
-      yAxis: { type: "value", name: "Unikalnych", nameGap: 30 },
+      xAxis: { type: "value", name: t("adminAnalytics.related.views"), nameGap: 22 },
+      yAxis: { type: "value", name: t("adminAnalytics.related.uniques"), nameGap: 30 },
       series: [
         {
           type: "scatter",
@@ -180,7 +183,7 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report]);
+  }, [report, t]);
 
   const sankeyOption = useMemo<EChartsCoreOption>(() => {
     const pairs = (report?.click_pairs ?? []).slice(0, 25);
@@ -203,7 +206,7 @@ export function RelatedPostsAnalytics() {
         trigger: "item",
         formatter: (raw: unknown) => {
           const p = raw as { dataType: string; value?: number; name?: string };
-          if (p.dataType === "edge") return `${p.value} klik.`;
+          if (p.dataType === "edge") return `${p.value} ${t("adminAnalytics.related.clicksShort")}`;
           return (p.name ?? "").split("|")[1] ?? "";
         },
       },
@@ -226,7 +229,7 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report]);
+  }, [report, t]);
 
   const hubBarOption = useMemo<EChartsCoreOption>(() => {
     const rows = (report?.hub_targets ?? []).slice(0, 12).reverse();
@@ -238,7 +241,7 @@ export function RelatedPostsAnalytics() {
           const arr = raw as Array<{ dataIndex: number; value: number; name: string }>;
           if (!arr[0]) return "";
           const row = rows[arr[0].dataIndex];
-          return `${row.title ?? row.post_id.slice(0, 8)}<br/>Klik.: <b>${row.clicks}</b><br/>Źródeł: ${row.sources}`;
+          return `${row.title ?? row.post_id.slice(0, 8)}<br/>${t("adminAnalytics.related.hubClicksLabel")}<b>${row.clicks}</b><br/>${t("adminAnalytics.related.hubSourcesLabel")}${row.sources}`;
         },
       },
       grid: { left: 8, right: 24, top: 12, bottom: 20, containLabel: true },
@@ -257,7 +260,7 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report]);
+  }, [report, t]);
 
   // ---- Interpretacja + rekomendacje ---------------------------------------
   const insights = useMemo<Insight[]>(() => {
@@ -265,37 +268,34 @@ export function RelatedPostsAnalytics() {
     const list: Insight[] = [];
     const s = report.summary;
 
+    const arr = (key: string): string[] => t(key, { returnObjects: true }) as string[];
+
     // Widoczność silnika: czy w ogóle klikają w rekomendacje?
     if (s.total_views > 100 && s.total_clicks === 0) {
       list.push({
         id: "no-clicks",
-        element: "Rekomendacje",
+        element: t("adminAnalytics.related.insights.noClicks.element"),
         severity: "critical",
-        title: "Brak klików w rekomendacje w oknie",
-        detail: `Odnotowano ${s.total_views} wyświetleń wpisów, ale 0 klików w powiązane. Sygnały nie działają lub nie są wyświetlane.`,
-        fixes: [
-          "Sprawdź czy sekcja Powiązane wpisy jest włączona globalnie i pod wpisami.",
-          "Zmniejsz próg `min_score` w zakładce Konfiguracja - być może wszystko jest odfiltrowane.",
-          "Sprawdź czy strategia źródła nie jest zbyt restrykcyjna (spróbuj `Kategorie + Tagi`).",
-        ],
+        title: t("adminAnalytics.related.insights.noClicks.title"),
+        detail: t("adminAnalytics.related.insights.noClicks.detail", { views: s.total_views }),
+        fixes: arr("adminAnalytics.related.insights.noClicks.fixes"),
       });
     } else if (s.total_clicks > 0 && s.total_views > 0) {
       const ctr = (s.total_clicks / s.total_views) * 100;
       const sev: Insight["severity"] = ctr >= 3 ? "good" : ctr >= 1 ? "info" : "warn";
       list.push({
         id: "ctr",
-        element: "KPI - CTR rekomendacji",
+        element: t("adminAnalytics.related.insights.ctr.element"),
         severity: sev,
-        title: `CTR rekomendacji: ${ctr.toFixed(2)}%`,
-        detail: `${s.total_clicks} klik. na ${s.total_views} wyświetleń. Benchmark redakcyjny: 1-3%.`,
+        title: t("adminAnalytics.related.insights.ctr.title", { ctr: ctr.toFixed(2) }),
+        detail: t("adminAnalytics.related.insights.ctr.detail", {
+          clicks: s.total_clicks,
+          views: s.total_views,
+        }),
         fixes:
           sev === "good"
-            ? ["Utrzymaj obecną konfigurację, testuj większy `items_limit` żeby zwiększyć zasięg."]
-            : [
-                "Podnieś wagę `weight_tags` - tagi lepiej łączą niepowiązane kategorie.",
-                "Włącz `use_idf` - rzadkie tagi tworzą trafniejsze pary.",
-                "Zmień `layout` na slider - często zwiększa CTR na mobile.",
-              ],
+            ? arr("adminAnalytics.related.insights.ctr.fixesGood")
+            : arr("adminAnalytics.related.insights.ctr.fixesBad"),
       });
     }
 
@@ -305,15 +305,11 @@ export function RelatedPostsAnalytics() {
     if (cats.length > 0 && smallCats.length >= 3) {
       list.push({
         id: "small-cats",
-        element: "Struktura - kategorie",
+        element: t("adminAnalytics.related.insights.smallCats.element"),
         severity: "warn",
-        title: `${smallCats.length} kategorii z <3 wpisami`,
-        detail:
-          "Kategorie o niskiej liczności generują ubogie rekomendacje. Silnik dopasuje 1-2 wpisy i skończy.",
-        fixes: [
-          "Scal małe kategorie w jedną (np. redirects + aktualizacja post_categories).",
-          "Podnieś wagę `weight_tags` względem `weight_categories` - tagi pokryją większy graf.",
-        ],
+        title: t("adminAnalytics.related.insights.smallCats.title", { count: smallCats.length }),
+        detail: t("adminAnalytics.related.insights.smallCats.detail"),
+        fixes: arr("adminAnalytics.related.insights.smallCats.fixes"),
       });
     }
 
@@ -321,15 +317,11 @@ export function RelatedPostsAnalytics() {
     if (s.total_reads === 0 && s.total_views > 50) {
       list.push({
         id: "no-reads",
-        element: "Personalizacja - historia czytania",
+        element: t("adminAnalytics.related.insights.noReads.element"),
         severity: "info",
-        title: "Brak sygnałów z historii czytania zalogowanych użytkowników",
-        detail:
-          "user_read_history jest puste w tym oknie - personalizacja nie ma na czym się oprzeć.",
-        fixes: [
-          "Wpięcie logowania czasu czytania (np. IntersectionObserver + timer) do user_read_history.",
-          "Do czasu zebrania danych utrzymuj `weight_personalization` na 3 - nie zaszkodzi, a zacznie działać automatycznie.",
-        ],
+        title: t("adminAnalytics.related.insights.noReads.title"),
+        detail: t("adminAnalytics.related.insights.noReads.detail"),
+        fixes: arr("adminAnalytics.related.insights.noReads.fixes"),
       });
     }
 
@@ -340,22 +332,19 @@ export function RelatedPostsAnalytics() {
       if (avg < 2) {
         list.push({
           id: "sparse-tags",
-          element: "Otagowanie",
+          element: t("adminAnalytics.related.insights.sparseTags.element"),
           severity: "warn",
-          title: "Rzadki graf współwystępowania tagów",
-          detail: `Średnia liczba wspólnych wpisów w parze tagów to ${avg.toFixed(1)}. Silnik ma mało punktów zaczepienia.`,
-          fixes: [
-            "Dotaguj wpisy - cel: min. 3 tagi/wpis, każdy tag min. 5 wpisów.",
-            "Zbuduj słownik tagów kanonicznych (unikaj duplikatów typu 'AI' vs 'ai' vs 'sztuczna inteligencja').",
-          ],
+          title: t("adminAnalytics.related.insights.sparseTags.title"),
+          detail: t("adminAnalytics.related.insights.sparseTags.detail", { avg: avg.toFixed(1) }),
+          fixes: arr("adminAnalytics.related.insights.sparseTags.fixes"),
         });
       } else {
         list.push({
           id: "healthy-tags",
-          element: "Otagowanie",
+          element: t("adminAnalytics.related.insights.healthyTags.element"),
           severity: "good",
-          title: "Zdrowy graf tagów",
-          detail: `Średnio ${avg.toFixed(1)} wspólnych wpisów na parę - IDF ma z czego liczyć.`,
+          title: t("adminAnalytics.related.insights.healthyTags.title"),
+          detail: t("adminAnalytics.related.insights.healthyTags.detail", { avg: avg.toFixed(1) }),
           fixes: [],
         });
       }
@@ -366,14 +355,16 @@ export function RelatedPostsAnalytics() {
     if (hubs.length > 0 && hubs[0].clicks >= 5) {
       list.push({
         id: "hub",
-        element: "Hub - najsilniej rekomendowany",
+        element: t("adminAnalytics.related.insights.hub.element"),
         severity: "info",
-        title: `Hub-post: ${hubs[0].title ?? hubs[0].post_id.slice(0, 8)}`,
-        detail: `${hubs[0].clicks} klik. z ${hubs[0].sources} różnych źródeł. To wpis który wchłania ruch.`,
-        fixes: [
-          "Zadbaj o CTA / konwersję na tej stronie - trafia tu dużo osób z rekomendacji.",
-          "Rozważ dodanie tego wpisu do menu głównego lub sidebar 'Polecane'.",
-        ],
+        title: t("adminAnalytics.related.insights.hub.title", {
+          name: hubs[0].title ?? hubs[0].post_id.slice(0, 8),
+        }),
+        detail: t("adminAnalytics.related.insights.hub.detail", {
+          clicks: hubs[0].clicks,
+          sources: hubs[0].sources,
+        }),
+        fixes: arr("adminAnalytics.related.insights.hub.fixes"),
       });
     }
 
@@ -385,21 +376,19 @@ export function RelatedPostsAnalytics() {
       if (popularButNotRec.length >= 3) {
         list.push({
           id: "mismatch",
-          element: "Popularność vs rekomendacja",
+          element: t("adminAnalytics.related.insights.mismatch.element"),
           severity: "warn",
-          title: `${popularButNotRec.length} popularnych wpisów spoza top-10 rekomendacji`,
-          detail:
-            "Wpisy z dużym ruchem nie trafiają do rekomendacji - silnik nie promuje najsilniejszych treści.",
-          fixes: [
-            "Podnieś `weight_popularity` (np. 3-4) - popularność wzmocni ranking.",
-            "Sprawdź otagowanie tych wpisów - być może są izolowane w grafie kategorii/tagów.",
-          ],
+          title: t("adminAnalytics.related.insights.mismatch.title", {
+            count: popularButNotRec.length,
+          }),
+          detail: t("adminAnalytics.related.insights.mismatch.detail"),
+          fixes: arr("adminAnalytics.related.insights.mismatch.fixes"),
         });
       }
     }
 
     return list;
-  }, [report]);
+  }, [report, t]);
 
   return (
     <div className="space-y-4">
@@ -412,37 +401,44 @@ export function RelatedPostsAnalytics() {
           className="h-7"
           disabled={isLoading}
         >
-          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Odśwież
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t("adminAnalytics.common.refresh")}
         </Button>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <TrendingUp className="w-3 h-3" /> Analiza per tenant, okno{" "}
-          {report?.summary.window_days ?? range.days} dni
+          <TrendingUp className="w-3 h-3" />{" "}
+          {t("adminAnalytics.related.windowInfo", {
+            days: report?.summary.window_days ?? range.days,
+          })}
         </div>
         {isLoading ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> Ładowanie...
+            <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loading")}
           </span>
         ) : null}
       </div>
 
       {!report ? (
-        <Card className="p-6 text-sm text-muted-foreground">Brak danych w oknie.</Card>
+        <Card className="p-6 text-sm text-muted-foreground">
+          {t("adminAnalytics.common.noDataWindow")}
+        </Card>
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiTile label="Wpisy opublikowane" value={nice(report.summary.total_posts)} />
             <KpiTile
-              label="Wyświetlenia (okno)"
+              label={t("adminAnalytics.related.kpi.posts")}
+              value={nice(report.summary.total_posts)}
+            />
+            <KpiTile
+              label={t("adminAnalytics.related.kpi.views")}
               value={nice(report.summary.total_views)}
               current={report.summary.total_views}
             />
             <KpiTile
-              label="Klik. w rekomendacje"
+              label={t("adminAnalytics.related.kpi.clicks")}
               value={nice(report.summary.total_clicks)}
               current={report.summary.total_clicks}
             />
             <KpiTile
-              label="Czytania (zalogowani)"
+              label={t("adminAnalytics.related.kpi.reads")}
               value={nice(report.summary.total_reads)}
               current={report.summary.total_reads}
             />
@@ -450,51 +446,51 @@ export function RelatedPostsAnalytics() {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <ChartCard
-              title="Top kategorie"
-              subtitle="Liczba opublikowanych wpisów w kategorii"
+              title={t("adminAnalytics.related.charts.topCatsTitle")}
+              subtitle={t("adminAnalytics.related.charts.topCatsSubtitle")}
               option={topCatsOption}
               height={360}
             />
             <ChartCard
-              title="Top tagi"
-              subtitle="Liczba opublikowanych wpisów z tagiem"
+              title={t("adminAnalytics.related.charts.topTagsTitle")}
+              subtitle={t("adminAnalytics.related.charts.topTagsSubtitle")}
               option={topTagsOption}
               height={360}
             />
           </div>
 
           <ChartCard
-            title="Współwystępowanie tagów"
-            subtitle="Heatmapa: ile wpisów łączy dwa tagi (im ciemniej, tym silniejsza więź w grafie rekomendacji)"
+            title={t("adminAnalytics.related.charts.coocTitle")}
+            subtitle={t("adminAnalytics.related.charts.coocSubtitle")}
             option={coocurrenceOption}
             height={440}
           />
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <ChartCard
-              title="Popularność wpisów"
-              subtitle="Wyświetlenia vs unikalni odwiedzający - kandydaci do wzmocnienia w silniku"
+              title={t("adminAnalytics.related.charts.popularityTitle")}
+              subtitle={t("adminAnalytics.related.charts.popularitySubtitle")}
               option={popularityScatterOption}
               height={360}
             />
             <ChartCard
-              title="Hub-posty (najczęstsze cele klików)"
-              subtitle="Wpisy w które ludzie klikają z rekomendacji"
+              title={t("adminAnalytics.related.charts.hubTitle")}
+              subtitle={t("adminAnalytics.related.charts.hubSubtitle")}
               option={hubBarOption}
               height={360}
             />
           </div>
 
           <ChartCard
-            title="Ścieżki źródło → cel (klik w rekomendację)"
-            subtitle="Sankey top-25 par - pokazuje jak rekomendacje realnie kierują ruch między wpisami"
+            title={t("adminAnalytics.related.charts.sankeyTitle")}
+            subtitle={t("adminAnalytics.related.charts.sankeySubtitle")}
             option={sankeyOption}
             height={420}
           />
 
           <InsightSection
-            title="Interpretacja i rekomendacje - silnik rekomendacji"
-            subtitle="Diagnoza sygnałów per tenant + konkretne działania do zastosowania w konfiguracji"
+            title={t("adminAnalytics.related.insightsTitle")}
+            subtitle={t("adminAnalytics.related.insightsSubtitle")}
             insights={insights}
           />
         </>

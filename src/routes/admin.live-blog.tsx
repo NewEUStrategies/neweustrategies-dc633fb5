@@ -8,7 +8,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import "@/lib/i18n-admin-misc-routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +115,7 @@ function findLiveBlogBlocks(blocksData: unknown): LiveBlogBlockOption[] {
 }
 
 function LiveBlogAdmin() {
+  const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
   const search = Route.useSearch();
@@ -255,11 +258,8 @@ function LiveBlogAdmin() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-2xl">Live Blog - moderacja</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Wpisy publikowane na żywo w bloku Live Blog. Realtime: zmiany pojawiają się natychmiast na
-          stronie publicznej.
-        </p>
+        <h1 className="font-display text-2xl">{t("adminMiscRoutes.liveBlog.title")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("adminMiscRoutes.liveBlog.intro")}</p>
       </header>
 
       <section className="rounded-md border p-4 space-y-3">
@@ -273,7 +273,7 @@ function LiveBlogAdmin() {
               onValueChange={(v) => setSearch({ postId: v })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Wybierz post…" />
+                <SelectValue placeholder={t("adminMiscRoutes.liveBlog.selectPost")} />
               </SelectTrigger>
               <SelectContent>
                 {posts.map((p) => (
@@ -285,7 +285,7 @@ function LiveBlogAdmin() {
             </Select>
           </div>
           <div>
-            <Label>Blok Live Blog</Label>
+            <Label>{t("adminMiscRoutes.liveBlog.block")}</Label>
             <Select
               value={search.blockId ?? ""}
               onValueChange={(v) => setSearch({ blockId: v })}
@@ -295,12 +295,12 @@ function LiveBlogAdmin() {
                 <SelectValue
                   placeholder={
                     !search.postId
-                      ? "Najpierw wybierz post"
+                      ? t("adminMiscRoutes.liveBlog.phSelectPostFirst")
                       : blocksLoading
-                        ? "Wczytywanie…"
+                        ? t("adminMiscRoutes.liveBlog.phLoading")
                         : blockOptions.length === 0
-                          ? "Brak bloków Live Blog"
-                          : "Wybierz blok…"
+                          ? t("adminMiscRoutes.liveBlog.phNoBlocks")
+                          : t("adminMiscRoutes.liveBlog.phSelectBlock")
                   }
                 />
               </SelectTrigger>
@@ -314,7 +314,7 @@ function LiveBlogAdmin() {
             </Select>
           </div>
           <div>
-            <Label>Język</Label>
+            <Label>{t("adminMiscRoutes.liveBlog.language")}</Label>
             <Select value={lang} onValueChange={(v) => setSearch({ lang: v as "pl" | "en" })}>
               <SelectTrigger>
                 <SelectValue />
@@ -328,24 +328,23 @@ function LiveBlogAdmin() {
         </div>
         {search.postId && blockOptions.length === 0 && !blocksLoading && (
           <p className="text-xs text-muted-foreground">
-            Wybrany post „{selectedPostTitle}" nie zawiera bloku Live Blog. Dodaj blok „Live blog" w
-            edytorze treści tego postu, aby moderować wpisy.
+            {t("adminMiscRoutes.liveBlog.noBlockWarning", { title: selectedPostTitle })}
           </p>
         )}
       </section>
 
       {enabled && (
         <section className="rounded-md border p-4 space-y-3">
-          <h2 className="font-medium">Nowy wpis</h2>
+          <h2 className="font-medium">{t("adminMiscRoutes.liveBlog.newEntry")}</h2>
           <div>
-            <Label>Tytuł (opcjonalny)</Label>
+            <Label>{t("adminMiscRoutes.liveBlog.titleOptional")}</Label>
             <Input
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
           </div>
           <div>
-            <Label>Treść (HTML, sanitizowany przy renderze)</Label>
+            <Label>{t("adminMiscRoutes.liveBlog.contentLabel")}</Label>
             <Textarea
               rows={5}
               value={draft.body_html}
@@ -358,16 +357,17 @@ function LiveBlogAdmin() {
               checked={draft.pinned}
               onCheckedChange={(v) => setDraft({ ...draft, pinned: v })}
             />
-            <span className="text-sm">Przypięte</span>
+            <span className="text-sm">{t("adminMiscRoutes.liveBlog.pinned")}</span>
           </div>
-          <Button onClick={addEntry}>Opublikuj</Button>
+          <Button onClick={addEntry}>{t("adminMiscRoutes.liveBlog.publish")}</Button>
         </section>
       )}
 
       {enabled && (
         <section className="space-y-3">
           <h2 className="font-medium">
-            Wpisy ({entries.length}){isLoading && " - ładowanie..."}
+            {t("adminMiscRoutes.liveBlog.entries", { count: entries.length })}
+            {isLoading && t("adminMiscRoutes.liveBlog.loadingSuffix")}
           </h2>
           <ul className="space-y-2">
             {entries.map((e) => (
@@ -378,19 +378,23 @@ function LiveBlogAdmin() {
                       {new Date(e.occurred_at).toLocaleString("pl-PL")}
                     </time>
                     {e.pinned && (
-                      <span className="text-[10px] uppercase text-amber-600">Przypięty</span>
+                      <span className="text-[10px] uppercase text-amber-600">
+                        {t("adminMiscRoutes.liveBlog.pinnedBadge")}
+                      </span>
                     )}
                     {e.title && <strong>{e.title}</strong>}
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => setEditing(e)}>
-                      Edytuj
+                      {t("adminMiscRoutes.liveBlog.edit")}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => togglePin(e)}>
-                      {e.pinned ? "Odepnij" : "Przypnij"}
+                      {e.pinned
+                        ? t("adminMiscRoutes.liveBlog.unpin")
+                        : t("adminMiscRoutes.liveBlog.pin")}
                     </Button>
                     <Button size="sm" variant="destructive" onClick={() => setConfirmId(e.id)}>
-                      Usuń
+                      {t("adminMiscRoutes.liveBlog.remove")}
                     </Button>
                   </div>
                 </div>
@@ -399,7 +403,7 @@ function LiveBlogAdmin() {
                     <Input
                       value={editing.title ?? ""}
                       onChange={(ev) => setEditing({ ...editing, title: ev.target.value })}
-                      placeholder="Tytuł (opcjonalny)"
+                      placeholder={t("adminMiscRoutes.liveBlog.titleOptional")}
                     />
                     <Textarea
                       rows={4}
@@ -408,10 +412,10 @@ function LiveBlogAdmin() {
                     />
                     <div className="flex gap-2">
                       <Button size="sm" onClick={saveEdit}>
-                        Zapisz
+                        {t("common.save")}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
-                        Anuluj
+                        {t("common.cancel")}
                       </Button>
                     </div>
                   </div>
@@ -424,7 +428,9 @@ function LiveBlogAdmin() {
               </li>
             ))}
             {entries.length === 0 && !isLoading && (
-              <li className="text-sm text-muted-foreground">Brak wpisów.</li>
+              <li className="text-sm text-muted-foreground">
+                {t("adminMiscRoutes.liveBlog.empty")}
+              </li>
             )}
           </ul>
         </section>
@@ -433,13 +439,13 @@ function LiveBlogAdmin() {
       <AlertDialog open={!!confirmId} onOpenChange={(o) => !o && setConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Usunąć wpis?</AlertDialogTitle>
+            <AlertDialogTitle>{t("adminMiscRoutes.liveBlog.confirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Wpis zniknie natychmiast ze strony publicznej. Tej operacji nie można cofnąć.
+              {t("adminMiscRoutes.liveBlog.confirmDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmId) void remove(confirmId);
@@ -447,7 +453,7 @@ function LiveBlogAdmin() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Usuń
+              {t("adminMiscRoutes.liveBlog.confirmAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

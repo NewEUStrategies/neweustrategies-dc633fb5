@@ -3,7 +3,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import "@/lib/i18n-admin-misc-routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +42,7 @@ export const Route = createFileRoute("/admin/custom-meta")({
 type Draft = Omit<CustomMetaDef, "id" | "tenant_id"> & { id?: string };
 
 function CustomMetaAdmin() {
+  const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
   const { data: defs = [], isLoading } = useQuery({
@@ -88,7 +91,7 @@ function CustomMetaAdmin() {
       setEditingId(null);
       refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Błąd zapisu");
+      toast.error(e instanceof Error ? e.message : t("adminMiscRoutes.customMeta.saveError"));
     }
   };
 
@@ -106,9 +109,9 @@ function CustomMetaAdmin() {
   const remove = async (id: string): Promise<void> => {
     if (
       !(await confirmDialog({
-        title: "Usunąć definicję?",
+        title: t("adminMiscRoutes.customMeta.confirmTitle"),
         destructive: true,
-        confirmLabel: "Usuń",
+        confirmLabel: t("adminMiscRoutes.customMeta.confirmLabel"),
       }))
     )
       return;
@@ -117,7 +120,7 @@ function CustomMetaAdmin() {
       refresh();
       toast.success(adminToast.deleted());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Błąd");
+      toast.error(e instanceof Error ? e.message : t("adminMiscRoutes.customMeta.genericError"));
     }
   };
 
@@ -125,11 +128,8 @@ function CustomMetaAdmin() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl">Custom meta</h1>
-          <p className="text-sm text-muted-foreground">
-            Definiuj globalne etykiety (np. „Czas przygotowania", „Trudność") dostępne w każdym
-            wpisie.
-          </p>
+          <h1 className="font-display text-2xl">{t("adminMiscRoutes.customMeta.pageTitle")}</h1>
+          <p className="text-sm text-muted-foreground">{t("adminMiscRoutes.customMeta.intro")}</p>
         </div>
         <Link to="/admin" className="text-sm text-brand underline">
           ← Admin
@@ -138,19 +138,21 @@ function CustomMetaAdmin() {
 
       <section className="rounded-lg border border-border bg-card p-4 space-y-3">
         <h2 className="text-sm font-semibold">
-          {editingId ? "Edytuj definicję" : "Dodaj definicję"}
+          {editingId
+            ? t("adminMiscRoutes.customMeta.sectionEdit")
+            : t("adminMiscRoutes.customMeta.sectionAdd")}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <FloatingInput
-              label="Klucz (a-z, 0-9, _) - np. prep_time"
+              label={t("adminMiscRoutes.customMeta.keyLabel")}
               value={draft.key}
               onChange={(e) => setDraft({ ...draft, key: e.target.value })}
               disabled={!!editingId}
             />
           </div>
           <div>
-            <Label>Ikona</Label>
+            <Label>{t("adminMiscRoutes.customMeta.icon")}</Label>
             <Select value={draft.icon} onValueChange={(v) => setDraft({ ...draft, icon: v })}>
               <SelectTrigger>
                 <SelectValue />
@@ -165,17 +167,17 @@ function CustomMetaAdmin() {
             </Select>
           </div>
           <FloatingInput
-            label="Etykieta PL"
+            label={t("adminMiscRoutes.customMeta.labelPl")}
             value={draft.label_pl}
             onChange={(e) => setDraft({ ...draft, label_pl: e.target.value })}
           />
           <FloatingInput
-            label="Etykieta EN"
+            label={t("adminMiscRoutes.customMeta.labelEn")}
             value={draft.label_en}
             onChange={(e) => setDraft({ ...draft, label_en: e.target.value })}
           />
           <FloatingInput
-            label="Pozycja (sort)"
+            label={t("adminMiscRoutes.customMeta.position")}
             type="number"
             value={draft.position}
             onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })}
@@ -196,21 +198,27 @@ function CustomMetaAdmin() {
                 });
               }}
             >
-              Anuluj
+              {t("common.cancel")}
             </Button>
           )}
-          <Button onClick={save}>{editingId ? "Zapisz zmiany" : "Dodaj"}</Button>
+          <Button onClick={save}>
+            {editingId
+              ? t("adminMiscRoutes.customMeta.saveChanges")
+              : t("adminMiscRoutes.customMeta.add")}
+          </Button>
         </div>
       </section>
 
       <section className="rounded-lg border border-border bg-card overflow-hidden">
         <h2 className="text-sm font-semibold px-4 py-3 border-b border-border">
-          Zdefiniowane pola
+          {t("adminMiscRoutes.customMeta.definedFields")}
         </h2>
         {isLoading ? (
           <div className="p-4 text-sm text-muted-foreground">...</div>
         ) : defs.length === 0 ? (
-          <div className="p-4 text-sm text-muted-foreground">Brak definicji.</div>
+          <div className="p-4 text-sm text-muted-foreground">
+            {t("adminMiscRoutes.customMeta.empty")}
+          </div>
         ) : (
           <ul className="divide-y divide-border">
             {defs.map((d) => (
@@ -223,11 +231,11 @@ function CustomMetaAdmin() {
                     {d.label_pl || d.label_en || d.key}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
-                    {d.key} · ikona: {d.icon}
+                    {t("adminMiscRoutes.customMeta.iconMeta", { key: d.key, icon: d.icon })}
                   </div>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => edit(d)}>
-                  Edytuj
+                  {t("adminMiscRoutes.customMeta.edit")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -235,7 +243,7 @@ function CustomMetaAdmin() {
                   onClick={() => remove(d.id)}
                   className="text-destructive"
                 >
-                  Usuń
+                  {t("adminMiscRoutes.customMeta.remove")}
                 </Button>
               </li>
             ))}

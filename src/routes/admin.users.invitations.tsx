@@ -3,6 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +13,14 @@ import {
   revokeInvitation,
 } from "@/lib/admin/invitations.functions";
 import { adminToast } from "@/lib/adminToasts";
+import "@/lib/i18n-admin-misc-routes";
 
 export const Route = createFileRoute("/admin/users/invitations")({
   component: InvitationsPage,
 });
 
 function InvitationsPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const list = useServerFn(listInvitations);
   const resend = useServerFn(sendInvitation);
@@ -32,7 +35,8 @@ function InvitationsPage() {
     const r = await resend({ data: { id } });
     if (r.ok) {
       toast.success(adminToast.sent());
-      if (r.tempPassword) toast.info(`Hasło: ${r.tempPassword}`);
+      if (r.tempPassword)
+        toast.info(t("adminMiscRoutes.invitations.passwordToast", { password: r.tempPassword }));
     } else toast.error(r.error ?? "failed");
     qc.invalidateQueries({ queryKey: ["user-invitations"] });
   };
@@ -46,19 +50,21 @@ function InvitationsPage() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold mb-6">Zaproszenia</h1>
+      <h1 className="font-display text-3xl font-bold mb-6">
+        {t("adminMiscRoutes.invitations.pageTitle")}
+      </h1>
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="text-left p-3">Imię</th>
-              <th className="text-left p-3">E-mail</th>
-              <th className="text-left p-3">Rola</th>
-              <th className="text-left p-3">Tryb</th>
-              <th className="text-left p-3">Status</th>
-              <th className="text-left p-3">Źródło</th>
-              <th className="text-left p-3">Wysłano</th>
-              <th className="text-right p-3">Akcje</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colName")}</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colEmail")}</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colRole")}</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colMode")}</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colStatus")}</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colSource")}</th>
+              <th className="text-left p-3">{t("adminMiscRoutes.invitations.colSent")}</th>
+              <th className="text-right p-3">{t("adminMiscRoutes.invitations.colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -101,10 +107,12 @@ function InvitationsPage() {
                   {inv.status !== "revoked" && (
                     <>
                       <Button size="sm" variant="ghost" onClick={() => doResend(inv.id)}>
-                        {inv.status === "sent" ? "Ponów" : "Wyślij"}
+                        {inv.status === "sent"
+                          ? t("adminMiscRoutes.invitations.resend")
+                          : t("adminMiscRoutes.invitations.send")}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => doRevoke(inv.id)}>
-                        Wycofaj
+                        {t("adminMiscRoutes.invitations.revoke")}
                       </Button>
                     </>
                   )}
@@ -114,7 +122,7 @@ function InvitationsPage() {
             {invitations.length === 0 && (
               <tr>
                 <td colSpan={8} className="p-6 text-center text-sm text-muted-foreground">
-                  Brak zaproszeń
+                  {t("adminMiscRoutes.invitations.empty")}
                 </td>
               </tr>
             )}

@@ -15,6 +15,8 @@ import {
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
 import { Save, Loader2 } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-panes-misc";
 import {
   FooterChromeSchema,
   defaultFooterChrome,
@@ -25,6 +27,7 @@ import {
 type Row = Record<string, unknown> & { chrome?: Partial<FooterChrome> };
 
 export function FooterChromePane() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["site_settings", "footer"],
@@ -60,12 +63,12 @@ export function FooterChromePane() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["site_settings", "footer"] });
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
-      toast.success("Zapisano");
+      toast.success(t("adminPanesMisc.savedToast"));
     },
     onError: (e: Error) => toastError(e, "save"),
   });
 
-  if (!c) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (!c) return <p className="text-sm text-muted-foreground">{t("adminPanesMisc.loading")}</p>;
   const upd = (p: Partial<FooterChrome>) => setC({ ...c, ...p });
 
   return (
@@ -100,7 +103,7 @@ export function FooterChromePane() {
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={c.show_year} onCheckedChange={(v) => upd({ show_year: v })} id="yr" />
-            <Label htmlFor="yr">Pokaż rok</Label>
+            <Label htmlFor="yr">{t("adminPanesMisc.footer.showYear")}</Label>
           </div>
         </div>
       </div>
@@ -111,7 +114,7 @@ export function FooterChromePane() {
           <Input
             value={c.copyright_pl}
             onChange={(e) => upd({ copyright_pl: e.target.value })}
-            placeholder="© {year} Nazwa serwisu"
+            placeholder={t("adminPanesMisc.footer.copyrightPlaceholderPl")}
             maxLength={500}
           />
         </div>
@@ -126,7 +129,9 @@ export function FooterChromePane() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Użyj <code>{"{year}"}</code> aby wstawić bieżący rok. Pusto = automatyczny „© rok”.
+        {t("adminPanesMisc.footer.helperPre")}
+        <code>{"{year}"}</code>
+        {t("adminPanesMisc.footer.helperPost")}
       </p>
 
       <div className="grid sm:grid-cols-2 gap-4">
@@ -136,10 +141,10 @@ export function FooterChromePane() {
             onCheckedChange={(v) => upd({ back_to_top: v })}
             id="btt"
           />
-          <Label htmlFor="btt">Przycisk „Wróć na górę”</Label>
+          <Label htmlFor="btt">{t("adminPanesMisc.footer.backToTop")}</Label>
         </div>
         <div>
-          <Label>Próg pokazania (px)</Label>
+          <Label>{t("adminPanesMisc.footer.threshold")}</Label>
           <Input
             type="number"
             min={0}
@@ -154,11 +159,11 @@ export function FooterChromePane() {
       <Button onClick={() => save.mutate(c)} disabled={save.isPending}>
         {save.isPending ? (
           <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Zapisywanie…
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t("adminPanesMisc.saving")}
           </>
         ) : (
           <>
-            <Save className="w-4 h-4 mr-2" /> Zapisz
+            <Save className="w-4 h-4 mr-2" /> {t("common.save")}
           </>
         )}
       </Button>

@@ -2,7 +2,10 @@
 // dla każdego slotu z GLOBAL_COLOR_GROUPS. Wybór z palety presetów,
 // pełny color picker oraz przycisk przywracania domyślnych wartości.
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import "@/lib/i18n-admin-global-colors-editor";
 
 import { Save, Undo, Redo, X, ChevronUp, ChevronDown, Moon, Sun } from "@/lib/lucide-shim";
 
@@ -103,6 +106,7 @@ const THEME_OPTS_DEFAULTS: ThemeOptsLite = {
 };
 
 function SidebarStylePicker() {
+  const { t } = useTranslation();
   const { query, save } = useSettings<ThemeOptsLite>("theme_options", THEME_OPTS_DEFAULTS);
   const current: SidebarStyle =
     (query.data?.sidebars?.style as SidebarStyle | undefined) ?? "style-1";
@@ -119,13 +123,18 @@ function SidebarStylePicker() {
     <div className="rounded-lg border border-border bg-background/40 p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Label className="text-base font-bold">Sidebar Style</Label>
+          <Label className="text-base font-bold">{t("adminGCEditor.sidebarStyleTitle")}</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Wybierz styl wizualny sidebara. Ten sam styl jest stosowany do{" "}
-            <strong>wewnętrznego (admin)</strong> i <strong>globalnego (Layout 6)</strong> sidebara.
+            {t("adminGCEditor.sidebarStyleDescPre")}
+            <strong>{t("adminGCEditor.sidebarStyleDescInternal")}</strong>
+            {t("adminGCEditor.sidebarStyleDescMid")}
+            <strong>{t("adminGCEditor.sidebarStyleDescGlobal")}</strong>
+            {t("adminGCEditor.sidebarStyleDescPost")}
           </p>
         </div>
-        {save.isPending && <span className="text-[10px] text-muted-foreground">Zapisywanie…</span>}
+        {save.isPending && (
+          <span className="text-[10px] text-muted-foreground">{t("adminGCEditor.saving")}</span>
+        )}
       </div>
       <div className="grid md:grid-cols-2 gap-3">
         {SIDEBAR_STYLES.map(({ id, label, hint }) => {
@@ -143,7 +152,7 @@ function SidebarStylePicker() {
                 <div className="text-sm font-medium">{label}</div>
                 {isActive && (
                   <span className="text-[10px] uppercase tracking-wider font-bold text-brand">
-                    Aktywny
+                    {t("adminGCEditor.active")}
                   </span>
                 )}
               </div>
@@ -178,7 +187,7 @@ function SidebarStylePicker() {
                     },
                   });
                 }}
-                hint="Wariant dla jasnego motywu"
+                hint={t("adminGCEditor.variantLight")}
                 folder="theme/logo"
               />
               <ImageSlot
@@ -195,7 +204,7 @@ function SidebarStylePicker() {
                     },
                   });
                 }}
-                hint="Wariant dla ciemnego motywu"
+                hint={t("adminGCEditor.variantDark")}
                 folder="theme/logo"
               />
             </div>
@@ -207,6 +216,7 @@ function SidebarStylePicker() {
 }
 
 export function GlobalColorsEditor() {
+  const { t } = useTranslation();
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
   const [draft, setDraft] = useState<GlobalColorsValue | null>(null);
@@ -309,7 +319,8 @@ export function GlobalColorsEditor() {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo, handleSave]);
 
-  if (isLoading || !draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (isLoading || !draft)
+    return <p className="text-sm text-muted-foreground">{t("adminGCEditor.loading")}</p>;
 
   const setSlot = (
     key: string,
@@ -354,9 +365,7 @@ export function GlobalColorsEditor() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg">Global Colors</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Ustaw kolory dla trybu jasnego i ciemnego. Skróty: ⌘/Ctrl+Z, ⌘/Ctrl+Shift+Z, ⌘/Ctrl+S.
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("adminGCEditor.intro")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -364,20 +373,20 @@ export function GlobalColorsEditor() {
             variant="outline"
             onClick={undo}
             disabled={!canUndo}
-            title="Cofnij (⌘/Ctrl+Z)"
+            title={t("adminGCEditor.undoTitle")}
           >
             <Undo className="w-4 h-4 mr-2" />
-            Cofnij
+            {t("adminGCEditor.undo")}
           </Button>
           <Button
             size="sm"
             variant="outline"
             onClick={redo}
             disabled={!canRedo}
-            title="Ponów (⌘/Ctrl+Shift+Z)"
+            title={t("adminGCEditor.redoTitle")}
           >
             <Redo className="w-4 h-4 mr-2" />
-            Ponów
+            {t("adminGCEditor.redo")}
           </Button>
           <Button
             size="sm"
@@ -391,11 +400,11 @@ export function GlobalColorsEditor() {
             disabled={save.isPending || !isDirty}
           >
             <X className="w-4 h-4 mr-2" />
-            Anuluj
+            {t("common.cancel")}
           </Button>
           <Button size="sm" onClick={handleSave} disabled={save.isPending || !isDirty}>
             <Save className="w-4 h-4 mr-2" />
-            {save.isPending ? "Zapisywanie…" : "Zapisz"}
+            {save.isPending ? t("adminGCEditor.saving") : t("common.save")}
           </Button>
         </div>
       </div>
@@ -468,15 +477,15 @@ export function GlobalColorsEditor() {
                             type="button"
                             onClick={() => resetSlot(slot)}
                             className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 shrink-0"
-                            title="Przywróć kolor domyślny"
+                            title={t("adminGCEditor.resetSlotTitle")}
                           >
                             <Undo className="w-3 h-3" />
-                            Domyślny
+                            {t("adminGCEditor.defaultBtn")}
                           </button>
                         )}
                       </div>
 
-                      <SlotPreview slot={slot} draft={draft} />
+                      <SlotPreview slot={slot} draft={draft} t={t} />
 
                       {slot.typography && (
                         <>
@@ -522,7 +531,7 @@ export function GlobalColorsEditor() {
                       {isSlotHoverable(slot, group) && (
                         <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
                           <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-                            Hover (po najechaniu)
+                            {t("adminGCEditor.hoverLabel")}
                           </div>
                           <ColorRow
                             label="Light"
@@ -573,6 +582,7 @@ function ColorRow({
   brandPalette: BrandColor[];
   recentColors: string[];
 }) {
+  const { t } = useTranslation();
   const effective = value || defaultValue || "#ffffff";
   const handlePick = (v: string) => {
     onChange(v);
@@ -601,12 +611,12 @@ function ColorRow({
       <div className="space-y-1.5">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
-            Marka
+            {t("adminGCEditor.brand")}
           </div>
           <div className="flex flex-wrap gap-1">
             {brandPalette.length === 0 && (
               <span className="text-[10px] text-muted-foreground italic">
-                Brak kolorów - dodaj w sekcji „Paleta marki" powyżej.
+                {t("adminGCEditor.noBrandColors")}
               </span>
             )}
             {brandPalette.map((c) => (
@@ -627,7 +637,7 @@ function ColorRow({
         </div>
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
-            Ostatnio użyte{" "}
+            {t("adminGCEditor.recentUsed")}{" "}
             {recentColors.length > 0 && (
               <span className="opacity-60">
                 ({recentColors.length}/{RECENT_MAX})
@@ -637,7 +647,7 @@ function ColorRow({
           <div className="flex flex-wrap gap-1">
             {recentColors.length === 0 && (
               <span className="text-[10px] text-muted-foreground italic">
-                Wybrane kolory pojawią się tutaj.
+                {t("adminGCEditor.recentEmpty")}
               </span>
             )}
             {recentColors.map((c) => (
@@ -697,10 +707,11 @@ function TypographyRow({
   onFontFamily: (v: string) => void;
   onFontSize: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-        Typografia
+        {t("adminGCEditor.typography")}
       </div>
       <div className="grid grid-cols-[1fr_120px] gap-2 items-center">
         <div className="flex items-center gap-2">
@@ -734,7 +745,7 @@ function TypographyRow({
             <div className="absolute right-0 top-0 h-8 flex flex-col border-l border-border">
               <button
                 type="button"
-                aria-label="Zwiększ rozmiar"
+                aria-label={t("adminGCEditor.increaseSize")}
                 onClick={() => onFontSize(bumpFontSize(fontSize || defaultFontSize || "16px", +1))}
                 className="flex-1 px-1 hover:bg-muted/60 flex items-center justify-center"
               >
@@ -742,7 +753,7 @@ function TypographyRow({
               </button>
               <button
                 type="button"
-                aria-label="Zmniejsz rozmiar"
+                aria-label={t("adminGCEditor.decreaseSize")}
                 onClick={() => onFontSize(bumpFontSize(fontSize || defaultFontSize || "16px", -1))}
                 className="flex-1 px-1 hover:bg-muted/60 flex items-center justify-center border-t border-border"
               >
@@ -761,7 +772,7 @@ function TypographyRow({
           }}
           className="text-[10px] text-muted-foreground hover:text-foreground"
         >
-          Wyczyść font/size
+          {t("adminGCEditor.clearFontSize")}
         </button>
       )}
     </div>
@@ -783,8 +794,9 @@ function FormatRow({
   onStyle: (v: string) => void;
   onDecoration: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   const weightOptions: { label: string; value: string }[] = [
-    { label: "Brak", value: "" },
+    { label: t("adminGCEditor.weightNone"), value: "" },
     { label: "Normal", value: "400" },
     { label: "Semibold", value: "600" },
     { label: "Bold", value: "700" },
@@ -812,7 +824,7 @@ function FormatRow({
   return (
     <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-        Formatowanie
+        {t("adminGCEditor.formatting")}
       </div>
       <div className="flex flex-wrap items-center gap-1">
         {weightOptions.map((w) => (
@@ -820,7 +832,7 @@ function FormatRow({
             key={w.value || "none"}
             active={fontWeight === w.value}
             onClick={() => onWeight(w.value)}
-            title={`Grubość: ${w.label}`}
+            title={t("adminGCEditor.weightTitle", { label: w.label })}
           >
             <span style={{ fontWeight: w.value || "inherit" }}>{w.label}</span>
           </Btn>
@@ -829,14 +841,14 @@ function FormatRow({
         <Btn
           active={fontStyle === "italic"}
           onClick={() => onStyle(fontStyle === "italic" ? "" : "italic")}
-          title="Kursywa"
+          title={t("adminGCEditor.italic")}
         >
           <span className="italic">I</span>
         </Btn>
         <Btn
           active={textDecoration === "underline"}
           onClick={() => onDecoration(textDecoration === "underline" ? "" : "underline")}
-          title="Podkreślenie"
+          title={t("adminGCEditor.underline")}
         >
           <span className="underline">U</span>
         </Btn>
@@ -850,7 +862,7 @@ function FormatRow({
             }}
             className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
           >
-            Wyczyść
+            {t("adminGCEditor.clear")}
           </button>
         )}
       </div>
@@ -865,6 +877,7 @@ function BrandPaletteEditor({
   palette: BrandColor[];
   onChange: (next: BrandColor[]) => void;
 }) {
+  const { t } = useTranslation();
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftValue, setDraftValue] = useState("#000000");
@@ -906,20 +919,18 @@ function BrandPaletteEditor({
         className="flex items-center justify-between px-3 py-2 rounded-t-lg text-white text-xs font-semibold"
         style={{ background: "#FA9346" }}
       >
-        <span>Paleta marki ({palette.length})</span>
+        <span>{t("adminGCEditor.paletteTitle", { count: palette.length })}</span>
         <button
           type="button"
           onClick={startAdd}
           className="text-[11px] bg-white/20 hover:bg-white/30 rounded px-2 py-0.5"
         >
-          + Dodaj kolor
+          {t("adminGCEditor.addColor")}
         </button>
       </div>
       <div className="p-3 space-y-2">
         {palette.length === 0 && !adding && (
-          <p className="text-xs text-muted-foreground italic">
-            Brak kolorów w palecie marki. Dodaj swój pierwszy.
-          </p>
+          <p className="text-xs text-muted-foreground italic">{t("adminGCEditor.emptyPalette")}</p>
         )}
         <div className="flex flex-wrap gap-2">
           {palette.map((c, i) => (
@@ -929,13 +940,13 @@ function BrandPaletteEditor({
                 onClick={() => startEdit(i)}
                 className="w-8 h-8 rounded border border-border hover:scale-110 transition block"
                 style={{ background: c.value }}
-                title={`${c.name} - ${c.value} (kliknij aby edytować)`}
+                title={t("adminGCEditor.swatchEditTitle", { name: c.name, value: c.value })}
               />
               <button
                 type="button"
                 onClick={() => remove(i)}
                 className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none opacity-0 group-hover:opacity-100 transition"
-                title="Usuń"
+                title={t("adminGCEditor.remove")}
               >
                 ×
               </button>
@@ -956,14 +967,14 @@ function BrandPaletteEditor({
               type="text"
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
-              placeholder="Nazwa (opcjonalna)"
+              placeholder={t("adminGCEditor.namePlaceholder")}
               className="h-8 text-xs flex-1 min-w-[140px]"
             />
             <Button size="sm" onClick={commit} disabled={!isHexColor(draftValue)}>
-              {adding ? "Dodaj" : "Zapisz"}
+              {adding ? t("adminGCEditor.add") : t("common.save")}
             </Button>
             <Button size="sm" variant="outline" onClick={cancel}>
-              Anuluj
+              {t("common.cancel")}
             </Button>
           </div>
         )}
@@ -992,7 +1003,11 @@ function getColor(draft: GlobalColorsValue, key: string, mode: "light" | "dark")
 }
 
 /** Renderuje treść podglądu używając podanej funkcji `get(key)` zwracającej kolor. */
-function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string): React.ReactNode {
+function renderPreviewBody(
+  slot: GlobalColorSlot,
+  get: (key: string) => string,
+  t: TFunction,
+): React.ReactNode {
   const c = get(slot.key);
   switch (slot.key) {
     case "header-icon":
@@ -1001,8 +1016,10 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const hover = get("header-icon-hover");
       return (
         <div className="flex items-center gap-4 text-xs font-medium">
-          <span style={{ color: base }}>Strona główna</span>
-          <span style={{ color: hover, textDecoration: "underline" }}>Aktualności (hover)</span>
+          <span style={{ color: base }}>{t("adminGCEditor.preview.home")}</span>
+          <span style={{ color: hover, textDecoration: "underline" }}>
+            {t("adminGCEditor.preview.newsHover")}
+          </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2">
             <circle cx="11" cy="11" r="7" />
             <path d="m21 21-4-4" />
@@ -1024,10 +1041,10 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       return (
         <div className="flex items-center gap-3 text-xs">
           <a style={{ color: c }} className="font-medium underline">
-            Link tekstowy
+            {t("adminGCEditor.preview.textLink")}
           </a>
           <span style={{ color: c }} className="uppercase tracking-wider font-bold">
-            Kategoria
+            {t("adminGCEditor.preview.category")}
           </span>
         </div>
       );
@@ -1037,7 +1054,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
           style={{ background: c }}
           className="w-full h-12 rounded flex items-center px-3 text-white text-xs font-semibold"
         >
-          Hero / nagłówek pojedynczego wpisu
+          {t("adminGCEditor.preview.heroHeading")}
         </div>
       );
     case "body-bg":
@@ -1047,7 +1064,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
           style={{ background: c }}
           className="w-full h-12 rounded border border-black/10 flex items-center justify-center text-xs"
         >
-          <span style={{ color: get("highlight") }}>Tło strony</span>
+          <span style={{ color: get("highlight") }}>{t("adminGCEditor.preview.pageBg")}</span>
         </div>
       );
     case "btn-bg":
@@ -1064,7 +1081,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             style={{ background: bg, color: text }}
             className="text-xs font-semibold px-3 py-1.5 rounded"
           >
-            Normalny
+            {t("adminGCEditor.preview.normal")}
           </button>
           <button
             style={{ background: hBg, color: hText }}
@@ -1125,7 +1142,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
           <svg width="20" height="20" viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="2">
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
           </svg>
-          <span style={{ opacity: 0.7 }}>Zakładka po najechaniu</span>
+          <span style={{ opacity: 0.7 }}>{t("adminGCEditor.preview.bookmarkHover")}</span>
         </div>
       );
     case "review-bg":
@@ -1161,7 +1178,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             1
           </span>
           <span className="text-xs" style={{ opacity: 0.6 }}>
-            Popularny artykuł
+            {t("adminGCEditor.preview.popularArticle")}
           </span>
         </div>
       );
@@ -1177,9 +1194,9 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
     case "toc-bg":
       return (
         <div style={{ background: c }} className="w-full p-2 rounded text-[11px] space-y-1">
-          <div className="font-semibold">Spis treści</div>
-          <div style={{ opacity: 0.7 }}>1. Wprowadzenie</div>
-          <div style={{ opacity: 0.7 }}>2. Główna część</div>
+          <div className="font-semibold">{t("adminGCEditor.preview.toc")}</div>
+          <div style={{ opacity: 0.7 }}>{t("adminGCEditor.preview.tocItem1")}</div>
+          <div style={{ opacity: 0.7 }}>{t("adminGCEditor.preview.tocItem2")}</div>
         </div>
       );
     case "verified-tick":
@@ -1196,7 +1213,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
               strokeLinejoin="round"
             />
           </svg>
-          <span style={{ opacity: 0.7 }}>Zweryfikowany autor</span>
+          <span style={{ opacity: 0.7 }}>{t("adminGCEditor.preview.verifiedAuthor")}</span>
         </div>
       );
     case "icon":
@@ -1301,16 +1318,16 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             style={{ color: subtitle, borderColor: border }}
             className="text-[9px] uppercase tracking-widest font-semibold pb-1.5 border-b px-1"
           >
-            Nawigacja
+            {t("adminGCEditor.preview.navigation")}
           </div>
           <Item
             state="active"
-            label="Kokpit"
+            label={t("adminGCEditor.preview.navDashboard")}
             path="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"
           />
           <Item
             state="idle"
-            label="Wpisy"
+            label={t("adminGCEditor.preview.navPosts")}
             path="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
           />
           <Item
@@ -1322,12 +1339,16 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             style={{ color: subtitle, borderColor: border }}
             className="text-[9px] uppercase tracking-widest font-semibold pt-1.5 pb-1.5 border-b px-1"
           >
-            Konto
+            {t("adminGCEditor.preview.account")}
           </div>
-          <Item state="idle" label="Ustawienia" path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
           <Item
             state="idle"
-            label="Wyloguj"
+            label={t("adminGCEditor.preview.navSettings")}
+            path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+          />
+          <Item
+            state="idle"
+            label={t("adminGCEditor.preview.navLogout")}
             path="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9"
           />
         </div>
@@ -1336,49 +1357,49 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
     case "h1":
       return (
         <h1 style={{ color: c }} className="text-2xl font-black leading-tight m-0">
-          Nagłówek H1 - tytuł
+          {t("adminGCEditor.preview.h1")}
         </h1>
       );
     case "h2":
       return (
         <h2 style={{ color: c }} className="text-xl font-bold leading-tight m-0">
-          Nagłówek H2 - sekcja
+          {t("adminGCEditor.preview.h2")}
         </h2>
       );
     case "h3":
       return (
         <h3 style={{ color: c }} className="text-lg font-bold leading-snug m-0">
-          Nagłówek H3 - podsekcja
+          {t("adminGCEditor.preview.h3")}
         </h3>
       );
     case "h4":
       return (
         <h4 style={{ color: c }} className="text-base font-semibold leading-snug m-0">
-          Nagłówek H4 - akapit
+          {t("adminGCEditor.preview.h4")}
         </h4>
       );
     case "h5":
       return (
         <h5 style={{ color: c }} className="text-sm font-semibold uppercase tracking-wide m-0">
-          Nagłówek H5
+          {t("adminGCEditor.preview.h5")}
         </h5>
       );
     case "h6":
       return (
         <h6 style={{ color: c }} className="text-xs font-bold uppercase tracking-widest m-0">
-          Nagłówek H6
+          {t("adminGCEditor.preview.h6")}
         </h6>
       );
     case "body-text":
       return (
         <p style={{ color: c }} className="text-xs leading-relaxed m-0">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Treść akapitu na tle strony.
+          {t("adminGCEditor.preview.bodyText")}
         </p>
       );
     case "body-text-muted":
       return (
         <p style={{ color: c }} className="text-[11px] leading-relaxed m-0 italic">
-          Podpis pod obrazkiem · meta informacja · data publikacji
+          {t("adminGCEditor.preview.bodyTextMuted")}
         </p>
       );
     case "link":
@@ -1387,8 +1408,15 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const hover = get("link-hover");
       return (
         <p className="text-xs leading-relaxed m-0" style={{ color: "inherit" }}>
-          To jest <a style={{ color: base, textDecoration: "underline" }}>link domyślny</a>, a to{" "}
-          <a style={{ color: hover, textDecoration: "underline" }}>link po najechaniu</a>.
+          {t("adminGCEditor.preview.linkSentencePre")}
+          <a style={{ color: base, textDecoration: "underline" }}>
+            {t("adminGCEditor.preview.linkDefault")}
+          </a>
+          {t("adminGCEditor.preview.linkSentenceMid")}
+          <a style={{ color: hover, textDecoration: "underline" }}>
+            {t("adminGCEditor.preview.linkHover")}
+          </a>
+          {t("adminGCEditor.preview.linkSentencePost")}
         </p>
       );
     }
@@ -1401,7 +1429,15 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
  * Funkcjonalny mini-podgląd - pokazuje fragment UI jednocześnie w trybie
  * jasnym i ciemnym, używając aktualnych kolorów z draftu.
  */
-function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColorsValue }) {
+function SlotPreview({
+  slot,
+  draft,
+  t,
+}: {
+  slot: GlobalColorSlot;
+  draft: GlobalColorsValue;
+  t: TFunction;
+}) {
   const Panel = ({ mode }: { mode: "light" | "dark" }) => {
     const get = (key: string) => getColor(draft, key, mode);
     const isDark = mode === "dark";
@@ -1418,7 +1454,7 @@ function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColo
           {mode}
         </span>
         <div className="flex items-center justify-center flex-1">
-          {renderPreviewBody(slot, get)}
+          {renderPreviewBody(slot, get, t)}
         </div>
       </div>
     );

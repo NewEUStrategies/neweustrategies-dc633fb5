@@ -8,6 +8,9 @@
  * dodatkowych roundtripów.
  */
 import { useMemo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import "@/lib/i18n-admin-analytics";
 import { AlertTriangle, CheckCircle2, Lightbulb, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,141 +42,66 @@ function fmt(metric: VitalName, v: number): string {
   return `${Math.round(v)} ms`;
 }
 
-// Katalog interpretacji per metryka + rating. `detail` jest tłumaczeniem
-// wartości p75 na prosty język, `fixes` to konkretna lista działań.
-const PLAYBOOK: Record<
-  VitalName,
-  Record<Exclude<Severity, "good">, { title: string; fixes: string[] }>
-> = {
-  LCP: {
-    "needs-improvement": {
-      title: "LCP w strefie ostrzegawczej",
-      fixes: [
-        'Preload obrazu bohatera (LCP) w head route\'a: rel="preload" as="image" fetchpriority="high".',
-        "Konwertuj obraz LCP do AVIF/WebP (vite-imagetools) i podawaj srcset dla 1x/2x.",
-        'Dodaj width/height + loading="eager" dla LCP; loading="lazy" reszcie.',
-        "Skróć krytyczną ścieżkę CSS: załaduj fonty jako preload woff2 + font-display: swap.",
-      ],
-    },
-    poor: {
-      title: "LCP powyżej progu - widoczny lag ładowania",
-      fixes: [
-        'Sprawdź czy LCP to obraz - jeśli tak, wymuś fetchpriority="high" i preload w head().',
-        "Odłóż niekrytyczne skrypty innych firm (analytics, chat) - defer/async lub po requestIdleCallback.",
-        "Zmniejsz payload SSR: przenieś ciężkie widgety do React.lazy + Suspense.",
-        "Włącz cache CDN na obrazy i statyki (Cache-Control: public, max-age=31536000, immutable).",
-      ],
-    },
-  },
-  INP: {
-    "needs-improvement": {
-      title: "INP w strefie ostrzegawczej",
-      fixes: [
-        "Rozbij długie zadania JS (>50 ms) na chunki: scheduler.yield() lub setTimeout(0).",
-        "Zredukuj rerendery: React.memo, useMemo, useCallback dla ciężkich list.",
-        "Debounce inputów w formularzach i wyszukiwarce (150-250 ms).",
-      ],
-    },
-    poor: {
-      title: "INP wysokie - interakcje są odczuwalnie ślamazarne",
-      fixes: [
-        "Profiluj Long Tasks w Performance panelu - namierz handler powyżej 200 ms.",
-        "Przenieś ciężką kalkulację do useDeferredValue lub web workera.",
-        "Usuń synchroniczne setState w onClick - zamień na startTransition.",
-      ],
-    },
-  },
-  CLS: {
-    "needs-improvement": {
-      title: "CLS w strefie ostrzegawczej - jest przeskakiwanie",
-      fixes: [
-        "Podaj width/height na każdym <img>, <video>, <iframe> aby zarezerwować miejsce.",
-        "Dla dynamicznych banerów/reklam ustaw min-height kontenera zanim ad się załaduje.",
-        "Wczytuj fonty przez preload woff2 + font-display: swap zamiast optional/block.",
-      ],
-    },
-    poor: {
-      title: "CLS wysokie - layout skacze przy renderze",
-      fixes: [
-        "Znajdź źródło shiftu: DevTools > Performance > Experience > Layout Shifts (zaznacz node).",
-        "Przypnij wysokość skeletonów do finalnej wysokości kontentu.",
-        "Nie wstrzykuj bannerów/notyfikacji nad treścią - używaj bottom sheet / toast overlay.",
-      ],
-    },
-  },
-  FCP: {
-    "needs-improvement": {
-      title: "FCP wolniejszy niż zalecane 1.8 s",
-      fixes: [
-        "Skróć TTFB (patrz sekcja TTFB) - FCP idzie za nim.",
-        "Preload krytycznego CSS (styles.css) i głównego fontu - już masz Red Hat Display, upewnij się że preload trafia.",
-        "Zmniejsz blokujący JS w head - przenieś skrypty do defer.",
-      ],
-    },
-    poor: {
-      title: "FCP powyżej 3 s - pusty ekran zbyt długo",
-      fixes: [
-        "Włącz SSR streaming - fragmenty HTML lecą do klienta zanim skończy się loader.",
-        "Wyeliminuj render-blocking third-party (fonty Google, tag manager przed critical CSS).",
-        "Sprawdź czy CDN cache trafia (Cache-Status: HIT) - miss oznacza cold path do origin.",
-      ],
-    },
-  },
-  TTFB: {
-    "needs-improvement": {
-      title: "TTFB powyżej 800 ms",
-      fixes: [
-        "Włącz cache SSR dla stron kategorii/wpisów (stale-while-revalidate).",
-        "Skróć zapytania w loaderze - użyj context.queryClient.ensureQueryData zamiast wielu sekwencyjnych fetchy.",
-        "Sprawdź czas RLS: przenieś ciężkie polityki do funkcji SECURITY DEFINER.",
-      ],
-    },
-    poor: {
-      title: "TTFB powyżej 1.8 s - serwer zbyt wolno odpowiada",
-      fixes: [
-        "Zprofiluj server functions: dodaj console.time w handler(), wyszukaj zapytania > 500 ms.",
-        "Sprawdź slow_queries w Lovable Cloud - dodaj indeksy na kolumnach z WHERE / ORDER BY.",
-        "Rozważ edge caching (Cache-Control: s-maxage=60, stale-while-revalidate=600) dla list publicznych.",
-      ],
-    },
-  },
-  FID: {
-    "needs-improvement": { title: "FID - legacy metric", fixes: [] },
-    poor: { title: "FID - legacy metric", fixes: [] },
-  },
+// Katalog interpretacji per metryka + rating. Tytuły i listy działań (`fixes`)
+// są przechowywane jako klucze i18n (adminAnalytics.vitals.playbook.*), a
+// `detail` budowane jest z wartości p75 przez t() w funkcjach poniżej.
+const SEG: Record<Exclude<Severity, "good">, "ni" | "poor"> = {
+  "needs-improvement": "ni",
+  poor: "poor",
 };
 
-function metricFinding(m: VitalMetricSummary): Finding | null {
+function playbookKey(
+  metric: VitalName,
+  sev: Exclude<Severity, "good">,
+  leaf: "title" | "fixes",
+): string {
+  return `adminAnalytics.vitals.playbook.${metric}.${SEG[sev]}.${leaf}`;
+}
+
+function metricFinding(m: VitalMetricSummary, t: TFunction): Finding | null {
   if (m.rating === "good") return null;
-  const play = PLAYBOOK[m.metric]?.[m.rating];
-  if (!play || play.fixes.length === 0) return null;
+  const fixes = t(playbookKey(m.metric, m.rating, "fixes"), { returnObjects: true }) as string[];
+  if (!Array.isArray(fixes) || fixes.length === 0) return null;
   return {
     id: `global-${m.metric}`,
     severity: m.rating,
     scope: "global",
     metric: m.metric,
-    title: play.title,
-    detail: `p75 = ${fmt(m.metric, m.p75)}. W oknie: ${m.good} Good · ${m.needsImprovement} Needs · ${m.poor} Poor (razem ${m.count} próbek).`,
-    fixes: play.fixes,
+    title: t(playbookKey(m.metric, m.rating, "title")),
+    detail: t("adminAnalytics.vitals.globalDetail", {
+      p75: fmt(m.metric, m.p75),
+      good: m.good,
+      ni: m.needsImprovement,
+      poor: m.poor,
+      count: m.count,
+    }),
+    fixes,
   };
 }
 
-function pathFindings(paths: VitalPathRow[]): Finding[] {
+function pathFindings(paths: VitalPathRow[], t: TFunction): Finding[] {
   const out: Finding[] = [];
   for (const p of paths) {
     for (const pm of p.metrics) {
       if (pm.rating !== "poor") continue; // per-path tylko poor - inaczej byłby szum
-      const play = PLAYBOOK[pm.metric]?.poor;
-      if (!play) continue;
+      const fixes = t(playbookKey(pm.metric, "poor", "fixes"), { returnObjects: true }) as string[];
+      if (!Array.isArray(fixes)) continue;
       out.push({
         id: `${p.path}-${pm.metric}`,
         severity: "poor",
         scope: "path",
         metric: pm.metric,
         path: p.path,
-        title: `${pm.metric} na ${p.path} = ${fmt(pm.metric, pm.p75)}`,
-        detail: `Próbek dla ścieżki: ${p.total}. Próg Poor: ${fmt(pm.metric, VITAL_THRESHOLDS[pm.metric][1])}.`,
-        fixes: play.fixes.slice(0, 3),
+        title: t("adminAnalytics.vitals.pathTitle", {
+          metric: pm.metric,
+          path: p.path,
+          value: fmt(pm.metric, pm.p75),
+        }),
+        detail: t("adminAnalytics.vitals.pathDetail", {
+          total: p.total,
+          threshold: fmt(pm.metric, VITAL_THRESHOLDS[pm.metric][1]),
+        }),
+        fixes: fixes.slice(0, 3),
       });
     }
   }
@@ -199,13 +127,16 @@ const SEVERITY_STYLE: Record<
 };
 
 export function VitalsRecommendations({ report }: { report: VitalsSummaryResult }) {
+  const { t } = useTranslation();
   const findings = useMemo<Finding[]>(() => {
-    const globals = report.metrics.map(metricFinding).filter((f): f is Finding => f !== null);
-    const perPath = pathFindings(report.paths ?? []);
+    const globals = report.metrics
+      .map((m) => metricFinding(m, t))
+      .filter((f): f is Finding => f !== null);
+    const perPath = pathFindings(report.paths ?? [], t);
     return [...globals, ...perPath].sort(
       (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
     );
-  }, [report]);
+  }, [report, t]);
 
   if (findings.length === 0) {
     return (
@@ -213,10 +144,9 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
         <div className="flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm font-semibold">Wszystkie metryki w normie</div>
+            <div className="text-sm font-semibold">{t("adminAnalytics.vitals.allGood")}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Web Vitals w wybranym oknie są w strefie Good. Utrzymaj obecną budżetyzację obrazów,
-              lazy-loading widgetów i cache CDN.
+              {t("adminAnalytics.vitals.allGoodDetail")}
             </p>
           </div>
         </div>
@@ -232,17 +162,19 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <Lightbulb className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-semibold">Interpretacja i rekomendacje</h3>
+          <h3 className="text-sm font-semibold">
+            {t("adminAnalytics.insightSection.defaultTitle")}
+          </h3>
         </div>
         <div className="flex items-center gap-2">
           {poor > 0 ? (
             <Badge variant="outline" className={SEVERITY_STYLE.poor.badge}>
-              {poor} krytycznych
+              {t("adminAnalytics.insightSection.badgeCritical", { count: poor })}
             </Badge>
           ) : null}
           {ni > 0 ? (
             <Badge variant="outline" className={SEVERITY_STYLE["needs-improvement"].badge}>
-              {ni} do poprawy
+              {t("adminAnalytics.insightSection.badgeWarn", { count: ni })}
             </Badge>
           ) : null}
         </div>
@@ -259,7 +191,9 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold">{f.title}</span>
                     <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-                      {f.scope === "path" ? "ścieżka" : "globalne"}
+                      {f.scope === "path"
+                        ? t("adminAnalytics.vitals.scopePath")
+                        : t("adminAnalytics.vitals.scopeGlobal")}
                     </Badge>
                     {f.path ? (
                       <span className="font-mono text-[11px] text-muted-foreground truncate">
@@ -285,8 +219,7 @@ export function VitalsRecommendations({ report }: { report: VitalsSummaryResult 
 
       {findings.length > 12 ? (
         <p className="text-[11px] text-muted-foreground">
-          Pokazano 12 z {findings.length} znalezisk. Napraw najpierw krytyczne - reszta zwykle idzie
-          za nimi.
+          {t("adminAnalytics.vitals.moreFindings", { count: findings.length })}
         </p>
       ) : null}
     </Card>

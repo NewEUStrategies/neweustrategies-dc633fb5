@@ -4,7 +4,9 @@
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-admin-theme-design";
 import {
   Save,
   Sun,
@@ -75,6 +77,7 @@ type PreviewSection =
   | "overlay";
 
 export function ThemeDesignPane() {
+  const { t } = useTranslation();
   const { data: tdPl, isLoading: tdPlLoading } = useThemeDesign();
   const { data: tdEn, isLoading: tdEnLoading } = useThemeDesignEn();
   const { data: langMode } = useThemeDesignLangMode();
@@ -151,7 +154,7 @@ export function ThemeDesignPane() {
     !draftPl ||
     !overlayDraft
   ) {
-    return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
+    return <p className="text-sm text-muted-foreground">{t("adminThemeDesign.loading")}</p>;
   }
 
   const set = <K extends keyof ThemeDesign>(k: K, patch: Partial<ThemeDesign[K]>) => {
@@ -208,9 +211,9 @@ export function ThemeDesignPane() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Globalne style dla nagłówków bloków, miniatur, przycisku „Czytaj więcej” oraz informacji
-        meta. Wartości są aplikowane jako zmienne CSS (<code>--td-*</code>) i nadpisują domyślny
-        wygląd kart i widgetów - w tym w kanwach builderów CMS (Gutenberg + Elementor).
+        {t("adminThemeDesign.introPre")}
+        <code>--td-*</code>
+        {t("adminThemeDesign.introPost")}
       </p>
 
       <I18nAndLiveToolbar
@@ -233,7 +236,9 @@ export function ThemeDesignPane() {
       />
 
       <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
-        <span className="text-xs text-muted-foreground pl-1">Edytujesz kolory dla trybu:</span>
+        <span className="text-xs text-muted-foreground pl-1">
+          {t("adminThemeDesign.editColorsForMode")}
+        </span>
         <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
           <button
             type="button"
@@ -261,7 +266,7 @@ export function ThemeDesignPane() {
           </button>
         </div>
         <span className="text-[11px] text-muted-foreground ml-auto pr-1">
-          Puste pole = dziedziczenie z tokenów globalnych (Kolory linków / ikon / pól tekstowych).
+          {t("adminThemeDesign.emptyInherit")}
         </span>
       </div>
 
@@ -273,46 +278,46 @@ export function ThemeDesignPane() {
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/70 border-b border-border">
           <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 h-auto gap-1.5 bg-transparent p-0">
             {[
-              { v: "block-heading", label: "Nagłówki bloków" },
-              { v: "thumbnail", label: "Miniatury" },
-              { v: "read-more", label: "Czytaj więcej" },
-              { v: "meta", label: "Meta wpisu" },
-              { v: "toolbar", label: "Toolbar" },
-              { v: "mode-switch", label: "Tryb jasny/ciemny" },
-              { v: "social", label: "Social" },
-              { v: "post-title", label: "Tytuły wpisów" },
-              { v: "post-excerpt", label: "Excerpt" },
-              { v: "list-index", label: "Numeracja list" },
-              { v: "carousel", label: "Karuzela" },
-              { v: "overlay", label: "Overlay wpisu" },
-            ].map((t) => (
+              { v: "block-heading", label: t("adminThemeDesign.tabs.blockHeading") },
+              { v: "thumbnail", label: t("adminThemeDesign.tabs.thumbnail") },
+              { v: "read-more", label: t("adminThemeDesign.tabs.readMore") },
+              { v: "meta", label: t("adminThemeDesign.tabs.meta") },
+              { v: "toolbar", label: t("adminThemeDesign.tabs.toolbar") },
+              { v: "mode-switch", label: t("adminThemeDesign.tabs.modeSwitch") },
+              { v: "social", label: t("adminThemeDesign.tabs.social") },
+              { v: "post-title", label: t("adminThemeDesign.tabs.postTitle") },
+              { v: "post-excerpt", label: t("adminThemeDesign.tabs.postExcerpt") },
+              { v: "list-index", label: t("adminThemeDesign.tabs.listIndex") },
+              { v: "carousel", label: t("adminThemeDesign.tabs.carousel") },
+              { v: "overlay", label: t("adminThemeDesign.tabs.overlay") },
+            ].map((tab) => (
               <TabsTrigger
-                key={t.v}
-                value={t.v}
+                key={tab.v}
+                value={tab.v}
                 className="w-full h-9 px-3 rounded-none text-xs font-medium bg-muted/40 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors data-[state=active]:bg-brand data-[state=active]:text-[color:var(--brand-foreground)] data-[state=active]:border-brand data-[state=active]:shadow-sm"
               >
-                {t.label}
+                {tab.label}
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
 
         <TabsContent value="block-heading" className="mt-0">
-          <Section title="Nagłówki bloków">
+          <Section title={t("adminThemeDesign.sections.blockHeading")}>
             <Grid>
-              <Field label="Rozmiar (px)">
+              <Field label={t("adminThemeDesign.f.sizePx")}>
                 <PxStepper
                   value={draft.blockHeading.fontSize}
                   onChange={(v) => set("blockHeading", { fontSize: v })}
                 />
               </Field>
-              <Field label="Grubość">
+              <Field label={t("adminThemeDesign.f.weight")}>
                 <NumStepper
                   value={draft.blockHeading.fontWeight}
                   onChange={(v) => set("blockHeading", { fontWeight: v })}
                 />
               </Field>
-              <Field label="Kolor">
+              <Field label={t("adminThemeDesign.f.color")}>
                 <TdColorField
                   section="blockHeading"
                   field="color"
@@ -321,7 +326,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Transformacja">
+              <Field label={t("adminThemeDesign.f.transform")}>
                 <Select
                   value={draft.blockHeading.textTransform}
                   onValueChange={(v) =>
@@ -334,20 +339,22 @@ export function ThemeDesignPane() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Brak</SelectItem>
-                    <SelectItem value="uppercase">WIELKIE</SelectItem>
-                    <SelectItem value="lowercase">małe</SelectItem>
-                    <SelectItem value="capitalize">Tytuł</SelectItem>
+                    <SelectItem value="none">{t("adminThemeDesign.opt.none")}</SelectItem>
+                    <SelectItem value="uppercase">{t("adminThemeDesign.opt.upper")}</SelectItem>
+                    <SelectItem value="lowercase">{t("adminThemeDesign.opt.lower")}</SelectItem>
+                    <SelectItem value="capitalize">
+                      {t("adminThemeDesign.opt.titleCase")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Odstęp liter (px)">
+              <Field label={t("adminThemeDesign.f.letterSpacing")}>
                 <PxStepper
                   value={draft.blockHeading.letterSpacing}
                   onChange={(v) => set("blockHeading", { letterSpacing: v })}
                 />
               </Field>
-              <Field label="Margines dolny (px)">
+              <Field label={t("adminThemeDesign.f.marginBottom")}>
                 <PxStepper
                   value={draft.blockHeading.marginBottom}
                   onChange={(v) => set("blockHeading", { marginBottom: v })}
@@ -366,28 +373,28 @@ export function ThemeDesignPane() {
                   marginBottom: draft.blockHeading.marginBottom,
                 }}
               >
-                Najnowsze artykuły
+                {t("adminThemeDesign.preview.latestArticles")}
               </h3>
             </Preview>
           </Section>
         </TabsContent>
 
         <TabsContent value="thumbnail" className="mt-0">
-          <Section title="Miniatury wpisów">
+          <Section title={t("adminThemeDesign.sections.thumbnails")}>
             <Grid>
-              <Field label="Zaokrąglenie (px)">
+              <Field label={t("adminThemeDesign.f.radius")}>
                 <PxStepper
                   value={draft.thumbnail.radius}
                   onChange={(v) => set("thumbnail", { radius: v })}
                 />
               </Field>
-              <Field label="Proporcje (np. 16/9)">
+              <Field label={t("adminThemeDesign.f.aspectRatio")}>
                 <Input
                   value={draft.thumbnail.aspectRatio}
                   onChange={(e) => set("thumbnail", { aspectRatio: e.target.value })}
                 />
               </Field>
-              <Field label="Efekt hover">
+              <Field label={t("adminThemeDesign.f.hoverEffect")}>
                 <Select
                   value={draft.thumbnail.hoverEffect}
                   onValueChange={(v) =>
@@ -398,14 +405,14 @@ export function ThemeDesignPane() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Brak</SelectItem>
+                    <SelectItem value="none">{t("adminThemeDesign.opt.none")}</SelectItem>
                     <SelectItem value="zoom">Zoom</SelectItem>
                     <SelectItem value="fade">Fade</SelectItem>
                     <SelectItem value="slide">Slide</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Cień">
+              <Field label={t("adminThemeDesign.f.shadow")}>
                 <Select
                   value={draft.thumbnail.shadow}
                   onValueChange={(v) =>
@@ -416,10 +423,10 @@ export function ThemeDesignPane() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Brak</SelectItem>
-                    <SelectItem value="sm">Mały</SelectItem>
-                    <SelectItem value="md">Średni</SelectItem>
-                    <SelectItem value="lg">Duży</SelectItem>
+                    <SelectItem value="none">{t("adminThemeDesign.opt.none")}</SelectItem>
+                    <SelectItem value="sm">{t("adminThemeDesign.opt.shadowSm")}</SelectItem>
+                    <SelectItem value="md">{t("adminThemeDesign.opt.shadowMd")}</SelectItem>
+                    <SelectItem value="lg">{t("adminThemeDesign.opt.shadowLg")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -428,9 +435,9 @@ export function ThemeDesignPane() {
         </TabsContent>
 
         <TabsContent value="read-more" className="mt-0">
-          <Section title={"Przycisk „Czytaj więcej”"}>
+          <Section title={t("adminThemeDesign.sections.readMore")}>
             <Grid>
-              <Field label="Kolor tła">
+              <Field label={t("adminThemeDesign.f.bgColor")}>
                 <TdColorField
                   section="readMoreButton"
                   field="bgColor"
@@ -439,7 +446,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Kolor tekstu">
+              <Field label={t("adminThemeDesign.f.textColor")}>
                 <TdColorField
                   section="readMoreButton"
                   field="color"
@@ -448,7 +455,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Kolor obramowania">
+              <Field label={t("adminThemeDesign.f.borderColor")}>
                 <TdColorField
                   section="readMoreButton"
                   field="borderColor"
@@ -457,37 +464,37 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Zaokrąglenie (px)">
+              <Field label={t("adminThemeDesign.f.radius")}>
                 <PxStepper
                   value={draft.readMoreButton.radius}
                   onChange={(v) => set("readMoreButton", { radius: v })}
                 />
               </Field>
-              <Field label="Padding X (px)">
+              <Field label={t("adminThemeDesign.f.paddingX")}>
                 <PxStepper
                   value={draft.readMoreButton.paddingX}
                   onChange={(v) => set("readMoreButton", { paddingX: v })}
                 />
               </Field>
-              <Field label="Padding Y (px)">
+              <Field label={t("adminThemeDesign.f.paddingY")}>
                 <PxStepper
                   value={draft.readMoreButton.paddingY}
                   onChange={(v) => set("readMoreButton", { paddingY: v })}
                 />
               </Field>
-              <Field label="Grubość">
+              <Field label={t("adminThemeDesign.f.weight")}>
                 <NumStepper
                   value={draft.readMoreButton.fontWeight}
                   onChange={(v) => set("readMoreButton", { fontWeight: v })}
                 />
               </Field>
               <ToggleField
-                label="WIELKIE LITERY"
+                label={t("adminThemeDesign.toggle.uppercase")}
                 checked={draft.readMoreButton.uppercase}
                 onChange={(v) => set("readMoreButton", { uppercase: v })}
               />
               <ToggleField
-                label="Strzałka →"
+                label={t("adminThemeDesign.toggle.arrow")}
                 checked={draft.readMoreButton.arrow}
                 onChange={(v) => set("readMoreButton", { arrow: v })}
               />
@@ -506,22 +513,23 @@ export function ThemeDesignPane() {
                   textTransform: draft.readMoreButton.uppercase ? "uppercase" : "none",
                 }}
               >
-                Czytaj więcej {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
+                {t("adminThemeDesign.preview.readMore")}{" "}
+                {draft.readMoreButton.arrow && <span aria-hidden>→</span>}
               </button>
             </Preview>
           </Section>
         </TabsContent>
 
         <TabsContent value="meta" className="mt-0">
-          <Section title="Informacje meta (autor, data, kategoria)">
+          <Section title={t("adminThemeDesign.sections.meta")}>
             <Grid>
-              <Field label="Rozmiar (px)">
+              <Field label={t("adminThemeDesign.f.sizePx")}>
                 <PxStepper
                   value={draft.metaInfo.fontSize}
                   onChange={(v) => set("metaInfo", { fontSize: v })}
                 />
               </Field>
-              <Field label="Kolor">
+              <Field label={t("adminThemeDesign.f.color")}>
                 <TdColorField
                   section="metaInfo"
                   field="color"
@@ -530,13 +538,13 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Odstęp między (px)">
+              <Field label={t("adminThemeDesign.f.gapBetween")}>
                 <PxStepper
                   value={draft.metaInfo.gap}
                   onChange={(v) => set("metaInfo", { gap: v })}
                 />
               </Field>
-              <Field label="Separator">
+              <Field label={t("adminThemeDesign.f.separator")}>
                 <Select
                   value={draft.metaInfo.separator}
                   onValueChange={(v) =>
@@ -550,12 +558,12 @@ export function ThemeDesignPane() {
                     <SelectItem value="dot">•</SelectItem>
                     <SelectItem value="slash">/</SelectItem>
                     <SelectItem value="pipe">|</SelectItem>
-                    <SelectItem value="none">Brak</SelectItem>
+                    <SelectItem value="none">{t("adminThemeDesign.opt.none")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
               <ToggleField
-                label="WIELKIE LITERY"
+                label={t("adminThemeDesign.toggle.uppercase")}
                 checked={draft.metaInfo.uppercase}
                 onChange={(v) => set("metaInfo", { uppercase: v })}
               />
@@ -564,9 +572,9 @@ export function ThemeDesignPane() {
         </TabsContent>
 
         <TabsContent value="toolbar" className="mt-0">
-          <Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
+          <Section title={t("adminThemeDesign.sections.toolbar")}>
             <Grid>
-              <Field label="Tło">
+              <Field label={t("adminThemeDesign.f.bg")}>
                 <TdColorField
                   section="toolbarButton"
                   field="bgColor"
@@ -575,7 +583,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Kolor ikony/tekstu">
+              <Field label={t("adminThemeDesign.f.iconTextColor")}>
                 <TdColorField
                   section="toolbarButton"
                   field="color"
@@ -584,7 +592,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Hover - tło">
+              <Field label={t("adminThemeDesign.f.hoverBg")}>
                 <TdColorField
                   section="toolbarButton"
                   field="hoverBgColor"
@@ -593,7 +601,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Hover - kolor">
+              <Field label={t("adminThemeDesign.f.hoverColor")}>
                 <TdColorField
                   section="toolbarButton"
                   field="hoverColor"
@@ -602,7 +610,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Aktywny - tło">
+              <Field label={t("adminThemeDesign.f.activeBg")}>
                 <TdColorField
                   section="toolbarButton"
                   field="activeBgColor"
@@ -611,7 +619,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Aktywny - kolor">
+              <Field label={t("adminThemeDesign.f.activeColor")}>
                 <TdColorField
                   section="toolbarButton"
                   field="activeColor"
@@ -620,25 +628,25 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Zaokrąglenie (px)">
+              <Field label={t("adminThemeDesign.f.radius")}>
                 <PxStepper
                   value={draft.toolbarButton.radius}
                   onChange={(v) => set("toolbarButton", { radius: v })}
                 />
               </Field>
-              <Field label="Padding X (px)">
+              <Field label={t("adminThemeDesign.f.paddingX")}>
                 <PxStepper
                   value={draft.toolbarButton.paddingX}
                   onChange={(v) => set("toolbarButton", { paddingX: v })}
                 />
               </Field>
-              <Field label="Padding Y (px)">
+              <Field label={t("adminThemeDesign.f.paddingY")}>
                 <PxStepper
                   value={draft.toolbarButton.paddingY}
                   onChange={(v) => set("toolbarButton", { paddingY: v })}
                 />
               </Field>
-              <Field label="Rozmiar ikony (px)">
+              <Field label={t("adminThemeDesign.f.iconSizePx")}>
                 <PxStepper
                   value={draft.toolbarButton.size}
                   onChange={(v) => set("toolbarButton", { size: v })}
@@ -663,7 +671,11 @@ export function ThemeDesignPane() {
                 }
                 className="flex flex-wrap items-center gap-2"
               >
-                <button className="cms-tb-btn" data-active="true" title="Aktywny">
+                <button
+                  className="cms-tb-btn"
+                  data-active="true"
+                  title={t("adminThemeDesign.activeTitle")}
+                >
                   <Monitor />
                 </button>
                 <button className="cms-tb-btn">
@@ -687,9 +699,9 @@ export function ThemeDesignPane() {
         </TabsContent>
 
         <TabsContent value="mode-switch" className="mt-0">
-          <Section title="Przełącznik trybu jasny/ciemny">
+          <Section title={t("adminThemeDesign.sections.modeSwitch")}>
             <Grid>
-              <Field label="Tło toru">
+              <Field label={t("adminThemeDesign.f.trackBg")}>
                 <TdColorField
                   section="modeSwitcher"
                   field="trackBg"
@@ -698,7 +710,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Obramowanie toru">
+              <Field label={t("adminThemeDesign.f.trackBorder")}>
                 <TdColorField
                   section="modeSwitcher"
                   field="trackBorder"
@@ -707,7 +719,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Kolor nieaktywny">
+              <Field label={t("adminThemeDesign.f.inactiveColor")}>
                 <TdColorField
                   section="modeSwitcher"
                   field="inactiveColor"
@@ -716,7 +728,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Aktywny - tło">
+              <Field label={t("adminThemeDesign.f.activeBg")}>
                 <TdColorField
                   section="modeSwitcher"
                   field="activeBg"
@@ -725,7 +737,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Aktywny - kolor">
+              <Field label={t("adminThemeDesign.f.activeColor")}>
                 <TdColorField
                   section="modeSwitcher"
                   field="activeColor"
@@ -734,14 +746,14 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Zaokrąglenie (px)">
+              <Field label={t("adminThemeDesign.f.radius")}>
                 <PxStepper
                   value={draft.modeSwitcher.radius}
                   onChange={(v) => set("modeSwitcher", { radius: v })}
                 />
               </Field>
               <ToggleField
-                label="Pokaż etykiety (Jasny/Ciemny)"
+                label={t("adminThemeDesign.toggle.showLabels")}
                 checked={draft.modeSwitcher.showLabel}
                 onChange={(v) => set("modeSwitcher", { showLabel: v })}
               />
@@ -761,10 +773,12 @@ export function ThemeDesignPane() {
               >
                 <div className="cms-mode-switch">
                   <button className="cms-mode-switch__btn" data-active="true">
-                    <Sun className="w-3.5 h-3.5" /> {draft.modeSwitcher.showLabel && "Jasny"}
+                    <Sun className="w-3.5 h-3.5" />{" "}
+                    {draft.modeSwitcher.showLabel && t("adminThemeDesign.lightLabel")}
                   </button>
                   <button className="cms-mode-switch__btn">
-                    <Moon className="w-3.5 h-3.5" /> {draft.modeSwitcher.showLabel && "Ciemny"}
+                    <Moon className="w-3.5 h-3.5" />{" "}
+                    {draft.modeSwitcher.showLabel && t("adminThemeDesign.darkLabel")}
                   </button>
                 </div>
               </div>
@@ -773,9 +787,9 @@ export function ThemeDesignPane() {
         </TabsContent>
 
         <TabsContent value="social" className="mt-0">
-          <Section title="Ikony social media">
+          <Section title={t("adminThemeDesign.sections.social")}>
             <Grid>
-              <Field label="Kolor ikony">
+              <Field label={t("adminThemeDesign.f.iconColor")}>
                 <TdColorField
                   section="socialIcons"
                   field="color"
@@ -784,7 +798,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Hover - kolor">
+              <Field label={t("adminThemeDesign.f.hoverColor")}>
                 <TdColorField
                   section="socialIcons"
                   field="hoverColor"
@@ -793,7 +807,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Tło">
+              <Field label={t("adminThemeDesign.f.bg")}>
                 <TdColorField
                   section="socialIcons"
                   field="bgColor"
@@ -802,7 +816,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Hover - tło">
+              <Field label={t("adminThemeDesign.f.hoverBg")}>
                 <TdColorField
                   section="socialIcons"
                   field="hoverBgColor"
@@ -811,31 +825,31 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Rozmiar (px)">
+              <Field label={t("adminThemeDesign.f.sizePx")}>
                 <PxStepper
                   value={draft.socialIcons.size}
                   onChange={(v) => set("socialIcons", { size: v })}
                 />
               </Field>
-              <Field label="Odstęp (px)">
+              <Field label={t("adminThemeDesign.f.gap")}>
                 <PxStepper
                   value={draft.socialIcons.gap}
                   onChange={(v) => set("socialIcons", { gap: v })}
                 />
               </Field>
-              <Field label="Zaokrąglenie (px)">
+              <Field label={t("adminThemeDesign.f.radius")}>
                 <PxStepper
                   value={draft.socialIcons.radius}
                   onChange={(v) => set("socialIcons", { radius: v })}
                 />
               </Field>
-              <Field label="Padding X (px)">
+              <Field label={t("adminThemeDesign.f.paddingX")}>
                 <PxStepper
                   value={draft.socialIcons.paddingX}
                   onChange={(v) => set("socialIcons", { paddingX: v })}
                 />
               </Field>
-              <Field label="Padding Y (px)">
+              <Field label={t("adminThemeDesign.f.paddingY")}>
                 <PxStepper
                   value={draft.socialIcons.paddingY}
                   onChange={(v) => set("socialIcons", { paddingY: v })}
@@ -881,43 +895,44 @@ export function ThemeDesignPane() {
         </TabsContent>
 
         <TabsContent value="post-title" className="mt-0">
-          <Section title="Tytuły wpisów (wszystkie widgety)">
+          <Section title={t("adminThemeDesign.sections.postTitle")}>
             <p className="text-xs text-muted-foreground -mt-2">
-              Ujednolicony styl tytułów we wszystkich widgetach (lista, slider, grid, galeria,
-              ranking, ticker, podcast). Aplikowane przez klasę <code>.cms-post-title</code>.
+              {t("adminThemeDesign.desc.postTitlePre")}
+              <code>.cms-post-title</code>
+              {t("adminThemeDesign.desc.postTitlePost")}
             </p>
             <Grid>
-              <Field label="Krój pisma (CSS font-family)">
+              <Field label={t("adminThemeDesign.f.fontFamily")}>
                 <Input
                   value={draft.postTitle.fontFamily}
                   onChange={(e) => set("postTitle", { fontFamily: e.target.value })}
                 />
               </Field>
-              <Field label="Rozmiar desktop (px)">
+              <Field label={t("adminThemeDesign.f.sizeDesktop")}>
                 <PxStepper
                   value={draft.postTitle.fontSize}
                   onChange={(v) => set("postTitle", { fontSize: v })}
                 />
               </Field>
-              <Field label="Rozmiar mobile (px)">
+              <Field label={t("adminThemeDesign.f.sizeMobile")}>
                 <PxStepper
                   value={draft.postTitle.fontSizeSm}
                   onChange={(v) => set("postTitle", { fontSizeSm: v })}
                 />
               </Field>
-              <Field label="Grubość">
+              <Field label={t("adminThemeDesign.f.weight")}>
                 <NumStepper
                   value={draft.postTitle.fontWeight}
                   onChange={(v) => set("postTitle", { fontWeight: v })}
                 />
               </Field>
-              <Field label="Interlinia (line-height)">
+              <Field label={t("adminThemeDesign.f.lineHeightLh")}>
                 <Input
                   value={String(draft.postTitle.lineHeight)}
                   onChange={(e) => set("postTitle", { lineHeight: e.target.value })}
                 />
               </Field>
-              <Field label="Kolor">
+              <Field label={t("adminThemeDesign.f.color")}>
                 <TdColorField
                   section="postTitle"
                   field="color"
@@ -926,7 +941,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Kolor hover">
+              <Field label={t("adminThemeDesign.f.colorHover")}>
                 <TdColorField
                   section="postTitle"
                   field="hoverColor"
@@ -935,7 +950,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Transformacja">
+              <Field label={t("adminThemeDesign.f.transform")}>
                 <Select
                   value={draft.postTitle.textTransform}
                   onValueChange={(v) =>
@@ -948,14 +963,16 @@ export function ThemeDesignPane() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Brak</SelectItem>
-                    <SelectItem value="uppercase">WIELKIE</SelectItem>
-                    <SelectItem value="lowercase">małe</SelectItem>
-                    <SelectItem value="capitalize">Tytuł</SelectItem>
+                    <SelectItem value="none">{t("adminThemeDesign.opt.none")}</SelectItem>
+                    <SelectItem value="uppercase">{t("adminThemeDesign.opt.upper")}</SelectItem>
+                    <SelectItem value="lowercase">{t("adminThemeDesign.opt.lower")}</SelectItem>
+                    <SelectItem value="capitalize">
+                      {t("adminThemeDesign.opt.titleCase")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Odstęp liter (px)">
+              <Field label={t("adminThemeDesign.f.letterSpacing")}>
                 <PxStepper
                   value={draft.postTitle.letterSpacing}
                   onChange={(v) => set("postTitle", { letterSpacing: v })}
@@ -978,42 +995,40 @@ export function ThemeDesignPane() {
                   } as CSSProperties
                 }
               >
-                <h3 className="cms-post-title">
-                  Przykładowy tytuł artykułu - jak będzie wyglądać w widgetach
-                </h3>
+                <h3 className="cms-post-title">{t("adminThemeDesign.preview.sampleTitle")}</h3>
               </div>
             </Preview>
           </Section>
         </TabsContent>
 
         <TabsContent value="post-excerpt" className="mt-0">
-          <Section title="Excerpt / lead wpisów">
+          <Section title={t("adminThemeDesign.sections.postExcerpt")}>
             <Grid>
-              <Field label="Krój pisma (CSS font-family)">
+              <Field label={t("adminThemeDesign.f.fontFamily")}>
                 <Input
                   value={draft.postExcerpt.fontFamily}
                   onChange={(e) => set("postExcerpt", { fontFamily: e.target.value })}
                 />
               </Field>
-              <Field label="Rozmiar (px)">
+              <Field label={t("adminThemeDesign.f.sizePx")}>
                 <PxStepper
                   value={draft.postExcerpt.fontSize}
                   onChange={(v) => set("postExcerpt", { fontSize: v })}
                 />
               </Field>
-              <Field label="Grubość">
+              <Field label={t("adminThemeDesign.f.weight")}>
                 <NumStepper
                   value={draft.postExcerpt.fontWeight}
                   onChange={(v) => set("postExcerpt", { fontWeight: v })}
                 />
               </Field>
-              <Field label="Interlinia">
+              <Field label={t("adminThemeDesign.f.lineHeight")}>
                 <Input
                   value={String(draft.postExcerpt.lineHeight)}
                   onChange={(e) => set("postExcerpt", { lineHeight: e.target.value })}
                 />
               </Field>
-              <Field label="Kolor">
+              <Field label={t("adminThemeDesign.f.color")}>
                 <TdColorField
                   section="postExcerpt"
                   field="color"
@@ -1022,7 +1037,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Margines górny (px)">
+              <Field label={t("adminThemeDesign.f.marginTop")}>
                 <PxStepper
                   value={draft.postExcerpt.marginTop}
                   onChange={(v) => set("postExcerpt", { marginTop: v })}
@@ -1042,23 +1057,19 @@ export function ThemeDesignPane() {
                   } as CSSProperties
                 }
               >
-                <p className="cms-post-excerpt">
-                  Krótki opis artykułu pojawiający się pod tytułem w kartach widgetów. Zachowuje
-                  spójność na całej platformie.
-                </p>
+                <p className="cms-post-excerpt">{t("adminThemeDesign.preview.sampleExcerpt")}</p>
               </div>
             </Preview>
           </Section>
         </TabsContent>
 
         <TabsContent value="list-index" className="mt-0">
-          <Section title="Numeracja list (warianty „Numbered” / „Ranking”)">
+          <Section title={t("adminThemeDesign.sections.listIndex")}>
             <p className="text-xs text-muted-foreground -mt-2">
-              Globalne kolory dużych translucentnych cyfr (01, 02, 03...) za tytułami w listach
-              rankingowych. Każdy widget może je nadpisać swoim własnym kolorem.
+              {t("adminThemeDesign.desc.listIndex")}
             </p>
             <Grid>
-              <Field label="Kolor (light mode)">
+              <Field label={t("adminThemeDesign.f.colorLight")}>
                 <TdColorField
                   section="listIndex"
                   field="colorLight"
@@ -1067,7 +1078,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Kolor (dark mode)">
+              <Field label={t("adminThemeDesign.f.colorDark")}>
                 <TdColorField
                   section="listIndex"
                   field="colorDark"
@@ -1076,7 +1087,7 @@ export function ThemeDesignPane() {
                   setColor={setColor}
                 />
               </Field>
-              <Field label="Przezroczystość (0 - 1)">
+              <Field label={t("adminThemeDesign.f.opacity")}>
                 <NumberInput
                   step={0.01}
                   min={0}
@@ -1087,7 +1098,7 @@ export function ThemeDesignPane() {
                   }
                 />
               </Field>
-              <Field label="Grubość">
+              <Field label={t("adminThemeDesign.f.weight")}>
                 <NumberInput
                   value={draft.listIndex.weight}
                   onChange={(value) => set("listIndex", { weight: value ?? 800 })}
@@ -1119,28 +1130,27 @@ export function ThemeDesignPane() {
         </TabsContent>
 
         <TabsContent value="carousel" className="mt-0">
-          <Section title="Slider / karuzela - ustawienia globalne">
+          <Section title={t("adminThemeDesign.sections.carousel")}>
             <p className="text-xs text-muted-foreground -mt-2">
-              Wartości używane domyślnie przez każdy widget slidera/karuzeli. Można je nadpisać w
-              ustawieniach pojedynczego widgetu.
+              {t("adminThemeDesign.desc.carousel")}
             </p>
             <Grid>
               <ToggleField
-                label="Autoodtwarzanie"
+                label={t("adminThemeDesign.toggle.autoplay")}
                 checked={cDraft.autoplay}
                 onChange={(v) => setCDraft({ ...cDraft, autoplay: v })}
               />
               <ToggleField
-                label="Pętla"
+                label={t("adminThemeDesign.toggle.loop")}
                 checked={cDraft.loop}
                 onChange={(v) => setCDraft({ ...cDraft, loop: v })}
               />
               <ToggleField
-                label="Pauza na hover"
+                label={t("adminThemeDesign.toggle.pauseHover")}
                 checked={cDraft.pauseOnHover}
                 onChange={(v) => setCDraft({ ...cDraft, pauseOnHover: v })}
               />
-              <Field label="Czas slajdu (ms)">
+              <Field label={t("adminThemeDesign.f.slideTime")}>
                 <NumberInput
                   min={1000}
                   max={30000}
@@ -1149,7 +1159,7 @@ export function ThemeDesignPane() {
                   onChange={(value) => setCDraft({ ...cDraft, intervalMs: value ?? 1000 })}
                 />
               </Field>
-              <Field label="Czas przejścia (ms)">
+              <Field label={t("adminThemeDesign.f.transitionTime")}>
                 <NumberInput
                   min={100}
                   max={3000}
@@ -1158,7 +1168,7 @@ export function ThemeDesignPane() {
                   onChange={(value) => setCDraft({ ...cDraft, speedMs: value ?? 100 })}
                 />
               </Field>
-              <Field label="Typ przejścia">
+              <Field label={t("adminThemeDesign.f.transitionType")}>
                 <Select
                   value={cDraft.transition}
                   onValueChange={(v) =>
@@ -1189,7 +1199,7 @@ export function ThemeDesignPane() {
           onClick={saveAll}
           disabled={saveTd.isPending || saveCd.isPending || saveOverlay.isPending}
         >
-          <Save className="w-4 h-4 mr-1.5" /> Zapisz wszystko
+          <Save className="w-4 h-4 mr-1.5" /> {t("adminThemeDesign.saveAll")}
         </Button>
         <Button
           variant="outline"
@@ -1198,7 +1208,7 @@ export function ThemeDesignPane() {
             setCDraft(CAROUSEL_DEFAULTS);
           }}
         >
-          Przywróć domyślne
+          {t("adminThemeDesign.restoreDefaults")}
         </Button>
       </div>
     </div>
@@ -1224,12 +1234,13 @@ function I18nAndLiveToolbar({
   onLiveSyncChange: (v: boolean) => void;
   savingMode: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-center gap-x-6 gap-y-3">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-sm">
           <Languages className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium">Styl per język</span>
+          <span className="font-medium">{t("adminThemeDesign.langBar.stylePerLang")}</span>
         </div>
         <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
           <button
@@ -1243,7 +1254,7 @@ function I18nAndLiveToolbar({
                 : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
           >
-            Wspólne PL + EN
+            {t("adminThemeDesign.langBar.sharedPlEn")}
           </button>
           <button
             type="button"
@@ -1256,14 +1267,16 @@ function I18nAndLiveToolbar({
                 : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
           >
-            Osobno per język
+            {t("adminThemeDesign.langBar.splitPerLang")}
           </button>
         </div>
       </div>
 
       {mode === "split" && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Edytuję:</span>
+          <span className="text-xs text-muted-foreground">
+            {t("adminThemeDesign.langBar.editing")}
+          </span>
           <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
             {(["pl", "en"] as const).map((l) => (
               <button
@@ -1293,11 +1306,13 @@ function I18nAndLiveToolbar({
         )}
         <div className="flex flex-col leading-tight">
           <span className="text-xs font-medium">
-            Podgląd na żywo w CMS {liveSync ? "(aktywny)" : "(wyłączony)"}
+            {t("adminThemeDesign.langBar.livePreviewCms")}{" "}
+            {liveSync
+              ? t("adminThemeDesign.langBar.active")
+              : t("adminThemeDesign.langBar.disabled")}
           </span>
           <span className="text-[10px] text-muted-foreground">
-            Odzwierciedla zmiany w całej aplikacji, w tym w kanwach Gutenberga i Elementora, bez
-            zapisu.
+            {t("adminThemeDesign.langBar.livePreviewDesc")}
           </span>
         </div>
         <Switch checked={liveSync} onCheckedChange={onLiveSyncChange} className="ml-1" />
@@ -1323,6 +1338,7 @@ function LivePostPreview({
   onModeChange: (m: "light" | "dark") => void;
   activeTab: PreviewSection;
 }) {
+  const { t } = useTranslation();
   // Scope the generated tokens to the preview root so unsaved values do not
   // leak into the rest of the admin chrome. `themeDesignToCss` emits `:root{}`
   // and `.dark{}`; we rescope both to the preview root and its .dark child.
@@ -1402,10 +1418,10 @@ function LivePostPreview({
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-            Podgląd na żywo
+            {t("adminThemeDesign.live.title")}
           </span>
           <span className="text-[11px] text-muted-foreground truncate">
-            zmienia się natychmiast razem z ustawieniami
+            {t("adminThemeDesign.live.subtitle")}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -1465,7 +1481,9 @@ function LivePostPreview({
       >
         <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-widest opacity-60 font-semibold">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
-          <span>Podgląd zakładki: {tabTitle(activeTab, previewLang)}</span>
+          <span>
+            {t("adminThemeDesign.live.tabPrefix")} {tabTitle(activeTab, previewLang)}
+          </span>
         </div>
 
         {activeTab === "block-heading" && (
@@ -1545,9 +1563,7 @@ function LivePostPreview({
               <ToolbarBtnPreview t={draft} icon="•" />
               <ToolbarBtnPreview t={draft} icon="⧉" />
             </div>
-            <p className="text-[10px] opacity-60">
-              Aktywny stan: 3-ci od lewej (podświetlony akcentem).
-            </p>
+            <p className="text-[10px] opacity-60">{t("adminThemeDesign.live.activeStateNote")}</p>
           </div>
         )}
 
@@ -1831,10 +1847,10 @@ function TdColorField({
   draft: ThemeDesign;
   setColor: (section: string, field: string, value: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const lightVal =
     ((draft as unknown as Record<string, Record<string, unknown>>)[section]?.[field] as
-      | string
-      | undefined) ?? "";
+      string | undefined) ?? "";
   const darkVal = (draft.darkOverrides?.[section]?.[field] as string | undefined) ?? "";
   const value = mode === "light" ? lightVal : darkVal;
   const inherit = INHERIT_DEFAULTS[section]?.[field];
@@ -1861,9 +1877,11 @@ function TdColorField({
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] text-muted-foreground truncate">
           {mode === "dark" && !darkVal
-            ? `Dziedziczy z light (${lightVal || inherit?.hint || "auto"})`
+            ? t("adminThemeDesign.inherit.fromLight", {
+                val: lightVal || inherit?.hint || "auto",
+              })
             : inherit
-              ? `Domyślnie: ${inherit.hint}`
+              ? t("adminThemeDesign.inherit.defaultHint", { hint: inherit.hint })
               : ""}
         </span>
         {(mode === "light" ? !!lightVal && lightVal !== inherit?.token : !!darkVal) && (
@@ -1872,7 +1890,7 @@ function TdColorField({
             onClick={reset}
             className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2"
           >
-            ↩ Dziedzicz
+            {t("adminThemeDesign.inherit.button")}
           </button>
         )}
       </div>
@@ -1920,9 +1938,12 @@ function ToggleField({
 }
 
 function Preview({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <div className="mt-2 p-4 rounded-md border border-dashed border-border bg-muted/30">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Podgląd</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+        {t("adminThemeDesign.previewLabel")}
+      </div>
       {children}
     </div>
   );
@@ -1983,6 +2004,7 @@ function OverlayTypographyTab({
   draft: NonNullable<ReturnType<typeof usePostLayoutSettings>["data"]>;
   onChange: (next: NonNullable<ReturnType<typeof usePostLayoutSettings>["data"]>) => void;
 }) {
+  const { t } = useTranslation();
   const patch = (p: Partial<typeof draft>) => {
     onChange({ ...draft, ...p });
   };
@@ -1992,10 +2014,7 @@ function OverlayTypographyTab({
   }: {
     label: string;
     field:
-      | "overlay_title_size"
-      | "overlay_excerpt_size"
-      | "header_title_size"
-      | "header_excerpt_size";
+      "overlay_title_size" | "overlay_excerpt_size" | "header_title_size" | "header_excerpt_size";
   }) => (
     <div className="space-y-2">
       <Label className="text-xs font-semibold">{label}</Label>
@@ -2004,10 +2023,10 @@ function OverlayTypographyTab({
           const key = `${field}_${bp}` as const;
           const bpLabel =
             bp === "base"
-              ? "Mobile (base)"
+              ? t("adminThemeDesign.overlay.bpMobile")
               : bp === "md"
-                ? "Tablet (md ≥768)"
-                : "Desktop (lg ≥1024)";
+                ? t("adminThemeDesign.overlay.bpTablet")
+                : t("adminThemeDesign.overlay.bpDesktop");
           return (
             <div key={bp} className="space-y-1">
               <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">
@@ -2030,33 +2049,28 @@ function OverlayTypographyTab({
   return (
     <section className="space-y-5 rounded-lg border border-border bg-card p-5">
       <div>
-        <h2 className="text-base font-semibold">Typografia overlay wpisu (cover photo)</h2>
+        <h2 className="text-base font-semibold">{t("adminThemeDesign.overlay.title")}</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Rozmiary czcionek (px) dla tytułu, podtytułu i meta (autor / data / czas czytania)
-          renderowanych na cover photo oraz w klasycznym nagłówku wpisu. Wartości są responsywne per
-          breakpoint i synchronizowane z ustawieniami w
-          <code className="mx-1">/admin/post-layouts</code>. Zmiany są trzymane w wersji roboczej i
-          zapisują się dopiero po kliknięciu „Zapisz wszystko".
+          {t("adminThemeDesign.overlay.descPre")}
+          <code className="mx-1">/admin/post-layouts</code>
+          {t("adminThemeDesign.overlay.descPost")}
         </p>
       </div>
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Overlay (na cover photo)
+          {t("adminThemeDesign.overlay.onCover")}
         </h3>
-        <Row label="Tytuł" field="overlay_title_size" />
-        <Row label="Podtytuł / excerpt" field="overlay_excerpt_size" />
+        <Row label={t("adminThemeDesign.overlay.rowTitle")} field="overlay_title_size" />
+        <Row label={t("adminThemeDesign.overlay.rowSubtitle")} field="overlay_excerpt_size" />
       </div>
       <div className="space-y-4 pt-3 border-t border-border">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Nagłówek klasyczny (bez cover)
+          {t("adminThemeDesign.overlay.classicHeader")}
         </h3>
-        <Row label="Tytuł" field="header_title_size" />
-        <Row label="Podtytuł / excerpt" field="header_excerpt_size" />
+        <Row label={t("adminThemeDesign.overlay.rowTitle")} field="header_title_size" />
+        <Row label={t("adminThemeDesign.overlay.rowSubtitle")} field="header_excerpt_size" />
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        Rozmiar meta bara (autor · data · czas czytania) jest sterowany w zakładce „Meta wpisu"
-        (globalny --td-meta-size).
-      </p>
+      <p className="text-[11px] text-muted-foreground">{t("adminThemeDesign.overlay.metaNote")}</p>
     </section>
   );
 }
