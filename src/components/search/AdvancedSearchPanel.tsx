@@ -90,19 +90,19 @@ export function AdvancedSearchPanel({ url, onChange }: Props) {
         </p>
         <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
           <li className="flex items-center gap-1.5">
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground font-medium">
               &quot;energia jądrowa&quot;
             </code>
             {t("search.adv.syntax_phrase")}
           </li>
           <li className="flex items-center gap-1.5">
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground font-medium">
               -sankcje
             </code>
             {t("search.adv.syntax_exclude")}
           </li>
           <li className="flex items-center gap-1.5">
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground font-medium">
               nato bałtyk
             </code>
             {t("search.adv.syntax_and")}
