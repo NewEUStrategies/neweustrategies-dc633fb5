@@ -31,6 +31,10 @@ interface Props {
    * `post-cover-<id>` po obu stronach nawigacji tworzy płynny morph okładki.
    */
   coverViewTransitionId?: string;
+  /** Identyfikator encji dla akcji "zapisz na później" w pasku czytania. */
+  entityId?: string;
+  /** Rodzaj encji zapisywanej do zakładek (post lub page). */
+  entityType?: "post" | "page";
 }
 
 export function PostLayoutRenderer({
