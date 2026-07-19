@@ -221,8 +221,16 @@ export function SearchButtonWidget({
           spellCheck={false}
           inputMode="search"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            // Typing must always reopen the popover — some parents (header
+            // scroll shadows, click-outside handlers on rerender) can clear
+            // `focused` between keystrokes, which would otherwise hide the
+            // real-time suggestions until the user re-clicks the input.
+            if (!focused) setFocused(true);
+          }}
           onFocus={openFocus}
+          onPointerDown={openFocus}
           onKeyDown={onKeyDown}
           placeholder=" "
           aria-label={label || placeholder}
