@@ -489,7 +489,7 @@ function AdminResearchPrograms() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">{lang === "pl" ? "Brak" : "None"}</SelectItem>
+                  <SelectItem value="none">{tp("field.none")}</SelectItem>
                   {(categoriesQ.data ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {lang === "pl" ? c.name_pl : c.name_en}{" "}
