@@ -1105,28 +1105,23 @@ function ItemsTab({ programId, lang }: { programId: string; lang: "pl" | "en" })
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="flagship_post">
-                {lang === "pl" ? "Raport / wpis" : "Flagship post"}
-              </SelectItem>
-              <SelectItem value="podcast">{lang === "pl" ? "Podcast" : "Podcast"}</SelectItem>
-              <SelectItem value="event">{lang === "pl" ? "Wydarzenie" : "Event"}</SelectItem>
+              <SelectItem value="flagship_post">{tp("items.flagshipPost")}</SelectItem>
+              <SelectItem value="podcast">{tp("items.podcast")}</SelectItem>
+              <SelectItem value="event">{tp("items.event")}</SelectItem>
             </SelectContent>
           </Select>
           <Input
-            placeholder={lang === "pl" ? "UUID rekordu" : "Record UUID"}
+            placeholder={tp("items.recordUuid")}
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
           />
           <Button onClick={add}>
-            <Plus className="mr-1 h-4 w-4" /> {lang === "pl" ? "Dodaj" : "Add"}
+            <Plus className="mr-1 h-4 w-4" /> {tp("add")}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {lang === "pl"
-            ? "Wklej UUID posta / podcastu / wydarzenia. Kolejność wg pola sort_order."
-            : "Paste the post / podcast / event UUID. Ordered by sort_order."}
-        </p>
+        <p className="text-xs text-muted-foreground">{tp("items.hint")}</p>
       </div>
+
       <ul className="grid gap-2">
         {(q.data ?? []).map((it) => (
           <li key={it.id} className="flex items-center gap-3 rounded-md border border-border p-2">
