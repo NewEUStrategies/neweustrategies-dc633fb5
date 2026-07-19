@@ -33,15 +33,15 @@ export function SearchSectionTabs({ active, counts, onPick }: Props) {
     <TooltipProvider delayDuration={200}>
       <div
         role="tablist"
-        aria-label={t("ln.title")}
+        aria-label={t("search.title")}
         className="flex flex-wrap items-center gap-1 border-b border-border"
       >
         {SEARCH_TABS.map((tab) => {
           const Icon = TAB_ICON[tab];
           const isActive = tab === active;
           const count = counts?.[tab];
-          const label = t(`ln.tabs.${tab}`);
-          const hint = t(`ln.tab_hints.${tab}`);
+          const label = t(`search.tabs.${tab}`);
+          const hint = t(`search.tab_hints.${tab}`);
           const hintId = `search-tab-hint-${tab}`;
           return (
             <Tooltip key={tab}>
