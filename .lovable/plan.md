@@ -1,70 +1,65 @@
+## Kontekst
 
-# Plan: Pełne pokrycie i18n PL/EN
+Wszystkie 4 filary do wdrożenia (kolejność wg priorytetu). Kategorię kanoniczną wybieram na podstawie audytu bazy - żadna z 6 kategorii ekonomicznych nie ma jeszcze przypisanych wpisów (post_count=0), więc merge jest bezpieczny strukturalnie, ale trzeba zachować redirecty 301 na wypadek istniejących linków z zewnątrz.
 
-Duży zakres — dzielę na 4 fazy uruchamiane sekwencyjnie w tym samym cyklu, każda kończona type-check + testem parity kluczy.
+## Faza 1: Scalenie kategorii (backend)
 
-## Faza 0 — Fundament (raz)
+Obecny stan w `categories`:
+- Ekonomia (`ekonomia`) - parent group
+  - Finanse i Bankowość, Rynki finansowe (dzieci)
+- Gospodarka (`gospodarka`) - parent group
+  - Gospodarka światowa (dziecko)
+- Finanse (`finanse`) - osobne, sierota
 
-1. Dodać `src/lib/__tests__/i18n-key-parity.test.ts` — statyczny audyt `src/lib/locale/pl.ts` vs `en.ts`: rekurencyjne porównanie zestawów kluczy; brak klucza po jednej stronie = fail. To zabezpieczy nas przed regresją przy dokładaniu tłumaczeń.
-2. Dodać do samego audytu opcjonalną drugą asercję: żaden klucz PL nie może być identyczny stringiem jak EN (poza whitelist: nazwy własne, akronimy). Pomaga wychwycić „pl skopiowany do en".
-3. Skan hardkodowanych PL stringów w wybranych plikach (`rg -n "[ĄĆĘŁŃÓŚŹŻąćęłńóśźż]"`) — lista do rozbicia po fazach.
+Rekomendacja (kanoniczna = `gospodarka`, bo szersza i naturalna po polsku dla analiz):
 
-## Faza 1 — Czat
+```text
+Gospodarka (canonical)
+├── Finanse i bankowość
+├── Rynki finansowe
+└── Gospodarka światowa
+```
 
-Pliki: `DemoBotChat.tsx`, `DemoBotListItem.tsx`, `MessageList.tsx`, `MessageBubble.tsx`, `ChatBell.tsx`, `MediaHistoryDialog.tsx`, `AttachmentPreview.tsx`, `ImageLightbox.tsx`, `PdfPreviewDialog.tsx`, `ChatMediaPanel.tsx`, `ConsentsPanel.tsx`.
+Akcje:
+1. Migracja: przepiąć dzieci `Ekonomia` pod `Gospodarka`, przepiąć `Finanse` pod `Gospodarka`, przepiąć wpisy z usuwanych kategorii (jeśli pojawią się przed wdrożeniem).
+2. Dodać wpisy do `redirects` (301): `/kategoria/ekonomia` → `/kategoria/gospodarka`, `/kategoria/finanse` → `/kategoria/gospodarka`.
+3. Usunąć zduplikowane kategorie po migracji wpisów.
+4. Panel admina `/admin/categories`: dodać akcję "Scal w..." (merge tool) dla przyszłych duplikatów - jeden dropdown, przenosi post_categories i tworzy redirect automatycznie.
 
-Namespace: `chat.*` (istnieje częściowo). Uzupełnić:
-- `chat.composer.placeholder`, `chat.composer.attach`, `chat.composer.send`, `chat.composer.emoji`, `chat.composer.stop`.
-- `chat.bubble.copy|reply|forward|delete|report|edit|react`.
-- `chat.demoBot.title|subtitle|welcome|typing|quickReplies.*`.
-- `chat.media.tabs.{all,images,files,links}`, `chat.media.empty`, `chat.media.open`, `chat.media.download`.
-- `chat.attachment.preview`, `chat.attachment.download`, `chat.attachment.pdfPage`, `chat.attachment.lightboxClose|prev|next`.
-- `chat.bell.empty.{title,cta}`, `chat.bell.markAllRead`.
-- `chat.consents.*` (jeśli hardkody).
+## Faza 2: Walidator SEO w edytorze wpisów
 
-Podstawić `t(...)` w miejscach hardkodów.
+W metaboxie edytora wpisu (`/admin/posts/:id`):
+- Licznik znaków dla `seo_title` (38-68) i `seo_description` (120-160) z paskiem postępu (zielony/żółty/czerwony).
+- Walidator struktury nagłówków w treści: dokładnie jeden H1, ostrzeżenie gdy H2 pomijane przed H3.
+- Auto-fallback: gdy `seo_title` puste, użyj `title`; gdy `seo_description` puste, wygeneruj z pierwszego akapitu (max 155 znaków).
+- Server-side w renderze wpisu (`src/routes/posts.$slug.tsx`) - już jest `head()` z title/description; dodać walidację długości w loaderze i logować ostrzeżenia do `audit_log`.
 
-## Faza 2 — Wyszukiwarka
+## Faza 3: Powiązane analizy (2-3 linki wewnętrzne)
 
-Pliki: `SearchButtonWidget.tsx`, `SearchAutosuggest.tsx`, `PeopleOrgResults.tsx`, `AdvancedSearchPanel.tsx`, `SearchSectionTabs.tsx`, `routes/search.tsx`, `DatePicker` opisy.
+- Widget "Powiązane analizy" pod treścią wpisu (już istnieje `related_posts_config` + `related_post_clicks`).
+- Algorytm: 3 wpisy z tej samej kategorii + wspólne tagi (weight: kategoria 60%, tagi 40%), sortowane po `published_at DESC` z ostatnich 12 miesięcy.
+- W edytorze: sekcja "Sugerowane linki wewnętrzne" pokazująca 5 kandydatów; jednym kliknięciem wstawia link do treści przy pierwszym wystąpieniu tytułu/hasła.
+- Fallback gdy brak dopasowań: 3 najnowsze wpisy z tej samej kategorii.
 
-Namespace: `search.*`. Uzupełnić:
-- `search.placeholder`, `search.button`, `search.advanced`, `search.viewAll`, `search.recent`, `search.empty.{title,hint}`.
-- `search.tabs.{all,articles,people,organizations,topics}` + `search.tabs.tooltips.*`.
-- `search.operators.{and,or,not,exact,site,description}`.
-- `search.filters.{dateFrom,dateTo,contentType,topic,author,organization,clearAll,apply}`.
-- `search.people.{followers,connect,message,verified}`, `search.org.{website,members}`.
+## Faza 4: Google Search Console
 
-## Faza 3 — Profil i sieć
+- Connector Google Search Console (już dostępny w Lovable) - meta-tag verification przez `head()` w `__root.tsx` (token z `import.meta.env.VITE_GSC_VERIFICATION`).
+- Widok `/admin/seo/search-console`: top 25 zapytań miesięcznie (impresje, kliknięcia, CTR, pozycja) - dane z gateway `standard_connectors--call_gateway_connection` (`/webmasters/v3/searchanalytics/query`).
+- Widok "Top strony" + "Pages with drops" (spadek pozycji > 5 vs. poprzedni miesiąc) - proste tabele, filtr per data.
+- i18n PL/EN dla całego panelu.
 
-Pliki: `routes/profile.index.tsx` (guest preview action bar), `network/*` (`ProfileViewsCard`, `RequestIntroductionButton/Dialog`, `ReportUserDialog`, `MutualConnectionsHint`, `DossierFollowers`, `EventGroupButton`), `InterestsCustomizer.tsx`, moduły endorsements/recommendations.
+## Zakres poza tym planem
 
-Namespace: `profile.*`, `network.*`. Uzupełnić:
-- `profile.guest.{title,exit,addToNetwork,message,follow,report}`.
-- `network.recommendations.{title,write,received,given,empty}`.
-- `network.endorsements.{title,endorse,thanks,skills,empty}`.
-- `network.introductions.{title,request,accept,decline,pending,intro,message}`.
-- `network.views.{title,thisWeek,thisMonth,anonymous,empty}`.
-- `network.report.{title,reason.*,submit}` i `network.block.{action,confirm}`.
+- Core Web Vitals: już zbierane w `web_vitals`. Dashboard kwartalny wdrożę w osobnym kroku - dajmy znać jak faza 1-4 przejdą.
+- Kompresja obrazów WebP: to zmiana infrastrukturalna (transformer server-side) - osobny plan, wymaga decyzji o loaderze.
 
-## Faza 4 — Admin Panel
+## Kolejność wdrożenia
 
-Zakres: `admin.settings.*`, `admin.pages.*`, `admin.newsletter.*`, `admin.ads.*`, `admin.categories.*`, `admin.events.*`, `admin.community.*`, `admin.users.*`, `DesignSubNav`, `AdminLangBar`, `PageParentSelect`, `CustomMetaValuesEditor`.
+1. Faza 1 (migracja + redirects) - 1 turn
+2. Faza 2 (walidator meta) - 1 turn
+3. Faza 3 (powiązane + sugestie) - 1 turn
+4. Faza 4 (GSC connector + dashboard) - 1 turn, wymaga potwierdzenia i połączenia konta Google przez Ciebie
 
-Namespace: głównie istniejący `admin.*` — uzupełnienie brakujących kluczy w formularzach (labels, placeholders, akcje, konfirmacje), tooltipów i komunikatów toast. Wymienić hardkodowane PL na `t(...)` z fallbackiem EN.
+## Pytanie zamykające
 
-## Weryfikacja
-
-Po każdej fazie:
-1. `bunx vitest run src/lib/__tests__/i18n-key-parity.test.ts` — brak brakujących kluczy.
-2. `bunx tsgo` na zmienionych plikach.
-3. Playwright smoke: `/messages`, `/search?q=igor`, `/profile`, `/admin/settings/general` w PL i EN — screenshoty do potwierdzenia braku hardkodów.
-
-## Uwagi techniczne
-
-- Klucze płaskie z kropkami, spójne z istniejącą konwencją `src/lib/locale/pl.ts`.
-- Interpolacje z i18next (`{{count}}`, plural one/few/many po polsku — mamy już infrastrukturę w `pluralization.test.ts`).
-- Nigdy `any`, myślnik `-` zamiast `—`, atomic design zachowany (komponenty nie zmieniają struktury, tylko copy).
-- Zmiany wyłącznie prezentacyjne — brak modyfikacji logiki biznesowej ani schematu bazy.
-
-Skala: ~40 plików, ~250 nowych kluczy. To 4 osobne, znaczące iteracje. Proponuję zatwierdzić plan i uruchomić Fazy 1-4 kolejno w tym cyklu (każda z własnym raportem), albo wybrać jedną fazę na start.
+Kanoniczna = `Gospodarka` (moja rekomendacja). Jeśli wolisz `Ekonomia` jako korzeń, powiedz - zamiana trywialna. Ruszam z Fazą 1?
