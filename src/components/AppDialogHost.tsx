@@ -79,7 +79,7 @@ export function AppDialogHost() {
     );
   }
 
-  const confirmLabel = req.confirmLabel ?? (isPl ? "Zapisz" : "Save");
+  const confirmLabel = req.confirmLabel ?? t("common.save");
   const submit = (e: FormEvent): void => {
     e.preventDefault();
     pending.resolve(value);
