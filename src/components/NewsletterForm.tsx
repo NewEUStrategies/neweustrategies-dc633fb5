@@ -375,13 +375,13 @@ export function NewsletterForm({
                   maxLength={254}
                 />
               </FieldWrap>
-              <button
-                type="submit"
-                disabled={state === "loading"}
-                className="bg-brand text-brand-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-60 h-[3.25rem]"
+              <SubscribeButton
+                loading={state === "loading"}
+                aria-label={t("newsletterForm.subscribe")}
               >
-                {state === "loading" ? "…" : t("newsletterForm.subscribe")}
-              </button>
+                {t("newsletterForm.subscribe")}
+              </SubscribeButton>
+
             </>
           )}
         </form>

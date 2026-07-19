@@ -376,14 +376,11 @@ export function NewsletterPopupForm({
 
 
       <div className="pt-1">
-        <button
-          type="submit"
-          disabled={state === "loading"}
-          className="px-5 py-2 rounded-md bg-[var(--brand,#f97316)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
-        >
-          {state === "loading" ? "…" : cta}
-        </button>
+        <SubscribeButton loading={state === "loading"} aria-label={cta}>
+          {cta}
+        </SubscribeButton>
       </div>
+
 
       {requireTerms && (
         <label className="flex items-start gap-2 text-[12px] text-white/70 leading-relaxed pt-1">
