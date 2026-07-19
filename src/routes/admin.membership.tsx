@@ -597,6 +597,9 @@ function BenefitsEditor({
   value: TierBenefit[];
   onChange: (next: TierBenefit[]) => void;
 }) {
+  const { t } = useTranslation();
+  const tm = (k: string) => t(`adminMembership.${k}`);
+
   const update = (i: number, patch: Partial<TierBenefit>) => {
     const next = value.map((b, idx) => (idx === i ? { ...b, ...patch } : b));
     onChange(next);
