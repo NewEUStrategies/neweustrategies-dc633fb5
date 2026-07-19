@@ -261,6 +261,8 @@ export const chatPl = {
         question:
           "Dobre pytanie. W trybie demo odpowiadam echem - zwróć uwagę na wyrównanie dymka i status.",
         echo: "Echo: {{msg}}",
+        image: "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)",
+        file: "Otrzymałem plik: {{name}} (podgląd demo).",
       },
     },
     mediaHistory: {
@@ -673,6 +675,8 @@ export const chatEn = {
         question:
           "Good question. In demo mode I echo replies - notice bubble alignment and status.",
         echo: "Echo: {{msg}}",
+        image: "Nice photo! (demo preview - the file is not uploaded)",
+        file: "Got your file: {{name}} (demo preview).",
       },
     },
     mediaHistory: {

@@ -314,10 +314,6 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
     const reply = hasAttachment
       ? t(staged.kind === "image" ? "chat.demoBot.replies.image" : "chat.demoBot.replies.file", {
-          defaultValue:
-            staged.kind === "image"
-              ? "Ładne zdjęcie! (podgląd demo - plik nie jest wysyłany)"
-              : `Otrzymałem plik: ${staged.file.name} (podgląd demo).`,
           name: staged.file.name,
         })
       : botReply(body, t);
