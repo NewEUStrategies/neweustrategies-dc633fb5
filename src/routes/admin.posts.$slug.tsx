@@ -1174,8 +1174,7 @@ function EditPost() {
                         contentEn={form.content_en}
                         categoryIds={selectedCats}
                         tagIds={selectedTags}
-                      />
-                    </>
+                      </div>
                     )}
 
                     {detailsTab === "meta" && (
