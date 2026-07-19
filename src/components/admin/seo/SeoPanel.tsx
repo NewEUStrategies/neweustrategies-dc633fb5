@@ -60,6 +60,10 @@ interface SeoPanelProps {
   coverImageUrl: string | null;
   /** Kicker printed on the generated OG card (e.g. section name). */
   ogKicker?: string | null;
+  /** Body HTML per language for the heading-structure validator. */
+  contentHtml?: { pl: string | null; en: string | null };
+  /** Block tree (jsonb) - if set, wins over `contentHtml` for heading scanning. */
+  contentBlocks?: unknown;
   /** Emits the current validation snapshot so save handlers can preflight. */
   onIssuesChange?: (issues: SeoIssue[]) => void;
 }
