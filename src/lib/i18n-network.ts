@@ -214,6 +214,11 @@ export const networkPl = {
       toastHidden: "Ukryto",
       toastDeleted: "Usunięto",
     },
+    guestPreview: {
+      badge: "Podgląd",
+      hint: "Podgląd - to Twój profil, akcje sieci są tu tylko demonstracyjne",
+      follow: "Obserwuj",
+    },
   },
 };
 
