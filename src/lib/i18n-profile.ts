@@ -139,6 +139,11 @@ const pl = {
       tooShort: "Hasło musi mieć min. 8 znaków",
       wrongCurrent: "Obecne hasło jest nieprawidłowe.",
       signOut: "Wyloguj",
+      sessions: "Sesje",
+      lastSignIn: "Ostatnie logowanie",
+      signOutOthers: "Wyloguj pozostałe sesje",
+      signedOutOthers: "Wylogowano pozostałe sesje.",
+      exportFailed: "Nie udało się przygotować eksportu. Spróbuj ponownie.",
       email: {
         title: "Adres e-mail",
         subtitle: "Zmiana wymaga potwierdzenia linkiem wysłanym na nowy adres.",
@@ -147,6 +152,7 @@ const pl = {
         submit: "Zmień adres e-mail",
         sent: "Wysłaliśmy link potwierdzający na nowy adres.",
         invalid: "Podaj poprawny adres e-mail.",
+        needPassword: "Podaj obecne hasło, aby potwierdzić.",
       },
       danger: {
         title: "Usuń konto",
@@ -168,6 +174,7 @@ const pl = {
         confirmPassword: "Powtórz nowe hasło, żeby uniknąć literówki.",
         update: "Zapisuje nowe hasło i wylogowuje pozostałe sesje.",
         signOut: "Wylogowuje Cię na tym urządzeniu.",
+        signOutOthers: "Wylogowuje wszystkie pozostałe sesje na innych urządzeniach.",
       },
       mfa: {
         title: "Uwierzytelnianie dwuskładnikowe (TOTP)",
@@ -500,6 +507,11 @@ const en: typeof pl = {
       tooShort: "Password must be at least 8 characters",
       wrongCurrent: "Your current password is incorrect.",
       signOut: "Sign out",
+      sessions: "Sessions",
+      lastSignIn: "Last sign-in",
+      signOutOthers: "Sign out other sessions",
+      signedOutOthers: "Signed out other sessions.",
+      exportFailed: "Could not prepare the export. Please try again.",
       email: {
         title: "Email address",
         subtitle: "Changing it requires confirmation via a link sent to the new address.",
@@ -508,6 +520,7 @@ const en: typeof pl = {
         submit: "Change email",
         sent: "We've sent a confirmation link to the new address.",
         invalid: "Enter a valid email address.",
+        needPassword: "Enter your current password to confirm.",
       },
       danger: {
         title: "Delete account",
@@ -529,6 +542,7 @@ const en: typeof pl = {
         confirmPassword: "Repeat your new password to avoid typos.",
         update: "Saves your new password and signs out other sessions.",
         signOut: "Signs you out on this device.",
+        signOutOthers: "Signs out all your other sessions on other devices.",
       },
       mfa: {
         title: "Two-factor authentication (TOTP)",
