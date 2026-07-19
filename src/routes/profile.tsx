@@ -43,7 +43,7 @@ function ProfileLayout() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("display_name, first_name, last_name")
+        .select("display_name, first_name, last_name, avatar_url")
         .eq("id", user!.id)
         .maybeSingle();
       if (error) throw error;
