@@ -147,7 +147,6 @@ export function SearchButtonWidget({
 
   const openFocus = () => {
     setFocused(true);
-    setRecent(getRecentSearches());
   };
 
   const goToResult = () => {
