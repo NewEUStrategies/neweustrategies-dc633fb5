@@ -121,6 +121,9 @@ import {
   Heart as LHeart,
   Target as LTarget,
   TrendingUp as LTrendingUp,
+  RefreshCw as LRefreshCw,
+  CheckCircle2 as LCheckCircle2,
+  XCircle as LXCircle,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -302,3 +305,6 @@ export const HandHeart = makeIcon("HandHeart", LHandHeart);
 export const Heart = makeIcon("Heart", LHeart);
 export const Target = makeIcon("Target", LTarget);
 export const TrendingUp = makeIcon("TrendingUp", LTrendingUp);
+export const RefreshCw = makeIcon("RefreshCw", LRefreshCw);
+export const CheckCircle2 = makeIcon("CheckCircle2", LCheckCircle2);
+export const XCircle = makeIcon("XCircle", LXCircle);
