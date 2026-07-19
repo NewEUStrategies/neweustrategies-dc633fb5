@@ -201,23 +201,27 @@ const adminProgramsEn = {
     },
     projects: {
       namePl: "Name (PL)",
+      nameEn: "Name (EN)",
       summaryPl: "Summary (PL)",
+      summaryEn: "Summary (EN)",
       addProject: "Add project",
+      nameRequired: "PL/EN name required.",
     },
     partners: {
-      partnerName: "Partner name",
+      name: "Partner name",
       logoUrl: "Logo URL",
       addPartner: "Add partner",
     },
     items: {
-      flagship: "Flagship post",
+      flagshipPost: "Flagship post",
       podcast: "Podcast",
       event: "Event",
-      uuid: "Record UUID",
+      recordUuid: "Record UUID",
       hint: "Paste the post / podcast / event UUID. Ordered by sort_order.",
     },
   },
 };
+
 
 Object.assign(programsEn, adminProgramsEn);
 
