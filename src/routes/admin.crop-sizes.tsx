@@ -61,7 +61,7 @@ function CropSizesAdmin() {
     try {
       const r = await regen$({ data: { limit: 100 } });
       setRegenStatus(`Media: ${r.media} | rozmiary: ${r.sizes} | OK: ${r.ok} | błędy: ${r.failed}`);
-      toast.success("Pre-warm zakończony");
+      toast.success(t("adminToasts.prewarmDone"));
     } catch (e) {
       setRegenStatus(null);
       toast.error(e instanceof Error ? e.message : String(e));
