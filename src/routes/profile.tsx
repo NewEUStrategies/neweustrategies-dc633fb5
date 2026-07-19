@@ -6,6 +6,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useGuestPreview } from "@/lib/profile/guestPreviewStore";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import "@/lib/i18n-profile";
 
 export const Route = createFileRoute("/profile")({
