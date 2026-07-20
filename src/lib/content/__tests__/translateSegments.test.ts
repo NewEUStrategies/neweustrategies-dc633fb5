@@ -39,8 +39,8 @@ describe("buildSegments", () => {
       "Nagłówek",
       "Jeden",
       "Dwa",
-      "Opis obrazka",
       "Podpis",
+      "Opis obrazka",
     ]);
     const out = seg.apply([
       "Analysis title",
@@ -48,8 +48,8 @@ describe("buildSegments", () => {
       "Heading",
       "One",
       "Two",
-      "Image alt",
       "Caption",
+      "Image alt",
     ]);
     const blocksEn = out.blocks_en ?? [];
     expect(blocksEn[0].data.html).toBe("<p>Paragraph <strong>important</strong></p>");
