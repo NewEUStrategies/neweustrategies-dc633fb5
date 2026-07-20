@@ -24,6 +24,10 @@ interface GatewayCtx {
     from: (t: string) => {
       select: (c: string) => SelectBuilder;
     };
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>;
   };
   userId: string;
 }
