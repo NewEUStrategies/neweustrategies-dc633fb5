@@ -8,7 +8,12 @@ import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
-import { addRecentSearch } from "@/lib/search/recentSearches";
+import {
+  addRecentSearch,
+  clearRecentSearches,
+  getRecentSearches,
+} from "@/lib/search/recentSearches";
+import { useVoiceSearch } from "@/lib/search/useVoiceSearch";
 import {
   suggestBucketOf,
   suggestionHref,
@@ -55,6 +60,9 @@ export function SearchButtonWidget({
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [tab, setTab] = useState<SuggestBucket | "all">("all");
+  // Ostatnie wyszukiwania (localStorage) - pokazywane po fokusie przy pustym
+  // polu, odświeżane przy każdym otwarciu popovera.
+  const [recent, setRecent] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reqIdRef = useRef(0);
@@ -117,6 +125,23 @@ export function SearchButtonWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, liveResults]);
 
+  // Dyktowanie frazy: transkrypcja płynie do pola (live results reagują same
+  // przez debounce wyżej); przy wyłączonych live results finał odpala search.
+  const voice = useVoiceSearch({
+    lang: lang === "en" ? "en" : "pl",
+    onText: (text) => {
+      setQ(text);
+      setFocused(true);
+    },
+    onFinal: (text) => {
+      setQ(text);
+      if (!liveResults) {
+        setFocused(true);
+        void runSearch(text);
+      }
+    },
+  });
+
   const placeholder = label || heading || t("search");
   const hasQuery = q.trim().length >= 2;
 
@@ -143,10 +168,14 @@ export function SearchButtonWidget({
   }, [items]);
 
   const showEmpty = hasQuery && !loading && searched && flat.length === 0;
-  const showPopover = focused && hasQuery;
+  // Puste pole + historia = panel ostatnich wyszukiwań (kontrakt z
+  // lib/search/recentSearches: "surfaced on focus when the query box is empty").
+  const showRecent = focused && !hasQuery && recent.length > 0;
+  const showPopover = focused && (hasQuery || showRecent);
   const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
 
   const openFocus = () => {
+    setRecent(getRecentSearches());
     setFocused(true);
   };
 
@@ -201,8 +230,9 @@ export function SearchButtonWidget({
   const pad = Math.max(8, Math.round(h * 0.28));
 
   // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
-  // right padding so text never slides under the icons.
-  const trailingPad = q ? 108 : 84;
+  // right padding so text never slides under the icons. Without Web Speech
+  // support the mic (and its divider) is hidden, so the cluster is narrower.
+  const trailingPad = (q ? 108 : 84) - (voice.supported ? 0 : 27);
 
   return (
     <div
@@ -297,15 +327,27 @@ export function SearchButtonWidget({
           >
             <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
           </button>
-          <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
-          <button
-            type="button"
-            aria-label={t("voice")}
-            title={t("voice")}
-            className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
-          >
-            <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
-          </button>
+          {voice.supported && (
+            <>
+              <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+              <button
+                type="button"
+                onClick={voice.toggle}
+                aria-pressed={voice.listening}
+                aria-label={voice.listening ? t("voice_stop") : t("voice")}
+                title={voice.listening ? t("voice_stop") : t("voice")}
+                className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+              >
+                <LucideIcons.Mic
+                  className={`w-[18px] h-[18px] ${voice.listening ? "animate-pulse" : ""}`}
+                  // Inline style wygrywa z regułą .builder-search-widget button svg
+                  // - mikrofon świeci na czerwono przez cały czas nagrywania.
+                  style={voice.listening ? { color: "var(--destructive)" } : undefined}
+                  aria-hidden
+                />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -370,6 +412,52 @@ export function SearchButtonWidget({
           )}
 
           <div className="max-h-[440px] overflow-y-auto py-1.5">
+            {/* ============= Ostatnie wyszukiwania (puste pole) ============= */}
+            {showRecent && (
+              <div className="px-1.5 pb-1">
+                <div className="flex items-center justify-between px-2.5 pt-1.5 pb-1">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <LucideIcons.Clock className="w-3 h-3" aria-hidden />
+                    {t("recent")}
+                  </span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      clearRecentSearches();
+                      setRecent([]);
+                    }}
+                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground hover:underline"
+                  >
+                    {t("recent_clear")}
+                  </button>
+                </div>
+                <ul>
+                  {recent.map((term) => (
+                    <li key={term}>
+                      <button
+                        type="button"
+                        // mousedown (nie click) - wyprzedza blur pola, fraza
+                        // ląduje w inpucie i live results startują od razu.
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setQ(term);
+                          inputRef.current?.focus();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] leading-[1.5] text-foreground transition-colors hover:bg-muted/50"
+                      >
+                        <LucideIcons.Clock
+                          className="w-3.5 h-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <span className="truncate">{term}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {focused && hasQuery && loading && (
               <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
                 <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -477,12 +565,14 @@ export function SearchButtonWidget({
                     {t("operators")}
                   </span>
                   {[
-                    { op: '"fraza"', ins: '"" ' },
+                    // caret: pozycja kursora względem początku wstawki -
+                    // dla "" kursor ląduje MIĘDZY cudzysłowami, gotowy do pisania.
+                    { op: '"fraza"', ins: '"" ', caret: 1 },
                     { op: "AND", ins: " AND " },
                     { op: "OR", ins: " OR " },
                     { op: "NOT", ins: " NOT " },
                     { op: t("operator_word"), ins: " -" },
-                  ].map(({ op, ins }) => (
+                  ].map(({ op, ins, caret }) => (
                     <button
                       key={op}
                       type="button"
@@ -497,7 +587,7 @@ export function SearchButtonWidget({
                         setQ(next);
                         requestAnimationFrame(() => {
                           el.focus();
-                          const pos = start + ins.length;
+                          const pos = start + (caret ?? ins.length);
                           el.setSelectionRange(pos, pos);
                         });
                       }}

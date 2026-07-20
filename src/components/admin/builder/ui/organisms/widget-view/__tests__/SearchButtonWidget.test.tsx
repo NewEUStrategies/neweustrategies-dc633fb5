@@ -85,10 +85,12 @@ describe("SearchButtonWidget", () => {
     fireEvent.change(input, { target: { value: "en" } });
 
     expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
-    expect(screen.getByText("Tytuły")).toBeTruthy();
-    expect(screen.getByText("Rodzaje treści")).toBeTruthy();
-    expect(screen.getByText("Tematyka")).toBeTruthy();
-    expect(screen.getByText("Osoby i organizacje")).toBeTruthy();
+    // Etykiety kubełków występują podwójnie (zakładka megaboxa + nagłówek
+    // sekcji) - liczy się obecność, nie pojedynczość.
+    expect(screen.getAllByText("Tytuły").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rodzaje treści").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Tematyka").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Osoby i organizacje").length).toBeGreaterThan(0);
 
     const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/post/wpis");
@@ -168,7 +170,7 @@ describe("SearchButtonWidget", () => {
     const adv = screen.getByText("Wyszukiwanie zaawansowane").closest("a")!;
     expect(adv.getAttribute("href")).toBe("/search?q=xyzq&adv=1");
     expect(screen.getByText('"fraza"')).toBeTruthy();
-    expect(screen.getByText("-wyklucz")).toBeTruthy();
+    expect(screen.getByText("-słowo")).toBeTruthy();
   });
 
   it("ostatnie wyszukiwania: klik przenosi frazę do pola", async () => {
