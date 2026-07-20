@@ -5,7 +5,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Bookmark, ChevronDown, LogIn, LogOut, Menu, Search, Settings, User } from "@/lib/lucide-shim";
+import {
+  Bookmark,
+  ChevronDown,
+  LogIn,
+  LogOut,
+  Menu,
+  Search,
+  Settings,
+  User,
+} from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
@@ -91,7 +100,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   const toggleBookmark = useToggleBookmark();
   const navigate = useNavigate();
   const isSaved = entityId
-    ? bookmarks?.some((b) => b.entity_type === entityType && b.entity_id === entityId) ?? false
+    ? (bookmarks?.some((b) => b.entity_type === entityType && b.entity_id === entityId) ?? false)
     : false;
   const bookmarkLabel = isSaved ? t.removeBookmark : t.saveForLater;
 
@@ -236,21 +245,19 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
           >
             {profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt=""
-                className="h-5 w-5 rounded-full object-cover"
-              />
+              <img src={profile.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" />
             ) : (
               <User className="w-4 h-4" />
             )}
           </Link>
         </div>
 
-
         {/* Reading: title */}
         <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
-          <span data-reading-label className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
+          <span
+            data-reading-label
+            className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0"
+          >
             {t.reading}:
           </span>
           <span
@@ -264,7 +271,10 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
 
         {/* Right cluster */}
         <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
-          <ThemeToggle data-reading-icon className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center" />
+          <ThemeToggle
+            data-reading-icon
+            className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center"
+          />
           <div data-reading-icon className="hidden sm:block">
             <NotificationsBell panelWidth={280} />
           </div>
@@ -300,7 +310,10 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             </button>
           )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
-          <div data-reading-auth className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
+          <div
+            data-reading-auth
+            className="hidden md:flex items-center gap-2 text-[12px] font-semibold"
+          >
             {isAuthed ? (
               <div ref={menuRef} className="relative">
                 <button
@@ -360,7 +373,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
                       {t.bookmarks}
                     </Link>
                     <Link
-                      to="/profile/account"
+                      to="/profile/edit"
                       role="menuitem"
                       onClick={() => setMenuOpen(false)}
                       className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"

@@ -5,9 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type NavKey =
   | "overview"
-  | "account"
-  | "author"
-  | "social"
+  | "edit"
   | "interests"
   | "personality"
   | "bookmarks"
@@ -25,11 +23,11 @@ type NavItem = { to: string; key: NavKey; search?: Record<string, string> };
 
 // 13 pozycji w płaskiej liście przytłaczało (audyt IA profilu) - nawigacja
 // jest pogrupowana w trzy nazwane sekcje: tożsamość / treści / płatności.
+// Konsolidacja tożsamości (ocena modułów 2026-07-20): trzy dawne pozycje
+// edycji (account/author/social) to teraz JEDNA strona z zakładkami.
 const IDENTITY: NavItem[] = [
   { to: "/profile", key: "overview" },
-  { to: "/profile/account", key: "account" },
-  { to: "/profile/author", key: "author" },
-  { to: "/profile/social", key: "social" },
+  { to: "/profile/edit", key: "edit" },
 ];
 
 const CONTENT: NavItem[] = [
@@ -54,9 +52,6 @@ const FINANCE: NavItem[] = [
 export function ProfileNav() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  const { roles } = useAuth();
-  const canAuthor = roles.some((r) => r === "author" || r === "admin" || r === "super_admin");
-  const identity = canAuthor ? IDENTITY : IDENTITY.filter((i) => i.key !== "author");
 
   const isActive = (to: string) =>
     pathname === to || (to !== "/profile" && pathname.startsWith(to));
@@ -97,7 +92,7 @@ export function ProfileNav() {
   return (
     <nav className="flex flex-col gap-0.5" aria-label={t("profile.title")}>
       {groupHeading("profile.navGroups.identity")}
-      {identity.map(renderItem)}
+      {IDENTITY.map(renderItem)}
       {groupHeading("profile.navGroups.content")}
       {CONTENT.map(renderItem)}
       {groupHeading("profile.navGroups.finance")}
