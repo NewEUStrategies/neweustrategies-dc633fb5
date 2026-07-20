@@ -89,6 +89,21 @@ function HeaderInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // Bridge: ReadingHeader (na wpisach po scrollu) nie zawiera hamburgera ani
+  // lupy - główny pasek mobilny jest wtedy poza ekranem. Nasłuchujemy zdarzeń
+  // okna aby otworzyć drawer / SearchOverlay bez duplikowania stanu.
+  useEffect(() => {
+    const openMenu = () => setOpen(true);
+    const openSearch = () => setSearchOpen(true);
+    window.addEventListener("neus:open-mobile-menu", openMenu);
+    window.addEventListener("neus:open-mobile-search", openSearch);
+    return () => {
+      window.removeEventListener("neus:open-mobile-menu", openMenu);
+      window.removeEventListener("neus:open-mobile-search", openSearch);
+    };
+  }, []);
+
+
   if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
 
   const openA11y = t("common.openMenu");
