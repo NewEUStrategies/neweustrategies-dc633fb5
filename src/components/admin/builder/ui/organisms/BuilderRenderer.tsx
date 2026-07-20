@@ -686,7 +686,7 @@ const RenderInner = memo(function RenderInner({
             ...columnsRowStyle(inner, colsSum),
             gridTemplateColumns:
               device === "mobile"
-                ? "minmax(0, 1fr)"
+                ? `repeat(${Math.min(Math.max(columns.length, 1), 4)}, minmax(0, 1fr))`
                 : columnsRowStyle(inner, colsSum).gridTemplateColumns,
           }}
         >
@@ -697,7 +697,7 @@ const RenderInner = memo(function RenderInner({
               className="min-w-0 max-w-full overflow-hidden"
               style={{
                 gridColumn:
-                  device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
+                  device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
               }}
             >
               <RenderColumn column={c} lang={lang} device={device} />
