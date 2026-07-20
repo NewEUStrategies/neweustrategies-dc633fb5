@@ -510,9 +510,34 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
       ]);
       if (error) throw error;
       if (!data) return null;
+      // Microsites (C4): header_override DZIEDZICZY w dół poddrzewa stron -
+      // ustawienie nagłówka raz na stronie-korzeniu microsite'u obowiązuje
+      // wszystkie podstrony (najbliższy przodek z ustawieniem wygrywa,
+      // własne ustawienie strony ma pierwszeństwo). Jedno tanie zapytanie
+      // po id przodków z okruszków, tylko gdy strona sama nie nadpisuje.
+      let effectiveHeaderOverride = (data as { header_override: string | null }).header_override;
+      if (!effectiveHeaderOverride && crumbs.length > 0) {
+        const ancestorIds = crumbs.map((c) => c.id).filter((id) => id !== hit.page_id);
+        if (ancestorIds.length > 0) {
+          const { data: ancestorRows } = await supabase
+            .from("pages")
+            .select("id, header_override")
+            .in("id", ancestorIds);
+          const overrideById = new Map(
+            (ancestorRows ?? []).map((row) => [row.id, row.header_override] as const),
+          );
+          for (const crumb of [...crumbs].sort((a, b) => b.depth - a.depth)) {
+            const inherited = overrideById.get(crumb.id);
+            if (inherited) {
+              effectiveHeaderOverride = inherited;
+              break;
+            }
+          }
+        }
+      }
       return {
         kind: "page",
-        item: { ...data, ...body } as PageData,
+        item: { ...data, ...body, header_override: effectiveHeaderOverride } as PageData,
         crumbs,
         parentPageId: hit.page_id,
         access,
