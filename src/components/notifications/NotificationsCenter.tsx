@@ -67,6 +67,7 @@ const KIND_OPTIONS: KindFilter[] = [
   "follow",
   "subscription",
   "content",
+  "saved_search",
   "system",
 ];
 

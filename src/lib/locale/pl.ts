@@ -1807,6 +1807,7 @@ export const pl = {
         follow: "Nowi obserwujący",
         subscription: "Aktualizacje subskrypcji",
         content: "Nowe treści",
+        saved_search: "Alerty zapisanych wyszukiwań",
         tracker: "Aktualizacje trackera legislacyjnego",
         connection: "Zaproszenia do sieci kontaktów",
         system: "Ogłoszenia systemowe",

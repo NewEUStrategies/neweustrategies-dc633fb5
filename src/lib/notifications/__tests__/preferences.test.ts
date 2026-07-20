@@ -12,6 +12,7 @@ const prefs: NotificationPreferences = {
   enabled_security: true,
   enabled_tracker: true,
   enabled_connection: true,
+  enabled_saved_search: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -33,6 +34,7 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
       "connection",
       "subscription",
       "content",
+      "saved_search",
       "tracker",
       "system",
     ]);

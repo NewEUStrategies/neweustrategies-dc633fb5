@@ -4338,6 +4338,7 @@ export type Database = {
           enabled_content: boolean
           enabled_follow: boolean
           enabled_message: boolean
+          enabled_saved_search: boolean
           enabled_security: boolean
           enabled_subscription: boolean
           enabled_system: boolean
@@ -4364,6 +4365,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
+          enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
@@ -4390,6 +4392,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
+          enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
@@ -7665,27 +7668,42 @@ export type Database = {
       }
       saved_searches: {
         Row: {
+          alert_enabled: boolean
           created_at: string
           id: string
+          last_alert_at: string | null
+          last_alert_check_at: string | null
+          last_seen_published_at: string | null
           name: string
           params: Json
           tenant_id: string
+          url: string | null
           user_id: string
         }
         Insert: {
+          alert_enabled?: boolean
           created_at?: string
           id?: string
+          last_alert_at?: string | null
+          last_alert_check_at?: string | null
+          last_seen_published_at?: string | null
           name: string
           params?: Json
           tenant_id?: string
+          url?: string | null
           user_id: string
         }
         Update: {
+          alert_enabled?: boolean
           created_at?: string
           id?: string
+          last_alert_at?: string | null
+          last_alert_check_at?: string | null
+          last_seen_published_at?: string | null
           name?: string
           params?: Json
           tenant_id?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []

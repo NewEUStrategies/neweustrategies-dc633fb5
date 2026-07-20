@@ -1,14 +1,24 @@
 // Zapisane wyszukiwania (dla zalogowanych). Zapisuje bieżący stan URL jako
 // nazwany snapshot; klik na pozycji przywraca parametry. Wzorzec useBookmarks.
+// Dzwonek per pozycja włącza alert o nowych wynikach (producent w DB skanuje
+// co 20 minut i wysyła powiadomienie / digest przez enqueue_notification).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Bell, BellOff } from "lucide-react";
 import { Bookmark, Save, Trash2, X } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { useSavedSearches, useSaveSearch, useDeleteSavedSearch } from "@/hooks/useSavedSearches";
+import {
+  useSavedSearches,
+  useSaveSearch,
+  useDeleteSavedSearch,
+  useToggleSavedSearchAlert,
+  type SavedSearch,
+} from "@/hooks/useSavedSearches";
 import type { SearchUrl } from "@/lib/search/facetModel";
+import { cn } from "@/lib/utils";
 
 interface Props {
   current: SearchUrl;
@@ -23,6 +33,7 @@ export function SavedSearchesPanel({ current, canSave, onApply }: Props) {
   const { data: saved } = useSavedSearches();
   const save = useSaveSearch();
   const del = useDeleteSavedSearch();
+  const toggleAlert = useToggleSavedSearchAlert();
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
 
@@ -50,6 +61,17 @@ export function SavedSearchesPanel({ current, canSave, onApply }: Props) {
     try {
       await del.mutateAsync(id);
       toast.success(t("search.saved.deleted_toast"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const doToggleAlert = async (s: SavedSearch) => {
+    try {
+      await toggleAlert.mutateAsync({ search: s, enabled: !s.alert_enabled });
+      toast.success(
+        s.alert_enabled ? t("search.saved.alert_off_toast") : t("search.saved.alert_on_toast"),
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -124,6 +146,28 @@ export function SavedSearchesPanel({ current, canSave, onApply }: Props) {
                 title={s.name}
               >
                 {s.name}
+              </button>
+              <button
+                type="button"
+                aria-label={
+                  s.alert_enabled ? t("search.saved.alert_off") : t("search.saved.alert_on")
+                }
+                aria-pressed={s.alert_enabled}
+                title={s.alert_enabled ? t("search.saved.alert_off") : t("search.saved.alert_on")}
+                onClick={() => doToggleAlert(s)}
+                disabled={toggleAlert.isPending}
+                className={cn(
+                  "shrink-0 rounded p-1 transition-colors hover:bg-muted",
+                  s.alert_enabled
+                    ? "text-brand hover:text-brand"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {s.alert_enabled ? (
+                  <Bell className="w-3.5 h-3.5" />
+                ) : (
+                  <BellOff className="w-3.5 h-3.5" />
+                )}
               </button>
               <button
                 type="button"

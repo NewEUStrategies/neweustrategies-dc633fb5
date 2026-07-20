@@ -18,7 +18,8 @@ export type NotificationKind =
   | "security"
   | "message"
   | "tracker"
-  | "connection";
+  | "connection"
+  | "saved_search";
 
 /** Who may START a new conversation with the user (existing threads live on). */
 export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
@@ -36,6 +37,8 @@ export interface NotificationPreferences {
   enabled_security: boolean;
   enabled_tracker: boolean;
   enabled_connection: boolean;
+  /** Alerty zapisanych wyszukiwań (producent: run_saved_search_alerts). */
+  enabled_saved_search: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -84,6 +87,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_security: true,
   enabled_tracker: true,
   enabled_connection: true,
+  enabled_saved_search: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,

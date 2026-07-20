@@ -160,6 +160,10 @@ const pl = {
       deleted_toast: "Usunięto zapisane wyszukiwanie",
       apply: "Zastosuj",
       delete: "Usuń",
+      alert_on: "Włącz alert o nowych wynikach",
+      alert_off: "Wyłącz alert o nowych wynikach",
+      alert_on_toast: "Alert włączony - powiadomimy Cię o nowych wynikach.",
+      alert_off_toast: "Alert wyłączony.",
     },
     // Widget wyszukiwarki (nagłówek + builder)
     widget: {
@@ -334,6 +338,10 @@ const en = {
       deleted_toast: "Saved search removed",
       apply: "Apply",
       delete: "Delete",
+      alert_on: "Enable alert for new results",
+      alert_off: "Disable alert for new results",
+      alert_on_toast: "Alert enabled - we will notify you about new results.",
+      alert_off_toast: "Alert disabled.",
     },
     widget: {
       clear: "Clear",

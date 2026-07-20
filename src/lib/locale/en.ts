@@ -1793,6 +1793,7 @@ export const en = {
         follow: "New followers",
         subscription: "Subscription updates",
         content: "New content",
+        saved_search: "Saved search alerts",
         tracker: "Legislative tracker updates",
         connection: "Network invitations",
         system: "System announcements",
