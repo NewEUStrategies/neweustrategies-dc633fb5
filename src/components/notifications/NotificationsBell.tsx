@@ -11,8 +11,13 @@ import { Link, useRouter } from "@tanstack/react-router";
 // lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
 import {
   Bell,
+  BellOff,
+  Check,
+  Circle,
   Crown,
+  Inbox,
   Info,
+  Mail,
   MessageCircle,
   ShieldAlert,
   Sparkles,

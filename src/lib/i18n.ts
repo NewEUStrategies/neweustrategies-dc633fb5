@@ -165,9 +165,9 @@ if (!i18n.isInitialized) {
     if (i18n.language === "en") {
       const idle = () => void ensureCoreLanguage("pl");
       if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(idle, { timeout: 5000 });
+        (window as Window).requestIdleCallback(idle, { timeout: 5000 });
       } else {
-        window.setTimeout(idle, 3000);
+        (window as Window).setTimeout(idle, 3000);
       }
     }
   }
