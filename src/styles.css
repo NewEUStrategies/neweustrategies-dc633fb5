@@ -5026,7 +5026,7 @@ textarea.input {
   height: 22px;
   flex-shrink: 0;
   border-radius: 6px;
-  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  background: transparent;
   color: color-mix(in oklab, var(--foreground) 55%, transparent);
   transition:
     background-color 0.22s ease-out,
