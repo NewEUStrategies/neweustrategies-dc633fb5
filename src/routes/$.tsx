@@ -62,6 +62,7 @@ import {
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
+import { PrintBriefHeader } from "@/components/post/PrintBriefHeader";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -742,6 +743,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
         <div style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
+          <PrintBriefHeader lang={lang} url={citationUrl} />
           <Breadcrumbs items={crumbs} />
           <AdZone
             position="top_of_post"
@@ -912,7 +914,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   />
                 )}
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
-                  <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                  <div className="no-print">
+                    <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                  </div>
                 )}
                 <AdZone
                   position="bottom_of_post"
@@ -922,9 +926,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   content={adContent}
                 />
                 {merged.show_bottom_newsletter && (
-                  <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                  <div className="no-print">
+                    <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                  </div>
                 )}
-                <CommentsSection postId={post.id} lang={lang} />
+                <div className="no-print">
+                  <CommentsSection postId={post.id} lang={lang} />
+                </div>
               </>
             }
           />

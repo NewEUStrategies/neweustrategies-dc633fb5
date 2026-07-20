@@ -68,7 +68,7 @@ export function PostFooterBars({ settings, tags, author, prev, next }: Props) {
       {showPrevNext && (
         <nav
           aria-label={t("postFooter.postNavigation")}
-          className={`grid md:grid-cols-2 gap-4 border-t border-border pt-6 ${
+          className={`no-print grid md:grid-cols-2 gap-4 border-t border-border pt-6 ${
             settings.prev_next_mobile_hide ? "hidden md:grid" : ""
           }`}
         >
