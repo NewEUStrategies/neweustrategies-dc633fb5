@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Undo2, X } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Undo2, X, AlertTriangle, Copy } from "@/lib/lucide-shim";
+import { CalendarDays } from "lucide-react";
 import {
   deletePost,
+  duplicatePost,
   bulkDeletePosts,
   bulkUpdatePosts,
   restorePosts,
@@ -55,6 +57,8 @@ function PostsList() {
   const bulkUpd$ = useServerFn(bulkUpdatePosts);
   const restore$ = useServerFn(restorePosts);
   const purge$ = useServerFn(purgePosts);
+  const duplicate$ = useServerFn(duplicatePost);
+  const navigate = useNavigate();
   const migrate$ = useServerFn(bulkMigratePostsToBlocks);
   const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -169,6 +173,25 @@ function PostsList() {
     },
   });
 
+  // Parytet PL/EN: liczba OPUBLIKOWANYCH wpisów bez wersji EN (tytuł pusty).
+  // Dwujęzyczność to strategiczny wyróżnik - licznik trzyma dryf parytetu na
+  // widoku, a klik przełącza listę na te wpisy (statusFilter + langFilter).
+  const { data: missingEnCount } = useQuery({
+    enabled: !!tenantId,
+    queryKey: ["admin-posts-missing-en-count", tenantId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .or("title_en.is.null,title_en.eq.");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   // Unfiltered row count for the current view — distinguishes "view is empty"
   // from "filters excluded everything" now that the paginated result no longer
   // holds the full set.
@@ -223,6 +246,24 @@ function PostsList() {
 
   const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
     (lang === "en" ? p.title_en : p.title_pl) || p.slug;
+
+  // Duplikat -> szkic-kopia; od razu otwieramy edytor kopii (skraca pętlę
+  // "powiel i popraw" dla powtarzalnych formatów).
+  const [duplicating, setDuplicating] = useState<string | null>(null);
+  const duplicateOne = async (id: string) => {
+    if (duplicating) return;
+    setDuplicating(id);
+    try {
+      const created = await duplicate$({ data: { id } });
+      toast.success(t("admin.list.duplicated", { defaultValue: "Utworzono kopię wpisu" }));
+      invalidate();
+      void navigate({ to: "/admin/posts/$slug", params: { slug: created.slug } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDuplicating(null);
+    }
+  };
 
   const del = (id: string, title: string) => {
     setConfirmState({
@@ -379,6 +420,12 @@ function PostsList() {
               })}
             </Button>
           </Link>
+          <Link to="/admin/posts/calendar">
+            <Button size="sm" variant="outline">
+              <CalendarDays className="w-4 h-4 mr-1.5" />
+              {t("admin.calendar.title", { defaultValue: "Kalendarz" })}
+            </Button>
+          </Link>
           <Link to="/admin/posts/new">
             <Button size="sm">
               <Plus className="w-4 h-4 mr-1.5" /> {t("admin.posts.new")}
@@ -405,6 +452,29 @@ function PostsList() {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {!isTrash && typeof missingEnCount === "number" && missingEnCount > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter("published");
+            setLangFilter("pl_only");
+            setPage(1);
+          }}
+          className="mb-3 inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t("admin.list.enParityGap", {
+              defaultValue: "Parytet PL/EN: {{count}} opublikowanych wpisów bez wersji angielskiej",
+              count: missingEnCount,
+            })}
+          </span>
+          <span className="font-medium underline underline-offset-2">
+            {t("admin.list.enParityShow", { defaultValue: "pokaż" })}
+          </span>
+        </button>
+      )}
 
       <AdminListToolbar
         search={search}
@@ -648,6 +718,16 @@ function PostsList() {
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
                               </Link>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                title={t("admin.list.duplicate", { defaultValue: "Duplikuj" })}
+                                disabled={duplicating === p.id}
+                                onClick={() => void duplicateOne(p.id)}
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"

@@ -1,3 +1,4 @@
+import { FollowButton } from "@/components/FollowButton";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -369,6 +370,9 @@ function ProgramDetail() {
                   {tagline}
                 </p>
               )}
+              {/* Subskrypcja tematyczna: alerty o nowych analizach programu
+                  (dzwonek + push + digest wg preferencji użytkownika). */}
+              <FollowButton targetType="program" targetId={program.id} lang={lang} />
             </div>
           </div>
         </div>

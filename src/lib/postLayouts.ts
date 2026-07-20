@@ -232,6 +232,10 @@ export interface PostLayoutSettings {
   prev_next_mobile_hide: boolean;
   show_bottom_newsletter: boolean;
   show_floating_share_bar: boolean;
+  /** Box "Cytuj tę analizę" (Chicago/APA/BibTeX) w stopce wpisu. */
+  show_citation: boolean;
+  /** Pasek udostępniania zaznaczonego cytatu (select-to-share). */
+  show_quote_share: boolean;
   auto_load_next_post: boolean;
   /** Nadpisania włączenia sidebara per preset (id-layoutu -> boolean). */
   layout_sidebar_overrides: Record<string, boolean>;
@@ -273,6 +277,8 @@ export interface LayoutOverrides {
   show_prev_next?: boolean;
   show_bottom_newsletter?: boolean;
   show_floating_share_bar?: boolean;
+  show_citation?: boolean;
+  show_quote_share?: boolean;
   auto_load_next_post?: boolean;
   /** Per-wpis nadpisanie sidebara (true/false, null = użyj presetu/globalnego overrideu). */
   has_sidebar?: boolean | null;
@@ -312,6 +318,10 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     prev_next_mobile_hide: true,
     show_bottom_newsletter: true,
     show_floating_share_bar: true,
+    // Cytowania domyślnie ON - to wyróżnik wiarygodności think-tanku; redakcja
+    // może wyłączyć globalnie tutaj lub per-wpis w LayoutOverrides.
+    show_citation: true,
+    show_quote_share: true,
     auto_load_next_post: false,
     layout_sidebar_overrides: {},
     overlay_title_size_base: 24,
@@ -392,6 +402,8 @@ export function mergeOverrides(
     show_prev_next: overrides.show_prev_next ?? global.show_prev_next,
     show_bottom_newsletter: overrides.show_bottom_newsletter ?? global.show_bottom_newsletter,
     show_floating_share_bar: overrides.show_floating_share_bar ?? global.show_floating_share_bar,
+    show_citation: overrides.show_citation ?? global.show_citation,
+    show_quote_share: overrides.show_quote_share ?? global.show_quote_share,
     auto_load_next_post: overrides.auto_load_next_post ?? global.auto_load_next_post,
   };
 }

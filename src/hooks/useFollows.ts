@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-export type FollowTargetType = "author" | "category" | "tag";
+export type FollowTargetType = "author" | "category" | "tag" | "program";
 
 export interface Follow {
   id: string;

@@ -219,6 +219,11 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
+        {
+          to: "/admin/glossary",
+          icon: BookOpen,
+          label: t("admin.nav.glossary", { defaultValue: "Słowniczek" }),
+        },
         { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
       ],
     },

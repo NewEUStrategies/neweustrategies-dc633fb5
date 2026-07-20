@@ -16,6 +16,12 @@ import {
   type ReactNode,
 } from "react";
 import { announcePlayback, subscribePlayback } from "@/lib/audio/playbackBus";
+import {
+  DEFAULT_PLAYBACK_RATE,
+  clampPlaybackRate,
+  readStoredPlaybackRate,
+  writeStoredPlaybackRate,
+} from "@/lib/audio/playbackRate";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface AudioTrackMeta {
@@ -85,6 +91,11 @@ interface GlobalPlayerContextValue {
   toggle: () => Promise<void>;
   seek: (seconds: number) => void;
   seekPct: (pct: number) => void;
+  /** Przewinięcie względne (np. ±15 s) - clamp do [0, duration]. */
+  skip: (deltaSeconds: number) => void;
+  /** Tempo odtwarzania - wspólna preferencja wszystkich playerów (localStorage). */
+  playbackRate: number;
+  setPlaybackRate: (rate: number) => void;
   close: () => void;
   download: (meta?: AudioTrackMeta) => Promise<void>;
 }
@@ -237,6 +248,11 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [tts, setTts] = useState<TtsProgress>(INITIAL_TTS);
+  // Tempo: stan startuje od domyślnego (SSR-parity), zapisana preferencja
+  // wchodzi w efekcie tworzącym element audio (klient-only). Ref trzyma
+  // aktualną wartość dla listenerów elementu (bez stale closure).
+  const [playbackRate, setPlaybackRateState] = useState<number>(DEFAULT_PLAYBACK_RATE);
+  const playbackRateRef = useRef<number>(DEFAULT_PLAYBACK_RATE);
 
   // Unikalny identyfikator tego playera na szynie arbitrażu odtwarzania.
   const playerId = useId();
@@ -255,6 +271,13 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     if (audioRef.current || typeof window === "undefined") return;
     const audio = new Audio();
     audio.preload = "none";
+    // Zapisana preferencja tempa: default+ratio na obu polach, bo załadowanie
+    // nowego źródła resetuje playbackRate do defaultPlaybackRate.
+    const storedRate = readStoredPlaybackRate();
+    audio.defaultPlaybackRate = storedRate;
+    audio.playbackRate = storedRate;
+    playbackRateRef.current = storedRate;
+    setPlaybackRateState(storedRate);
 
     const persistPosition = (t: number) => {
       const key = posKeyRef.current;
@@ -282,6 +305,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     });
     audio.addEventListener("loadedmetadata", () => {
       setDuration(audio.duration || 0);
+      // Nowe źródło może zresetować tempo - przywróć preferencję czytelnika.
+      audio.playbackRate = playbackRateRef.current;
       // Jednorazowe przywrócenie pozycji dla świeżo załadowanego materiału.
       const restore = pendingRestoreRef.current;
       if (restore !== null) {
@@ -528,6 +553,27 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     audio.currentTime = (Math.max(0, Math.min(100, pct)) / 100) * audio.duration;
   }, []);
 
+  const skip = useCallback(
+    (deltaSeconds: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      seek(audio.currentTime + deltaSeconds);
+    },
+    [seek],
+  );
+
+  const setPlaybackRate = useCallback((rate: number) => {
+    const clamped = clampPlaybackRate(rate);
+    playbackRateRef.current = clamped;
+    setPlaybackRateState(clamped);
+    writeStoredPlaybackRate(clamped);
+    const audio = audioRef.current;
+    if (audio) {
+      audio.playbackRate = clamped;
+      audio.defaultPlaybackRate = clamped;
+    }
+  }, []);
+
   const close = useCallback(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -633,6 +679,9 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       toggle,
       seek,
       seekPct,
+      skip,
+      playbackRate,
+      setPlaybackRate,
       close,
       download,
     }),
@@ -649,6 +698,9 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       toggle,
       seek,
       seekPct,
+      skip,
+      playbackRate,
+      setPlaybackRate,
       close,
       download,
     ],
@@ -675,6 +727,9 @@ export function useGlobalAudioPlayer(): GlobalPlayerContextValue {
       toggle: async () => {},
       seek: () => {},
       seekPct: () => {},
+      skip: () => {},
+      playbackRate: DEFAULT_PLAYBACK_RATE,
+      setPlaybackRate: () => {},
       close: () => {},
       download: async () => {},
     };

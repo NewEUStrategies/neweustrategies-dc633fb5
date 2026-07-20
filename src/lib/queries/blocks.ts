@@ -14,6 +14,7 @@
 import { queryOptions, type FetchQueryOptions, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BlocksDoc } from "@/lib/blocks/types";
+import type { PublicPoll } from "@/lib/community/publicQueries";
 
 const STALE_TIME = 2 * 60_000;
 const GC_TIME = 10 * 60_000;
@@ -109,6 +110,36 @@ export const latestPostsBlockQueryOptions = (input: LatestPostsInput) =>
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
+    },
+  });
+
+// ---------------------------------------------------------------------------
+// poll (osadzona ankieta Community)
+// ---------------------------------------------------------------------------
+
+export const pollBlockQueryOptions = (pollId: string) =>
+  queryOptions({
+    queryKey: ["public", "blocks", "poll", pollId] as const,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    queryFn: async (): Promise<PublicPoll | null> => {
+      // Tylko open/closed - draft nie może wyciec do treści publicznej.
+      // Wyniki głosowania są per-user (anti-anchoring RPC) i dociągają się
+      // wyłącznie na kliencie w PollBlockView; tu jest cacheowalna definicja.
+      const { data, error } = await supabase
+        .from("polls")
+        .select("id, question_pl, question_en, options, status, ends_at")
+        .eq("id", pollId)
+        .in("status", ["open", "closed"])
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        ...data,
+        options: Array.isArray(data.options)
+          ? (data.options as Array<{ pl: string; en: string }>)
+          : [],
+      } as PublicPoll;
     },
   });
 
@@ -601,7 +632,8 @@ export type BlockDataQuery =
   | ReturnType<typeof authorPostsCountQueryOptions>
   | ReturnType<typeof morePostsBlockQueryOptions>
   | ReturnType<typeof calendarBlockQueryOptions>
-  | ReturnType<typeof liveBlogEntriesBlockQueryOptions>;
+  | ReturnType<typeof liveBlogEntriesBlockQueryOptions>
+  | ReturnType<typeof pollBlockQueryOptions>;
 
 /**
  * Warm one block query. Same widening trade as the builder's
@@ -649,6 +681,11 @@ export function blockQueryOptionsList(
       case "calendar":
         list.push(calendarBlockQueryOptions(calendarTarget(str(block.data.month, ""))));
         break;
+      case "poll": {
+        const pollId = str(block.data.pollId, "");
+        if (pollId) list.push(pollBlockQueryOptions(pollId));
+        break;
+      }
       case "post-navigation-link": {
         if (ctx.postId && ctx.publishedAt) {
           const direction = str(block.data.direction, "next") === "prev" ? "prev" : "next";

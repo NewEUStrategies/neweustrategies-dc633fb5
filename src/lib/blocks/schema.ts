@@ -105,6 +105,7 @@ const BlockSchema = z
       "tabs",
       "countdown",
       "progress",
+      "poll",
       "icon-box",
       "stats-counter",
       "testimonials",

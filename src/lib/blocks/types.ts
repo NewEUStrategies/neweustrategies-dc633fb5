@@ -90,6 +90,8 @@ export type BlockType =
   | "tabs"
   | "countdown"
   | "progress"
+  // Community w treści - osadzona ankieta (moduł polls, RPC vote_poll)
+  | "poll"
   // Phase 4 - presentation
   | "icon-box"
   | "stats-counter"

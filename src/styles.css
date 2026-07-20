@@ -2194,6 +2194,77 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     border-left: 3px solid #999 !important;
     color: #222 !important;
   }
+
+  /* =====================================================================
+     Markowy POLICY BRIEF (A2). Elementy .print-only istnieją w DOM zawsze,
+     ale ekran je chowa (reguła poza blokiem print, niżej); tu włączamy je
+     wyłącznie dla druku i nadajemy tożsamość dokumentu NES.
+     ===================================================================== */
+  .print-only {
+    display: block !important;
+  }
+  .print-brief-header {
+    margin: 0 0 10mm;
+    padding-bottom: 5mm;
+    border-bottom: 2.5pt solid #111;
+  }
+  .print-brief-brand {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-bottom: 7mm;
+  }
+  .print-brief-logo {
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #000 !important;
+  }
+  .print-brief-doctype {
+    font-size: 9.5pt;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #444 !important;
+  }
+  .print-brief-source {
+    font-size: 9pt;
+    color: #555 !important;
+    margin: 0;
+    word-break: break-all;
+  }
+  .print-brief-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex !important;
+    justify-content: space-between;
+    font-size: 8.5pt;
+    letter-spacing: 0.06em;
+    color: #666 !important;
+    border-top: 0.75pt solid #bbb;
+    padding-top: 2mm;
+    background: #fff;
+  }
+  body {
+    /* Miejsce na powtarzaną stopkę marki. */
+    padding-bottom: 12mm !important;
+  }
+}
+
+/* Elementy tylko-do-druku nie istnieją wizualnie na ekranie. */
+.print-only {
+  display: none;
+}
+
+/* Termin słowniczka (A7): kropkowane podkreślenie + kursor pomocy. */
+.glossary-term {
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in oklab, var(--brand) 55%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
 }
 
 /* =========================================================

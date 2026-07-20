@@ -233,7 +233,7 @@ async function captureAutoRedirect(
 const UUID = z.string().uuid();
 // Posts carry the full editorial workflow; pages keep the simple lifecycle.
 const PostStatus = z.enum(POST_STATUSES);
-const PageStatus = z.enum(["draft", "published", "archived"]);
+const PageStatus = z.enum(["draft", "published", "scheduled", "archived"]);
 // Bulk actions exclude `scheduled` - scheduling needs a per-post publish_at.
 const BulkPostStatus = z.enum(["draft", "pending_review", "published", "archived"]);
 const Editor = z.enum(["blocks", "richtext", "markdown", "builder"]);
@@ -668,6 +668,148 @@ export const deletePost = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/**
+ * Duplikuje wpis jako szkic-kopię: pełna treść (wszystkie silniki edytorów),
+ * SEO, layout, taksonomie i współautorzy. Świadomie NIE kopiuje:
+ *   - statusu i dat publikacji (kopia zawsze startuje jako draft),
+ *   - seo_canonical_url (wskazywałby oryginał - kopia to nowy byt),
+ *   - og_image_generated_url (karta OG niesie stary tytuł - wygeneruje się nowa),
+ *   - audio_url_* (lektor czyta konkretną treść; po edycji byłby mylący).
+ * Autorem kopii zostaje duplikujący (jak w WordPressie); współautorzy 1:1.
+ */
+export const duplicatePost = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("post.duplicate", userId, 20, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+      const { data: meta, error: metaErr } = await supabase
+        .from("posts")
+        .select("id, slug")
+        .eq("id", data.id)
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (metaErr) throw new Error(metaErr.message);
+      if (!meta) throw new Error("Post not found");
+
+      // Pełny wiersz (z treścią) przez SECURITY DEFINER get_post_for_edit -
+      // kolumny body są odcięte grantami SELECT dla roli authenticated
+      // (migracja 20260702200000_gate_content_body_columns.sql).
+      const { data: srcRows, error: srcErr } = await supabase.rpc("get_post_for_edit", {
+        _slug: meta.slug,
+      });
+      if (srcErr) throw new Error(srcErr.message);
+      const src = (Array.isArray(srcRows) ? srcRows[0] : srcRows) as
+        | Database["public"]["Tables"]["posts"]["Row"]
+        | undefined;
+      if (!src) throw new Error("Post not found");
+
+      const slug = await uniqueSlug(supabase, "posts", tenantId, `${src.slug}-kopia`);
+      const { data: created, error: insErr } = await supabase
+        .from("posts")
+        .insert({
+          tenant_id: tenantId,
+          author_id: userId,
+          slug,
+          status: "draft",
+          editor: src.editor,
+          title_pl: src.title_pl ? `${src.title_pl} (kopia)` : "",
+          title_en: src.title_en ? `${src.title_en} (copy)` : "",
+          excerpt_pl: src.excerpt_pl,
+          excerpt_en: src.excerpt_en,
+          content_pl: src.content_pl,
+          content_en: src.content_en,
+          builder_data: src.builder_data,
+          blocks_data: src.blocks_data,
+          cover_image_url: src.cover_image_url,
+          read_minutes: src.read_minutes,
+          parent_page_id: src.parent_page_id,
+          template_id: src.template_id,
+          sidebar_layout_id: src.sidebar_layout_id,
+          post_format: src.post_format,
+          layout_overrides: src.layout_overrides,
+          takeaways_pl: src.takeaways_pl,
+          takeaways_en: src.takeaways_en,
+          takeaways_variant: src.takeaways_variant,
+          toc_override: src.toc_override,
+          related_override: src.related_override,
+          custom_meta: src.custom_meta,
+          seo_title_pl: src.seo_title_pl,
+          seo_title_en: src.seo_title_en,
+          seo_description_pl: src.seo_description_pl,
+          seo_description_en: src.seo_description_en,
+          seo_noindex: src.seo_noindex,
+          seo_og_image_url: src.seo_og_image_url,
+        })
+        .select("id, slug")
+        .single();
+      if (insErr) throw new Error(insErr.message);
+      const newId = created.id as string;
+
+      // Taksonomie i współautorzy 1:1. Awaria kopiowania relacji nie może
+      // zostawić "cichej" połowicznej kopii - zgłaszamy błąd (wpis-szkic
+      // zostaje, redaktor widzi komunikat i może uzupełnić ręcznie).
+      const [cats, tags, programs, regions, coAuthors] = await Promise.all([
+        supabase.from("post_categories").select("category_id").eq("post_id", data.id),
+        supabase.from("post_tags").select("tag_id").eq("post_id", data.id),
+        supabase.from("post_programs").select("program_id").eq("post_id", data.id),
+        supabase.from("post_regions").select("region_id").eq("post_id", data.id),
+        supabase.from("post_authors").select("user_id, sort_order").eq("post_id", data.id),
+      ]);
+      const inserts: Array<PromiseLike<{ error: { message: string } | null }>> = [];
+      if (cats.data?.length) {
+        inserts.push(
+          supabase
+            .from("post_categories")
+            .insert(cats.data.map((r) => ({ post_id: newId, category_id: r.category_id }))),
+        );
+      }
+      if (tags.data?.length) {
+        inserts.push(
+          supabase
+            .from("post_tags")
+            .insert(tags.data.map((r) => ({ post_id: newId, tag_id: r.tag_id }))),
+        );
+      }
+      if (programs.data?.length) {
+        inserts.push(
+          supabase
+            .from("post_programs")
+            .insert(programs.data.map((r) => ({ post_id: newId, program_id: r.program_id }))),
+        );
+      }
+      if (regions.data?.length) {
+        inserts.push(
+          supabase
+            .from("post_regions")
+            .insert(regions.data.map((r) => ({ post_id: newId, region_id: r.region_id }))),
+        );
+      }
+      if (coAuthors.data?.length) {
+        inserts.push(
+          supabase.from("post_authors").insert(
+            coAuthors.data.map((r) => ({
+              post_id: newId,
+              user_id: r.user_id,
+              sort_order: r.sort_order,
+            })),
+          ),
+        );
+      }
+      const results = await Promise.all(inserts);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw new Error(failed.error.message);
+
+      await audit(supabase, tenantId, "post.duplicate", "post", newId, {
+        from: data.id,
+        slug,
+      });
+      return { id: newId, slug: created.slug as string };
+    });
+  });
+
 export const bulkDeletePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
@@ -779,6 +921,7 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
 const PageCore = z.object({
   slug: SlugInput,
   status: PageStatus.default("draft"),
+  publish_at: z.string().datetime({ offset: true }).nullable().optional(),
   editor: Editor.default("builder"),
   ...TitleBlock,
   excerpt_pl: NullableStr(1000),
@@ -874,8 +1017,29 @@ export const updatePage = createServerFn({ method: "POST" })
       // of a live page must not re-date it - sitemaps and feeds order by
       // `published_at`, and the editor re-sends status: "published" every time.
       const nextStatus = updates.status ?? existing.status;
+      const statusChanges = nextStatus !== existing.status;
+      // Bramka workflow jak we wpisach (statusy stron są podzbiorem statusów
+      // wpisów, więc evaluateTransition działa 1:1); DB dubluje to triggerem
+      // pages_workflow_guard - tu tylko przyjazny komunikat przed zapisem.
+      const nextPublishAt =
+        updates.publish_at !== undefined ? updates.publish_at : existing.publish_at;
+      if (statusChanges) {
+        const actor = { canPublish: await resolveCanPublish(supabase) };
+        const verdict = evaluateTransition(actor, existing.status, nextStatus, nextPublishAt);
+        if (!verdict.ok) {
+          throw new Error(
+            verdict.reason === "requires_publisher"
+              ? "Workflow: only an administrator can publish or schedule a page"
+              : "Workflow: a scheduled page needs a publish date",
+          );
+        }
+      }
       if (isFirstPublish(existing.status, nextStatus, existing.published_at)) {
         updates.published_at = new Date().toISOString();
+      }
+      // Zejście z harmonogramu (lub publikacja natychmiastowa) czyści datę.
+      if (statusChanges && nextStatus !== "scheduled" && existing.publish_at) {
+        updates.publish_at = null;
       }
 
       // Permalink move detection needs the pre-update path (page_full_path

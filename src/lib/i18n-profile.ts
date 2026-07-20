@@ -131,7 +131,6 @@ const pl = {
       avatarSize: "400 × 400 px",
     },
 
-
     security: {
       changePassword: "Zmień hasło",
       currentPassword: "Obecne hasło",
@@ -501,7 +500,6 @@ const en: typeof pl = {
       addAvatar: "Add photo",
       changeAvatar: "Change",
       avatarSize: "400 × 400 px",
-
     },
 
     security: {
@@ -813,6 +811,7 @@ type ProfileExtras = {
       tabAuthors: string;
       tabCategories: string;
       tabTags: string;
+      tabPrograms: string;
       unavailable: string;
     };
   };
@@ -888,6 +887,7 @@ const extrasPl: ProfileExtras = {
       tabAuthors: "Autorzy",
       tabCategories: "Kategorie",
       tabTags: "Tagi",
+      tabPrograms: "Programy",
     },
   },
 };
@@ -962,6 +962,7 @@ const extrasEn: ProfileExtras = {
       tabAuthors: "Authors",
       tabCategories: "Categories",
       tabTags: "Tags",
+      tabPrograms: "Programs",
     },
   },
 };

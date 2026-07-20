@@ -84,7 +84,15 @@ function fmtDate(iso: string, lang: Lang): string {
 function resolveIcon(name: string | null | undefined) {
   if (!name) return null;
   const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
-  return reg[name] ?? null;
+  // Producenci DB zapisują nazwy kebab-case/lowercase ('newspaper',
+  // 'user-plus'), rejestr lucide jest PascalCase - normalizacja jak w
+  // NotificationsBell, bez niej takie wpisy spadały do ikony Circle.
+  if (reg[name]) return reg[name];
+  const pascal = name
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("");
+  return reg[pascal] ?? null;
 }
 // Internal links get SPA navigation (no full reload); external ones stay
 // plain anchors - same rule the header bell applies.

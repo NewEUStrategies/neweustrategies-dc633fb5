@@ -30,6 +30,8 @@ export interface JobsTickResult {
   digestDaily: { claimed: number; sent: number } | { error: string };
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
+  linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
+  integrations: { claimed: number; delivered: number; failed: number } | { error: string };
 }
 
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
@@ -63,7 +65,25 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   } catch (err) {
     eventReminders = { error: err instanceof Error ? err.message : String(err) };
   }
-  return { newsletter, push, digestDaily, digestWeekly, eventReminders };
+  let linkCheck: JobsTickResult["linkCheck"];
+  try {
+    // Rotacyjny skan linków wychodzących (B7): 3 wpisy per tick, wpisy
+    // najdawniej sprawdzone najpierw, re-skan po 7 dniach.
+    const { runLinkCheckBatch } = await import("@/lib/server/linkCheck.server");
+    linkCheck = await runLinkCheckBatch(admin, 3);
+  } catch (err) {
+    linkCheck = { error: err instanceof Error ? err.message : String(err) };
+  }
+  let integrations: JobsTickResult["integrations"];
+  try {
+    // Dren outboxu integracji (D2): dostawy webhooków płyną cronem, nie
+    // tylko przy wejściu staffu do panelu.
+    const { runIntegrationDispatch } = await import("@/lib/integrations/dispatch.functions");
+    integrations = await runIntegrationDispatch(20);
+  } catch (err) {
+    integrations = { error: err instanceof Error ? err.message : String(err) };
+  }
+  return { newsletter, push, digestDaily, digestWeekly, eventReminders, linkCheck, integrations };
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */

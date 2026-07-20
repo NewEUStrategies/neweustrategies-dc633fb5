@@ -51,7 +51,23 @@ import {
   type BodyParts,
 } from "@/lib/access/gating";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, buildArticleJsonLd, imagePreloadLink, splitUrl } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  buildArticleJsonLd,
+  imagePreloadLink,
+  splitUrl,
+  absoluteUrl,
+  SITE_NAME,
+} from "@/lib/seo/meta";
+import { citationMetaTags } from "@/lib/seo/citations";
+import type { CitationAuthor } from "@/lib/citations/format";
+import { CitationBox } from "@/components/post/CitationBox";
+import { PrintBriefHeader } from "@/components/post/PrintBriefHeader";
+import { QuoteShareBar } from "@/components/post/QuoteShareBar";
+import { PostChangelog } from "@/components/post/PostChangelog";
+import { PostFeedback } from "@/components/post/PostFeedback";
+import { PostSeriesNav } from "@/components/post/PostSeriesNav";
+import { GlossaryHighlighter } from "@/components/post/GlossaryHighlighter";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -327,8 +343,27 @@ export const Route = createFileRoute("/$")({
       loaderData.kind === "post" && loaderData.coverPreload
         ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
         : head.links;
+    // Tagi Highwire (citation_*) dla wpisów - Google Scholar/Zotero czytają je
+    // z <head>. Lista autorów przychodzi z loadera (author_id + post_authors),
+    // URL to kanoniczny adres z uwzględnieniem override'u SEO.
+    const citationMeta =
+      loaderData.kind === "post"
+        ? citationMetaTags({
+            title,
+            authors: (loaderData.authors ?? []).map((a) => ({
+              firstName: a.first_name,
+              lastName: a.last_name,
+              displayName: a.display_name,
+            })),
+            publishedAt: it.published_at,
+            siteName: SITE_NAME,
+            language: lang,
+            url: seoCanonicalOverride(seoRow) || absoluteUrl(origin, splitUrl(url).path),
+          })
+        : [];
     return {
       ...head,
+      meta: [...head.meta, ...citationMeta],
       links,
       // safeJsonLd - editor-authored titles/excerpts must not be able to close
       // the <script> element and inject markup (stored XSS).
@@ -436,6 +471,27 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         }
       ).author ?? null)
     : null;
+  // Autorzy do cytowań (główny + współautorzy, kolejność z loadera) i
+  // kanoniczny URL analizy. getRequestUrl() jest izomorficzne (SSR: nagłówki
+  // forwarded, klient: window.location), a splitUrl odcina query - obie strony
+  // hydratacji liczą identyczny łańcuch.
+  const citationAuthors: CitationAuthor[] = useMemo(
+    () =>
+      data.kind === "post"
+        ? data.authors.map((a) => ({
+            firstName: a.first_name,
+            lastName: a.last_name,
+            displayName: a.display_name,
+          }))
+        : [],
+    [data],
+  );
+  const citationUrl = useMemo(() => {
+    const override = seoCanonicalOverride(it as SeoFieldsRow);
+    if (override) return override;
+    const { origin, path } = splitUrl(getRequestUrl());
+    return absoluteUrl(origin, path);
+  }, [it]);
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
@@ -638,6 +694,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
+          {isPost && <PostSeriesNav postId={it.id} lang={lang} />}
           {(() => {
             const hasBullets = takeaways.length > 0;
             const tocOverride = (post?.toc_override ?? null) as TocOverride | null;
@@ -692,6 +749,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
         <div style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
+          <PrintBriefHeader lang={lang} url={citationUrl} />
           <Breadcrumbs items={crumbs} />
           <AdZone
             position="top_of_post"
@@ -852,8 +910,21 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       : null
                   }
                 />
+                <PostFeedback postId={post.id} lang={lang} />
+                <PostChangelog postId={post.id} lang={lang} />
+                {merged.show_citation && (
+                  <CitationBox
+                    title={title}
+                    lang={lang}
+                    publishedAt={post.published_at}
+                    authors={citationAuthors}
+                    url={citationUrl}
+                  />
+                )}
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
-                  <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                  <div className="no-print">
+                    <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                  </div>
                 )}
                 <AdZone
                   position="bottom_of_post"
@@ -863,13 +934,21 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   content={adContent}
                 />
                 {merged.show_bottom_newsletter && (
-                  <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                  <div className="no-print">
+                    <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                  </div>
                 )}
-                <CommentsSection postId={post.id} lang={lang} />
+                <div className="no-print">
+                  <CommentsSection postId={post.id} lang={lang} />
+                </div>
               </>
             }
           />
           <FootnoteTooltips notes={notes} containerRef={articleRef} />
+          <GlossaryHighlighter containerRef={articleRef} lang={lang} scanKey={`${it.id}-${lang}`} />
+          {merged.show_quote_share && (
+            <QuoteShareBar containerRef={articleRef} url={citationUrl} lang={lang} />
+          )}
           {merged.auto_load_next_post && (
             <AutoLoadNextPost
               currentPostId={post.id}

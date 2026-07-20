@@ -3,7 +3,9 @@
 // user uruchomi odsłuch, przetrwa zmiany stron.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, Download, Play, Pause, X, Share2 } from "@/lib/lucide-shim";
+import { Rewind, FastForward } from "lucide-react";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
+import { formatPlaybackRate, nextPlaybackRate } from "@/lib/audio/playbackRate";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
@@ -29,6 +31,9 @@ const COPY = {
     share: "Udostępnij link do artykułu",
     close: "Zamknij odtwarzacz",
     seek: "Przewiń materiał",
+    back15: "Cofnij 15 sekund",
+    fwd15: "Do przodu 15 sekund",
+    speed: "Tempo odtwarzania",
     copied: "Skopiowano link do artykułu",
     region: "Odtwarzacz audio",
     error: "Nie udało się wygenerować audio",
@@ -48,6 +53,9 @@ const COPY = {
     share: "Share article link",
     close: "Close player",
     seek: "Seek audio",
+    back15: "Back 15 seconds",
+    fwd15: "Forward 15 seconds",
+    speed: "Playback speed",
     copied: "Article link copied",
     region: "Audio player",
     error: "Could not generate audio",
@@ -196,29 +204,61 @@ export function GlobalAudioBar() {
             />
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-4 px-3 py-2.5 sm:px-4 sm:py-3">
-            {/* Play/pause */}
-            <button
-              type="button"
-              onClick={() => void player.toggle()}
-              disabled={loading}
-              aria-label={playing ? t.pause : t.play}
-              aria-pressed={playing}
-              className={[
-                "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-                "bg-brand text-brand-foreground shadow-md",
-                "hover:brightness-110 active:scale-95 transition disabled:opacity-70",
-                FOCUS_RING,
-              ].join(" ")}
-            >
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-              ) : playing ? (
-                <Pause className="h-5 w-5" aria-hidden strokeWidth={2.5} />
-              ) : (
-                <Play className="h-5 w-5 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
-              )}
-            </button>
+          <div className="flex items-center gap-2 sm:gap-4 px-3 py-2.5 sm:px-4 sm:py-3">
+            {/* Cofnij 15 s / play-pause / do przodu 15 s - klaster transportu
+                jak w aplikacjach podcastowych. Skoki aktywne dopiero gdy audio
+                ma oś czasu (nie w trakcie syntezy TTS). */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => player.skip(-15)}
+                disabled={loading || duration <= 0}
+                aria-label={t.back15}
+                className={[
+                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                  "border border-border text-muted-foreground",
+                  "hover:text-brand hover:bg-muted transition disabled:opacity-50",
+                  FOCUS_RING,
+                ].join(" ")}
+              >
+                <Rewind className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => void player.toggle()}
+                disabled={loading}
+                aria-label={playing ? t.pause : t.play}
+                aria-pressed={playing}
+                className={[
+                  "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
+                  "bg-brand text-brand-foreground shadow-md",
+                  "hover:brightness-110 active:scale-95 transition disabled:opacity-70",
+                  FOCUS_RING,
+                ].join(" ")}
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                ) : playing ? (
+                  <Pause className="h-5 w-5" aria-hidden strokeWidth={2.5} />
+                ) : (
+                  <Play className="h-5 w-5 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => player.skip(15)}
+                disabled={loading || duration <= 0}
+                aria-label={t.fwd15}
+                className={[
+                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                  "border border-border text-muted-foreground",
+                  "hover:text-brand hover:bg-muted transition disabled:opacity-50",
+                  FOCUS_RING,
+                ].join(" ")}
+              >
+                <FastForward className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
 
             {/* Info + progress */}
             <div className="min-w-0 flex-1">
@@ -330,6 +370,21 @@ export function GlobalAudioBar() {
             {/* Actions */}
             <div className="flex items-center gap-1 shrink-0">
               <TooltipProvider delayDuration={200}>
+                <ActionTip label={t.speed}>
+                  <button
+                    type="button"
+                    onClick={() => player.setPlaybackRate(nextPlaybackRate(player.playbackRate))}
+                    aria-label={`${t.speed}: ${formatPlaybackRate(player.playbackRate)}`}
+                    className={[
+                      "inline-flex h-9 min-w-9 items-center justify-center rounded-[6px] px-1.5",
+                      "text-xs font-semibold tabular-nums",
+                      "text-muted-foreground hover:text-brand hover:bg-muted transition",
+                      FOCUS_RING,
+                    ].join(" ")}
+                  >
+                    {formatPlaybackRate(player.playbackRate)}
+                  </button>
+                </ActionTip>
                 <ActionTip label={downloading ? t.downloading : t.download}>
                   <button
                     type="button"
@@ -337,7 +392,7 @@ export function GlobalAudioBar() {
                     disabled={downloading || loading}
                     aria-label={downloading ? t.downloading : t.download}
                     className={[
-                      "inline-flex h-9 w-9 items-center justify-center rounded-[6px]",
+                      "hidden xs:inline-flex h-9 w-9 items-center justify-center rounded-[6px]",
                       "text-muted-foreground hover:text-brand hover:bg-muted transition",
                       "disabled:opacity-60 disabled:cursor-not-allowed",
                       FOCUS_RING,
