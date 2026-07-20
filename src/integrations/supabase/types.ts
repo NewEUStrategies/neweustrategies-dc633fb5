@@ -3737,7 +3737,6 @@ export type Database = {
           id: string
           kind: string
           reply_to_id: string | null
-          search_vector: unknown | null
           sender_id: string
           tenant_id: string
         }
@@ -3757,7 +3756,6 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
-          search_vector?: unknown | null
           sender_id: string
           tenant_id: string
         }
@@ -3777,7 +3775,6 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
-          search_vector?: unknown | null
           sender_id?: string
           tenant_id?: string
         }
@@ -4341,7 +4338,6 @@ export type Database = {
           enabled_content: boolean
           enabled_follow: boolean
           enabled_message: boolean
-          enabled_saved_search: boolean
           enabled_security: boolean
           enabled_subscription: boolean
           enabled_system: boolean
@@ -4368,7 +4364,6 @@ export type Database = {
           enabled_content?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
-          enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
@@ -4395,7 +4390,6 @@ export type Database = {
           enabled_content?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
-          enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
@@ -5532,45 +5526,6 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      post_embeddings: {
-        Row: {
-          content_hash: string
-          embedding: string
-          post_id: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          content_hash: string
-          embedding: string
-          post_id: string
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          content_hash?: string
-          embedding?: string
-          post_id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_embeddings_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: true
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "post_embeddings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -7710,42 +7665,27 @@ export type Database = {
       }
       saved_searches: {
         Row: {
-          alert_enabled: boolean
           created_at: string
           id: string
-          last_alert_at: string | null
-          last_alert_check_at: string | null
-          last_seen_published_at: string | null
           name: string
           params: Json
           tenant_id: string
-          url: string | null
           user_id: string
         }
         Insert: {
-          alert_enabled?: boolean
           created_at?: string
           id?: string
-          last_alert_at?: string | null
-          last_alert_check_at?: string | null
-          last_seen_published_at?: string | null
           name: string
           params?: Json
           tenant_id?: string
-          url?: string | null
           user_id: string
         }
         Update: {
-          alert_enabled?: boolean
           created_at?: string
           id?: string
-          last_alert_at?: string | null
-          last_alert_check_at?: string | null
-          last_seen_published_at?: string | null
           name?: string
           params?: Json
           tenant_id?: string
-          url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -10436,7 +10376,6 @@ export type Database = {
           _lang?: string
           _match?: string
           _q?: string
-          _term_groups?: Json
           _terms?: string[]
         }
         Returns: {
@@ -10487,45 +10426,6 @@ export type Database = {
           verified: boolean
         }[]
       }
-      posts_needing_embeddings: {
-        Args: {
-          _limit?: number
-        }
-        Returns: {
-          content_hash: string
-          embed_text: string
-          post_id: string
-          tenant_id: string
-        }[]
-      }
-      semantic_search_posts: {
-        Args: {
-          _embedding: number[]
-          _limit?: number
-        }
-        Returns: {
-          post_id: string
-          similarity: number
-        }[]
-      }
-      search_messages: {
-        Args: {
-          _conversation_id?: string
-          _limit?: number
-          _offset?: number
-          _q?: string
-        }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          id: string
-          kind: string
-          rank: number
-          snippet: string
-          sender_id: string
-          total_count: number
-        }[]
-      }
       search_posts: {
         Args: {
           _access?: string
@@ -10540,7 +10440,6 @@ export type Database = {
           _match?: string
           _q?: string
           _sort?: string
-          _term_groups?: Json
           _terms?: string[]
         }
         Returns: {
