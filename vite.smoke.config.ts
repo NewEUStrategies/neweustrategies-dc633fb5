@@ -1,3 +1,14 @@
+// Wariant SMOKE-TESTOWY builda: identyczna konfiguracja jak vite.config.ts,
+// ale nitro celuje w node-server zamiast cloudflare-module, więc produkcyjny
+// artefakt da się uruchomić lokalnie (node .output/server/index.mjs) i
+// przetestować BOOT KLIENTA prawdziwą przeglądarką. Incydent 2026-07-20
+// (cykl chunków vendor -> martwa hydratacja na każdej stronie) był
+// niewykrywalny w dev (brak chunków) i w testach jednostkowych - wyłącznie
+// prawdziwy build + przeglądarka go łapią.
+//
+// Użycie:
+//   bunx vite build --config vite.smoke.config.ts
+//   node .output/server/index.mjs   # + test Playwright przeciw :3000
 // @lovable.dev/vite-tanstack-config already includes the following - do NOT add them manually
 // or the app will break with duplicate plugins:
 //   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, nitro (build-only using cloudflare as a default target),
@@ -7,6 +18,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  nitro: { preset: "node-server" },
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
