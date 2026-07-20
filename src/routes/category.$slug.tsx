@@ -36,23 +36,18 @@ export const Route = createFileRoute("/category/$slug")({
   validateSearch: parseSearch,
   loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
-    try {
-      const settings = await context.queryClient.ensureQueryData(
-        archiveLayoutQueryOptions("category"),
-      );
-      const data = await context.queryClient.ensureQueryData(
-        taxonomyArchiveQueryOptions("category", params.slug, {
-          page: deps.page,
-          pageSize: settings.posts_per_page,
-          sort: deps.sort,
-        }),
-      );
-      if (!data) throw notFound();
-      return data;
-    } catch (e) {
-      console.error("[category-loader]", params.slug, e);
-      throw e;
-    }
+    const settings = await context.queryClient.ensureQueryData(
+      archiveLayoutQueryOptions("category"),
+    );
+    const data = await context.queryClient.ensureQueryData(
+      taxonomyArchiveQueryOptions("category", params.slug, {
+        page: deps.page,
+        pageSize: settings.posts_per_page,
+        sort: deps.sort,
+      }),
+    );
+    if (!data) throw notFound();
+    return data;
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
