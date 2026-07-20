@@ -318,6 +318,11 @@ function Page() {
               onChange={(v) => upd({ show_citation: v })}
             />
             <Toggle
+              label={t("adminLayouts.postLayouts.quoteShare")}
+              checked={local.show_quote_share}
+              onChange={(v) => upd({ show_quote_share: v })}
+            />
+            <Toggle
               label={t("adminLayouts.postLayouts.autoLoadNext")}
               checked={local.auto_load_next_post}
               onChange={(v) => upd({ auto_load_next_post: v })}

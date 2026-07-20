@@ -31,6 +31,7 @@ const pl = {
       bottomNewsletter: "Dolny newsletter w treści",
       floatingShare: "Pływający pasek udostępniania (lewa strona, desktop)",
       citationBox: "Box „Cytuj tę analizę” (Chicago / APA / BibTeX)",
+      quoteShare: "Udostępnianie zaznaczonego cytatu (select-to-share)",
       autoLoadNext: "Auto-load następnego wpisu (przy scrollu do końca)",
       typoHeading: "Typografia wpisu",
       typoIntro:
@@ -140,6 +141,7 @@ const en = {
       bottomNewsletter: "Bottom newsletter in content",
       floatingShare: "Floating share bar (left side, desktop)",
       citationBox: "Citation box (Chicago / APA / BibTeX)",
+      quoteShare: "Selected-quote sharing (select-to-share)",
       autoLoadNext: "Auto-load next post (on scroll to end)",
       typoHeading: "Post typography",
       typoIntro:

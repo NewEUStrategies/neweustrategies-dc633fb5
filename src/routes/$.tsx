@@ -63,6 +63,7 @@ import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
 import { PrintBriefHeader } from "@/components/post/PrintBriefHeader";
+import { QuoteShareBar } from "@/components/post/QuoteShareBar";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -937,6 +938,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             }
           />
           <FootnoteTooltips notes={notes} containerRef={articleRef} />
+          {merged.show_quote_share && (
+            <QuoteShareBar containerRef={articleRef} url={citationUrl} lang={lang} />
+          )}
           {merged.auto_load_next_post && (
             <AutoLoadNextPost
               currentPostId={post.id}

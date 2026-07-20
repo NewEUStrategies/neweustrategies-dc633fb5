@@ -5483,6 +5483,7 @@ export type Database = {
           show_bottom_newsletter: boolean
           show_citation: boolean
           show_floating_share_bar: boolean
+          show_quote_share: boolean
           show_post_tags_bar: boolean
           show_prev_next: boolean
           show_sources_bar: boolean
@@ -5533,6 +5534,7 @@ export type Database = {
           show_bottom_newsletter?: boolean
           show_citation?: boolean
           show_floating_share_bar?: boolean
+          show_quote_share?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
           show_sources_bar?: boolean
@@ -5583,6 +5585,7 @@ export type Database = {
           show_bottom_newsletter?: boolean
           show_citation?: boolean
           show_floating_share_bar?: boolean
+          show_quote_share?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
           show_sources_bar?: boolean
