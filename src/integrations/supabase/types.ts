@@ -3737,7 +3737,7 @@ export type Database = {
           id: string
           kind: string
           reply_to_id: string | null
-          search_vector: unknown | null
+          search_vector: unknown
           sender_id: string
           tenant_id: string
         }
@@ -3757,7 +3757,7 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
-          search_vector?: unknown | null
+          search_vector?: unknown
           sender_id: string
           tenant_id: string
         }
@@ -3777,7 +3777,7 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
-          search_vector?: unknown | null
+          search_vector?: unknown
           sender_id?: string
           tenant_id?: string
         }
@@ -5536,6 +5536,42 @@ export type Database = {
           },
         ]
       }
+      post_custom_meta_defs: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          key: string
+          label_en: string
+          label_pl: string
+          position: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id?: string
+          key: string
+          label_en?: string
+          label_pl?: string
+          position?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          key?: string
+          label_en?: string
+          label_pl?: string
+          position?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       post_embeddings: {
         Row: {
           content_hash: string
@@ -5574,42 +5610,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      post_custom_meta_defs: {
-        Row: {
-          created_at: string
-          icon: string
-          id: string
-          key: string
-          label_en: string
-          label_pl: string
-          position: number
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          icon?: string
-          id?: string
-          key: string
-          label_en?: string
-          label_pl?: string
-          position?: number
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          icon?: string
-          id?: string
-          key?: string
-          label_en?: string
-          label_pl?: string
-          position?: number
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       post_feedback: {
         Row: {
@@ -10221,6 +10221,19 @@ export type Database = {
         Returns: unknown
       }
       nes_pl_light_stem: { Args: { _term: string }; Returns: string }
+      nes_post_embedding_source: {
+        Args: {
+          p_excerpt_en: string
+          p_excerpt_pl: string
+          p_title_en: string
+          p_title_pl: string
+        }
+        Returns: string
+      }
+      nes_post_matches_term_group: {
+        Args: { p_group_csv: string; p_post_id: string }
+        Returns: boolean
+      }
       nes_posts_search_vector: {
         Args: {
           _blocks: Json
@@ -10294,6 +10307,15 @@ export type Database = {
         }[]
       }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
+      posts_needing_embeddings: {
+        Args: { _limit?: number }
+        Returns: {
+          content_hash: string
+          embed_text: string
+          post_id: string
+          tenant_id: string
+        }[]
+      }
       process_mentions: {
         Args: {
           p_actor_id: string
@@ -10405,6 +10427,10 @@ export type Database = {
         Returns: Json
       }
       run_event_reminders: { Args: never; Returns: number }
+      run_saved_search_alerts: {
+        Args: { p_max_searches?: number }
+        Returns: number
+      }
       run_workflow_step: {
         Args: {
           p_event: Database["public"]["Tables"]["domain_events"]["Row"]
@@ -10449,6 +10475,24 @@ export type Database = {
           slug: string
         }[]
       }
+      search_messages: {
+        Args: {
+          _conversation_id?: string
+          _limit?: number
+          _offset?: number
+          _q: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          id: string
+          kind: string
+          rank: number
+          sender_id: string
+          snippet: string
+          total_count: number
+        }[]
+      }
       search_people: {
         Args: {
           p_company?: string
@@ -10485,45 +10529,6 @@ export type Database = {
           sublabel_en: string
           sublabel_pl: string
           verified: boolean
-        }[]
-      }
-      posts_needing_embeddings: {
-        Args: {
-          _limit?: number
-        }
-        Returns: {
-          content_hash: string
-          embed_text: string
-          post_id: string
-          tenant_id: string
-        }[]
-      }
-      semantic_search_posts: {
-        Args: {
-          _embedding: number[]
-          _limit?: number
-        }
-        Returns: {
-          post_id: string
-          similarity: number
-        }[]
-      }
-      search_messages: {
-        Args: {
-          _conversation_id?: string
-          _limit?: number
-          _offset?: number
-          _q?: string
-        }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          id: string
-          kind: string
-          rank: number
-          snippet: string
-          sender_id: string
-          total_count: number
         }[]
       }
       search_posts: {
@@ -10585,6 +10590,13 @@ export type Database = {
         }[]
       }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
+      semantic_search_posts: {
+        Args: { _embedding: number[]; _limit?: number }
+        Returns: {
+          post_id: string
+          similarity: number
+        }[]
+      }
       set_user_consent: {
         Args: {
           p_given: boolean
