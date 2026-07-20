@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Undo2, X, AlertTriangle, Copy } from "@/lib/lucide-shim";
+import { CalendarDays } from "lucide-react";
 import {
   deletePost,
   duplicatePost,
@@ -417,6 +418,12 @@ function PostsList() {
                   ? "Import z WordPress"
                   : "Import from WordPress",
               })}
+            </Button>
+          </Link>
+          <Link to="/admin/posts/calendar">
+            <Button size="sm" variant="outline">
+              <CalendarDays className="w-4 h-4 mr-1.5" />
+              {t("admin.calendar.title", { defaultValue: "Kalendarz" })}
             </Button>
           </Link>
           <Link to="/admin/posts/new">

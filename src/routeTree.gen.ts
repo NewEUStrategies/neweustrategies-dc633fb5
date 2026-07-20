@@ -170,6 +170,7 @@ import { Route as AdminSettingsCookieBannerRouteImport } from './routes/admin.se
 import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
 import { Route as AdminSeoSearchConsoleRouteImport } from './routes/admin.seo.search-console'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
+import { Route as AdminPostsCalendarRouteImport } from './routes/admin.posts.calendar'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
@@ -1012,6 +1013,11 @@ const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AdminPostsRoute,
 } as any)
+const AdminPostsCalendarRoute = AdminPostsCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AdminPostsRoute,
+} as any)
 const AdminPostsSlugRoute = AdminPostsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -1347,6 +1353,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
+  '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
@@ -1536,6 +1543,7 @@ export interface FileRoutesByTo {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
+  '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
@@ -1733,6 +1741,7 @@ export interface FileRoutesById {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
+  '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
@@ -1931,6 +1940,7 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
+    | '/admin/posts/calendar'
     | '/admin/posts/new'
     | '/admin/seo/search-console'
     | '/admin/settings/analytics'
@@ -2120,6 +2130,7 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
+    | '/admin/posts/calendar'
     | '/admin/posts/new'
     | '/admin/seo/search-console'
     | '/admin/settings/analytics'
@@ -2316,6 +2327,7 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/popups/$id'
     | '/admin/posts/$slug'
+    | '/admin/posts/calendar'
     | '/admin/posts/new'
     | '/admin/seo/search-console'
     | '/admin/settings/analytics'
@@ -3561,6 +3573,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsNewRouteImport
       parentRoute: typeof AdminPostsRoute
     }
+    '/admin/posts/calendar': {
+      id: '/admin/posts/calendar'
+      path: '/calendar'
+      fullPath: '/admin/posts/calendar'
+      preLoaderRoute: typeof AdminPostsCalendarRouteImport
+      parentRoute: typeof AdminPostsRoute
+    }
     '/admin/posts/$slug': {
       id: '/admin/posts/$slug'
       path: '/$slug'
@@ -3926,11 +3945,13 @@ const AdminPopupsRouteWithChildren = AdminPopupsRoute._addFileChildren(
 
 interface AdminPostsRouteChildren {
   AdminPostsSlugRoute: typeof AdminPostsSlugRoute
+  AdminPostsCalendarRoute: typeof AdminPostsCalendarRoute
   AdminPostsNewRoute: typeof AdminPostsNewRoute
 }
 
 const AdminPostsRouteChildren: AdminPostsRouteChildren = {
   AdminPostsSlugRoute: AdminPostsSlugRoute,
+  AdminPostsCalendarRoute: AdminPostsCalendarRoute,
   AdminPostsNewRoute: AdminPostsNewRoute,
 }
 
