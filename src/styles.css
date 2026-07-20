@@ -5229,3 +5229,78 @@ textarea.input {
   }
 }
 
+
+/* ---------------------------------------------------------------------------
+   Eksport CV do PDF (hub eksperta): arkusz .cv-print-sheet żyje portalem na
+   końcu <body> i na ekranie jest niewidoczny. Klasa cv-print-mode na <html>
+   (dodawana przyciskiem "Pobierz CV (PDF)" na czas window.print) przełącza
+   wydruk na SAM arkusz; zwykły wydruk strony pozostaje nietknięty. */
+.cv-print-sheet {
+  display: none;
+}
+
+@media print {
+  html.cv-print-mode body > *:not(.cv-print-sheet) {
+    display: none !important;
+  }
+  html.cv-print-mode .cv-print-sheet {
+    display: block;
+    color: #111;
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+  .cv-print-sheet .cv-print-header {
+    border-bottom: 2pt solid #111;
+    padding-bottom: 8pt;
+    margin-bottom: 14pt;
+  }
+  .cv-print-sheet h1 {
+    font-size: 20pt;
+    margin: 0 0 2pt;
+  }
+  .cv-print-sheet .cv-print-subtitle {
+    font-size: 12pt;
+    margin: 0;
+  }
+  .cv-print-sheet .cv-print-contact {
+    font-size: 9.5pt;
+    color: #444;
+    margin: 4pt 0 0;
+  }
+  .cv-print-sheet h2 {
+    font-size: 12.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 0.75pt solid #999;
+    padding-bottom: 2pt;
+    margin: 14pt 0 6pt;
+  }
+  .cv-print-sheet h3 {
+    font-size: 11pt;
+    margin: 8pt 0 1pt;
+  }
+  .cv-print-sheet article {
+    break-inside: avoid;
+  }
+  .cv-print-sheet .cv-print-meta {
+    font-size: 9.5pt;
+    color: #444;
+    margin: 0;
+  }
+  .cv-print-sheet .cv-print-desc {
+    font-size: 10pt;
+    margin: 3pt 0 0;
+    white-space: pre-line;
+  }
+  .cv-print-sheet .cv-print-skills {
+    font-size: 10pt;
+    margin: 0;
+  }
+  .cv-print-sheet .cv-print-footer {
+    margin-top: 16pt;
+    padding-top: 6pt;
+    border-top: 0.75pt solid #999;
+    font-size: 9pt;
+    color: #555;
+  }
+}
