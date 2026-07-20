@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Undo2, X } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Undo2, X, AlertTriangle } from "@/lib/lucide-shim";
 import {
   deletePost,
   bulkDeletePosts,
@@ -164,6 +164,25 @@ function PostsList() {
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId!)
         .not("deleted_at", "is", null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  // Parytet PL/EN: liczba OPUBLIKOWANYCH wpisów bez wersji EN (tytuł pusty).
+  // Dwujęzyczność to strategiczny wyróżnik - licznik trzyma dryf parytetu na
+  // widoku, a klik przełącza listę na te wpisy (statusFilter + langFilter).
+  const { data: missingEnCount } = useQuery({
+    enabled: !!tenantId,
+    queryKey: ["admin-posts-missing-en-count", tenantId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .or("title_en.is.null,title_en.eq.");
       if (error) throw error;
       return count ?? 0;
     },
@@ -405,6 +424,29 @@ function PostsList() {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {!isTrash && typeof missingEnCount === "number" && missingEnCount > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter("published");
+            setLangFilter("pl_only");
+            setPage(1);
+          }}
+          className="mb-3 inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t("admin.list.enParityGap", {
+              defaultValue: "Parytet PL/EN: {{count}} opublikowanych wpisów bez wersji angielskiej",
+              count: missingEnCount,
+            })}
+          </span>
+          <span className="font-medium underline underline-offset-2">
+            {t("admin.list.enParityShow", { defaultValue: "pokaż" })}
+          </span>
+        </button>
+      )}
 
       <AdminListToolbar
         search={search}
