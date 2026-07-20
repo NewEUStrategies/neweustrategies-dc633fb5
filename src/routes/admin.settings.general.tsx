@@ -19,7 +19,6 @@ type General = {
   site_name: string;
   tagline: string;
   site_url: string;
-  admin_email: string;
   site_icon_url: string;
   site_logo_url: string;
   default_language: "pl" | "en";
@@ -30,11 +29,14 @@ type General = {
   icon_pack: IconPack;
 };
 
+type ContactPrivate = {
+  admin_email: string;
+};
+
 const DEFAULTS: General = {
   site_name: "",
   tagline: "",
   site_url: "",
-  admin_email: "",
   site_icon_url: "",
   site_logo_url: "",
   default_language: "pl",
@@ -45,6 +47,8 @@ const DEFAULTS: General = {
   icon_pack: "lucide",
 };
 
+const CONTACT_DEFAULTS: ContactPrivate = { admin_email: "" };
+
 export const Route = createFileRoute("/admin/settings/general")({
   component: GeneralSettings,
 });
@@ -52,9 +56,11 @@ export const Route = createFileRoute("/admin/settings/general")({
 function GeneralSettings() {
   const { t } = useTranslation();
   const { query, save } = useSettings<General>("general", DEFAULTS);
+  const contact = useSettings<ContactPrivate>("contact_private", CONTACT_DEFAULTS);
   const themeOptions = useSettings<ThemeOptionsShape>("theme_options", THEME_OPTIONS_DEFAULTS);
   const themeLogo = themeOptions.query.data?.logo ?? {};
   const [draft, setDraft] = useDraft(query.data);
+  const [contactDraft, setContactDraft] = useDraft(contact.query.data);
 
   useEffect(() => {
     if (draft?.icon_pack) setIconPack(draft.icon_pack);
@@ -63,6 +69,8 @@ function GeneralSettings() {
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
 
   const set = <K extends keyof General>(k: K, v: General[K]) => setDraft({ ...draft, [k]: v });
+  const setContact = <K extends keyof ContactPrivate>(k: K, v: ContactPrivate[K]) =>
+    setContactDraft({ ...(contactDraft ?? CONTACT_DEFAULTS), [k]: v });
 
   return (
     <div>
@@ -122,8 +130,8 @@ function GeneralSettings() {
       <Field label={t("admin.general.adminEmail")}>
         <Text
           type="email"
-          value={draft.admin_email}
-          onChange={(e) => set("admin_email", e.target.value)}
+          value={contactDraft?.admin_email ?? ""}
+          onChange={(e) => setContact("admin_email", e.target.value)}
         />
       </Field>
       <Field label={t("admin.general.siteLanguage")}>
@@ -175,7 +183,13 @@ function GeneralSettings() {
         </Select>
       </Field>
 
-      <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
+      <SaveBar
+        saving={save.isPending || contact.save.isPending}
+        onSave={() => {
+          save.mutate(draft);
+          contact.save.mutate(contactDraft ?? CONTACT_DEFAULTS);
+        }}
+      />
     </div>
   );
 }
