@@ -8,8 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import { finalizeCheckout } from "@/lib/billing/checkout.functions";
-import "@/lib/i18n-profile";
-
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/checkout/success")({
   validateSearch: (search: Record<string, unknown>) => ({
     order: typeof search.order === "string" ? search.order : undefined,
@@ -24,6 +23,8 @@ export const Route = createFileRoute("/checkout/success")({
 const RETURN_KEY = "checkout:returnTo";
 
 function SuccessPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
   const { t } = useTranslation();
   const { order, mock } = Route.useSearch();
   const finalize = useServerFn(finalizeCheckout);

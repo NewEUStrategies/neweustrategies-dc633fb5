@@ -73,9 +73,12 @@ const pl = {
     },
     tab_hints: {
       all: "Wszystkie zasoby platformy: analizy, raporty, podcasty, wywiady, wydarzenia oraz profile osób i organizacji.",
-      titles: "Dopasowanie po tytule i leadzie wpisów - analizy, raporty, wywiady, Policy Papers oraz odcinki podcastów.",
-      types: "Zawęź do formatu treści: artykuł, raport, Policy Paper, wywiad, podcast, wydarzenie, historia web.",
-      topics: "Filtruj po kategoriach, tagach, programach badawczych oraz regionach geograficznych.",
+      titles:
+        "Dopasowanie po tytule i leadzie wpisów - analizy, raporty, wywiady, Policy Papers oraz odcinki podcastów.",
+      types:
+        "Zawęź do formatu treści: artykuł, raport, Policy Paper, wywiad, podcast, wydarzenie, historia web.",
+      topics:
+        "Filtruj po kategoriach, tagach, programach badawczych oraz regionach geograficznych.",
       people: "Autorzy, eksperci, mówcy i organizacje - z dorobkiem publikacyjnym na platformie.",
     },
     // Tryby zaawansowane
@@ -173,7 +176,6 @@ const pl = {
   },
 };
 const en = {
-
   palette: {
     placeholder: "Search pages, actions, settings...",
     empty: 'No results for "{{q}}".',
@@ -242,10 +244,13 @@ const en = {
     },
     tab_hints: {
       all: "Every resource on the platform: analyses, reports, podcasts, interviews, events, and profiles of people and organizations.",
-      titles: "Matched against post title and lead - analyses, reports, interviews, policy papers, and podcast episodes.",
-      types: "Narrow by content format: article, report, policy paper, interview, podcast, event, web story.",
+      titles:
+        "Matched against post title and lead - analyses, reports, interviews, policy papers, and podcast episodes.",
+      types:
+        "Narrow by content format: article, report, policy paper, interview, podcast, event, web story.",
       topics: "Filter by categories, tags, research programs, and geographic regions.",
-      people: "Authors, experts, speakers, and organizations - with a publication footprint on the platform.",
+      people:
+        "Authors, experts, speakers, and organizations - with a publication footprint on the platform.",
     },
     adv: {
       toggle: "Advanced search",
@@ -336,6 +341,14 @@ const en = {
   },
 };
 
-
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
+
+/**
+ * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
+ * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
+ * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
+ * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
+ * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
+ */
+export function ensureI18n(): void {}

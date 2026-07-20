@@ -672,7 +672,10 @@ function ColorRow({
 }
 
 const FONT_PRESETS: { label: string; value: string }[] = [
-  { label: "Red Hat Display (domyślny)", value: '"Red Hat Display", system-ui, sans-serif' },
+  {
+    label: "Red Hat Display (domyślny)",
+    value: '"Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif',
+  },
   { label: "Inter", value: "Inter, system-ui, sans-serif" },
   { label: "Georgia (serif)", value: "Georgia, 'Times New Roman', serif" },
   { label: "Mono", value: "ui-monospace, SFMono-Regular, monospace" },
@@ -721,7 +724,10 @@ function TypographyRow({
           <Input
             list="gc-font-presets"
             value={fontFamily}
-            placeholder={defaultFontFamily || '"Red Hat Display", system-ui, sans-serif'}
+            placeholder={
+              defaultFontFamily ||
+              '"Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif'
+            }
             onChange={(e) => onFontFamily(e.target.value)}
             className="h-8 text-xs"
           />

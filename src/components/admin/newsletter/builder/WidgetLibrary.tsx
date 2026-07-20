@@ -9,7 +9,10 @@
 // `context` filtruje widgety po `WidgetMeta.contexts` - np. builder popupu
 // nie pokazuje pol formularza newslettera, ktore nie maja sensu poza inline.
 import { useDraggable } from "@dnd-kit/core";
-import * as Lucide from "lucide-react";
+// DynamicIcon zamiast namespace-importu lucide-react (namespace-import
+// materializuje pełny rejestr ikon w bundlu entry - patrz DynamicIconFull).
+import { Square } from "lucide-react";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { NlWidgetType, NlLang, NlWidget } from "@/lib/newsletter-builder/types";
 import {
   libraryItemId,
@@ -76,9 +79,7 @@ function LibraryCard({
     id: `lib-${id}`,
     data: { kind: "library", type: item.type, preset: item.preset },
   });
-  const IconCmp =
-    (Lucide as unknown as Record<string, React.ComponentType<{ className?: string }>>)[item.icon] ??
-    Lucide.Square;
+  const iconName = item.icon;
   const label = lang === "pl" ? item.labelPl : item.labelEn;
 
   return (
@@ -93,7 +94,15 @@ function LibraryCard({
         (isDragging ? "opacity-40" : "")
       }
     >
-      <IconCmp className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+      {iconName ? (
+        <DynamicIcon
+          name={iconName}
+          className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors"
+          size={16}
+        />
+      ) : (
+        <Square className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+      )}
       <span className="text-[10px] leading-tight text-center">{label}</span>
     </button>
   );

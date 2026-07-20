@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { XCircle } from "lucide-react";
-import "@/lib/i18n-profile";
-
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/checkout/cancel")({
   validateSearch: (search: Record<string, unknown>) => ({
     order: typeof search.order === "string" ? search.order : undefined,
@@ -16,6 +15,8 @@ export const Route = createFileRoute("/checkout/cancel")({
 });
 
 function CancelPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
   const { t } = useTranslation();
   return (
     <div className="container mx-auto max-w-lg py-16">

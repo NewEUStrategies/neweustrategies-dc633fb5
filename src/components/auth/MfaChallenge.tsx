@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+// Klucze profile.security.* - dotąd rejestrowane importem w __root (czyli w
+// bundlu KAŻDEJ strony); tu side-effect jest bezpieczny, bo moduł żyje w
+// leniwych chunkach logowania (LoginPopup / trasa /login).
+import "@/lib/i18n-profile";
 import { supabase } from "@/integrations/supabase/client";
 import { getVerifiedTotpFactorId, verifyTotpCode } from "@/lib/auth/mfa";
 import {

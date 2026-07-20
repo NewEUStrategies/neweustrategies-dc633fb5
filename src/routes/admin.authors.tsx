@@ -22,8 +22,7 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
 import { adminUsersQueryOptions, type AdminRole } from "@/lib/admin/users-query";
 import { BadgeCheck, ExternalLink, Search, Users } from "lucide-react";
-import "@/lib/i18n-experts";
-
+import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 export const Route = createFileRoute("/admin/authors")({
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(expertsDirectoryQueryOptions());
@@ -48,6 +47,8 @@ const AUTHOR_ROLES = new Set<Role>(["author", "editor", "admin", "super_admin"])
 const ALL = "__all__";
 
 function Authors() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureExpertsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const tenantId = useRequiredTenant();

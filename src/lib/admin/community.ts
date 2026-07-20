@@ -10,31 +10,18 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 
-export interface CommunityModulesSettings {
-  chat_enabled: boolean;
-  connections_enabled: boolean;
-  events_enabled: boolean;
-  qa_enabled: boolean;
-  polls_enabled: boolean;
-  contributor_program_enabled: boolean;
-  badges_enabled: boolean;
-  push_enabled: boolean;
-  default_message_ttl_seconds: number | null;
-}
-
-export const COMMUNITY_MODULES_DEFAULTS: CommunityModulesSettings = {
-  chat_enabled: true,
-  connections_enabled: true,
-  events_enabled: true,
-  qa_enabled: true,
-  polls_enabled: true,
-  contributor_program_enabled: true,
-  badges_enabled: true,
-  push_enabled: true,
-  default_message_ttl_seconds: null,
-};
-
-export const COMMUNITY_MODULES_KEY = "community_modules";
+// Typ + domyślne przeniesione do lib/community/modulesSettings (małego modułu
+// współdzielonego z chrome) - re-eksport utrzymuje dotychczasowe API admina.
+export {
+  COMMUNITY_MODULES_DEFAULTS,
+  COMMUNITY_MODULES_KEY,
+  type CommunityModulesSettings,
+} from "@/lib/community/modulesSettings";
+import {
+  COMMUNITY_MODULES_DEFAULTS,
+  COMMUNITY_MODULES_KEY,
+  type CommunityModulesSettings,
+} from "@/lib/community/modulesSettings";
 
 export interface CommunityStats {
   conversations_total: number;

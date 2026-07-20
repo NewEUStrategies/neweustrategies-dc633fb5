@@ -4,7 +4,7 @@
 // slider non-string item fields, animated-heading EN fallbacks, and the
 // rich-block / chrome variant arms.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -233,8 +233,10 @@ describe("animated-heading EN fallbacks", () => {
 });
 
 describe("rich-block + chrome variant arms", () => {
-  it("renders contact compact, accordion minimal, testimonial quote, pricing default cta", () => {
-    expect(widget("contact", { variant: "compact" }).container.querySelector("form")).toBeTruthy();
+  it("renders contact compact, accordion minimal, testimonial quote, pricing default cta", async () => {
+    // ContactFormView jest w leniwym chunku - czekamy na dynamic import.
+    const contact = widget("contact", { variant: "compact" });
+    await waitFor(() => expect(contact.container.querySelector("form")).toBeTruthy());
     expect(
       widget("accordion", {
         variant: "minimal",
@@ -252,15 +254,16 @@ describe("rich-block + chrome variant arms", () => {
     ).toContain("Wybierz");
   });
 
-  it("renders hot-topic without href, section-label default, and auth EN", () => {
+  it("renders hot-topic without href, section-label default, and auth EN", async () => {
     expect(widget("hot-topic-bar", { title_pl: "T" }).container.textContent).toContain("T");
     expect(
       widget("section-label", { label_pl: "L", color: "military" }).container.textContent,
     ).toContain("L");
     // Every EN auth form must render a working form with an input field.
     for (const type of ["login-form", "register-form", "lost-password-form"] as const) {
+      // AuthFormWidget jest w leniwym chunku - czekamy na dynamic import.
       const { container } = widget(type, { variant: "card" }, { lang: "en" });
-      expect(container.querySelector("form"), type).toBeTruthy();
+      await waitFor(() => expect(container.querySelector("form"), type).toBeTruthy());
       expect(container.querySelector("input"), type).toBeTruthy();
     }
     // reset-password without a recovery session shows the guidance message

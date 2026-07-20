@@ -29,8 +29,12 @@ export default defineConfig({
     // 2.5 MB (route tree + heavy admin analytics/builder trees) and V8's mark-
     // compact ran out of memory during minify at `build:dev`. Minifying the
     // server bundle is a size optimisation, not a correctness requirement -
-    // dropping it cuts peak RSS enough to build cleanly and does not affect the
-    // browser bundle (which still minifies with the default esbuild path).
+    // dropping it cuts peak RSS enough to build cleanly.
+    //
+    // UWAGA: to top-level ustawienie obejmuje KAŻDE środowisko builda, więc
+    // wyłączało też minifikację bundla PRZEGLĄDARKI (klient ważył ~2x więcej
+    // gzip - realny koszt każdego pierwszego wczytania). Środowisko "client"
+    // niżej jawnie przywraca esbuild-minify; serwer/worker zostaje bez zmian.
     build: {
       minify: false,
     },
@@ -40,5 +44,42 @@ export default defineConfig({
     // to the deployed runtime, so module initialization fails and every route
     // becomes an opaque h3 HTTPError 500. TanStack's route-level splitting and
     // Vite's client defaults still provide safe browser code splitting.
+    //
+    // Vendor split ONLY for the browser bundle, scoped via the Vite 7
+    // environments API to the "client" environment (TanStack Start's
+    // VITE_ENVIRONMENT_NAMES.client) - the Worker/server build above stays a
+    // single self-contained entry, so the 2026 h3-500 incident cannot recur.
+    // Why: without it every shared dependency collapses into one giant entry
+    // chunk (react-dom + supabase + router + radix + i18n ≈ 1 MB gzip) that
+    // every first visit must download and parse before ANY page hydrates.
+    // Splitting restores parallel fetch + long-term caching (vendor hashes
+    // change rarely; a content deploy no longer invalidates react-dom).
+    environments: {
+      client: {
+        build: {
+          // Przywraca minifikację bundla przeglądarki (patrz komentarz przy
+          // top-level `minify: false`, które jest dla SSR/workera).
+          minify: "esbuild",
+          rollupOptions: {
+            output: {
+              manualChunks(id: string) {
+                if (!id.includes("/node_modules/")) return undefined;
+                // React runtime trio must stay together (TDZ/cycle safety).
+                if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) {
+                  return "vendor-react";
+                }
+                if (id.includes("/node_modules/@supabase/")) return "vendor-supabase";
+                if (id.includes("/node_modules/@tanstack/")) return "vendor-tanstack";
+                if (id.includes("/node_modules/@radix-ui/")) return "vendor-radix";
+                if (/\/node_modules\/(i18next|react-i18next)\//.test(id)) {
+                  return "vendor-i18n";
+                }
+                return undefined;
+              },
+            },
+          },
+        },
+      },
+    },
   },
 });

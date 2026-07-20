@@ -36,8 +36,7 @@ import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
 import { PROGRAM_ICONS, DEFAULT_PROGRAM_ICON } from "@/lib/programs/icons";
 import { ProgramIcon } from "@/components/programs/ProgramIcon";
-import "@/lib/i18n-programs";
-
+import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/admin/research-programs")({
   component: AdminResearchPrograms,
 });
@@ -126,6 +125,8 @@ const EMPTY: Omit<ProgramRow, "id" | "tenant_id"> = {
 };
 
 function AdminResearchPrograms() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProgramsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const tp = (k: string) => t(`adminPrograms.${k}`);
@@ -194,7 +195,6 @@ function AdminResearchPrograms() {
       return;
     }
 
-
     const payload = {
       ...form,
       tenant_id: tenantId,
@@ -249,7 +249,6 @@ function AdminResearchPrograms() {
           {tp("newProgram")}
         </Button>
       </header>
-
 
       {programsQ.isLoading ? (
         <div className="grid gap-2">
@@ -316,7 +315,6 @@ function AdminResearchPrograms() {
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? tp("editProgram") : tp("newProgram")}</DialogTitle>
-
           </DialogHeader>
 
           <div className="grid gap-4">
@@ -506,7 +504,6 @@ function AdminResearchPrograms() {
               {tp("cancel")}
             </Button>
             <Button onClick={saveProgram}>{tp("save")}</Button>
-
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -571,7 +568,6 @@ function ResearchQuestionsEditor({
     </div>
   );
 }
-
 
 /* -------------------- Manage sub-resources (members / projects / partners / items) -------------------- */
 
@@ -773,7 +769,6 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
         <Button onClick={addMember} disabled={!selectedUser}>
           <Plus className="mr-1 h-4 w-4" /> {tp("members.addMember")}
         </Button>
-
       </div>
 
       <ul className="grid gap-2">
@@ -801,7 +796,6 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
         {(membersQ.data ?? []).length === 0 && (
           <p className="text-sm text-muted-foreground">{tp("members.empty")}</p>
         )}
-
       </ul>
     </div>
   );

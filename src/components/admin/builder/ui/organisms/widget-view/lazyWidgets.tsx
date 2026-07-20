@@ -31,6 +31,8 @@ import { lazy, Suspense, type ComponentProps, type ComponentType, type ReactElem
 import { useBuilderMode } from "@/lib/builder/modeContext";
 
 import type { NewsletterForm as NewsletterFormImpl } from "@/components/NewsletterForm";
+import type { ContactFormView as ContactFormViewImpl } from "@/components/blocks/ContactFormView";
+import type { AuthFormWidget as AuthFormWidgetImpl } from "./AuthFormWidget";
 import type { JoinUsForm as JoinUsFormImpl } from "@/components/interests/JoinUsForm";
 import type { InterestsCustomizer as InterestsCustomizerImpl } from "@/components/interests/InterestsCustomizer";
 import type { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
@@ -98,6 +100,21 @@ const JoinUsFormLazy = lazy(() =>
   import("@/components/interests/JoinUsForm").then((m) => ({ default: m.JoinUsForm })),
 ) as ComponentType<ComponentProps<typeof JoinUsFormImpl>>;
 export const JoinUsForm = withSuspense(JoinUsFormLazy);
+
+// Formularz kontaktowy (~28 KB źródła + zależności) i formularze auth
+// (login/rejestracja/reset, ciągną AuthFormBlocks) renderują się pod widget
+// switchem w SimpleWidgets - a SimpleWidgets jest w EAGER-owej ścieżce chrome
+// (Header/Footer -> BuilderRenderer). Leniwe chunki zdejmują je z bundla
+// wejściowego każdej strony; SSR wypełnia boundary, więc bez CLS.
+const ContactFormViewLazy = lazy(() =>
+  import("@/components/blocks/ContactFormView").then((m) => ({ default: m.ContactFormView })),
+) as ComponentType<ComponentProps<typeof ContactFormViewImpl>>;
+export const ContactFormView = withSuspense(ContactFormViewLazy);
+
+const AuthFormWidgetLazy = lazy(() =>
+  import("./AuthFormWidget").then((m) => ({ default: m.AuthFormWidget })),
+) as ComponentType<ComponentProps<typeof AuthFormWidgetImpl>>;
+export const AuthFormWidget = withSuspense(AuthFormWidgetLazy);
 
 const InterestsCustomizerLazy = lazy(() =>
   import("@/components/interests/InterestsCustomizer").then((m) => ({

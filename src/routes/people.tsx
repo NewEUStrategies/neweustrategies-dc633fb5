@@ -39,9 +39,8 @@ import type { PersonHit } from "@/lib/chat/types";
 import { useBadgesForUsers, type ProfileBadgeKind } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { cn } from "@/lib/utils";
-import "@/lib/i18n-chat";
-import "@/lib/i18n-network";
-
+import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";
+import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 export const Route = createFileRoute("/people")({
   component: PeoplePage,
   head: () => ({
@@ -50,6 +49,9 @@ export const Route = createFileRoute("/people")({
 });
 
 function PeoplePage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureChatI18n();
+  ensureNetworkI18n();
   const { t } = useTranslation();
   return (
     <AuthGate

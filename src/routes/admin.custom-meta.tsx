@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import "@/lib/i18n-admin-misc-routes";
+import { ensureI18n as ensureAdminMiscRoutesI18n } from "@/lib/i18n-admin-misc-routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,8 @@ export const Route = createFileRoute("/admin/custom-meta")({
 type Draft = Omit<CustomMetaDef, "id" | "tenant_id"> & { id?: string };
 
 function CustomMetaAdmin() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminMiscRoutesI18n();
   const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();

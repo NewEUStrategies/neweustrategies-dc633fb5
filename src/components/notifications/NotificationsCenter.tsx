@@ -9,7 +9,11 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
-import * as LucideIcons from "lucide-react";
+// Nazwane importy + DynamicIcon zamiast namespace-importu lucide-react:
+// namespace-import - nawet z chunka trasy - materializuje pełny rejestr
+// (~640 KB raw) w bundlu wejściowym (patrz lib/icons/DynamicIconFull).
+import { BellOff, Check, CheckCheck, Circle, Mail, Search, Trash2 } from "lucide-react";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -366,7 +370,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
             disabled={unreadCount === 0 || markAll.isPending}
             onClick={() => markAll.mutate()}
           >
-            <LucideIcons.CheckCheck className="h-4 w-4 mr-1.5" />
+            <CheckCheck className="h-4 w-4 mr-1.5" />
             {t("notifications.markAllRead", { defaultValue: "Oznacz wszystkie" })}
           </Button>
         )}
@@ -416,7 +420,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
               {/* Search + kind filter */}
               <div className="px-3 sm:px-4 pb-2 flex flex-col sm:flex-row gap-2">
                 <label className="relative flex-1">
-                  <LucideIcons.Search
+                  <Search
                     className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                     aria-hidden
                   />
@@ -458,7 +462,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   </div>
                 ) : groups.length === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
-                    <LucideIcons.BellOff className="mx-auto mb-3 h-8 w-8 opacity-40" aria-hidden />
+                    <BellOff className="mx-auto mb-3 h-8 w-8 opacity-40" aria-hidden />
                     {query || kindFilter !== "all"
                       ? t("notifications.noMatches", {
                           defaultValue: "Brak wyników dla zadanych filtrów",
@@ -469,7 +473,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   <ul className="divide-y divide-border">
                     {groups.map((g) => {
                       const n = g.latest;
-                      const IconCmp = resolveIcon(n.icon) ?? LucideIcons.Circle;
                       const isUnread = g.unreadCount > 0;
                       const extra = g.items.length - 1;
                       const title =
@@ -493,7 +496,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                             )}
                             aria-hidden
                           >
-                            <IconCmp className="h-4 w-4" />
+                            <NotificationIcon name={n.icon} className="h-4 w-4" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
@@ -591,7 +594,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                       })
                                 }
                               >
-                                <LucideIcons.Check className="h-3.5 w-3.5" />
+                                <Check className="h-3.5 w-3.5" />
                               </Button>
                             ) : (
                               <Button
@@ -617,7 +620,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                       })
                                 }
                               >
-                                <LucideIcons.Mail className="h-3.5 w-3.5" />
+                                <Mail className="h-3.5 w-3.5" />
                               </Button>
                             )}
                             <Button
@@ -640,7 +643,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                   : t("common.delete", { defaultValue: "Usuń" })
                               }
                             >
-                              <LucideIcons.Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </li>

@@ -2,8 +2,7 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { DesignSubNav } from "@/components/admin/DesignSubNav";
-import "@/lib/i18n-archive-layout";
-
+import { ensureI18n as ensureArchiveLayoutI18n } from "@/lib/i18n-archive-layout";
 export const Route = createFileRoute("/admin/appearance")({
   component: AppearanceLayout,
   beforeLoad: ({ location }) => {
@@ -14,6 +13,8 @@ export const Route = createFileRoute("/admin/appearance")({
 });
 
 function AppearanceLayout() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureArchiveLayoutI18n();
   const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const tabs = [

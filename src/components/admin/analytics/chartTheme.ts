@@ -75,7 +75,8 @@ export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
     backgroundColor: "transparent",
     textStyle: {
       color: theme.foreground,
-      fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily:
+        '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
     },
     animationDuration: 400,
     animationEasing: "cubicOut",

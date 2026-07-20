@@ -400,6 +400,16 @@ function BlockView({
       const cap = String(block.data.caption ?? "");
       const href = safeUrl(String(block.data.href ?? ""), "");
       if (!url) return null;
+      // Wymiary stemplowane przez edytor bloku (naturalWidth/Height przy
+      // wyborze/podglądzie obrazu) - OptimizedImage wyprowadza z nich
+      // aspect-ratio i rezerwuje miejsce, zanim obraz się doczyta (CLS=0).
+      // Starsze bloki bez wymiarów renderują się jak dotąd.
+      const rawW = Number(block.data.width);
+      const rawH = Number(block.data.height);
+      const dims =
+        Number.isFinite(rawW) && Number.isFinite(rawH) && rawW > 0 && rawH > 0
+          ? { width: Math.round(rawW), height: Math.round(rawH) }
+          : undefined;
       const img = (
         <OptimizedImage
           src={url}
@@ -407,6 +417,8 @@ function BlockView({
           className="rounded-lg"
           responsive
           sizes="(max-width: 768px) 100vw, 800px"
+          width={dims?.width}
+          height={dims?.height}
         />
       );
       const wrapped = href ? (

@@ -29,8 +29,7 @@ import {
   type MyConnectionRow,
 } from "@/lib/network/useConnections";
 import { cn } from "@/lib/utils";
-import "@/lib/i18n-network";
-
+import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 type NetworkTab = "connections" | "received" | "sent" | "suggestions";
 
 interface NetworkSearch {
@@ -59,6 +58,8 @@ export const Route = createFileRoute("/network")({
 });
 
 function NetworkPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureNetworkI18n();
   const { t } = useTranslation();
   const modules = useCommunityModules();
   if (!modules.connections_enabled) return <CommunityDisabled />;

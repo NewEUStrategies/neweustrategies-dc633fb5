@@ -24,8 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import "@/lib/i18n-library";
-
+import { ensureI18n as ensureLibraryI18n } from "@/lib/i18n-library";
 export const Route = createFileRoute("/library")({
   component: LibraryPage,
   head: () => {
@@ -62,6 +61,8 @@ function formatBytes(bytes: number | null): string {
 }
 
 function LibraryPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureLibraryI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { user } = useAuth();

@@ -103,7 +103,10 @@ export function GlobalAudioBar() {
   // (np. 402/429) nie ustawia tracka, więc bar się nie renderuje i toast jest
   // jedynym sygnałem. Odpalamy raz na przejście statusu w "error" (poprzedni
   // status w ref). Współdzielony `id` deduplikuje toast z SidebarListenCard.
-  const prevStatusRef = useRef(player.status);
+  // "idle" (nie player.status): bar jest montowany leniwie z __root dopiero
+  // gdy jest track LUB status "error" - gdyby ref startował od bieżącego
+  // statusu, mount prosto w "error" nie pokazałby toastu o nieudanym TTS.
+  const prevStatusRef = useRef<typeof player.status>("idle");
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = player.status;

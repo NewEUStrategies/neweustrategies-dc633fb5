@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { DesignSubNav } from "@/components/admin/DesignSubNav";
 import { Plus, Trash2, Copy, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
-import "@/lib/i18n-admin-appearance-routes";
+import { ensureI18n as ensureAdminAppearanceRoutesI18n } from "@/lib/i18n-admin-appearance-routes";
 import {
   useDesignTokens,
   useSaveDesignTokens,
@@ -33,6 +33,8 @@ export const Route = createFileRoute("/admin/settings/design")({
 });
 
 function DesignSettings() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminAppearanceRoutesI18n();
   const { t } = useTranslation();
   const { data, isLoading } = useDesignTokens();
   const { data: globals, isLoading: gLoading } = useGlobalColors();

@@ -27,6 +27,7 @@ export default defineConfig({
         // Generated artifacts - not hand-written code.
         "src/routeTree.gen.ts",
         "src/integrations/supabase/types.ts",
+        "src/lib/icons/lucideIconNodes.generated.ts",
         // Test-only helpers.
         "src/test/**",
         // Pure code-splitting glue (React.lazy + Suspense wrappers). The actual

@@ -29,7 +29,7 @@ import {
   type AllowMessagesFrom,
   type NotificationPreferences,
 } from "@/lib/notifications/useNotifications";
-import "@/lib/i18n-network";
+import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 import { toast } from "sonner";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
@@ -245,6 +245,8 @@ function PrivacyVisibilitySection() {
 }
 
 function AccountPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureNetworkI18n();
   const { t } = useTranslation();
   const { user } = useAuth();
   const [data, setData] = useState<ProfileRow>({

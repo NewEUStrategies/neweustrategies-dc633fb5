@@ -7,8 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import "@/lib/i18n-profile";
-
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/profile")({
   component: ProfileLayout,
   head: () => ({
@@ -28,6 +27,8 @@ function initialsFrom(email: string | null | undefined, name?: string | null): s
 }
 
 function ProfileLayout() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const { user } = useAuth();

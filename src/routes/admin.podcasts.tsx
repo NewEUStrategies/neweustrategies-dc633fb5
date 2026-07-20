@@ -58,8 +58,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { adminToast } from "@/lib/adminToasts";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-podcasts";
-
+import { ensureI18n as ensureAdminPodcastsI18n } from "@/lib/i18n-admin-podcasts";
 /** Auto-detect an audio file's duration by loading its metadata in the browser. */
 function detectAudioDuration(url: string): Promise<number | null> {
   return new Promise((resolve) => {
@@ -128,6 +127,8 @@ interface EpisodeBundle {
 type View = "episodes" | "settings" | "shows";
 
 function Page() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminPodcastsI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { tenantId } = useAuth();

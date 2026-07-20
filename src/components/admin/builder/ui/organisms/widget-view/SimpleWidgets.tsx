@@ -30,12 +30,11 @@ import {
 } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
-import { ContactFormView } from "@/components/blocks/ContactFormView";
+import { ContactFormView, AuthFormWidget } from "./lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
-import { AuthFormWidget } from "./AuthFormWidget";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
@@ -770,9 +769,19 @@ export function renderSimpleWidget(
         navBgColor: typeof c.navBgColor === "string" ? c.navBgColor : undefined,
         navArrowColor: typeof c.navArrowColor === "string" ? c.navArrowColor : undefined,
         navBgStyle: (typeof c.navBgStyle === "string" ? c.navBgStyle : undefined) as
-          "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow" | undefined,
+          | "glass"
+          | "solid"
+          | "outline"
+          | "soft"
+          | "gradient"
+          | "shadow"
+          | undefined,
         navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
-          "mid" | "mid-outside" | "bottom" | "top" | undefined,
+          | "mid"
+          | "mid-outside"
+          | "bottom"
+          | "top"
+          | undefined,
         navArrowVariant: (typeof c.navArrowVariant === "string" ? c.navArrowVariant : undefined) as
           | "chevron"
           | "chevron-bold"

@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button";
 import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import "@/lib/i18n-profile";
-
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -23,6 +22,8 @@ export const Route = createFileRoute("/checkout/$planId")({
 });
 
 function CheckoutPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
   const { planId } = Route.useParams();
   const { t, i18n } = useTranslation();
   const { session } = useAuth();

@@ -17,7 +17,8 @@ export interface FontOption {
 }
 
 /** Sample dla nagłówków + treści - pokrywa popularne kierunki. */
-const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
+const DEFAULT_FONT_STACK =
+  '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, Segoe UI, sans-serif';
 
 // `hint` holds an i18n key path (resolved with t() at render), not literal text.
 const FONT_OPTIONS: FontOption[] = [

@@ -6,7 +6,7 @@ import {
   COMMUNITY_MODULES_DEFAULTS,
   COMMUNITY_MODULES_KEY,
   type CommunityModulesSettings,
-} from "@/lib/admin/community";
+} from "@/lib/community/modulesSettings";
 
 export function useCommunityModules(): CommunityModulesSettings {
   return useSiteSetting<CommunityModulesSettings>(

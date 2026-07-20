@@ -23,8 +23,7 @@ import { PlanCard } from "@/components/billing/PlanCard";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
-import "@/lib/i18n-profile";
-
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
   loader: async ({ context }) => {
@@ -57,8 +56,9 @@ export const Route = createFileRoute("/pricing")({
   },
 });
 
-
 function PricingPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const { session } = useAuth();
@@ -287,14 +287,8 @@ function PricingPage() {
           defaultValue={faq[0] ? `faq-0` : undefined}
         >
           {faq.map((item, i) => (
-            <AccordionItem
-              key={i}
-              value={`faq-${i}`}
-              className="px-5 last:border-b-0"
-            >
-              <AccordionTrigger className="text-base font-medium">
-                {item.q}
-              </AccordionTrigger>
+            <AccordionItem key={i} value={`faq-${i}`} className="px-5 last:border-b-0">
+              <AccordionTrigger className="text-base font-medium">{item.q}</AccordionTrigger>
               <AccordionContent>{item.a}</AccordionContent>
             </AccordionItem>
           ))}

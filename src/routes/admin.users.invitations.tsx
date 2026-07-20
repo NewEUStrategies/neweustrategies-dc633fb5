@@ -13,13 +13,14 @@ import {
   revokeInvitation,
 } from "@/lib/admin/invitations.functions";
 import { adminToast } from "@/lib/adminToasts";
-import "@/lib/i18n-admin-misc-routes";
-
+import { ensureI18n as ensureAdminMiscRoutesI18n } from "@/lib/i18n-admin-misc-routes";
 export const Route = createFileRoute("/admin/users/invitations")({
   component: InvitationsPage,
 });
 
 function InvitationsPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminMiscRoutesI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const list = useServerFn(listInvitations);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import i18n from "@/lib/i18n";
+import i18n, { ensureCoreLanguage } from "@/lib/i18n";
 
 // Guards the mechanism behind the per-request SSR fix (getRenderI18n): a clone
 // must carry its own language yet share the singleton's resource store, so two
@@ -7,6 +7,11 @@ import i18n from "@/lib/i18n";
 // singleton's `.language` racing between them.
 describe("per-request i18n clone", () => {
   it("isolates language per clone while sharing resources", async () => {
+    // Klony per request istnieją tylko na SERWERZE, gdzie init ładuje OBA
+    // języki. Vitest inicjalizuje moduł w trybie klienckim (tylko aktywny
+    // język), więc dociągamy EN jawnie - test sprawdza izolację języka
+    // klona, nie strategię ładowania słowników.
+    await ensureCoreLanguage("en");
     await i18n.changeLanguage("pl");
 
     const en = i18n.cloneInstance({ lng: "en" });

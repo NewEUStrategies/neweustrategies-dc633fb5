@@ -44,10 +44,24 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       aria-label={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       title={`${label}: ${current.toUpperCase()} → ${next.toUpperCase()}`}
       className="lang-switch-simple inline-flex items-center rounded-[6px] border border-border bg-background hover:bg-muted transition-colors overflow-hidden"
-      style={{ height: 24, width: 52, fontSize: 11, letterSpacing: "0.02em", fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
+      style={{
+        height: 24,
+        width: 52,
+        fontSize: 11,
+        letterSpacing: "0.02em",
+        fontFamily: '"Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif',
+      }}
     >
-      <span className={`w-1/2 h-full inline-flex items-center justify-center ${current === "pl" ? activeHalf : inactiveHalf}`}>PL</span>
-      <span className={`w-1/2 h-full inline-flex items-center justify-center ${current === "en" ? activeHalf : inactiveHalf}`}>EN</span>
+      <span
+        className={`w-1/2 h-full inline-flex items-center justify-center ${current === "pl" ? activeHalf : inactiveHalf}`}
+      >
+        PL
+      </span>
+      <span
+        className={`w-1/2 h-full inline-flex items-center justify-center ${current === "en" ? activeHalf : inactiveHalf}`}
+      >
+        EN
+      </span>
     </button>
   );
 }

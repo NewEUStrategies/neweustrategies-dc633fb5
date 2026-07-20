@@ -3,7 +3,11 @@
 // axes freely (buttons/CTAs). Both no-op (or just apply size) when not editable.
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-builder";
+// BEZ side-effectowego `import "@/lib/i18n-builder"`: ten moduł jest w
+// eager-owej ścieżce publicznego chrome (SimpleWidgets -> WidgetView), a
+// klucze builder.chrome.* renderują się wyłącznie przy enabled=true, czyli w
+// kanwie edytora - tam bundle rejestrują moduły edytora (Toolbar,
+// WidgetProperties, ...), zanim jakikolwiek uchwyt resize się pokaże.
 
 export function ResizableImageWrap({
   enabled,

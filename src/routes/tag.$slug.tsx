@@ -1,4 +1,4 @@
-// Tag archive: /tag/$slug - shares TaxonomyPage from category route.
+// Tag archive: /tag/$slug - shares TaxonomyPage (components/archive/TaxonomyPage).
 // URL search state: ?page=N&sort=newest|oldest|popular
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
@@ -11,9 +11,7 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { TaxonomyPage } from "./category.$slug";
-import "@/lib/i18n-archive-layout";
-
+import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
 function parseSearch(search: Record<string, unknown>): { page?: number; sort?: ArchiveSort } {

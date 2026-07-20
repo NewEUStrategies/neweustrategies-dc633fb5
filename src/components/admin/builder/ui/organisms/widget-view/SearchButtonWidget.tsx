@@ -21,7 +21,6 @@ import type { Lang } from "./frame";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-search";
 
-
 interface BucketedItem {
   item: AutosuggestItem;
   bucket: SuggestBucket;
@@ -62,7 +61,6 @@ export function SearchButtonWidget({
   const listboxId = useId();
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
   const t = (k: string): string => i18n.t(`search.widget.${k}`, { lng: lang }) as string;
-
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -119,7 +117,7 @@ export function SearchButtonWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, liveResults]);
 
-  const placeholder = label || heading || (t("search"));
+  const placeholder = label || heading || t("search");
   const hasQuery = q.trim().length >= 2;
 
   // Group + flatten while keeping a stable index used by keyboard navigation
@@ -207,7 +205,15 @@ export function SearchButtonWidget({
   const trailingPad = q ? 108 : 84;
 
   return (
-    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto" style={{ overflow: "visible", fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}>
+    <div
+      ref={wrapRef}
+      className="builder-search-widget relative w-full max-w-full min-w-0 self-center my-auto"
+      style={{
+        overflow: "visible",
+        fontFamily:
+          '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
+      }}
+    >
       <div className="input-group" style={{ height: `${h}px`, overflow: "visible" }}>
         <input
           ref={inputRef}
@@ -307,7 +313,8 @@ export function SearchButtonWidget({
         <div
           className="builder-search-megabox absolute left-0 right-0 top-[calc(100%+10px)] z-[70] rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
           style={{
-            fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif',
+            fontFamily:
+              '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
             minWidth: "min(680px, 92vw)",
           }}
         >
@@ -323,10 +330,7 @@ export function SearchButtonWidget({
                   k === "all" ? flat.length : (grouped.get(k as SuggestBucket)?.length ?? 0);
                 if (k !== "all" && count === 0) return null;
                 const isActive = tab === k;
-                const label =
-                  k === "all"
-                    ? t("all")
-                    : bucketLabel(k as SuggestBucket);
+                const label = k === "all" ? t("all") : bucketLabel(k as SuggestBucket);
                 return (
                   <button
                     key={k}
@@ -339,9 +343,7 @@ export function SearchButtonWidget({
                       setActive(-1);
                     }}
                     className={`relative inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium leading-none transition-colors ${
-                      isActive
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                      isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {label}
@@ -383,11 +385,7 @@ export function SearchButtonWidget({
             )}
 
             {focused && hasQuery && !loading && flat.length > 0 && (
-              <div
-                id={listboxId}
-                role="listbox"
-                aria-label={t("results")}
-              >
+              <div id={listboxId} role="listbox" aria-label={t("results")}>
                 {SUGGEST_BUCKET_ORDER.map((bucket) => {
                   if (tab !== "all" && tab !== bucket) return null;
                   const entries = grouped.get(bucket) ?? [];
@@ -396,11 +394,7 @@ export function SearchButtonWidget({
                   return (
                     <div key={bucket} className="border-t border-border/50 first:border-t-0">
                       <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <Icon
-                          className="w-3 h-3"
-                          aria-hidden
-                          style={{ color: "var(--brand)" }}
-                        />
+                        <Icon className="w-3 h-3" aria-hidden style={{ color: "var(--brand)" }} />
                         <span>{bucketLabel(bucket)}</span>
                         <span className="ml-auto tabular-nums text-muted-foreground/70">
                           {entries.length}
@@ -429,9 +423,7 @@ export function SearchButtonWidget({
                                 <Icon
                                   className="w-3.5 h-3.5 shrink-0 text-muted-foreground group-hover:text-[var(--brand)]"
                                   aria-hidden
-                                  style={
-                                    isActive ? { color: "var(--brand)" } : undefined
-                                  }
+                                  style={isActive ? { color: "var(--brand)" } : undefined}
                                 />
                                 <span
                                   className="truncate text-foreground"
@@ -476,66 +468,63 @@ export function SearchButtonWidget({
 
             {/* Boolean operators + advanced search */}
             {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
-                <div
-                  className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground"
-                  style={{ lineHeight: 1.4 }}
-                >
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="mr-1 text-[9px] font-semibold uppercase tracking-wider">
-                      {t("operators")}
-                    </span>
-                    {[
-                      { op: '"fraza"', ins: '"" ' },
-                      { op: "AND", ins: " AND " },
-                      { op: "OR", ins: " OR " },
-                      { op: "NOT", ins: " NOT " },
-                      { op: t("operator_word"), ins: " -" },
-                    ].map(({ op, ins }) => (
-                      <button
-                        key={op}
-                        type="button"
-                        title={
-                          t("operator_insert")
-                        }
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          const el = inputRef.current;
-                          if (!el) return;
-                          const start = el.selectionStart ?? q.length;
-                          const end = el.selectionEnd ?? q.length;
-                          const next = q.slice(0, start) + ins + q.slice(end);
-                          setQ(next);
-                          requestAnimationFrame(() => {
-                            el.focus();
-                            const pos = start + ins.length;
-                            el.setSelectionRange(pos, pos);
-                          });
-                        }}
-                        className="rounded border border-border/60 bg-background px-1 py-0 text-[9px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
-                        style={{ paddingBottom: "2px" }}
-                      >
-                        {op}
-                      </button>
-                    ))}
-                  </div>
-                  <AppLink
-                    href={hasQuery ? `${searchAllHref}&adv=1` : "/search?adv=1"}
-                    onClick={() => {
-                      if (hasQuery) addRecentSearch(q);
-                      setFocused(false);
-                    }}
-                    className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
-                    style={{ color: "var(--brand)", lineHeight: 1.4 }}
-                  >
-                    <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
-                    {t("advanced")}
-                  </AppLink>
+              <div
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground"
+                style={{ lineHeight: 1.4 }}
+              >
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="mr-1 text-[9px] font-semibold uppercase tracking-wider">
+                    {t("operators")}
+                  </span>
+                  {[
+                    { op: '"fraza"', ins: '"" ' },
+                    { op: "AND", ins: " AND " },
+                    { op: "OR", ins: " OR " },
+                    { op: "NOT", ins: " NOT " },
+                    { op: t("operator_word"), ins: " -" },
+                  ].map(({ op, ins }) => (
+                    <button
+                      key={op}
+                      type="button"
+                      title={t("operator_insert")}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const el = inputRef.current;
+                        if (!el) return;
+                        const start = el.selectionStart ?? q.length;
+                        const end = el.selectionEnd ?? q.length;
+                        const next = q.slice(0, start) + ins + q.slice(end);
+                        setQ(next);
+                        requestAnimationFrame(() => {
+                          el.focus();
+                          const pos = start + ins.length;
+                          el.setSelectionRange(pos, pos);
+                        });
+                      }}
+                      className="rounded border border-border/60 bg-background px-1 py-0 text-[9px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                      style={{ paddingBottom: "2px" }}
+                    >
+                      {op}
+                    </button>
+                  ))}
                 </div>
-              )}
+                <AppLink
+                  href={hasQuery ? `${searchAllHref}&adv=1` : "/search?adv=1"}
+                  onClick={() => {
+                    if (hasQuery) addRecentSearch(q);
+                    setFocused(false);
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
+                  style={{ color: "var(--brand)", lineHeight: 1.4 }}
+                >
+                  <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
+                  {t("advanced")}
+                </AppLink>
+              </div>
+            )}
           </div>
         </div>
       )}
-
 
       <style
         dangerouslySetInnerHTML={{
@@ -609,7 +598,6 @@ export function SearchButtonWidget({
           `,
         }}
       />
-
     </div>
   );
 }

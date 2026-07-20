@@ -146,8 +146,7 @@ export const networkPl = {
     },
     introductions: {
       title: "Wprowadzenia",
-      subtitle:
-        "Poproś kogoś ze swojej sieci o wprowadzenie - lub odpowiedz na prośby innych.",
+      subtitle: "Poproś kogoś ze swojej sieci o wprowadzenie - lub odpowiedz na prośby innych.",
       requestCta: "Poproś o wprowadzenie",
       requestTitle: "Poproś o wprowadzenie do {{name}}",
       requestSubtitle:
@@ -156,8 +155,7 @@ export const networkPl = {
       bridgeUsed: "aktywne",
       noBridges: "Brak osób w Twojej sieci - dodaj kontakty, żeby móc prosić o wprowadzenia.",
       messageLabel: "Notka do mostu i osoby docelowej",
-      messagePlaceholder:
-        "Napisz krótko: skąd znasz mnie i dlaczego chcesz poznać {{name}}...",
+      messagePlaceholder: "Napisz krótko: skąd znasz mnie i dlaczego chcesz poznać {{name}}...",
       messageHint: "Od 20 do 600 znaków. Zobaczą ją most i osoba docelowa (po akceptacji).",
       send: "Wyślij prośbę",
       sending: "Wysyłanie...",
@@ -179,10 +177,8 @@ export const networkPl = {
       acceptedToast: "Wprowadzenie przekazane",
       declinedToast: "Prośba odrzucona",
       withdrawnToast: "Prośba wycofana",
-      bridgeHint:
-        "Odmowa jest cicha - osoba prosząca nie zobaczy Twojej decyzji.",
-      targetHint:
-        "Widzisz tylko wprowadzenia zaakceptowane przez wspólnego znajomego.",
+      bridgeHint: "Odmowa jest cicha - osoba prosząca nie zobaczy Twojej decyzji.",
+      targetHint: "Widzisz tylko wprowadzenia zaakceptowane przez wspólnego znajomego.",
       status: {
         pending: "Oczekuje",
         accepted: "Przekazane",
@@ -194,8 +190,7 @@ export const networkPl = {
       heading: "Rekomendacje",
       writeCta: "Napisz rekomendację",
       dialogTitle: "Rekomendacja: {{name}}",
-      dialogDescription:
-        "Twoja rekomendacja pojawi się na profilu po akceptacji przez odbiorcę.",
+      dialogDescription: "Twoja rekomendacja pojawi się na profilu po akceptacji przez odbiorcę.",
       relationshipLabel: "Jak znasz tę osobę? (np. Współpracownik w projekcie X)",
       bodyPlaceholder: "Opisz konkretnie, co wyróżnia tę osobę zawodowo...",
       minChars: "Minimum {{count}} znaków",
@@ -221,8 +216,6 @@ export const networkPl = {
     },
   },
 };
-
-
 
 export const networkEn = {
   network: {
@@ -362,9 +355,9 @@ export const networkEn = {
       bridgeUsed: "active",
       noBridges: "You have no connections yet - add some before requesting introductions.",
       messageLabel: "Note for the bridge and the recipient",
-      messagePlaceholder:
-        "Briefly: how do you know me and why do you want to meet {{name}}...",
-      messageHint: "Between 20 and 600 characters. Visible to the bridge and to the recipient once accepted.",
+      messagePlaceholder: "Briefly: how do you know me and why do you want to meet {{name}}...",
+      messageHint:
+        "Between 20 and 600 characters. Visible to the bridge and to the recipient once accepted.",
       send: "Send request",
       sending: "Sending...",
       cancel: "Cancel",
@@ -385,10 +378,8 @@ export const networkEn = {
       acceptedToast: "Introduction passed along",
       declinedToast: "Request declined",
       withdrawnToast: "Request withdrawn",
-      bridgeHint:
-        "Declining is silent - the requester will not see your decision.",
-      targetHint:
-        "You only see introductions accepted by your mutual contact.",
+      bridgeHint: "Declining is silent - the requester will not see your decision.",
+      targetHint: "You only see introductions accepted by your mutual contact.",
       status: {
         pending: "Pending",
         accepted: "Passed",
@@ -426,6 +417,14 @@ export const networkEn = {
   },
 };
 
-
 i18n.addResourceBundle("pl", "translation", networkPl, true, true);
 i18n.addResourceBundle("en", "translation", networkEn, true, true);
+
+/**
+ * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
+ * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
+ * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
+ * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
+ * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
+ */
+export function ensureI18n(): void {}

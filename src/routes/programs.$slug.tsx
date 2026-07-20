@@ -34,8 +34,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import "@/lib/i18n-programs";
-
+import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/programs/$slug")({
   loader: async ({ context, params }) => {
     const landing = await context.queryClient
@@ -270,6 +269,8 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
 // ---------- page -----------------------------------------------------------
 
 function ProgramDetail() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProgramsI18n();
   const { slug } = Route.useParams();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";

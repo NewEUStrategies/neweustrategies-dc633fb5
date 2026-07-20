@@ -15,13 +15,14 @@ import defaultLoginLight from "@/assets/login-illustration-light.jpg";
 import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 import { adminToast } from "@/lib/adminToasts";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-login-settings";
-
+import { ensureI18n as ensureAdminLoginSettingsI18n } from "@/lib/i18n-admin-login-settings";
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
 });
 
 function LoginSettingsPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminLoginSettingsI18n();
   const { t } = useTranslation();
   const remote = useAuthSettings();
   const save = useSaveAuthSettings();

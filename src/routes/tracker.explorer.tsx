@@ -28,8 +28,7 @@ import { POLICY_AREAS, areaLabel, stageLabel } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-tracker";
-
+import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 export const Route = createFileRoute("/tracker/explorer")({
   head: () => {
     const url = getRequestUrl() || "/tracker/explorer";
@@ -85,6 +84,8 @@ function StatBar({
 }
 
 function TrackerExplorerPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureTrackerI18n();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const [area, setArea] = useState<string>("all");

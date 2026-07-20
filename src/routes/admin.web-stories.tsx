@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { Plus, Save, Trash2, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
 import { useAuth } from "@/hooks/useAuth";
-import "@/lib/i18n-admin-misc-routes";
+import { ensureI18n as ensureAdminMiscRoutesI18n } from "@/lib/i18n-admin-misc-routes";
 import {
   newStoryPage,
   safeParsePages,
@@ -30,6 +30,8 @@ type Row = Pick<WebStory, "id" | "slug" | "title_pl" | "title_en" | "status" | "
 };
 
 function Page() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminMiscRoutesI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { tenantId } = useAuth();

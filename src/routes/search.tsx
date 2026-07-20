@@ -67,8 +67,7 @@ import {
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-search";
-
+import { ensureI18n as ensureSearchI18n } from "@/lib/i18n-search";
 const SORTS = ["relevance", "newest", "popular"] as const;
 
 interface DateFilterPickerProps {
@@ -85,9 +84,7 @@ function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFil
 
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">
-        {label}
-      </span>
+      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</span>
       <Popover>
         <PopoverTrigger asChild>
           <button
@@ -95,7 +92,7 @@ function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFil
             className={cn(
               "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors",
               "hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              !date && "text-muted-foreground"
+              !date && "text-muted-foreground",
             )}
           >
             <span className="truncate">
@@ -175,6 +172,8 @@ export const Route = createFileRoute("/search")({
 });
 
 function SearchPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureSearchI18n();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const { t, i18n } = useTranslation();
@@ -522,7 +521,6 @@ function SearchPage() {
               />
             )}
 
-
             {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
               <div className="mt-6">
                 <p className="text-sm font-medium mb-2">
@@ -701,7 +699,6 @@ function SearchPage() {
             }}
           />
         </form>
-
 
         <div className="mb-4">
           <button

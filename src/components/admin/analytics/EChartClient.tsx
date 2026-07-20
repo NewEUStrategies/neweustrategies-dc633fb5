@@ -7,10 +7,16 @@
  * client chunk stays smaller than `import "echarts"`.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactECharts from "echarts-for-react";
+// `echarts-for-react` (główny entry) robi `import * as echarts from "echarts"`,
+// czyli ciągnie CAŁĄ bibliotekę i unieważnia modularną rejestrację poniżej
+// (chunk miał ~590 KB gzip). Wariant lib/core przyjmuje instancję echarts
+// przez prop - podajemy odchudzony `echarts/core`, więc do bundla wchodzą
+// tylko zarejestrowane wykresy/komponenty.
+import ReactECharts from "echarts-for-react/lib/core";
+import * as echartsCore from "echarts/core";
 // Alias: `use` z echarts/core to funkcja rejestracji modułów, nie hook Reacta -
 // pod oryginalną nazwą wpada pod react-hooks/rules-of-hooks.
-import { use as echartsUse } from "echarts/core";
+const echartsUse = echartsCore.use;
 import { CanvasRenderer } from "echarts/renderers";
 import {
   BarChart,
@@ -105,6 +111,7 @@ export function EChartClient({
     >
       <ReactECharts
         ref={ref}
+        echarts={echartsCore}
         option={merged}
         style={{ width: "100%", height: "100%" }}
         notMerge

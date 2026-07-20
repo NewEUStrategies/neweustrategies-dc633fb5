@@ -29,9 +29,8 @@ import {
 import { Plus, Trash2, Pencil, Users, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
-import "@/lib/i18n-experts";
-import "@/lib/i18n-admin-programs";
-
+import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
+import { ensureI18n as ensureAdminProgramsI18n } from "@/lib/i18n-admin-programs";
 export const Route = createFileRoute("/admin/programs")({
   component: AdminPrograms,
 });
@@ -77,6 +76,9 @@ const EMPTY_PROGRAM: Omit<ProgramRow, "id"> = {
 };
 
 function AdminPrograms() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureExpertsI18n();
+  ensureAdminProgramsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const tp = (k: string, opts?: Record<string, unknown>) => t(`adminPrograms.${k}`, opts);

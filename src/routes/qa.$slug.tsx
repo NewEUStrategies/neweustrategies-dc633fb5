@@ -26,8 +26,7 @@ import { getPublicTenantId } from "@/lib/community/tenant";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-community";
-
+import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/qa/$slug")({
   component: QaDetail,
   head: ({ params }) => {
@@ -47,6 +46,8 @@ export const Route = createFileRoute("/qa/$slug")({
 });
 
 function QaDetail() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureCommunityI18n();
   const { slug } = useParams({ from: "/qa/$slug" });
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
