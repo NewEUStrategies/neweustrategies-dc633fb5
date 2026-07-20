@@ -31,7 +31,22 @@ export function ImageBlock({ block, onChange }: Props) {
 
   return (
     <figure className="space-y-2">
-      <img src={url} alt={alt} className="rounded-lg max-w-full h-auto" />
+      <img
+        src={url}
+        alt={alt}
+        className="rounded-lg max-w-full h-auto"
+        // Stempluje naturalne wymiary do danych bloku (także przy edycji
+        // starszych wpisów) - publiczny renderer rezerwuje dzięki nim
+        // aspect-ratio i obraz nie przesuwa treści przy doczytywaniu (CLS).
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          if (w > 0 && h > 0 && (block.data.width !== w || block.data.height !== h)) {
+            onChange({ ...block, data: { ...block.data, width: w, height: h } });
+          }
+        }}
+      />
       <input
         type="text"
         value={caption}

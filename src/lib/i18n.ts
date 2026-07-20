@@ -1,15 +1,56 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { pl } from "@/lib/locale/pl";
-import { en } from "@/lib/locale/en";
 import { DEFAULT_LANG, type AppLang } from "@/lib/i18n/localePath";
 import { currentLang, setClientLang } from "@/lib/i18n/localeRuntime";
-import { readLangCookieClient, writeLangCookieClient, detectBrowserLang } from "@/lib/i18n/langCookie";
+import {
+  readLangCookieClient,
+  writeLangCookieClient,
+  detectBrowserLang,
+} from "@/lib/i18n/langCookie";
 
-const resources = {
-  pl: { translation: pl },
-  en: { translation: en },
-};
+// ---------------------------------------------------------------------------
+// Split słowników per język (perf pierwszego wczytania):
+// core PL i EN (~65 KB źródła każdy) były importowane statycznie, więc OBA
+// języki jechały w bundlu wejściowym każdej strony. Teraz:
+//   - SERWER: ładuje oba (współbieżne żądania w różnych językach dzielą jeden
+//     isolate, a getRenderI18n() klonuje instancję współdzieląc store zasobów),
+//   - KLIENT: top-level await dociąga wyłącznie język aktywnej strony (znany
+//     z URL-a przed startem Reacta), a hydratacja i tak czeka na graf modułów,
+//     więc pierwsze malowanie nie miga surowymi kluczami. Drugi język schodzi
+//     leniwie: natychmiast przy zmianie języka (patrz wrapper changeLanguage)
+//     albo w tle po bezczynności (fallback dla stron EN).
+// Vite wydziela locale/pl i locale/en do osobnych chunków dzięki dynamicznym
+// importom; pliki są czystymi eksportami danych (bez side-effectów), więc
+// nie ma różnicy semantycznej względem importu statycznego.
+// ---------------------------------------------------------------------------
+
+type CoreBundle = Record<string, unknown>;
+
+/** Języki, których RDZENNY słownik jest już w store (overlaye i18n-* rejestrują
+ * własne fragmenty i nie mogą być brane za załadowany core). */
+const coreLoaded = new Set<AppLang>();
+
+async function importCore(lang: AppLang): Promise<CoreBundle> {
+  if (lang === "en") {
+    const { en } = await import("@/lib/locale/en");
+    return en;
+  }
+  const { pl } = await import("@/lib/locale/pl");
+  return pl;
+}
+
+/**
+ * Dociąga rdzenny słownik języka (idempotentnie). `overwrite=false`, żeby
+ * fragmenty zarejestrowane wcześniej przez overlaye (lib/i18n-*) nie zostały
+ * nadpisane - overlaye z założenia tylko DOKŁADAJĄ brakujące klucze.
+ */
+export async function ensureCoreLanguage(lng: string): Promise<void> {
+  const lang: AppLang = lng === "en" ? "en" : "pl";
+  if (coreLoaded.has(lang)) return;
+  const core = await importCore(lang);
+  coreLoaded.add(lang);
+  i18n.addResourceBundle(lang, "translation", core, true, false);
+}
 
 // Secondary mirror of the language preference. The cookie (see langCookie.ts)
 // is the source of truth; localStorage is a resilience backstop for clients
@@ -52,8 +93,24 @@ export function getRenderI18n(): typeof i18n {
 }
 
 if (!i18n.isInitialized) {
+  // Top-level await: klient czeka wyłącznie na chunk AKTYWNEGO języka (request
+  // startuje na początku ewaluacji entry, równolegle z resztą wykonywania);
+  // serwer ładuje oba języki jak dotąd.
+  const initialResources: Record<string, { translation: CoreBundle }> = {};
+  if (import.meta.env.SSR) {
+    const [plCore, enCore] = await Promise.all([importCore("pl"), importCore("en")]);
+    initialResources.pl = { translation: plCore };
+    initialResources.en = { translation: enCore };
+    coreLoaded.add("pl");
+    coreLoaded.add("en");
+  } else {
+    const lang = currentLang();
+    initialResources[lang] = { translation: await importCore(lang) };
+    coreLoaded.add(lang);
+  }
+
   i18n.use(initReactI18next).init({
-    resources,
+    resources: initialResources,
     // currentLang() resolves from the URL path on the client (hydration-safe,
     // mirroring the server) and falls back to the default elsewhere.
     lng: currentLang(),
@@ -64,6 +121,17 @@ if (!i18n.isInitialized) {
   });
 
   if (typeof window !== "undefined") {
+    // Każda zmiana języka przechodzi przez changeLanguage (przełącznik w
+    // headerze, LocalePreferenceRedirect, syncI18nToRequest po nawigacji).
+    // Wrapper dociąga rdzenny słownik ZANIM i18next wyemituje languageChanged,
+    // więc przełączenie nigdy nie miga surowymi kluczami. Błąd sieci nie
+    // blokuje zmiany języka - overlaye + fallback wciąż działają.
+    const origChangeLanguage = i18n.changeLanguage.bind(i18n);
+    i18n.changeLanguage = ((lng?: string, callback?: Parameters<typeof origChangeLanguage>[1]) => {
+      const ensure = lng ? ensureCoreLanguage(lng).catch(() => undefined) : Promise.resolve();
+      return ensure.then(() => origChangeLanguage(lng, callback));
+    }) as typeof i18n.changeLanguage;
+
     i18n.on("languageChanged", (lng) => {
       const lang: AppLang = lng === "en" ? "en" : "pl";
       try {
@@ -88,6 +156,19 @@ if (!i18n.isInitialized) {
       }
     } catch {
       /* ignore */
+    }
+
+    // Strony EN: dociągnij PL w tle po bezczynności - PL jest fallbackiem
+    // brakujących kluczy, a przełączenie na PL staje się natychmiastowe.
+    // Strony PL (większość ruchu) nie pobierają EN wcale, dopóki użytkownik
+    // nie przełączy języka.
+    if (i18n.language === "en") {
+      const idle = () => void ensureCoreLanguage("pl");
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(idle, { timeout: 5000 });
+      } else {
+        window.setTimeout(idle, 3000);
+      }
     }
   }
 }

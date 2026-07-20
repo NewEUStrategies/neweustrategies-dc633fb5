@@ -2,7 +2,10 @@
 // Popover with search + category tabs + grid of Lucide icons.
 // Stores the icon name in kebab-case (compatible with DynamicIcon resolver).
 import { useMemo, useState } from "react";
-import * as LucideIcons from "lucide-react";
+// Katalog nazw z wygenerowanych danych ikon (klucze kebab-case) - bez
+// jakichkolwiek importów rejestru lucide-react, które materializowałyby
+// pełny zestaw ikon w bundlu entry (patrz lib/icons/DynamicIconFull).
+import { LUCIDE_ICON_NODES } from "@/lib/icons/lucideIconNodes.generated";
 import { Search, X, HelpCircle, type LucideProps } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
@@ -13,14 +16,6 @@ import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
 type IconComponent = React.ComponentType<LucideProps>;
-
-function pascalToKebab(pascal: string): string {
-  return pascal
-    .replace(/Icon$/, "")
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
-    .toLowerCase();
-}
 
 // Lucide ships ~1500+ icon exports. Enumerating them (Object.keys + a regex per
 // name) MUST NOT run at module-initialization time: this file is pulled into the
@@ -36,16 +31,9 @@ function pascalToKebab(pascal: string): string {
 let _allIconNames: string[] | null = null;
 function getAllIconNames(): string[] {
   if (_allIconNames) return _allIconNames;
-  const reg = LucideIcons as unknown as Record<string, unknown>;
-  const set = new Set<string>();
-  for (const key of Object.keys(reg)) {
-    if (!key.endsWith("Icon")) continue;
-    const val = reg[key];
-    if (typeof val !== "function" && typeof val !== "object") continue;
-    const kebab = pascalToKebab(key);
-    if (kebab && /^[a-z0-9-]+$/.test(kebab)) set.add(kebab);
-  }
-  _allIconNames = Array.from(set).sort();
+  _allIconNames = Object.keys(LUCIDE_ICON_NODES)
+    .filter((k) => /^[a-z0-9-]+$/.test(k))
+    .sort();
   return _allIconNames;
 }
 
