@@ -67,6 +67,7 @@ import {
 import { AuthorBioView, RelatedPostsView } from "./PostContextViews";
 import { PostStatsView, PostRatingView, LoginOutView, MorePostsView } from "./FoxizExtraViews";
 import { AccordionView, TabsView, CountdownView, ProgressView } from "./InteractiveViews";
+import { PollBlockView } from "./PollBlockView";
 import {
   IconBoxView,
   StatsCounterView,
@@ -1497,6 +1498,15 @@ function BlockView({
           color={color}
           cls={cls}
         />
+      );
+    }
+    case "poll": {
+      const pollId = String(block.data.pollId ?? "").trim();
+      if (!pollId) return null;
+      return (
+        <div className={`not-prose my-6 ${cls}`}>
+          <PollBlockView pollId={pollId} lang={lang} />
+        </div>
       );
     }
     case "icon-box": {

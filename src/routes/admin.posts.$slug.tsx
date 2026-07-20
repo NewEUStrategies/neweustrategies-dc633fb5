@@ -49,7 +49,13 @@ import {
   Link as LinkIconLucide,
   Mic,
 } from "@/lib/lucide-shim";
-import { History, Database, ListChecks } from "lucide-react";
+import { History, Database, ListChecks, Languages, Eye } from "lucide-react";
+import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
+import { PublishChecklistCard } from "@/components/admin/post-editor/PublishChecklistCard";
+import { ChangelogCard } from "@/components/admin/post-editor/ChangelogCard";
+import { TranslateCard } from "@/components/admin/post-editor/TranslateCard";
+import { PreviewLinksCard } from "@/components/admin/post-editor/PreviewLinksCard";
+import { SeriesCard } from "@/components/admin/post-editor/SeriesCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
@@ -622,9 +628,44 @@ function EditPost() {
     }
   };
 
+  // Checklista publikacji: jedna ocena zasila kartę w sidebarze i miękką
+  // bramkę przy wejściu w published/scheduled. Autosave i zwykłe zapisy już
+  // opublikowanych wpisów nie przechodzą przez bramkę (isPublishTransition).
+  // Zwykłe wyliczenie (nie useMemo): funkcja jest tania, a ten fragment żyje
+  // poniżej wczesnych returnów loading-state (rules-of-hooks).
+  const publishChecklist = buildPublishChecklist({
+    title_pl: form.title_pl,
+    title_en: form.title_en,
+    excerpt_pl: form.excerpt_pl,
+    excerpt_en: form.excerpt_en,
+    cover_image_url: form.cover_image_url,
+    seo_description_pl: form.seo_description_pl,
+    seo_description_en: form.seo_description_en,
+    seo_noindex: form.seo_noindex,
+    takeaways_pl: form.takeaways_pl,
+    categoriesCount: selectedCats.length,
+    tagsCount: selectedTags.length,
+  });
+
+  // Miękka bramka: przy brakach w pozycjach wymaganych pytamy, nie blokujemy.
+  const confirmPublishGaps = async (nextStatus: PostWorkflowStatus): Promise<boolean> => {
+    if (!isPublishTransition(form.status, nextStatus)) return true;
+    if (publishChecklist.requiredOk) return true;
+    const missing = publishChecklist.missingRequired
+      .map((i) => t(`adminPostPanes.publishChecklist.items.${i.id}`))
+      .join(", ");
+    return confirmDialog({
+      title: t("adminPostPanes.publishChecklist.gateTitle"),
+      description: t("adminPostPanes.publishChecklist.gateBody", { missing }),
+      confirmLabel: t("adminPostPanes.publishChecklist.publishAnyway"),
+      cancelLabel: t("adminPostPanes.publishChecklist.backToEditing"),
+    });
+  };
+
   // Save with an explicit status transition (submit / approve / reject) in a
   // single snapshot, so autosave races cannot split the change in two.
   const applyStatus = async (status: PostWorkflowStatus) => {
+    if (!(await confirmPublishGaps(status))) return;
     const next: PostForm = { ...form, status };
     history.set(() => next);
     setBusy(true);
@@ -660,10 +701,90 @@ function EditPost() {
       statusOptions={statusOptions}
       scheduledInPast={scheduledInPast}
       uiLang={uiLang}
-      onStatusChange={(v) => set("status", v)}
+      onStatusChange={(v) => {
+        // Zmiana w select też przechodzi przez bramkę - to główna ścieżka
+        // publikacji (status -> published, potem Zapisz).
+        void (async () => {
+          if (await confirmPublishGaps(v)) set("status", v);
+        })();
+      }}
       onPublishAtChange={(v) => set("publish_at", v)}
       onApplyStatus={applyStatus}
     />
+  );
+
+  const seriesCard = (
+    <SidebarSection title={t("adminPostPanes.series.title")} icon={Layers} defaultOpen={false}>
+      <SeriesCard postId={id} />
+    </SidebarSection>
+  );
+
+  const previewLinksCard = (
+    <SidebarSection title={t("adminPostPanes.previewLinks.title")} icon={Eye} defaultOpen={false}>
+      <PreviewLinksCard postId={id} />
+    </SidebarSection>
+  );
+
+  const translateCard = (
+    <SidebarSection
+      title={t("adminPostPanes.translate.title")}
+      icon={Languages}
+      defaultOpen={false}
+    >
+      <TranslateCard
+        source={{
+          title_pl: form.title_pl,
+          excerpt_pl: form.excerpt_pl,
+          takeaways_pl: form.takeaways_pl,
+          seo_title_pl: form.seo_title_pl,
+          seo_description_pl: form.seo_description_pl,
+          content_pl:
+            form.editor === "richtext" || form.editor === "markdown" ? form.content_pl : null,
+          blocks_pl: form.editor === "blocks" ? (form.blocks_data?.pl?.blocks ?? null) : null,
+        }}
+        hasEnContent={!!form.title_en.trim() || (form.blocks_data?.en?.blocks?.length ?? 0) > 0}
+        onTranslated={(result) => {
+          // Szkic tłumaczenia wchodzi do formularza jedną zmianą (undo cofa
+          // całość). Dokument bloków EN tylko dla edytora blokowego.
+          history.set((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              title_en: result.title_en || prev.title_en,
+              excerpt_en: result.excerpt_en ?? prev.excerpt_en,
+              takeaways_en:
+                result.takeaways_en.length > 0 ? result.takeaways_en : prev.takeaways_en,
+              seo_title_en: result.seo_title_en ?? prev.seo_title_en,
+              seo_description_en: result.seo_description_en ?? prev.seo_description_en,
+              content_en: result.content_en ?? prev.content_en,
+              blocks_data:
+                prev.editor === "blocks" && result.blocks_en
+                  ? {
+                      pl: prev.blocks_data?.pl ?? { version: 1, blocks: [] },
+                      en: { version: 1, blocks: result.blocks_en },
+                    }
+                  : prev.blocks_data,
+            };
+          });
+        }}
+      />
+    </SidebarSection>
+  );
+
+  const changelogCard = (
+    <SidebarSection title={t("adminPostPanes.changelog.title")} icon={History} defaultOpen={false}>
+      <ChangelogCard postId={id} />
+    </SidebarSection>
+  );
+
+  const checklistCard = (
+    <SidebarSection
+      title={t("adminPostPanes.publishChecklist.title")}
+      icon={ListChecks}
+      defaultOpen={!publishChecklist.requiredOk}
+    >
+      <PublishChecklistCard checklist={publishChecklist} />
+    </SidebarSection>
   );
 
   const metaCard = (
@@ -1137,44 +1258,44 @@ function EditPost() {
 
                     {detailsTab === "seo" && (
                       <div className="space-y-3">
-                      <SeoPanel
-                        value={{
-                          seo_title_pl: form.seo_title_pl,
-                          seo_title_en: form.seo_title_en,
-                          seo_description_pl: form.seo_description_pl,
-                          seo_description_en: form.seo_description_en,
-                          seo_canonical_url: form.seo_canonical_url,
-                          seo_noindex: form.seo_noindex ?? false,
-                          seo_og_image_url: form.seo_og_image_url,
-                          og_image_generated_url: form.og_image_generated_url,
-                        }}
-                        onChange={(patch) =>
-                          history.set((f) => (f ? { ...f, ...patch } : f), {
-                            coalesceKey: Object.keys(patch).sort().join("|"),
-                          })
-                        }
-                        entity={{ kind: "post", id }}
-                        slug={form.slug}
-                        pathSourcePageId={form.parent_page_id}
-                        fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
-                        fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
-                        coverImageUrl={form.cover_image_url}
-                        ogKicker={
-                          allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
-                        }
-                        contentHtml={{ pl: form.content_pl, en: form.content_en }}
-                        contentBlocks={form.blocks_data}
-                        onIssuesChange={setSeoIssues}
-                      />
-                      <InternalLinkSuggestions
-                        postId={id === "new" ? null : id}
-                        titlePl={form.title_pl}
-                        titleEn={form.title_en}
-                        contentPl={form.content_pl}
-                        contentEn={form.content_en}
-                        categoryIds={selectedCats}
-                        tagIds={selectedTags}
-                      />
+                        <SeoPanel
+                          value={{
+                            seo_title_pl: form.seo_title_pl,
+                            seo_title_en: form.seo_title_en,
+                            seo_description_pl: form.seo_description_pl,
+                            seo_description_en: form.seo_description_en,
+                            seo_canonical_url: form.seo_canonical_url,
+                            seo_noindex: form.seo_noindex ?? false,
+                            seo_og_image_url: form.seo_og_image_url,
+                            og_image_generated_url: form.og_image_generated_url,
+                          }}
+                          onChange={(patch) =>
+                            history.set((f) => (f ? { ...f, ...patch } : f), {
+                              coalesceKey: Object.keys(patch).sort().join("|"),
+                            })
+                          }
+                          entity={{ kind: "post", id }}
+                          slug={form.slug}
+                          pathSourcePageId={form.parent_page_id}
+                          fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
+                          fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
+                          coverImageUrl={form.cover_image_url}
+                          ogKicker={
+                            allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
+                          }
+                          contentHtml={{ pl: form.content_pl, en: form.content_en }}
+                          contentBlocks={form.blocks_data}
+                          onIssuesChange={setSeoIssues}
+                        />
+                        <InternalLinkSuggestions
+                          postId={id === "new" ? null : id}
+                          titlePl={form.title_pl}
+                          titleEn={form.title_en}
+                          contentPl={form.content_pl}
+                          contentEn={form.content_en}
+                          categoryIds={selectedCats}
+                          tagIds={selectedTags}
+                        />
                       </div>
                     )}
 
@@ -1224,7 +1345,16 @@ function EditPost() {
                       </div>
                     )}
 
-                    {detailsTab === "publish" && <div className="space-y-4">{metaCard}</div>}
+                    {detailsTab === "publish" && (
+                      <div className="space-y-4">
+                        {checklistCard}
+                        {metaCard}
+                        {translateCard}
+                        {seriesCard}
+                        {previewLinksCard}
+                        {changelogCard}
+                      </div>
+                    )}
 
                     {detailsTab === "layout" && <div className="space-y-4">{layoutCard}</div>}
 
@@ -1343,7 +1473,12 @@ function EditPost() {
                 }}
                 documentPane={
                   <div className="space-y-4">
+                    {checklistCard}
                     {metaCard}
+                    {translateCard}
+                    {seriesCard}
+                    {previewLinksCard}
+                    {changelogCard}
                     {layoutCard}
                     {catsCard}
                     {tagsCard}

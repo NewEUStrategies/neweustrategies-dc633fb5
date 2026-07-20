@@ -111,6 +111,12 @@ function PagesList() {
       pageSize,
     ],
     queryFn: async () => {
+      // Opportunistic tick: flip due scheduled pages to published even when
+      // pg_cron is unavailable (local/dev). Harmless no-op otherwise.
+      await supabase.rpc("publish_due_pages").then(
+        () => undefined,
+        () => undefined,
+      );
       const isTrashView = view === "trash";
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;

@@ -339,7 +339,19 @@ function rpcFilterArgs(filters: SearchFilters) {
   };
 }
 
-export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARCH_PAGE_SIZE) =>
+export const searchQueryOptions = (
+  filters: SearchFilters,
+  limit: number = SEARCH_PAGE_SIZE,
+  opts?: {
+    /**
+     * Tryb biblioteki (/publications): listuj także BEZ frazy i filtrów
+     * (przeglądanie najnowszych). /search zostaje przy bramce searchEnabled -
+     * puste wejście nie strzela zapytaniem. Klucz cache wspólny: te same
+     * filtry = ten sam zbiór, niezależnie od strony, która pyta.
+     */
+    browse?: boolean;
+  },
+) =>
   queryOptions({
     queryKey: [
       "public",
@@ -347,7 +359,7 @@ export const searchQueryOptions = (filters: SearchFilters, limit: number = SEARC
       { ...filters, terms: sortedTerms(filters.terms) },
       { limit },
     ] as const,
-    enabled: searchEnabled(filters),
+    enabled: opts?.browse ? true : searchEnabled(filters),
     queryFn: async (): Promise<SearchResult> => {
       // Postgres full-text search (ranked, unaccent + prefiks + polska fleksja,
       // indeksuje też treść blocks_data/builder_data). Wszystkie filtry są w

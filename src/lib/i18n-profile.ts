@@ -811,6 +811,7 @@ type ProfileExtras = {
       tabAuthors: string;
       tabCategories: string;
       tabTags: string;
+      tabPrograms: string;
       unavailable: string;
     };
   };
@@ -886,6 +887,7 @@ const extrasPl: ProfileExtras = {
       tabAuthors: "Autorzy",
       tabCategories: "Kategorie",
       tabTags: "Tagi",
+      tabPrograms: "Programy",
     },
   },
 };
@@ -960,6 +962,7 @@ const extrasEn: ProfileExtras = {
       tabAuthors: "Authors",
       tabCategories: "Categories",
       tabTags: "Tags",
+      tabPrograms: "Programs",
     },
   },
 };

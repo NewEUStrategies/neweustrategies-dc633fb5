@@ -113,6 +113,8 @@ export function LayoutOverridesCard({
             ["show_author_card", "Karta autora"],
             ["show_prev_next", "Poprzedni / następny"],
             ["show_bottom_newsletter", "Newsletter pod wpisem"],
+            ["show_citation", "Box cytowania (Chicago / APA / BibTeX)"],
+            ["show_quote_share", "Udostępnianie zaznaczonego cytatu"],
           ] as const
         ).map(([key, label]) => {
           const val = ov[key];

@@ -43,12 +43,15 @@ export interface DispatchSummary {
   failed: number;
 }
 
-export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
-  .inputValidator((input: unknown) => DispatchInput.parse(input ?? {}))
-  .handler(async ({ data }): Promise<DispatchSummary> => {
+/**
+ * Rdzeń dispatchu - wołany przez server fn (panel) ORAZ jobs-tick (cron co
+ * minutę), więc dostawy płyną bez wejścia staffu do panelu (domknięcie D2;
+ * wcześniej outbox dreniło wyłącznie otwarcie /admin/crm).
+ */
+export async function runIntegrationDispatch(limit: number): Promise<DispatchSummary> {
+  {
     const { data: batch, error } = await supabaseAdmin.rpc("claim_integration_deliveries", {
-      p_limit: data.limit,
+      p_limit: limit,
     });
     if (error) throw new Error(`integration dispatch: claim failed (${error.message})`);
 
@@ -124,4 +127,10 @@ export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
     }
 
     return { claimed: deliveries.length, delivered, failed };
-  });
+  }
+}
+
+export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((input: unknown) => DispatchInput.parse(input ?? {}))
+  .handler(async ({ data }): Promise<DispatchSummary> => runIntegrationDispatch(data.limit));
