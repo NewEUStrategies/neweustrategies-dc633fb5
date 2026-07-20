@@ -5,6 +5,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Play, Pause, Rewind, FastForward, Volume2, VolumeX } from "lucide-react";
 import { formatDuration } from "@/lib/podcast/types";
 import { announcePlayback, subscribePlayback } from "@/lib/audio/playbackBus";
+import {
+  PLAYBACK_RATES,
+  DEFAULT_PLAYBACK_RATE,
+  readStoredPlaybackRate,
+  writeStoredPlaybackRate,
+} from "@/lib/audio/playbackRate";
 
 type Variant = "mini" | "full" | "sticky";
 
@@ -26,7 +32,9 @@ interface Props {
   registerSeek?: (seek: (seconds: number) => void) => void;
 }
 
-const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+// Tempo odtwarzania jest wspólną preferencją wszystkich playerów
+// (localStorage "audio-rate", patrz src/lib/audio/playbackRate.ts) - czytelnik
+// ustawia raz i obowiązuje w podcastach oraz globalnym odtwarzaczu TTS.
 
 // Trwałość pozycji odtwarzania per `src` (localStorage). Wspólny prefiks klucza
 // z globalnym playerem TTS. Dostęp chroniony pod kątem SSR i trybu prywatnego.
@@ -100,8 +108,19 @@ export function PodcastPlayer({
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration);
-  const [speed, setSpeed] = useState(1);
+  // SSR-parity: start od domyślnego tempa, zapisana preferencja wchodzi w
+  // efekcie po montażu (initializer rozjechałby hydratację <select value>).
+  const [speed, setSpeed] = useState<number>(DEFAULT_PLAYBACK_RATE);
   const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    setSpeed(readStoredPlaybackRate());
+  }, []);
+
+  const changeSpeed = (value: number) => {
+    setSpeed(value);
+    writeStoredPlaybackRate(value);
+  };
 
   // Stan `playing` napędzają realne zdarzenia elementu <audio>, nie tylko własny
   // toggle - dzięki temu pauza z zewnątrz (OS, inna karta, szyna arbitrażu) też
@@ -367,10 +386,10 @@ export function PodcastPlayer({
         <select
           aria-label={t("speed")}
           value={speed}
-          onChange={(e) => setSpeed(Number(e.target.value))}
+          onChange={(e) => changeSpeed(Number(e.target.value))}
           className="text-xs bg-background border border-border rounded px-1.5 py-1"
         >
-          {SPEEDS.map((s) => (
+          {PLAYBACK_RATES.map((s) => (
             <option key={s} value={s}>
               {s}×
             </option>
