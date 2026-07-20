@@ -1153,6 +1153,7 @@ const pl = {
       note: "Reguły dotyczą publicznych stron. W edytorze widget jest zawsze widoczny.",
     },
     editable: {
+      clickToEdit: "Kliknij, aby edytować tekst",
       urlPrompt: "Adres URL (https://...)",
       toolbar: "Formatowanie tekstu",
       bold: "Pogrubienie (⌘/Ctrl+B)",
@@ -2321,6 +2322,7 @@ const en: typeof pl = {
       note: "Rules apply to public pages. In the editor the widget is always visible.",
     },
     editable: {
+      clickToEdit: "Click to edit text",
       urlPrompt: "URL address (https://...)",
       toolbar: "Text formatting",
       bold: "Bold (⌘/Ctrl+B)",
