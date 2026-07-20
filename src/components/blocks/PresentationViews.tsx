@@ -116,7 +116,7 @@ function parseNumber(v: string): { num: number; prefix: string } {
 }
 
 function formatNumber(n: number, lang: "pl" | "en"): string {
-  const locale = lang === "en" ? "en-US" : "pl-PL";
+  const locale = lang === "en" ? "en-GB" : "pl-PL";
   return Number.isInteger(n)
     ? n.toLocaleString(locale)
     : n.toLocaleString(locale, { maximumFractionDigits: 2 });

@@ -12,6 +12,7 @@ import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { LiveBlogBlock } from "./LiveBlogBlock";
 import { GalleryBlock } from "./GalleryBlock";
+import { CodeBlockView } from "./CodeBlockView";
 import { ReviewBlockView } from "./ReviewBlockView";
 import { FaqBlockView } from "./FaqBlockView";
 import { TocBlockView } from "./TocBlockView";
@@ -489,11 +490,7 @@ function BlockView({
     case "code": {
       const code = String(block.data.code ?? "");
       const lang = String(block.data.lang ?? "");
-      return (
-        <pre className={cls}>
-          <code data-lang={lang}>{code}</code>
-        </pre>
-      );
+      return <CodeBlockView code={code} lang={lang} className={cls} />;
     }
     case "embed": {
       const url = String(block.data.url ?? "");

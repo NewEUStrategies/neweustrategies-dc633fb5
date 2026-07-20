@@ -16,6 +16,8 @@ const ALLOWED_MIME = new Set([
   "image/gif",
   "image/svg+xml",
   "image/avif",
+  // Animowany PNG (tła widgetów buildera).
+  "image/apng",
   "application/pdf",
   // Audio (podcast episodes are uploaded through the media library).
   // Includes the alternative MIME spellings browsers actually emit for
@@ -31,13 +33,20 @@ const ALLOWED_MIME = new Set([
   "audio/flac",
   "audio/webm",
   "audio/ogg",
+  // Wideo w tle sekcji/widgetów (ImageSlot buildera rejestruje uploady
+  // w bibliotece; siatka mediów rozpoznaje mime video/*).
+  "video/mp4",
+  "video/webm",
 ]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB (images / PDF)
 const MAX_AUDIO_BYTES = 300 * 1024 * 1024; // 300 MB (podcast episodes)
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB (tła wideo)
 
-/** Per-type size ceiling: audio files are far larger than images. */
+/** Per-type size ceiling: audio/video files are far larger than images. */
 function maxBytesFor(mime: string): number {
-  return mime.startsWith("audio/") ? MAX_AUDIO_BYTES : MAX_BYTES;
+  if (mime.startsWith("audio/")) return MAX_AUDIO_BYTES;
+  if (mime.startsWith("video/")) return MAX_VIDEO_BYTES;
+  return MAX_BYTES;
 }
 
 const RegisterUploadSchema = z.object({

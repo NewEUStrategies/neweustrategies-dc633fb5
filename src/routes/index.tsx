@@ -1,16 +1,20 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import {
   blogListQueryOptions,
+  BLOG_PAGE_SIZE,
   homePageQueryOptions,
   homepageModeQueryOptions,
+  resolvePostsPerPage,
   type PageData,
 } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -134,13 +138,25 @@ export const Route = createFileRoute("/")({
     }
 
     // "Najnowsze wpisy" jako strona główna: dotąd opcja z ustawień czytania nie
-    // była honorowana - trasa zawsze renderowała stronę statyczną.
+    // była honorowana - trasa zawsze renderowała stronę statyczną. Rozmiar
+    // listy honoruje posts_per_page z tych samych ustawień (klucz zapytania
+    // musi być zgodny z komponentem, także w ścieżce degradacji).
     if (homeMode === "latest_posts") {
+      let pageSize = BLOG_PAGE_SIZE;
       try {
-        await queryClient.ensureQueryData(blogListQueryOptions());
+        pageSize = resolvePostsPerPage(await queryClient.ensureQueryData(siteSettingsQueryOptions));
+      } catch {
+        // Ustawienia niedostępne - komponent policzy to samo z pustej mapy.
+      }
+      try {
+        await queryClient.ensureQueryData(blogListQueryOptions(pageSize));
       } catch {
         degraded = true;
-        queryClient.setQueryData(blogListQueryOptions().queryKey, { posts: [] }, { updatedAt: 0 });
+        queryClient.setQueryData(
+          blogListQueryOptions(pageSize).queryKey,
+          { posts: [] },
+          { updatedAt: 0 },
+        );
       }
     }
     // Settle every data-bound widget query BEFORE the router dehydrates - the
@@ -295,14 +311,20 @@ function Index() {
           </div>
         )}
       </div>
+      <FooterSlideup pageType="home" />
     </div>
   );
 }
 
 function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
+  // Ten sam odczyt posts_per_page co loader - zgodny klucz zapytania.
+  const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const {
     data: { posts },
-  } = useSuspenseQuery(blogListQueryOptions());
+  } = useSuspenseQuery(blogListQueryOptions(resolvePostsPerPage(settingsMap)));
+  // Strona główna w trybie "najnowsze wpisy" honoruje placementy in_feed
+  // zadeklarowane dla typu "Strona główna" (dotąd emitowały się tylko na /blog).
+  const inFeed = useInFeedAds("home");
   return (
     <div className="max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
       {posts.length === 0 ? (
@@ -311,17 +333,26 @@ function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
         </p>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {posts.map((p, idx) => (
-            <PostListCard
-              key={p.id}
-              post={p}
-              href={p.href}
-              lang={lang}
-              titleClassName="text-base"
-              priority={idx === 0}
-              viewTransitionId={p.id}
-            />
-          ))}
+          {posts.map((p, idx) => {
+            const adsAfter = inFeed(idx);
+            return (
+              <Fragment key={p.id}>
+                <PostListCard
+                  post={p}
+                  href={p.href}
+                  lang={lang}
+                  titleClassName="text-base"
+                  priority={idx === 0}
+                  viewTransitionId={p.id}
+                />
+                {adsAfter && (
+                  <div className="md:col-span-2 lg:col-span-3 flex justify-center py-2">
+                    {adsAfter}
+                  </div>
+                )}
+              </Fragment>
+            );
+          })}
         </div>
       )}
     </div>

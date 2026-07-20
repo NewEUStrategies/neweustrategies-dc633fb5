@@ -73,7 +73,7 @@ function SubscriptionPage() {
   };
 
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-US" : "pl-PL") : "-";
+    iso ? new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-GB" : "pl-PL") : "-";
 
   // Wznowienie ma sens tylko dopóki opłacony okres trwa - po jego końcu
   // subskrypcję trzeba kupić od nowa (nowy checkout).

@@ -35,10 +35,35 @@ export function canEditComment(c: CommentWithAuthor, currentUserId: string | nul
 }
 
 const COMMENT_COLS =
-  "id, post_id, user_id, parent_id, body, status, created_at, updated_at, edited_at, tenant_id";
+  "id, post_id, user_id, author_name, parent_id, body, status, created_at, updated_at, edited_at, tenant_id";
 
 /** Safety ceiling for replies fetched under one page of threads (PostgREST caps at 1000 anyway). */
 const REPLIES_FETCH_CAP = 1000;
+
+/** Guest rows carry user_id NULL - profile lookups must skip them. */
+function collectAuthorIds(rows: readonly CommentRow[]): string[] {
+  return Array.from(
+    new Set(rows.map((r) => r.user_id).filter((id): id is string => typeof id === "string")),
+  );
+}
+
+async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, CommentAuthor>> {
+  const byId = new Map<string, CommentAuthor>();
+  if (ids.length === 0) return byId;
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_url, slug")
+    .in("id", ids as string[]);
+  for (const p of profiles ?? []) {
+    byId.set(p.id, {
+      id: p.id,
+      display_name: p.display_name ?? null,
+      avatar_url: p.avatar_url ?? null,
+      slug: p.slug ?? null,
+    });
+  }
+  return byId;
+}
 
 export interface PostCommentsPage {
   /** Windowed top-level comments plus ALL replies of those parents, oldest-first. */
@@ -49,10 +74,26 @@ export interface PostCommentsPage {
   approvedCount: number;
 }
 
+/** One tier of replies: children of the given parent ids, oldest-first. */
+async function fetchRepliesOf(parentIds: readonly string[]): Promise<CommentRow[]> {
+  if (parentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("comments")
+    .select(COMMENT_COLS)
+    .in("parent_id", parentIds as string[])
+    .in("status", ["approved", "pending"])
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(REPLIES_FETCH_CAP);
+  if (error) throw error;
+  return (data ?? []) as CommentRow[];
+}
+
 /**
  * Fetch a page of comment THREADS for a post: `topLevelLimit` oldest top-level
- * comments plus every reply belonging to them. Includes the caller's own
- * pending rows (RLS-permitted via `comments_own_select`).
+ * comments plus every reply belonging to them, down to the nesting cap
+ * (MAX_COMMENT_DEPTH = 2, i.e. replies and replies-to-replies). Includes the
+ * caller's own pending rows (RLS-permitted via `comments_own_select`).
  *
  * Paginating threads (instead of windowing the flat parents+replies list, as
  * before) guarantees a reply is never fetched without its parent - the old
@@ -79,48 +120,27 @@ export async function fetchPostComments(
   if (parentError) throw parentError;
   const parents = (parentData ?? []) as CommentRow[];
 
-  const [repliesRes, approvedRes] = await Promise.all([
-    parents.length > 0
-      ? supabase
-          .from("comments")
-          .select(COMMENT_COLS)
-          .in(
-            "parent_id",
-            parents.map((r) => r.id),
-          )
-          .in("status", ["approved", "pending"])
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true })
-          .limit(REPLIES_FETCH_CAP)
-      : Promise.resolve({ data: [] as CommentRow[], error: null }),
+  const [replies, approvedRes] = await Promise.all([
+    fetchRepliesOf(parents.map((r) => r.id)),
     supabase
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("post_id", postId)
       .eq("status", "approved"),
   ]);
-  if (repliesRes.error) throw repliesRes.error;
-  const rows = [...parents, ...((repliesRes.data ?? []) as CommentRow[])];
+  // Third tier (replies to replies) - fetched only when the middle tier exists.
+  const grandchildren = await fetchRepliesOf(replies.map((r) => r.id));
+  const rows = [...parents, ...replies, ...grandchildren];
   if (rows.length === 0) {
     return { comments: [], topLevelCount: topLevelCount ?? 0, approvedCount: 0 };
   }
 
-  const authorIds = Array.from(new Set(rows.map((r) => r.user_id)));
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url, slug")
-    .in("id", authorIds);
-  const byId = new Map<string, CommentAuthor>();
-  for (const p of profiles ?? []) {
-    byId.set(p.id, {
-      id: p.id,
-      display_name: p.display_name ?? null,
-      avatar_url: p.avatar_url ?? null,
-      slug: p.slug ?? null,
-    });
-  }
+  const byId = await fetchAuthorsById(collectAuthorIds(rows));
   return {
-    comments: rows.map((r) => ({ ...r, author: byId.get(r.user_id) ?? null })),
+    comments: rows.map((r) => ({
+      ...r,
+      author: r.user_id ? (byId.get(r.user_id) ?? null) : null,
+    })),
     topLevelCount: topLevelCount ?? parents.length,
     approvedCount: approvedRes.count ?? 0,
   };
@@ -197,7 +217,7 @@ export async function fetchAdminComments(filter: {
 }): Promise<AdminCommentRow[]> {
   let query = supabase
     .from("comments")
-    .select("id, post_id, user_id, parent_id, body, status, created_at, updated_at, tenant_id")
+    .select(COMMENT_COLS)
     .order("created_at", { ascending: false })
     .limit(filter.limit ?? 200);
   if (filter.status && filter.status !== "all") query = query.eq("status", filter.status);
@@ -207,21 +227,11 @@ export async function fetchAdminComments(filter: {
   const rows = (data ?? []) as CommentRow[];
   if (rows.length === 0) return [];
 
-  const authorIds = Array.from(new Set(rows.map((r) => r.user_id)));
   const postIds = Array.from(new Set(rows.map((r) => r.post_id)));
-  const [{ data: profiles }, { data: posts }] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, avatar_url, slug").in("id", authorIds),
+  const [authorById, { data: posts }] = await Promise.all([
+    fetchAuthorsById(collectAuthorIds(rows)),
     supabase.from("posts").select("id, slug, title_pl, title_en").in("id", postIds),
   ]);
-  const authorById = new Map<string, CommentAuthor>();
-  for (const p of profiles ?? []) {
-    authorById.set(p.id, {
-      id: p.id,
-      display_name: p.display_name ?? null,
-      avatar_url: p.avatar_url ?? null,
-      slug: p.slug ?? null,
-    });
-  }
   const postById = new Map<string, AdminCommentRow["post"]>();
   for (const p of posts ?? []) {
     postById.set(p.id, {
@@ -233,7 +243,7 @@ export async function fetchAdminComments(filter: {
   }
   return rows.map((r) => ({
     ...r,
-    author: authorById.get(r.user_id) ?? null,
+    author: r.user_id ? (authorById.get(r.user_id) ?? null) : null,
     post: postById.get(r.post_id) ?? null,
   }));
 }

@@ -246,8 +246,10 @@ export function PostsSliderWidget({
 }) {
   const variant = (getStr(c, "variant") || "hero-overlay") as SliderVariant;
   const ratio = (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
-  const autoplay = c.autoplay !== false;
-  const intervalMs = getNum(c, "intervalMs", 4500);
+  // Jawna wartość z inspektora wygrywa; brak = globalny default karuzeli
+  // (Motyw -> Karuzele), rozstrzygany w SliderRender.
+  const autoplay = typeof c.autoplay === "boolean" ? c.autoplay : undefined;
+  const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : undefined;
   const rounded = (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full";
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const showExcerpt = c.showExcerpt !== false;

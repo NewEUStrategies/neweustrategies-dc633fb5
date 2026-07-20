@@ -64,7 +64,7 @@ function UserDetail() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user, isSuperAdmin, tenantId } = useAuth();
-  const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
+  const locale = i18n.language === "pl" ? "pl-PL" : "en-GB";
   const isPL = i18n.language === "pl";
   const L = (pl: string, en: string) => (isPL ? pl : en);
 
@@ -665,7 +665,7 @@ type UserConsentResult = {
 
 function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
   const L = (pl: string, en: string) => (isPL ? pl : en);
-  const locale = isPL ? "pl-PL" : "en-US";
+  const locale = isPL ? "pl-PL" : "en-GB";
   const CATS: {
     key: "necessary" | "functional" | "analytics" | "marketing";
     pl: string;

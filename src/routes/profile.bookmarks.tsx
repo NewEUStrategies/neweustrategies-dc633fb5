@@ -179,7 +179,7 @@ function BookmarksPage() {
                       {p.published_at && (
                         <div className="text-xs text-muted-foreground">
                           {new Date(p.published_at).toLocaleDateString(
-                            lang === "en" ? "en-US" : "pl-PL",
+                            lang === "en" ? "en-GB" : "pl-PL",
                           )}
                         </div>
                       )}

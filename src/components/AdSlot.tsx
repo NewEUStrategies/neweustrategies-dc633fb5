@@ -10,6 +10,11 @@
 //
 // Respektuje flagę requires_consent - bez zgody marketingowej slot pokazuje
 // tylko placeholder (również z zarezerwowaną przestrzenią).
+//
+// Bezpieczeństwo: kreacje html/script NIE są montowane do DOM strony.
+// Renderuje je <SandboxedAdFrame/> (iframe sandbox bez allow-same-origin),
+// więc treść slotu - z definicji dowolny HTML/JS wpisany w panelu - nie ma
+// dostępu do sesji czytelnika. Zamyka to stored XSS przez sloty reklamowe.
 
 import { memo, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +23,7 @@ import { useMarketingConsent } from "@/lib/ads/consent";
 import { useAdPlacements, type AdContentContext } from "@/lib/ads/queries";
 import { useDeferredAd } from "@/lib/ads/useDeferredAd";
 import { AdContainer } from "@/components/ads/atoms/AdContainer";
+import { SandboxedAdFrame } from "@/components/ads/atoms/SandboxedAdFrame";
 import type { AdPageType, AdPlacementWithSlot, AdPosition } from "@/lib/ads/types";
 
 interface SingleProps {
@@ -32,34 +38,13 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
   const blocked = slot.requires_consent && !granted;
 
   const { containerRef, shouldRender } = useDeferredAd<HTMLDivElement>({ disabled: blocked });
-  const scriptHostRef = useRef<HTMLDivElement | null>(null);
-
-  // Lazy-execute skryptu (np. <script src="..."> z AdSense). innerHTML nie wykona
-  // <script>, więc parsujemy i re-tworzymy elementy - dopiero po otwarciu bramek.
-  useEffect(() => {
-    if (!shouldRender) return;
-    if (slot.kind !== "script" || !scriptHostRef.current || !slot.script) return;
-    const host = scriptHostRef.current;
-    host.innerHTML = "";
-    const tpl = document.createElement("template");
-    tpl.innerHTML = slot.script.trim();
-    Array.from(tpl.content.childNodes).forEach((node) => {
-      if (node.nodeName === "SCRIPT") {
-        const orig = node as HTMLScriptElement;
-        const s = document.createElement("script");
-        Array.from(orig.attributes).forEach((a) => s.setAttribute(a.name, a.value));
-        s.text = orig.text;
-        host.appendChild(s);
-      } else {
-        host.appendChild(node.cloneNode(true));
-      }
-    });
-  }, [shouldRender, slot]);
 
   // Growth analytics (fire-and-forget). One impression beacon once the creative
   // actually renders - i.e. past the consent gate and the deferred-load gates,
   // so blocked/off-screen slots are never counted. A click beacon on any
-  // interaction within the reserved container.
+  // interaction within the reserved container (image kind); sandboxed html/
+  // script creatives report engagement through SandboxedAdFrame's onEngage
+  // (clicks inside the isolated frame never bubble to this container).
   const impressionSent = useRef(false);
   useEffect(() => {
     if (blocked || !shouldRender || impressionSent.current) return;
@@ -118,9 +103,23 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
         img
       );
     } else if (slot.kind === "html" && slot.html) {
-      payload = <div className="h-full w-full" dangerouslySetInnerHTML={{ __html: slot.html }} />;
-    } else if (slot.kind === "script") {
-      payload = <div className="h-full w-full" ref={scriptHostRef} />;
+      payload = (
+        <SandboxedAdFrame
+          markup={slot.html}
+          title={`${label}: ${slot.name}`}
+          onEngage={() => beaconAdEvent("click", slot.id, placement.id)}
+        />
+      );
+    } else if (slot.kind === "script" && slot.script) {
+      // Wewnątrz sandboxu <script> wykonuje się natywnie - ręczne re-tworzenie
+      // elementów skryptu (dawny wariant z innerHTML) nie jest już potrzebne.
+      payload = (
+        <SandboxedAdFrame
+          markup={slot.script}
+          title={`${label}: ${slot.name}`}
+          onEngage={() => beaconAdEvent("click", slot.id, placement.id)}
+        />
+      );
     }
   }
 

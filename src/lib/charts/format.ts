@@ -1,10 +1,11 @@
-// Formatowanie liczb wykresów - Intl per język (pl-PL / en-US), spójne z
-// istniejącym StatsCounterView. Czyste funkcje, testowalne jednostkowo.
+// Formatowanie liczb wykresów - Intl per język (pl-PL / en-GB), spójne z
+// konwencją domu (wersja EN po europejsku). Czyste funkcje, testowalne
+// jednostkowo.
 
 export type ChartLang = "pl" | "en";
 
 function localeOf(lang: ChartLang): string {
-  return lang === "en" ? "en-US" : "pl-PL";
+  return lang === "en" ? "en-GB" : "pl-PL";
 }
 
 /** Pełny format wartości (tooltip, tabela, etykiety bezpośrednie). */
@@ -19,10 +20,13 @@ export function formatChartValue(value: number, lang: ChartLang, unit = ""): str
 export function formatAxisTick(value: number, lang: ChartLang): string {
   const abs = Math.abs(value);
   if (abs >= 10_000) {
-    return value.toLocaleString(localeOf(lang), {
+    const compact = value.toLocaleString(localeOf(lang), {
       notation: "compact",
       maximumFractionDigits: 1,
     });
+    // en-GB kompaktuje miliony/miliardy małą literą ("12.5m") - na osiach
+    // wykresów obowiązuje konwencja K/M/B/T, więc normalizujemy sufiks.
+    return lang === "en" ? compact.replace(/([kmbt])$/, (s) => s.toUpperCase()) : compact;
   }
   return value.toLocaleString(localeOf(lang), { maximumFractionDigits: 2 });
 }

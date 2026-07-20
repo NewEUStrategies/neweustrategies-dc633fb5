@@ -1168,23 +1168,6 @@ export function ThemeDesignPane() {
                   onChange={(value) => setCDraft({ ...cDraft, speedMs: value ?? 100 })}
                 />
               </Field>
-              <Field label={t("adminThemeDesign.f.transitionType")}>
-                <Select
-                  value={cDraft.transition}
-                  onValueChange={(v) =>
-                    setCDraft({ ...cDraft, transition: v as CarouselDefaults["transition"] })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="slide">Slide</SelectItem>
-                    <SelectItem value="fade">Fade</SelectItem>
-                    <SelectItem value="zoom">Zoom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
             </Grid>
           </Section>
         </TabsContent>
@@ -1850,7 +1833,8 @@ function TdColorField({
   const { t } = useTranslation();
   const lightVal =
     ((draft as unknown as Record<string, Record<string, unknown>>)[section]?.[field] as
-      string | undefined) ?? "";
+      | string
+      | undefined) ?? "";
   const darkVal = (draft.darkOverrides?.[section]?.[field] as string | undefined) ?? "";
   const value = mode === "light" ? lightVal : darkVal;
   const inherit = INHERIT_DEFAULTS[section]?.[field];
@@ -2014,7 +1998,10 @@ function OverlayTypographyTab({
   }: {
     label: string;
     field:
-      "overlay_title_size" | "overlay_excerpt_size" | "header_title_size" | "header_excerpt_size";
+      | "overlay_title_size"
+      | "overlay_excerpt_size"
+      | "header_title_size"
+      | "header_excerpt_size";
   }) => (
     <div className="space-y-2">
       <Label className="text-xs font-semibold">{label}</Label>

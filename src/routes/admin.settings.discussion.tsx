@@ -43,6 +43,12 @@ function DiscussionSettings() {
           checked={draft.require_login_to_comment}
           onChange={(v) => set("require_login_to_comment", v)}
         />
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("admin.discussion.requireLoginHint", {
+            defaultValue:
+              "Po wyłączeniu goście komentują z podpisem (bez konta) - z limitem tempa i filtrem antyspamowym; wymóg egzekwuje baza, nie tylko interfejs.",
+          })}
+        </p>
       </Field>
       <Field label={t("admin.discussion.moderation")}>
         <Checkbox
@@ -50,6 +56,12 @@ function DiscussionSettings() {
           checked={draft.moderate_new_comments}
           onChange={(v) => set("moderate_new_comments", v)}
         />
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("admin.discussion.moderateHint", {
+            defaultValue:
+              "Nowe komentarze trafiają do kolejki (status oczekujący) i publikują się po zatwierdzeniu w Komentarzach; autor widzi swój wpis z plakietką moderacji.",
+          })}
+        </p>
       </Field>
       <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
     </div>

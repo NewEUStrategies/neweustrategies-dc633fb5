@@ -1,24 +1,23 @@
 // Pure comment-tree assembly, extracted from CommentsSection.tsx so the
-// one-level nesting cap and the can-reply rule are unit-testable in isolation.
-// Behavior is identical to the previous inline `buildTree`: replies are kept
-// adjacent to their parent for a stable 1-level tree, and any row whose parent
-// is itself a reply (a grandchild) is dropped by the assembly - this IS the
-// nesting cap the DB trigger `comments_before_insert` also enforces.
+// nesting cap and the can-reply rule are unit-testable in isolation.
+// The tree is recursive up to MAX_COMMENT_DEPTH; rows nested deeper than the
+// cap are dropped at assembly - the same limit the DB trigger
+// `comments_before_insert` enforces on INSERT.
 import type { CommentWithAuthor } from "./api";
 
-/** Maximum reply depth rendered/allowed. 0 = top level, 1 = one reply level. */
-export const MAX_COMMENT_DEPTH = 1;
+/** Maximum node depth rendered/allowed. 0 = top level, 2 = trzecie piętro. */
+export const MAX_COMMENT_DEPTH = 2;
 
 export interface CommentTreeNode {
   comment: CommentWithAuthor;
-  children: CommentWithAuthor[];
+  children: CommentTreeNode[];
 }
 
 /**
- * Build a one-level tree from a flat, oldest-first comment list. Top-level
- * comments become roots; direct replies become their `children`. Replies to a
- * reply (grandchildren) have no rendered slot and are omitted - the one-level
- * nesting cap.
+ * Build a recursive tree from a flat, oldest-first comment list. Top-level
+ * comments become roots; replies attach under their parents down to
+ * MAX_COMMENT_DEPTH. Anything deeper (or orphaned - parent outside the
+ * fetched window) has no rendered slot and is omitted.
  */
 export function buildCommentTree(rows: CommentWithAuthor[]): CommentTreeNode[] {
   const byParent = new Map<string, CommentWithAuthor[]>();
@@ -32,13 +31,20 @@ export function buildCommentTree(rows: CommentWithAuthor[]): CommentTreeNode[] {
       roots.push(r);
     }
   }
-  return roots.map((c) => ({ comment: c, children: byParent.get(c.id) ?? [] }));
+  const attach = (comment: CommentWithAuthor, depth: number): CommentTreeNode => ({
+    comment,
+    children:
+      depth >= MAX_COMMENT_DEPTH
+        ? []
+        : (byParent.get(comment.id) ?? []).map((child) => attach(child, depth + 1)),
+  });
+  return roots.map((c) => attach(c, 0));
 }
 
 /**
- * A comment accepts replies only at the top level (depth 0) and only while the
- * discussion is open. Depth >= MAX_COMMENT_DEPTH (i.e. an existing reply) is
- * never repliable, which keeps the tree one level deep.
+ * A comment accepts replies while its depth is below the cap and the
+ * discussion is open - a reply lands at depth + 1, so nodes at
+ * MAX_COMMENT_DEPTH are never repliable.
  */
 export function canReplyToComment(depth: number, commentsOpen: boolean): boolean {
   return commentsOpen && depth < MAX_COMMENT_DEPTH;

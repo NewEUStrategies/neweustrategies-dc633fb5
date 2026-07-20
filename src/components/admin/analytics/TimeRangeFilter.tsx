@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-analytics";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { pl, enUS } from "date-fns/locale";
+import { pl, enGB } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -94,7 +94,7 @@ interface TimeRangeFilterProps {
 
 export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterProps) {
   const { t, i18n } = useTranslation();
-  const dfLocale = i18n.language?.toLowerCase().startsWith("en") ? enUS : pl;
+  const dfLocale = i18n.language?.toLowerCase().startsWith("en") ? enGB : pl;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>(() =>
     value.presetId === "custom"

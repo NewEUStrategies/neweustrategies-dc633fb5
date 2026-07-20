@@ -390,7 +390,7 @@ function AwardsSection({
                   {a.issuer && <div className="text-xs text-muted-foreground">{a.issuer}</div>}
                   {a.awarded_at && (
                     <div className="text-xs text-muted-foreground">
-                      {new Date(a.awarded_at).toLocaleDateString(isPl ? "pl-PL" : "en-US", {
+                      {new Date(a.awarded_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
                         year: "numeric",
                         month: "long",
                       })}

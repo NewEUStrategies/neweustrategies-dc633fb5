@@ -11,6 +11,7 @@ import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
 import { useTickerDraft } from "@/lib/views/tickerDraftBridge";
 import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
+import type { AdPageType } from "@/lib/ads/types";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
@@ -38,7 +39,15 @@ export type HeaderSettings = {
 
 type GeneralSettings = { site_name?: string };
 
-function HeaderInner() {
+interface HeaderProps {
+  /**
+   * Typ strony dla banera nagłówka (SiteChrome wylicza go z lokalizacji);
+   * bez niego baner emituje wyłącznie placementy z page_type="all".
+   */
+  adPageType?: AdPageType;
+}
+
+function HeaderInner({ adPageType = "all" }: HeaderProps) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language ?? "pl";
   const isPl = lang.startsWith("pl");
@@ -131,7 +140,7 @@ function HeaderInner() {
           fullWidth={trending.fullWidth ?? true}
         />
       )}
-      <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
+      <AdZone position="header_banner" pageType={adPageType} className="py-2 text-center" />
 
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
       <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
@@ -236,7 +245,7 @@ function HeaderInner() {
   );
 }
 
-export const Header = memo(function Header() {
+export const Header = memo(function Header({ adPageType }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   // Wyjątek: strona główna (PL "/" i EN "/en") ma sticky header.
   // Pozostałe strony: header scrolluje razem ze stroną, a ReadingHeader
@@ -246,13 +255,12 @@ export const Header = memo(function Header() {
     <header
       data-site-header
       className={
-        (isHome ? "sticky top-0 " : "relative ") +
-        "z-40 bg-background border-b border-border"
+        (isHome ? "sticky top-0 " : "relative ") + "z-40 bg-background border-b border-border"
       }
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
-        <HeaderInner />
+        <HeaderInner adPageType={adPageType} />
       </Suspense>
     </header>
   );

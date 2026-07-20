@@ -530,7 +530,7 @@ export function RatedListView({
                     {showAuthor && it.author && showDate && it.date && " · "}
                     {showDate && it.date && (
                       <span>
-                        {new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US")}
+                        {new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
                       </span>
                     )}
                   </p>

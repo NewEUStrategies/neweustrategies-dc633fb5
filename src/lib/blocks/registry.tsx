@@ -162,7 +162,6 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     category: "text",
     create: () => ({ id: newBlockId(), type: "quote", data: { text: "", cite: "" } }),
   },
-  // Stuby - pełne implementacje w kolejnym etapie. Tworzenie blokuje fallback.
   code: {
     type: "code",
     label: "Kod",

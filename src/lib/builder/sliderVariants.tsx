@@ -8,6 +8,7 @@ import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
+import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
 import type { WidgetTypography } from "./types";
@@ -61,8 +62,16 @@ export interface SliderConfig {
   variant?: SliderVariant;
   items: SliderItem[];
   ratio?: "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
+  /** Brak wartości = globalny default karuzeli (Motyw -> Karuzele). */
   autoplay?: boolean;
+  /** Brak wartości = globalny default karuzeli (Motyw -> Karuzele). */
   intervalMs?: number;
+  /** Pauza autoplay przy najechaniu; brak wartości = globalny default. */
+  pauseOnHover?: boolean;
+  /** Zapętlenie autoplay po ostatnim slajdzie; brak wartości = globalny default. */
+  loop?: boolean;
+  /** Czas przejścia ślizgu (ms); brak wartości = globalny default. */
+  speedMs?: number;
   rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   overlayOpacity?: number;
   titleSizePx?: number;
@@ -445,7 +454,7 @@ const SHARED_STYLES = `
 
 
 /* Multi-card carousel track */
-.eh-slider .eh-track { display: flex; gap: 16px; will-change: transform; transition: transform 480ms cubic-bezier(.22,.61,.36,1); }
+.eh-slider .eh-track { display: flex; gap: 16px; will-change: transform; transition: transform var(--eh-speed, 480ms) cubic-bezier(.22,.61,.36,1); }
 .eh-slider .eh-track.is-dragging { transition: none; }
 .eh-slider .eh-card { flex: 0 0 auto; }
 @media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2) !important; } }
@@ -623,10 +632,19 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     })
     .filter((it) => it.image);
 
+  // Globalne defaulty karuzeli (Motyw -> Karuzele): obowiązują wszędzie tam,
+  // gdzie widget nie nadpisał wartości per-slider. Bez wpisu w site_settings
+  // (i podczas SSR przed hydracją) obowiązuje CAROUSEL_DEFAULTS - zachowanie
+  // identyczne z dawnymi stałymi, a autoplay i tak startuje dopiero w efekcie.
+  const { data: globalCarousel } = useCarouselDefaults();
+  const carouselG = globalCarousel ?? CAROUSEL_DEFAULTS;
   const variant: SliderVariant = config.variant ?? "editorial-hero";
   const ratio = config.ratio ?? "4/3";
-  const autoplay = config.autoplay !== false;
-  const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
+  const autoplay = config.autoplay ?? carouselG.autoplay;
+  const intervalMs = Math.max(1500, config.intervalMs ?? carouselG.intervalMs);
+  const pauseOnHover = config.pauseOnHover ?? carouselG.pauseOnHover;
+  const loopSlides = config.loop ?? carouselG.loop;
+  const speedMs = Math.min(3000, Math.max(100, config.speedMs ?? carouselG.speedMs));
   const rounded = radiusMap[config.rounded ?? "md"];
   const overlayOpacity = typeof config.overlayOpacity === "number" ? config.overlayOpacity : 0.45;
   const titleSize = config.typography?.fontSize?.desktop;
@@ -680,11 +698,25 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const columns = Math.max(1, Math.min(4, config.columns ?? 3)) as 1 | 2 | 3 | 4;
   const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
+  // Pauza autoplay pod kursorem (globalny default z możliwością nadpisania);
+  // dotyczy tylko automatu - ręczna nawigacja działa zawsze.
+  const [hovered, setHovered] = useState(false);
   useEffect(() => {
     if (preview || !autoplay || items.length < 2) return;
-    const t = window.setInterval(() => setIdx((i) => (i + 1) % stepCount), intervalMs);
+    if (pauseOnHover && hovered) return;
+    const t = window.setInterval(
+      () =>
+        setIdx((i) => {
+          const next = i + 1;
+          // Bez pętli automat zatrzymuje się na ostatnim kroku; strzałki
+          // i przeciąganie nadal zawijają (standardowe zachowanie sliderów).
+          if (next >= stepCount) return loopSlides ? 0 : i;
+          return next;
+        }),
+      intervalMs,
+    );
     return () => window.clearInterval(t);
-  }, [autoplay, intervalMs, items.length, preview, stepCount]);
+  }, [autoplay, intervalMs, items.length, preview, stepCount, pauseOnHover, hovered, loopSlides]);
 
   const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
     startX: 0,
@@ -812,7 +844,13 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   return (
-    <div ref={rootRef} className="w-full eh-slider">
+    <div
+      ref={rootRef}
+      className="w-full eh-slider"
+      style={{ "--eh-speed": `${speedMs}ms` } as CSSProperties}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <style>{SHARED_STYLES}</style>
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
@@ -1101,8 +1139,8 @@ function MultiCardVariant(p: VariantProps) {
                       {title || "\u00A0"}
                     </h3>
                   )}
-                  {sub && (
-                    href ? (
+                  {sub &&
+                    (href ? (
                       <AppLink href={href} className="block">
                         <p
                           className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
@@ -1118,8 +1156,7 @@ function MultiCardVariant(p: VariantProps) {
                       >
                         {sub}
                       </p>
-                    )
-                  )}
+                    ))}
                   {(it.author || it.readTime) && (
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
                       {it.author && (
@@ -1356,8 +1393,8 @@ function SplitFeatureVariant(p: VariantProps) {
             {title || "\u00A0"}
           </h3>
         )}
-        {sub && (
-          href ? (
+        {sub &&
+          (href ? (
             <AppLink href={href} className="block">
               <p
                 className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
@@ -1373,8 +1410,7 @@ function SplitFeatureVariant(p: VariantProps) {
             >
               {sub}
             </p>
-          )
-        )}
+          ))}
         {(cur.author || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
             {cur.author && (

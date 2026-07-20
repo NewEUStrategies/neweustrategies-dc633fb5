@@ -319,7 +319,7 @@ function CampaignsList() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {c.scheduled_at
-                        ? new Date(c.scheduled_at).toLocaleString(isPl ? "pl-PL" : "en-US")
+                        ? new Date(c.scheduled_at).toLocaleString(isPl ? "pl-PL" : "en-GB")
                         : "-"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.recipient_count}</TableCell>
@@ -330,7 +330,7 @@ function CampaignsList() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(c.created_at).toLocaleString(isPl ? "pl-PL" : "en-US")}
+                      {new Date(c.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
                     </TableCell>
                     <TableCell>
                       {canDelete && (

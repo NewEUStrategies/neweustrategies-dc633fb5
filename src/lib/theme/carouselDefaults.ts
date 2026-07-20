@@ -12,6 +12,8 @@ import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 const CarouselDefaultsSchema = z.object({
   autoplay: z.boolean().default(true),
   intervalMs: z.number().int().min(1000).max(30_000).default(4500),
+  // Zarezerwowane (zapisy historyczne): typ przejścia definiują warianty
+  // sliderów, więc renderer tego pola nie czyta, a panel go nie pokazuje.
   transition: z.enum(["slide", "fade", "zoom"]).default("slide"),
   loop: z.boolean().default(true),
   pauseOnHover: z.boolean().default(true),

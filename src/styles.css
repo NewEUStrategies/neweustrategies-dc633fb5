@@ -2283,6 +2283,124 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 }
 
 /* =========================================================
+   Blok kodu (E5): podświetlanie składni bez zależności.
+   Tokeny z lib/code/highlight; paleta w duchu GitHuba -
+   czytelna, znajoma, z wariantem ciemnym przez .dark.
+   ========================================================= */
+.code-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--muted) 45%, var(--background));
+  margin: 1.25rem 0;
+}
+.code-block-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 70%, var(--background));
+}
+.code-block-lang {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.code-block-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  border-radius: 6px;
+  padding: 0.125rem 0.5rem;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+.code-block-copy:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+.code-block pre {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  overflow-x: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.code-block code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  white-space: pre;
+  background: transparent;
+  padding: 0;
+  color: var(--foreground);
+}
+.code-block .tok-comment {
+  color: #6a737d;
+  font-style: italic;
+}
+.code-block .tok-string {
+  color: #22863a;
+}
+.code-block .tok-keyword {
+  color: #d73a49;
+}
+.code-block .tok-number {
+  color: #005cc5;
+}
+.code-block .tok-property {
+  color: #6f42c1;
+}
+.code-block .tok-variable {
+  color: #e36209;
+}
+.code-block .tok-type {
+  color: #6f42c1;
+}
+.dark .code-block .tok-comment {
+  color: #8b949e;
+}
+.dark .code-block .tok-string {
+  color: #7ee787;
+}
+.dark .code-block .tok-keyword {
+  color: #ff7b72;
+}
+.dark .code-block .tok-number {
+  color: #79c0ff;
+}
+.dark .code-block .tok-property {
+  color: #d2a8ff;
+}
+.dark .code-block .tok-variable {
+  color: #ffa657;
+}
+.dark .code-block .tok-type {
+  color: #d2a8ff;
+}
+@media print {
+  /* Druk: pasek narzędzi zbędny, kod bez ucięcia w poziomie. */
+  .code-block-copy {
+    display: none;
+  }
+  .code-block pre {
+    overflow-x: visible;
+  }
+  .code-block code {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+/* =========================================================
    Profile shell - compact & modern density for /profile/*
    ========================================================= */
 .profile-shell {

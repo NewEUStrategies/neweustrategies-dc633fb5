@@ -3,7 +3,7 @@
 // because these helpers run per bubble / per list row in render paths.
 export type ChatLang = "pl" | "en";
 
-const locale = (lang: ChatLang) => (lang === "en" ? "en-US" : "pl-PL");
+const locale = (lang: ChatLang) => (lang === "en" ? "en-GB" : "pl-PL");
 
 const rtfCache = new Map<string, Intl.RelativeTimeFormat>();
 function relativeFormatter(lang: ChatLang): Intl.RelativeTimeFormat {

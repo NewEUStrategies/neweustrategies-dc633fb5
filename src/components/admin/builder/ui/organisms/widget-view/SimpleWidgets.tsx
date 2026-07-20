@@ -752,8 +752,10 @@ export function renderSimpleWidget(
       const cfg = {
         variant: (getStr(c, "variant") || "classic") as SliderVariant,
         ratio: (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2",
-        autoplay: c.autoplay !== false,
-        intervalMs: getNum(c, "intervalMs", 4500),
+        // Jawna wartość z inspektora wygrywa; brak = globalny default karuzeli
+        // (Motyw -> Karuzele), rozstrzygany w SliderRender.
+        autoplay: typeof c.autoplay === "boolean" ? c.autoplay : undefined,
+        intervalMs: typeof c.intervalMs === "number" ? c.intervalMs : undefined,
         rounded: (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full",
         overlayOpacity: typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45,
         titleSizePx: typeof c.titleSizePx === "number" ? c.titleSizePx : undefined,

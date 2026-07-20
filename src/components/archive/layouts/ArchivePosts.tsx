@@ -1,4 +1,5 @@
 // Post grid renderer respecting settings (columns, list_style).
+import { Fragment } from "react";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { Newspaper } from "@/lib/lucide-shim";
 import type { BlogListItem } from "@/lib/queries/public";
@@ -16,11 +17,14 @@ export function ArchivePosts({
   lang,
   settings,
   emptyText,
+  renderAfterCard,
 }: {
   posts: readonly BlogListItem[];
   lang: "pl" | "en";
   settings: ArchiveLayoutSettings;
   emptyText: string;
+  /** In-feed insert po karcie o danym indeksie (reklamy "co N kart"). */
+  renderAfterCard?: (index: number) => React.ReactNode;
 }) {
   if (posts.length === 0) {
     return (
@@ -33,30 +37,48 @@ export function ArchivePosts({
   if (settings.list_style === "list") {
     return (
       <ul className="divide-y divide-border rounded-xl border border-border bg-card/40 overflow-hidden">
-        {posts.map((p) => (
-          <li key={p.id} className="p-4 hover:bg-muted/30 transition">
-            <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
-          </li>
-        ))}
+        {posts.map((p, idx) => {
+          const after = renderAfterCard?.(idx);
+          return (
+            <Fragment key={p.id}>
+              <li className="p-4 hover:bg-muted/30 transition">
+                <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+              </li>
+              {after && <li className="p-4 flex justify-center bg-muted/10">{after}</li>}
+            </Fragment>
+          );
+        })}
       </ul>
     );
   }
   if (settings.list_style === "masonry") {
     return (
       <div className="columns-1 md:columns-2 lg:columns-3 gap-6 [column-fill:_balance]">
-        {posts.map((p) => (
-          <div key={p.id} className="break-inside-avoid mb-6">
-            <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
-          </div>
-        ))}
+        {posts.map((p, idx) => {
+          const after = renderAfterCard?.(idx);
+          return (
+            <Fragment key={p.id}>
+              <div className="break-inside-avoid mb-6">
+                <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+              </div>
+              {after && <div className="break-inside-avoid mb-6 flex justify-center">{after}</div>}
+            </Fragment>
+          );
+        })}
       </div>
     );
   }
   return (
     <div className={`grid gap-6 ${COL_CLASS[settings.columns]}`}>
-      {posts.map((p) => (
-        <PostListCard key={p.id} post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
-      ))}
+      {posts.map((p, idx) => {
+        const after = renderAfterCard?.(idx);
+        return (
+          <Fragment key={p.id}>
+            <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+            {after && <div className="col-span-full flex justify-center py-2">{after}</div>}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

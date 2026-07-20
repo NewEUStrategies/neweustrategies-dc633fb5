@@ -115,7 +115,7 @@ function Row({
   busy: boolean;
 }) {
   const { t } = useTranslation();
-  const when = new Date(r.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-US");
+  const when = new Date(r.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB");
   const title = (lang === "pl" ? r.post?.title_pl : r.post?.title_en) ?? r.post?.slug ?? "—";
   const variant: Record<CommentStatus, "default" | "secondary" | "destructive" | "outline"> = {
     pending: "outline",
@@ -126,7 +126,14 @@ function Row({
   return (
     <li className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-        <span className="font-medium">{r.author?.display_name ?? "—"}</span>
+        <span className="font-medium">
+          {r.author?.display_name ?? r.author_name ?? "-"}
+          {!r.user_id && r.author_name && (
+            <span className="ml-1 font-normal text-xs text-muted-foreground">
+              ({t("adminComments.guest", { defaultValue: "gość" })})
+            </span>
+          )}
+        </span>
         <time className="text-xs text-muted-foreground" dateTime={r.created_at}>
           {when}
         </time>

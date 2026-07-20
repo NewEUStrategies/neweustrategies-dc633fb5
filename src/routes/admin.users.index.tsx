@@ -485,7 +485,7 @@ function Users() {
     }
   };
 
-  const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
+  const locale = i18n.language === "pl" ? "pl-PL" : "en-GB";
 
   const clearFilters = () => {
     setSearch("");

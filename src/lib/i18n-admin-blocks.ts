@@ -292,6 +292,8 @@ const pl = {
       code: {
         charCount: "{{n}} znaków",
         codePh: "// kod…",
+        highlightOn: "Podświetlanie składni aktywne",
+        highlightOff: "Język bez gramatyki - kod bez kolorów",
       },
       buttons: {
         shellLabel: "Przyciski",
@@ -904,6 +906,8 @@ const en: typeof pl = {
       code: {
         charCount: "{{n}} chars",
         codePh: "// code…",
+        highlightOn: "Syntax highlighting active",
+        highlightOff: "No grammar for this language - plain code",
       },
       buttons: {
         shellLabel: "Buttons",

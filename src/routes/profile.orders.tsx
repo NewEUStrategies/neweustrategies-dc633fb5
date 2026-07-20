@@ -29,7 +29,7 @@ function OrdersPage() {
   });
 
   const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-US" : "pl-PL", {
+    new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-GB" : "pl-PL", {
       year: "numeric",
       month: "short",
       day: "numeric",

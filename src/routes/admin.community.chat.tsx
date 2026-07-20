@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { pl as plLocale, enUS } from "date-fns/locale";
+import { pl as plLocale, enGB } from "date-fns/locale";
 import { MessageCircle, Trash2, EyeOff, RefreshCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/admin/community/chat")({
 function AdminCommunityChat() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? plLocale : enUS;
+  const locale = isPl ? plLocale : enGB;
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<ConversationListItem | null>(null);

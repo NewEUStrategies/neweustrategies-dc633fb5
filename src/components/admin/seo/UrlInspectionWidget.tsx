@@ -242,7 +242,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
           {idx?.lastCrawlTime ? (
             <p className="text-[10px] text-muted-foreground">
               {t("admin.seo.gsc.lastCrawl", { defaultValue: "Ostatni crawl" })}:{" "}
-              {new Date(idx.lastCrawlTime).toLocaleString(lang === "en" ? "en-US" : "pl-PL")}
+              {new Date(idx.lastCrawlTime).toLocaleString(lang === "en" ? "en-GB" : "pl-PL")}
             </p>
           ) : null}
         </div>

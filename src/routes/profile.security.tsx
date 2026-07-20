@@ -380,7 +380,7 @@ function SecurityPage() {
               :{" "}
               <span className="font-medium text-foreground">
                 {user?.last_sign_in_at
-                  ? new Date(user.last_sign_in_at).toLocaleString(isPl ? "pl-PL" : "en-US")
+                  ? new Date(user.last_sign_in_at).toLocaleString(isPl ? "pl-PL" : "en-GB")
                   : "-"}
               </span>
             </p>
@@ -445,7 +445,7 @@ function SecurityPage() {
                         <span className="text-xs text-muted-foreground">
                           {t("profile.security.mfa.addedOn", {
                             date: new Date(f.created_at).toLocaleDateString(
-                              isPl ? "pl-PL" : "en-US",
+                              isPl ? "pl-PL" : "en-GB",
                             ),
                           })}
                         </span>

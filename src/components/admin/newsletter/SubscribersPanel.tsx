@@ -178,7 +178,7 @@ export function SubscribersPanel() {
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
           {t("adminNewsletter.subscribers.capWarning", {
             count: SUBSCRIBER_FETCH_CAP.toLocaleString(
-              i18n.language?.startsWith("en") ? "en-US" : "pl-PL",
+              i18n.language?.startsWith("en") ? "en-GB" : "pl-PL",
             ),
           })}
         </div>

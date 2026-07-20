@@ -33,7 +33,7 @@ const CATEGORY_ORDER: readonly ConsentCategory[] = [
 
 function fmt(iso: string | null | undefined, lang: Lang): string {
   if (!iso) return "-";
-  return new Date(iso).toLocaleString(lang === "en" ? "en-US" : "pl-PL", {
+  return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
     dateStyle: "medium",
     timeStyle: "short",
   });
