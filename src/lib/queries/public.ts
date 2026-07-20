@@ -295,6 +295,19 @@ export const homePageQueryOptions = () =>
 // the first, cheap page; bigger limits are requested client-side only.
 export const BLOG_PAGE_SIZE = 50;
 
+/**
+ * Rozmiar strony list wpisów z ustawień czytania (admin: Ustawienia ->
+ * Czytanie -> "Wpisów na stronę"). Twarde widełki 1..100 jak w formularzu;
+ * brak/uszkodzony wpis = dotychczasowy default (BLOG_PAGE_SIZE), więc serwisy,
+ * które nigdy nie zapisały ustawienia, nie zmieniają zachowania.
+ */
+export function resolvePostsPerPage(settings: Record<string, unknown> | undefined): number {
+  const reading = settings?.["reading"];
+  if (typeof reading !== "object" || reading === null) return BLOG_PAGE_SIZE;
+  const n = Number((reading as { posts_per_page?: unknown }).posts_per_page);
+  return Number.isFinite(n) && n >= 1 ? Math.min(100, Math.round(n)) : BLOG_PAGE_SIZE;
+}
+
 export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
   queryOptions({
     queryKey: ["public", "blog", "list", { limit }] as const,

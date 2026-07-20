@@ -11,8 +11,10 @@ import { parseBuilderDoc } from "@/lib/builder/parse";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import {
   blogListQueryOptions,
+  BLOG_PAGE_SIZE,
   homePageQueryOptions,
   homepageModeQueryOptions,
+  resolvePostsPerPage,
   type PageData,
 } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -136,13 +138,25 @@ export const Route = createFileRoute("/")({
     }
 
     // "Najnowsze wpisy" jako strona główna: dotąd opcja z ustawień czytania nie
-    // była honorowana - trasa zawsze renderowała stronę statyczną.
+    // była honorowana - trasa zawsze renderowała stronę statyczną. Rozmiar
+    // listy honoruje posts_per_page z tych samych ustawień (klucz zapytania
+    // musi być zgodny z komponentem, także w ścieżce degradacji).
     if (homeMode === "latest_posts") {
+      let pageSize = BLOG_PAGE_SIZE;
       try {
-        await queryClient.ensureQueryData(blogListQueryOptions());
+        pageSize = resolvePostsPerPage(await queryClient.ensureQueryData(siteSettingsQueryOptions));
+      } catch {
+        // Ustawienia niedostępne - komponent policzy to samo z pustej mapy.
+      }
+      try {
+        await queryClient.ensureQueryData(blogListQueryOptions(pageSize));
       } catch {
         degraded = true;
-        queryClient.setQueryData(blogListQueryOptions().queryKey, { posts: [] }, { updatedAt: 0 });
+        queryClient.setQueryData(
+          blogListQueryOptions(pageSize).queryKey,
+          { posts: [] },
+          { updatedAt: 0 },
+        );
       }
     }
     // Settle every data-bound widget query BEFORE the router dehydrates - the
@@ -303,9 +317,11 @@ function Index() {
 }
 
 function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
+  // Ten sam odczyt posts_per_page co loader - zgodny klucz zapytania.
+  const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const {
     data: { posts },
-  } = useSuspenseQuery(blogListQueryOptions());
+  } = useSuspenseQuery(blogListQueryOptions(resolvePostsPerPage(settingsMap)));
   // Strona główna w trybie "najnowsze wpisy" honoruje placementy in_feed
   // zadeklarowane dla typu "Strona główna" (dotąd emitowały się tylko na /blog).
   const inFeed = useInFeedAds("home");

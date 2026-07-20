@@ -10,15 +10,21 @@ import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { Button } from "@/components/ui/button";
 import { PostListCard } from "@/components/molecules/PostListCard";
-import { blogListQueryOptions, BLOG_PAGE_SIZE } from "@/lib/queries/public";
+import { blogListQueryOptions, resolvePostsPerPage } from "@/lib/queries/public";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/blog/")({
-  // SSR prefetches only the first page (default limit); "load more" pages are
-  // fetched client-side through the same query options with a bigger limit.
-  loader: ({ context }) => context.queryClient.ensureQueryData(blogListQueryOptions()),
+  // SSR prefetches only the first page; "load more" pages are fetched
+  // client-side through the same query options with a bigger limit. Rozmiar
+  // strony honoruje ustawienie czytania (posts_per_page) - ustawienia są już
+  // ciepłe z root loadera, więc to odczyt z cache, nie dodatkowy fetch.
+  loader: async ({ context }) => {
+    const settings = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    await context.queryClient.ensureQueryData(blogListQueryOptions(resolvePostsPerPage(settings)));
+  },
 
   head: () => {
     const url = getRequestUrl() || "/blog";
@@ -45,10 +51,14 @@ export const Route = createFileRoute("/blog/")({
 });
 
 function BlogIndex() {
+  // Rozmiar strony z ustawień czytania (ten sam odczyt co loader - klucz
+  // zapytania musi się zgadzać, inaczej hydracja robiłaby drugi fetch).
+  const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
+  const pageSize = resolvePostsPerPage(settingsMap);
   // "Load more" grows the limit; useSuspenseQuery re-suspends on the new key,
   // so the bump runs inside a transition - React keeps the current grid on
   // screen (no blank fallback) and isPending drives the button spinner state.
-  const [limit, setLimit] = useState(BLOG_PAGE_SIZE);
+  const [limit, setLimit] = useState(pageSize);
   const [isPending, startTransition] = useTransition();
   const {
     data: { posts },
@@ -102,7 +112,7 @@ function BlogIndex() {
             <Button
               variant="outline"
               disabled={isPending}
-              onClick={() => startTransition(() => setLimit((n) => n + BLOG_PAGE_SIZE))}
+              onClick={() => startTransition(() => setLimit((n) => n + pageSize))}
             >
               {isPending
                 ? t("common.loading", {

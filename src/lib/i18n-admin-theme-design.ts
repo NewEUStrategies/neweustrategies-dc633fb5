@@ -86,7 +86,6 @@ const pl = {
       opacity: "Przezroczystość (0 - 1)",
       slideTime: "Czas slajdu (ms)",
       transitionTime: "Czas przejścia (ms)",
-      transitionType: "Typ przejścia",
     },
     opt: {
       none: "Brak",
@@ -246,7 +245,6 @@ const en = {
       opacity: "Opacity (0 - 1)",
       slideTime: "Slide time (ms)",
       transitionTime: "Transition time (ms)",
-      transitionType: "Transition type",
     },
     opt: {
       none: "None",

@@ -14,8 +14,11 @@ function SettingsLayout() {
     { to: "/admin/settings/design", label: t("admin.settingsNav.design") },
     { to: "/admin/settings/reading", label: t("admin.settingsNav.reading") },
     { to: "/admin/settings/discussion", label: t("admin.settingsNav.discussion") },
-    { to: "/admin/settings/media", label: t("admin.settingsNav.media") },
-    { to: "/admin/settings/permalinks", label: t("admin.settingsNav.permalinks") },
+    // Dawne "Media" (WP-owe rozmiary thumbnail/medium/large) i "Bezpośrednie
+    // odnośniki" zapisywały wartości, których nic nie czytało - usunięte po
+    // audycie. Realne rozmiary wariantów obrazów żyją w /admin/crop-sizes
+    // (custom_crop_sizes + srcSet), stąd link w tym miejscu nawigacji.
+    { to: "/admin/crop-sizes", label: t("admin.settingsNav.cropSizes") },
     { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
     { to: "/admin/settings/privacy", label: t("admin.settingsNav.privacy") },
     {
