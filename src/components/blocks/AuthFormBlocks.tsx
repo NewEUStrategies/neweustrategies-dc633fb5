@@ -4,7 +4,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import "@/lib/i18n-public";
 import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
@@ -115,6 +117,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
     [t],
   );
 
+  const runPreAuthGuard = useServerFn(preAuthGuard);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -123,6 +126,19 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
     }
     setBusy(true);
     try {
+      try {
+        await runPreAuthGuard({ data: { kind: "login", email } });
+      } catch (guardErr) {
+        const msg = guardErr instanceof Error ? guardErr.message : "";
+        if (msg.includes("rate_limited")) {
+          throw new Error(
+            t("auth.rateLimited", {
+              defaultValue: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
+            }),
+          );
+        }
+        throw guardErr;
+      }
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       toast.success(L.ok);
@@ -444,11 +460,25 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
     success: t("authForms.resetSuccess"),
   };
 
+  const runPreAuthGuard = useServerFn(preAuthGuard);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email) return;
     setBusy(true);
     try {
+      try {
+        await runPreAuthGuard({ data: { kind: "reset", email } });
+      } catch (guardErr) {
+        const msg = guardErr instanceof Error ? guardErr.message : "";
+        if (msg.includes("rate_limited")) {
+          throw new Error(
+            t("auth.rateLimited", {
+              defaultValue: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
+            }),
+          );
+        }
+        throw guardErr;
+      }
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}${redirectTo}`,
       });

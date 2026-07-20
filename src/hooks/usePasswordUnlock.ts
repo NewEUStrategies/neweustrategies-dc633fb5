@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { unlockContentPassword } from "@/lib/auth/bruteforce.functions";
 import type { BodyParts } from "@/lib/access/gating";
 
 type EntityType = "post" | "page";
@@ -23,40 +24,46 @@ export function usePasswordUnlock(
   const [body, setBody] = useState<BodyParts | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const runUnlock = useServerFn(unlockContentPassword);
 
   const verify = useCallback(
     async (password: string): Promise<boolean> => {
       if (!entityId) return false;
       setLoading(true);
       setError(null);
-      const { data, error: rpcErr } = await supabase.rpc("verify_content_password", {
-        _entity_type: entityType,
-        _entity_id: entityId,
-        _password: password,
-      });
-      setLoading(false);
-      const row = Array.isArray(data) ? data[0] : null;
-      if (rpcErr || !row || !row.ok) {
-        setError("invalid");
+      try {
+        const row = await runUnlock({
+          data: { entityType, entityId, password },
+        });
+        setLoading(false);
+        if (!row || row.ok !== true) {
+          setError("invalid");
+          return false;
+        }
+        setBody({
+          content_pl: row.content_pl ?? null,
+          content_en: row.content_en ?? null,
+          builder_data: (row.builder_data ?? null) as BodyParts["builder_data"],
+          blocks_data: (row.blocks_data ?? null) as BodyParts["blocks_data"],
+        });
+        if (storageKey && typeof window !== "undefined") {
+          try {
+            window.sessionStorage.setItem(storageKey, password);
+          } catch {
+            /* quota / privacy mode - ignore */
+          }
+        }
+        return true;
+      } catch (e) {
+        setLoading(false);
+        const msg = e instanceof Error ? e.message : "";
+        setError(msg.includes("rate_limited") ? "rate_limited" : "invalid");
         return false;
       }
-      setBody({
-        content_pl: row.content_pl ?? null,
-        content_en: row.content_en ?? null,
-        builder_data: row.builder_data ?? null,
-        blocks_data: row.blocks_data ?? null,
-      });
-      if (storageKey && typeof window !== "undefined") {
-        try {
-          window.sessionStorage.setItem(storageKey, password);
-        } catch {
-          /* quota / privacy mode - ignore */
-        }
-      }
-      return true;
     },
-    [entityType, entityId, storageKey],
+    [entityType, entityId, storageKey, runUnlock],
   );
+
 
   const clear = useCallback(() => {
     setBody(null);

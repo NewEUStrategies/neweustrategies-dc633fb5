@@ -9702,6 +9702,19 @@ export type Database = {
       prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
+      rate_limit_hit: {
+        Args: {
+          _max: number
+          _scope: string
+          _subject: string
+          _window_minutes?: number
+        }
+        Returns: {
+          allowed: boolean
+          hits: number
+          window_start: string
+        }[]
+      }
       recompute_crm_lead_score: { Args: { p_lead_id: string }; Returns: Json }
       recompute_crm_lead_scores: {
         Args: { p_after_id?: string; p_limit?: number }
@@ -9974,6 +9987,7 @@ export type Database = {
         Args: {
           _entity_id: string
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_hash?: string
           _password: string
         }
         Returns: {
