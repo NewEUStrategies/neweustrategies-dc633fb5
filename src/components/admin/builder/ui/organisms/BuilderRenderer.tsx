@@ -605,7 +605,7 @@ const RenderSection = memo(function RenderSection({
             ) : (
               visibleCols.map((c) => {
                 const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
-                const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
+                const gridColumn = device === "mobile" ? "auto" : `span ${span}`;
                 const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
                 return (
                   <div
