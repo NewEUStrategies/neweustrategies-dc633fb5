@@ -10,6 +10,7 @@ export type AuditAction =
   | "post.create"
   | "post.update"
   | "post.delete"
+  | "post.duplicate"
   | "post.publish"
   | "post.schedule"
   | "post.review.submit"
