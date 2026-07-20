@@ -129,6 +129,15 @@ const pl = {
       add: "Dodaj wpis",
       delete: "Usuń wpis",
     },
+    translate: {
+      title: "Tłumaczenie AI PL -> EN",
+      hint: "Szkic tłumaczenia całego wpisu (tytuł, zajawka, takeaways, SEO, treść). Wynik trafia do formularza - zweryfikuj i zapisz.",
+      overwriteWarning:
+        "Wpis ma już treść EN - tłumaczenie nadpisze ją w formularzu (do czasu zapisu nic nie ginie).",
+      run: "Przetłumacz na angielski",
+      working: "Tłumaczę…",
+      done: "Szkic tłumaczenia gotowy - zweryfikuj pola EN przed zapisem",
+    },
   },
 };
 
@@ -258,6 +267,15 @@ const en = {
       noteEnPlaceholder: "English text (optional)",
       add: "Add entry",
       delete: "Delete entry",
+    },
+    translate: {
+      title: "AI translation PL -> EN",
+      hint: "Draft translation of the whole post (title, excerpt, takeaways, SEO, body). The result lands in the form - review and save.",
+      overwriteWarning:
+        "This post already has EN content - the translation will overwrite it in the form (nothing is lost until you save).",
+      run: "Translate to English",
+      working: "Translating…",
+      done: "Draft translation ready - review the EN fields before saving",
     },
   },
 };

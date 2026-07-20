@@ -49,10 +49,11 @@ import {
   Link as LinkIconLucide,
   Mic,
 } from "@/lib/lucide-shim";
-import { History, Database, ListChecks } from "lucide-react";
+import { History, Database, ListChecks, Languages } from "lucide-react";
 import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
 import { PublishChecklistCard } from "@/components/admin/post-editor/PublishChecklistCard";
 import { ChangelogCard } from "@/components/admin/post-editor/ChangelogCard";
+import { TranslateCard } from "@/components/admin/post-editor/TranslateCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
@@ -710,6 +711,52 @@ function EditPost() {
     />
   );
 
+  const translateCard = (
+    <SidebarSection
+      title={t("adminPostPanes.translate.title")}
+      icon={Languages}
+      defaultOpen={false}
+    >
+      <TranslateCard
+        source={{
+          title_pl: form.title_pl,
+          excerpt_pl: form.excerpt_pl,
+          takeaways_pl: form.takeaways_pl,
+          seo_title_pl: form.seo_title_pl,
+          seo_description_pl: form.seo_description_pl,
+          content_pl:
+            form.editor === "richtext" || form.editor === "markdown" ? form.content_pl : null,
+          blocks_pl: form.editor === "blocks" ? (form.blocks_data?.pl?.blocks ?? null) : null,
+        }}
+        hasEnContent={!!form.title_en.trim() || (form.blocks_data?.en?.blocks?.length ?? 0) > 0}
+        onTranslated={(result) => {
+          // Szkic tłumaczenia wchodzi do formularza jedną zmianą (undo cofa
+          // całość). Dokument bloków EN tylko dla edytora blokowego.
+          history.set((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              title_en: result.title_en || prev.title_en,
+              excerpt_en: result.excerpt_en ?? prev.excerpt_en,
+              takeaways_en:
+                result.takeaways_en.length > 0 ? result.takeaways_en : prev.takeaways_en,
+              seo_title_en: result.seo_title_en ?? prev.seo_title_en,
+              seo_description_en: result.seo_description_en ?? prev.seo_description_en,
+              content_en: result.content_en ?? prev.content_en,
+              blocks_data:
+                prev.editor === "blocks" && result.blocks_en
+                  ? {
+                      pl: prev.blocks_data?.pl ?? { version: 1, blocks: [] },
+                      en: { version: 1, blocks: result.blocks_en },
+                    }
+                  : prev.blocks_data,
+            };
+          });
+        }}
+      />
+    </SidebarSection>
+  );
+
   const changelogCard = (
     <SidebarSection title={t("adminPostPanes.changelog.title")} icon={History} defaultOpen={false}>
       <ChangelogCard postId={id} />
@@ -1288,6 +1335,7 @@ function EditPost() {
                       <div className="space-y-4">
                         {checklistCard}
                         {metaCard}
+                        {translateCard}
                         {changelogCard}
                       </div>
                     )}
@@ -1411,6 +1459,7 @@ function EditPost() {
                   <div className="space-y-4">
                     {checklistCard}
                     {metaCard}
+                    {translateCard}
                     {changelogCard}
                     {layoutCard}
                     {catsCard}
