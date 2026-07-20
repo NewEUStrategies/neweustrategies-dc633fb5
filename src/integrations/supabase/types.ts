@@ -888,6 +888,7 @@ export type Database = {
           path: string | null
           source: string | null
           stack: string | null
+          tenant_id: string
         }
         Insert: {
           created_at?: string
@@ -897,6 +898,7 @@ export type Database = {
           path?: string | null
           source?: string | null
           stack?: string | null
+          tenant_id?: string
         }
         Update: {
           created_at?: string
@@ -906,8 +908,17 @@ export type Database = {
           path?: string | null
           source?: string | null
           stack?: string | null
+          tenant_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_errors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       command_idempotency: {
         Row: {
