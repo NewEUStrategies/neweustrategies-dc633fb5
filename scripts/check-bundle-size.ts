@@ -46,9 +46,13 @@ const CLIENT_DIR =
 // od nowego poziomu; dalsza redukcja (docelowo znów ~250/1000/1300) to osobna
 // praca: split locale'i PL/EN, odchudzenie eager-owego zestawu widgetów
 // chrome, wydzielenie @tanstack z entry.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~330KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1420); // gzipped JS a public visitor can load (today: ~1395KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2400); // gzipped JS incl. admin/editor-only chunks (today: ~2358KB)
+// 2026-07-20 (2): po incydencie martwej hydratacji vendor-radix wraca jako
+// bezpieczny split (pełne domknięcie zależności + hoistTransitiveImports:false,
+// acykliczność pilnowana przez scripts/check-chunk-graph.ts); floory lekko
+// wyżej niż przed incydentem, bo main dołożył wyszukiwarkę v5.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~334KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1440); // gzipped JS a public visitor can load (today: ~1410KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2420); // gzipped JS incl. admin/editor-only chunks (today: ~2375KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

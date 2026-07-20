@@ -48,6 +48,9 @@ import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import type { HeaderSettings } from "../components/Header";
+import type { BuilderDocument } from "../lib/builder/types";
+import { defaultDocFor } from "../lib/builder/chromeDefaults";
+import { prefetchCachedRouteQueries } from "../lib/builder/prefetch";
 import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
@@ -251,11 +254,41 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         const header = resolveSetting<HeaderSettings>(settings, "header", {});
         const trending = resolveActiveTickerConfig(header.trending);
         const headerVisible = !!header.builder_data?.sections?.length;
-        if (headerVisible && trending.enabled !== false) {
-          await context.queryClient.ensureQueryData(headerTickerQueryOptions(trending));
+        const tickerWarm =
+          headerVisible && trending.enabled !== false
+            ? context.queryClient
+                .ensureQueryData(headerTickerQueryOptions(trending))
+                .catch(() => undefined)
+            : Promise.resolve();
+        // Nawigacja i pozostałe data-bound widgety CHROME (header + footer to
+        // pełnoprawne dokumenty buildera): bez tego SSR renderował fallback
+        // "Menu jest puste..." mimo skonfigurowanego menu, a prawdziwe menu
+        // wskakiwało dopiero po hydratacji + fetchu - najdłużej widoczny i
+        // najbardziej rażący brak na każdej stronie. Zapytania stoją za
+        // per-isolate cache (menu: 60 s TTL w getMenuWithItems), więc w
+        // stanie ustalonym nie dokładają round-tripów; budżet twardo ogranicza
+        // koszt zimnego renderu, a fallbackiem pozostaje fetch kliencki.
+        const lang = currentLang();
+        const footer = resolveSetting<{ builder_data?: BuilderDocument | null }>(
+          settings,
+          "footer",
+          {},
+        );
+        const footerDoc = footer.builder_data?.sections?.length
+          ? footer.builder_data
+          : defaultDocFor("footer");
+        const chromeWarm: Promise<unknown>[] = [tickerWarm];
+        if (headerVisible && header.builder_data) {
+          chromeWarm.push(
+            prefetchCachedRouteQueries(context.queryClient, header.builder_data, lang, 2500),
+          );
         }
+        if (footerDoc?.sections?.length) {
+          chromeWarm.push(prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, 2500));
+        }
+        await Promise.allSettled(chromeWarm);
       } catch {
-        /* ticker is non-critical decoration - never let it block the site */
+        /* chrome warm-up is best-effort decoration - never let it block the site */
       }
     }
     // Nothing reads the root loader's data - return null so the settings map is

@@ -7,6 +7,7 @@
 //   user-scoped kliencie (RLS filtruje po tenant_id menu, więc dane innych
 //   tenantów są nietykalne).
 import { createServerFn } from "@tanstack/react-start";
+import { edgeTtlCache } from "@/lib/ssrCache";
 import { createClient } from "@supabase/supabase-js";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -50,45 +51,55 @@ const getMenuInputSchema = z.object({ key: z.string().min(1).max(64) });
 export const getMenuWithItems = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => getMenuInputSchema.parse(input))
   .handler(async ({ data }): Promise<MenuWithItems | null> => {
-    const supabase = serverPublicClient();
-    const { data: menu, error: menuErr } = await supabase
-      .from("menus")
-      .select("id, key, name")
-      .eq("key", data.key)
-      .maybeSingle();
-    if (menuErr || !menu) {
-      if (menuErr) console.error("[getMenuWithItems]", menuErr.message);
-      return null;
-    }
-    const { data: items, error: itemsErr } = await supabase
-      .from("menu_items")
-      .select(
-        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config",
-      )
-      .eq("menu_id", menu.id)
-      .order("position");
-    if (itemsErr) {
-      console.error("[getMenuWithItems items]", itemsErr.message);
-      return { id: menu.id, key: menu.key, name: menu.name, items: [] };
-    }
-    const normalized: MenuItemRow[] = (items ?? []).map((row) => ({
-      id: row.id as string,
-      menu_id: row.menu_id as string,
-      parent_id: (row.parent_id as string | null) ?? null,
-      position: (row.position as number) ?? 0,
-      item_type: row.item_type as MenuItemType,
-      ref_id: (row.ref_id as string | null) ?? null,
-      label_pl: (row.label_pl as string) ?? "",
-      label_en: (row.label_en as string) ?? "",
-      href: (row.href as string) ?? "",
-      target: (row.target as string) ?? "_self",
-      css_class: (row.css_class as string) ?? "",
-      icon: ((row as { icon?: string | null }).icon as string | null) ?? "",
-      mega_enabled: Boolean(row.mega_enabled),
-      mega_config: parseMegaConfig(row.mega_config),
-    }));
-    return { id: menu.id, key: menu.key, name: menu.name, items: normalized };
+    // Per-isolate TTL cache (wzorzec jak tenant-directory/ticker): menu jest
+    // od 2026-07-20 grzane w loaderze ROOTA na każdej trasie z chrome (SSR
+    // renderuje nawigację od pierwszego bajtu zamiast fallbacku "Menu jest
+    // puste"), więc bez cache każdy request płaciłby 2 sekwencyjne
+    // round-tripy do bazy. 60 s świeżości = zmiany menu w adminie widoczne
+    // niemal od razu, a w stanie ustalonym koszt to zero dodatkowych zapytań.
+    return edgeTtlCache(`menu-with-items:${data.key}`, 60_000, () => fetchMenuWithItems(data.key));
   });
+
+async function fetchMenuWithItems(key: string): Promise<MenuWithItems | null> {
+  const supabase = serverPublicClient();
+  const { data: menu, error: menuErr } = await supabase
+    .from("menus")
+    .select("id, key, name")
+    .eq("key", key)
+    .maybeSingle();
+  if (menuErr || !menu) {
+    if (menuErr) console.error("[getMenuWithItems]", menuErr.message);
+    return null;
+  }
+  const { data: items, error: itemsErr } = await supabase
+    .from("menu_items")
+    .select(
+      "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config",
+    )
+    .eq("menu_id", menu.id)
+    .order("position");
+  if (itemsErr) {
+    console.error("[getMenuWithItems items]", itemsErr.message);
+    return { id: menu.id, key: menu.key, name: menu.name, items: [] };
+  }
+  const normalized: MenuItemRow[] = (items ?? []).map((row) => ({
+    id: row.id as string,
+    menu_id: row.menu_id as string,
+    parent_id: (row.parent_id as string | null) ?? null,
+    position: (row.position as number) ?? 0,
+    item_type: row.item_type as MenuItemType,
+    ref_id: (row.ref_id as string | null) ?? null,
+    label_pl: (row.label_pl as string) ?? "",
+    label_en: (row.label_en as string) ?? "",
+    href: (row.href as string) ?? "",
+    target: (row.target as string) ?? "_self",
+    css_class: (row.css_class as string) ?? "",
+    icon: ((row as { icon?: string | null }).icon as string | null) ?? "",
+    mega_enabled: Boolean(row.mega_enabled),
+    mega_config: parseMegaConfig(row.mega_config),
+  }));
+  return { id: menu.id, key: menu.key, name: menu.name, items: normalized };
+}
 
 export const saveMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

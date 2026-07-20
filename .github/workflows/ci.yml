@@ -69,6 +69,13 @@ jobs:
       - name: Bundle size budget
         run: bun run check:bundle
 
+      # Blocking boot-safety gate: fails on any import cycle between built
+      # client chunks. A cyclic chunk graph broke module init order in prod
+      # (2026-07-20: dead hydration on every page - full SSR visuals, zero
+      # interactivity) and is invisible to dev mode and unit tests.
+      - name: Chunk graph acyclicity
+        run: bun run check:chunks
+
       # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
       # all remaining ESLint errors were fixed, so lint now gates merges like
       # typecheck and tests.
