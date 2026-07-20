@@ -252,8 +252,12 @@ export interface SearchFilters {
   dateTo?: string;
   /** Legacy pojedyncza kategoria (pushdown _category) - zachowana kompatybilnie. */
   categoryId?: string;
-  /** Id termów kontrolowanej taksonomii (AND, z ekspansją hierarchii). */
+  /** Id termów kontrolowanej taksonomii (AND, z ekspansją hierarchii).
+   *  Legacy - nowy kod używa termGroups (multi-select). */
   terms?: string[];
+  /** Multi-select: grupa termów per wymiar - OR wewnątrz grupy (z ekspansją
+   *  hierarchii), AND między grupami. Mapowane na _term_groups jsonb w RPC. */
+  termGroups?: Partial<Record<TaxonomyDim, string[]>>;
   /** post_format (standard / video / audio / gallery). */
   format?: string;
   /** Wariant językowy dostępny dla wpisu. */
@@ -300,6 +304,21 @@ export interface SearchResult {
 const sortedTerms = (terms?: string[]): string[] | undefined =>
   terms && terms.length > 0 ? [...terms].sort() : undefined;
 
+/** Normalizuje grupy termów: stała kolejność wymiarów + posortowane wartości.
+ *  Jedna postać służy i kluczowi cache, i argumentowi _term_groups (CSV per
+ *  wymiar). Zwraca undefined, gdy żadna grupa nie jest aktywna. */
+function normalizedTermGroups(
+  groups?: SearchFilters["termGroups"],
+): Record<string, string> | undefined {
+  if (!groups) return undefined;
+  const out: Record<string, string> = {};
+  for (const dim of TAXONOMY_DIMS) {
+    const vals = groups[dim];
+    if (vals && vals.length > 0) out[dim] = [...vals].sort().join(",");
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** Wyszukiwanie przeglądowe działa też bez frazy (>=2 znaki), o ile jest
  *  aktywny którykolwiek filtr - inaczej pokazalibyśmy całe archiwum od zera. */
 function hasActiveFilter(f: SearchFilters): boolean {
@@ -311,7 +330,8 @@ function hasActiveFilter(f: SearchFilters): boolean {
     !!f.format ||
     !!f.lang ||
     !!f.access ||
-    (f.terms?.length ?? 0) > 0
+    (f.terms?.length ?? 0) > 0 ||
+    normalizedTermGroups(f.termGroups) !== undefined
   );
 }
 
@@ -331,6 +351,7 @@ function rpcFilterArgs(filters: SearchFilters) {
     _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
     _category: filters.categoryId ?? undefined,
     _terms: sortedTerms(filters.terms),
+    _term_groups: normalizedTermGroups(filters.termGroups),
     _format: filters.format ?? undefined,
     _lang: filters.lang ?? undefined,
     _access: filters.access ?? undefined,
@@ -356,7 +377,11 @@ export const searchQueryOptions = (
     queryKey: [
       "public",
       "search",
-      { ...filters, terms: sortedTerms(filters.terms) },
+      {
+        ...filters,
+        terms: sortedTerms(filters.terms),
+        termGroups: normalizedTermGroups(filters.termGroups),
+      },
       { limit },
     ] as const,
     enabled: opts?.browse ? true : searchEnabled(filters),

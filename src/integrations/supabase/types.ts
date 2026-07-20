@@ -10394,6 +10394,7 @@ export type Database = {
           _lang?: string
           _match?: string
           _q?: string
+          _term_groups?: Json
           _terms?: string[]
         }
         Returns: {
@@ -10476,6 +10477,7 @@ export type Database = {
           _match?: string
           _q?: string
           _sort?: string
+          _term_groups?: Json
           _terms?: string[]
         }
         Returns: {

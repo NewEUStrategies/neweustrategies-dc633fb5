@@ -54,11 +54,9 @@ export function ActiveFilterChips({ url, facets, labelCache, lang, onChange }: P
     return t(`search.dim.${sel.dim}`, { defaultValue: "" });
   };
 
-  const clear = (sel: ActiveSelection) => {
-    const patch: Partial<SearchUrl> = {};
-    for (const k of sel.keys) patch[k] = undefined as never;
-    onChange(patch);
-  };
+  // Multi-select: łatka chipa zdejmuje pojedynczą wartość wymiaru (nie cały
+  // wymiar) - activeSelections buduje ją per wartość.
+  const clear = (sel: ActiveSelection) => onChange(sel.patch);
 
   return (
     <div className="flex flex-wrap items-center gap-2" aria-label={t("search.active_filters")}>
