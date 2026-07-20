@@ -29,13 +29,13 @@ interface GatewayCtx {
 }
 
 async function requireAdmin(context: GatewayCtx): Promise<void> {
-  const { data: roles, error } = await context.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", context.userId);
+  // Tenant-scoped: has_role() filters by current_tenant_id().
+  const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
+    _user_id: context.userId,
+    _role: "admin",
+  });
   if (error) throw new Error(error.message);
-  const rows = (roles ?? []) as Array<{ role: string }>;
-  if (!rows.some((r) => r.role === "admin")) {
+  if (!isAdmin) {
     throw new Error("Forbidden: admin role required");
   }
 }
