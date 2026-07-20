@@ -566,7 +566,7 @@ const RenderSection = memo(function RenderSection({
               ...columnsRowStyle(section, colsSum),
               gridTemplateColumns:
                 device === "mobile"
-                  ? "minmax(0, 1fr)"
+                  ? `repeat(${Math.min(Math.max(visibleCols.length, 1), 4)}, minmax(0, 1fr))`
                   : columnsRowStyle(section, colsSum).gridTemplateColumns,
               flex:
                 tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical"
