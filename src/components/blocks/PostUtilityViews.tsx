@@ -166,7 +166,7 @@ export function PostViewsView({ suffix, lang = "pl", cls }: PostViewsProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
   const count = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
-  const formatted = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US").format(count);
+  const formatted = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB").format(count);
   return (
     <span className={`inline-flex items-center gap-1.5 text-sm text-muted-foreground ${cls ?? ""}`}>
       <Eye className="w-3.5 h-3.5" aria-hidden />

@@ -2,15 +2,17 @@
 // publicznej. Wcześniej ~20 plików robiło własne
 // `toLocaleDateString(lang === "en" ? "en-US" : "pl-PL")` (z rozjazdem
 // en-US/en-GB włącznie) - jedna definicja locale kończy dryf.
+// Konwencja domu: wersja EN formatuje po europejsku (en-GB: dzień-miesiąc-rok),
+// spójnie z resztą serwisu - nie en-US.
 export type UiLang = "pl" | "en";
 
-const LOCALE: Record<UiLang, string> = { pl: "pl-PL", en: "en-US" };
+const LOCALE: Record<UiLang, string> = { pl: "pl-PL", en: "en-GB" };
 
 export function uiLocale(lang: string | undefined): string {
   return LOCALE[(lang ?? "pl").startsWith("en") ? "en" : "pl"];
 }
 
-/** Data artykułu/listingu: "12 lipca 2026" / "July 12, 2026". */
+/** Data artykułu/listingu: "12 lipca 2026" / "12 July 2026". */
 export function formatDate(
   date: string | number | Date,
   lang: string | undefined,
@@ -25,7 +27,7 @@ export function formatDate(
   }
 }
 
-/** Krótka data listingu: "12.07.2026" / "7/12/2026". */
+/** Krótka data listingu: "12.07.2026" / "12/07/2026". */
 export function formatDateShort(date: string | number | Date, lang: string | undefined): string {
   return formatDate(date, lang, { year: "numeric", month: "numeric", day: "numeric" });
 }

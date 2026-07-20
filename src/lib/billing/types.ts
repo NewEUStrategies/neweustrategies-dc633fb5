@@ -100,7 +100,7 @@ export interface UserSubscriptionRow {
 
 export function formatMoney(amountCents: number, currency: string, locale: string): string {
   try {
-    return new Intl.NumberFormat(locale === "pl" ? "pl-PL" : "en-US", {
+    return new Intl.NumberFormat(locale === "pl" ? "pl-PL" : "en-GB", {
       style: "currency",
       currency,
       maximumFractionDigits: 2,

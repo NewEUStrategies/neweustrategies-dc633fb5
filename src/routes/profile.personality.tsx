@@ -93,7 +93,7 @@ function bandOf(value: number): "low" | "medium" | "high" {
 }
 
 function fmtDate(iso: string, lang: "pl" | "en"): string {
-  return new Date(iso).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL", {
+  return new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
     dateStyle: "medium",
   });
 }

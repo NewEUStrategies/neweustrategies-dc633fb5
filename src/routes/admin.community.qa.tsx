@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { pl as plLocale, enUS } from "date-fns/locale";
+import { pl as plLocale, enGB } from "date-fns/locale";
 import { HelpCircle, Check, X, Play, Pause, Archive, MessageSquare, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +65,7 @@ const QUESTION_TONE: Record<QaQuestionStatus, string> = {
 function AdminCommunityQa() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? plLocale : enUS;
+  const locale = isPl ? plLocale : enGB;
   const qc = useQueryClient();
   const [sessionStatus, setSessionStatus] = useState<QaSessionStatus | "all">("all");
   const [selected, setSelected] = useState<QaSessionRow | null>(null);

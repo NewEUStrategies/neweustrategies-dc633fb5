@@ -603,7 +603,7 @@ function RuntimeWidget({
       const count = liveCount ?? w.fallbackCount ?? 0;
       const text = pickI(w.text, lang).replace(
         "{count}",
-        count.toLocaleString(lang === "pl" ? "pl-PL" : "en-US"),
+        count.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB"),
       );
       return (
         <div

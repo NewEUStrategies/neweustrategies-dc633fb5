@@ -59,7 +59,7 @@ function PhotoTile({ row }: { row: ChatAttachmentRow }) {
 
 function FileRow({ row, lang }: { row: ChatAttachmentRow; lang: string }) {
   const urlQ = useAttachmentUrl(row.attachment_path);
-  const date = new Date(row.created_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL", {
+  const date = new Date(row.created_at).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
     day: "2-digit",
     month: "short",
     year: "numeric",

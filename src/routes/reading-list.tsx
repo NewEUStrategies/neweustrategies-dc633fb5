@@ -280,7 +280,7 @@ function GuestSavedSection({ lang }: { lang: Lang }) {
                   <p className="text-[11px] text-muted-foreground">
                     {t("readingList.savedAt", {
                       date: new Date(item.savedAt).toLocaleDateString(
-                        lang === "en" ? "en-US" : "pl-PL",
+                        lang === "en" ? "en-GB" : "pl-PL",
                       ),
                     })}
                   </p>

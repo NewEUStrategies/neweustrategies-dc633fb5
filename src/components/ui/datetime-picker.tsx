@@ -3,7 +3,7 @@
 // zapis do bazy w ISO. Klawisz "Wyczyść" ustawia null (bez limitu czasowego).
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { pl as plLocale, enUS } from "date-fns/locale";
+import { pl as plLocale, enGB } from "date-fns/locale";
 import { CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export function DateTimePicker({
   className,
   minDate,
 }: DateTimePickerProps) {
-  const locale = lang === "pl" ? plLocale : enUS;
+  const locale = lang === "pl" ? plLocale : enGB;
   const date = useMemo(() => (value ? new Date(value) : null), [value]);
   const timeValue = date ? format(date, "HH:mm") : "";
 

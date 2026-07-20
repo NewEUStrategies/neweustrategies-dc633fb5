@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parseISO } from "date-fns";
-import { pl, enUS } from "date-fns/locale";
+import { pl, enGB } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
@@ -90,7 +90,7 @@ interface DateFilterPickerProps {
 
 function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFilterPickerProps) {
   const date = value ? parseISO(value) : undefined;
-  const locale = lang === "pl" ? pl : enUS;
+  const locale = lang === "pl" ? pl : enGB;
 
   return (
     <label className="block">

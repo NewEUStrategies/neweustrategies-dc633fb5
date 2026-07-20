@@ -52,7 +52,7 @@ function LiveIndex() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const locale = lang === "pl" ? "pl-PL" : "en-US";
+  const locale = lang === "pl" ? "pl-PL" : "en-GB";
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8">

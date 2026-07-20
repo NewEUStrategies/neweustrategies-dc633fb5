@@ -115,7 +115,7 @@ function AudienceDashboard() {
       "Daily active members (reads, comments, chat, bookmarks, follows) and new sign-ups.",
     ),
     categories: series.map((r) =>
-      new Date(r.day).toLocaleDateString(isPl ? "pl-PL" : "en-US", {
+      new Date(r.day).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
         day: "numeric",
         month: "short",
       }),
@@ -365,7 +365,7 @@ function RetentionTable({
                 return (
                   <tr key={key} className="border-t border-border/60">
                     <td className="py-1.5 pr-3 whitespace-nowrap">
-                      {new Date(key).toLocaleDateString(isPl ? "pl-PL" : "en-US", {
+                      {new Date(key).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
                         day: "numeric",
                         month: "short",
                       })}

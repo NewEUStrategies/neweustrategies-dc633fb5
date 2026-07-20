@@ -115,7 +115,7 @@ function Row({
   busy: boolean;
 }) {
   const { t } = useTranslation();
-  const when = new Date(r.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-US");
+  const when = new Date(r.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB");
   const title = (lang === "pl" ? r.post?.title_pl : r.post?.title_en) ?? r.post?.slug ?? "—";
   const variant: Record<CommentStatus, "default" | "secondary" | "destructive" | "outline"> = {
     pending: "outline",

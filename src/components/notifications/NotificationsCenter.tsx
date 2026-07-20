@@ -80,7 +80,7 @@ function pickBody(n: NotificationRow, lang: Lang): string | null {
   return lang === "en" ? (n.body_en ?? n.body_pl) : (n.body_pl ?? n.body_en);
 }
 function fmtDate(iso: string, lang: Lang): string {
-  return new Date(iso).toLocaleString(lang === "en" ? "en-US" : "pl-PL", {
+  return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
     dateStyle: "medium",
     timeStyle: "short",
   });

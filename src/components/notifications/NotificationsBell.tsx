@@ -54,7 +54,7 @@ function pickBody(row: NotificationRow, lang: Lang): string | null {
 }
 
 function relTime(iso: string, lang: Lang): string {
-  const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en-US" : "pl-PL", {
+  const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
     numeric: "auto",
   });
   const then = new Date(iso).getTime();

@@ -108,7 +108,7 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
       });
     } else if (it === "views") {
       const n = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
-      const f = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US").format(n);
+      const f = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB").format(n);
       parts.push({
         key: "views",
         node: (

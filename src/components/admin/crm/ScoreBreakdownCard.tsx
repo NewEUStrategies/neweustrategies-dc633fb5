@@ -90,7 +90,7 @@ export function ScoreBreakdownCard({
                 </span>
               )}
               <span className="ml-auto tabular-nums font-medium">
-                +{e.points.toLocaleString(lang === "pl" ? "pl-PL" : "en-US")}
+                +{e.points.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}
               </span>
             </li>
           ))}

@@ -40,7 +40,7 @@ interface Props {
 
 function fmtTime(iso: string, lang: "pl" | "en"): string {
   try {
-    return new Date(iso).toLocaleString(lang === "en" ? "en-US" : "pl-PL", {
+    return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
       hour: "2-digit",
       minute: "2-digit",
       day: "2-digit",
