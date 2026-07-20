@@ -4,7 +4,7 @@
 // Exposes the WAI-ARIA combobox/listbox pattern with arrow-key navigation,
 // recent searches, and a "view all results" link into /search.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "@tanstack/react-router";
+import { useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
