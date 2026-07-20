@@ -8,6 +8,7 @@ import type {
 } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
+import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 // Z sliderFallbackQuery (nie sliderVariants): prefetch trafia do bundla
@@ -86,7 +87,8 @@ export type BuilderSectionQuery =
   | ReturnType<typeof newsTickerQueryOptions>
   | ReturnType<typeof postRefQueryOptions>
   | ReturnType<typeof sliderFallbackImagesQueryOptions>
-  | ReturnType<typeof sliderPostsQueryOptions>;
+  | ReturnType<typeof sliderPostsQueryOptions>
+  | ReturnType<typeof menuWithItemsQueryOptions>;
 
 /**
  * Warm one builder query. BuilderSectionQuery is a union of three differently
@@ -112,6 +114,15 @@ export function prefetchBuilderSectionQuery(
  */
 export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderSectionQuery[] {
   const out: BuilderSectionQuery[] = [];
+  // Nawigacja (widget "menu" w chrome i dokumentach buildera): bez SSR-owego
+  // prefetchu serwer renderował fallback "Menu jest puste..." mimo
+  // skonfigurowanego menu, a prawdziwa nawigacja wskakiwała dopiero po
+  // hydratacji + fetchu (długo widoczny brak menu + przesunięcie układu).
+  if (widget.type === "menu") {
+    const rawKey = (widget.content as { menu_key?: unknown } | undefined)?.menu_key;
+    const key = typeof rawKey === "string" && rawKey.length > 0 ? rawKey : "main";
+    out.push(menuWithItemsQueryOptions(key));
+  }
   if (widget.type === "post-list" || widget.type === "carousel") {
     out.push(postListQueryOptions(widget.content, lang));
   }
@@ -220,6 +231,12 @@ function coerceStaleTime(st: unknown): number {
 
 export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheTarget[] {
   const out: WidgetCacheTarget[] = [];
+  if (widget.type === "menu") {
+    const rawKey = (widget.content as { menu_key?: unknown } | undefined)?.menu_key;
+    const key = typeof rawKey === "string" && rawKey.length > 0 ? rawKey : "main";
+    const opts = menuWithItemsQueryOptions(key);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
   if (widget.type === "post-list" || widget.type === "carousel") {
     const opts = postListQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });

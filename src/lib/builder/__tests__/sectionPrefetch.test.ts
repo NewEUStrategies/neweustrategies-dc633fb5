@@ -268,6 +268,20 @@ describe("widgetQueryOptionsList", () => {
     expect(widgetQueryOptionsList(makeWidget("text"), "pl")).toHaveLength(0);
   });
 
+  it("maps a menu widget to the shared menu-with-items query (SSR nav from the first byte)", () => {
+    const menu = makeWidget("menu", { content: { menu_key: "footer" } } as Partial<WidgetNode>);
+    const opts = widgetQueryOptionsList(menu, "pl");
+    expect(opts).toHaveLength(1);
+    // Ten sam klucz co useQuery w SiteMenu - wspólne menuWithItemsQueryOptions,
+    // więc loader roota grzeje DOKŁADNIE to zapytanie, które czyta komponent.
+    expect(opts[0].queryKey).toEqual(["menu-with-items", "footer"]);
+  });
+
+  it("defaults a keyless menu widget to the 'main' menu (mirrors SiteMenu's fallback)", () => {
+    const bare = makeWidget("menu");
+    expect(widgetQueryOptionsList(bare, "pl")[0].queryKey).toEqual(["menu-with-items", "main"]);
+  });
+
   it("maps a posts-sourced slider to the slider-posts list query plus fallback images", () => {
     // Explicit posts source - the homepage hero configuration.
     const explicit = makeWidget("slider", {
