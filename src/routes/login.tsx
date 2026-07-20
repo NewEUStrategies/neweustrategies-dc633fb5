@@ -1,5 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { isMfaChallengeRequired } from "@/lib/auth/mfa";
@@ -46,6 +48,13 @@ function LoginPage() {
   const [mfaOpen, setMfaOpen] = useState(false);
   // Holds the auto-redirect while an aal1 session waits for its TOTP step-up.
   const [mfaPending, setMfaPending] = useState(false);
+
+  const runPreAuthGuard = useServerFn(preAuthGuard);
+
+  const rateLimitedMessage = () =>
+    isPl
+      ? "Zbyt wiele prób - spróbuj ponownie za kilka minut."
+      : "Too many attempts - please try again in a few minutes.";
 
   useEffect(() => {
     if (loading || !session || mfaPending) return;
@@ -133,6 +142,19 @@ function LoginPage() {
     e.preventDefault();
     setBusy(true);
     try {
+      // Serwerowy pre-check brute-force: atomowe koszyki per-IP i per-email
+      // (fail-closed). Uruchamiane PRZED Supabase Auth, żeby próba nawet nie
+      // dotarła do wbudowanego licznika.
+      try {
+        await runPreAuthGuard({ data: { kind: mode, email } });
+      } catch (guardErr) {
+        const msg = guardErr instanceof Error ? guardErr.message : "";
+        if (msg.includes("rate_limited")) {
+          throw new Error(rateLimitedMessage());
+        }
+        throw guardErr;
+      }
+
       if (mode === "signup") {
         if (!settings.allow_public_signup) {
           throw new Error(isPl ? "Rejestracja jest wyłączona." : "Sign-up is disabled.");
@@ -146,8 +168,6 @@ function LoginPage() {
           email,
           password,
           options: {
-            // Rejestrują się tu wyłącznie czytelnicy - potwierdzenie e-maila
-            // prowadzi na stronę publiczną, nie do panelu admina.
             emailRedirectTo: `${window.location.origin}${
               settings.logged_in_redirect_url?.startsWith("/")
                 ? settings.logged_in_redirect_url
@@ -158,8 +178,6 @@ function LoginPage() {
               first_name: firstName,
               last_name: lastName,
               full_name: trimmed || displayName,
-              // Explicit reader signup - staff/tenant provisioning happens only
-              // server-side via app_metadata (see handle_new_user).
               signup_type: "reader",
             },
           },
@@ -178,9 +196,6 @@ function LoginPage() {
         );
         setMode("signin");
       } else {
-        // Hold the session-driven redirect before signing in: onAuthStateChange
-        // fires the instant the (aal1) session lands, so this must be set
-        // synchronously to win that race when a step-up is required.
         setMfaPending(true);
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { isMfaChallengeRequired } from "@/lib/auth/mfa";
 import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
@@ -87,10 +89,25 @@ export function LoginPopup() {
       ? settings.form_logo_url_dark || settings.form_logo_url
       : settings.form_logo_url;
 
+  const runPreAuthGuard = useServerFn(preAuthGuard);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
+      try {
+        await runPreAuthGuard({ data: { kind: mode, email } });
+      } catch (guardErr) {
+        const msg = guardErr instanceof Error ? guardErr.message : "";
+        if (msg.includes("rate_limited")) {
+          throw new Error(
+            t("auth.rateLimited", {
+              defaultValue: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
+            }),
+          );
+        }
+        throw guardErr;
+      }
       if (mode === "signup") {
         if (!settings.allow_public_signup) {
           throw new Error(t("authForms.signupDisabled"));
