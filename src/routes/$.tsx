@@ -152,8 +152,10 @@ export const Route = createFileRoute("/$")({
           supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
           supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
         ]);
-        if (cat?.slug) throw redirect({ to: "/category/$slug", params: { slug: cat.slug }, replace: true });
-        if (tag?.slug) throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
+        if (cat?.slug)
+          throw redirect({ to: "/category/$slug", params: { slug: cat.slug }, replace: true });
+        if (tag?.slug)
+          throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
       }
       throw notFound();
     }
@@ -607,7 +609,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           bio_en:
             preferCanonicalBio(postAuthor.bio_en, postAuthor.author_profile?.bio_en) ?? undefined,
           contactEmail: postAuthor.author_profile?.contact_email ?? undefined,
-          phone: postAuthor.author_profile?.phone ?? undefined,
           websiteUrl: postAuthor.author_profile?.website_url ?? undefined,
           xUrl: postAuthor.author_profile?.x_url ?? undefined,
           linkedinUrl: postAuthor.author_profile?.linkedin_url ?? undefined,
@@ -805,8 +806,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                             authorInstagramUrl: postAuthor?.author_profile?.instagram_url ?? null,
                             authorWebsiteUrl: postAuthor?.author_profile?.website_url ?? null,
                             authorSpotifyUrl: postAuthor?.author_profile?.spotify_url ?? null,
-                            authorCustomSocials:
-                              postAuthor?.author_profile?.custom_socials ?? null,
+                            authorCustomSocials: postAuthor?.author_profile?.custom_socials ?? null,
                             readMinutes,
                             audioUrl:
                               (lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null,

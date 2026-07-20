@@ -27,7 +27,12 @@ export function readLangCookieClient(): AppLang | null {
 /** Persist the language preference to `document.cookie` (client only). */
 export function writeLangCookieClient(lang: AppLang): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${LANG_COOKIE}=${encodeURIComponent(lang)}; path=/; max-age=${LANG_COOKIE_MAX_AGE}; SameSite=Lax`;
+  // Mark Secure on https so the cookie is never sent over a plaintext downgrade.
+  // (It is a non-sensitive preference and is written from JS, so HttpOnly is not
+  // possible - Secure is the applicable hardening.)
+  const secure =
+    typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${LANG_COOKIE}=${encodeURIComponent(lang)}; path=/; max-age=${LANG_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
 }
 
 /**

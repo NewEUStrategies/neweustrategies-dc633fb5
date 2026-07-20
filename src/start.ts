@@ -26,11 +26,15 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
       headers: { Location: `${localizedPath(url.pathname, lang)}${suffix}` },
     });
   }
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    url.protocol.replace(":", "");
+  const secure = proto === "https" ? "; Secure" : "";
   return new Response(null, {
     status: 302,
     headers: {
       Location: `${url.pathname}${suffix}`,
-      "Set-Cookie": `${LANG_COOKIE}=${lang}; Path=/; Max-Age=${LANG_COOKIE_MAX_AGE}; SameSite=Lax`,
+      "Set-Cookie": `${LANG_COOKIE}=${lang}; Path=/; Max-Age=${LANG_COOKIE_MAX_AGE}; SameSite=Lax${secure}`,
     },
   });
 });
@@ -159,15 +163,28 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
   if (scheme === "https" && !headers.has("Strict-Transport-Security")) {
     headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   }
+  // nosniff belongs on EVERY response (JSON APIs, beacons, assets - not only
+  // HTML): it stops a browser from MIME-sniffing a response into a type the
+  // server never intended, a classic exfil/execution vector on API payloads.
+  headers.set("X-Content-Type-Options", "nosniff");
   const contentType = headers.get("content-type") ?? "";
   if (contentType.includes("text/html")) {
     if (!headers.has("Content-Security-Policy")) {
       headers.set("Content-Security-Policy", contentSecurityPolicy());
     }
-    headers.set("X-Content-Type-Options", "nosniff");
     headers.set("X-Frame-Options", "SAMEORIGIN");
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(self)");
+    // Permissions-Policy: deny powerful features by default and opt OUT of the
+    // Topics API (browsing-topics=()) so the browser never derives/attaches
+    // ad-topics for this origin - a privacy default, not just a feature gate.
+    headers.set(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=(self), browsing-topics=()",
+    );
+    // COOP severs window.opener from cross-origin openers (tabnabbing) and
+    // closes the cross-window XS-Leak surface by isolating this document's
+    // browsing-context group.
+    headers.set("Cross-Origin-Opener-Policy", "same-origin");
   }
 
   return new Response(response.body, {

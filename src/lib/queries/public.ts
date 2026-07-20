@@ -123,7 +123,6 @@ interface AuthorProfileOverlay {
   bio_pl: string | null;
   bio_en: string | null;
   contact_email: string | null;
-  phone: string | null;
   website_url: string | null;
   x_url: string | null;
   linkedin_url: string | null;
@@ -401,7 +400,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
             supabase
               .from("author_profiles")
               .select(
-                "avatar_url, job_title, company, bio_pl, bio_en, contact_email, phone, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
+                "avatar_url, job_title, company, bio_pl, bio_en, contact_email, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
               )
               .eq("user_id", post.author_id)
               .eq("is_public", true)
