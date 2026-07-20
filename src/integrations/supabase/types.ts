@@ -497,6 +497,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "author_profiles_layout_template_id_fkey"
             columns: ["layout_template_id"]
             isOneToOne: false
@@ -4918,6 +4925,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "podcast_episode_people_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "podcast_episode_people_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -4976,6 +4990,13 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -5145,6 +5166,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
           {
@@ -8534,6 +8562,86 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles_public: {
+        Row: {
+          avatar_url: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          cover_url: string | null
+          current_company: string | null
+          display_name: string | null
+          facebook_url: string | null
+          first_name: string | null
+          id: string | null
+          instagram_url: string | null
+          job_title: string | null
+          last_name: string | null
+          linkedin_url: string | null
+          slug: string | null
+          specialization: string | null
+          spotify_url: string | null
+          tenant_id: string | null
+          twitter_url: string | null
+          updated_at: string | null
+          verified_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          cover_url?: string | null
+          current_company?: string | null
+          display_name?: string | null
+          facebook_url?: string | null
+          first_name?: string | null
+          id?: string | null
+          instagram_url?: string | null
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          slug?: string | null
+          specialization?: string | null
+          spotify_url?: string | null
+          tenant_id?: string | null
+          twitter_url?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          cover_url?: string | null
+          current_company?: string | null
+          display_name?: string | null
+          facebook_url?: string | null
+          first_name?: string | null
+          id?: string | null
+          instagram_url?: string | null
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          slug?: string | null
+          specialization?: string | null
+          spotify_url?: string | null
+          tenant_id?: string | null
+          twitter_url?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
