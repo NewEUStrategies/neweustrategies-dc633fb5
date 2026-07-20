@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { GitCompareArrows } from "lucide-react";
 import { toastError } from "@/lib/toastError";
 import { Button } from "@/components/ui/button";
 import { Clock, Undo2 } from "@/lib/lucide-shim";
@@ -11,6 +12,10 @@ import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDial
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  RevisionDiffDialog,
+  type RevisionDiffRequest,
+} from "@/components/admin/molecules/RevisionDiffDialog";
 
 interface RevisionsCardProps {
   entityType: "post" | "page";
@@ -35,6 +40,11 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
   const restore$ = useServerFn(restoreRevision);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Diff: pierwszy klik w "porównaj" uzbraja rewizję (bazę porównania),
+  // drugi klik na INNEJ rewizji porównuje obie; klik na tej samej - z bieżącą
+  // wersją. Wzorzec dwóch kliknięć zamiast checkboxów: zero dodatkowego UI.
+  const [diffArmedId, setDiffArmedId] = useState<string | null>(null);
+  const [diffRequest, setDiffRequest] = useState<RevisionDiffRequest | null>(null);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = new Map((authorsQ.data ?? []).map((a) => [a.id, a]));
@@ -57,6 +67,51 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
     if (note === "pre_restore")
       return t("admin.revisions.note.preRestore", { defaultValue: "kopia przed przywróceniem" });
     return note;
+  };
+
+  const fmt = (iso: string) => new Date(iso).toLocaleString(lang);
+  const currentLabel = t("adminPostPanes.revisionDiff.current", {
+    defaultValue: "bieżąca wersja",
+  });
+
+  const diffWithCurrent = (revisionId: string, createdAt: string) => {
+    setDiffArmedId(null);
+    setDiffRequest({
+      entityType,
+      entityId: entityId!,
+      ids: [revisionId],
+      withCurrent: true,
+      beforeLabel: fmt(createdAt),
+      afterLabel: currentLabel,
+    });
+  };
+
+  const compare = (revisionId: string, createdAt: string) => {
+    if (!diffArmedId) {
+      // Pierwszy klik uzbraja bazę porównania; pasek nad listą prowadzi dalej.
+      setDiffArmedId(revisionId);
+      return;
+    }
+    if (diffArmedId === revisionId) {
+      setDiffArmedId(null);
+      return;
+    }
+    const armed = (revisions ?? []).find((r) => r.id === diffArmedId);
+    setDiffArmedId(null);
+    if (!armed) return;
+    // Starsza rewizja jest stroną "przed" (serwer i tak zwraca rosnąco).
+    const [a, b] =
+      new Date(armed.created_at).getTime() <= new Date(createdAt).getTime()
+        ? [armed, { id: revisionId, created_at: createdAt }]
+        : [{ id: revisionId, created_at: createdAt }, armed];
+    setDiffRequest({
+      entityType,
+      entityId: entityId!,
+      ids: [a.id, b.id],
+      withCurrent: false,
+      beforeLabel: fmt(a.created_at),
+      afterLabel: fmt(b.created_at),
+    });
   };
 
   const restore = (revisionId: string, createdAt: string) => {
@@ -96,6 +151,42 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
         ) : null}
       </h3>
 
+      {diffArmedId && (
+        <div className="flex flex-wrap items-center gap-2 rounded border border-brand/30 bg-brand/5 px-2 py-1.5 text-[11px]">
+          <span className="min-w-0 flex-1">
+            {t("adminPostPanes.revisionDiff.armedHint", {
+              defaultValue:
+                "Baza porównania: {{date}}. Kliknij ikonę porównania przy innej rewizji albo porównaj z bieżącą wersją.",
+              date: fmt(
+                (revisions ?? []).find((r) => r.id === diffArmedId)?.created_at ??
+                  new Date().toISOString(),
+              ),
+            })}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => {
+              const armed = (revisions ?? []).find((r) => r.id === diffArmedId);
+              if (armed) diffWithCurrent(armed.id, armed.created_at);
+            }}
+          >
+            {t("adminPostPanes.revisionDiff.withCurrent", {
+              defaultValue: "Porównaj z bieżącą",
+            })}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => setDiffArmedId(null)}
+          >
+            {t("adminPostPanes.revisionDiff.cancel", { defaultValue: "Anuluj" })}
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <p className="text-xs text-muted-foreground">...</p>
       ) : !revisions?.length ? (
@@ -128,16 +219,37 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
                     {note ? ` · ${note}` : ""}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 shrink-0"
-                  disabled={busyId !== null}
-                  title={t("admin.revisions.restore", { defaultValue: "Przywróć tę wersję" })}
-                  onClick={() => restore(r.id, r.created_at)}
-                >
-                  <Undo2 className="w-3.5 h-3.5" />
-                </Button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button
+                    size="sm"
+                    variant={diffArmedId === r.id ? "secondary" : "ghost"}
+                    className="h-7 px-2"
+                    disabled={busyId !== null}
+                    aria-pressed={diffArmedId === r.id}
+                    title={
+                      diffArmedId && diffArmedId !== r.id
+                        ? t("adminPostPanes.revisionDiff.compareWithArmed", {
+                            defaultValue: "Porównaj z zaznaczoną rewizją",
+                          })
+                        : t("adminPostPanes.revisionDiff.compare", {
+                            defaultValue: "Porównaj tę rewizję",
+                          })
+                    }
+                    onClick={() => compare(r.id, r.created_at)}
+                  >
+                    <GitCompareArrows className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    disabled={busyId !== null}
+                    title={t("admin.revisions.restore", { defaultValue: "Przywróć tę wersję" })}
+                    onClick={() => restore(r.id, r.created_at)}
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </li>
             );
           })}
@@ -150,6 +262,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
           if (!o) setConfirmState(null);
         }}
       />
+      <RevisionDiffDialog request={diffRequest} onClose={() => setDiffRequest(null)} />
     </div>
   );
 }

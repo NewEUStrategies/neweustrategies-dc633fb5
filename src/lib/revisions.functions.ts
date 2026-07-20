@@ -98,6 +98,89 @@ export const listRevisions = createServerFn({ method: "POST" })
   });
 
 /**
+ * Full snapshots for the revision-diff view: up to two revisions by id and
+ * (optionally) the CURRENT live row projected through pickRevisionSnapshot,
+ * so "porównaj z bieżącym" compares apples to apples. Payload is bounded
+ * (max 2 snapshots + current), unlike listRevisions which stays lightweight.
+ */
+export const getRevisionSnapshots = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        entityType: EntityType,
+        entityId: UUID,
+        ids: z.array(UUID).min(0).max(2),
+        withCurrent: z.boolean().default(false),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("revision.diff", userId, 60, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+
+      const revisions: Array<{
+        id: string;
+        created_at: string;
+        note: string | null;
+        snapshot: Json;
+      }> = [];
+      if (data.ids.length > 0) {
+        const { data: rows, error } = await supabase
+          .from("content_revisions")
+          .select("id, created_at, note, snapshot")
+          .eq("tenant_id", tenantId)
+          .eq("entity_type", data.entityType)
+          .eq("entity_id", data.entityId)
+          .in("id", data.ids)
+          .order("created_at", { ascending: true });
+        if (error) throw new Error(error.message);
+        for (const r of rows ?? []) {
+          revisions.push({
+            id: r.id,
+            created_at: r.created_at,
+            note: r.note,
+            snapshot: (r.snapshot ?? {}) as Json,
+          });
+        }
+        if (revisions.length !== data.ids.length) {
+          throw new Error("Revision not found or access denied");
+        }
+      }
+
+      let current: Json | null = null;
+      if (data.withCurrent) {
+        // Body columns are revoked from the authenticated role (see
+        // restoreRevision) - read the live row via service_role scoped by
+        // tenant, then project onto the snapshot shape.
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const isPage = data.entityType === "page";
+        const { data: row, error } = isPage
+          ? await supabaseAdmin
+              .from("pages")
+              .select("*")
+              .eq("id", data.entityId)
+              .eq("tenant_id", tenantId)
+              .is("deleted_at", null)
+              .maybeSingle()
+          : await supabaseAdmin
+              .from("posts")
+              .select("*")
+              .eq("id", data.entityId)
+              .eq("tenant_id", tenantId)
+              .is("deleted_at", null)
+              .maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!row) throw new Error("Content not found or access denied");
+        current = pickRevisionSnapshot(row) as Json;
+      }
+
+      return { revisions, current };
+    });
+  });
+
+/**
  * Restore a revision's content onto the live row. Non-destructive:
  * the current state is snapshotted first (note "pre_restore"), and the
  * workflow status is deliberately left untouched - restoring old content
