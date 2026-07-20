@@ -327,3 +327,132 @@ export async function fetchSeoSettingsValue(tenantId: string): Promise<unknown> 
     }),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Feedy tematyczne (D3): RSS per kategoria / tag / program.
+// Wspólny odczyt: metadane taksonomii (tytuł kanału) + opublikowane wpisy
+// przypięte do niej. Ten sam service-role + tenant-scope + edge cache co
+// pozostałe powierzchnie crawlerowe.
+// ---------------------------------------------------------------------------
+
+export type FeedTaxonomyKind = "category" | "tag" | "program";
+
+export interface TaxonomyFeedMeta {
+  slug: string;
+  name_pl: string;
+  name_en: string;
+  description_pl: string | null;
+  description_en: string | null;
+}
+
+const TAXONOMY_TABLES: Record<FeedTaxonomyKind, { table: "categories" | "tags" | "programs" }> = {
+  category: { table: "categories" },
+  tag: { table: "tags" },
+  program: { table: "programs" },
+};
+
+/** Metadane taksonomii do nagłówka kanału; null = 404 feedu. */
+export async function fetchTaxonomyForFeed(
+  tenantId: string,
+  kind: FeedTaxonomyKind,
+  slug: string,
+): Promise<TaxonomyFeedMeta | null> {
+  return edgeTtlCache(`seo:feed-tax:${tenantId}:${kind}:${slug}`, CACHE_TTL_MS, () =>
+    resilient("feed-taxonomy", null, async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      if (kind === "tag") {
+        // Tagi są jednojęzyczne (kolumna `name`) - mapujemy na oba języki.
+        const { data } = await supabaseAdmin
+          .from("tags")
+          .select("slug, name")
+          .eq("tenant_id", tenantId)
+          .eq("slug", slug)
+          .maybeSingle();
+        if (!data) return null;
+        return {
+          slug: data.slug,
+          name_pl: data.name,
+          name_en: data.name,
+          description_pl: null,
+          description_en: null,
+        };
+      }
+      const table = TAXONOMY_TABLES[kind].table as "categories" | "programs";
+      const { data } = await supabaseAdmin
+        .from(table)
+        .select("slug, name_pl, name_en, description_pl, description_en")
+        .eq("tenant_id", tenantId)
+        .eq("slug", slug)
+        .maybeSingle();
+      return (data as TaxonomyFeedMeta | null) ?? null;
+    }),
+  );
+}
+
+/** Opublikowane wpisy przypięte do taksonomii - kolejność jak w /rss.xml. */
+export async function fetchPublishedPostsByTaxonomy(
+  tenantId: string,
+  kind: FeedTaxonomyKind,
+  slug: string,
+  limit = 50,
+): Promise<PublishedPostRow[]> {
+  return edgeTtlCache(`seo:feed-posts:${tenantId}:${kind}:${slug}:${limit}`, CACHE_TTL_MS, () =>
+    resilient("feed-taxonomy-posts", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const spec = TAXONOMY_TABLES[kind];
+      const { data: tax } = await supabaseAdmin
+        .from(spec.table)
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!tax?.id) return [];
+      // Jawny switch po tabeli łączącej - dynamiczna nazwa kolumny łamałaby
+      // typowanie klienta Supabase (keyof Row per tabela).
+      let joinRows: Array<{ post_id: string }> = [];
+      if (kind === "category") {
+        const { data: rows } = await supabaseAdmin
+          .from("post_categories")
+          .select("post_id")
+          .eq("category_id", tax.id);
+        joinRows = rows ?? [];
+      } else if (kind === "tag") {
+        const { data: rows } = await supabaseAdmin
+          .from("post_tags")
+          .select("post_id")
+          .eq("tag_id", tax.id);
+        joinRows = rows ?? [];
+      } else {
+        const { data: rows } = await supabaseAdmin
+          .from("post_programs")
+          .select("post_id")
+          .eq("program_id", tax.id);
+        joinRows = rows ?? [];
+      }
+      const postIds = [...new Set(joinRows.map((r) => r.post_id))];
+      if (postIds.length === 0) return [];
+      const [pagePaths, { data }] = await Promise.all([
+        fetchPagePaths(tenantId),
+        supabaseAdmin
+          .from("posts")
+          .select(
+            "id, slug, parent_page_id, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, updated_at, seo_noindex",
+          )
+          .eq("tenant_id", tenantId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .eq("seo_noindex", false)
+          .in("id", postIds)
+          .order("published_at", { ascending: false })
+          .limit(limit),
+      ]);
+      const rows: PublishedPostRow[] = [];
+      for (const row of data ?? []) {
+        const parentPath = pagePaths.get(row.parent_page_id);
+        if (!parentPath) continue;
+        rows.push({ ...row, path: `/${parentPath}/${row.slug}` });
+      }
+      return rows;
+    }),
+  );
+}

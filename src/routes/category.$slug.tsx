@@ -15,6 +15,7 @@ import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { getLayoutComponent } from "@/components/archive/layouts/registry";
@@ -118,8 +119,20 @@ export const Route = createFileRoute("/category/$slug")({
       isPartOf: { "@id": `${originAbs}/#website` },
       breadcrumb: { "@id": `${originAbs}${url}#breadcrumbs` },
     };
+    // Autodiscovery feedu tematycznego - czytniki RSS i agregatory widzą
+    // kanal kategorii/tagu bez znajomosci konwencji URL.
+    const feedLinks = [
+      ...head.links,
+      {
+        rel: "alternate",
+        type: "application/rss+xml",
+        title: `${name} - RSS`,
+        href: `${originAbs}${localizedPath(`/category/${params.slug}/rss.xml`, lang)}`,
+      },
+    ];
     return {
       ...head,
+      links: feedLinks,
       scripts: [
         {
           type: "application/ld+json",

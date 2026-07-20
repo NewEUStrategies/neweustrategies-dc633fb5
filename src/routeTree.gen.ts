@@ -139,7 +139,10 @@ import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
+import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
+import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
 import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
+import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicRelatedClickRouteImport } from './routes/api/public/related-click'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
@@ -852,10 +855,25 @@ const WebStoriesSlugAmpRoute = WebStoriesSlugAmpRouteImport.update({
   path: '/amp',
   getParentRoute: () => WebStoriesSlugRoute,
 } as any)
+const TagSlugRssDotxmlRoute = TagSlugRssDotxmlRouteImport.update({
+  id: '/rss.xml',
+  path: '/rss.xml',
+  getParentRoute: () => TagSlugRoute,
+} as any)
+const ProgramsSlugRssDotxmlRoute = ProgramsSlugRssDotxmlRouteImport.update({
+  id: '/rss.xml',
+  path: '/rss.xml',
+  getParentRoute: () => ProgramsSlugRoute,
+} as any)
 const PodcastsShowRssDotxmlRoute = PodcastsShowRssDotxmlRouteImport.update({
   id: '/rss.xml',
   path: '/rss.xml',
   getParentRoute: () => PodcastsShowRoute,
+} as any)
+const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
+  id: '/rss.xml',
+  path: '/rss.xml',
+  getParentRoute: () => CategorySlugRoute,
 } as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   id: '/api/public/vitals',
@@ -1257,7 +1275,7 @@ export interface FileRoutesByFullPath {
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
-  '/category/$slug': typeof CategorySlugRoute
+  '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -1281,9 +1299,9 @@ export interface FileRoutesByFullPath {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
-  '/programs/$slug': typeof ProgramsSlugRoute
+  '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
-  '/tag/$slug': typeof TagSlugRoute
+  '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
   '/tracker/explorer': typeof TrackerExplorerRoute
@@ -1348,7 +1366,10 @@ export interface FileRoutesByFullPath {
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
+  '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
+  '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
@@ -1443,7 +1464,7 @@ export interface FileRoutesByTo {
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
-  '/category/$slug': typeof CategorySlugRoute
+  '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -1467,9 +1488,9 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
-  '/programs/$slug': typeof ProgramsSlugRoute
+  '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
-  '/tag/$slug': typeof TagSlugRoute
+  '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
   '/tracker/explorer': typeof TrackerExplorerRoute
@@ -1533,7 +1554,10 @@ export interface FileRoutesByTo {
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
+  '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
+  '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
@@ -1635,7 +1659,7 @@ export interface FileRoutesById {
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
-  '/category/$slug': typeof CategorySlugRoute
+  '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -1659,9 +1683,9 @@ export interface FileRoutesById {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
-  '/programs/$slug': typeof ProgramsSlugRoute
+  '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
-  '/tag/$slug': typeof TagSlugRoute
+  '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
   '/tracker/explorer': typeof TrackerExplorerRoute
@@ -1726,7 +1750,10 @@ export interface FileRoutesById {
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
+  '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
+  '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
@@ -1920,7 +1947,10 @@ export interface FileRouteTypes {
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/vitals'
+    | '/category/$slug/rss.xml'
     | '/podcasts/$show/rss.xml'
+    | '/programs/$slug/rss.xml'
+    | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
     | '/admin/newsletter/'
@@ -2105,7 +2135,10 @@ export interface FileRouteTypes {
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/vitals'
+    | '/category/$slug/rss.xml'
     | '/podcasts/$show/rss.xml'
+    | '/programs/$slug/rss.xml'
+    | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community'
     | '/admin/newsletter'
@@ -2297,7 +2330,10 @@ export interface FileRouteTypes {
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/vitals'
+    | '/category/$slug/rss.xml'
     | '/podcasts/$show/rss.xml'
+    | '/programs/$slug/rss.xml'
+    | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
     | '/admin/newsletter/'
@@ -2345,7 +2381,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiTtsRoute: typeof ApiTtsRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
-  CategorySlugRoute: typeof CategorySlugRoute
+  CategorySlugRoute: typeof CategorySlugRouteWithChildren
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
@@ -2355,8 +2391,8 @@ export interface RootRouteChildren {
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
   PostSlugRoute: typeof PostSlugRoute
-  ProgramsSlugRoute: typeof ProgramsSlugRoute
-  TagSlugRoute: typeof TagSlugRoute
+  ProgramsSlugRoute: typeof ProgramsSlugRouteWithChildren
+  TagSlugRoute: typeof TagSlugRouteWithChildren
   TrackerSlugRoute: typeof TrackerSlugRoute
   TrackerChangesRoute: typeof TrackerChangesRoute
   TrackerExplorerRoute: typeof TrackerExplorerRoute
@@ -3295,12 +3331,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebStoriesSlugAmpRouteImport
       parentRoute: typeof WebStoriesSlugRoute
     }
+    '/tag/$slug/rss.xml': {
+      id: '/tag/$slug/rss.xml'
+      path: '/rss.xml'
+      fullPath: '/tag/$slug/rss.xml'
+      preLoaderRoute: typeof TagSlugRssDotxmlRouteImport
+      parentRoute: typeof TagSlugRoute
+    }
+    '/programs/$slug/rss.xml': {
+      id: '/programs/$slug/rss.xml'
+      path: '/rss.xml'
+      fullPath: '/programs/$slug/rss.xml'
+      preLoaderRoute: typeof ProgramsSlugRssDotxmlRouteImport
+      parentRoute: typeof ProgramsSlugRoute
+    }
     '/podcasts/$show/rss.xml': {
       id: '/podcasts/$show/rss.xml'
       path: '/rss.xml'
       fullPath: '/podcasts/$show/rss.xml'
       preLoaderRoute: typeof PodcastsShowRssDotxmlRouteImport
       parentRoute: typeof PodcastsShowRoute
+    }
+    '/category/$slug/rss.xml': {
+      id: '/category/$slug/rss.xml'
+      path: '/rss.xml'
+      fullPath: '/category/$slug/rss.xml'
+      preLoaderRoute: typeof CategorySlugRssDotxmlRouteImport
+      parentRoute: typeof CategorySlugRoute
     }
     '/api/public/vitals': {
       id: '/api/public/vitals'
@@ -4101,6 +4158,18 @@ const QaRouteChildren: QaRouteChildren = {
 
 const QaRouteWithChildren = QaRoute._addFileChildren(QaRouteChildren)
 
+interface CategorySlugRouteChildren {
+  CategorySlugRssDotxmlRoute: typeof CategorySlugRssDotxmlRoute
+}
+
+const CategorySlugRouteChildren: CategorySlugRouteChildren = {
+  CategorySlugRssDotxmlRoute: CategorySlugRssDotxmlRoute,
+}
+
+const CategorySlugRouteWithChildren = CategorySlugRoute._addFileChildren(
+  CategorySlugRouteChildren,
+)
+
 interface PodcastsShowRouteChildren {
   PodcastsShowRssDotxmlRoute: typeof PodcastsShowRssDotxmlRoute
 }
@@ -4112,6 +4181,29 @@ const PodcastsShowRouteChildren: PodcastsShowRouteChildren = {
 const PodcastsShowRouteWithChildren = PodcastsShowRoute._addFileChildren(
   PodcastsShowRouteChildren,
 )
+
+interface ProgramsSlugRouteChildren {
+  ProgramsSlugRssDotxmlRoute: typeof ProgramsSlugRssDotxmlRoute
+}
+
+const ProgramsSlugRouteChildren: ProgramsSlugRouteChildren = {
+  ProgramsSlugRssDotxmlRoute: ProgramsSlugRssDotxmlRoute,
+}
+
+const ProgramsSlugRouteWithChildren = ProgramsSlugRoute._addFileChildren(
+  ProgramsSlugRouteChildren,
+)
+
+interface TagSlugRouteChildren {
+  TagSlugRssDotxmlRoute: typeof TagSlugRssDotxmlRoute
+}
+
+const TagSlugRouteChildren: TagSlugRouteChildren = {
+  TagSlugRssDotxmlRoute: TagSlugRssDotxmlRoute,
+}
+
+const TagSlugRouteWithChildren =
+  TagSlugRoute._addFileChildren(TagSlugRouteChildren)
 
 interface WebStoriesSlugRouteChildren {
   WebStoriesSlugAmpRoute: typeof WebStoriesSlugAmpRoute
@@ -4160,7 +4252,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiTtsRoute: ApiTtsRoute,
   AuthorSlugRoute: AuthorSlugRoute,
-  CategorySlugRoute: CategorySlugRoute,
+  CategorySlugRoute: CategorySlugRouteWithChildren,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
@@ -4170,8 +4262,8 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PodcastsShowRoute: PodcastsShowRouteWithChildren,
   PostSlugRoute: PostSlugRoute,
-  ProgramsSlugRoute: ProgramsSlugRoute,
-  TagSlugRoute: TagSlugRoute,
+  ProgramsSlugRoute: ProgramsSlugRouteWithChildren,
+  TagSlugRoute: TagSlugRouteWithChildren,
   TrackerSlugRoute: TrackerSlugRoute,
   TrackerChangesRoute: TrackerChangesRoute,
   TrackerExplorerRoute: TrackerExplorerRoute,
