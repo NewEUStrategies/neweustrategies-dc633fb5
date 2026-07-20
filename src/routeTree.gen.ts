@@ -18,6 +18,7 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as QaRouteImport } from './routes/qa'
+import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
@@ -246,6 +247,11 @@ const ReadingListRoute = ReadingListRouteImport.update({
 const QaRoute = QaRouteImport.update({
   id: '/qa',
   path: '/qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PublicationsRoute = PublicationsRouteImport.update({
+  id: '/publications',
+  path: '/publications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -1208,6 +1214,7 @@ export interface FileRoutesByFullPath {
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -1401,6 +1408,7 @@ export interface FileRoutesByTo {
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
+  '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -1592,6 +1600,7 @@ export interface FileRoutesById {
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -1789,6 +1798,7 @@ export interface FileRouteTypes {
     | '/polls'
     | '/pricing'
     | '/profile'
+    | '/publications'
     | '/qa'
     | '/reading-list'
     | '/reset-password'
@@ -1982,6 +1992,7 @@ export interface FileRouteTypes {
     | '/people'
     | '/polls'
     | '/pricing'
+    | '/publications'
     | '/qa'
     | '/reading-list'
     | '/reset-password'
@@ -2172,6 +2183,7 @@ export interface FileRouteTypes {
     | '/polls'
     | '/pricing'
     | '/profile'
+    | '/publications'
     | '/qa'
     | '/reading-list'
     | '/reset-password'
@@ -2368,6 +2380,7 @@ export interface RootRouteChildren {
   PollsRoute: typeof PollsRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
+  PublicationsRoute: typeof PublicationsRoute
   QaRoute: typeof QaRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -2482,6 +2495,13 @@ declare module '@tanstack/react-router' {
       path: '/qa'
       fullPath: '/qa'
       preLoaderRoute: typeof QaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/publications': {
+      id: '/publications'
+      path: '/publications'
+      fullPath: '/publications'
+      preLoaderRoute: typeof PublicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -4238,6 +4258,7 @@ const rootRouteChildren: RootRouteChildren = {
   PollsRoute: PollsRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
+  PublicationsRoute: PublicationsRoute,
   QaRoute: QaRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
   ResetPasswordRoute: ResetPasswordRoute,
