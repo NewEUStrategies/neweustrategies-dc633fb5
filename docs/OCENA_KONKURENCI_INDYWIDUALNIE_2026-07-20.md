@@ -1,5 +1,10 @@
 # Ocena konkurencyjna modułów NES — każdy konkurent indywidualnie
 
+> **UWAGA — dokument zastąpiony.** Wersja rozstrzygająca to
+> `OCENA_ANALITYCZNA_KONKURENCJI_2026-07-20.md`: czat oceniany sensu stricto (0,0 u wszystkich
+> konkurentów — moduł „czat/społeczność" poniżej zawyżał noty FT/CFR/Euractiv funkcjami pokrewnymi),
+> NES urealniony (7,5 zamiast 8,0), każdy podmiot z opisem, uzasadnieniem not i przypisami źródłowymi.
+
 **Data:** 2026-07-20 · **Gałąź:** `claude/struktura-modulow-funkcji-38atfr` (PR #46)
 
 Dokument rozwija `OCENA_KONKURENCYJNA_MODULOW_2026-07-20.md`: zamiast ocen grupowych (średnich per liga)
