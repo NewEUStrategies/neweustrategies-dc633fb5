@@ -4,7 +4,7 @@
 // Exposes the WAI-ARIA combobox/listbox pattern with arrow-key navigation,
 // recent searches, and a "view all results" link into /search.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "@tanstack/react-router";
+import { useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -53,7 +53,18 @@ export function SearchButtonWidget({
   fontSize: number;
 }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  // Sync the header search bar with /search?q=... so header and page never
+  // disagree. We read the router state (updated on every navigation) and
+  // mirror it into the local input when the user isn't actively typing.
+  const routerLocation = useRouterState({ select: (s) => s.location });
+  const urlQ = useMemo(() => {
+    const path = routerLocation.pathname || "";
+    if (!/(^|\/)search(\/?$|\?)/.test(path) && !path.endsWith("/search")) return "";
+    const sp = routerLocation.search as Record<string, unknown> | undefined;
+    const raw = sp && typeof sp.q === "string" ? sp.q : "";
+    return raw;
+  }, [routerLocation.pathname, routerLocation.search]);
+  const [q, setQ] = useState(urlQ);
   const [items, setItems] = useState<AutosuggestItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -87,6 +98,15 @@ export function SearchButtonWidget({
       window.removeEventListener("keydown", onKey);
     };
   }, []);
+
+  // Mirror ?q= from /search into the header input on navigation - so header
+  // and page always show the same phrase. We skip while the input is focused
+  // to avoid clobbering what the user is typing.
+  useEffect(() => {
+    if (focused) return;
+    if (urlQ !== q) setQ(urlQ);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlQ, focused]);
 
   const runSearch = async (term: string) => {
     const t = term.trim();
