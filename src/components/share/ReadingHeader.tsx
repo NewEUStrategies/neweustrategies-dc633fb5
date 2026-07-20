@@ -204,8 +204,29 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           />
         </div>
 
-        {/* Mobile-only icon cluster replacing the search widget */}
+        {/* Mobile-only icon cluster replacing the search widget.
+            Zawiera lupę i hamburger, które przez zdarzenia okna otwierają ten
+            sam SearchOverlay i drawer co główny pasek mobilny - bez tego po
+            scrollu na wpisie użytkownik traci dostęp do menu i szukania. */}
         <div className="flex sm:hidden items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("neus:open-mobile-search"))}
+            aria-label={t.search}
+            title={t.search}
+            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("neus:open-mobile-menu"))}
+            aria-label={t.menu}
+            title={t.menu}
+            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
           <NotificationsBell panelWidth={260} />
           <ChatBell panelWidth={280} />
           <Link
@@ -225,6 +246,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </Link>
         </div>
+
 
         {/* Reading: title */}
         <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
