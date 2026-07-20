@@ -4547,6 +4547,7 @@ export type Database = {
           menu_order: number
           og_image_generated_url: string | null
           parent_id: string | null
+          publish_at: string | null
           published_at: string | null
           search_vector: unknown
           seo_canonical_url: string | null
@@ -4586,6 +4587,7 @@ export type Database = {
           menu_order?: number
           og_image_generated_url?: string | null
           parent_id?: string | null
+          publish_at?: string | null
           published_at?: string | null
           search_vector?: unknown
           seo_canonical_url?: string | null
@@ -4625,6 +4627,7 @@ export type Database = {
           menu_order?: number
           og_image_generated_url?: string | null
           parent_id?: string | null
+          publish_at?: string | null
           published_at?: string | null
           search_vector?: unknown
           seo_canonical_url?: string | null
@@ -9363,6 +9366,7 @@ export type Database = {
           menu_order: number
           og_image_generated_url: string | null
           parent_id: string | null
+          publish_at: string | null
           published_at: string | null
           search_vector: unknown
           seo_canonical_url: string | null
@@ -9857,6 +9861,7 @@ export type Database = {
       prune_integration_deliveries: { Args: never; Returns: number }
       prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
+      publish_due_pages: { Args: never; Returns: number }
       publish_due_posts: { Args: never; Returns: number }
       rate_limit_hit: {
         Args: {

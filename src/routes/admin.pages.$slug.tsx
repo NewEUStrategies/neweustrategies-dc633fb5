@@ -11,6 +11,7 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isoToLocalInput, localInputToIso } from "@/lib/content/workflow";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
 
@@ -64,7 +65,7 @@ export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
 
-type PageStatus = "draft" | "published" | "archived";
+type PageStatus = "draft" | "published" | "scheduled" | "archived";
 type EditorType = "richtext" | "markdown" | "builder";
 
 interface PageForm {
@@ -80,6 +81,7 @@ interface PageForm {
   excerpt_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
+  publish_at: string | null;
   builder_data: BuilderDocument | null;
   parent_id: string | null;
   menu_order: number;
@@ -185,6 +187,7 @@ function EditPage() {
           fields: {
             slug: snapshot.slug,
             status: snapshot.status,
+            publish_at: snapshot.publish_at ?? null,
             editor: snapshot.editor,
             title_pl: snapshot.title_pl,
             title_en: snapshot.title_en,
@@ -354,10 +357,35 @@ function EditPage() {
           <SelectContent>
             <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
             <SelectItem value="published">{t("admin.status.published")}</SelectItem>
+            <SelectItem value="scheduled">{t("admin.status.scheduled")}</SelectItem>
             <SelectItem value="archived">{t("admin.status.archived")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
+      {form.status === "scheduled" && (
+        <div>
+          <Label>{t("admin.workflow.publishAt", { defaultValue: "Data publikacji" })}</Label>
+          <Input
+            type="datetime-local"
+            value={isoToLocalInput(form.publish_at)}
+            onChange={(e) => set("publish_at", localInputToIso(e.target.value))}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {!form.publish_at
+              ? t("admin.workflow.publishAtRequired", {
+                  defaultValue: "Zaplanowany wpis wymaga daty publikacji.",
+                })
+              : new Date(form.publish_at).getTime() <= Date.now()
+                ? t("admin.workflow.publishAtPast", {
+                    defaultValue:
+                      "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
+                  })
+                : t("admin.workflow.publishAtHint", {
+                    defaultValue: "Wpis opublikuje się automatycznie o wskazanej godzinie.",
+                  })}
+          </p>
+        </div>
+      )}
       <div>
         <Label>{t("admin.posts.editor")}</Label>
         <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40 text-sm">

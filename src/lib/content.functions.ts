@@ -233,7 +233,7 @@ async function captureAutoRedirect(
 const UUID = z.string().uuid();
 // Posts carry the full editorial workflow; pages keep the simple lifecycle.
 const PostStatus = z.enum(POST_STATUSES);
-const PageStatus = z.enum(["draft", "published", "archived"]);
+const PageStatus = z.enum(["draft", "published", "scheduled", "archived"]);
 // Bulk actions exclude `scheduled` - scheduling needs a per-post publish_at.
 const BulkPostStatus = z.enum(["draft", "pending_review", "published", "archived"]);
 const Editor = z.enum(["blocks", "richtext", "markdown", "builder"]);
@@ -921,6 +921,7 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
 const PageCore = z.object({
   slug: SlugInput,
   status: PageStatus.default("draft"),
+  publish_at: z.string().datetime({ offset: true }).nullable().optional(),
   editor: Editor.default("builder"),
   ...TitleBlock,
   excerpt_pl: NullableStr(1000),
@@ -1016,8 +1017,29 @@ export const updatePage = createServerFn({ method: "POST" })
       // of a live page must not re-date it - sitemaps and feeds order by
       // `published_at`, and the editor re-sends status: "published" every time.
       const nextStatus = updates.status ?? existing.status;
+      const statusChanges = nextStatus !== existing.status;
+      // Bramka workflow jak we wpisach (statusy stron są podzbiorem statusów
+      // wpisów, więc evaluateTransition działa 1:1); DB dubluje to triggerem
+      // pages_workflow_guard - tu tylko przyjazny komunikat przed zapisem.
+      const nextPublishAt =
+        updates.publish_at !== undefined ? updates.publish_at : existing.publish_at;
+      if (statusChanges) {
+        const actor = { canPublish: await resolveCanPublish(supabase) };
+        const verdict = evaluateTransition(actor, existing.status, nextStatus, nextPublishAt);
+        if (!verdict.ok) {
+          throw new Error(
+            verdict.reason === "requires_publisher"
+              ? "Workflow: only an administrator can publish or schedule a page"
+              : "Workflow: a scheduled page needs a publish date",
+          );
+        }
+      }
       if (isFirstPublish(existing.status, nextStatus, existing.published_at)) {
         updates.published_at = new Date().toISOString();
+      }
+      // Zejście z harmonogramu (lub publikacja natychmiastowa) czyści datę.
+      if (statusChanges && nextStatus !== "scheduled" && existing.publish_at) {
+        updates.publish_at = null;
       }
 
       // Permalink move detection needs the pre-update path (page_full_path
