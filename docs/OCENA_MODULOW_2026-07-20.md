@@ -277,7 +277,7 @@ semantycznej** (drogie — świadoma decyzja inwestycyjna).
 # 4. CZAT — funkcjonalność 8,5 · UX 8,0 · UI 8,0
 
 Najlepiej oceniany moduł platformy. Przebudowa 12–16.07 podniosła go z prostego komunikatora do klasy
-WhatsApp/Messenger — z jedną fundamentalną różnicą (brak E2E) i dwiema lukami funkccyjnymi (wyszukiwanie
+WhatsApp/Messenger — z jedną fundamentalną różnicą (brak E2E) i dwiema lukami funkcyjnymi (wyszukiwanie
 w treści, połączenia).
 
 ## 4.1 Funkcjonalność: 8,5
@@ -460,7 +460,7 @@ wszystkim mechaniki napędzania kompletności profilu i domknięcia IA — nie f
 3. **Względem konkurencji NES wygrywa integracją, nie pojedynczym modułem.** Medium czyta lepiej, Webflow
    projektuje swobodniej, WhatsApp szyfruje, LinkedIn napędza profile — ale nikt nie ma tych pięciu modułów
    naraz, w dwóch językach, na jednym paywallu, z jedną tożsamością i szyną zdarzeń. Ta integracja jest fosą;
-   kolejne inwestycje powinny ją eksponować (np. wyniki czatu/profili w ⌒K, alerty szukajki w powiadomieniach,
+   kolejne inwestycje powinny ją eksponować (np. wyniki czatu/profili w ⌘K, alerty szukajki w powiadomieniach,
    dorobek z wpisów na profilu — częściowo już się dzieje).
 
 ## Priorytety (koszt → efekt)
