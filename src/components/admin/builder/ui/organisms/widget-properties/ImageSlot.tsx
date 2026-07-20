@@ -1,15 +1,27 @@
 // Organism: image upload slot with URL/file fallback, used by Image and Slider editors.
 // Includes URL validation and rich error messages for upload failures
 // (file size/type/storage). Errors render inline below the input.
+// Uploady rejestrują się w bibliotece mediów (registerMediaUpload, folder
+// /widgets) - wcześniej lądowały w storage z pominięciem tabeli `media`,
+// więc były niewidoczne w bibliotece i cleanupie (higiena z audytu 13.07).
 import { useRef, useState, type ReactNode } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { createMediaFolder, registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import "@/lib/i18n-builder";
+
+/** Folder biblioteki, w którym lądują uploady z inspektora buildera. */
+const WIDGETS_FOLDER = "/widgets/";
+
+// Folder tworzymy raz na sesję panelu (createMediaFolder jest idempotentny -
+// upsert po tenant_id+path - więc flaga to tylko oszczędność wywołań).
+let widgetsFolderEnsured = false;
 
 interface Props {
   label: string;
@@ -62,6 +74,9 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const tenantId = useRequiredTenant();
+  const registerUpload = useServerFn(registerMediaUpload);
+  const updateMeta = useServerFn(updateMediaMeta);
+  const ensureFolder = useServerFn(createMediaFolder);
 
   const urlError = validateUrl(value, t);
 
@@ -96,6 +111,31 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       if (!data?.publicUrl) throw new Error(t("builder.imageSlot.noPublicUrl"));
+      // Rejestr w bibliotece mediów (walidacja tenant/mime/rozmiar po stronie
+      // serwera + audyt). Nieudana rejestracja = sprzątamy plik ze storage,
+      // żeby builder nie zostawiał sierot niewidocznych dla cleanupu.
+      try {
+        const registered = await registerUpload({
+          data: {
+            storagePath: path,
+            filename: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            publicUrl: data.publicUrl,
+          },
+        });
+        if (!widgetsFolderEnsured) {
+          await ensureFolder({ data: { path: WIDGETS_FOLDER } });
+          widgetsFolderEnsured = true;
+        }
+        await updateMeta({ data: { mediaId: registered.id, folderPath: WIDGETS_FOLDER } });
+      } catch (regErr) {
+        await supabase.storage
+          .from("media")
+          .remove([path])
+          .catch(() => undefined);
+        throw regErr;
+      }
       onChange(data.publicUrl);
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("builder.imageSlot.unknownError");
