@@ -31,6 +31,7 @@ export interface JobsTickResult {
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
   linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
+  integrations: { claimed: number; delivered: number; failed: number } | { error: string };
 }
 
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
@@ -73,7 +74,16 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   } catch (err) {
     linkCheck = { error: err instanceof Error ? err.message : String(err) };
   }
-  return { newsletter, push, digestDaily, digestWeekly, eventReminders, linkCheck };
+  let integrations: JobsTickResult["integrations"];
+  try {
+    // Dren outboxu integracji (D2): dostawy webhooków płyną cronem, nie
+    // tylko przy wejściu staffu do panelu.
+    const { runIntegrationDispatch } = await import("@/lib/integrations/dispatch.functions");
+    integrations = await runIntegrationDispatch(20);
+  } catch (err) {
+    integrations = { error: err instanceof Error ? err.message : String(err) };
+  }
+  return { newsletter, push, digestDaily, digestWeekly, eventReminders, linkCheck, integrations };
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */
