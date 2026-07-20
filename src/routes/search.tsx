@@ -327,16 +327,21 @@ function SearchPage() {
       submitPhrase(lang === "en" ? item.label_en || item.label_pl : item.label_pl || item.label_en);
       return;
     }
+    // Etykieta wybranej sugestii wraca do pola frazy - żeby to, co widać
+    // w headerze/inpucie, odpowiadało temu, co filtruje wyniki (bez tego
+    // input czyścił się do pustego stringa, a lista pokazywała wszystkich).
+    const pickedLabel =
+      (lang === "en" ? item.label_en || item.label_pl : item.label_pl || item.label_en) || "";
     if (item.kind === "author" && item.id) {
-      setDraft("");
-      applyPatch({ q: "", author: item.id });
+      setDraft(pickedLabel);
+      applyPatch({ q: pickedLabel, author: item.id });
       return;
     }
     // Term taksonomii: kind == FacetDim; mapujemy na parametr URL.
     const dim = item.kind as (typeof TAXONOMY_DIMS)[number];
     if (TAXONOMY_DIMS.includes(dim) && item.id) {
-      setDraft("");
-      applyPatch({ q: "", [DIM_PARAM[dim]]: item.id });
+      setDraft(pickedLabel);
+      applyPatch({ q: pickedLabel, [DIM_PARAM[dim]]: item.id });
     }
   };
 
