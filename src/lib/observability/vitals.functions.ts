@@ -43,14 +43,13 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       .parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<VitalsSummaryResult> => {
-    // Admin gate: a user can read their own roles under RLS (see useAuth), so we
-    // check the role with the user-scoped client before touching the service role.
-    const { data: roles, error: roleErr } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
+    // Admin gate: has_role() filters user_roles by current_tenant_id(), so a
+    // stale role row from another tenant can never authorize this tenant's RUM.
+    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
     if (roleErr) throw new Error(roleErr.message);
-    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
     // Resolve the analytical window. Custom range (sinceIso/untilIso) wins over
