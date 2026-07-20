@@ -84,13 +84,37 @@ export const FACET_ORDER: readonly FacetDim[] = [
   "year",
 ] as const;
 
+/** Parametr wymiaru w URL to lista CSV (multi-select): "id1,id2" → ["id1","id2"].
+ *  Pojedyncza wartość pozostaje zwykłym stringiem - pełna kompatybilność
+ *  ze starymi linkami i zapisanymi wyszukiwaniami. */
+export function splitDimValues(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
+/** Odwrotność splitDimValues - pusta lista znika z URL-a (undefined). */
+export function joinDimValues(values: string[]): string | undefined {
+  const clean = values.map((v) => v.trim()).filter((v) => v.length > 0);
+  return clean.length > 0 ? clean.join(",") : undefined;
+}
+
 /** Buduje SearchFilters (wejście RPC) z parametrów URL. Rok mapuje się na
  *  zakres dat; jawne from/to mają pierwszeństwo nad rokiem. Zakładka "titles"
- *  wymusza zakres tytułów niezależnie od parametru scope. */
+ *  wymusza zakres tytułów niezależnie od parametru scope. Wymiary taksonomii
+ *  jadą jako grupy (OR wewnątrz wymiaru, AND między wymiarami). */
 export function urlToFilters(u: SearchUrl): SearchFilters {
-  const terms = TAXONOMY_DIMS.map((dim) => u[DIM_PARAM[dim]] as string | undefined).filter(
-    (v): v is string => !!v,
-  );
+  const termGroups: SearchFilters["termGroups"] = {};
+  let anyGroup = false;
+  for (const dim of TAXONOMY_DIMS) {
+    const vals = splitDimValues(u[DIM_PARAM[dim]] as string | undefined);
+    if (vals.length > 0) {
+      termGroups[dim] = vals;
+      anyGroup = true;
+    }
+  }
   let dateFrom = u.from || undefined;
   let dateTo = u.to || undefined;
   if (u.year && !dateFrom && !dateTo) {
@@ -104,7 +128,7 @@ export function urlToFilters(u: SearchUrl): SearchFilters {
     authorId: u.author || undefined,
     dateFrom,
     dateTo,
-    terms: terms.length > 0 ? terms : undefined,
+    termGroups: anyGroup ? termGroups : undefined,
     format: u.format || undefined,
     lang: u.lang || undefined,
     access: u.access || undefined,
@@ -162,29 +186,75 @@ export interface ActiveSelection {
   dim: FacetDim | "date" | "match" | "scope";
   /** Wartość identyfikująca (id termu / slug / kod), do dopasowania etykiety. */
   value: string;
+  /** Łatka usuwająca TEN chip: przy multi-select w wymiarze taksonomii
+   *  zdejmuje pojedynczą wartość z listy CSV, nie cały wymiar. */
+  patch: Partial<SearchUrl>;
+}
+
+/** Łatka czyszcząca podane klucze URL. */
+function clearKeysPatch(keys: (keyof SearchUrl)[]): Partial<SearchUrl> {
+  const patch: Partial<SearchUrl> = {};
+  for (const k of keys) patch[k] = undefined as never;
+  return patch;
 }
 
 /** Wyprowadza listę aktywnych filtrów z parametrów URL (kolejność jak w panelu).
- *  Tryby zaawansowane (match/scope) też są usuwalnymi chipami - użytkownik
- *  widzi, że działa np. dokładna fraza, i jednym kliknięciem wraca do domyślnych. */
+ *  Wymiar taksonomii z wieloma wartościami daje chip PER WARTOŚĆ (usunięcie
+ *  chipa zdejmuje tylko tę wartość). Tryby zaawansowane (match/scope) też są
+ *  usuwalnymi chipami - użytkownik widzi, że działa np. dokładna fraza,
+ *  i jednym kliknięciem wraca do domyślnych. */
 export function activeSelections(u: SearchUrl): ActiveSelection[] {
   const out: ActiveSelection[] = [];
   for (const dim of TAXONOMY_DIMS) {
     const param = DIM_PARAM[dim];
-    const val = u[param] as string | undefined;
-    if (val) out.push({ keys: [param], dim, value: val });
+    const values = splitDimValues(u[param] as string | undefined);
+    for (const value of values) {
+      out.push({
+        keys: [param],
+        dim,
+        value,
+        patch: { [param]: joinDimValues(values.filter((v) => v !== value)) } as Partial<SearchUrl>,
+      });
+    }
   }
-  if (u.author) out.push({ keys: ["author"], dim: "author", value: u.author });
-  if (u.format) out.push({ keys: ["format"], dim: "format", value: u.format });
-  if (u.lang) out.push({ keys: ["lang"], dim: "lang", value: u.lang });
-  if (u.access) out.push({ keys: ["access"], dim: "access", value: u.access });
-  if (u.year) out.push({ keys: ["year"], dim: "year", value: u.year });
+  if (u.author)
+    out.push({
+      keys: ["author"],
+      dim: "author",
+      value: u.author,
+      patch: clearKeysPatch(["author"]),
+    });
+  if (u.format)
+    out.push({
+      keys: ["format"],
+      dim: "format",
+      value: u.format,
+      patch: clearKeysPatch(["format"]),
+    });
+  if (u.lang)
+    out.push({ keys: ["lang"], dim: "lang", value: u.lang, patch: clearKeysPatch(["lang"]) });
+  if (u.access)
+    out.push({
+      keys: ["access"],
+      dim: "access",
+      value: u.access,
+      patch: clearKeysPatch(["access"]),
+    });
+  if (u.year)
+    out.push({ keys: ["year"], dim: "year", value: u.year, patch: clearKeysPatch(["year"]) });
   // Zakres dat pokazujemy jako jeden chip (chyba że pochodzi z roku).
   if (!u.year && (u.from || u.to)) {
-    out.push({ keys: ["from", "to"], dim: "date", value: `${u.from ?? "…"} – ${u.to ?? "…"}` });
+    out.push({
+      keys: ["from", "to"],
+      dim: "date",
+      value: `${u.from ?? "…"} – ${u.to ?? "…"}`,
+      patch: clearKeysPatch(["from", "to"]),
+    });
   }
-  if (u.match && u.match !== "all") out.push({ keys: ["match"], dim: "match", value: u.match });
-  if (u.scope && u.scope !== "all") out.push({ keys: ["scope"], dim: "scope", value: u.scope });
+  if (u.match && u.match !== "all")
+    out.push({ keys: ["match"], dim: "match", value: u.match, patch: clearKeysPatch(["match"]) });
+  if (u.scope && u.scope !== "all")
+    out.push({ keys: ["scope"], dim: "scope", value: u.scope, patch: clearKeysPatch(["scope"]) });
   return out;
 }
 

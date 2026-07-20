@@ -92,7 +92,8 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
 import { InlineToc } from "@/components/post/InlineToc";
-import { useTocDefaults, type TocOverride } from "@/lib/toc/settings";
+import { mergeTocSettings, useTocDefaults, type TocOverride } from "@/lib/toc/settings";
+import { useReadingAdBudget } from "@/lib/ads/readingMode";
 
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import {
@@ -498,6 +499,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const accessRule = data.access;
   const { data: globalLayoutSettings } = usePostLayoutSettings();
   const tocDefaults = useTocDefaults();
+  // Tryb czytania (P0): między-strefowy budżet reklam strony artykułu oraz
+  // gwarancja JEDNEGO spisu treści - gdy TOC jest w treści (showInBody),
+  // panel czytania w sidebarze nie renderuje swojej kopii.
+  const allowAd = useReadingAdBudget();
+  const bodyTocActive = (() => {
+    if (!post) return false;
+    const mergedToc = mergeTocSettings(
+      tocDefaults,
+      (post.toc_override ?? null) as TocOverride | null,
+    );
+    return mergedToc.enabled && mergedToc.showInBody;
+  })();
   useRecordPostView(isPost ? it.id : null, postAuthor?.id ?? null);
 
   // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
@@ -751,13 +764,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <div style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
           <PrintBriefHeader lang={lang} url={citationUrl} />
           <Breadcrumbs items={crumbs} />
-          <AdZone
-            position="top_of_post"
-            pageType={adPageType}
-            pageId={it.id}
-            className="mb-6"
-            content={adContent}
-          />
+          {allowAd("top_of_post") && (
+            <AdZone
+              position="top_of_post"
+              pageType={adPageType}
+              pageId={it.id}
+              className="mb-6"
+              content={adContent}
+            />
+          )}
           <PostLayoutRenderer
             format={format}
             layoutId={layoutId}
@@ -806,13 +821,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     override={relatedOverride}
                   />
                 )}
-                <MidPostAds
-                  articleRef={articleRef}
-                  pageType={adPageType}
-                  pageId={it.id}
-                  scanKey={`${it.id}-${lang}`}
-                  content={adContent}
-                />
+                {allowAd("mid_post") && (
+                  <MidPostAds
+                    articleRef={articleRef}
+                    pageType={adPageType}
+                    pageId={it.id}
+                    scanKey={`${it.id}-${lang}`}
+                    content={adContent}
+                  />
+                )}
               </>
             }
             sidebar={
@@ -824,6 +841,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     lang={lang}
                     tags={postTags}
                     adContent={adContent}
+                    suppressToc={bodyTocActive}
+                    suppressAds={!allowAd("sidebar")}
                     layoutId={
                       (post as unknown as { sidebar_layout_id?: string | null })
                         .sidebar_layout_id ?? null
@@ -873,7 +892,12 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     }
                   />
                 ) : (
-                  <FloatingShareBar title={title} lang={lang} variant="sidebar" />
+                  <FloatingShareBar
+                    title={title}
+                    lang={lang}
+                    variant="sidebar"
+                    settings={bodyTocActive ? { showToc: false } : undefined}
+                  />
                 )}
               </>
             }
@@ -926,13 +950,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
                   </div>
                 )}
-                <AdZone
-                  position="bottom_of_post"
-                  pageType={adPageType}
-                  pageId={it.id}
-                  className="my-6"
-                  content={adContent}
-                />
+                {allowAd("bottom_of_post") && (
+                  <AdZone
+                    position="bottom_of_post"
+                    pageType={adPageType}
+                    pageId={it.id}
+                    className="my-6"
+                    content={adContent}
+                  />
+                )}
                 {merged.show_bottom_newsletter && (
                   <div className="no-print">
                     <NewsletterForm lang={lang} source={`post:${post.slug}`} />
@@ -959,7 +985,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           )}
         </div>
 
-        <FooterSlideup pageType={adPageType} pageId={it.id} />
+        {allowAd("footer_slideup") && <FooterSlideup pageType={adPageType} pageId={it.id} />}
       </div>
     );
   }

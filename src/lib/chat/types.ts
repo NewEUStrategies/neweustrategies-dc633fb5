@@ -4,7 +4,12 @@ import type { Database } from "@/integrations/supabase/types";
 
 export type ConversationRow = Database["public"]["Tables"]["conversations"]["Row"];
 export type ParticipantRow = Database["public"]["Tables"]["conversation_participants"]["Row"];
-export type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
+// search_vector to serwerowa kolumna FTS (trigger) - klient nigdy jej nie
+// konstruuje (optymistyczne wiersze, demo bot), więc w domenowym typie jest
+// opcjonalna; select("*") i tak ją zwraca jako nadmiarowe pole.
+export type MessageRow = Omit<Database["public"]["Tables"]["messages"]["Row"], "search_vector"> & {
+  search_vector?: unknown;
+};
 export type ReactionRow = Database["public"]["Tables"]["message_reactions"]["Row"];
 
 export type PeerProfile = Database["public"]["Functions"]["get_chat_peers"]["Returns"][number];

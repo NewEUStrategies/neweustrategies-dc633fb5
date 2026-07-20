@@ -856,6 +856,13 @@ export const en = {
       searchVisibility: "Search engine visibility",
       searchVisibilityHint: "Disable to ask search engines not to index this site.",
       allowIndexing: "Allow search engines to index this site",
+      readingModeTitle: "Article reading mode",
+      readingModeHint:
+        "The article page shows a single table of contents and a single progress indicator; the limits below cap the number of ad zones (priority order: top, in-content, sidebar, bottom, slide-up bar).",
+      readingModeAds: "Cap the number of ad zones on the article page",
+      maxAdZonesFree: "Max ad zones - readers without a paid plan",
+      maxAdZonesPaid: "Max ad zones - paying members",
+      maxAdZonesPaidHint: "0 = paying members see no ads on the article page.",
     },
     discussion: {
       title: "Discussion",
@@ -1767,6 +1774,7 @@ export const en = {
         follow: "New followers",
         subscription: "Subscription updates",
         content: "New content",
+        saved_search: "Saved search alerts",
         tracker: "Legislative tracker updates",
         connection: "Network invitations",
         system: "System announcements",

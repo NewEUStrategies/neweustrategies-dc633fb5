@@ -104,7 +104,7 @@ const STATIC_COMMANDS: PaletteCommand[] = [
     section: "account",
     label_pl: "Konto",
     label_en: "Account",
-    to: "/profile/account",
+    to: "/profile/edit",
     icon: Icon(UserIcon),
     authOnly: true,
   },

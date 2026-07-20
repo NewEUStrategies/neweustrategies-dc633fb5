@@ -8,6 +8,7 @@ const pl = {
     title: "Mój profil",
     nav: {
       overview: "Przegląd",
+      edit: "Edycja profilu",
       account: "Konto",
       author: "Profil autora",
       social: "Media społecznościowe",
@@ -29,11 +30,14 @@ const pl = {
       content: "Treści i personalizacja",
       finance: "Płatności i bezpieczeństwo",
     },
-    identityHint: {
-      account: "Ta strona edytuje Twoje konto (dane prywatne widoczne dla Ciebie). Pozostałe:",
-      social: "Ta strona edytuje Twoją publiczną wizytówkę i linki społecznościowe. Pozostałe:",
-      author:
-        "Ta strona edytuje personę autora widoczną przy publikacjach (bio jest wspólne z profilem). Pozostałe:",
+    edit: {
+      title: "Edycja profilu",
+      intro: "Wszystkie dane Twojej tożsamości w jednym miejscu.",
+      tabs: {
+        basic: "Dane podstawowe",
+        expert: "Profil eksperta",
+        social: "Social i bio",
+      },
     },
     overview: {
       welcome: "Witaj, {{name}}",
@@ -380,6 +384,7 @@ const en: typeof pl = {
     title: "My profile",
     nav: {
       overview: "Overview",
+      edit: "Edit profile",
       account: "Account",
       author: "Author profile",
       social: "Social media",
@@ -401,11 +406,14 @@ const en: typeof pl = {
       content: "Content & personalization",
       finance: "Payments & security",
     },
-    identityHint: {
-      account: "This page edits your account (private details visible to you). Also see:",
-      social: "This page edits your public profile card and social links. Also see:",
-      author:
-        "This page edits the author persona shown on your publications (bio is shared with your profile). Also see:",
+    edit: {
+      title: "Edit profile",
+      intro: "Everything about your identity in one place.",
+      tabs: {
+        basic: "Basic details",
+        expert: "Expert profile",
+        social: "Social & bio",
+      },
     },
     overview: {
       welcome: "Welcome, {{name}}",

@@ -32,15 +32,20 @@ describe("DIM_PARAM / PARAM_DIM", () => {
 });
 
 describe("urlToFilters", () => {
-  it("zbiera pojedyncze wybory wymiarów taksonomii w tablicę terms (AND)", () => {
+  it("zbiera pojedyncze wybory wymiarów taksonomii w grupy (AND między wymiarami)", () => {
     const u: SearchUrl = { q: "energia", type: "t1", region: "r1", topic: "top1" };
     const f = urlToFilters(u);
     expect(f.q).toBe("energia");
-    expect(f.terms?.sort()).toEqual(["r1", "t1", "top1"].sort());
+    expect(f.termGroups).toEqual({ pub_type: ["t1"], region: ["r1"], topic: ["top1"] });
   });
 
-  it("pusty zestaw termów daje undefined (nie pustą tablicę)", () => {
-    expect(urlToFilters({ q: "" }).terms).toBeUndefined();
+  it("wartości CSV wymiaru trafiają do jednej grupy (OR wewnątrz wymiaru)", () => {
+    const f = urlToFilters({ q: "", topic: "a,b", region: "r1" });
+    expect(f.termGroups).toEqual({ topic: ["a", "b"], region: ["r1"] });
+  });
+
+  it("pusty zestaw termów daje undefined (nie pusty obiekt)", () => {
+    expect(urlToFilters({ q: "" }).termGroups).toBeUndefined();
   });
 
   it("rok mapuje się na zakres dat, gdy brak jawnych from/to", () => {
@@ -66,9 +71,9 @@ describe("urlToFilters", () => {
     });
   });
 
-  it("organizacja (org) trafia do terms jak pozostałe wymiary taksonomii", () => {
+  it("organizacja (org) trafia do grup jak pozostałe wymiary taksonomii", () => {
     const f = urlToFilters({ q: "", org: "o1", topic: "t1" });
-    expect(f.terms?.sort()).toEqual(["o1", "t1"].sort());
+    expect(f.termGroups).toEqual({ organization: ["o1"], topic: ["t1"] });
   });
 
   it("tryby zaawansowane: match przepisany, wartość domyślna pomijana", () => {
@@ -155,6 +160,20 @@ describe("activeSelections / hasAnyFilter", () => {
   it("filtr organizacji jest chipem czyszczącym parametr org", () => {
     const sels = activeSelections({ q: "", org: "o1" });
     expect(sels.find((s) => s.dim === "organization")?.keys).toEqual(["org"]);
+    expect(sels.find((s) => s.dim === "organization")?.patch).toEqual({ org: undefined });
+  });
+
+  it("multi-select: chip per wartość, łatka zdejmuje tylko tę wartość", () => {
+    const sels = activeSelections({ q: "", topic: "a,b" });
+    const topics = sels.filter((s) => s.dim === "topic");
+    expect(topics.map((s) => s.value)).toEqual(["a", "b"]);
+    expect(topics[0].patch).toEqual({ topic: "b" });
+    expect(topics[1].patch).toEqual({ topic: "a" });
+  });
+
+  it("multi-select: ostatnia wartość wymiaru czyści parametr do undefined", () => {
+    const sels = activeSelections({ q: "", topic: "a" });
+    expect(sels.find((s) => s.dim === "topic")?.patch).toEqual({ topic: undefined });
   });
 });
 

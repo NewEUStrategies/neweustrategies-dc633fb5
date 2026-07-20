@@ -862,6 +862,13 @@ export const pl = {
       searchVisibility: "Widoczność dla wyszukiwarek",
       searchVisibilityHint: "Wyłącz, aby poprosić wyszukiwarki o nieindeksowanie witryny.",
       allowIndexing: "Zezwalaj wyszukiwarkom na indeksowanie",
+      readingModeTitle: "Tryb czytania artykułu",
+      readingModeHint:
+        "Strona artykułu pokazuje jeden spis treści i jeden wskaźnik postępu; poniższe limity ograniczają liczbę stref reklamowych (kolejność ważności: góra, w treści, sidebar, dół, pasek dolny).",
+      readingModeAds: "Ogranicz liczbę stref reklamowych na stronie artykułu",
+      maxAdZonesFree: "Maks. stref reklam - czytelnicy bez płatnego planu",
+      maxAdZonesPaid: "Maks. stref reklam - płacący członkowie",
+      maxAdZonesPaidHint: "0 = płacący nie widzą reklam na stronie artykułu.",
     },
     discussion: {
       title: "Dyskusja",
@@ -1781,6 +1788,7 @@ export const pl = {
         follow: "Nowi obserwujący",
         subscription: "Aktualizacje subskrypcji",
         content: "Nowe treści",
+        saved_search: "Alerty zapisanych wyszukiwań",
         tracker: "Aktualizacje trackera legislacyjnego",
         connection: "Zaproszenia do sieci kontaktów",
         system: "Ogłoszenia systemowe",

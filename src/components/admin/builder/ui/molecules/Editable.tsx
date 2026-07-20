@@ -161,7 +161,11 @@ export function Editable({
       onKeyDown={onKeyDown}
       onClick={stop}
       onMouseDown={stop}
-      className={`${className ?? ""} outline-none focus:ring-2 focus:ring-brand/40 focus:rounded empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50`}
+      // Affordance odkrywalności (Elementor/Webflow): kursor tekstowy +
+      // delikatny ring na hoverze sygnalizują edytowalność ZANIM ktoś
+      // kliknie - bez tego inline editing jest niewidoczny dla redaktora.
+      title={focused ? undefined : t("builder.editable.clickToEdit")}
+      className={`${className ?? ""} outline-none cursor-text hover:ring-1 hover:ring-brand/30 hover:rounded focus:ring-2 focus:ring-brand/40 focus:rounded empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50`}
       style={style}
     />
   );

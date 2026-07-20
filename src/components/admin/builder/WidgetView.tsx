@@ -722,6 +722,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<TagsView />);
     case "newsletter": {
       const tKey = `title_${lang}`;
+      const cKey = `cta_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
       const variant = normalizeNewsletterVariant(getStr(c, "variant") || "icon");
       const placeholder =
@@ -783,7 +784,14 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         );
       }
 
-      // editable=true → builder preview (oryginalna statyczna grafika)
+      // editable=true → builder preview (oryginalna statyczna grafika).
+      // Tytuł i etykieta CTA edytowalne inline (klik na kanwie, bez
+      // otwierania inspektora) - ten sam kontrakt commit() co heading/button.
+      const ctaEditable = canEdit ? (
+        <Editable as="span" value={ctaLabel} onCommit={(v) => commit(cKey, v)} placeholder="CTA…" />
+      ) : (
+        ctaLabel
+      );
       if (variant === "inline") {
         return wrap(
           <form className="flex gap-2 w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
@@ -793,10 +801,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
               className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm"
             />
             <button
-              type="submit"
+              type="button"
               className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90"
             >
-              {ctaLabel}
+              {ctaEditable}
             </button>
           </form>,
         );
@@ -806,7 +814,17 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           <div className="rounded-xl border border-border bg-card p-6 space-y-3 max-w-md">
             <div className="flex items-center gap-2">
               {IconCmp && <IconCmp className="w-5 h-5 text-brand" />}
-              <h4 className="font-display text-lg">{title}</h4>
+              {canEdit ? (
+                <Editable
+                  as="h4"
+                  value={title}
+                  onCommit={(v) => commit(tKey, v)}
+                  className="font-display text-lg"
+                  placeholder="Newsletter…"
+                />
+              ) : (
+                <h4 className="font-display text-lg">{title}</h4>
+              )}
             </div>
             <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
               <input
@@ -815,10 +833,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                 className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm"
               />
               <button
-                type="submit"
+                type="button"
                 className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90"
               >
-                {ctaLabel}
+                {ctaEditable}
               </button>
             </form>
           </div>,
@@ -826,12 +844,23 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       }
       if (variant === "minimal") {
         return wrap(
-          <span
-            style={compactRowStyle}
-            className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer"
-          >
-            {title}
-          </span>,
+          canEdit ? (
+            <Editable
+              as="span"
+              value={title}
+              onCommit={(v) => commit(tKey, v)}
+              style={compactRowStyle}
+              className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30"
+              placeholder="Newsletter…"
+            />
+          ) : (
+            <span
+              style={compactRowStyle}
+              className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer"
+            >
+              {title}
+            </span>
+          ),
         );
       }
       if (variant === "icon-only") {
@@ -1176,7 +1205,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "donations": {
       const variant = (getStr(c, "variant") || "hero") as
-        "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
+        | "hero"
+        | "progress"
+        | "stats-strip"
+        | "compact-card"
+        | "inline-bar"
+        | "thermometer";
       const title = lang === "pl" ? getStr(c, "title_pl") : getStr(c, "title_en");
       const subtitle = lang === "pl" ? getStr(c, "subtitle_pl") : getStr(c, "subtitle_en");
       const cta = lang === "pl" ? getStr(c, "cta_pl") : getStr(c, "cta_en");

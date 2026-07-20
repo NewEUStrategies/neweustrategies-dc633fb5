@@ -15,6 +15,12 @@ type Reading = {
   homepage_mode: "latest_posts" | "static_page";
   homepage_page_slug: string;
   search_engine_visibility: boolean;
+  // Tryb czytania artykułu: między-strefowy budżet reklam (czyta go
+  // useReadingAdBudget na stronie publicznej). Wartości domyślne muszą być
+  // spójne z READING_AD_DEFAULTS w src/lib/ads/readingMode.ts.
+  reading_mode_ads: boolean;
+  max_ad_zones_free: number;
+  max_ad_zones_paid: number;
 };
 
 const DEFAULTS: Reading = {
@@ -22,6 +28,9 @@ const DEFAULTS: Reading = {
   homepage_mode: "latest_posts",
   homepage_page_slug: "",
   search_engine_visibility: true,
+  reading_mode_ads: true,
+  max_ad_zones_free: 2,
+  max_ad_zones_paid: 1,
 };
 
 export const Route = createFileRoute("/admin/settings/reading")({
@@ -76,6 +85,39 @@ function ReadingSettings() {
           onChange={(v) => set("search_engine_visibility", v)}
         />
       </Field>
+
+      <h3 className="font-display text-lg mt-8 mb-1">{t("admin.reading.readingModeTitle")}</h3>
+      <p className="text-xs text-muted-foreground mb-4">{t("admin.reading.readingModeHint")}</p>
+      <Field label={t("admin.reading.readingModeTitle")}>
+        <Checkbox
+          label={t("admin.reading.readingModeAds")}
+          checked={draft.reading_mode_ads}
+          onChange={(v) => set("reading_mode_ads", v)}
+        />
+      </Field>
+      {draft.reading_mode_ads && (
+        <>
+          <Field label={t("admin.reading.maxAdZonesFree")}>
+            <NumberInput
+              min={0}
+              max={8}
+              value={draft.max_ad_zones_free}
+              onChange={(e) => set("max_ad_zones_free", Number(e.target.value))}
+            />
+          </Field>
+          <Field
+            label={t("admin.reading.maxAdZonesPaid")}
+            hint={t("admin.reading.maxAdZonesPaidHint")}
+          >
+            <NumberInput
+              min={0}
+              max={8}
+              value={draft.max_ad_zones_paid}
+              onChange={(e) => set("max_ad_zones_paid", Number(e.target.value))}
+            />
+          </Field>
+        </>
+      )}
 
       <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
     </div>

@@ -2,6 +2,7 @@
 // tables. Each returns paginated post lists with hydrated `href`.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { semanticSearch, type SemanticHit } from "@/lib/search/semantic.functions";
 import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
@@ -252,8 +253,12 @@ export interface SearchFilters {
   dateTo?: string;
   /** Legacy pojedyncza kategoria (pushdown _category) - zachowana kompatybilnie. */
   categoryId?: string;
-  /** Id termów kontrolowanej taksonomii (AND, z ekspansją hierarchii). */
+  /** Id termów kontrolowanej taksonomii (AND, z ekspansją hierarchii).
+   *  Legacy - nowy kod używa termGroups (multi-select). */
   terms?: string[];
+  /** Multi-select: grupa termów per wymiar - OR wewnątrz grupy (z ekspansją
+   *  hierarchii), AND między grupami. Mapowane na _term_groups jsonb w RPC. */
+  termGroups?: Partial<Record<TaxonomyDim, string[]>>;
   /** post_format (standard / video / audio / gallery). */
   format?: string;
   /** Wariant językowy dostępny dla wpisu. */
@@ -300,6 +305,21 @@ export interface SearchResult {
 const sortedTerms = (terms?: string[]): string[] | undefined =>
   terms && terms.length > 0 ? [...terms].sort() : undefined;
 
+/** Normalizuje grupy termów: stała kolejność wymiarów + posortowane wartości.
+ *  Jedna postać służy i kluczowi cache, i argumentowi _term_groups (CSV per
+ *  wymiar). Zwraca undefined, gdy żadna grupa nie jest aktywna. */
+function normalizedTermGroups(
+  groups?: SearchFilters["termGroups"],
+): Record<string, string> | undefined {
+  if (!groups) return undefined;
+  const out: Record<string, string> = {};
+  for (const dim of TAXONOMY_DIMS) {
+    const vals = groups[dim];
+    if (vals && vals.length > 0) out[dim] = [...vals].sort().join(",");
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** Wyszukiwanie przeglądowe działa też bez frazy (>=2 znaki), o ile jest
  *  aktywny którykolwiek filtr - inaczej pokazalibyśmy całe archiwum od zera. */
 function hasActiveFilter(f: SearchFilters): boolean {
@@ -311,7 +331,8 @@ function hasActiveFilter(f: SearchFilters): boolean {
     !!f.format ||
     !!f.lang ||
     !!f.access ||
-    (f.terms?.length ?? 0) > 0
+    (f.terms?.length ?? 0) > 0 ||
+    normalizedTermGroups(f.termGroups) !== undefined
   );
 }
 
@@ -331,6 +352,7 @@ function rpcFilterArgs(filters: SearchFilters) {
     _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
     _category: filters.categoryId ?? undefined,
     _terms: sortedTerms(filters.terms),
+    _term_groups: normalizedTermGroups(filters.termGroups),
     _format: filters.format ?? undefined,
     _lang: filters.lang ?? undefined,
     _access: filters.access ?? undefined,
@@ -356,7 +378,11 @@ export const searchQueryOptions = (
     queryKey: [
       "public",
       "search",
-      { ...filters, terms: sortedTerms(filters.terms) },
+      {
+        ...filters,
+        terms: sortedTerms(filters.terms),
+        termGroups: normalizedTermGroups(filters.termGroups),
+      },
       { limit },
     ] as const,
     enabled: opts?.browse ? true : searchEnabled(filters),
@@ -367,21 +393,45 @@ export const searchQueryOptions = (
       // nie po przyciętym oknie. search_posts nie ma offsetu, więc "load more"
       // rośnie przez _limit (60 → 120 → …) z sufitem SEARCH_LIMIT_MAX.
       const args = rpcFilterArgs(filters);
-      const [{ data: matchRows, error: matchError }, { data: facetRows, error: facetError }] =
-        await Promise.all([
-          supabase.rpc("search_posts", {
-            ...args,
-            _limit: Math.min(limit, SEARCH_LIMIT_MAX),
-            _sort: filters.sort ?? "relevance",
-          }),
-          supabase.rpc("search_facets", args),
-        ]);
+      // Warstwa semantyczna (drugi sygnał rankingu): embeddingi zapytania
+      // liczone server fn-em równolegle z FTS. Addytywna - błąd/brak
+      // dostawcy embeddingów degraduje do czystego FTS bez szumu.
+      const qForSemantic = filters.q.trim();
+      const semanticEligible =
+        qForSemantic.length >= 4 && (filters.sort ?? "relevance") === "relevance";
+      const [
+        { data: matchRows, error: matchError },
+        { data: facetRows, error: facetError },
+        semantic,
+      ] = await Promise.all([
+        supabase.rpc("search_posts", {
+          ...args,
+          _limit: Math.min(limit, SEARCH_LIMIT_MAX),
+          _sort: filters.sort ?? "relevance",
+        }),
+        supabase.rpc("search_facets", args),
+        semanticEligible
+          ? semanticSearch({ data: { q: qForSemantic } }).catch(() => ({ hits: [] }))
+          : Promise.resolve({ hits: [] as SemanticHit[] }),
+      ]);
       if (matchError) throw matchError;
       if (facetError) throw facetError;
 
-      const raw = matchRows ?? [];
+      let raw = matchRows ?? [];
       const total = raw.length > 0 ? Number(raw[0].total_count ?? raw.length) : 0;
       const fuzzy = raw.length > 0 && !!raw[0].fuzzy;
+      // Blend: 3/4 znormalizowanego FTS + 1/4 podobieństwa semantycznego.
+      // Tylko porządek trafień (zbiór i total bez zmian); fallback trigramowy
+      // (literówki) zostaje nietknięty - tam rank ma inną skalę.
+      if (!fuzzy && raw.length > 1 && semantic.hits.length > 0) {
+        const sim = new Map(semantic.hits.map((h) => [h.post_id, h.similarity]));
+        const maxRank = raw.reduce((mx, r) => Math.max(mx, Number(r.rank ?? 0)), 0);
+        const score = (r: (typeof raw)[number]) => {
+          const fts = maxRank > 0 ? Number(r.rank ?? 0) / maxRank : 0;
+          return 0.75 * fts + 0.25 * (sim.get(r.id) ?? 0);
+        };
+        raw = [...raw].sort((a, b) => score(b) - score(a));
+      }
       const rows = raw.map(
         ({
           rank: _rank,

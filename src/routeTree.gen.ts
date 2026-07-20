@@ -64,6 +64,7 @@ import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
+import { Route as ProfileEditRouteImport } from './routes/profile.edit'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
@@ -481,6 +482,11 @@ const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
 const ProfileFollowsRoute = ProfileFollowsRouteImport.update({
   id: '/follows',
   path: '/follows',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileEditRoute = ProfileEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileBookmarksRoute = ProfileBookmarksRouteImport.update({
@@ -1325,6 +1331,7 @@ export interface FileRoutesByFullPath {
   '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
+  '/profile/edit': typeof ProfileEditRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
@@ -1519,6 +1526,7 @@ export interface FileRoutesByTo {
   '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
+  '/profile/edit': typeof ProfileEditRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
@@ -1719,6 +1727,7 @@ export interface FileRoutesById {
   '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
+  '/profile/edit': typeof ProfileEditRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
@@ -1921,6 +1930,7 @@ export interface FileRouteTypes {
     | '/profile/author'
     | '/profile/billing'
     | '/profile/bookmarks'
+    | '/profile/edit'
     | '/profile/follows'
     | '/profile/interests'
     | '/profile/membership'
@@ -2115,6 +2125,7 @@ export interface FileRouteTypes {
     | '/profile/author'
     | '/profile/billing'
     | '/profile/bookmarks'
+    | '/profile/edit'
     | '/profile/follows'
     | '/profile/interests'
     | '/profile/membership'
@@ -2314,6 +2325,7 @@ export interface FileRouteTypes {
     | '/profile/author'
     | '/profile/billing'
     | '/profile/bookmarks'
+    | '/profile/edit'
     | '/profile/follows'
     | '/profile/interests'
     | '/profile/membership'
@@ -2868,6 +2880,13 @@ declare module '@tanstack/react-router' {
       path: '/follows'
       fullPath: '/profile/follows'
       preLoaderRoute: typeof ProfileFollowsRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/edit': {
+      id: '/profile/edit'
+      path: '/edit'
+      fullPath: '/profile/edit'
+      preLoaderRoute: typeof ProfileEditRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/bookmarks': {
@@ -4217,6 +4236,7 @@ interface ProfileRouteChildren {
   ProfileAuthorRoute: typeof ProfileAuthorRoute
   ProfileBillingRoute: typeof ProfileBillingRoute
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
+  ProfileEditRoute: typeof ProfileEditRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
@@ -4234,6 +4254,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileAuthorRoute: ProfileAuthorRoute,
   ProfileBillingRoute: ProfileBillingRoute,
   ProfileBookmarksRoute: ProfileBookmarksRoute,
+  ProfileEditRoute: ProfileEditRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,

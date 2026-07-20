@@ -365,7 +365,17 @@ function ExpertHubPage() {
         )}
         {showCv && (
           <div className="mx-auto w-full max-w-[1200px]">
-            <AuthorCvSections userId={expert.id} />
+            <AuthorCvSections
+              userId={expert.id}
+              printIdentity={{
+                name,
+                jobTitle: expert.job_title,
+                company: expert.company,
+                contactEmail: expert.contact_email,
+                websiteUrl: expert.website_url,
+                profileUrl: typeof window !== "undefined" ? window.location.href : null,
+              }}
+            />
           </div>
         )}
         <RecommendationsSection recipientId={expert.id} recipientName={name} />

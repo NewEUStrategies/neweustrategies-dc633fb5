@@ -83,7 +83,7 @@ export const ACCOUNT_PRESETS: Array<{
   },
   {
     key: "account",
-    href: "/profile/account",
+    href: "/profile/edit",
     label_pl: "Ustawienia konta",
     label_en: "Account settings",
     icon: "Settings",
@@ -97,7 +97,7 @@ export const ACCOUNT_PRESETS: Array<{
   },
   {
     key: "social",
-    href: "/profile/social",
+    href: "/profile/edit?tab=social",
     label_pl: "Media społecznościowe",
     label_en: "Social media",
     icon: "Share2",

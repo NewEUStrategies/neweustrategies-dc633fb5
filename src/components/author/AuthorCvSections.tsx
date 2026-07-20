@@ -21,9 +21,17 @@ import { formatDate } from "@/lib/i18n/format";
 import { useAuth } from "@/hooks/useAuth";
 import { useConnectionStatuses } from "@/lib/network/useConnections";
 import { useSkillEndorsements, useToggleEndorsement } from "@/lib/network/useEndorsements";
+import {
+  CvDownloadButton,
+  CvPrintSheet,
+  type CvPrintIdentity,
+} from "@/components/author/CvPrintSheet";
 
 interface Props {
   userId: string | null | undefined;
+  /** Tożsamość do nagłówka arkusza PDF; bez niej przycisk eksportu nie
+   *  jest pokazywany (arkusz bez imienia byłby bezużyteczny). */
+  printIdentity?: CvPrintIdentity;
 }
 
 function formatDateRange(
@@ -44,7 +52,7 @@ function formatDateRange(
   return s || e;
 }
 
-export function AuthorCvSections({ userId }: Props): React.ReactElement | null {
+export function AuthorCvSections({ userId, printIdentity }: Props): React.ReactElement | null {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { data } = useQuery(authorCvQueryOptions(userId));
@@ -57,6 +65,12 @@ export function AuthorCvSections({ userId }: Props): React.ReactElement | null {
 
   return (
     <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pt-2 pb-10 space-y-10">
+      {printIdentity && (
+        <div className="flex justify-end -mb-6">
+          <CvDownloadButton identity={printIdentity} />
+        </div>
+      )}
+      {printIdentity && <CvPrintSheet identity={printIdentity} cv={data} />}
       {experiences.length > 0 && <ExperienceSection items={experiences} isPl={isPl} />}
       {education.length > 0 && <EducationSection items={education} isPl={isPl} />}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -312,8 +326,7 @@ function SkillChip({
             <span
               key={n}
               className={
-                "w-1.5 h-1.5 rounded-full " +
-                (n <= (skill.level ?? 0) ? "bg-brand" : "bg-muted")
+                "w-1.5 h-1.5 rounded-full " + (n <= (skill.level ?? 0) ? "bg-brand" : "bg-muted")
               }
             />
           ))}
