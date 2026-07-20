@@ -12,6 +12,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import {
   Bell,
   Crown,
+  Inbox,
   Info,
   MessageCircle,
   ShieldAlert,
