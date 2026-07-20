@@ -393,7 +393,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         if (post.author_id) {
           const [{ data: authorRow }, { data: apRow }] = await Promise.all([
             supabase
-              .from("profiles")
+              .from("profiles_public")
               .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
               .eq("id", post.author_id)
               .maybeSingle(),

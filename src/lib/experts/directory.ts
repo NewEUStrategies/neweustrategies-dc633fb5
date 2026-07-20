@@ -58,7 +58,7 @@ export const expertsDirectoryQueryOptions = () =>
         { data: postRows },
       ] = await Promise.all([
         supabase
-          .from("profiles")
+          .from("profiles_public")
           .select("id, slug, display_name, avatar_url, verified_at")
           .in("id", expertIds),
         supabase

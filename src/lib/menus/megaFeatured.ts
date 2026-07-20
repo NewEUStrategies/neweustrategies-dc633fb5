@@ -88,7 +88,7 @@ async function fetchAuthor(
   authorId: string,
 ): Promise<Pick<MegaFeaturedPost, "author_display_name" | "author_slug" | "author_avatar_url">> {
   const { data } = await supabase
-    .from("profiles")
+    .from("profiles_public")
     .select("display_name, slug, avatar_url")
     .eq("id", authorId)
     .maybeSingle();

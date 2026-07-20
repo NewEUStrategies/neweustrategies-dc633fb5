@@ -326,7 +326,7 @@ async function attachAuthorNames(rows: PostRow[], variant: string): Promise<Post
   );
   if (authorIds.length === 0) return rows;
   const { data: profs } = await supabase
-    .from("profiles")
+    .from("profiles_public")
     .select("id, display_name")
     .in("id", authorIds);
   const names = new Map(

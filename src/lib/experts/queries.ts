@@ -155,7 +155,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
       const PROFILE_COLS =
         "id, tenant_id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at, updated_at";
       const bySlug = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select(PROFILE_COLS)
         .eq("slug", slugOrId)
         .maybeSingle();
@@ -163,7 +163,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
       let prof = bySlug.data as Record<string, unknown> | null;
       if (!prof && UUID_RE.test(slugOrId)) {
         const byId = await supabase
-          .from("profiles")
+          .from("profiles_public")
           .select(PROFILE_COLS)
           .eq("id", slugOrId)
           .maybeSingle();

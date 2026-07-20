@@ -414,7 +414,7 @@ export const authorProfileByIdQueryOptions = (authorId: string) =>
     gcTime: GC_TIME,
     queryFn: async (): Promise<AuthorProfileRow | null> => {
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select(AUTHOR_PROFILE_SELECT)
         .eq("id", authorId)
         .maybeSingle();
