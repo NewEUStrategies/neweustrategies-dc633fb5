@@ -5533,6 +5533,45 @@ export type Database = {
           },
         ]
       }
+      post_embeddings: {
+        Row: {
+          content_hash: string
+          embedding: string
+          post_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          embedding: string
+          post_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          embedding?: string
+          post_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_embeddings_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: true
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_custom_meta_defs: {
         Row: {
           created_at: string
@@ -10443,6 +10482,27 @@ export type Database = {
           sublabel_en: string
           sublabel_pl: string
           verified: boolean
+        }[]
+      }
+      posts_needing_embeddings: {
+        Args: {
+          _limit?: number
+        }
+        Returns: {
+          content_hash: string
+          embed_text: string
+          post_id: string
+          tenant_id: string
+        }[]
+      }
+      semantic_search_posts: {
+        Args: {
+          _embedding: number[]
+          _limit?: number
+        }
+        Returns: {
+          post_id: string
+          similarity: number
         }[]
       }
       search_messages: {

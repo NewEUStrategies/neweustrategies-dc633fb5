@@ -2,6 +2,7 @@
 // tables. Each returns paginated post lists with hydrated `href`.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { semanticSearch, type SemanticHit } from "@/lib/search/semantic.functions";
 import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
@@ -392,21 +393,45 @@ export const searchQueryOptions = (
       // nie po przyciętym oknie. search_posts nie ma offsetu, więc "load more"
       // rośnie przez _limit (60 → 120 → …) z sufitem SEARCH_LIMIT_MAX.
       const args = rpcFilterArgs(filters);
-      const [{ data: matchRows, error: matchError }, { data: facetRows, error: facetError }] =
-        await Promise.all([
-          supabase.rpc("search_posts", {
-            ...args,
-            _limit: Math.min(limit, SEARCH_LIMIT_MAX),
-            _sort: filters.sort ?? "relevance",
-          }),
-          supabase.rpc("search_facets", args),
-        ]);
+      // Warstwa semantyczna (drugi sygnał rankingu): embeddingi zapytania
+      // liczone server fn-em równolegle z FTS. Addytywna - błąd/brak
+      // dostawcy embeddingów degraduje do czystego FTS bez szumu.
+      const qForSemantic = filters.q.trim();
+      const semanticEligible =
+        qForSemantic.length >= 4 && (filters.sort ?? "relevance") === "relevance";
+      const [
+        { data: matchRows, error: matchError },
+        { data: facetRows, error: facetError },
+        semantic,
+      ] = await Promise.all([
+        supabase.rpc("search_posts", {
+          ...args,
+          _limit: Math.min(limit, SEARCH_LIMIT_MAX),
+          _sort: filters.sort ?? "relevance",
+        }),
+        supabase.rpc("search_facets", args),
+        semanticEligible
+          ? semanticSearch({ data: { q: qForSemantic } }).catch(() => ({ hits: [] }))
+          : Promise.resolve({ hits: [] as SemanticHit[] }),
+      ]);
       if (matchError) throw matchError;
       if (facetError) throw facetError;
 
-      const raw = matchRows ?? [];
+      let raw = matchRows ?? [];
       const total = raw.length > 0 ? Number(raw[0].total_count ?? raw.length) : 0;
       const fuzzy = raw.length > 0 && !!raw[0].fuzzy;
+      // Blend: 3/4 znormalizowanego FTS + 1/4 podobieństwa semantycznego.
+      // Tylko porządek trafień (zbiór i total bez zmian); fallback trigramowy
+      // (literówki) zostaje nietknięty - tam rank ma inną skalę.
+      if (!fuzzy && raw.length > 1 && semantic.hits.length > 0) {
+        const sim = new Map(semantic.hits.map((h) => [h.post_id, h.similarity]));
+        const maxRank = raw.reduce((mx, r) => Math.max(mx, Number(r.rank ?? 0)), 0);
+        const score = (r: (typeof raw)[number]) => {
+          const fts = maxRank > 0 ? Number(r.rank ?? 0) / maxRank : 0;
+          return 0.75 * fts + 0.25 * (sim.get(r.id) ?? 0);
+        };
+        raw = [...raw].sort((a, b) => score(b) - score(a));
+      }
       const rows = raw.map(
         ({
           rank: _rank,

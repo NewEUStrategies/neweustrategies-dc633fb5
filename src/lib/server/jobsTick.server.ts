@@ -32,6 +32,7 @@ export interface JobsTickResult {
   eventReminders: number | { error: string };
   linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
   integrations: { claimed: number; delivered: number; failed: number } | { error: string };
+  semanticIndex: { scanned: number; embedded: number; skipped?: string } | { error: string };
 }
 
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
@@ -83,7 +84,26 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   } catch (err) {
     integrations = { error: err instanceof Error ? err.message : String(err) };
   }
-  return { newsletter, push, digestDaily, digestWeekly, eventReminders, linkCheck, integrations };
+  let semanticIndex: JobsTickResult["semanticIndex"];
+  try {
+    // Warstwa semantyczna wyszukiwarki: dogania embeddingi tytuł+zajawka
+    // dla opublikowanych wpisów (24 per tick; pomija się, gdy bramka AI
+    // nie wspiera embeddingów - patrz embeddings.server.ts).
+    const { runSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
+    semanticIndex = await runSemanticIndexBatch(admin, 24);
+  } catch (err) {
+    semanticIndex = { error: err instanceof Error ? err.message : String(err) };
+  }
+  return {
+    newsletter,
+    push,
+    digestDaily,
+    digestWeekly,
+    eventReminders,
+    linkCheck,
+    integrations,
+    semanticIndex,
+  };
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */
