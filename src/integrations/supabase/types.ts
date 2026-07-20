@@ -2728,6 +2728,42 @@ export type Database = {
           },
         ]
       }
+      glossary_terms: {
+        Row: {
+          created_at: string
+          definition_en: string | null
+          definition_pl: string
+          id: string
+          slug: string
+          tenant_id: string
+          term_en: string
+          term_pl: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          definition_en?: string | null
+          definition_pl: string
+          id?: string
+          slug: string
+          tenant_id?: string
+          term_en?: string
+          term_pl: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          definition_en?: string | null
+          definition_pl?: string
+          id?: string
+          slug?: string
+          tenant_id?: string
+          term_en?: string
+          term_pl?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       icon_library: {
         Row: {
           created_at: string

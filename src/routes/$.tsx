@@ -67,6 +67,7 @@ import { QuoteShareBar } from "@/components/post/QuoteShareBar";
 import { PostChangelog } from "@/components/post/PostChangelog";
 import { PostFeedback } from "@/components/post/PostFeedback";
 import { PostSeriesNav } from "@/components/post/PostSeriesNav";
+import { GlossaryHighlighter } from "@/components/post/GlossaryHighlighter";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -944,6 +945,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             }
           />
           <FootnoteTooltips notes={notes} containerRef={articleRef} />
+          <GlossaryHighlighter containerRef={articleRef} lang={lang} scanKey={`${it.id}-${lang}`} />
           {merged.show_quote_share && (
             <QuoteShareBar containerRef={articleRef} url={citationUrl} lang={lang} />
           )}

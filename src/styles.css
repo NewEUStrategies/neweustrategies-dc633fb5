@@ -2259,6 +2259,14 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   display: none;
 }
 
+/* Termin słowniczka (A7): kropkowane podkreślenie + kursor pomocy. */
+.glossary-term {
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in oklab, var(--brand) 55%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
 /* =========================================================
    Profile shell - compact & modern density for /profile/*
    ========================================================= */

@@ -31,6 +31,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as GlossaryRouteImport } from './routes/glossary'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
@@ -118,6 +119,7 @@ import { Route as AdminIntegrationsRouteImport } from './routes/admin.integratio
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
+import { Route as AdminGlossaryRouteImport } from './routes/admin.glossary'
 import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
@@ -315,6 +317,11 @@ const LiveRoute = LiveRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GlossaryRoute = GlossaryRouteImport.update({
+  id: '/glossary',
+  path: '/glossary',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedRoute = FeedRouteImport.update({
@@ -750,6 +757,11 @@ const AdminIconsRoute = AdminIconsRouteImport.update({
 const AdminGreetingsRoute = AdminGreetingsRouteImport.update({
   id: '/greetings',
   path: '/greetings',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminGlossaryRoute = AdminGlossaryRouteImport.update({
+  id: '/glossary',
+  path: '/glossary',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminExpertLayoutsRoute = AdminExpertLayoutsRouteImport.update({
@@ -1220,6 +1232,7 @@ export interface FileRoutesByFullPath {
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
+  '/glossary': typeof GlossaryRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
@@ -1261,6 +1274,7 @@ export interface FileRoutesByFullPath {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -1418,6 +1432,7 @@ export interface FileRoutesByTo {
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
+  '/glossary': typeof GlossaryRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
@@ -1457,6 +1472,7 @@ export interface FileRoutesByTo {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -1612,6 +1628,7 @@ export interface FileRoutesById {
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
+  '/glossary': typeof GlossaryRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
@@ -1653,6 +1670,7 @@ export interface FileRoutesById {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -1813,6 +1831,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/experts'
     | '/feed'
+    | '/glossary'
     | '/library'
     | '/live'
     | '/llms.txt'
@@ -1854,6 +1873,7 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -2011,6 +2031,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/experts'
     | '/feed'
+    | '/glossary'
     | '/library'
     | '/live'
     | '/llms.txt'
@@ -2050,6 +2071,7 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -2204,6 +2226,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/experts'
     | '/feed'
+    | '/glossary'
     | '/library'
     | '/live'
     | '/llms.txt'
@@ -2245,6 +2268,7 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -2404,6 +2428,7 @@ export interface RootRouteChildren {
   EventsRoute: typeof EventsRouteWithChildren
   ExpertsRoute: typeof ExpertsRoute
   FeedRoute: typeof FeedRoute
+  GlossaryRoute: typeof GlossaryRoute
   LibraryRoute: typeof LibraryRoute
   LiveRoute: typeof LiveRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
@@ -2624,6 +2649,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/glossary': {
+      id: '/glossary'
+      path: '/glossary'
+      fullPath: '/glossary'
+      preLoaderRoute: typeof GlossaryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed': {
@@ -3233,6 +3265,13 @@ declare module '@tanstack/react-router' {
       path: '/greetings'
       fullPath: '/admin/greetings'
       preLoaderRoute: typeof AdminGreetingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/glossary': {
+      id: '/admin/glossary'
+      path: '/glossary'
+      fullPath: '/admin/glossary'
+      preLoaderRoute: typeof AdminGlossaryRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/expert-layouts': {
@@ -4079,6 +4118,7 @@ interface AdminRouteChildren {
   AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
+  AdminGlossaryRoute: typeof AdminGlossaryRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
@@ -4138,6 +4178,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
+  AdminGlossaryRoute: AdminGlossaryRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
@@ -4307,6 +4348,7 @@ const rootRouteChildren: RootRouteChildren = {
   EventsRoute: EventsRouteWithChildren,
   ExpertsRoute: ExpertsRoute,
   FeedRoute: FeedRoute,
+  GlossaryRoute: GlossaryRoute,
   LibraryRoute: LibraryRoute,
   LiveRoute: LiveRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
