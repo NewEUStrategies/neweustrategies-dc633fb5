@@ -113,6 +113,7 @@ import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
+import { Route as AdminLinkMonitorRouteImport } from './routes/admin.link-monitor'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaways'
 import { Route as AdminIntegrationsRouteImport } from './routes/admin.integrations'
@@ -729,6 +730,11 @@ const AdminLiveBlogRoute = AdminLiveBlogRouteImport.update({
   path: '/live-blog',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminLinkMonitorRoute = AdminLinkMonitorRouteImport.update({
+  id: '/link-monitor',
+  path: '/link-monitor',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLibraryRoute = AdminLibraryRouteImport.update({
   id: '/library',
   path: '/library',
@@ -1281,6 +1287,7 @@ export interface FileRoutesByFullPath {
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/link-monitor': typeof AdminLinkMonitorRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
@@ -1479,6 +1486,7 @@ export interface FileRoutesByTo {
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/link-monitor': typeof AdminLinkMonitorRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
@@ -1677,6 +1685,7 @@ export interface FileRoutesById {
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/link-monitor': typeof AdminLinkMonitorRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
@@ -1880,6 +1889,7 @@ export interface FileRouteTypes {
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
+    | '/admin/link-monitor'
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
@@ -2078,6 +2088,7 @@ export interface FileRouteTypes {
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
+    | '/admin/link-monitor'
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
@@ -2275,6 +2286,7 @@ export interface FileRouteTypes {
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
+    | '/admin/link-monitor'
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
@@ -3225,6 +3237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLiveBlogRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/link-monitor': {
+      id: '/admin/link-monitor'
+      path: '/link-monitor'
+      fullPath: '/admin/link-monitor'
+      preLoaderRoute: typeof AdminLinkMonitorRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/library': {
       id: '/admin/library'
       path: '/library'
@@ -4125,6 +4144,7 @@ interface AdminRouteChildren {
   AdminIntegrationsRoute: typeof AdminIntegrationsRoute
   AdminKeyTakeawaysRoute: typeof AdminKeyTakeawaysRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
+  AdminLinkMonitorRoute: typeof AdminLinkMonitorRoute
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
@@ -4185,6 +4205,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminIntegrationsRoute: AdminIntegrationsRoute,
   AdminKeyTakeawaysRoute: AdminKeyTakeawaysRoute,
   AdminLibraryRoute: AdminLibraryRoute,
+  AdminLinkMonitorRoute: AdminLinkMonitorRoute,
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,

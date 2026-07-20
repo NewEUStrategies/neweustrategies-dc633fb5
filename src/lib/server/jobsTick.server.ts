@@ -30,6 +30,7 @@ export interface JobsTickResult {
   digestDaily: { claimed: number; sent: number } | { error: string };
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
+  linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
 }
 
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
@@ -63,7 +64,16 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   } catch (err) {
     eventReminders = { error: err instanceof Error ? err.message : String(err) };
   }
-  return { newsletter, push, digestDaily, digestWeekly, eventReminders };
+  let linkCheck: JobsTickResult["linkCheck"];
+  try {
+    // Rotacyjny skan linków wychodzących (B7): 3 wpisy per tick, wpisy
+    // najdawniej sprawdzone najpierw, re-skan po 7 dniach.
+    const { runLinkCheckBatch } = await import("@/lib/server/linkCheck.server");
+    linkCheck = await runLinkCheckBatch(admin, 3);
+  } catch (err) {
+    linkCheck = { error: err instanceof Error ? err.message : String(err) };
+  }
+  return { newsletter, push, digestDaily, digestWeekly, eventReminders, linkCheck };
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */

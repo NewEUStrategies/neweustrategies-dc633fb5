@@ -4565,6 +4565,47 @@ export type Database = {
           },
         ]
       }
+      outbound_link_checks: {
+        Row: {
+          checked_at: string
+          error: string | null
+          id: string
+          ok: boolean
+          post_id: string
+          status_code: number | null
+          tenant_id: string
+          url: string
+        }
+        Insert: {
+          checked_at?: string
+          error?: string | null
+          id?: string
+          ok: boolean
+          post_id: string
+          status_code?: number | null
+          tenant_id: string
+          url: string
+        }
+        Update: {
+          checked_at?: string
+          error?: string | null
+          id?: string
+          ok?: boolean
+          post_id?: string
+          status_code?: number | null
+          tenant_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_link_checks_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pages: {
         Row: {
           author_id: string | null
@@ -5975,6 +6016,7 @@ export type Database = {
           post_format: string
           publish_at: string | null
           published_at: string | null
+          outbound_links_checked_at: string | null
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
@@ -6020,6 +6062,7 @@ export type Database = {
           post_format?: string
           publish_at?: string | null
           published_at?: string | null
+          outbound_links_checked_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
@@ -6065,6 +6108,7 @@ export type Database = {
           post_format?: string
           publish_at?: string | null
           published_at?: string | null
+          outbound_links_checked_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
@@ -9667,6 +9711,7 @@ export type Database = {
           post_format: string
           publish_at: string | null
           published_at: string | null
+          outbound_links_checked_at: string | null
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
