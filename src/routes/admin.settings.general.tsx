@@ -130,8 +130,8 @@ function GeneralSettings() {
       <Field label={t("admin.general.adminEmail")}>
         <Text
           type="email"
-          value={draft.admin_email}
-          onChange={(e) => set("admin_email", e.target.value)}
+          value={contactDraft?.admin_email ?? ""}
+          onChange={(e) => setContact("admin_email", e.target.value)}
         />
       </Field>
       <Field label={t("admin.general.siteLanguage")}>
