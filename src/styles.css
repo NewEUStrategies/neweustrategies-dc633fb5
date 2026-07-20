@@ -5110,7 +5110,12 @@ textarea.input {
 }
 
 .menu-card-item--primary .menu-card-item__icon {
-  background: var(--brand);
+  background: transparent;
+  color: var(--brand);
+}
+
+.menu-card-item--primary:hover .menu-card-item__icon {
+  background-color: color-mix(in oklab, #fff 22%, transparent);
   color: var(--brand-foreground, #fff);
 }
 
