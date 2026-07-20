@@ -5456,6 +5456,36 @@ export type Database = {
           },
         ]
       }
+      post_categories: {
+        Row: {
+          category_id: string
+          post_id: string
+        }
+        Insert: {
+          category_id: string
+          post_id: string
+        }
+        Update: {
+          category_id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_categories_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_changelog: {
         Row: {
           created_at: string
@@ -5490,36 +5520,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "post_changelog_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      post_categories: {
-        Row: {
-          category_id: string
-          post_id: string
-        }
-        Insert: {
-          category_id: string
-          post_id: string
-        }
-        Update: {
-          category_id?: string
-          post_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_categories_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "post_categories_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
@@ -5636,9 +5636,9 @@ export type Database = {
           show_bottom_newsletter: boolean
           show_citation: boolean
           show_floating_share_bar: boolean
-          show_quote_share: boolean
           show_post_tags_bar: boolean
           show_prev_next: boolean
+          show_quote_share: boolean
           show_sources_bar: boolean
           show_via_bar: boolean
           standard_layout: string
@@ -5687,9 +5687,9 @@ export type Database = {
           show_bottom_newsletter?: boolean
           show_citation?: boolean
           show_floating_share_bar?: boolean
-          show_quote_share?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
+          show_quote_share?: boolean
           show_sources_bar?: boolean
           show_via_bar?: boolean
           standard_layout?: string
@@ -5738,9 +5738,9 @@ export type Database = {
           show_bottom_newsletter?: boolean
           show_citation?: boolean
           show_floating_share_bar?: boolean
-          show_quote_share?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
+          show_quote_share?: boolean
           show_sources_bar?: boolean
           show_via_bar?: boolean
           standard_layout?: string
@@ -5852,39 +5852,6 @@ export type Database = {
           },
         ]
       }
-      post_sidebar_layouts: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          is_default: boolean
-          name: string
-          tenant_id: string
-          updated_at: string
-          widgets: Json
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_default?: boolean
-          name: string
-          tenant_id: string
-          updated_at?: string
-          widgets?: Json
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_default?: boolean
-          name?: string
-          tenant_id?: string
-          updated_at?: string
-          widgets?: Json
-        }
-        Relationships: []
-      }
       post_series: {
         Row: {
           created_at: string
@@ -5920,6 +5887,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      post_sidebar_layouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          name: string
+          tenant_id: string
+          updated_at: string
+          widgets: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          tenant_id: string
+          updated_at?: string
+          widgets?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+          widgets?: Json
+        }
+        Relationships: []
       }
       post_tags: {
         Row: {
@@ -6012,11 +6012,11 @@ export type Database = {
           id: string
           layout_overrides: Json | null
           og_image_generated_url: string | null
+          outbound_links_checked_at: string | null
           parent_page_id: string
           post_format: string
           publish_at: string | null
           published_at: string | null
-          outbound_links_checked_at: string | null
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
@@ -6058,11 +6058,11 @@ export type Database = {
           id?: string
           layout_overrides?: Json | null
           og_image_generated_url?: string | null
+          outbound_links_checked_at?: string | null
           parent_page_id: string
           post_format?: string
           publish_at?: string | null
           published_at?: string | null
-          outbound_links_checked_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
@@ -6104,11 +6104,11 @@ export type Database = {
           id?: string
           layout_overrides?: Json | null
           og_image_generated_url?: string | null
+          outbound_links_checked_at?: string | null
           parent_page_id?: string
           post_format?: string
           publish_at?: string | null
           published_at?: string | null
-          outbound_links_checked_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
@@ -7749,36 +7749,6 @@ export type Database = {
           },
         ]
       }
-      site_design_tokens: {
-        Row: {
-          colors: Json
-          fonts: Json
-          global_colors: Json
-          scale: Json
-          tenant_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          colors?: Json
-          fonts?: Json
-          global_colors?: Json
-          scale?: Json
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          colors?: Json
-          fonts?: Json
-          global_colors?: Json
-          scale?: Json
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       series: {
         Row: {
           created_at: string
@@ -7809,6 +7779,36 @@ export type Database = {
           name_pl?: string
           slug?: string
           tenant_id?: string
+        }
+        Relationships: []
+      }
+      site_design_tokens: {
+        Row: {
+          colors: Json
+          fonts: Json
+          global_colors: Json
+          scale: Json
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          colors?: Json
+          fonts?: Json
+          global_colors?: Json
+          scale?: Json
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          colors?: Json
+          fonts?: Json
+          global_colors?: Json
+          scale?: Json
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -9707,11 +9707,11 @@ export type Database = {
           id: string
           layout_overrides: Json | null
           og_image_generated_url: string | null
+          outbound_links_checked_at: string | null
           parent_page_id: string
           post_format: string
           publish_at: string | null
           published_at: string | null
-          outbound_links_checked_at: string | null
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
