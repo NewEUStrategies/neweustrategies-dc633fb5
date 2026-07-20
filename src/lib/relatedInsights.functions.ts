@@ -84,13 +84,12 @@ export const getRelatedInsights = createServerFn({ method: "POST" })
       .parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<RelatedInsightsResult> => {
-    // Admin gate (druga warstwa - RPC też sprawdza, ale wolimy szybkie 403).
-    const { data: roles, error: roleErr } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
+    // Admin gate (tenant-scoped przez has_role -> current_tenant_id()).
+    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
     if (roleErr) throw new Error(roleErr.message);
-    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
     // Tenant z helpera (spójne z całym modułem analytics).
