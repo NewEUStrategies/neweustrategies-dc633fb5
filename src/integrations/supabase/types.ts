@@ -9050,6 +9050,10 @@ export type Database = {
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       _caller_tenant: { Args: never; Returns: string }
+      _suggest_score: {
+        Args: { _a: string; _b: string; _q: string }
+        Returns: number
+      }
       add_cross_reference: {
         Args: {
           p_created_by?: string
