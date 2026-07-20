@@ -65,6 +65,7 @@ import { CitationBox } from "@/components/post/CitationBox";
 import { PrintBriefHeader } from "@/components/post/PrintBriefHeader";
 import { QuoteShareBar } from "@/components/post/QuoteShareBar";
 import { PostChangelog } from "@/components/post/PostChangelog";
+import { PostFeedback } from "@/components/post/PostFeedback";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -906,6 +907,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       : null
                   }
                 />
+                <PostFeedback postId={post.id} lang={lang} />
                 <PostChangelog postId={post.id} lang={lang} />
                 {merged.show_citation && (
                   <CitationBox

@@ -5486,6 +5486,41 @@ export type Database = {
         }
         Relationships: []
       }
+      post_feedback: {
+        Row: {
+          created_at: string
+          helpful: boolean
+          id: string
+          post_id: string
+          tenant_id: string
+          voter_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          helpful: boolean
+          id?: string
+          post_id: string
+          tenant_id: string
+          voter_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          helpful?: boolean
+          id?: string
+          post_id?: string
+          tenant_id?: string
+          voter_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_feedback_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_layout_settings: {
         Row: {
           audio_layout: string
