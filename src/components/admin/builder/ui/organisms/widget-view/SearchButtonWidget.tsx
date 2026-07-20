@@ -99,6 +99,15 @@ export function SearchButtonWidget({
     };
   }, []);
 
+  // Mirror ?q= from /search into the header input on navigation - so header
+  // and page always show the same phrase. We skip while the input is focused
+  // to avoid clobbering what the user is typing.
+  useEffect(() => {
+    if (focused) return;
+    if (urlQ !== q) setQ(urlQ);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlQ, focused]);
+
   const runSearch = async (term: string) => {
     const t = term.trim();
     if (t.length < 2) {
