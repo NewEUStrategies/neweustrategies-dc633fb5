@@ -21,7 +21,7 @@ async function fetchAccessRule(
   entityId: string,
 ): Promise<ContentAccessRule | null> {
   const { data } = await supabase
-    .from("content_access")
+    .from("content_access_public")
     .select(ACCESS_RULE_COLS)
     .eq("entity_type", entityType)
     .eq("entity_id", entityId)

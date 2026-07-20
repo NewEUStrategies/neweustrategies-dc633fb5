@@ -59,7 +59,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // Price is taken from the per-entity access rule server-side, so the
       // client can never tamper with the amount it is charged.
       const { data: rule, error: ruleErr } = await supabase
-        .from("content_access")
+        .from("content_access_public")
         .select("mode, one_time_price_cents, one_time_currency")
         .eq("entity_type", data.entity_type)
         .eq("entity_id", data.entity_id)
