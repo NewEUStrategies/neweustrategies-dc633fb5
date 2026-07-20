@@ -313,6 +313,11 @@ function Page() {
               onChange={(v) => upd({ show_floating_share_bar: v })}
             />
             <Toggle
+              label={t("adminLayouts.postLayouts.citationBox")}
+              checked={local.show_citation}
+              onChange={(v) => upd({ show_citation: v })}
+            />
+            <Toggle
               label={t("adminLayouts.postLayouts.autoLoadNext")}
               checked={local.auto_load_next_post}
               onChange={(v) => upd({ auto_load_next_post: v })}

@@ -51,7 +51,17 @@ import {
   type BodyParts,
 } from "@/lib/access/gating";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, buildArticleJsonLd, imagePreloadLink, splitUrl } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  buildArticleJsonLd,
+  imagePreloadLink,
+  splitUrl,
+  absoluteUrl,
+  SITE_NAME,
+} from "@/lib/seo/meta";
+import { citationMetaTags } from "@/lib/seo/citations";
+import type { CitationAuthor } from "@/lib/citations/format";
+import { CitationBox } from "@/components/post/CitationBox";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -327,8 +337,27 @@ export const Route = createFileRoute("/$")({
       loaderData.kind === "post" && loaderData.coverPreload
         ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
         : head.links;
+    // Tagi Highwire (citation_*) dla wpisów - Google Scholar/Zotero czytają je
+    // z <head>. Lista autorów przychodzi z loadera (author_id + post_authors),
+    // URL to kanoniczny adres z uwzględnieniem override'u SEO.
+    const citationMeta =
+      loaderData.kind === "post"
+        ? citationMetaTags({
+            title,
+            authors: (loaderData.authors ?? []).map((a) => ({
+              firstName: a.first_name,
+              lastName: a.last_name,
+              displayName: a.display_name,
+            })),
+            publishedAt: it.published_at,
+            siteName: SITE_NAME,
+            language: lang,
+            url: seoCanonicalOverride(seoRow) || absoluteUrl(origin, splitUrl(url).path),
+          })
+        : [];
     return {
       ...head,
+      meta: [...head.meta, ...citationMeta],
       links,
       // safeJsonLd - editor-authored titles/excerpts must not be able to close
       // the <script> element and inject markup (stored XSS).
@@ -436,6 +465,27 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         }
       ).author ?? null)
     : null;
+  // Autorzy do cytowań (główny + współautorzy, kolejność z loadera) i
+  // kanoniczny URL analizy. getRequestUrl() jest izomorficzne (SSR: nagłówki
+  // forwarded, klient: window.location), a splitUrl odcina query - obie strony
+  // hydratacji liczą identyczny łańcuch.
+  const citationAuthors: CitationAuthor[] = useMemo(
+    () =>
+      data.kind === "post"
+        ? data.authors.map((a) => ({
+            firstName: a.first_name,
+            lastName: a.last_name,
+            displayName: a.display_name,
+          }))
+        : [],
+    [data],
+  );
+  const citationUrl = useMemo(() => {
+    const override = seoCanonicalOverride(it as SeoFieldsRow);
+    if (override) return override;
+    const { origin, path } = splitUrl(getRequestUrl());
+    return absoluteUrl(origin, path);
+  }, [it]);
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
@@ -852,6 +902,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       : null
                   }
                 />
+                {merged.show_citation && (
+                  <CitationBox
+                    title={title}
+                    lang={lang}
+                    publishedAt={post.published_at}
+                    authors={citationAuthors}
+                    url={citationUrl}
+                  />
+                )}
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
                   <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
                 )}

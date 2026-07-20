@@ -30,6 +30,7 @@ const pl = {
       hidePaginationMobile: "Ukryj paginację na mobile",
       bottomNewsletter: "Dolny newsletter w treści",
       floatingShare: "Pływający pasek udostępniania (lewa strona, desktop)",
+      citationBox: "Box „Cytuj tę analizę” (Chicago / APA / BibTeX)",
       autoLoadNext: "Auto-load następnego wpisu (przy scrollu do końca)",
       typoHeading: "Typografia wpisu",
       typoIntro:
@@ -138,6 +139,7 @@ const en = {
       hidePaginationMobile: "Hide pagination on mobile",
       bottomNewsletter: "Bottom newsletter in content",
       floatingShare: "Floating share bar (left side, desktop)",
+      citationBox: "Citation box (Chicago / APA / BibTeX)",
       autoLoadNext: "Auto-load next post (on scroll to end)",
       typoHeading: "Post typography",
       typoIntro:

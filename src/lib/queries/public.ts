@@ -152,6 +152,15 @@ export interface PostCategory {
   color: string | null;
 }
 
+/** Lekka referencja autora do cytowań i meta citation_* (bez bio/socials). */
+export interface PostAuthorRef {
+  id: string;
+  slug: string | null;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 export type ResolvedContent =
   | {
       kind: "post";
@@ -161,6 +170,12 @@ export type ResolvedContent =
       tags: Array<{ slug: string; name: string }>;
       categories: PostCategory[];
       author: PostAuthor | null;
+      /**
+       * Kanoniczna, uporządkowana lista WSZYSTKICH autorów: autor główny
+       * (author_id) zawsze pierwszy, potem współautorzy z post_authors wg
+       * sort_order. Zasila box cytowań i tagi citation_author w <head>.
+       */
+      authors: PostAuthorRef[];
       access: ContentAccessRule | null;
     }
   | {
@@ -362,24 +377,36 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         // gated RPC, never selected directly - the row select carries only the
         // non-sensitive display metadata. All four requests run in parallel so
         // gating adds no extra latency.
-        const [{ data, error }, body, { data: tagRows }, { data: catRows }, crumbs, access] =
-          await Promise.all([
-            supabase
-              .from("posts")
-              .select(
-                `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
-              )
-              .eq("id", hit.post_id)
-              .maybeSingle(),
-            fetchGatedBody("post", hit.post_id),
-            supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
-            supabase
-              .from("post_categories")
-              .select("categories(slug, name_pl, name_en, color)")
-              .eq("post_id", hit.post_id),
-            fetchPageBreadcrumbs(hit.page_id),
-            fetchAccessRule("post", hit.post_id),
-          ]);
+        const [
+          { data, error },
+          body,
+          { data: tagRows },
+          { data: catRows },
+          { data: coAuthorRows },
+          crumbs,
+          access,
+        ] = await Promise.all([
+          supabase
+            .from("posts")
+            .select(
+              `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
+            )
+            .eq("id", hit.post_id)
+            .maybeSingle(),
+          fetchGatedBody("post", hit.post_id),
+          supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
+          supabase
+            .from("post_categories")
+            .select("categories(slug, name_pl, name_en, color)")
+            .eq("post_id", hit.post_id),
+          supabase
+            .from("post_authors")
+            .select("user_id, sort_order")
+            .eq("post_id", hit.post_id)
+            .order("sort_order", { ascending: true }),
+          fetchPageBreadcrumbs(hit.page_id),
+          fetchAccessRule("post", hit.post_id),
+        ]);
         if (error) throw error;
         if (!data) return null;
         const tags = (tagRows ?? [])
@@ -422,6 +449,40 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
             };
           }
         }
+        // Kanoniczna kolejność autorów: główny (author_id) pierwszy, potem
+        // współautorzy wg sort_order. Zwykły wpis (bez współautorów) nie
+        // kosztuje żadnego dodatkowego zapytania - profil głównego autora
+        // został już pobrany wyżej; dopiero realni współautorzy uruchamiają
+        // jeden select .in() po profiles_public.
+        const orderedAuthorIds: string[] = [];
+        if (post.author_id) orderedAuthorIds.push(post.author_id);
+        for (const row of coAuthorRows ?? []) {
+          const uid = (row as { user_id: string }).user_id;
+          if (!orderedAuthorIds.includes(uid)) orderedAuthorIds.push(uid);
+        }
+        let authors: PostAuthorRef[] = [];
+        if (orderedAuthorIds.length === 1 && author && orderedAuthorIds[0] === author.id) {
+          authors = [
+            {
+              id: author.id,
+              slug: author.slug,
+              display_name: author.display_name,
+              first_name: author.first_name,
+              last_name: author.last_name,
+            },
+          ];
+        } else if (orderedAuthorIds.length > 0) {
+          const { data: profileRows } = await supabase
+            .from("profiles_public")
+            .select("id, slug, display_name, first_name, last_name")
+            .in("id", orderedAuthorIds);
+          const byId = new Map(
+            ((profileRows ?? []) as PostAuthorRef[]).map((p) => [p.id, p] as const),
+          );
+          authors = orderedAuthorIds
+            .map((id) => byId.get(id))
+            .filter((p): p is PostAuthorRef => !!p);
+        }
         return {
           kind: "post",
           item: post,
@@ -430,6 +491,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           tags,
           categories,
           author,
+          authors,
           access,
         };
       }
