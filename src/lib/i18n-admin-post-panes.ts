@@ -138,6 +138,18 @@ const pl = {
       working: "Tłumaczę…",
       done: "Szkic tłumaczenia gotowy - zweryfikuj pola EN przed zapisem",
     },
+    previewLinks: {
+      title: "Linki podglądu (embargo)",
+      hint: "Tokenowy link pokazuje szkic bez logowania (prasa, partnerzy, rada). Ważny 72 godziny, możesz odwołać w każdej chwili.",
+      create: "Utwórz link (72 h)",
+      created: "Utworzono link podglądu",
+      createdCopied: "Utworzono i skopiowano link podglądu",
+      copied: "Skopiowano link",
+      copyFailed: "Nie udało się skopiować",
+      copy: "Kopiuj link",
+      revoke: "Odwołaj link",
+      expires: "Wygasa",
+    },
   },
 };
 
@@ -276,6 +288,18 @@ const en = {
       run: "Translate to English",
       working: "Translating…",
       done: "Draft translation ready - review the EN fields before saving",
+    },
+    previewLinks: {
+      title: "Preview links (embargo)",
+      hint: "A token link shows the draft without signing in (press, partners, board). Valid for 72 hours, revocable anytime.",
+      create: "Create link (72 h)",
+      created: "Preview link created",
+      createdCopied: "Preview link created and copied",
+      copied: "Link copied",
+      copyFailed: "Copy failed",
+      copy: "Copy link",
+      revoke: "Revoke link",
+      expires: "Expires",
     },
   },
 };

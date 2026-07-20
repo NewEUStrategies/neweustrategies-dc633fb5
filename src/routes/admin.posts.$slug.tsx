@@ -49,11 +49,12 @@ import {
   Link as LinkIconLucide,
   Mic,
 } from "@/lib/lucide-shim";
-import { History, Database, ListChecks, Languages } from "lucide-react";
+import { History, Database, ListChecks, Languages, Eye } from "lucide-react";
 import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
 import { PublishChecklistCard } from "@/components/admin/post-editor/PublishChecklistCard";
 import { ChangelogCard } from "@/components/admin/post-editor/ChangelogCard";
 import { TranslateCard } from "@/components/admin/post-editor/TranslateCard";
+import { PreviewLinksCard } from "@/components/admin/post-editor/PreviewLinksCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
@@ -711,6 +712,12 @@ function EditPost() {
     />
   );
 
+  const previewLinksCard = (
+    <SidebarSection title={t("adminPostPanes.previewLinks.title")} icon={Eye} defaultOpen={false}>
+      <PreviewLinksCard postId={id} />
+    </SidebarSection>
+  );
+
   const translateCard = (
     <SidebarSection
       title={t("adminPostPanes.translate.title")}
@@ -1336,6 +1343,7 @@ function EditPost() {
                         {checklistCard}
                         {metaCard}
                         {translateCard}
+                        {previewLinksCard}
                         {changelogCard}
                       </div>
                     )}
@@ -1460,6 +1468,7 @@ function EditPost() {
                     {checklistCard}
                     {metaCard}
                     {translateCard}
+                    {previewLinksCard}
                     {changelogCard}
                     {layoutCard}
                     {catsCard}

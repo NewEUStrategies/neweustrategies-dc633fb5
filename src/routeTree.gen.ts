@@ -66,6 +66,7 @@ import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
+import { Route as PreviewTokenRouteImport } from './routes/preview.$token'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
 import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
@@ -489,6 +490,11 @@ const ProfileAccountRoute = ProfileAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => ProfileRoute,
+} as any)
+const PreviewTokenRoute = PreviewTokenRouteImport.update({
+  id: '/preview/$token',
+  path: '/preview/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
@@ -1299,6 +1305,7 @@ export interface FileRoutesByFullPath {
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/podcasts/$show': typeof PodcastsShowRouteWithChildren
   '/post/$slug': typeof PostSlugRoute
+  '/preview/$token': typeof PreviewTokenRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -1490,6 +1497,7 @@ export interface FileRoutesByTo {
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/podcasts/$show': typeof PodcastsShowRouteWithChildren
   '/post/$slug': typeof PostSlugRoute
+  '/preview/$token': typeof PreviewTokenRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -1687,6 +1695,7 @@ export interface FileRoutesById {
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/podcasts/$show': typeof PodcastsShowRouteWithChildren
   '/post/$slug': typeof PostSlugRoute
+  '/preview/$token': typeof PreviewTokenRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/author': typeof ProfileAuthorRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -1886,6 +1895,7 @@ export interface FileRouteTypes {
     | '/podcast/rss.xml'
     | '/podcasts/$show'
     | '/post/$slug'
+    | '/preview/$token'
     | '/profile/account'
     | '/profile/author'
     | '/profile/billing'
@@ -2077,6 +2087,7 @@ export interface FileRouteTypes {
     | '/podcast/rss.xml'
     | '/podcasts/$show'
     | '/post/$slug'
+    | '/preview/$token'
     | '/profile/account'
     | '/profile/author'
     | '/profile/billing'
@@ -2273,6 +2284,7 @@ export interface FileRouteTypes {
     | '/podcast/rss.xml'
     | '/podcasts/$show'
     | '/post/$slug'
+    | '/preview/$token'
     | '/profile/account'
     | '/profile/author'
     | '/profile/billing'
@@ -2416,6 +2428,7 @@ export interface RootRouteChildren {
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
   PostSlugRoute: typeof PostSlugRoute
+  PreviewTokenRoute: typeof PreviewTokenRoute
   ProgramsSlugRoute: typeof ProgramsSlugRouteWithChildren
   TagSlugRoute: typeof TagSlugRouteWithChildren
   TrackerSlugRoute: typeof TrackerSlugRoute
@@ -2844,6 +2857,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/account'
       preLoaderRoute: typeof ProfileAccountRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/preview/$token': {
+      id: '/preview/$token'
+      path: '/preview/$token'
+      fullPath: '/preview/$token'
+      preLoaderRoute: typeof PreviewTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/post/$slug': {
       id: '/post/$slug'
@@ -4304,6 +4324,7 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PodcastsShowRoute: PodcastsShowRouteWithChildren,
   PostSlugRoute: PostSlugRoute,
+  PreviewTokenRoute: PreviewTokenRoute,
   ProgramsSlugRoute: ProgramsSlugRouteWithChildren,
   TagSlugRoute: TagSlugRouteWithChildren,
   TrackerSlugRoute: TrackerSlugRoute,
