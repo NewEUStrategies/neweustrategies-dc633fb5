@@ -97,6 +97,7 @@ import {
   MorePostsBlock,
 } from "./edit/FoxizExtraBlocks";
 import { AccordionBlock, TabsBlock, CountdownBlock, ProgressBlock } from "./edit/InteractiveBlocks";
+import { PollBlockEdit } from "./edit/Poll";
 import {
   IconBoxBlock,
   StatsCounterBlock,
@@ -458,6 +459,8 @@ function BlockRenderer({
       return <CountdownBlock block={block} onChange={onChange} />;
     case "progress":
       return <ProgressBlock block={block} onChange={onChange} />;
+    case "poll":
+      return <PollBlockEdit block={block} onChange={onChange} />;
     case "icon-box":
       return <IconBoxBlock block={block} onChange={onChange} />;
     case "stats-counter":
