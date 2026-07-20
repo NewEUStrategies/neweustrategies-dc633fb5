@@ -1,15 +1,18 @@
 // Public comments section rendered under a post. Uses tokens/utility classes
-// consistent with the rest of the app. Supports one level of nested replies
-// (enforced by the DB trigger `comments_before_insert`).
+// consistent with the rest of the app. Threads nest up to MAX_COMMENT_DEPTH
+// (enforced by the DB trigger `comments_before_insert`); with
+// require_login_to_comment=false guests may post with a signature (server fn
+// with IP rate limit + honeypot; the DB trigger stays the source of truth).
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
-import { FloatingTextarea } from "@/components/ui/floating-input";
+import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
 import { toast } from "sonner";
 import { Trash2 } from "@/lib/lucide-shim";
 import { MessageCircle, Pencil, Reply } from "lucide-react";
@@ -21,6 +24,7 @@ import {
   softDeleteComment,
   type CommentWithAuthor,
 } from "@/lib/comments/api";
+import { createGuestComment } from "@/lib/comments/guest.functions";
 import { buildCommentTree, canReplyToComment, type CommentTreeNode } from "@/lib/comments/tree";
 
 interface Props {
@@ -53,6 +57,19 @@ export function CommentsSection({ postId, lang }: Props) {
   const [limit, setLimit] = useState(COMMENTS_PAGE_SIZE);
   const discussion = useSiteSetting<DiscussionSettings>("discussion", DISCUSSION_DEFAULTS);
   const commentsOpen = discussion.allow_comments;
+  // require_login_to_comment=false: goście komentują z podpisem (server fn).
+  const guestsAllowed = commentsOpen && !discussion.require_login_to_comment;
+  const guestCreate$ = useServerFn(createGuestComment);
+
+  const moderationToast = () =>
+    toast.success(
+      t("comments.submittedPending", {
+        defaultValue:
+          lang === "pl"
+            ? "Dziękujemy - komentarz pojawi się po zatwierdzeniu przez moderację."
+            : "Thank you - your comment will appear once approved by moderation.",
+      }),
+    );
 
   useEffect(() => {
     // Sync current user id so we can show controls for own rows; the auth
@@ -94,9 +111,12 @@ export function CommentsSection({ postId, lang }: Props) {
   const create = useMutation({
     mutationFn: (input: { body: string; parentId?: string | null }) =>
       createComment({ postId, body: input.body, parentId: input.parentId ?? null }),
-    onSuccess: () => {
+    onSuccess: (row) => {
       qc.invalidateQueries({ queryKey: listKey });
-      toast.success(t("comments.submitted"));
+      // Moderacja jest rozstrzygana w DB - uczciwy toast zamiast obietnicy,
+      // że komentarz "jest już widoczny", gdy trafił do kolejki.
+      if (row.status === "pending") moderationToast();
+      else toast.success(t("comments.submitted"));
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "error";
@@ -112,6 +132,38 @@ export function CommentsSection({ postId, lang }: Props) {
                 : "Slow down - too many comments at once.",
           }),
         );
+      else toast.error(t("comments.errors.generic"));
+    },
+  });
+
+  const guestCreate = useMutation({
+    mutationFn: (input: { body: string; authorName: string; parentId?: string | null }) =>
+      guestCreate$({
+        data: {
+          postId,
+          body: input.body,
+          authorName: input.authorName,
+          parentId: input.parentId ?? null,
+        },
+      }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: listKey });
+      // Gość nie widzi własnych wierszy pending (RLS) - toast wyjaśnia los wpisu.
+      if (res.status === "pending") moderationToast();
+      else toast.success(t("comments.submitted"));
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "error";
+      if (msg.includes("rate limited"))
+        toast.error(
+          t("comments.errors.rateLimited", {
+            defaultValue:
+              lang === "pl"
+                ? "Zwolnij - za dużo komentarzy na raz."
+                : "Slow down - too many comments at once.",
+          }),
+        );
+      else if (msg.includes("auth required")) toast.error(t("comments.errors.authRequired"));
       else toast.error(t("comments.errors.generic"));
     },
   });
@@ -184,6 +236,12 @@ export function CommentsSection({ postId, lang }: Props) {
           submitting={create.isPending}
           lang={lang}
         />
+      ) : guestsAllowed ? (
+        <GuestCommentComposer
+          onSubmit={(input) => guestCreate.mutate(input)}
+          submitting={guestCreate.isPending}
+          lang={lang}
+        />
       ) : (
         <div className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
           {t("comments.signInPrompt")}{" "}
@@ -203,13 +261,16 @@ export function CommentsSection({ postId, lang }: Props) {
             <CommentNode
               key={node.comment.id}
               node={node}
+              depth={0}
               currentUserId={userId}
               lang={lang}
               allowReplies={commentsOpen}
+              guestAllowed={guestsAllowed}
               onReply={(body, parentId) => create.mutate({ body, parentId })}
+              onGuestReply={(input) => guestCreate.mutate(input)}
               onDelete={(id) => remove.mutate(id)}
               onEdit={(id, body) => edit.mutate({ id, body })}
-              submittingReply={create.isPending}
+              submittingReply={create.isPending || guestCreate.isPending}
             />
           ))
         )}
@@ -237,6 +298,101 @@ export function CommentsSection({ postId, lang }: Props) {
 }
 
 type Node = CommentTreeNode;
+
+interface GuestCommentInput {
+  body: string;
+  authorName: string;
+  parentId?: string | null;
+}
+
+/**
+ * Kompozytor dla gości (require_login_to_comment=false): podpis + treść
+ * + honeypot (ukryte pole "website" - wypełnia je tylko bot; server fn
+ * cicho ignoruje takie zgłoszenia).
+ */
+function GuestCommentComposer({
+  onSubmit,
+  submitting,
+  lang,
+  parentId,
+  onCancel,
+}: {
+  onSubmit: (input: GuestCommentInput) => void;
+  submitting: boolean;
+  lang: "pl" | "en";
+  parentId?: string | null;
+  onCancel?: () => void;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState("");
+  const [body, setBody] = useState("");
+  const [website, setWebsite] = useState("");
+  const disabled =
+    name.trim().length < 2 ||
+    name.trim().length > 80 ||
+    body.trim().length < 1 ||
+    body.trim().length > 5000 ||
+    submitting;
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (disabled) return;
+        if (website.trim().length > 0) {
+          // Honeypot: bot wypełnił ukryte pole - udajemy sukces bez wysyłki.
+          setBody("");
+          return;
+        }
+        onSubmit({ body: body.trim(), authorName: name.trim(), parentId: parentId ?? null });
+        setBody("");
+      }}
+      className="space-y-3"
+    >
+      <FloatingInput
+        label={t("comments.guestName", {
+          defaultValue: lang === "pl" ? "Twoje imię lub pseudonim" : "Your name or nickname",
+        })}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        maxLength={80}
+        autoComplete="name"
+        lang={lang}
+      />
+      <FloatingTextarea
+        label={t("comments.placeholder")}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={4}
+        maxLength={5000}
+        lang={lang}
+      />
+      {/* Honeypot - niewidoczne dla ludzi, kuszące dla botów. */}
+      <input
+        type="text"
+        name="website"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="hidden"
+      />
+      <div className="flex items-center gap-2">
+        <Button type="submit" disabled={disabled}>
+          {t("comments.submit")}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
+          </Button>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+          {body.length}/5000
+        </span>
+      </div>
+    </form>
+  );
+}
 
 function CommentComposer({
   onSubmit,
@@ -300,63 +456,89 @@ function CommentComposer({
 
 function CommentNode({
   node,
+  depth,
   currentUserId,
   lang,
   allowReplies,
+  guestAllowed,
   onReply,
+  onGuestReply,
   onDelete,
   onEdit,
   submittingReply,
 }: {
   node: Node;
+  /** 0 = wątek główny; odpowiedzi wchodzą do MAX_COMMENT_DEPTH (rekurencja). */
+  depth: number;
   currentUserId: string | null;
   lang: "pl" | "en";
   /** False when comments are globally closed - hides the reply affordance. */
   allowReplies: boolean;
+  /** Goście (bez konta) mogą odpowiadać, gdy wyłączono wymóg logowania. */
+  guestAllowed: boolean;
   onReply: (body: string, parentId: string) => void;
+  onGuestReply: (input: GuestCommentInput) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, body: string) => void;
   submittingReply: boolean;
 }) {
   const [replying, setReplying] = useState(false);
+  const canReply =
+    canReplyToComment(depth, allowReplies) && (currentUserId !== null || guestAllowed);
   return (
     <article className="space-y-3">
       <CommentItem
         c={node.comment}
         currentUserId={currentUserId}
         lang={lang}
-        canReply={canReplyToComment(0, allowReplies)}
+        canReply={canReply}
         onReplyToggle={() => setReplying((v) => !v)}
         replyOpen={replying}
         onDelete={onDelete}
         onEdit={onEdit}
       />
-      {replying && allowReplies && (
+      {replying && canReply && (
         <div className="ml-6 pl-4 border-l border-border">
-          <CommentComposer
-            lang={lang}
-            submitting={submittingReply}
-            onSubmit={(body) => {
-              onReply(body, node.comment.id);
-              setReplying(false);
-            }}
-            onCancel={() => setReplying(false)}
-          />
+          {currentUserId ? (
+            <CommentComposer
+              lang={lang}
+              submitting={submittingReply}
+              onSubmit={(body) => {
+                onReply(body, node.comment.id);
+                setReplying(false);
+              }}
+              onCancel={() => setReplying(false)}
+            />
+          ) : (
+            <GuestCommentComposer
+              lang={lang}
+              submitting={submittingReply}
+              parentId={node.comment.id}
+              onSubmit={(input) => {
+                onGuestReply(input);
+                setReplying(false);
+              }}
+              onCancel={() => setReplying(false)}
+            />
+          )}
         </div>
       )}
       {node.children.length > 0 && (
         <div className="ml-6 pl-4 border-l border-border space-y-4">
           {node.children.map((child) => (
-            <CommentItem
-              key={child.id}
-              c={child}
+            <CommentNode
+              key={child.comment.id}
+              node={child}
+              depth={depth + 1}
               currentUserId={currentUserId}
               lang={lang}
-              canReply={canReplyToComment(1, allowReplies)}
-              onReplyToggle={undefined}
-              replyOpen={false}
+              allowReplies={allowReplies}
+              guestAllowed={guestAllowed}
+              onReply={onReply}
+              onGuestReply={onGuestReply}
               onDelete={onDelete}
               onEdit={onEdit}
+              submittingReply={submittingReply}
             />
           ))}
         </div>
@@ -390,9 +572,10 @@ function CommentItem({
   const isPending = c.status === "pending";
   const isDeleted = c.status === "deleted";
   const canEdit = !!onEdit && canEditComment(c, currentUserId);
-  const name = c.author?.display_name?.trim() || t("comments.anonymous");
+  const isGuest = !c.user_id;
+  const name = c.author?.display_name?.trim() || c.author_name?.trim() || t("comments.anonymous");
   const initials = name.slice(0, 2).toUpperCase();
-  const when = new Date(c.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-US");
+  const when = new Date(c.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB");
 
   return (
     <div className="flex gap-3">
@@ -418,6 +601,11 @@ function CommentItem({
             </Link>
           ) : (
             <span className="font-medium">{name}</span>
+          )}
+          {isGuest && (
+            <span className="text-xs text-muted-foreground/80">
+              ({t("comments.guestBadge", { defaultValue: lang === "pl" ? "gość" : "guest" })})
+            </span>
           )}
           <time className="text-xs text-muted-foreground" dateTime={c.created_at}>
             {when}

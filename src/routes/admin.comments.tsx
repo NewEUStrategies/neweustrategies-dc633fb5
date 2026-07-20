@@ -126,7 +126,14 @@ function Row({
   return (
     <li className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-        <span className="font-medium">{r.author?.display_name ?? "—"}</span>
+        <span className="font-medium">
+          {r.author?.display_name ?? r.author_name ?? "-"}
+          {!r.user_id && r.author_name && (
+            <span className="ml-1 font-normal text-xs text-muted-foreground">
+              ({t("adminComments.guest", { defaultValue: "gość" })})
+            </span>
+          )}
+        </span>
         <time className="text-xs text-muted-foreground" dateTime={r.created_at}>
           {when}
         </time>

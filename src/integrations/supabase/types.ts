@@ -973,6 +973,7 @@ export type Database = {
       }
       comments: {
         Row: {
+          author_name: string | null
           body: string
           created_at: string
           edited_at: string | null
@@ -982,9 +983,10 @@ export type Database = {
           status: string
           tenant_id: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
+          author_name?: string | null
           body: string
           created_at?: string
           edited_at?: string | null
@@ -994,9 +996,10 @@ export type Database = {
           status?: string
           tenant_id?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
+          author_name?: string | null
           body?: string
           created_at?: string
           edited_at?: string | null
@@ -1006,7 +1009,7 @@ export type Database = {
           status?: string
           tenant_id?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
