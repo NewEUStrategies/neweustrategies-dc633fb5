@@ -566,7 +566,7 @@ const RenderSection = memo(function RenderSection({
               ...columnsRowStyle(section, colsSum),
               gridTemplateColumns:
                 device === "mobile"
-                  ? "minmax(0, 1fr)"
+                  ? `repeat(${Math.min(Math.max(visibleCols.length, 1), 4)}, minmax(0, 1fr))`
                   : columnsRowStyle(section, colsSum).gridTemplateColumns,
               flex:
                 tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical"
@@ -605,7 +605,7 @@ const RenderSection = memo(function RenderSection({
             ) : (
               visibleCols.map((c) => {
                 const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
-                const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
+                const gridColumn = device === "mobile" ? "auto" : `span ${span}`;
                 const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
                 return (
                   <div
@@ -686,7 +686,7 @@ const RenderInner = memo(function RenderInner({
             ...columnsRowStyle(inner, colsSum),
             gridTemplateColumns:
               device === "mobile"
-                ? "minmax(0, 1fr)"
+                ? `repeat(${Math.min(Math.max(columns.length, 1), 4)}, minmax(0, 1fr))`
                 : columnsRowStyle(inner, colsSum).gridTemplateColumns,
           }}
         >
@@ -697,7 +697,7 @@ const RenderInner = memo(function RenderInner({
               className="min-w-0 max-w-full overflow-hidden"
               style={{
                 gridColumn:
-                  device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
+                  device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
               }}
             >
               <RenderColumn column={c} lang={lang} device={device} />
