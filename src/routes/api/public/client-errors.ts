@@ -9,6 +9,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
+import { currentTenantHost } from "@/lib/http/requestHost";
 
 const VALID_SOURCES = new Set(["onerror", "unhandledrejection", "react_error_boundary"]);
 // Error bursts are noisier than vitals but still bounded: 30-token burst, one
@@ -52,12 +54,29 @@ export const Route = createFileRoute("/api/public/client-errors")({
             if (json.length <= 4000) meta = redactMeta(body.meta as Record<string, unknown>);
           }
 
+          // Attribute the error to the browsed host's tenant so per-tenant error
+          // telemetry stays isolated (mirrors /api/public/vitals). The
+          // service-role client sends no x-tenant-host, so resolve it here;
+          // best-effort - on failure the column default (public_tenant_id())
+          // applies rather than dropping the row.
+          let tenantId: string | null = null;
+          try {
+            tenantId = await resolveTenantIdForHost(await currentTenantHost());
+          } catch {
+            // keep tenantId null -> column default applies
+          }
+
           // `client_errors` is created by a migration not yet reflected in the
           // generated Supabase types, so the table name/payload are cast here.
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin
-            .from("client_errors" as never)
-            .insert({ message, stack, source, path, meta } as never);
+          await supabaseAdmin.from("client_errors" as never).insert({
+            message,
+            stack,
+            source,
+            path,
+            meta,
+            ...(tenantId ? { tenant_id: tenantId } : {}),
+          } as never);
         } catch {
           // Ingest is best-effort - never error the beacon.
         }

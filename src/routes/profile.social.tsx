@@ -131,39 +131,36 @@ function SocialPage() {
   useEffect(() => {
     if (!user) return;
     let active = true;
-    void supabase
-      .from("profiles")
-      .select(
-        "slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, facebook_url, instagram_url, spotify_url, contact_email, display_name, first_name, last_name",
-      )
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data: row }) => {
-        if (!active || !row) return;
-        const r = row as SocialRow & {
-          display_name?: string | null;
-          first_name?: string | null;
-          last_name?: string | null;
-        };
-        const nameParts = [r.first_name, r.last_name]
-          .filter((p): p is string => !!p && p.trim().length > 0)
-          .join(" ")
-          .trim();
-        const base = nameParts || r.display_name?.trim() || user.email?.split("@")[0] || "";
-        setSuggestSource(base);
-        setData({
-          slug: (r.slug ?? "").trim(),
-          bio_pl: r.bio_pl,
-          bio_en: r.bio_en,
-          twitter_url: r.twitter_url,
-          linkedin_url: r.linkedin_url,
-          website_url: r.website_url,
-          facebook_url: r.facebook_url,
-          instagram_url: r.instagram_url,
-          spotify_url: r.spotify_url,
-          contact_email: r.contact_email,
-        });
+    // Own-row read via SECURITY DEFINER RPC (scoped to auth.uid()): contact_email
+    // is PII no longer granted to `authenticated` role-wide, so the own row is
+    // fetched through get_own_profile() which returns the full profile.
+    void supabase.rpc("get_own_profile").then(({ data: rows }) => {
+      const row = rows?.[0];
+      if (!active || !row) return;
+      const r = row as SocialRow & {
+        display_name?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+      };
+      const nameParts = [r.first_name, r.last_name]
+        .filter((p): p is string => !!p && p.trim().length > 0)
+        .join(" ")
+        .trim();
+      const base = nameParts || r.display_name?.trim() || user.email?.split("@")[0] || "";
+      setSuggestSource(base);
+      setData({
+        slug: (r.slug ?? "").trim(),
+        bio_pl: r.bio_pl,
+        bio_en: r.bio_en,
+        twitter_url: r.twitter_url,
+        linkedin_url: r.linkedin_url,
+        website_url: r.website_url,
+        facebook_url: r.facebook_url,
+        instagram_url: r.instagram_url,
+        spotify_url: r.spotify_url,
+        contact_email: r.contact_email,
       });
+    });
     return () => {
       active = false;
     };

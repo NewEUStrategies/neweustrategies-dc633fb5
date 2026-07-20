@@ -11,7 +11,7 @@
 -- Running: see supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(7);
+SELECT plan(10);
 
 -- ── (1) Column-level privileges of the authenticated role ───────────────────
 -- These read the live ACL, so they assert the exact outcome of the REVOKE.
@@ -29,11 +29,26 @@ SELECT ok(
 );
 SELECT ok(
   has_column_privilege('authenticated', 'public.profiles', 'first_name', 'SELECT'),
-  'authenticated CAN still SELECT profiles.first_name (own-profile editing keeps working)'
+  'authenticated CAN still SELECT profiles.first_name (bylines keep working)'
+);
+-- Personal PII: NOT readable role-wide (20260720120000). A staff `author` must
+-- not be able to enumerate every tenant member''s contact/phone/gender/location.
+-- Own row stays readable via public.get_own_profile(); admins via admin_get_user().
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'contact_email', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.contact_email role-wide (own row via get_own_profile)'
 );
 SELECT ok(
-  has_column_privilege('authenticated', 'public.profiles', 'contact_email', 'SELECT'),
-  'authenticated CAN still SELECT profiles.contact_email (public contact field, not the account e-mail)'
+  NOT has_column_privilege('authenticated', 'public.profiles', 'phone', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.phone role-wide'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'gender', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.gender role-wide'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'location', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.location role-wide'
 );
 
 -- ── (2) anon row visibility: editorial-only ─────────────────────────────────

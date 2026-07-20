@@ -279,13 +279,12 @@ function AccountPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const refresh = async (uid: string) => {
-    const { data: row } = await supabase
-      .from("profiles")
-      .select(
-        "display_name, first_name, last_name, job_title, current_company, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender",
-      )
-      .eq("id", uid)
-      .maybeSingle();
+    // Own-row read via SECURITY DEFINER RPC (hard-scoped to auth.uid()) instead
+    // of a direct profiles select: the personal PII columns (contact_email,
+    // phone, gender, location) are no longer granted to `authenticated`
+    // role-wide, so they can only be read for one's own row through this RPC.
+    const { data: ownRows } = await supabase.rpc("get_own_profile");
+    const row = ownRows?.[0];
     if (!row) return;
 
     // Prefill empty profile fields from auth signup metadata

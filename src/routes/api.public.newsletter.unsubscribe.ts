@@ -50,16 +50,21 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: sub, error } = await supabaseAdmin
           .from("newsletter_subscribers")
-          .select("id, status, email")
+          .select("id, status")
           .eq("unsubscribe_token", token)
           .maybeSingle();
         if (error || !sub) {
           return Response.json({ ok: false, error: "not_found" }, { status: 404 });
         }
+        // Intentionally do NOT return the subscriber's e-mail. The unsubscribe
+        // token is reused as the open/click tracking token, so it rides in every
+        // newsletter link and pixel (forwarded mail, mail-gateway logs, shared
+        // inboxes); echoing even a masked address would let any token holder
+        // recover the recipient's domain + initials. The friendly page falls
+        // back to a generic prompt when no e-mail is supplied.
         return Response.json({
           ok: true,
           already: sub.status === "unsubscribed",
-          email: maskEmail(sub.email),
         });
       },
       POST: async ({ request }) => {
@@ -108,12 +113,3 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
     },
   },
 });
-
-function maskEmail(email: string): string {
-  const at = email.indexOf("@");
-  if (at < 1) return email;
-  const local = email.slice(0, at);
-  const domain = email.slice(at);
-  const shown = local.length <= 2 ? local[0] : local.slice(0, 2);
-  return `${shown}${"*".repeat(Math.max(1, local.length - shown.length))}${domain}`;
-}

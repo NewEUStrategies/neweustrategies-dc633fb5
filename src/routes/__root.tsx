@@ -35,6 +35,7 @@ import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
 import { ConsentBanner } from "../components/ConsentBanner";
 import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
+import { useEffectiveConsent } from "../lib/ads/consent";
 import { ConsentPreviewPanel } from "../components/ConsentPreviewPanel";
 import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -272,10 +273,25 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const router = useRouter();
+  const { categories, mounted: consentMounted } = useEffectiveConsent();
+
+  // Client observability (Core Web Vitals RUM + global error capture) is
+  // analytics data - gate it on the visitor's analytics consent and tear it
+  // down if consent is withdrawn (mirrors ConsentScriptInjector). Nothing is
+  // beaconed before an explicit opt-in, so no telemetry is collected without
+  // consent (RODO/GDPR).
   useEffect(() => {
-    // Consolidated client observability: Core Web Vitals (RUM) + global error
-    // capture, beaconed to the configurable observability endpoint.
-    void import("../lib/observability").then((m) => m.initObservability());
+    if (!consentMounted || !categories.analytics) return;
+    let cleanup: (() => void) | undefined;
+    void import("../lib/observability").then((m) => {
+      cleanup = m.initObservability();
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [consentMounted, categories.analytics]);
+
+  useEffect(() => {
     // Preview iframe watchdog: reload when the editor preview hangs on boot
     // or the main thread freezes for too long. No-op outside iframes.
     let stopWatchdog: (() => void) | undefined;

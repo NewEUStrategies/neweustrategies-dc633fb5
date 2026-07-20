@@ -24,6 +24,11 @@ const SENSITIVE_PARAM_RE =
 // Long opaque hex / base64url blobs (>=24 chars) that survive the rules above.
 const LONG_HEX_RE = /\b[0-9a-fA-F]{24,}\b/g;
 const LONG_B64_RE = /\b[A-Za-z0-9_-]{40,}\b/g;
+// IPv4 dotted-quad: a client/server address echoed into an error message or
+// stack. Four decimal groups (semver is three), so false positives are rare.
+// IPv6 is intentionally NOT matched here - a naive pattern also eats
+// `hh:mm:ss` timestamps that are common in stack traces.
+const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 
 /** Redact PII/secrets from a free-text string (error message, stack, note). */
 export function redactPii(input: string | null | undefined): string | null {
@@ -34,6 +39,7 @@ export function redactPii(input: string | null | undefined): string | null {
   out = out.replace(BEARER_RE, (_m, scheme: string) => `${scheme} [redacted]`);
   out = out.replace(SENSITIVE_PARAM_RE, (_m, key: string) => `${key}=[redacted]`);
   out = out.replace(EMAIL_RE, "[redacted-email]");
+  out = out.replace(IPV4_RE, "[redacted-ip]");
   out = out.replace(LONG_HEX_RE, "[redacted]");
   out = out.replace(LONG_B64_RE, "[redacted]");
   return out;

@@ -33,12 +33,11 @@ const EMPTY: JoinUsPrefill = {
 export const getJoinUsPrefill = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<JoinUsPrefill> => {
-    const { supabase, userId } = context;
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("first_name, last_name, location, linkedin_url, phone, current_company, job_title")
-      .eq("id", userId)
-      .maybeSingle();
+    const { supabase } = context;
+    // Own-row read via SECURITY DEFINER RPC (scoped to auth.uid()): location /
+    // phone are PII no longer granted to `authenticated` role-wide.
+    const { data: rows, error } = await supabase.rpc("get_own_profile");
+    const data = rows?.[0];
     if (error || !data) return EMPTY;
     return {
       firstName: data.first_name ?? "",

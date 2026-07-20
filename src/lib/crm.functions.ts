@@ -2,7 +2,6 @@
 // rejecting Supabase `unknown` (inet/jsonb) columns, deep results are returned
 // as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
@@ -53,7 +52,7 @@ const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
 export const listCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
@@ -81,7 +80,7 @@ export const listCrmLeads = createServerFn({ method: "POST" })
 const IdInput = z.object({ id: z.string().uuid() });
 
 export const getCrmLead = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead, error } = await tbl(context, "crm_leads")
@@ -148,7 +147,7 @@ const UpdateInput = z.object({
 });
 
 export const updateCrmLead = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
@@ -166,7 +165,7 @@ const NoteInput = z.object({
 });
 
 export const addCrmNote = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -194,7 +193,7 @@ export const addCrmNote = createServerFn({ method: "POST" })
   });
 
 export const deleteCrmNote = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const res = await (tbl(context, "crm_lead_notes")
@@ -205,7 +204,7 @@ export const deleteCrmNote = createServerFn({ method: "POST" })
   });
 
 export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
@@ -273,7 +272,7 @@ const IntegrationsInput = z.object({
 });
 
 export const getCrmIntegrations = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .handler(async ({ context }) => {
     const { data, error } = await tbl(context, "crm_integrations").select("*").maybeSingle();
     if (error) throw new Error(error.message);
@@ -291,7 +290,7 @@ export const getCrmIntegrations = createServerFn({ method: "GET" })
   });
 
 export const upsertCrmIntegrations = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => IntegrationsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -342,7 +341,7 @@ export const upsertCrmIntegrations = createServerFn({ method: "POST" })
 const PushInput = z.object({ lead_id: z.string().uuid() });
 
 export const pushLeadToMerydian = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => PushInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -559,7 +558,7 @@ async function buildLeadTimeline(
 }
 
 export const getCrmLeadTimeline = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const r = await buildLeadTimeline(context, data.id);
@@ -567,7 +566,7 @@ export const getCrmLeadTimeline = createServerFn({ method: "POST" })
   });
 
 export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { lead, events } = await buildLeadTimeline(context, data.id);

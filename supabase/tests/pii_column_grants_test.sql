@@ -15,7 +15,7 @@
 -- no seeding required.
 
 BEGIN;
-SELECT plan(14);
+SELECT plan(23);
 
 -- ── profiles: account e-mail + private prefs never leave the row owner ──────
 SELECT ok(
@@ -74,6 +74,56 @@ SELECT ok(
 SELECT ok(
   NOT has_column_privilege('anon', 'public.contact_messages', 'phone', 'SELECT'),
   'anon CANNOT SELECT contact_messages.phone'
+);
+
+-- ── profiles: personal PII is own-row-only, not readable by staff role-wide ──
+-- (20260720120000) The "Profiles authenticated read" row policy lets any
+-- is_staff() member - including the low-trust `author` role - see every profile
+-- row in the tenant. These columns must therefore NOT be granted to the
+-- `authenticated` role; own-row access is via get_own_profile(), admin access
+-- via admin_get_user(). A bulk `GRANT SELECT ON profiles` regression breaks CI here.
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'contact_email', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.contact_email role-wide'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'phone', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.phone role-wide'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'gender', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.gender role-wide'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.profiles', 'location', 'SELECT'),
+  'authenticated CANNOT SELECT profiles.location role-wide'
+);
+
+-- ── author_profiles: table grant must not re-expose contact PII ──────────────
+-- (20260715095639 for anon; 20260720120000 converts authenticated off the
+-- table grant to an explicit column grant.) The press contacts (media_contact_*)
+-- are opt-in public for is_public authors and stay readable; the personal
+-- `phone` and the anon-side contact columns must be withheld. A future
+-- `GRANT SELECT ON author_profiles` (the documented footgun) breaks CI here.
+SELECT ok(
+  NOT has_column_privilege('anon', 'public.author_profiles', 'phone', 'SELECT'),
+  'anon CANNOT SELECT author_profiles.phone'
+);
+SELECT ok(
+  NOT has_column_privilege('anon', 'public.author_profiles', 'media_contact_email', 'SELECT'),
+  'anon CANNOT SELECT author_profiles.media_contact_email'
+);
+SELECT ok(
+  NOT has_column_privilege('anon', 'public.author_profiles', 'media_contact_phone', 'SELECT'),
+  'anon CANNOT SELECT author_profiles.media_contact_phone'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.author_profiles', 'phone', 'SELECT'),
+  'authenticated CANNOT SELECT author_profiles.phone (personal number, never rendered publicly)'
+);
+SELECT ok(
+  has_column_privilege('authenticated', 'public.author_profiles', 'is_public', 'SELECT'),
+  'authenticated CAN SELECT author_profiles.is_public (public author page keeps working)'
 );
 
 -- ── Positive controls: public-safe columns stay readable ────────────────────
