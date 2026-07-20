@@ -56,6 +56,13 @@ export interface PostSidebarRendererProps {
     /** Wgrany MP3 dla bieżącego języka - gdy podany, TTS jest pomijany. */
     audioUrl?: string | null;
   } | null;
+  /**
+   * Tryb czytania: gdy spis treści renderuje się w TREŚCI wpisu (showInBody),
+   * panel czytania nie pokazuje swojej kopii - strona ma dokładnie jeden TOC.
+   */
+  suppressToc?: boolean;
+  /** Tryb czytania: strefa sidebar wypadła z budżetu reklam - widget ad-slot milczy. */
+  suppressAds?: boolean;
 }
 
 export function PostSidebarRenderer(props: PostSidebarRendererProps) {
@@ -79,7 +86,8 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
 }
 
 function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps) {
-  const { widget, postId, postTitle, lang, tags, listen, adContent } = props;
+  const { widget, postId, postTitle, lang, tags, listen, adContent, suppressToc, suppressAds } =
+    props;
   switch (widget.type) {
     case "reading-panel": {
       const cfg: ReadingPanelSettings = {
@@ -89,6 +97,8 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
           ...DEFAULT_READING_PANEL_SETTINGS.social,
           ...((widget.settings as Partial<ReadingPanelSettings>)?.social ?? {}),
         },
+        // Gwarancja jednego TOC: kopia w treści wygrywa z kopią w panelu.
+        ...(suppressToc ? { showToc: false } : null),
       };
       return (
         <FloatingShareBar
@@ -149,6 +159,7 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
       );
     }
     case "ad-slot": {
+      if (suppressAds) return null;
       return (
         <Suspense fallback={null}>
           <AdZone
