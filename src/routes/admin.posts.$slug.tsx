@@ -52,6 +52,7 @@ import {
 import { History, Database, ListChecks } from "lucide-react";
 import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
 import { PublishChecklistCard } from "@/components/admin/post-editor/PublishChecklistCard";
+import { ChangelogCard } from "@/components/admin/post-editor/ChangelogCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
@@ -709,6 +710,12 @@ function EditPost() {
     />
   );
 
+  const changelogCard = (
+    <SidebarSection title={t("adminPostPanes.changelog.title")} icon={History} defaultOpen={false}>
+      <ChangelogCard postId={id} />
+    </SidebarSection>
+  );
+
   const checklistCard = (
     <SidebarSection
       title={t("adminPostPanes.publishChecklist.title")}
@@ -1281,6 +1288,7 @@ function EditPost() {
                       <div className="space-y-4">
                         {checklistCard}
                         {metaCard}
+                        {changelogCard}
                       </div>
                     )}
 
@@ -1403,6 +1411,7 @@ function EditPost() {
                   <div className="space-y-4">
                     {checklistCard}
                     {metaCard}
+                    {changelogCard}
                     {layoutCard}
                     {catsCard}
                     {tagsCard}

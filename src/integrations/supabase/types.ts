@@ -5379,6 +5379,47 @@ export type Database = {
           },
         ]
       }
+      post_changelog: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entry_date: string
+          id: string
+          note_en: string | null
+          note_pl: string
+          post_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          id?: string
+          note_en?: string | null
+          note_pl: string
+          post_id: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          id?: string
+          note_en?: string | null
+          note_pl?: string
+          post_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_changelog_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_categories: {
         Row: {
           category_id: string

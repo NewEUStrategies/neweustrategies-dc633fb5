@@ -120,6 +120,15 @@ const pl = {
         indexable: "Indeksowanie włączone (bez noindex)",
       },
     },
+    changelog: {
+      title: "Historia aktualizacji",
+      hint: "Publiczne wpisy widoczne pod analizą (np. „zaktualizowano dane o Q2”). Dodawaj świadomie - to sygnał zaufania.",
+      dateLabel: "Data wpisu",
+      notePlPlaceholder: "Treść po polsku (wymagana)",
+      noteEnPlaceholder: "Treść po angielsku (opcjonalna)",
+      add: "Dodaj wpis",
+      delete: "Usuń wpis",
+    },
   },
 };
 
@@ -240,6 +249,15 @@ const en = {
         enVersion: "EN version (title + excerpt)",
         indexable: "Indexing enabled (no noindex)",
       },
+    },
+    changelog: {
+      title: "Update history",
+      hint: 'Public entries shown under the analysis (e.g. "updated with Q2 data"). Add deliberately - it is a trust signal.',
+      dateLabel: "Entry date",
+      notePlPlaceholder: "Polish text (required)",
+      noteEnPlaceholder: "English text (optional)",
+      add: "Add entry",
+      delete: "Delete entry",
     },
   },
 };
