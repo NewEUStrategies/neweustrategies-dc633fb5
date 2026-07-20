@@ -183,7 +183,13 @@ function GeneralSettings() {
         </Select>
       </Field>
 
-      <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
+      <SaveBar
+        saving={save.isPending || contact.save.isPending}
+        onSave={() => {
+          save.mutate(draft);
+          contact.save.mutate(contactDraft ?? CONTACT_DEFAULTS);
+        }}
+      />
     </div>
   );
 }
