@@ -3737,6 +3737,7 @@ export type Database = {
           id: string
           kind: string
           reply_to_id: string | null
+          search_vector: unknown
           sender_id: string
           tenant_id: string
         }
@@ -3756,6 +3757,7 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
+          search_vector?: unknown
           sender_id: string
           tenant_id: string
         }
@@ -3775,6 +3777,7 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
+          search_vector?: unknown
           sender_id?: string
           tenant_id?: string
         }
@@ -4338,6 +4341,7 @@ export type Database = {
           enabled_content: boolean
           enabled_follow: boolean
           enabled_message: boolean
+          enabled_saved_search: boolean
           enabled_security: boolean
           enabled_subscription: boolean
           enabled_system: boolean
@@ -4364,6 +4368,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
+          enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
@@ -4390,6 +4395,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
+          enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
           enabled_system?: boolean
@@ -5565,6 +5571,45 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      post_embeddings: {
+        Row: {
+          content_hash: string
+          embedding: string
+          post_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          embedding: string
+          post_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          embedding?: string
+          post_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_embeddings_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: true
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_feedback: {
         Row: {
@@ -7665,27 +7710,42 @@ export type Database = {
       }
       saved_searches: {
         Row: {
+          alert_enabled: boolean
           created_at: string
           id: string
+          last_alert_at: string | null
+          last_alert_check_at: string | null
+          last_seen_published_at: string | null
           name: string
           params: Json
           tenant_id: string
+          url: string | null
           user_id: string
         }
         Insert: {
+          alert_enabled?: boolean
           created_at?: string
           id?: string
+          last_alert_at?: string | null
+          last_alert_check_at?: string | null
+          last_seen_published_at?: string | null
           name: string
           params?: Json
           tenant_id?: string
+          url?: string | null
           user_id: string
         }
         Update: {
+          alert_enabled?: boolean
           created_at?: string
           id?: string
+          last_alert_at?: string | null
+          last_alert_check_at?: string | null
+          last_seen_published_at?: string | null
           name?: string
           params?: Json
           tenant_id?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -10161,6 +10221,19 @@ export type Database = {
         Returns: unknown
       }
       nes_pl_light_stem: { Args: { _term: string }; Returns: string }
+      nes_post_embedding_source: {
+        Args: {
+          p_excerpt_en: string
+          p_excerpt_pl: string
+          p_title_en: string
+          p_title_pl: string
+        }
+        Returns: string
+      }
+      nes_post_matches_term_group: {
+        Args: { p_group_csv: string; p_post_id: string }
+        Returns: boolean
+      }
       nes_posts_search_vector: {
         Args: {
           _blocks: Json
@@ -10234,6 +10307,15 @@ export type Database = {
         }[]
       }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
+      posts_needing_embeddings: {
+        Args: { _limit?: number }
+        Returns: {
+          content_hash: string
+          embed_text: string
+          post_id: string
+          tenant_id: string
+        }[]
+      }
       process_mentions: {
         Args: {
           p_actor_id: string
@@ -10345,6 +10427,10 @@ export type Database = {
         Returns: Json
       }
       run_event_reminders: { Args: never; Returns: number }
+      run_saved_search_alerts: {
+        Args: { p_max_searches?: number }
+        Returns: number
+      }
       run_workflow_step: {
         Args: {
           p_event: Database["public"]["Tables"]["domain_events"]["Row"]
@@ -10376,6 +10462,7 @@ export type Database = {
           _lang?: string
           _match?: string
           _q?: string
+          _term_groups?: Json
           _terms?: string[]
         }
         Returns: {
@@ -10386,6 +10473,24 @@ export type Database = {
           label_pl: string
           parent_id: string
           slug: string
+        }[]
+      }
+      search_messages: {
+        Args: {
+          _conversation_id?: string
+          _limit?: number
+          _offset?: number
+          _q: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          id: string
+          kind: string
+          rank: number
+          sender_id: string
+          snippet: string
+          total_count: number
         }[]
       }
       search_people: {
@@ -10440,6 +10545,7 @@ export type Database = {
           _match?: string
           _q?: string
           _sort?: string
+          _term_groups?: Json
           _terms?: string[]
         }
         Returns: {
@@ -10484,6 +10590,13 @@ export type Database = {
         }[]
       }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
+      semantic_search_posts: {
+        Args: { _embedding: number[]; _limit?: number }
+        Returns: {
+          post_id: string
+          similarity: number
+        }[]
+      }
       set_user_consent: {
         Args: {
           p_given: boolean
