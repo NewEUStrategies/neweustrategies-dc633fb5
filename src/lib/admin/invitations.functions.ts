@@ -64,10 +64,12 @@ async function assertAdmin(
     .eq("id", userId)
     .maybeSingle();
   if (pErr || !profile?.tenant_id) throw new Error("Forbidden: no tenant context");
+  // Tenant-scoped: only role rows belonging to the caller's current tenant count.
   const { data: roles, error: rErr } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
+    .eq("tenant_id", profile.tenant_id)
     .in("role", ["admin", "super_admin"]);
   if (rErr) throw new Error(`Forbidden: role lookup failed (${rErr.message})`);
   if (!roles || roles.length === 0) throw new Error("Forbidden: admin role required");
