@@ -6,10 +6,10 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Fragment, useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
-import { AdSlotView } from "@/components/AdSlot";
+import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { Button } from "@/components/ui/button";
 import { PostListCard } from "@/components/molecules/PostListCard";
-import { useAdPlacements } from "@/lib/ads/queries";
 import { blogListQueryOptions, BLOG_PAGE_SIZE } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -55,8 +55,9 @@ function BlogIndex() {
   } = useSuspenseQuery(blogListQueryOptions(limit));
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const { data: feedAds } = useAdPlacements("in_feed", "home");
-  const inFeed = feedAds ?? [];
+  // /blog to archiwum wpisów - dotąd pytał o typ "home", przez co placementy
+  // zadeklarowane dla "Archiwa" nigdy się tu nie emitowały (a "home" mylnie tak).
+  const inFeed = useInFeedAds("archive");
   // The fetch filled the whole window -> more may exist on the server.
   const canLoadMore = posts.length >= limit;
 
@@ -75,10 +76,7 @@ function BlogIndex() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {posts.map((p, idx) => {
-              const adsAfter = inFeed.filter((ad) => {
-                const every = Math.max(1, Number((ad.config as { every?: number }).every ?? 5));
-                return (idx + 1) % every === 0;
-              });
+              const adsAfter = inFeed(idx);
               return (
                 <Fragment key={p.id}>
                   <PostListCard
@@ -89,14 +87,11 @@ function BlogIndex() {
                     priority={idx === 0}
                     viewTransitionId={p.id}
                   />
-                  {adsAfter.map((ad) => (
-                    <div
-                      key={ad.id}
-                      className="md:col-span-2 lg:col-span-3 flex justify-center py-2"
-                    >
-                      <AdSlotView placement={ad} />
+                  {adsAfter && (
+                    <div className="md:col-span-2 lg:col-span-3 flex justify-center py-2">
+                      {adsAfter}
                     </div>
-                  ))}
+                  )}
                 </Fragment>
               );
             })}
@@ -120,6 +115,7 @@ function BlogIndex() {
           </div>
         )}
       </div>
+      <FooterSlideup pageType="archive" />
     </div>
   );
 }

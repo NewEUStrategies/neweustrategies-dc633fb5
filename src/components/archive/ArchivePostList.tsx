@@ -1,4 +1,5 @@
 // Reusable post-card list for archive pages (author/tag/category/search).
+import { Fragment } from "react";
 import { Newspaper } from "@/lib/lucide-shim";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import type { BlogListItem } from "@/lib/queries/public";
@@ -15,6 +16,11 @@ interface Props {
   titleClassName?: string;
   /** Optional override of the responsive grid classes. */
   gridClassName?: string;
+  /**
+   * Optional in-feed insert rendered AFTER the card at a given index (ads
+   * "every N cards", see useInFeedAds). Truthy output spans the full grid row.
+   */
+  renderAfterCard?: (index: number) => React.ReactNode;
 }
 
 export function ArchivePostList({
@@ -25,6 +31,7 @@ export function ArchivePostList({
   getExcerptOverride,
   titleClassName = "text-xl",
   gridClassName = "grid gap-6 md:grid-cols-2 lg:grid-cols-3",
+  renderAfterCard,
 }: Props) {
   if (posts.length === 0) {
     return (
@@ -37,18 +44,22 @@ export function ArchivePostList({
   }
   return (
     <div className={gridClassName}>
-
-      {posts.map((p) => (
-        <PostListCard
-          key={p.id}
-          post={p}
-          href={p.href}
-          lang={lang}
-          viewTransitionId={p.id}
-          excerptOverride={getExcerptOverride?.(p)}
-          titleClassName={titleClassName}
-        />
-      ))}
+      {posts.map((p, idx) => {
+        const after = renderAfterCard?.(idx);
+        return (
+          <Fragment key={p.id}>
+            <PostListCard
+              post={p}
+              href={p.href}
+              lang={lang}
+              viewTransitionId={p.id}
+              excerptOverride={getExcerptOverride?.(p)}
+              titleClassName={titleClassName}
+            />
+            {after && <div className="col-span-full flex justify-center py-2">{after}</div>}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

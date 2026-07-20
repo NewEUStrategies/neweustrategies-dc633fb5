@@ -1,6 +1,7 @@
 import { useRouterState } from "@tanstack/react-router";
 import { lazy, Suspense, type ReactNode } from "react";
 import { Header } from "@/components/Header";
+import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
@@ -27,13 +28,27 @@ const ChatDock = lazy(() =>
  * header and footer without each route having to wire them up.
  */
 export function SiteChrome({ children }: { children: ReactNode }) {
-  const { pathname, ownChrome } = useRouterState({
-    select: (s) => ({
-      pathname: s.location.pathname,
-      ownChrome: s.matches.some(
-        (m) => (m.staticData as { ownChrome?: boolean } | undefined)?.ownChrome === true,
-      ),
-    }),
+  const { pathname, ownChrome, contentKind } = useRouterState({
+    select: (s) => {
+      // Wpis vs strona statyczna nie wynika z URL-a (catch-all $) - czytamy
+      // kind z loaderData dopasowanej trasy, by baner nagłówka dostał właściwy
+      // typ strony reklamowej (post/page) zamiast generycznego "all".
+      let kind: "post" | "page" | null = null;
+      for (const m of s.matches) {
+        const ld = m.loaderData as { kind?: string } | undefined;
+        if (ld?.kind === "post" || ld?.kind === "page") {
+          kind = ld.kind;
+          break;
+        }
+      }
+      return {
+        pathname: s.location.pathname,
+        ownChrome: s.matches.some(
+          (m) => (m.staticData as { ownChrome?: boolean } | undefined)?.ownChrome === true,
+        ),
+        contentKind: kind,
+      };
+    },
   });
   const { user } = useAuth();
   const community = useCommunityModules();
@@ -67,7 +82,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       <SkipToContentLink />
       <ImpersonationBanner />
       <RouteProgress />
-      <Header />
+      <Header adPageType={adPageTypeForLocation(pathname, contentKind)} />
       <main id="main-content" className="flex-1" style={{ viewTransitionName: "site-main" }}>
         {children}
       </main>

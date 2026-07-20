@@ -29,6 +29,8 @@ import { format, parseISO } from "date-fns";
 import { pl, enUS } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
+import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { SearchSnippet } from "@/components/search/SearchSnippet";
 import { SearchFacetPanel } from "@/components/search/SearchFacetPanel";
 import { ActiveFilterChips } from "@/components/search/ActiveFilterChips";
@@ -195,6 +197,9 @@ function SearchPage() {
   const url = search as SearchUrl;
   const tab: SearchTab = search.tab ?? "all";
   const filters: SearchFilters = useMemo(() => urlToFilters(url), [url]);
+
+  // Reklamy in-feed między wynikami (typ strony: "search").
+  const inFeed = useInFeedAds("search");
 
   // Panel trybów zaawansowanych: otwarty, gdy dowolny tryb jest aktywny
   // albo przyszliśmy deep-linkiem adv=1 (stopka widgetu w nagłówku).
@@ -554,6 +559,7 @@ function SearchPage() {
                 getExcerptOverride={(p) => snippetFor(p as SearchResultItem)}
                 titleClassName="text-base"
                 gridClassName="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+                renderAfterCard={inFeed}
               />
             )}
 
@@ -846,6 +852,7 @@ function SearchPage() {
           explorerResults(TOPICS_DIMS)
         )}
       </div>
+      <FooterSlideup pageType="search" />
     </div>
   );
 }

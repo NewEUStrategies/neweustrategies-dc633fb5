@@ -162,7 +162,7 @@ describe("AdSlotView - Core Web Vitals", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
-  it("injects a third-party script only after the gates open", async () => {
+  it("mounts a script creative inside a sandboxed iframe only after the gates open", async () => {
     const slot = makeSlot({
       kind: "script",
       image_url: null,
@@ -174,6 +174,41 @@ describe("AdSlotView - Core Web Vitals", () => {
     const { container } = render(<AdSlotView placement={makePlacement(slot)} />);
 
     await waitFor(() => expect(box()?.getAttribute("data-ad-state")).toBe("ready"));
-    await waitFor(() => expect(container.querySelector("script")).toBeTruthy());
+    const frame = await waitFor(() => {
+      const el = container.querySelector("iframe");
+      expect(el).toBeTruthy();
+      return el as HTMLIFrameElement;
+    });
+    // The creative must never touch the host DOM - stored XSS isolation.
+    expect(container.querySelector("script")).toBeNull();
+    expect(frame.getAttribute("srcdoc")).toContain("window.__adRan = true;");
+    const sandbox = frame.getAttribute("sandbox") ?? "";
+    expect(sandbox).toContain("allow-scripts");
+    // Opaque origin: without allow-same-origin the frame cannot read the
+    // reader's cookies/storage or reach the parent document.
+    expect(sandbox).not.toContain("allow-same-origin");
+  });
+
+  it("mounts an html creative inside a sandboxed iframe instead of dangerouslySetInnerHTML", async () => {
+    const slot = makeSlot({
+      kind: "html",
+      image_url: null,
+      image_link: null,
+      html: '<div id="creative"><img src="x" onerror="document.title=\'pwned\'"></div>',
+      width: 300,
+      height: 250,
+    });
+    const { container } = render(<AdSlotView placement={makePlacement(slot)} />);
+
+    await waitFor(() => expect(box()?.getAttribute("data-ad-state")).toBe("ready"));
+    const frame = await waitFor(() => {
+      const el = container.querySelector("iframe");
+      expect(el).toBeTruthy();
+      return el as HTMLIFrameElement;
+    });
+    // Raw markup stays inside the frame document; the host page never parses it.
+    expect(container.querySelector("#creative")).toBeNull();
+    expect(frame.getAttribute("srcdoc")).toContain('id="creative"');
+    expect(frame.getAttribute("sandbox") ?? "").not.toContain("allow-same-origin");
   });
 });

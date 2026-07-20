@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { PostListCard } from "@/components/molecules/PostListCard";
+import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { ArchivePosts } from "./ArchivePosts";
 import { ArchiveSidebar } from "./ArchiveSidebar";
 import { ArchiveToolbar } from "./ArchiveToolbar";
@@ -34,6 +36,11 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
   const sidebarLeft = settings.sidebar_position === "left";
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  // Reklamy in-feed dla archiwów taksonomii (typ strony = kind: category/tag).
+  // W podglądzie admina nie emitujemy niczego - zero beaconów i fetchy reklam.
+  const inFeed = useInFeedAds(kind, taxonomy.id);
+  const renderAfterCard = previewMode ? undefined : inFeed;
+
   // Generic featured-top card, used by all layouts except Magazine (which renders its own).
   const featured = posts[0];
   const showGenericFeatured = settings.show_featured_top && !hasCustomFeaturedTop && !!featured;
@@ -61,7 +68,13 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
         isPending={isPending}
         disabled={!!previewMode}
       />
-      <ArchivePosts posts={gridPosts} lang={lang} settings={settings} emptyText={emptyText} />
+      <ArchivePosts
+        posts={gridPosts}
+        lang={lang}
+        settings={settings}
+        emptyText={emptyText}
+        renderAfterCard={renderAfterCard}
+      />
       {totalPages > 1 && (
         <div className="pt-8">
           <ArchivePagination
@@ -99,13 +112,25 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
     </div>
   ) : null;
 
-  if (!withSidebar) return grid;
+  // Slide-up stopki dla archiwów taksonomii - poza podglądem admina.
+  const slideup = previewMode ? null : <FooterSlideup pageType={kind} pageId={taxonomy.id} />;
+
+  if (!withSidebar)
+    return (
+      <>
+        {grid}
+        {slideup}
+      </>
+    );
   return (
-    <div className="flex flex-col lg:flex-row gap-8">
-      {sidebarLeft ? sidebar : null}
-      {grid}
-      {sidebarLeft ? null : sidebar}
-    </div>
+    <>
+      <div className="flex flex-col lg:flex-row gap-8">
+        {sidebarLeft ? sidebar : null}
+        {grid}
+        {sidebarLeft ? null : sidebar}
+      </div>
+      {slideup}
+    </>
   );
 }
 

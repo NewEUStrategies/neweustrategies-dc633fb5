@@ -356,24 +356,34 @@ function SlotsPanel() {
           </div>
 
           {draft.kind === "html" && (
-            <FloatingTextarea
-              containerClassName="sm:col-span-2"
-              label="Kod HTML"
-              rows={4}
-              value={draft.html ?? ""}
-              onChange={(e) => setDraft({ ...draft, html: e.target.value })}
-              className="font-mono text-xs"
-            />
+            <div className="sm:col-span-2 space-y-1.5">
+              <FloatingTextarea
+                label="Kod HTML"
+                rows={4}
+                value={draft.html ?? ""}
+                onChange={(e) => setDraft({ ...draft, html: e.target.value })}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Kreacja wykonuje się w izolowanej ramce (sandbox) - bez dostępu do sesji czytelnika
+                i DOM strony.
+              </p>
+            </div>
           )}
           {draft.kind === "script" && (
-            <FloatingTextarea
-              containerClassName="sm:col-span-2"
-              label="Skrypt (np. AdSense)"
-              rows={5}
-              value={draft.script ?? ""}
-              onChange={(e) => setDraft({ ...draft, script: e.target.value })}
-              className="font-mono text-xs"
-            />
+            <div className="sm:col-span-2 space-y-1.5">
+              <FloatingTextarea
+                label="Skrypt (np. AdSense)"
+                rows={5}
+                value={draft.script ?? ""}
+                onChange={(e) => setDraft({ ...draft, script: e.target.value })}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Skrypt wykonuje się w izolowanej ramce (sandbox) - bez dostępu do sesji czytelnika i
+                DOM strony.
+              </p>
+            </div>
           )}
           {draft.kind === "image" && (
             <>
