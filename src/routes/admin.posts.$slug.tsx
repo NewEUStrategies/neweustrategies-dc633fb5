@@ -55,6 +55,7 @@ import { PublishChecklistCard } from "@/components/admin/post-editor/PublishChec
 import { ChangelogCard } from "@/components/admin/post-editor/ChangelogCard";
 import { TranslateCard } from "@/components/admin/post-editor/TranslateCard";
 import { PreviewLinksCard } from "@/components/admin/post-editor/PreviewLinksCard";
+import { SeriesCard } from "@/components/admin/post-editor/SeriesCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toastError } from "@/lib/toastError";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
@@ -712,6 +713,12 @@ function EditPost() {
     />
   );
 
+  const seriesCard = (
+    <SidebarSection title={t("adminPostPanes.series.title")} icon={Layers} defaultOpen={false}>
+      <SeriesCard postId={id} />
+    </SidebarSection>
+  );
+
   const previewLinksCard = (
     <SidebarSection title={t("adminPostPanes.previewLinks.title")} icon={Eye} defaultOpen={false}>
       <PreviewLinksCard postId={id} />
@@ -1343,6 +1350,7 @@ function EditPost() {
                         {checklistCard}
                         {metaCard}
                         {translateCard}
+                        {seriesCard}
                         {previewLinksCard}
                         {changelogCard}
                       </div>
@@ -1468,6 +1476,7 @@ function EditPost() {
                     {checklistCard}
                     {metaCard}
                     {translateCard}
+                    {seriesCard}
                     {previewLinksCard}
                     {changelogCard}
                     {layoutCard}

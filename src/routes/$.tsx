@@ -66,6 +66,7 @@ import { PrintBriefHeader } from "@/components/post/PrintBriefHeader";
 import { QuoteShareBar } from "@/components/post/QuoteShareBar";
 import { PostChangelog } from "@/components/post/PostChangelog";
 import { PostFeedback } from "@/components/post/PostFeedback";
+import { PostSeriesNav } from "@/components/post/PostSeriesNav";
 import {
   applyTitleSuffix,
   resolveRobotsMeta,
@@ -692,6 +693,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
+          {isPost && <PostSeriesNav postId={it.id} lang={lang} />}
           {(() => {
             const hasBullets = takeaways.length > 0;
             const tocOverride = (post?.toc_override ?? null) as TocOverride | null;

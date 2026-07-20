@@ -5808,6 +5808,42 @@ export type Database = {
         }
         Relationships: []
       }
+      post_series: {
+        Row: {
+          created_at: string
+          part_number: number
+          post_id: string
+          series_id: string
+        }
+        Insert: {
+          created_at?: string
+          part_number?: number
+          post_id: string
+          series_id: string
+        }
+        Update: {
+          created_at?: string
+          part_number?: number
+          post_id?: string
+          series_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_series_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: true
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_series_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_tags: {
         Row: {
           post_id: string
@@ -7660,6 +7696,39 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      series: {
+        Row: {
+          created_at: string
+          description_en: string | null
+          description_pl: string | null
+          id: string
+          name_en: string
+          name_pl: string
+          slug: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          name_en?: string
+          name_pl: string
+          slug: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          name_en?: string
+          name_pl?: string
+          slug?: string
+          tenant_id?: string
         }
         Relationships: []
       }

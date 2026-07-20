@@ -51,6 +51,7 @@ import { Route as TrackerExplorerRouteImport } from './routes/tracker.explorer'
 import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
+import { Route as SeriesSlugRouteImport } from './routes/series.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
 import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
@@ -414,6 +415,11 @@ const TrackerSlugRoute = TrackerSlugRouteImport.update({
 const TagSlugRoute = TagSlugRouteImport.update({
   id: '/tag/$slug',
   path: '/tag/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SeriesSlugRoute = SeriesSlugRouteImport.update({
+  id: '/series/$slug',
+  path: '/series/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QaSlugRoute = QaSlugRouteImport.update({
@@ -1321,6 +1327,7 @@ export interface FileRoutesByFullPath {
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
+  '/series/$slug': typeof SeriesSlugRoute
   '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
@@ -1513,6 +1520,7 @@ export interface FileRoutesByTo {
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
+  '/series/$slug': typeof SeriesSlugRoute
   '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
@@ -1711,6 +1719,7 @@ export interface FileRoutesById {
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
+  '/series/$slug': typeof SeriesSlugRoute
   '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
@@ -1911,6 +1920,7 @@ export interface FileRouteTypes {
     | '/profile/subscription'
     | '/programs/$slug'
     | '/qa/$slug'
+    | '/series/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/tracker/changes'
@@ -2103,6 +2113,7 @@ export interface FileRouteTypes {
     | '/profile/subscription'
     | '/programs/$slug'
     | '/qa/$slug'
+    | '/series/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/tracker/changes'
@@ -2300,6 +2311,7 @@ export interface FileRouteTypes {
     | '/profile/subscription'
     | '/programs/$slug'
     | '/qa/$slug'
+    | '/series/$slug'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/tracker/changes'
@@ -2430,6 +2442,7 @@ export interface RootRouteChildren {
   PostSlugRoute: typeof PostSlugRoute
   PreviewTokenRoute: typeof PreviewTokenRoute
   ProgramsSlugRoute: typeof ProgramsSlugRouteWithChildren
+  SeriesSlugRoute: typeof SeriesSlugRoute
   TagSlugRoute: typeof TagSlugRouteWithChildren
   TrackerSlugRoute: typeof TrackerSlugRoute
   TrackerChangesRoute: typeof TrackerChangesRoute
@@ -2751,6 +2764,13 @@ declare module '@tanstack/react-router' {
       path: '/tag/$slug'
       fullPath: '/tag/$slug'
       preLoaderRoute: typeof TagSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/series/$slug': {
+      id: '/series/$slug'
+      path: '/series/$slug'
+      fullPath: '/series/$slug'
+      preLoaderRoute: typeof SeriesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/qa/$slug': {
@@ -4326,6 +4346,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostSlugRoute: PostSlugRoute,
   PreviewTokenRoute: PreviewTokenRoute,
   ProgramsSlugRoute: ProgramsSlugRouteWithChildren,
+  SeriesSlugRoute: SeriesSlugRoute,
   TagSlugRoute: TagSlugRouteWithChildren,
   TrackerSlugRoute: TrackerSlugRoute,
   TrackerChangesRoute: TrackerChangesRoute,

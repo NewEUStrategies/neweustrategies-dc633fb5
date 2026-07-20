@@ -150,6 +150,15 @@ const pl = {
       revoke: "Odwołaj link",
       expires: "Wygasa",
     },
+    series: {
+      title: "Seria / dossier",
+      hint: "Sekwencyjny cykl analiz: nagłówek „część X z Y” na wpisie, nawigacja między częściami i strona serii.",
+      none: "- bez serii -",
+      partLabel: "Numer części",
+      newPlaceholder: "Nazwa nowej serii",
+      create: "Utwórz",
+      created: "Utworzono serię i przypięto wpis",
+    },
   },
 };
 
@@ -300,6 +309,15 @@ const en = {
       copy: "Copy link",
       revoke: "Revoke link",
       expires: "Expires",
+    },
+    series: {
+      title: "Series / dossier",
+      hint: 'A sequential cycle of analyses: a "part X of Y" header on the post, prev/next navigation and a series page.',
+      none: "- no series -",
+      partLabel: "Part number",
+      newPlaceholder: "New series name",
+      create: "Create",
+      created: "Series created and post attached",
     },
   },
 };
