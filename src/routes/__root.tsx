@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { Suspense, useEffect, useMemo, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useMemo, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
@@ -23,7 +23,6 @@ import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
 import { currentLang } from "../lib/i18n/localeRuntime";
 import { errorCopy } from "../lib/errorCopy";
-import "../lib/i18n-profile";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
 import { Toaster } from "../components/ui/sonner";
@@ -50,14 +49,44 @@ import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import type { HeaderSettings } from "../components/Header";
 import { SiteChrome } from "../components/SiteChrome";
-import { GlobalAudioPlayerProvider } from "../lib/audio/global-player";
-import { GlobalAudioBar } from "../components/audio/GlobalAudioBar";
+import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
-import { LoginPopup } from "../components/LoginPopup";
-import { NewsletterPopup } from "../components/NewsletterPopup";
-import { CommandPalette } from "../components/search/CommandPalette";
-import { PopupHost } from "../components/popups/PopupHost";
+
+// Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
+// malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym
+// (wcześniej ładowały się na każdej stronie: cmdk, formularz newslettera z
+// rendererem dokumentów, formularz logowania...). Fallback null = zero CLS,
+// bo wszystkie renderują się jako overlaye/portale poza przepływem dokumentu.
+const LoginPopup = lazy(() =>
+  import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })),
+);
+const NewsletterPopup = lazy(() =>
+  import("../components/NewsletterPopup").then((m) => ({ default: m.NewsletterPopup })),
+);
+const CommandPalette = lazy(() =>
+  import("../components/search/CommandPalette").then((m) => ({ default: m.CommandPalette })),
+);
+const PopupHost = lazy(() =>
+  import("../components/popups/PopupHost").then((m) => ({ default: m.PopupHost })),
+);
+const GlobalAudioBar = lazy(() =>
+  import("../components/audio/GlobalAudioBar").then((m) => ({ default: m.GlobalAudioBar })),
+);
+
+// Pasek audio montuje się (i dociąga swój chunk) dopiero, gdy odtwarzacz ma
+// track albo zgłosił błąd (toast o nieudanym TTS mieszka w GlobalAudioBar).
+// Wcześniej sam bar + zależności siedziały w bundlu każdej strony, mimo że
+// bez aktywnego audio renderował null.
+function GlobalAudioBarGate() {
+  const player = useGlobalAudioPlayer();
+  if (!player.track && player.status !== "error") return null;
+  return (
+    <Suspense fallback={null}>
+      <GlobalAudioBar />
+    </Suspense>
+  );
+}
 
 function NotFoundComponent() {
   const copy = errorCopy();
@@ -344,7 +373,7 @@ function RootComponent() {
                   <Outlet />
                 </Suspense>
               </SiteChrome>
-              <GlobalAudioBar />
+              <GlobalAudioBarGate />
             </GlobalAudioPlayerProvider>
           </ErrorBoundary>
           <ConsentBanner />

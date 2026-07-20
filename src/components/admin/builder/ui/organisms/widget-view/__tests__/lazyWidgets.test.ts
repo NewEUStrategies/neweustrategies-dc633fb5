@@ -8,6 +8,8 @@ import * as lazyWidgets from "@/components/admin/builder/ui/organisms/widget-vie
 // builder at runtime).
 const SPLIT_WIDGETS = [
   "NewsletterForm",
+  "ContactFormView",
+  "AuthFormWidget",
   "JoinUsForm",
   "InterestsCustomizer",
   "TtsPlayerHost",

@@ -10,8 +10,7 @@ import { ShieldAlert } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { IdentityEditorsHint } from "@/components/profile/IdentityEditorsHint";
 import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
-import "@/lib/i18n-experts";
-
+import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 export const Route = createFileRoute("/profile/author")({
   component: AuthorProfilePage,
 });
@@ -21,6 +20,8 @@ function isAuthorRole(roles: string[]): boolean {
 }
 
 function AuthorProfilePage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureExpertsI18n();
   const { t } = useTranslation();
   const { user, roles, tenantId, loading } = useAuth();
 

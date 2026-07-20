@@ -1,26 +1,18 @@
 // Category archive: /category/$slug
 // Uses global archive_layout_settings + one of 6 registered layouts.
 // URL search state: ?page=N&sort=newest|oldest|popular
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { useTransition, useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
-import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
+import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 
-import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
-import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
-import { getLayoutComponent } from "@/components/archive/layouts/registry";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-
-import "@/lib/i18n-archive-layout";
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
@@ -139,106 +131,4 @@ function CategoryArchivePage() {
   const { slug } = Route.useParams();
   const { page = 1, sort = "newest" } = Route.useSearch();
   return <TaxonomyPage kind="category" slug={slug} page={page} sort={sort} />;
-}
-
-export function TaxonomyPage({
-  kind,
-  slug,
-  page,
-  sort,
-}: {
-  kind: "category" | "tag";
-  slug: string;
-  page: number;
-  sort: ArchiveSort;
-}) {
-  const navigate = useNavigate();
-  const [isPending, startTransition] = useTransition();
-  const { data: settings } = useSuspenseQuery(archiveLayoutQueryOptions(kind));
-  const { data } = useSuspenseQuery(
-    taxonomyArchiveQueryOptions(kind, slug, {
-      page,
-      pageSize: settings.posts_per_page,
-      sort,
-    }),
-  );
-  const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const podcastsQ = useQuery({
-    ...podcastsByCategoryQueryOptions(data?.taxonomy.id ?? ""),
-    enabled: kind === "category" && !!data?.taxonomy.id && settings.show_podcasts,
-  });
-
-  // Scroll to top when page changes (better UX than staying mid-scroll).
-  useEffect(() => {
-    if (typeof window !== "undefined" && page > 1) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [page]);
-
-  if (!data) return <PublicNotFound />;
-  const { taxonomy, posts, total, page: currentPage, pageSize, sort: currentSort } = data;
-
-  const LayoutComponent = getLayoutComponent(settings.layout_variant);
-
-  const emptyText = t("archive.empty", {
-    defaultValue: lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
-  });
-
-  const extraBelow =
-    kind === "category" && settings.show_podcasts && podcastsQ.data && podcastsQ.data.length > 0 ? (
-      <div className="pt-10">
-        <PodcastEpisodeStrip
-          episodes={podcastsQ.data}
-          lang={lang}
-          title={lang === "en" ? "Podcasts" : "Podcasty"}
-        />
-      </div>
-    ) : null;
-
-  const onSortChange = (next: ArchiveSort) =>
-    startTransition(() => {
-      void navigate({
-        to: kind === "category" ? "/category/$slug" : "/tag/$slug",
-        params: { slug },
-        search: { page: 1, sort: next },
-      });
-    });
-  const onPageChange = (nextPage: number) =>
-    startTransition(() => {
-      void navigate({
-        to: kind === "category" ? "/category/$slug" : "/tag/$slug",
-        params: { slug },
-        search: { page: nextPage, sort: currentSort },
-      });
-    });
-
-  return (
-    <>
-      {taxonomy.featured_section && (
-        <section className="border-b border-border">
-          <BuilderRenderer
-            doc={{ version: 1, sections: [taxonomy.featured_section] }}
-            lang={lang}
-          />
-        </section>
-      )}
-      <LayoutComponent
-        kind={kind}
-        taxonomy={taxonomy}
-        posts={posts}
-        lang={lang}
-        settings={settings}
-        page={currentPage}
-        pageSize={pageSize}
-        total={total}
-        sort={currentSort}
-        onPageChange={onPageChange}
-        onSortChange={onSortChange}
-        isPending={isPending}
-        emptyText={emptyText}
-        extraBelow={extraBelow}
-      />
-    </>
-  );
 }

@@ -3,7 +3,7 @@
 // SearchButton edge paths, slider editable demo, animated-heading config,
 // contact / testimonial / pricing variants, and the dark theme toggle.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -262,9 +262,12 @@ describe("animated-heading config (spacing, rotate string, dark invert)", () => 
 });
 
 describe("contact / testimonial / pricing remaining variants", () => {
-  it("renders contact card + compact", () => {
+  it("renders contact card + compact", async () => {
+    // ContactFormView jest teraz w leniwym chunku (lazyWidgets) - formularz
+    // pojawia się po rozwiązaniu dynamic importu, stąd waitFor.
     for (const variant of ["card", "compact", "stacked"]) {
-      expect(widget("contact", { variant }).container.querySelector("form")).toBeTruthy();
+      const { container } = widget("contact", { variant });
+      await waitFor(() => expect(container.querySelector("form")).toBeTruthy());
     }
   });
   it("renders testimonial centered with avatar + zero rating", () => {

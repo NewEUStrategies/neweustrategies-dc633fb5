@@ -21,8 +21,7 @@ import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-experts";
-
+import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 interface ExpertsSearch {
   area?: string;
   program?: string;
@@ -65,6 +64,8 @@ export const Route = createFileRoute("/experts")({
 });
 
 function ExpertsDirectoryPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureExpertsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const search = Route.useSearch();

@@ -13,8 +13,7 @@ import { areaLabel, stageLabel } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-tracker";
-
+import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 export const Route = createFileRoute("/tracker/changes")({
   head: () => {
     const url = getRequestUrl() || "/tracker/changes";
@@ -70,6 +69,8 @@ function dayLabel(iso: string, lang: Lang, t: (k: string) => string): string {
 const PAGE = 40;
 
 function TrackerChangesPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureTrackerI18n();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const [limit, setLimit] = useState(PAGE);

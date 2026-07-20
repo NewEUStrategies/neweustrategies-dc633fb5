@@ -35,8 +35,7 @@ import {
 } from "@/lib/ads/types";
 import { useTranslation } from "react-i18next";
 import { useInterestCatalog } from "@/hooks/useInterests";
-import "@/lib/i18n-ads-admin";
-
+import { ensureI18n as ensureAdsAdminI18n } from "@/lib/i18n-ads-admin";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminToast } from "@/lib/adminToasts";
 export const Route = createFileRoute("/admin/ads")({ component: AdsAdmin });
@@ -71,6 +70,8 @@ function emptyPlacement(): Partial<AdPlacement> {
 }
 
 function AdsAdmin() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdsAdminI18n();
   return (
     <AdminShell hideSidebar>
       <div className="space-y-6">

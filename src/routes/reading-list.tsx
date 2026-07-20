@@ -21,8 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { openLoginPopup } from "@/lib/loginPopupBus";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import "@/lib/i18n-reading-list";
-
+import { ensureI18n as ensureReadingListI18n } from "@/lib/i18n-reading-list";
 type Tab = "saved" | "followed" | "recommended";
 type Lang = "pl" | "en";
 
@@ -67,6 +66,8 @@ export const Route = createFileRoute("/reading-list")({
 });
 
 function ReadingListPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureReadingListI18n();
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";

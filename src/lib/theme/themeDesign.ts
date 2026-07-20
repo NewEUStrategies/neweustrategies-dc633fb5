@@ -198,7 +198,9 @@ const ThemeDesignSchema = z
         // Inherits body text color; hover follows "Kolory linków".
         fontFamily: z
           .string()
-          .default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+          .default(
+            '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, Segoe UI, sans-serif',
+          ),
         fontSize: PX.default("15px"),
         fontSizeSm: PX.default("14px"),
         fontWeight: z.number().min(100).max(900).default(600),
@@ -214,7 +216,9 @@ const ThemeDesignSchema = z
         // Inherits from "Kolory pól tekstowych" (muted body text).
         fontFamily: z
           .string()
-          .default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+          .default(
+            '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, Segoe UI, sans-serif',
+          ),
         fontSize: PX.default("13px"),
         fontWeight: z.number().min(100).max(900).default(400),
         lineHeight: z.union([z.number(), z.string()]).default(1.5),

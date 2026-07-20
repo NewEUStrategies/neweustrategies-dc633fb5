@@ -2,7 +2,7 @@
 // only touches with defaults: every styling permutation, plus the interactive
 // chrome widgets (search box, language dropdown, theme toggle) driven by events.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import type { WidgetNode, WidgetType, WidgetContent, Device } from "@/lib/builder/types";
@@ -298,10 +298,11 @@ describe("image widget", () => {
 });
 
 describe("contact / accordion / testimonial / pricing variants", () => {
-  it("renders contact stacked / compact / card", () => {
+  it("renders contact stacked / compact / card", async () => {
+    // ContactFormView jest w leniwym chunku (lazyWidgets) - czekamy na import.
     for (const variant of ["stacked", "compact", "card"]) {
       const { container } = renderNode("contact", { variant });
-      expect(container.querySelector("form")).toBeTruthy();
+      await waitFor(() => expect(container.querySelector("form")).toBeTruthy());
     }
   });
 

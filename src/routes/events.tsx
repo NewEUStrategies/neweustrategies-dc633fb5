@@ -11,8 +11,7 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
-import "@/lib/i18n-community";
-
+import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/events")({
   component: EventsPage,
   head: () => {
@@ -33,6 +32,8 @@ export const Route = createFileRoute("/events")({
 });
 
 function EventsPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureCommunityI18n();
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const modules = useCommunityModules();

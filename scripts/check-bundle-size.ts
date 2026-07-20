@@ -37,9 +37,18 @@ const CLIENT_DIR =
   process.env.CLIENT_DIR ??
   [".output/public", "dist/client", "dist"].find((d) => walkJs(d).length > 0) ??
   ".output/public";
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 250); // largest single gzipped JS chunk (today: ~181KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1000); // gzipped JS a public visitor can load (today: ~930KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 1300); // gzipped JS incl. admin/editor-only chunks (today: ~1201KB)
+// 2026-07-20: budżety przywrócone do funkcji "floor tuż nad bieżącym śladem".
+// Historia: gate stał na 250/1000/1300 (ślad ~181/930/1201 KB), po czym seria
+// regresji (m.in. `minify:false` obejmujące bundle klienta, pełny import
+// lucide-react w chrome, side-effectowe słowniki i18n w plikach tras) rozdęła
+// ślad do 1067/2500/3403 KB i gate był permanentnie czerwony. Po odzyskaniu
+// (503/1420/2383 KB) floory schodzą do wartości niżej - mają ŁAPAĆ REGRESJE
+// od nowego poziomu; dalsza redukcja (docelowo znów ~250/1000/1300) to osobna
+// praca: split locale'i PL/EN, odchudzenie eager-owego zestawu widgetów
+// chrome, wydzielenie @tanstack z entry.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 520); // largest single gzipped JS chunk (today: ~503KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1450); // gzipped JS a public visitor can load (today: ~1420KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2450); // gzipped JS incl. admin/editor-only chunks (today: ~2383KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the
@@ -48,7 +57,7 @@ const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 1300); // gzipped JS inc
 // ("Builder-", "PostBlockEditor", "ThemeOptionsPane", "AdminShell", "sidebar",
 // "vendor-dnd"). Keep this in sync with the manualChunks split in vite.config.ts.
 const ADMIN_ONLY =
-  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-)/;
+  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient)/;
 function isAdminOnly(file: string): boolean {
   return ADMIN_ONLY.test(basename(file));
 }

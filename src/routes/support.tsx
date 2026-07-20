@@ -21,8 +21,7 @@ import {
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-support";
-
+import { ensureI18n as ensureSupportI18n } from "@/lib/i18n-support";
 export const Route = createFileRoute("/support")({
   validateSearch: (search: Record<string, unknown>) => ({
     status:
@@ -59,6 +58,8 @@ function formatZl(cents: number, lang: "pl" | "en"): string {
 }
 
 function SupportPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureSupportI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { status } = Route.useSearch();

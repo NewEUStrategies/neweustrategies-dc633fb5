@@ -40,14 +40,16 @@ import {
   type MyOrganization,
 } from "@/lib/billing/membership";
 import { formatMoney } from "@/lib/billing/types";
-import "@/lib/i18n-profile";
-import "@/lib/i18n-membership";
-
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
+import { ensureI18n as ensureMembershipI18n } from "@/lib/i18n-membership";
 export const Route = createFileRoute("/profile/membership")({
   component: MembershipHub,
 });
 
 function MembershipHub() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
+  ensureMembershipI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   // Odbiór zaproszonych miejsc organizacji po wejściu (idempotentnie).

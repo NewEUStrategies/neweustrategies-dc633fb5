@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import "@/lib/i18n-admin-crop-sizes";
+import { ensureI18n as ensureAdminCropSizesI18n } from "@/lib/i18n-admin-crop-sizes";
 import { adminToast } from "@/lib/adminToasts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,8 @@ const DEFAULT_DRAFT: CropSizeDraft = {
 };
 
 function CropSizesAdmin() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminCropSizesI18n();
   const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();

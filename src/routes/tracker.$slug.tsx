@@ -26,8 +26,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import "@/lib/i18n-tracker";
-
+import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 export const Route = createFileRoute("/tracker/$slug")({
   loader: async ({ params, context }) => {
     // Crawler surfaces degrade, never 500 - brak wiersza obsługuje komponent.
@@ -161,6 +160,8 @@ function ProgressRail({ stage, lang }: { stage: string; lang: Lang }) {
 }
 
 function TrackerDetail() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureTrackerI18n();
   const { slug } = Route.useParams();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";

@@ -48,8 +48,7 @@ import {
   expertLayoutCssVars,
 } from "@/components/experts/ExpertLayoutRenderer";
 import { isSectionVisible } from "@/lib/expertLayouts";
-import "@/lib/i18n-experts";
-
+import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
     // Najpierw hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
@@ -202,6 +201,8 @@ export const Route = createFileRoute("/author/$slug")({
 });
 
 function ExpertHubPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureExpertsI18n();
   const { slug } = Route.useParams();
   const { data } = useSuspenseQuery(expertHubQueryOptions(slug));
   const { data: settings } = useSuspenseQuery(

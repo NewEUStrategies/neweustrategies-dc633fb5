@@ -6,7 +6,20 @@
 import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter } from "@tanstack/react-router";
-import * as LucideIcons from "lucide-react";
+// Nazwane importy + DynamicIcon zamiast `import * as lucide-react`: dzwonek
+// renderuje się w chrome każdej strony, a namespace-import z dynamicznym
+// lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
+import {
+  Bell,
+  Crown,
+  Info,
+  MessageCircle,
+  ShieldAlert,
+  Sparkles,
+  UserCheck,
+  UserPlus,
+} from "lucide-react";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,34 +62,17 @@ function relTime(iso: string, lang: Lang): string {
   return formatDateShort(iso, lang);
 }
 
-function kebabToPascal(name: string): string {
-  return name
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-}
-
-function resolveIcon(name: string | null | undefined) {
-  if (!name) return null;
-  const IconRegistry = LucideIcons as unknown as Record<
-    string,
-    React.ComponentType<{ className?: string }>
-  >;
-  // Producenci DB zapisują nazwy kebab-case (user-plus, sparkles);
-  // eksporty lucide są PascalCase - normalizujemy, z fallbackiem na oryginał.
-  return IconRegistry[kebabToPascal(name)] ?? IconRegistry[name] ?? null;
-}
-
 // Ikona zapasowa per rodzaj (spójna z /profile/notifications), gdy producent
-// nie zapisał własnej.
+// nie zapisał własnej. Ikony po nazwie z DB (kebab-case) renderuje DynamicIcon
+// (kurowany zestaw synchronicznie, resztę dociąga leniwie).
 const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  system: LucideIcons.Info,
-  follow: LucideIcons.UserPlus,
-  content: LucideIcons.Sparkles,
-  subscription: LucideIcons.Crown,
-  comment: LucideIcons.MessageCircle,
-  security: LucideIcons.ShieldAlert,
-  connection: LucideIcons.UserCheck,
+  system: Info,
+  follow: UserPlus,
+  content: Sparkles,
+  subscription: Crown,
+  comment: MessageCircle,
+  security: ShieldAlert,
+  connection: UserCheck,
 };
 
 // Internal hrefs render a real <a href> for semantics, but plain left-clicks
@@ -141,7 +137,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <LucideIcons.Bell className="h-4 w-4" aria-hidden />
+          <Bell className="h-4 w-4" aria-hidden />
           <UnreadBadge count={unread} className="absolute -top-0.5 -right-0.5" />
         </button>
       </PopoverTrigger>
@@ -195,14 +191,14 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             </div>
           ) : items.length === 0 ? (
             <div className="p-6 text-xs text-muted-foreground text-center">
-              <LucideIcons.BellOff className="mx-auto mb-2 h-5 w-5 opacity-50" aria-hidden />
+              <BellOff className="mx-auto mb-2 h-5 w-5 opacity-50" aria-hidden />
               {t("notifications.empty", { defaultValue: "Brak powiadomień" })}
             </div>
           ) : (
             <ul className="divide-y divide-border/60">
               {groups.map((g) => {
                 const n = g.latest;
-                const IconCmp = resolveIcon(n.icon) ?? KIND_ICONS[n.kind] ?? LucideIcons.Circle;
+                const KindIcon = KIND_ICONS[n.kind] ?? Circle;
                 const groupUnread = g.unreadCount;
                 const isUnread = groupUnread > 0;
                 const extra = g.items.length - 1;
@@ -222,7 +218,11 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                       ].join(" ")}
                       aria-hidden
                     >
-                      <IconCmp className="h-3.5 w-3.5" />
+                      {n.icon ? (
+                        <DynamicIcon name={n.icon} className="h-3.5 w-3.5" size={14} />
+                      ) : (
+                        <KindIcon className="h-3.5 w-3.5" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -280,7 +280,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                             defaultValue: "Oznacz jako przeczytane",
                           })}
                         >
-                          <LucideIcons.Check className="h-3.5 w-3.5" aria-hidden />
+                          <Check className="h-3.5 w-3.5" aria-hidden />
                         </button>
                       ) : (
                         <button
@@ -298,7 +298,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                             defaultValue: "Oznacz jako nieprzeczytane",
                           })}
                         >
-                          <LucideIcons.Mail className="h-3.5 w-3.5" aria-hidden />
+                          <Mail className="h-3.5 w-3.5" aria-hidden />
                         </button>
                       )}
                     </div>
@@ -362,7 +362,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             onClick={() => setOpen(false)}
             className="flex items-center justify-center gap-1.5 h-8 rounded-md text-xs font-medium hover:bg-muted/60 transition-colors"
           >
-            <LucideIcons.Inbox className="h-3.5 w-3.5" aria-hidden />
+            <Inbox className="h-3.5 w-3.5" aria-hidden />
             {t("notifications.openInbox", { defaultValue: "Otwórz skrzynkę" })}
           </Link>
         </div>

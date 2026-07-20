@@ -60,11 +60,10 @@ import { cn } from "@/lib/utils";
 import { htmlToPlainText } from "@/lib/sanitize";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
-import "@/lib/i18n-profile-extras2";
+import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
 import { IntroductionsCard } from "@/components/network/IntroductionsCard";
-
 
 import { promptDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/profile/")({
@@ -75,6 +74,8 @@ type Gender = "male" | "female" | "neutral";
 type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
 
 function ProfileInline() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileExtras2I18n();
   const { t } = useTranslation();
   const { user, roles, session } = useAuth();
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
@@ -316,7 +317,6 @@ function ProfileInline() {
           {previewAsGuest && <GuestPreviewActionBar />}
 
           {!previewAsGuest && roles.length > 0 && (
-
             <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
               {roles.map((r) => (
                 <span
@@ -605,7 +605,10 @@ function ProfileInline() {
               <Card icon={<Eye className="h-3.5 w-3.5" />} title={t("network.profileViews.title")}>
                 <ProfileViewsCard />
               </Card>
-              <Card icon={<Users className="h-3.5 w-3.5" />} title={t("network.introductions.title")}>
+              <Card
+                icon={<Users className="h-3.5 w-3.5" />}
+                title={t("network.introductions.title")}
+              >
                 <IntroductionsCard />
               </Card>
 
@@ -832,7 +835,6 @@ function CenteredHero({
                     <span className="text-[9px] leading-tight text-muted-foreground/70 normal-case tracking-normal">
                       {t("profile.inline.avatarSize")}
                     </span>
-
                   </>
                 )}
               </button>
@@ -856,7 +858,6 @@ function CenteredHero({
                 <span className="text-[10px] font-medium tracking-wide uppercase">
                   {t("profile.inline.changeAvatar")}
                 </span>
-
               </button>
             )}
           </div>
@@ -1096,27 +1097,46 @@ function GuestPreviewActionBar() {
         <Eye className="h-2.5 w-2.5" aria-hidden />
         {t("network.guestPreview.badge")}
       </span>
-      <button type="button" disabled aria-disabled title={previewHint}
-        className={`${pillBase} ${shine} border-border/70 bg-background/60 text-foreground/80`}>
+      <button
+        type="button"
+        disabled
+        aria-disabled
+        title={previewHint}
+        className={`${pillBase} ${shine} border-border/70 bg-background/60 text-foreground/80`}
+      >
         <BellPlus className="h-3.5 w-3.5" aria-hidden />
         {t("network.guestPreview.follow")}
       </button>
-      <button type="button" disabled aria-disabled title={previewHint}
-        className={`${pillBase} ${shine} border-transparent bg-primary/90 text-primary-foreground hover:bg-primary`}>
+      <button
+        type="button"
+        disabled
+        aria-disabled
+        title={previewHint}
+        className={`${pillBase} ${shine} border-transparent bg-primary/90 text-primary-foreground hover:bg-primary`}
+      >
         <UserPlus className="h-3.5 w-3.5 text-white" aria-hidden />
         {t("network.connect")}
       </button>
-      <button type="button" disabled aria-disabled title={previewHint}
-        className={`${pillBase} ${shine} border-border/70 bg-secondary/70 text-secondary-foreground`}>
+      <button
+        type="button"
+        disabled
+        aria-disabled
+        title={previewHint}
+        className={`${pillBase} ${shine} border-border/70 bg-secondary/70 text-secondary-foreground`}
+      >
         <MessageCircle className="h-3.5 w-3.5" aria-hidden />
         {t("network.messageAction")}
       </button>
-      <button type="button" disabled aria-disabled title={previewHint}
-        className={`${pillBase} border-transparent bg-transparent text-muted-foreground hover:text-foreground`}>
+      <button
+        type="button"
+        disabled
+        aria-disabled
+        title={previewHint}
+        className={`${pillBase} border-transparent bg-transparent text-muted-foreground hover:text-foreground`}
+      >
         <Flag className="h-3.5 w-3.5" aria-hidden />
         {t("network.report")}
       </button>
     </div>
   );
 }
-

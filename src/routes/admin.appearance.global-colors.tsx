@@ -11,13 +11,14 @@ import { Button } from "@/components/ui/button";
 import { ColorField } from "@/components/admin/builder/ui/atoms/ColorField";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 import { GLOBAL_COLOR_GROUPS, type GlobalColorsValue } from "@/lib/builder/globalColors";
-import "@/lib/i18n-admin-appearance-routes";
-
+import { ensureI18n as ensureAdminAppearanceRoutesI18n } from "@/lib/i18n-admin-appearance-routes";
 export const Route = createFileRoute("/admin/appearance/global-colors")({
   component: GlobalColorsPage,
 });
 
 function GlobalColorsPage() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureAdminAppearanceRoutesI18n();
   const { t } = useTranslation();
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();

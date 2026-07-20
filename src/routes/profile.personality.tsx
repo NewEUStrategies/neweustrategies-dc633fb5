@@ -24,9 +24,9 @@ import {
   type PersonalityQuestion,
 } from "@/lib/profile/personality";
 import type { Database } from "@/integrations/supabase/types";
-import "@/lib/i18n-profile";
-import "@/lib/i18n-profile-extras2";
-import "@/lib/i18n-personality";
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
+import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
+import { ensureI18n as ensurePersonalityI18n } from "@/lib/i18n-personality";
 
 export const Route = createFileRoute("/profile/personality")({
   component: () => (
@@ -181,6 +181,10 @@ function HistoryList({ rows, lang }: { rows: HistoryRow[]; lang: "pl" | "en" }) 
 }
 
 function PersonalityRoute() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProfileI18n();
+  ensureProfileExtras2I18n();
+  ensurePersonalityI18n();
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const qc = useQueryClient();

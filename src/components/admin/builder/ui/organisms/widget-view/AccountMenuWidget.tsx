@@ -10,7 +10,8 @@ import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import * as LucideIcons from "lucide-react";
+import { LogIn } from "lucide-react";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -237,13 +238,9 @@ function resolveItem(item: AccountMenuItem, pages: PageRef[] | undefined, lang: 
 
 function IconByName({ name, className }: { name: string | undefined; className?: string }) {
   if (!name) return null;
-  const reg = LucideIcons as unknown as Record<
-    string,
-    React.ComponentType<{ className?: string }> | undefined
-  >;
-  const Cmp = reg[name];
-  if (!Cmp) return null;
-  return <Cmp className={className} />;
+  // DynamicIcon: kurowany zestaw synchronicznie, nietypowe nazwy leniwie -
+  // bez namespace-importu całego lucide-react w eager-owej ścieżce chrome.
+  return <DynamicIcon name={name} className={className} />;
 }
 
 export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig; lang: Lang }) {
@@ -329,7 +326,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       className="inline-flex h-7 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
       aria-label={`${signInLabel} / ${signUpLabel}`}
     >
-      <LucideIcons.LogIn className="w-3.5 h-3.5" />
+      <LogIn className="w-3.5 h-3.5" />
       <span>{signInLabel}</span>
       <span className="text-muted-foreground/40" aria-hidden>
         |

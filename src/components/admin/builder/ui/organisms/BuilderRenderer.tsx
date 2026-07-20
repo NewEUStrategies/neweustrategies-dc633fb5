@@ -2,7 +2,9 @@
 // (layout, background layers, overlay, border, shape dividers, typography).
 import {
   Fragment,
+  Suspense,
   createContext,
+  lazy,
   memo,
   useContext,
   useEffect,
@@ -30,8 +32,6 @@ import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
-import { useTranslation } from "react-i18next";
-import "@/lib/i18n-builder";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import {
@@ -64,7 +64,9 @@ import {
   useExperimentAssignments,
   type AbVariant,
 } from "@/lib/builder/experiments";
-import { StructurePicker } from "@/components/admin/builder/ui/organisms/StructurePicker";
+const EmptyContainerPickerBox = lazy(
+  () => import("@/components/admin/builder/ui/organisms/EmptyContainerPickerBox"),
+);
 
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
@@ -429,7 +431,6 @@ const RenderSection = memo(function RenderSection({
   lang: "pl" | "en";
   device: Device;
 }) {
-  const { t } = useTranslation();
   const accessCtx = useAccessContext();
   const tabsCfg = section.tabs;
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
@@ -583,25 +584,18 @@ const RenderSection = memo(function RenderSection({
             }}
           >
             {showEmptyPicker ? (
-              <div
-                data-empty-container-picker
-                className="rounded border border-dashed border-brand/40 bg-brand/5 p-4"
-                style={{ gridColumn: "1 / -1" }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2 text-center">
-                  {tabsEnabled
-                    ? t("builder.chrome.pickTabStructure")
-                    : t("builder.chrome.pickContainerStructure")}
-                </div>
-                <StructurePicker
-                  cols={7}
-                  compact
+              // Edit-mode-only (kontekst dostarcza wyłącznie kanwa buildera).
+              // Lazy: słowniki edytora + StructurePicker nie wchodzą do bundla
+              // publicznego chrome; fallback null nie przesuwa układu, bo boks
+              // pojawia się tylko w kanwie admina.
+              <Suspense fallback={null}>
+                <EmptyContainerPickerBox
+                  tabsEnabled={tabsEnabled}
                   onPick={(spans) =>
                     emptyPicker!(section.id, tabsEnabled ? activeTabId : null, spans)
                   }
                 />
-              </div>
+              </Suspense>
             ) : (
               visibleCols.map((c) => {
                 const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
@@ -796,7 +790,8 @@ const RenderColumn = memo(function RenderColumn({
       {groups.map((g, gi) => {
         const renderItem = (w: (typeof visibleChildren)[number], inRow: boolean) => {
           const adv = w.advanced as
-            { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
+            | { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } }
+            | undefined;
           const hasExplicitHeight = !!(
             adv?.height &&
             (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)

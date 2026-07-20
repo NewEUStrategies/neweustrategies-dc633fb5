@@ -16,8 +16,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import "@/lib/i18n-programs";
-
+import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/programs/")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT)),
@@ -102,6 +101,8 @@ function ProgramCard({ program, lang }: { program: Program; lang: "pl" | "en" })
 }
 
 function ProgramsIndex() {
+  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  ensureProgramsI18n();
   const { data: programs } = useSuspenseQuery(latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT));
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";

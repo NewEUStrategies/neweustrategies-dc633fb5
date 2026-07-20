@@ -116,6 +116,17 @@ export function AlertBar() {
   const btnCls = STYLE_BTN[bar.style] ?? STYLE_BTN.brand;
   const hasLink = !!bar.link_url;
 
+  // SSR nie zna localStorage, więc serwer zawsze renderuje pasek; wcześniej
+  // useEffect chował go dopiero PO hydratacji i cała strona skakała do góry
+  // u każdego, kto pasek zamknął (CLS na każdej odsłonie). Ten inline script
+  // (wzorzec themeInitScript z __root) wykonuje się w trakcie parsowania HTML,
+  // zanim przeglądarka namaluje pasek - ukrycie jest bezprzesunięciowe, a
+  // useEffect wyżej utrzymuje potem stan Reacta w zgodzie. `<` w JSON
+  // zapobiega wstrzyknięciu `</script>` przez treść komunikatu.
+  const dismissScript = `(function(){try{var s=document.currentScript;var b=s&&s.previousElementSibling;if(b&&window.localStorage.getItem(${JSON.stringify(
+    STORAGE_KEY,
+  )})===${JSON.stringify(fingerprint).replace(/</g, "\\u003c")}){b.style.display="none";}}catch(e){}})();`;
+
   const Message = (
     <span className="flex items-center gap-2 min-w-0">
       {IconCmp && <IconCmp className="w-4 h-4 shrink-0" />}
@@ -124,50 +135,50 @@ export function AlertBar() {
   );
 
   return (
-    <div
-      className={`w-full text-xs ${styleCls}`}
-      role="region"
-      aria-label={t("common.alertBar")}
-    >
-      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-2 flex items-center gap-3">
-        {hasLink && !cta ? (
-          <AppLink
-            href={bar.link_url}
-            className="flex-1 min-w-0 flex justify-center hover:underline"
-          >
-            {Message}
-          </AppLink>
-        ) : (
-          <div className="flex-1 min-w-0 flex justify-center">{Message}</div>
-        )}
+    <>
+      <div className={`w-full text-xs ${styleCls}`} role="region" aria-label={t("common.alertBar")}>
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-2 flex items-center gap-3">
+          {hasLink && !cta ? (
+            <AppLink
+              href={bar.link_url}
+              className="flex-1 min-w-0 flex justify-center hover:underline"
+            >
+              {Message}
+            </AppLink>
+          ) : (
+            <div className="flex-1 min-w-0 flex justify-center">{Message}</div>
+          )}
 
-        {cta && hasLink && (
-          <AppLink
-            href={bar.link_url}
-            className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition ${btnCls}`}
-          >
-            {cta}
-          </AppLink>
-        )}
+          {cta && hasLink && (
+            <AppLink
+              href={bar.link_url}
+              className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition ${btnCls}`}
+            >
+              {cta}
+            </AppLink>
+          )}
 
-        {bar.dismissible && (
-          <button
-            type="button"
-            onClick={() => {
-              setDismissed(true);
-              try {
-                window.localStorage.setItem(STORAGE_KEY, fingerprint);
-              } catch {
-                /* ignore */
-              }
-            }}
-            aria-label={t("common.dismissAlertBar")}
-            className="shrink-0 p-1 rounded hover:bg-black/10 transition"
-          >
-            <Icons.X className="w-3.5 h-3.5" />
-          </button>
-        )}
+          {bar.dismissible && (
+            <button
+              type="button"
+              onClick={() => {
+                setDismissed(true);
+                try {
+                  window.localStorage.setItem(STORAGE_KEY, fingerprint);
+                } catch {
+                  /* ignore */
+                }
+              }}
+              aria-label={t("common.dismissAlertBar")}
+              className="shrink-0 p-1 rounded hover:bg-black/10 transition"
+            >
+              <Icons.X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+      {/* Musi być BEZPOŚREDNIO za divem paska (previousElementSibling). */}
+      <script dangerouslySetInnerHTML={{ __html: dismissScript }} />
+    </>
   );
 }

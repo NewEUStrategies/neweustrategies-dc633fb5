@@ -167,3 +167,12 @@ export const trackerEn = {
 
 i18n.addResourceBundle("pl", "translation", trackerPl, true, true);
 i18n.addResourceBundle("en", "translation", trackerEn, true, true);
+
+/**
+ * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
+ * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
+ * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
+ * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
+ * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
+ */
+export function ensureI18n(): void {}
