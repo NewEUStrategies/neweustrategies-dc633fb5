@@ -90,8 +90,8 @@ function DropdownPanel({
   return (
     <div
       role="menu"
-      className="overflow-hidden rounded-lg border border-border/40 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5"
-      style={{ width: "min(360px, calc(100vw - 32px))" }}
+      className="menu-card overflow-hidden rounded-md border border-border/50 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5"
+      style={{ width: "min(320px, calc(100vw - 32px))" }}
       onMouseLeave={onRequestClose}
     >
       {parentLabel ? (
@@ -99,11 +99,11 @@ function DropdownPanel({
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="group flex items-center gap-2 border-b border-border/50 bg-muted/40 px-5 py-3 transition-colors hover:bg-muted/60"
+          className="group flex items-center gap-2 border-b border-border/50 bg-muted/30 px-4 py-2.5 transition-colors hover:bg-muted/50"
         >
           <span
             aria-hidden
-            className="inline-block h-4 w-1 rounded-sm"
+            className="inline-block h-3.5 w-[3px] rounded-sm"
             style={{ background: "var(--brand)" }}
           />
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
@@ -119,32 +119,21 @@ function DropdownPanel({
           />
         </AppLink>
       ) : null}
-      <ul className="flex flex-col p-2">
+      <ul className="menu-card-list flex flex-col gap-1 p-2">
         {parentLabel ? (
-          <li className="mb-1.5">
+          <li>
             <AppLink
               href={itemHref(node)}
               target={itemTarget(node)}
               rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-              className="group relative flex items-center gap-3 overflow-hidden rounded-md border border-brand/25 bg-brand/[0.06] px-3 py-2.5 shadow-[0_1px_0_0_hsl(var(--background))_inset] transition-all hover:border-brand/50 hover:bg-brand/10 hover:shadow-[0_4px_16px_-6px_color-mix(in_oklab,var(--brand)_35%,transparent)] dark:border-brand/35 dark:bg-brand/[0.12] dark:hover:bg-brand/[0.18]"
+              className="menu-card-item menu-card-item--primary group"
               role="menuitem"
             >
-              <span
-                aria-hidden
-                className="absolute inset-y-0 left-0 w-[3px] bg-brand"
-              />
-              <span
-                aria-hidden
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand text-white shadow-sm ring-1 ring-brand/40 transition-transform group-hover:scale-105"
-              >
-                <ChevronRight size={14} strokeWidth={2} />
+              <span aria-hidden className="menu-card-item__icon menu-card-item__icon--primary">
+                <ChevronRight size={13} strokeWidth={2} />
               </span>
-              <span className="block text-[14px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
-                {parentLabel}
-              </span>
-              <span className="ml-auto rounded-full border border-brand/30 bg-background/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-brand dark:bg-background/40">
-                {sectionHome}
-              </span>
+              <span className="menu-card-item__label">{parentLabel}</span>
+              <span className="menu-card-item__badge">{sectionHome}</span>
             </AppLink>
           </li>
         ) : null}
@@ -156,6 +145,7 @@ function DropdownPanel({
     </div>
   );
 }
+
 
 /* ------------------------------- Mega panel ------------------------------ */
 // Redesigned editorial mega menu (see MegaPanelView). Ten wrapper wybiera
