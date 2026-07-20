@@ -19,6 +19,7 @@ import {
   ChevronDown,
   CalendarIcon,
   Mic,
+  Clock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,13 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureSearchI18n } from "@/lib/i18n-search";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useVoiceSearch } from "@/lib/search/useVoiceSearch";
+import {
+  addRecentSearch,
+  clearRecentSearches,
+  getRecentSearches,
+} from "@/lib/search/recentSearches";
 const SORTS = ["relevance", "newest", "popular"] as const;
 
 interface DateFilterPickerProps {
@@ -248,7 +256,9 @@ function SearchPage() {
   // ---- Autosuggest -------------------------------------------------------
   const [sugOpen, setSugOpen] = useState(false);
   const [sugIndex, setSugIndex] = useState(-1);
-  const suggestQ = draft.trim();
+  // Debounce jak w widgecie nagłówka: RPC podpowiedzi strzela po pauzie w
+  // pisaniu, nie na każde naciśnięcie klawisza.
+  const suggestQ = useDebouncedValue(draft.trim(), 200);
   const { data: sugRaw } = useQuery({
     ...searchAutosuggestQueryOptions(suggestQ, 8),
     enabled: sugOpen && suggestQ.length >= 2,
@@ -260,6 +270,18 @@ function SearchPage() {
     setSugIndex(-1);
   }, [suggestQ]);
 
+  // ---- Ostatnie wyszukiwania (localStorage, jak w overlayu/widgecie) ------
+  // Stan ładowany w efekcie: SSR nie widzi localStorage, a hydratacja musi
+  // zgadzać się z HTML-em serwera.
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    setRecent(getRecentSearches());
+  }, []);
+  const rememberSearch = (phrase: string) => {
+    addRecentSearch(phrase);
+    setRecent(getRecentSearches());
+  };
+
   const applyPatch = (patch: Partial<SearchUrl>) => {
     navigate({ search: (s: SearchInput) => ({ ...s, ...patch }) as SearchInput });
   };
@@ -270,11 +292,20 @@ function SearchPage() {
 
   const submitPhrase = (phrase: string) => {
     setSugOpen(false);
+    rememberSearch(phrase);
     navigate({ search: (s: SearchInput) => ({ ...s, q: phrase }) });
   };
 
+  // ---- Dyktowanie frazy (Web Speech API; przycisk znika bez wsparcia) -----
+  const voice = useVoiceSearch({
+    lang,
+    onText: (text) => setDraft(text),
+    onFinal: (text) => submitPhrase(text),
+  });
+
   const pickSuggestion = async (item: AutosuggestItem) => {
     setSugOpen(false);
+    rememberSearch(draft);
     if (item.kind === "post") {
       // Deep-link do publikacji: ścieżkę rodzica rozwiązujemy jednym RPC na
       // klik (nie per-keystroke). Fallback: potraktuj tytuł jak frazę.
@@ -653,15 +684,27 @@ function SearchPage() {
               >
                 <SearchIcon className="h-[16px] w-[16px]" aria-hidden />
               </button>
-              <span aria-hidden className="h-5 w-px shrink-0 bg-border/60" />
-              <button
-                type="button"
-                aria-label={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
-                title={t("search.voice", { defaultValue: "Wyszukiwanie głosowe" })}
-                className="flex h-6 w-6 shrink-0 items-center justify-center transition-colors"
-              >
-                <Mic className="h-[16px] w-[16px]" aria-hidden />
-              </button>
+              {voice.supported && (
+                <>
+                  <span aria-hidden className="h-5 w-px shrink-0 bg-border/60" />
+                  <button
+                    type="button"
+                    onClick={voice.toggle}
+                    aria-pressed={voice.listening}
+                    aria-label={voice.listening ? t("search.voice_stop") : t("search.voice")}
+                    title={voice.listening ? t("search.voice_stop") : t("search.voice")}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center transition-colors"
+                  >
+                    <Mic
+                      className={`h-[16px] w-[16px] ${voice.listening ? "animate-pulse" : ""}`}
+                      // Inline style wygrywa z regułą .search-page-form button svg
+                      // - mikrofon świeci na czerwono przez cały czas nagrywania.
+                      style={voice.listening ? { color: "var(--destructive)" } : undefined}
+                      aria-hidden
+                    />
+                  </button>
+                </>
+              )}
             </div>
           </div>
           {showSuggest && (
@@ -730,6 +773,41 @@ function SearchPage() {
         ) : !enabled ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t("search.min_chars")}</p>
+            {recent.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-baseline gap-3">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {t("search.recent")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearRecentSearches();
+                      setRecent([]);
+                    }}
+                    className="text-[11px] text-muted-foreground transition hover:text-foreground hover:underline"
+                  >
+                    {t("search.recent_clear")}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {recent.map((term) => (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={() => {
+                        setDraft(term);
+                        submitPhrase(term);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-foreground transition hover:bg-muted"
+                    >
+                      <Clock className="h-3 w-3 text-muted-foreground" aria-hidden />
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {(popular.data?.length ?? 0) > 0 && (
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">

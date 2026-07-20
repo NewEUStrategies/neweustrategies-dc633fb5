@@ -107,6 +107,18 @@ export function AdvancedSearchPanel({ url, onChange }: Props) {
             </code>
             {t("search.adv.syntax_and")}
           </li>
+          <li className="flex items-center gap-1.5">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground font-medium">
+              energia OR klimat
+            </code>
+            {t("search.adv.syntax_or")}
+          </li>
+          <li className="flex items-center gap-1.5">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground font-medium">
+              NOT sankcje
+            </code>
+            {t("search.adv.syntax_not")}
+          </li>
         </ul>
       </div>
     </div>
